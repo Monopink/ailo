@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS message_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     status ENUM('sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
-    metadata JSON
+    meta_data JSON
 );
 
 -- 创建定时消息表
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS scheduled_message (
     status ENUM('pending', 'sent', 'cancelled', 'failed') DEFAULT 'pending',
     retry_count INT DEFAULT 0,
     last_retry TIMESTAMP,
-    metadata JSON
+    meta_data JSON
 );
 
 -- 创建用户设置表
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS message_push (
     delivered BOOLEAN DEFAULT FALSE,
     retry_count INT DEFAULT 0,
     last_retry TIMESTAMP,
-    metadata JSON
+    meta_data JSON
 );
 
 -- 插入示例用户数据

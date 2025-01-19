@@ -4,16 +4,12 @@ import logging
 from typing import Dict, Any
 from fastapi import WebSocket
 from event_bus import event_bus, EventTypes
-from database import DatabaseManager
-from message_router import MessageRouter
 
 logger = logging.getLogger(__name__)
 
 class WebSocketManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
-        self.db_manager = DatabaseManager()
-        self.message_router = MessageRouter(self.db_manager)
         
     async def connect(self, websocket: WebSocket, client_id: str):
         """
@@ -57,14 +53,9 @@ class WebSocketManager:
                 message['source'] = 'websocket'
                 
                 # 发布消息到事件总线
+                logger.debug(f"Publishing message from client {client_id} to event bus")
                 await event_bus.publish(EventTypes.MESSAGE_RECEIVED, message)
-                
-                # 路由消息到对应的模型
-                response = await self.message_router.route_message(message)
-                
-                # 发送响应
-                if response:
-                    await self.send_message(response['to_id'], response)
+                logger.debug(f"Message published successfully for client {client_id}")
                 
         except Exception as e:
             logger.error(f"Error processing message from client {client_id}: {str(e)}")
@@ -87,7 +78,9 @@ class WebSocketManager:
         处理已处理的消息
         """
         try:
+            logger.debug(f"Handling processed message: {message}")
             await self.send_message(message['to_id'], message)
+            logger.debug(f"Processed message sent successfully to client {message['to_id']}")
         except Exception as e:
             logger.error(f"Error handling processed message: {str(e)}")
 

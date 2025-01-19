@@ -5,6 +5,7 @@ from services.websocket import websocket_manager
 from database import DatabaseManager
 import logging
 import uvicorn
+from message_router import message_router
 
 # 配置日志
 logging.basicConfig(
@@ -23,7 +24,7 @@ app = FastAPI()
 # 配置 CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 在生产环境中应该指定具体的域名
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,15 +42,21 @@ async def startup_event():
     try:
         logger.info("Starting application initialization...")
         
+        # 启动事件总线
+        logger.info("Starting event bus...")
+        await event_bus.start()
+        logger.info("Event bus started successfully")
+        
         # 等待数据库初始化完成
         logger.info("Initializing database...")
         await db_manager._init_task
         logger.info("Database initialized successfully")
 
-        # 启动事件总线
-        logger.info("Starting event bus...")
-        await event_bus.start()
-        logger.info("Event bus started successfully")
+        # 确保 message_router 已经创建并订阅了事件
+        logger.info("Initializing message router...")
+        if not hasattr(app.state, 'message_router'):
+            app.state.message_router = message_router
+        logger.info("Message router initialized successfully")
 
         # 初始化 WebSocket 管理器
         logger.info("Initializing WebSocket manager...")
@@ -91,7 +98,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         await websocket_manager.receive_message(websocket, client_id)
     except Exception as e:
         logger.error(f"WebSocket error for client {client_id}: {str(e)}")
-    finally:
         await websocket_manager.disconnect(client_id)
 
 @app.get("/health")

@@ -60,7 +60,7 @@ class EventBus:
             logger.warning("Event bus is not running, message ignored")
             return
         await self._message_queue.put((event_type, data))
-        logger.debug(f"Published event: {event_type}")
+        logger.debug(f"Published event: {event_type}, subscribers count: {len(self._subscribers.get(event_type, []))}")
 
     async def _process_queue(self):
         """处理消息队列"""
@@ -73,13 +73,18 @@ class EventBus:
                     timeout=1.0  # 1秒超时
                 )
                 
+                logger.debug(f"Processing event: {event_type}")
                 if event_type in self._subscribers:
                     subscribers = self._subscribers[event_type].copy()
+                    logger.debug(f"Found {len(subscribers)} subscribers for event: {event_type}")
                     for callback in subscribers:
                         try:
                             await callback(data)
                         except Exception as e:
-                            logger.error(f"Error processing event {event_type}: {str(e)}")
+                            logger.error(f"Error in subscriber callback for event {event_type}: {str(e)}")
+                else:
+                    logger.warning(f"No subscribers found for event: {event_type}")
+                
                 self._message_queue.task_done()
                 
             except asyncio.TimeoutError:

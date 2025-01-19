@@ -7,7 +7,7 @@ class LilyModel(BaseModel):
     def __init__(self, bot: any, db_manager: any):
         super().__init__(bot, db_manager)
         self.llm_api = DouBaoAPI()
-        self.min_chars = 50  # 最小字符数要求
+        self.min_chars = 20  # 最小字符数要求
         self.char_wait_time = 0.1  # 每个字符的等待时间（秒）
 
     async def process_message(self, message: dict) -> dict:
@@ -25,7 +25,7 @@ class LilyModel(BaseModel):
                 return {
                     'from_id': str(self.bot.id),
                     'to_id': message['from_id'],
-                    'content': f"请多说一些，至少{self.min_chars}个字才能帮助我更好地理解和回复哦~",
+                    'content': f"Message received.",
                     'message_type': 'prompt'
                 }
 
@@ -83,7 +83,7 @@ class LilyModel(BaseModel):
                 'to_id': message['from_id'],
                 'content': llm_response,
                 'message_type': 'text',
-                'metadata': {
+                'meta_data': {
                     'relationship_type': self.bot.relationship_type.value,
                     'relationship_score': self.bot.relationship_score,
                 }

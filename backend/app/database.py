@@ -89,7 +89,7 @@ class MessageHistory(Base):
     message_type = Column(String(50), default='text')
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    status = Column(String(20), default='sent')
+    status = Column(Enum('sent', 'delivered', 'read', 'failed'), default='sent')
     meta_data = Column(JSON)
 
     def to_dict(self):
@@ -206,6 +206,7 @@ class DatabaseManager:
             return None
 
     async def save_message(self, message: dict):
+        """保存消息到数据库"""
         async with self.session_maker() as session:
             new_message = MessageHistory(
                 from_id=message['from_id'],

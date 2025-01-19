@@ -1,5 +1,5 @@
-
-requests
+# Cloud Services
+leancloud
 volcengine-python-sdk[ark]
 
 # Web Framework
@@ -10,7 +10,6 @@ websockets==12.0
 # Database
 sqlalchemy==2.0.23
 aiomysql==0.2.0
-pymysql==1.1.0
 alembic==1.12.1
 
 # API Client
@@ -25,10 +24,10 @@ passlib[bcrypt]==1.7.4
 
 # Utilities
 python-dotenv==1.0.0
-asyncio==3.4.3
 aiofiles==23.2.1
 tenacity==8.2.3
 structlog==23.2.0
+aioredis==2.0.1
 
 # Time and Date handling
 pytz==2023.3

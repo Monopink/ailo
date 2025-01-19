@@ -19,10 +19,20 @@
         .message {
             margin: 5px 0;
             padding: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .message-content {
+            margin-right: 10px;
+        }
+        .message-time {
+            font-size: 0.8em;
+            color: #666;
+            white-space: nowrap;
         }
         .user-message {
             background-color: #e3f2fd;
-            text-align: right;
         }
         .ai-message {
             background-color: #f5f5f5;
@@ -40,6 +50,21 @@
         #message {
             flex-grow: 1;
         }
+        .connection-status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin-left: 10px;
+            font-size: 0.9em;
+        }
+        .status-connected {
+            background-color: #4caf50;
+            color: white;
+        }
+        .status-disconnected {
+            background-color: #f44336;
+            color: white;
+        }
     </style>
     <script>
         let socket;
@@ -49,7 +74,22 @@
             const messages = document.getElementById("messages");
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}-message`;
-            messageDiv.textContent = content;
+
+            // 创建消息内容元素
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+
+            // 创建时间元素
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            const now = new Date();
+            timeDiv.textContent = now.toLocaleTimeString();
+
+            // 添加内容和时间到消息div
+            messageDiv.appendChild(contentDiv);
+            messageDiv.appendChild(timeDiv);
+            
             messages.appendChild(messageDiv);
             messages.scrollTop = messages.scrollHeight;
 
@@ -57,7 +97,7 @@
             messageHistory.push({
                 content: content,
                 type: type,
-                timestamp: new Date().toISOString()
+                timestamp: now.toISOString()
             });
         }
 
@@ -72,6 +112,7 @@
 
             socket.onopen = () => {
                 addMessage("Connected to server", "system");
+                updateConnectionStatus();
             };
 
             socket.onmessage = (event) => {
@@ -94,12 +135,15 @@
             socket.onclose = (event) => {
                 console.log("WebSocket closed:", event);
                 addMessage("Connection closed", "system");
+                updateConnectionStatus();
             };
 
             socket.onerror = (error) => {
                 console.error("WebSocket error:", error);
                 addMessage("Connection error occurred", "system");
             };
+
+            updateConnectionStatus();
         }
 
         function sendMessage() {
@@ -119,8 +163,10 @@
             
             if (socket && socket.readyState === WebSocket.OPEN) {
                 const message = {
-                    bot_id: botId,
-                    content: content
+                    from_id: userId,
+                    to_id: botId,
+                    content: content,
+                    timestamp: new Date().toISOString()
                 };
                 
                 socket.send(JSON.stringify(message));
@@ -144,6 +190,34 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
+
+        function updateConnectionStatus() {
+            const statusDiv = document.getElementById("connection-status");
+            if (!socket) {
+                statusDiv.textContent = "Not connected";
+                statusDiv.className = "connection-status status-disconnected";
+                return;
+            }
+
+            switch (socket.readyState) {
+                case WebSocket.CONNECTING:
+                    statusDiv.textContent = "Connecting...";
+                    statusDiv.className = "connection-status status-disconnected";
+                    break;
+                case WebSocket.OPEN:
+                    statusDiv.textContent = "Connected";
+                    statusDiv.className = "connection-status status-connected";
+                    break;
+                case WebSocket.CLOSING:
+                    statusDiv.textContent = "Disconnecting...";
+                    statusDiv.className = "connection-status status-disconnected";
+                    break;
+                case WebSocket.CLOSED:
+                    statusDiv.textContent = "Disconnected";
+                    statusDiv.className = "connection-status status-disconnected";
+                    break;
+            }
+        }
     </script>
 </head>
 <body>
@@ -154,6 +228,7 @@
             <input id="bot_id" placeholder="Enter Bot ID">
             <button onclick="connect()">Connect</button>
             <button onclick="downloadHistory()">Download Chat History</button>
+            <span id="connection-status" class="connection-status status-disconnected">Not connected</span>
         </div>
         <br>
         <div id="messages" class="messages"></div>

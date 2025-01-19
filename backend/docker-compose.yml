@@ -10,24 +10,15 @@ services:
       - ./app:/app
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=mysql+aiomysql://user:password@db/says_dev
-      - PYTHONPATH=/app
-      - DEBUG=1
-      - MAX_WORKERS=4
-      - ENVIRONMENT=development
     depends_on:
-      db:
-        condition: service_healthy
+      - db
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:root@db:3306/says_dev
+      - DEBUG=1
+      - PYTHONPATH=/app
     networks:
-      - app_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      - app-network
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   db:
     image: mysql:8.0
@@ -37,26 +28,21 @@ services:
       MYSQL_DATABASE: says_dev
       MYSQL_USER: user
       MYSQL_PASSWORD: password
-      TZ: Asia/Shanghai
     ports:
       - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d
-      - ./mysql/conf:/etc/mysql/conf.d
     networks:
-      - app_network
+      - app-network
     command: --default-authentication-plugin=mysql_native_password
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "user", "-ppassword"]
-      interval: 10s
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
 
 networks:
-  app_network:
+  app-network:
     driver: bridge
 
 volumes:

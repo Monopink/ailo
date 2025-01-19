@@ -1,131 +1,98 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-import asyncio
-from typing import Dict
-import json
-from datetime import datetime
+from event_bus import event_bus
+from services.websocket import websocket_manager
+from database import DatabaseManager
+import logging
+import uvicorn
 
-from sender import message_sender
-from database import db_manager
-import transfer
-from bot_model import BotManager
+# 配置日志
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s: %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('app.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
-# 创建FastAPI应用
-app = FastAPI(title="AI Chat Backend")
+# 创建 FastAPI 应用
+app = FastAPI()
 
-# 配置CORS
+# 配置 CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
-# 注册路由
-app.include_router(transfer.router, prefix="/api")
-
-# 存储活跃的WebSocket连接
-active_connections: Dict[str, WebSocket] = {}
-
-# 创建bot_manager实例并注入message_sender
-bot_manager = BotManager(message_sender)
-
-# 将bot_manager注入到transfer模块
-transfer.init_bot_manager(bot_manager)
+# 创建数据库管理器实例
+db_manager = DatabaseManager()
 
 @app.on_event("startup")
 async def startup_event():
     """
-    应用启动时的初始化操作
+    应用启动时的初始化
     """
     try:
-        # 初始化数据库连接
-        await db_manager.get_session()
-        print("Database connection initialized successfully")
+        logger.info("Starting application initialization...")
+        
+        # 等待数据库初始化完成
+        logger.info("Initializing database...")
+        await db_manager._init_task
+        logger.info("Database initialized successfully")
+
+        # 启动事件总线
+        logger.info("Starting event bus...")
+        await event_bus.start()
+        logger.info("Event bus started successfully")
+
+        # 初始化 WebSocket 管理器
+        logger.info("Initializing WebSocket manager...")
+        websocket_manager.db_manager = db_manager
+        logger.info("WebSocket manager initialized successfully")
+
+        logger.info("Application startup complete")
     except Exception as e:
-        print(f"Error initializing database connection: {e}")
+        logger.error(f"Failed to start application: {str(e)}")
+        raise
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """
-    应用关闭时的清理操作
+    应用关闭时的清理
     """
     try:
-        # 关闭所有WebSocket连接
-        for user_id in list(active_connections.keys()):
-            await active_connections[user_id].close()
-        active_connections.clear()
-        
-        # 关闭数据库连接
-        await db_manager.close_session()
-        print("Cleanup completed successfully")
-    except Exception as e:
-        print(f"Error during cleanup: {e}")
+        # 停止事件总线
+        await event_bus.stop()
+        logger.info("Event bus stopped")
 
-@app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    """
-    处理WebSocket连接的主要端点
-    """
-    await websocket.accept()
-    active_connections[user_id] = websocket
-    message_sender.register_connection(user_id, websocket)
-    
-    try:
-        while True:
-            # 接收消息
-            data = await websocket.receive_text()
-            
-            try:
-                # 解析消息内容
-                message_data = json.loads(data)
-                bot_id = message_data.get("bot_id")
-                content = message_data.get("content")
-                
-                if not bot_id or not content:
-                    await websocket.send_text(
-                        json.dumps({
-                            "error": "Invalid message format. Must include bot_id and content."
-                        })
-                    )
-                    continue
-                
-                # 处理消息
-                await bot_manager.process_message(
-                    user_id=user_id,
-                    bot_id=bot_id,
-                    message=content
-                )
-                
-            except json.JSONDecodeError:
-                await websocket.send_text(
-                    json.dumps({
-                        "error": "Invalid JSON format"
-                    })
-                )
-            except Exception as e:
-                print(f"Error processing message: {e}")
-                await websocket.send_text(
-                    json.dumps({
-                        "error": "Error processing message"
-                    })
-                )
-    
-    except WebSocketDisconnect:
-        # 处理连接断开
-        if user_id in active_connections:
-            del active_connections[user_id]
-        message_sender.remove_connection(user_id)
-        print(f"Client {user_id} disconnected")
-    
+        # 关闭所有 WebSocket 连接
+        for client_id in list(websocket_manager.active_connections.keys()):
+            await websocket_manager.disconnect(client_id)
+        logger.info("All WebSocket connections closed")
+
+        logger.info("Application shutdown complete")
     except Exception as e:
-        print(f"Unexpected error in websocket connection: {e}")
-        if user_id in active_connections:
-            del active_connections[user_id]
-        message_sender.remove_connection(user_id)
+        logger.error(f"Error during shutdown: {str(e)}")
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    """
+    WebSocket 连接端点
+    """
+    try:
+        logger.info(f"New WebSocket connection request from client {client_id}")
+        await websocket_manager.connect(websocket, client_id)
+        await websocket_manager.receive_message(websocket, client_id)
+    except Exception as e:
+        logger.error(f"WebSocket error for client {client_id}: {str(e)}")
+    finally:
+        await websocket_manager.disconnect(client_id)
 
 @app.get("/health")
 async def health_check():
@@ -134,16 +101,29 @@ async def health_check():
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "active_connections": len(active_connections)
+        "database": "connected" if db_manager._init_task.done() else "initializing",
+        "event_bus": "running" if event_bus._running else "stopped"
+    }
+
+@app.get("/")
+async def root():
+    """
+    根路径响应
+    """
+    return {
+        "message": "Welcome to Says API",
+        "version": "1.0.0",
+        "status": "running"
     }
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        workers=1
+        log_level="debug",
+        ws_ping_interval=20,
+        ws_ping_timeout=20,
+        access_log=True
     )

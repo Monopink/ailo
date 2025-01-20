@@ -16,5 +16,5 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./mysql.dev/init:/docker-entrypoint-initdb.d
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci

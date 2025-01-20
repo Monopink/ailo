@@ -1,0 +1,178 @@
+在 Python、FastAPI 和可扩展 API 开发方面，您是一位专家。
+
+主要原则：
+- 撰写简洁的技术性回复，并提供准确的 Python 示例。
+- 使用函数式声明式编程；尽可能避免使用类。
+- 优先考虑迭代和模块化，而不是代码重复。
+- 使用带有辅助动词的描述性变量名（例如，is_active、has_permission）。
+- 目录和文件使用下划线的小写字母（例如，services/websocket.py）。
+- 为路由和实用程序函数选择命名导出。
+- 使用 Receive an Object, Return an Object (RORO) 模式。
+
+Python/FastAPI：
+- 对纯函数使用 def，对异步操作使用 async def。
+- 为所有函数签名使用类型提示。输入验证优先考虑使用 Pydantic 模型，而不是原始字典。
+- 文件结构：导出的路由器、子路由、实用程序、静态内容、类型（模型、架构）。
+- 在条件语句中避免使用不必要的大括号。
+- 对于条件语句中单行语句，省略大括号。
+- 对简单的条件语句使用简洁的单行语法（例如，if condition: do_something()）。
+
+错误处理和验证：
+- 优先处理错误和边界情况：
+- 在函数开头处理错误和边界情况。
+- 对错误条件使用早期返回，以避免深度嵌套的 if 语句。
+- 将正常路径放在函数最后，以提高可读性。
+- 避免不必要的 else 语句；改为使用 if-return 模式。
+- 使用守卫子句尽早处理前置条件和无效状态。
+- 实现适当的错误日志和用户友好的错误消息。
+- 使用自定义错误类型或错误工厂以实现一致的错误处理。
+
+依赖关系：
+- FastAPI
+- 异步数据库库，如 asyncpg 或 aiomysql
+
+FastAPI 具体准则：
+- 使用函数组件（普通函数）和 Pydantic 模型进行输入验证和响应模式。
+- 使用带有明确返回类型注释的声明性路由定义。
+- 对同步操作使用 def，对异步操作使用 async def。
+- 最小化 @app.on_event("startup") 和 @app.on_event("shutdown"); 优先考虑使用生命周期上下文管理器来管理启动和关闭事件。
+- 使用中间件进行日志记录、错误监控和性能优化。
+- 使用异步函数对 I/O 绑定任务、缓存策略和惰性加载进行优化以获取性能。
+- 对预期错误使用 HTTPException，并将它们建模为特定的 HTTP 响应。
+- 使用中间件处理意外错误、日志记录和错误监控。
+- 为一致的输入/输出验证和响应模式使用 Pydantic 的 BaseModel。
+
+性能优化：
+- 最小化阻塞 I/O 操作；对所有数据库调用和外部 API 请求使用异步操作。
+- 使用 Redis 或内存存储等工具为静态和频繁访问的数据实现缓存。
+- 对大型数据集和大量的 API 响应使用惰性加载技术。
+
+主要约定：
+1. 依靠 FastAPI 的依赖注入系统来管理状态和共享资源。
+2. 优先考虑 API 性能指标（响应时间、延迟、吞吐量）。
+3. 限制路由中的阻塞操作：
+- 优先考虑异步和非阻塞流。
+- 为数据库和外部 API 操作使用专门的异步函数。
+- 明确组织路由和依赖关系以优化可读性和可维护性。
+关于数据模型、路径操作和中间件的最佳实践，请参阅 FastAPI 文档。
+
+项目介绍：
+这是一个ai聊天程序，技术架构采用前后端分离，即时通讯使用 leancloud 提供的即时通信能力（本地测试环境使用websocket），ai功能调用大模型api，同时后端对消息进行处理（历史消息读取、用户身份分析、上下文处理、主动发送消息等），使用mysql数据库。
+
+模型职责：消息模型只负责处理消息，生成一个标准化的回复对象，并将其返回给调用方。
+消息路由职责：路由模块接收消息模型的处理结果，负责根据消息来源选择正确的发送逻辑。
+事件驱动：通过事件发布订阅机制或回调函数，解耦消息处理和消息发送的逻辑。
+
+消息流转的核心流程：
+
+1. 接收消息：
+   - 消息服务（如 WebSocket 或 LeanCloud）监听消息来源（如用户客户端）。
+   - 当用户发送消息时，消息被捕获，并包装成标准化的消息对象。包含 from_id、to_id、content、来源、时间戳等。
+2. 传递到事件总线：
+   - 消息服务将标准化消息对象发布到 event_bus。
+   - 事件总线负责广播消息或将消息分发到指定的模块 message_router 。
+3. 路由到消息模型：
+   - message_router 在数据库的bot表中查询对应id，然后查找对应字段model（假设为lily），根据model字段将消息给指定的bot model（model_lily.py）进行处理。
+   - 消息模型被设计为完全独立的处理单元，只负责逻辑处理和生成响应。
+4. 处理消息：
+   - 消息模型接收消息，执行以下操作：
+     - 调用大模型 API（如 Doubao 或 ChatGPT）。
+     - 使用历史上下文和数据库中的用户数据进行逻辑处理。
+     - 生成响应消息。
+     - 消息超时：如果超过一定时间用户没有发送消息则停止等待，将上下文保存至数据库。
+5. 响应传递回事件总线：
+   - 消息模型将生成的响应消息传回 event_bus，由总线将其发布给原消息来源。
+6. 消息存储：
+   - 在消息模型处理过程中或事件总线广播后，消息和相关上下文被存储到数据库（MySQL），确保会话的完整性和状态的可恢复性。
+7. 发送响应：
+   - 消息服务（如 WebSocket 或 LeanCloud）监听事件总线上的响应事件，并将响应消息发送回用户客户端。
+
+编程要求：
+
+- 现在为本地开发测试，leancloud、llm_api暂不调用api均使用模拟返回。
+- 模块间应该解耦合，代码职责分离，每个模块专注于单一功能。
+- 主入口 main.py 保持简单，仅用于启动核心服务。
+
+# 基础规则
+rules:
+  # 核心应用文件
+  - when: backend/app/main.py
+    include:
+      - backend/app/event_bus.py
+      - backend/app/message_router.py
+      - backend/app/database.py
+      - backend/app/services/websocket.py
+
+  # 消息路由相关
+  - when: backend/app/message_router.py
+    include:
+      - backend/app/models/base.py
+      - backend/app/models/model_lily.py
+      - backend/app/database.py
+      - backend/app/event_bus.py
+
+  # 模型相关
+  - when: backend/app/models/model_lily.py
+    include:
+      - backend/app/models/base.py
+      - backend/app/llm_apis/doubao.py
+      - backend/app/database.py
+
+  # LLM API 相关
+  - when: backend/app/llm_apis/doubao.py
+    include:
+      - backend/app/llm_apis/base.py
+
+  # WebSocket 相关
+  - when: backend/app/services/websocket.py
+    include:
+      - backend/app/event_bus.py
+
+  # 数据库相关
+  - when: backend/app/database.py
+    include:
+      - backend/mysql/init/init.sql
+
+  # 服务基类相关
+  - when: backend/app/services/base.py
+    include:
+      - backend/app/services/__init__.py
+
+  # 模型基类相关
+  - when: backend/app/models/base.py
+    include:
+      - backend/app/models/__init__.py
+
+# 初始化文件规则
+  - when: backend/app/**/__init__.py
+    include:
+      - backend/app/**/base.py
+
+# 数据库初始化
+  - when: backend/mysql/init/init.sql
+    include:
+      - backend/app/database.py
+
+# 特殊规则：当查看任何 Python 文件时
+  - when: "**/*.py"
+    include:
+      - backend/app/main.py
+      - backend/app/event_bus.py
+
+# 文件类型规则
+fileTypes:
+  - extension: .py
+    relevantFiles:
+      - __init__.py
+      - base.py
+  - extension: .sql
+    relevantFiles:
+      - init.sql
+
+# 忽略规则
+ignore:
+  - "**/__pycache__/**"
+  - "**/.git/**"
+  - "**/venv/**"
+  - "**/.env"
+  - "**/*.pyc"

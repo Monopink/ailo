@@ -3,7 +3,7 @@ import random
 from typing import Dict, Any
 from .base import BaseLLMAPI
 
-class DouBaoAPI(BaseLLMAPI):
+class MockLLMAPI(BaseLLMAPI):
     def __init__(self):
         super().__init__()
         self.api_base = "https://api.doubao.com/v1"  # 示例 API 地址

@@ -1,7 +1,7 @@
 from .base import BaseLLMAPI
-from .doubao import DouBaoAPI
+from .mock_llm import MockLLMAPI
 
 __all__ = [
     'BaseLLMAPI',
-    'DouBaoAPI'
+    'MockLLMAPI'
 ]

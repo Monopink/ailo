@@ -1,12 +1,12 @@
 import asyncio
 from datetime import datetime
 from .base import BaseModel
-from llm_apis.doubao import DouBaoAPI
+from llm_apis.mock_llm import MockLLMAPI
 
 class LilyModel(BaseModel):
     def __init__(self, bot: any, db_manager: any):
         super().__init__(bot, db_manager)
-        self.llm_api = DouBaoAPI()
+        self.llm_api = MockLLMAPI()
         self.min_chars = 20  # 最小字符数要求
         self.char_wait_time = 0.1  # 每个字符的等待时间（秒）
 

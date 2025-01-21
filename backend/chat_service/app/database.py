@@ -2,7 +2,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, JSON, ForeignKey
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import enum
 import asyncio
 import logging
@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # 数据库配置
-DATABASE_URL = "mysql+aiomysql://root:root@db/says_dev"
+DATABASE_URL = "mysql+aiomysql://root:root@db/says_dev?charset=utf8mb4"
 engine = create_async_engine(DATABASE_URL, echo=True)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -47,8 +47,8 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     last_login = Column(DateTime)
     status = Column(Enum(UserStatus), default=UserStatus.active)
     role = Column(Enum(UserRole), default=UserRole.user)
@@ -61,8 +61,8 @@ class Bot(Base):
     
     id = Column(Integer, primary_key=True)
     model = Column(String(50), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     status = Column(Enum(BotStatus), default=BotStatus.active)
     gender = Column(String(10), nullable=False)
     birth_date = Column(DateTime)
@@ -87,8 +87,8 @@ class MessageHistory(Base):
     content = Column(Text, nullable=False)
     content_overview = Column(String(255))
     message_type = Column(String(50), default='text')
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     status = Column(Enum('sent', 'delivered', 'read', 'failed'), default='sent')
     meta_data = Column(JSON)
 
@@ -112,8 +112,8 @@ class Session(Base):
     id = Column(String(36), primary_key=True)
     user_id = Column(Integer, ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     bot_id = Column(Integer, ForeignKey('bot.id', ondelete='CASCADE'), nullable=False)
-    started_at = Column(DateTime, default=datetime.utcnow)
-    last_activity = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    started_at = Column(DateTime, default=datetime.now(timezone.utc))
+    last_activity = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     status = Column(String(20), default='active')
     context = Column(JSON)
     meta_data = Column(JSON)
@@ -273,7 +273,7 @@ class DatabaseManager:
                 db_session = result.scalar_one_or_none()
                 if db_session:
                     db_session.context = context
-                    db_session.last_activity = datetime.utcnow()
+                    db_session.last_activity = datetime.now(timezone.utc)
                     await session.commit()
                     return True
                 return False
@@ -283,7 +283,7 @@ class DatabaseManager:
 
     async def get_active_sessions(self, timeout_minutes: int = 30):
         """获取活跃会话"""
-        timeout = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+        timeout = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
         async with self.session_maker() as session:
             result = await session.execute(
                 select(Session).where(
@@ -295,7 +295,7 @@ class DatabaseManager:
 
     async def cleanup_inactive_sessions(self, timeout_minutes: int = 30):
         """清理不活跃的会话"""
-        timeout = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+        timeout = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
         async with self.session_maker() as session:
             try:
                 await session.execute(

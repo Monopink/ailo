@@ -93,71 +93,103 @@ FastAPI 具体准则：
 - 模块间应该解耦合，代码职责分离，每个模块专注于单一功能。
 - 主入口 main.py 保持简单，仅用于启动核心服务。
 
+文件结构：
+
+says
+├── backend  # 后端服务
+│   └── chat_service  # AI对话服务
+│       ├── Dockerfile  # 后端服务Dockerfile
+│       ├── app  # 后端服务代码
+│       │   ├── app.log  # 后端服务日志
+│       │   ├── database.py  # 后端服务数据库
+│       │   ├── event_bus.py  # 后端服务事件总线
+│       │   ├── llm_apis  # 后端服务大模型api
+│       │   ├── main.py  # 后端服务主入口
+│       │   ├── message_router.py  # 后端服务消息路由
+│       │   ├── models  # 后端服务模型
+│       │   └── services  # 后端服务服务
+│       ├── docker-compose.dev.yml  # 后端服务开发环境docker-compose
+│       ├── docker-compose.yml  # 后端服务生产环境docker-compose
+│       ├── mysql_dev  # 后端服务开发环境mysql
+│       │   ├── conf  # 后端服务开发环境mysql配置
+│       │   └── init  # 后端服务开发环境mysql初始化
+│       ├── requirements.txt  # 后端服务依赖
+│       └── web_dev  # 后端服务websocket调试简易前端
+│           ├── Dockerfile  # 开发环境websocket前端Dockerfile
+│           ├── docker-compose.yml  # 开发环境websocket前端docker-compose
+│           ├── index.html  # 开发环境websocket前端index.html
+│           └── usr  # 开发环境websocket前端usr
+├── database  # 数据库
+│   └── init.sql  # 数据库初始化
+├── docker-compose.yml  # 项目docker-compose
+└── frontend  # 前端服务
+    └── web  # 前端服务web
+
 # 基础规则
 rules:
   # 核心应用文件
-  - when: backend/app/main.py
+  - when: backend/chat_service/app/main.py
     include:
-      - backend/app/event_bus.py
-      - backend/app/message_router.py
-      - backend/app/database.py
-      - backend/app/services/websocket.py
+      - backend/chat_service/app/event_bus.py
+      - backend/chat_service/app/message_router.py
+      - backend/chat_service/app/database.py
+      - backend/chat_service/app/services/websocket.py
 
   # 消息路由相关
-  - when: backend/app/message_router.py
+  - when: backend/chat_service/app/message_router.py
     include:
-      - backend/app/models/base.py
-      - backend/app/models/model_lily.py
-      - backend/app/database.py
-      - backend/app/event_bus.py
+      - backend/chat_service/app/models/base.py
+      - backend/chat_service/app/models/model_lily.py
+      - backend/chat_service/app/database.py
+      - backend/chat_service/app/event_bus.py
 
   # 模型相关
-  - when: backend/app/models/model_lily.py
+  - when: backend/chat_service/app/models/model_lily.py
     include:
-      - backend/app/models/base.py
-      - backend/app/llm_apis/doubao.py
-      - backend/app/database.py
+      - backend/chat_service/app/models/base.py
+      - backend/chat_service/app/llm_apis/doubao.py
+      - backend/chat_service/app/database.py
 
   # LLM API 相关
-  - when: backend/app/llm_apis/doubao.py
+  - when: backend/chat_service/app/llm_apis/doubao.py
     include:
-      - backend/app/llm_apis/base.py
+      - backend/chat_service/app/llm_apis/base.py
 
   # WebSocket 相关
-  - when: backend/app/services/websocket.py
+  - when: backend/chat_service/app/services/websocket.py
     include:
-      - backend/app/event_bus.py
+      - backend/chat_service/app/event_bus.py
 
   # 数据库相关
-  - when: backend/app/database.py
+  - when: backend/chat_service/app/database.py
     include:
-      - backend/mysql/init/init.sql
+      - backend/chat_service/mysql/init/init.sql
 
   # 服务基类相关
-  - when: backend/app/services/base.py
+  - when: backend/chat_service/app/services/base.py
     include:
-      - backend/app/services/__init__.py
+      - backend/chat_service/app/services/__init__.py
 
   # 模型基类相关
-  - when: backend/app/models/base.py
+  - when: backend/chat_service/app/models/base.py
     include:
-      - backend/app/models/__init__.py
+      - backend/chat_service/app/models/__init__.py
 
 # 初始化文件规则
-  - when: backend/app/**/__init__.py
+  - when: backend/chat_service/app/**/__init__.py
     include:
-      - backend/app/**/base.py
+      - backend/chat_service/app/**/base.py
 
 # 数据库初始化
-  - when: backend/mysql/init/init.sql
+  - when: backend/chat_service/mysql/init/init.sql
     include:
-      - backend/app/database.py
+      - backend/chat_service/app/database.py
 
 # 特殊规则：当查看任何 Python 文件时
   - when: "**/*.py"
     include:
-      - backend/app/main.py
-      - backend/app/event_bus.py
+      - backend/chat_service/app/main.py
+      - backend/chat_service/app/event_bus.py
 
 # 文件类型规则
 fileTypes:

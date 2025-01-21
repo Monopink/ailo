@@ -1,56 +1,22 @@
 import asyncio
 import random
-from typing import Dict, Any
 from .base import BaseLLMAPI
 
 class MockLLMAPI(BaseLLMAPI):
-    def __init__(self):
-        super().__init__()
-        self.api_base = "https://api.doubao.com/v1"  # 示例 API 地址
-        self.response_templates = {
-            'stranger': [
-                "您好！{content}",
-                "这个问题很有趣，{content}",
-                "确实如此，{content}",
-            ],
-            'friend': [
-                "哈哈，{content}",
-                "说得对啊，{content}",
-                "我觉得吧，{content}",
-            ],
-            'confidant': [
-                "亲爱的朋友，{content}",
-                "你说得很对呢，{content}",
-                "其实我觉得吧，{content}",
-            ],
-            'lover': [
-                "亲爱的，{content}",
-                "宝贝，{content}",
-                "我同意你的看法，{content}",
-            ]
-        }
-
-    async def generate_response(self, prompt: str, context: Dict[str, Any] = None) -> str:
+    async def generate_response(self, prompt: str) -> str:
         """
-        模拟生成响应
+        模拟大模型API响应
+        Args:
+            prompt: 输入的提示词
+        Returns:
+            str: 模拟的API响应
         """
         try:
             # 模拟 API 调用延迟
             await asyncio.sleep(random.uniform(0.5, 2.0))
             
-            # 获取关系类型
-            relationship = context.get('relationship_type', 'stranger')
-            
-            # 根据关系类型选择响应模板
-            templates = self.response_templates.get(relationship, self.response_templates['stranger'])
-            template = random.choice(templates)
-            
             # 生成模拟回复内容
-            response_content = self._generate_mock_content(prompt)
-            
-            # 使用模板格式化响应
-            response = template.format(content=response_content)
-            
+            response = self._generate_mock_content(prompt)
             return self.format_response(response)
 
         except Exception as e:
@@ -75,7 +41,4 @@ class MockLLMAPI(BaseLLMAPI):
         """
         验证响应是否合适
         """
-        # 简单的验证逻辑
-        if not response or len(response) < 10:
-            return False
-        return True
+        return bool(response and len(response) >= 10)

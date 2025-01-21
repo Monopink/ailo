@@ -12,16 +12,24 @@ class BaseLLMAPI(ABC):
         }
 
     @abstractmethod
-    async def generate_response(self, prompt: str, context: Dict[str, Any] = None) -> str:
+    async def generate_response(self, prompt: dict) -> dict:
         """
-        生成响应的抽象方法
+        生成大模型响应
+        Args:
+            prompt: 输入的提示词
+        Returns:
+            str: 大模型的响应
         """
         pass
 
     @abstractmethod
     async def validate_response(self, response: str) -> bool:
         """
-        验证响应的抽象方法
+        验证响应是否有效
+        Args:
+            response: 大模型的响应
+        Returns:
+            bool: 响应是否有效
         """
         pass
 
@@ -47,9 +55,12 @@ class BaseLLMAPI(ABC):
 
     def format_response(self, response: str) -> str:
         """
-        格式化响应
+        格式化响应内容
+        Args:
+            response: 原始响应内容
+        Returns:
+            str: 格式化后的响应内容
         """
-        # 清理和格式化响应文本
-        response = response.strip()
-        response = response.replace('\n\n', '\n')
-        return response
+        if not response:
+            return ""
+        return response.strip()

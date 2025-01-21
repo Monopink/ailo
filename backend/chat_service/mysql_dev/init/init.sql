@@ -1,3 +1,7 @@
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+SET collation_connection = utf8mb4_unicode_ci;
+
 -- 创建数据库（如果不存在）
 CREATE DATABASE IF NOT EXISTS says_dev;
 USE says_dev;

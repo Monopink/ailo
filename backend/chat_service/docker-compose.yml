@@ -28,14 +28,20 @@ services:
       MYSQL_DATABASE: says_dev
       MYSQL_USER: user
       MYSQL_PASSWORD: password
+      MYSQL_ROOT_HOST: '%'
     ports:
       - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
-      - ./mysql.dev/init:/docker-entrypoint-initdb.d
+      - ./mysql_dev/conf/my.cnf:/etc/mysql/my.cnf:ro
+      - ./mysql_dev/init:/docker-entrypoint-initdb.d
     networks:
       - app-network
-    command: --default-authentication-plugin=mysql_native_password
+    command: >
+      --character-set-server=utf8mb4 
+      --collation-server=utf8mb4_unicode_ci 
+      --default-authentication-plugin=mysql_native_password
+      --init-file=/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 5s

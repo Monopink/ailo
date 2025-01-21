@@ -4,6 +4,7 @@ from models.base import BaseModel
 from models.model_lily import LilyModel
 from database import DatabaseManager
 from event_bus import event_bus, EventTypes
+from asyncio import Lock
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +15,12 @@ class MessageRouter:
             'lily': LilyModel
         }
         self.active_models: Dict[str, BaseModel] = {}
+        self.models_lock = Lock()  # 添加锁用于并发控制
         
-        # 订阅消息接收事件
+        # 订阅消息接收和会话结束事件
         event_bus.subscribe(EventTypes.MESSAGE_RECEIVED, self.handle_message)
-        logger.info("MessageRouter subscribed to MESSAGE_RECEIVED events")
+        event_bus.subscribe(EventTypes.SESSION_ENDED, self.handle_session_ended)
+        logger.info("MessageRouter subscribed to events")
 
     async def handle_message(self, message: dict):
         """
@@ -51,6 +54,19 @@ class MessageRouter:
                 error_response
             )
 
+    async def handle_session_ended(self, data: dict):
+        """
+        处理会话结束事件，清理相应的模型实例
+        """
+        try:
+            bot_id = str(data.get('bot_id'))
+            async with self.models_lock:
+                if bot_id in self.active_models:
+                    del self.active_models[bot_id]
+                    logger.info(f"Model instance for bot {bot_id} has been cleaned up due to session end")
+        except Exception as e:
+            logger.error(f"Error handling session end: {str(e)}")
+
     async def route_message(self, message: dict) -> dict:
         """
         路由消息到适当的模型进行处理
@@ -74,12 +90,10 @@ class MessageRouter:
                 raise ValueError(f"Model type not supported: {bot.model}")
 
             # 获取或创建模型实例
-            model_instance = self.active_models.get(str(bot_id))
-            if not model_instance:
-                model_instance = model_class(bot, self.db_manager)
-                self.active_models[str(bot_id)] = model_instance
+            model_key = str(bot_id)
+            async with self.models_lock:  # 使用锁保护并发访问
+                model_instance = self.active_models.setdefault(model_key, model_class(bot, self.db_manager))
 
-            # 处理消息
             return await model_instance.process_message(message)
 
         except Exception as e:
@@ -90,13 +104,6 @@ class MessageRouter:
                 'content': f"Error processing message: {str(e)}",
                 'message_type': 'error'
             }
-
-    async def cleanup_inactive_models(self, timeout_minutes: int = 30):
-        """
-        清理长时间不活跃的模型实例
-        """
-        # 实现清理逻辑，根据最后活动时间删除不活跃的模型实例
-        pass
 
 # 创建全局路由器实例
 message_router = MessageRouter(DatabaseManager())

@@ -1,12 +1,19 @@
-from typing import Dict, Type
+from typing import Dict, Type, Optional, Callable
 import logging
+from datetime import datetime
 from models.base import BaseModel
 from models.model_lily import LilyModel
 from database import DatabaseManager
 from event_bus import event_bus, EventTypes
 from asyncio import Lock
+import asyncio
 
 logger = logging.getLogger(__name__)
+
+class ModelInstance:
+    def __init__(self, model: BaseModel, message_service: str):
+        self.model = model
+        self.message_service = message_service
 
 class MessageRouter:
     def __init__(self, db_manager: DatabaseManager):
@@ -14,96 +21,157 @@ class MessageRouter:
         self.model_registry: Dict[str, Type[BaseModel]] = {
             'lily': LilyModel
         }
-        self.active_models: Dict[str, BaseModel] = {}
-        self.models_lock = Lock()  # 添加锁用于并发控制
+        self.active_models: Dict[str, ModelInstance] = {}
+        self.models_lock = Lock()
         
-        # 订阅消息接收和会话结束事件
+        # 订阅消息事件
         event_bus.subscribe(EventTypes.MESSAGE_RECEIVED, self.handle_message)
-        event_bus.subscribe(EventTypes.SESSION_ENDED, self.handle_session_ended)
-        logger.info("MessageRouter subscribed to events")
+        event_bus.subscribe(EventTypes.SEND_MESSAGE, self.save_send_message)
+        logger.info("MessageRouter initialized and subscribed to events")
 
-    async def handle_message(self, message: dict):
-        """
-        处理从事件总线接收到的消息
-        """
+    async def handle_message(self, message: dict) -> None:
+        """处理接收到的消息"""
         try:
-            # 路由消息并获取响应
-            response = await self.route_message(message)
+            # 保存接收到的消息
+            await self.db_manager.save_message(message)
             
-            if response:
-                # 保存消息历史
-                await self.db_manager.save_message(message)
-                await self.db_manager.save_message(response)
-                
-                # 发布处理后的消息
-                await event_bus.publish(
-                    f"{EventTypes.MESSAGE_PROCESSED}_{response['to_id']}", 
-                    response
-                )
-                
+            # 验证消息并路由
+            await self.route_message(message)
+            
         except Exception as e:
-            logger.error(f"Error handling message: {str(e)}")
-            error_response = {
-                'from_id': message.get('to_id', 'system'),
-                'to_id': message.get('from_id', 'unknown'),
-                'content': f"Error processing message: {str(e)}",
-                'message_type': 'error'
-            }
-            await event_bus.publish(
-                f"{EventTypes.MESSAGE_PROCESSED}_{error_response['to_id']}", 
-                error_response
-            )
+            logger.error(f"Error handling message: {str(e)}", exc_info=True)
 
-    async def handle_session_ended(self, data: dict):
-        """
-        处理会话结束事件，清理相应的模型实例
-        """
+    async def save_send_message(self, message: dict) -> None:
+        """保存处理后的消息到数据库"""
         try:
-            bot_id = str(data.get('bot_id'))
-            async with self.models_lock:
-                if bot_id in self.active_models:
-                    del self.active_models[bot_id]
-                    logger.info(f"Model instance for bot {bot_id} has been cleaned up due to session end")
+            await self.db_manager.save_message(message)
         except Exception as e:
-            logger.error(f"Error handling session end: {str(e)}")
+            logger.error(f"Error saving processed message: {str(e)}", exc_info=True)
 
-    async def route_message(self, message: dict) -> dict:
-        """
-        路由消息到适当的模型进行处理
-        """
+    async def route_message(self, message: dict) -> None:
+        """路由消息到适当的模型"""
         try:
-            logger.debug(f"Routing message: {message}")  # 添加调试日志
-            
-            if 'to_id' not in message:
-                raise ValueError("Message missing required field: to_id")
-            
-            # 获取目标bot的信息
-            bot_id = int(message['to_id'])
-            bot = await self.db_manager.get_bot_by_id(bot_id)
-            
+            # 验证消息必要字段
+            if not self._validate_message(message):
+                return
+
+            bot_id = str(message['to_id'])
+            from_id = str(message['from_id'])
+            message_service = message.get('message_service', 'unknown')
+
+            # 获取并验证 bot
+            bot = await self._get_and_validate_bot(bot_id, from_id)
             if not bot:
-                raise ValueError(f"Bot not found: {bot_id}")
-
-            # 获取对应的模型类
-            model_class = self.model_registry.get(bot.model)
-            if not model_class:
-                raise ValueError(f"Model type not supported: {bot.model}")
+                return
 
             # 获取或创建模型实例
-            model_key = str(bot_id)
-            async with self.models_lock:  # 使用锁保护并发访问
-                model_instance = self.active_models.setdefault(model_key, model_class(bot, self.db_manager))
+            model_instance = await self._get_or_create_model(bot, message_service)
+            if not model_instance:
+                return
 
-            return await model_instance.process_message(message)
+            # 发送消息给模型实例处理
+            await model_instance.model.process_message(message)
 
         except Exception as e:
-            logger.error(f"Error routing message: {str(e)}, message: {message}")  # 添加消息内容到错误日志
-            return {
-                'from_id': message.get('to_id', 'system'),
-                'to_id': message.get('from_id', 'unknown'),
-                'content': f"Error processing message: {str(e)}",
-                'message_type': 'error'
-            }
+            logger.error(f"Error routing message: {str(e)}", exc_info=True)
+
+    def _validate_message(self, message: dict) -> bool:
+        """验证消息格式"""
+        required_fields = ['to_id', 'from_id']
+        if not all(field in message for field in required_fields):
+            logger.warning(f"Message missing required fields: {message}")
+            return False
+        return True
+
+    async def _get_and_validate_bot(self, bot_id: str, from_id: str) -> Optional[any]:
+        """获取并验证 bot"""
+        try:
+            bot = await self.db_manager.get_bot_by_id(int(bot_id))
+            if not bot:
+                logger.warning(f"Bot not found: {bot_id}")
+                return None
+
+            if not await self._verify_user_permission(from_id, bot):
+                logger.warning(f"User {from_id} not authorized for bot {bot_id}")
+                return None
+
+            if bot.status.value != 'active':
+                logger.info(f"Bot {bot_id} is {bot.status.value}")
+                return None
+
+            return bot
+
+        except Exception as e:
+            logger.error(f"Error getting/validating bot: {str(e)}", exc_info=True)
+            return None
+
+    async def _verify_user_permission(self, user_id: str, bot: any) -> bool:
+        """验证用户权限"""
+        return not bot.user_id or str(bot.user_id) == user_id
+
+    async def _get_or_create_model(self, bot: any, message_service: str) -> Optional[ModelInstance]:
+        """获取或创建模型实例"""
+        try:
+            model_key = str(bot.id)
+            
+            async with self.models_lock:
+                # 检查现有实例
+                if model_key in self.active_models:
+                    instance = self.active_models[model_key]
+                    if instance.message_service != message_service:
+                        logger.warning(
+                            f"Message service mismatch for bot {bot.id}: "
+                            f"expected {instance.message_service}, got {message_service}"
+                        )
+                        return None
+                    return instance
+
+                # 创建新实例
+                model_class = self.model_registry.get(bot.model)
+                if not model_class:
+                    logger.error(f"Unsupported model type: {bot.model}")
+                    return None
+
+                # 创建模型实例
+                model = model_class(
+                    bot=bot,
+                    db_manager=self.db_manager,
+                    cleanup_callback=lambda: asyncio.create_task(self.cleanup_model(model_key))
+                )
+                self.active_models[model_key] = ModelInstance(model, message_service)
+                return self.active_models[model_key]
+
+        except Exception as e:
+            logger.error(f"Error getting/creating model instance: {str(e)}", exc_info=True)
+            return None
+
+    async def cleanup_model(self, model_key: str) -> None:
+        """
+        清理模型实例的方法
+        Args:
+            model_key: 模型实例的键
+        """
+        try:
+            async with self.models_lock:
+                if model_key in self.active_models:
+                    logger.info(f"Cleaning up model instance for bot {model_key}")
+                    instance = self.active_models[model_key]
+                    
+                    # 确保模型实例完成所有未完成的任务
+                    if hasattr(instance.model, 'cleanup'):
+                        try:
+                            await instance.model.cleanup()
+                        except Exception as e:
+                            logger.error(f"Error during model cleanup: {str(e)}")
+                    
+                    # 从活动实例字典中移除
+                    self.active_models.pop(model_key, None)
+                    logger.info(f"Model instance for bot {model_key} cleaned up successfully")
+                else:
+                    logger.warning(f"Attempted to clean up non-existent model instance: {model_key}")
+                
+        except Exception as e:
+            logger.error(f"Error in cleanup_model for {model_key}: {str(e)}", exc_info=True)
 
 # 创建全局路由器实例
 message_router = MessageRouter(DatabaseManager())

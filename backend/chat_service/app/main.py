@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from event_bus import event_bus
 from services.websocket import websocket_manager
-from database import DatabaseManager
+from database import DatabaseManager, DatabaseConnectionError
 import logging
 import uvicorn
 from message_router import message_router
@@ -31,9 +31,6 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
-# 创建数据库管理器实例
-db_manager = DatabaseManager()
-
 @app.on_event("startup")
 async def startup_event():
     """
@@ -47,8 +44,9 @@ async def startup_event():
         await event_bus.start()
         logger.info("Event bus started successfully")
         
-        # 等待数据库初始化完成
-        logger.info("Initializing database...")
+        # 初始化数据库连接
+        global db_manager
+        db_manager = DatabaseManager()
         await db_manager._init_task
         logger.info("Database initialized successfully")
 
@@ -60,13 +58,14 @@ async def startup_event():
 
         # 初始化 WebSocket 管理器
         logger.info("Initializing WebSocket manager...")
-        websocket_manager.db_manager = db_manager
         logger.info("WebSocket manager initialized successfully")
 
         logger.info("Application startup complete")
-    except Exception as e:
-        logger.error(f"Failed to start application: {str(e)}")
-        raise
+    except DatabaseConnectionError as e:
+        logger.critical(f"Failed to start application due to database connection error: {str(e)}")
+        # 可以选择优雅地关闭应用
+        import sys
+        sys.exit(1)
 
 @app.on_event("shutdown")
 async def shutdown_event():

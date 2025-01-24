@@ -106,9 +106,4 @@ event_bus = EventBus()
 # 预定义的事件类型
 class EventTypes:
     MESSAGE_RECEIVED = "message_received"
-    MESSAGE_PROCESSED = "message_processed"
-    MESSAGE_SENT = "message_sent"
-    SESSION_CREATED = "session_created"
-    SESSION_UPDATED = "session_updated"
-    SESSION_ENDED = "session_ended"
-    ERROR = "error"
+    SEND_MESSAGE = "send_message"

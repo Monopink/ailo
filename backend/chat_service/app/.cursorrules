@@ -2,7 +2,6 @@
 
 主要原则：
 - 撰写简洁的技术性回复，并提供准确的 Python 示例。
-- 使用函数式声明式编程；尽可能避免使用类。
 - 优先考虑迭代和模块化，而不是代码重复。
 - 使用带有辅助动词的描述性变量名（例如，is_active、has_permission）。
 - 目录和文件使用下划线的小写字母（例如，services/websocket.py）。
@@ -58,21 +57,43 @@ FastAPI 具体准则：
 
 项目介绍：
 这是一个ai聊天程序，技术架构采用前后端分离，即时通讯使用 leancloud 提供的即时通信能力（本地测试环境使用websocket），ai功能调用大模型api，同时后端对消息进行处理（历史消息读取、用户身份分析、上下文处理、主动发送消息等），使用mysql数据库。
+通过事件发布订阅机制或回调函数，解耦消息处理和消息发送的逻辑。
 
-模型职责：消息模型只负责处理消息，生成一个标准化的回复对象，并将其返回给调用方。
-消息路由职责：路由模块接收消息模型的处理结果，负责根据消息来源选择正确的发送逻辑。
-事件驱动：通过事件发布订阅机制或回调函数，解耦消息处理和消息发送的逻辑。
+设计如下：
+每一个user（数据库user表）对应多个bot（数据库bot表），每个bot只对应一个user，一个bot同时也代表一个用户会话，bot有asleep和awake状态。一个bot有不同的model值，model决定bot对于消息的处理逻辑。
+文件职责：
+webscoket.py
+  - 负责和前端交互，将消息发送至消息总线MESSAGE_RECEIVED事件。
+  - 消息结构包括from_id、to_id、content、message_service、timestamp。
+  - 订阅MESSAGE_PROCESSED事件，将符合message_service的消息发送至前端。
+
+message_router.py
+  - 订阅MESSAGE_RECEIVED事件和MESSAGE_PROCESSED事件
+  - 当接收到MESSAGE_RECEIVED事件：
+    1. 将消息存入数据库的message_history表中。
+    2. 根据from_id和to_id在数据库的user表和bot表中查询对应user和bot的id，如果user id和bot id不匹配，那么不处理消息。
+    3. 在bot表中查询对应bot的model值，根据bot id和message_service实例化对应的model对象（假设为model_lily），并且将消息发送给实例。
+    4. 如果相同bot id、相同message_service的实例已经创建，那么直接将消息发送给实例。
+    5. 如果相同bot id的实例已经创建，但是message_service不匹配，那么不处理消息，并且记录日志。
+  - 当接收到MESSAGE_PROCESSED事件：
+    1. 将消息存入数据库的message_history表中。
+  - 当medel实例返回睡眠状态，清理model实例。
+
+models/model_lily.py
+  - 从message_router中接收消息，并进行处理。
+  - 处理完成后，将消息发送至MESSAGE_PROCESSED事件。
+  - 如果进入睡眠状态，则给message_router返回睡眠状态。
+
 
 消息流转的核心流程：
 
 1. 接收消息：
    - 消息服务（如 WebSocket 或 LeanCloud）监听消息来源（如用户客户端）。
-   - 当用户发送消息时，消息被捕获，并包装成标准化的消息对象。包含 from_id、to_id、content、来源、时间戳等。
+   - 当用户发送消息时，消息被捕获，并包装成标准化的消息对象。包含 from_id、to_id、content、message_service、timestamp。
 2. 传递到事件总线：
    - 消息服务将标准化消息对象发布到 event_bus。
-   - 事件总线负责广播消息或将消息分发到指定的模块 message_router 。
-3. 路由到消息模型：
-   - message_router 在数据库的bot表中查询对应id，然后查找对应字段model（假设为lily），根据model字段将消息给指定的bot model（model_lily.py）进行处理。
+3. 管理模型生命周期：
+   - models_manager 收到消息后在数据库的bot表中查询对应id，然后查找对应字段model（假设为lily），根据model字段将消息给指定的model（model_lily.py）进行处理。
    - 消息模型被设计为完全独立的处理单元，只负责逻辑处理和生成响应。
 4. 处理消息：
    - 消息模型接收消息，执行以下操作：
@@ -87,114 +108,8 @@ FastAPI 具体准则：
 7. 发送响应：
    - 消息服务（如 WebSocket 或 LeanCloud）监听事件总线上的响应事件，并将响应消息发送回用户客户端。
 
-编程要求：
+代码要求：
 
 - 现在为本地开发测试，leancloud、llm_api暂不调用api均使用模拟返回。
 - 模块间应该解耦合，代码职责分离，每个模块专注于单一功能。
 - 主入口 main.py 保持简单，仅用于启动核心服务。
-
-文件结构：
-
-says
-├── backend  # 后端服务
-│   └── chat_service  # AI对话服务
-│       ├── Dockerfile  # 后端服务Dockerfile
-│       ├── app  # 后端服务代码
-│       │   ├── app.log  # 后端服务日志
-│       │   ├── database.py  # 后端服务数据库
-│       │   ├── event_bus.py  # 后端服务事件总线
-│       │   ├── llm_apis  # 后端服务大模型api
-│       │   ├── main.py  # 后端服务主入口
-│       │   ├── message_router.py  # 后端服务消息路由
-│       │   ├── models  # 后端服务模型
-│       │   └── services  # 后端服务服务
-│       ├── docker-compose.dev.yml  # 后端服务开发环境docker-compose
-│       ├── docker-compose.yml  # 后端服务生产环境docker-compose
-│       ├── mysql_dev  # 后端服务开发环境mysql
-│       │   ├── conf  # 后端服务开发环境mysql配置
-│       │   └── init  # 后端服务开发环境mysql初始化
-│       ├── requirements.txt  # 后端服务依赖
-│       └── web_dev  # 后端服务websocket调试简易前端
-│           ├── Dockerfile  # 开发环境websocket前端Dockerfile
-│           ├── docker-compose.yml  # 开发环境websocket前端docker-compose
-│           ├── index.html  # 开发环境websocket前端index.html
-│           └── usr  # 开发环境websocket前端usr
-├── database  # 数据库
-│   └── init.sql  # 数据库初始化
-├── docker-compose.yml  # 项目docker-compose
-└── frontend  # 前端服务
-    └── web  # 前端服务web
-
-# 基础规则
-rules:
-  # 核心应用文件
-  - when: main.py
-    include:
-      - event_bus.py
-      - message_router.py
-      - database.py
-      - services/websocket.py
-
-  # 消息路由相关
-  - when: message_router.py
-    include:
-      - models/base.py
-      - models/model_lily.py
-      - database.py
-      - event_bus.py
-
-  # 模型相关
-  - when: models/model_lily.py
-    include:
-      - models/base.py
-      - llm_apis/doubao.py
-      - database.py
-
-  # LLM API 相关
-  - when: llm_apis/doubao.py
-    include:
-      - llm_apis/base.py
-
-  # WebSocket 相关
-  - when: services/websocket.py
-    include:
-      - event_bus.py
-
-  # 服务基类相关
-  - when: services/base.py
-    include:
-      - services/__init__.py
-
-  # 模型基类相关
-  - when: models/base.py
-    include:
-      - models/__init__.py
-
-# 初始化文件规则
-  - when: **/__init__.py
-    include:
-      - **/base.py
-
-# 特殊规则：当查看任何 Python 文件时
-  - when: "**/*.py"
-    include:
-      - main.py
-      - event_bus.py
-
-# 文件类型规则
-fileTypes:
-  - extension: .py
-    relevantFiles:
-      - __init__.py
-      - base.py
-  - extension: .sql
-    relevantFiles:
-      - init.sql
-
-# 忽略规则
-ignore:
-  - "**/__pycache__/**"
-  - "**/.git/**"
-  - "**/venv/**"
-  - "**/.env"
-  - "**/*.pyc"

@@ -2,17 +2,18 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, JSON, ForeignKey
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import enum
 import asyncio
 import logging
+from typing import Optional
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
 
 # 数据库配置
 DATABASE_URL = "mysql+aiomysql://root:root@db/says_dev?charset=utf8mb4"
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(DATABASE_URL, echo=True) # echo=True 会打印出执行的SQL语句
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()
@@ -30,7 +31,6 @@ class UserRole(enum.Enum):
 
 class BotStatus(enum.Enum):
     active = "active"
-    sleep = "sleep"
     inactive = "inactive"
 
 class RelationType(enum.Enum):
@@ -71,8 +71,9 @@ class Bot(Base):
     user_id = Column(Integer, ForeignKey('user.id', ondelete='SET NULL'))
     relationship_score = Column(Integer, default=0)
     relationship_type = Column(Enum(RelationType), default=RelationType.stranger)
-    long_term_memory = Column(Text)
-    short_term_memory = Column(Text)
+    context = Column(JSON)
+    important_context = Column(JSON)
+    memory = Column(Text)
     stranger_style = Column(Text)
     friend_style = Column(Text)
     confidant_style = Column(Text)
@@ -85,12 +86,19 @@ class MessageHistory(Base):
     from_id = Column(String(36), nullable=False)
     to_id = Column(String(36), nullable=False)
     content = Column(Text, nullable=False)
-    content_overview = Column(String(255))
-    message_type = Column(String(50), default='text')
+    message_type = Column(String(50), default='chat')
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     status = Column(Enum('sent', 'delivered', 'read', 'failed'), default='sent')
     meta_data = Column(JSON)
+    message_service = Column(String(36))
+
+    # 显式声明要映射的列
+    __mapper_args__ = {
+        'include_properties': [
+            'id', 'from_id', 'to_id', 'content', 'message_type',
+            'created_at', 'status', 'meta_data', 'message_service'
+        ]
+    }
 
     def to_dict(self):
         return {
@@ -98,37 +106,16 @@ class MessageHistory(Base):
             'from_id': self.from_id,
             'to_id': self.to_id,
             'content': self.content,
-            'content_overview': self.content_overview,
             'message_type': self.message_type,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'status': self.status,
-            'meta_data': self.meta_data
+            'meta_data': self.meta_data,
+            'message_service': self.message_service
         }
 
-class Session(Base):
-    __tablename__ = 'session'
-    
-    id = Column(String(36), primary_key=True)
-    user_id = Column(Integer, ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    bot_id = Column(Integer, ForeignKey('bot.id', ondelete='CASCADE'), nullable=False)
-    started_at = Column(DateTime, default=datetime.now(timezone.utc))
-    last_activity = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
-    status = Column(String(20), default='active')
-    context = Column(JSON)
-    meta_data = Column(JSON)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'bot_id': self.bot_id,
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'last_activity': self.last_activity.isoformat() if self.last_activity else None,
-            'status': self.status,
-            'context': self.context,
-            'meta_data': self.meta_data
-        }
+class DatabaseConnectionError(Exception):
+    """自定义数据库连接异常"""
+    pass
 
 # 数据库操作类
 class DatabaseManager:
@@ -137,88 +124,109 @@ class DatabaseManager:
         self._init_task = asyncio.create_task(self._initialize())
         
     async def _initialize(self):
-        """初始化数据库连接"""
+        """初始化数据库连接，包含重试机制"""
+        max_retries = 100
+        retry_count = 0
+        base_delay = 1  # 初始延迟1秒
+        max_delay = 30  # 最大延迟30秒
+
+        while True:
+            try:
+                async with self.session_maker() as session:
+                    await session.execute(text("SELECT 1"))
+                logger.info("Database connection initialized successfully")
+                break
+            except Exception as e:
+                retry_count += 1
+                if retry_count > max_retries:
+                    error_msg = f"Failed to initialize database after {max_retries} attempts. Last error: {str(e)}"
+                    logger.critical(error_msg)
+                    # 发送告警通知（如果有监控系统）
+                    # await notify_admin(error_msg)
+                    
+                    # 抛出自定义异常
+                    raise DatabaseConnectionError(error_msg) from e
+
+                # 计算下一次重试的延迟时间（指数退避）
+                delay = min(base_delay * (2 ** (retry_count - 1)), max_delay)
+                logger.warning(f"Database connection attempt {retry_count} failed. Retrying in {delay} seconds... Error: {str(e)}")
+                await asyncio.sleep(delay)
+
+    async def get_bot_context(self, bot_id: int, user_id: int) -> Optional[dict]:
+        """获取bot上下文"""
         try:
             async with self.session_maker() as session:
-                await session.execute(text("SELECT 1"))
-            logger.info("Database connection initialized successfully")
+                result = await session.execute(
+                    select(Bot).where(Bot.id == bot_id)
+                )
+                bot = result.scalar_one_or_none()
+                if bot and (bot.user_id is None or bot.user_id == user_id):
+                    return {
+                        'context': bot.context or {},
+                        'important_context': bot.important_context or {},
+                        'memory': bot.memory,
+                        'relationship_score': bot.relationship_score,
+                        'relationship_type': bot.relationship_type.value if bot.relationship_type else None
+                    }
+                return None
         except Exception as e:
-            logger.error(f"Failed to initialize database connection: {str(e)}")
-            raise
+            logger.error(f"Error getting bot context: {str(e)}")
+            return None
+
+    async def update_bot_context(self, bot_id: int, context_data: dict) -> bool:
+        """更新bot上下文"""
+        try:
+            async with self.session_maker() as session:
+                result = await session.execute(
+                    select(Bot).where(Bot.id == bot_id)
+                )
+                bot = result.scalar_one_or_none()
+                if bot:
+                    # 只更新存在的字段
+                    valid_fields = {'context', 'important_context', 'memory', 
+                                  'relationship_score', 'relationship_type'}
+                    update_data = {k: v for k, v in context_data.items() 
+                                 if k in valid_fields}
+                    
+                    for key, value in update_data.items():
+                        setattr(bot, key, value)
+                    
+                    await session.commit()
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Error updating bot context: {str(e)}")
+            await session.rollback()
+            return False
 
     async def get_bot_by_id(self, bot_id: int):
         async with self.session_maker() as session:
             result = await session.execute(select(Bot).where(Bot.id == bot_id))
             return result.scalar_one_or_none()
 
-    async def get_session(self, session_id: str):
-        """获取会话"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(
-                    select(Session).where(Session.id == session_id)
-                )
-                return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(f"Error getting session {session_id}: {str(e)}")
-            return None
-
-    async def create_session(self, session_id: str, user_id: int, bot_id: int):
-        """创建新会话"""
-        try:
-            async with self.session_maker() as session:
-                new_session = Session(
-                    id=session_id,
-                    user_id=user_id,
-                    bot_id=bot_id,
-                    context={},
-                    meta_data={}
-                )
-                session.add(new_session)
-                await session.commit()
-                return new_session
-        except Exception as e:
-            logger.error(f"Error creating session: {str(e)}")
-            return None
-
-    async def update_session(self, session_id: str, update_data: dict):
-        """更新会话"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(
-                    select(Session).where(Session.id == session_id)
-                )
-                db_session = result.scalar_one_or_none()
-                
-                if db_session:
-                    for key, value in update_data.items():
-                        setattr(db_session, key, value)
-                    await session.commit()
-                    return db_session
-                else:
-                    # 如果会话不存在，尝试创建新会话
-                    user_id = int(session_id.split('_')[1])
-                    bot_id = int(session_id.split('_')[0])
-                    return await self.create_session(session_id, user_id, bot_id)
-                    
-        except Exception as e:
-            logger.error(f"Error updating session {session_id}: {str(e)}")
-            return None
-
     async def save_message(self, message: dict):
         """保存消息到数据库"""
-        async with self.session_maker() as session:
-            new_message = MessageHistory(
-                from_id=message['from_id'],
-                to_id=message['to_id'],
-                content=message['content'],
-                content_overview=message.get('content_overview'),
-                message_type=message.get('message_type', 'text'),
-                meta_data=message.get('meta_data')
-            )
-            session.add(new_message)
-            await session.commit()
-            return new_message
+        try:
+            async with self.session_maker() as session:
+                # 只包含数据库表中实际存在的字段
+                message_data = {
+                    'from_id': message['from_id'],
+                    'to_id': message['to_id'],
+                    'content': message.get('content', ''),
+                    'message_type': message.get('message_type', 'chat'),
+                    'message_service': message.get('message_service'),
+                    'meta_data': message.get('meta_data'),
+                    'status': message.get('status', 'sent')
+                }
+                new_message = MessageHistory(**message_data)
+                session.add(new_message)
+                await session.commit()
+                return new_message
+        except Exception as e:
+            logger.error(f"Error saving message: {str(e)}")
+            if 'session' in locals():
+                await session.rollback()
+            raise
 
     async def get_user_by_id(self, user_id: int):
         """获取用户信息"""
@@ -263,56 +271,6 @@ class DatabaseManager:
                 logger.error(f"Error updating bot status: {str(e)}")
                 return False
 
-    async def update_session_context(self, session_id: str, context: dict):
-        """更新会话上下文"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(
-                    select(Session).where(Session.id == session_id)
-                )
-                db_session = result.scalar_one_or_none()
-                if db_session:
-                    db_session.context = context
-                    db_session.last_activity = datetime.now(timezone.utc)
-                    await session.commit()
-                    return True
-                return False
-        except Exception as e:
-            logger.error(f"Error updating session context: {str(e)}")
-            return False
-
-    async def get_active_sessions(self, timeout_minutes: int = 30):
-        """获取活跃会话"""
-        timeout = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
-        async with self.session_maker() as session:
-            result = await session.execute(
-                select(Session).where(
-                    (Session.status == 'active') &
-                    (Session.last_activity >= timeout)
-                )
-            )
-            return result.scalars().all()
-
-    async def cleanup_inactive_sessions(self, timeout_minutes: int = 30):
-        """清理不活跃的会话"""
-        timeout = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
-        async with self.session_maker() as session:
-            try:
-                await session.execute(
-                    text("""
-                    UPDATE session 
-                    SET status = 'inactive' 
-                    WHERE status = 'active' 
-                    AND last_activity < :timeout
-                    """),
-                    {"timeout": timeout}
-                )
-                await session.commit()
-                return True
-            except Exception as e:
-                logger.error(f"Error cleaning up inactive sessions: {str(e)}")
-                return False
-
     async def get_bot_settings(self, bot_id: int):
         """获取机器人设置"""
         async with self.session_maker() as session:
@@ -334,3 +292,24 @@ class DatabaseManager:
                     'lover_style': bot.lover_style
                 }
             return None
+
+    async def update_bot(self, bot_id: int, bot_data: dict) -> None:
+        """更新bot信息"""
+        async with self.session_maker() as session:
+            try:
+                stmt = select(Bot).where(Bot.id == bot_id)
+                result = await session.execute(stmt)
+                bot = result.scalar_one_or_none()
+                
+                if bot:
+                    for key, value in bot_data.items():
+                        setattr(bot, key, value)
+                    await session.commit()
+                else:
+                    logger.error(f"Bot not found with id: {bot_id}")
+                    raise ValueError(f"Bot not found with id: {bot_id}")
+                    
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Error updating bot: {str(e)}")
+                raise

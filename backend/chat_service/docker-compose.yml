@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   python:
     build:
@@ -11,10 +9,12 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - DATABASE_URL=mysql+aiomysql://root:root@db:3306/says_dev
       - DEBUG=1
+      - RELOAD=1
       - PYTHONPATH=/app
     networks:
       - app-network
@@ -29,23 +29,28 @@ services:
       MYSQL_USER: user
       MYSQL_PASSWORD: password
       MYSQL_ROOT_HOST: '%'
+      MYSQL_INIT_CONNECT: 'SET NAMES utf8mb4'
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     ports:
       - "3306:3306"
     volumes:
+      - ./mysql_dev/conf:/etc/mysql/conf.d:ro
+      - ./mysql_dev/init:/docker-entrypoint-initdb.d:ro
       - db_data:/var/lib/mysql
-      - ./mysql_dev/conf/my.cnf:/etc/mysql/my.cnf:ro
-      - ./mysql_dev/init:/docker-entrypoint-initdb.d
     networks:
       - app-network
     command: >
-      --character-set-server=utf8mb4 
-      --collation-server=utf8mb4_unicode_ci 
       --default-authentication-plugin=mysql_native_password
-      --init-file=/docker-entrypoint-initdb.d/init.sql
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 30s
+    restart: unless-stopped
 
 networks:
   app-network:

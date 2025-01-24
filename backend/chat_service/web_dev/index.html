@@ -31,10 +31,10 @@
             color: #666;
             white-space: nowrap;
         }
-        .user-message {
+        .self-message {
             background-color: #e3f2fd;
         }
-        .ai-message {
+        .other-message {
             background-color: #f5f5f5;
             text-align: left;
         }
@@ -69,6 +69,7 @@
     <script>
         let socket;
         let messageHistory = [];
+        let typingTimeout;
 
         function addMessage(content, type = 'system') {
             const messages = document.getElementById("messages");
@@ -102,13 +103,13 @@
         }
 
         function connect() {
-            const userId = document.getElementById("user_id").value;
-            if (!userId.trim()) {
-                addMessage("Please enter a user ID", "system");
+            const fromId = document.getElementById("from_id").value;
+            if (!fromId.trim()) {
+                addMessage("Please enter a from ID", "system");
                 return;
             }
 
-            socket = new WebSocket(`ws://localhost:8000/ws/${userId}`);
+            socket = new WebSocket(`ws://localhost:8000/ws/${fromId}`);
 
             socket.onopen = () => {
                 addMessage("Connected to server", "system");
@@ -121,10 +122,35 @@
                     if (data.error) {
                         addMessage(`Error: ${data.error}`, "system");
                         console.error("Server error:", data);
+                    } else if (data.message_type === 'typing') {
+                        // Clear any existing timeout
+                        if (typingTimeout) {
+                            clearTimeout(typingTimeout);
+                        }
+                        
+                        // Update status to typing
+                        const statusDiv = document.getElementById("connection-status");
+                        statusDiv.textContent = "Typing...";
+                        statusDiv.className = "connection-status status-connected";
+                        
+                        // Set new timeout to revert status after 2 seconds
+                        typingTimeout = setTimeout(() => {
+                            statusDiv.textContent = "Connected";
+                            statusDiv.className = "connection-status status-connected";
+                        }, 2000);
                     } else {
-                        // 处理新的消息格式
+                        // Clear typing timeout if exists and update status immediately
+                        if (typingTimeout) {
+                            clearTimeout(typingTimeout);
+                            const statusDiv = document.getElementById("connection-status");
+                            statusDiv.textContent = "Connected";
+                            statusDiv.className = "connection-status status-connected";
+                        }
+                        
+                        // Process the message
+                        const messageType = data.message_type === 'chat' ? 'other' : data.message_type || "system";
                         const content = data.content || data.reply;
-                        addMessage(content, "ai");
+                        addMessage(content, messageType);
                     }
                 } catch (e) {
                     console.error("Failed to parse message:", e);
@@ -148,29 +174,29 @@
 
         function sendMessage() {
             const input = document.getElementById("message");
-            const userId = document.getElementById("user_id").value;
-            const botId = document.getElementById("bot_id").value;
+            const fromId = document.getElementById("from_id").value;
+            const toId = document.getElementById("to_id").value;
             const content = input.value.trim();
             
             if (!content) {
                 return;
             }
 
-            if (!botId) {
-                addMessage("Please enter a bot ID", "system");
+            if (!toId) {
+                addMessage("Please enter a to ID", "system");
                 return;
             }
             
             if (socket && socket.readyState === WebSocket.OPEN) {
                 const message = {
-                    from_id: userId,
-                    to_id: botId,
+                    from_id: fromId,
+                    to_id: toId,
                     content: content,
                     timestamp: new Date().toISOString()
                 };
                 
                 socket.send(JSON.stringify(message));
-                addMessage(content, "user");
+                addMessage(content, "self");
                 input.value = '';
             } else {
                 addMessage("Not connected to server", "system");
@@ -224,8 +250,8 @@
     <div class="chat-container">
         <h1>SAYS</h1>
         <div>
-            <input id="user_id" placeholder="Enter User ID">
-            <input id="bot_id" placeholder="Enter Bot ID">
+            <input id="from_id" placeholder="Enter From ID">
+            <input id="to_id" placeholder="Enter To ID">
             <button onclick="connect()">Connect</button>
             <button onclick="downloadHistory()">Download Chat History</button>
             <span id="connection-status" class="connection-status status-disconnected">Not connected</span>

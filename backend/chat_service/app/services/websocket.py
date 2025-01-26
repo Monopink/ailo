@@ -96,4 +96,4 @@ class WebSocketManager:
             await self.send_message(client_id, message)
 
 # 创建全局 WebSocket 管理器实例
-websocket_manager = WebSocketManager()
+websocket = WebSocketManager()

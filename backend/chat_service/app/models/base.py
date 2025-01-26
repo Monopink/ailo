@@ -1,28 +1,30 @@
-from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional
 import logging
 import asyncio
-from datetime import datetime
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 class BaseModel(ABC):
-    def __init__(self, bot: Any, db_manager: Any, cleanup_callback: Callable[[], None]):
+    def __init__(self, bot: Any, cleanup_callback: Callable[[], None]):
         """
         初始化基础模型
         Args:
             bot: Bot 实例
-            db_manager: 数据库管理器实例
             cleanup_callback: 清理回调函数
         """
         self.bot = bot
-        self.db_manager = db_manager
         self.cleanup_callback = cleanup_callback
         
         # 基础属性
         self.is_awake = False
         self.is_processing = False
         self.context: Dict = {}
+        self.important_context: Dict = {}
+        self.memory: str = ""
+        self.relationship_type: str = ""
+        self.relationship_score: int = 0
+        self.style: str = ""
         
         # 异步相关
         self.message_queue = asyncio.Queue()
@@ -52,11 +54,26 @@ class BaseModel(ABC):
 
     async def save_context(self) -> None:
         """保存上下文到数据库"""
+        try:
+            context_data = {
+                'bot_id': self.bot.id,
+                'context': self.context,
+                'important_context': self.important_context,
+                'relationship_type': self.relationship_type,
+                'relationship_score': self.relationship_score,
+                'memory': self.memory
+            }
+            await db_manager.save_bot_context(context_data)
+        except Exception as e:
+            logger.error(f"Error saving context: {str(e)}")
+
+    async def load_context(self) -> None:
+        """从数据库加载上下文"""
         pass
 
-    async def before_sleep_task(self) -> None:
+    async def before_sleep(self) -> None:
         """睡眠前的操作"""
-        pass
+        await self.save_context()
 
     def update_context(self, key: str, value: Any) -> None:
         """
@@ -65,4 +82,4 @@ class BaseModel(ABC):
             key: 上下文键
             value: 上下文值
         """
-        pass
+        self.context[key] = value

@@ -7,6 +7,7 @@ import enum
 import asyncio
 import logging
 from typing import Optional
+from sqlalchemy.exc import SQLAlchemyError  # 导入 SQLAlchemy 异常基类
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
@@ -113,11 +114,6 @@ class MessageHistory(Base):
             'message_service': self.message_service
         }
 
-class DatabaseConnectionError(Exception):
-    """自定义数据库连接异常"""
-    pass
-
-# 数据库操作类
 class DatabaseManager:
     def __init__(self):
         self.session_maker = async_session
@@ -136,21 +132,21 @@ class DatabaseManager:
                     await session.execute(text("SELECT 1"))
                 logger.info("Database connection initialized successfully")
                 break
-            except Exception as e:
+            except SQLAlchemyError as e:
                 retry_count += 1
                 if retry_count > max_retries:
-                    error_msg = f"Failed to initialize database after {max_retries} attempts. Last error: {str(e)}"
+                    error_msg = f"Database initialization failed after {max_retries} attempts: {str(e)}"
                     logger.critical(error_msg)
-                    # 发送告警通知（如果有监控系统）
-                    # await notify_admin(error_msg)
-                    
-                    # 抛出自定义异常
-                    raise DatabaseConnectionError(error_msg) from e
+                    raise Exception(error_msg) from e
 
                 # 计算下一次重试的延迟时间（指数退避）
                 delay = min(base_delay * (2 ** (retry_count - 1)), max_delay)
                 logger.warning(f"Database connection attempt {retry_count} failed. Retrying in {delay} seconds... Error: {str(e)}")
                 await asyncio.sleep(delay)
+            except Exception as e:
+                error_msg = f"Unexpected error during database initialization: {str(e)}"
+                logger.critical(error_msg)
+                raise Exception(error_msg) from e
 
     async def get_bot_context(self, bot_id: int, user_id: int) -> Optional[dict]:
         """获取bot上下文"""
@@ -169,9 +165,12 @@ class DatabaseManager:
                         'relationship_type': bot.relationship_type.value if bot.relationship_type else None
                     }
                 return None
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_bot_context: {str(e)}")
+            raise Exception(f"Failed to get bot context: {str(e)}") from e
         except Exception as e:
-            logger.error(f"Error getting bot context: {str(e)}")
-            return None
+            logger.error(f"Unexpected error in get_bot_context: {str(e)}")
+            raise
 
     async def update_bot_context(self, bot_id: int, context_data: dict) -> bool:
         """更新bot上下文"""
@@ -182,7 +181,6 @@ class DatabaseManager:
                 )
                 bot = result.scalar_one_or_none()
                 if bot:
-                    # 只更新存在的字段
                     valid_fields = {'context', 'important_context', 'memory', 
                                   'relationship_score', 'relationship_type'}
                     update_data = {k: v for k, v in context_data.items() 
@@ -194,10 +192,15 @@ class DatabaseManager:
                     await session.commit()
                     return True
                 return False
-        except Exception as e:
-            logger.error(f"Error updating bot context: {str(e)}")
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in update_bot_context: {str(e)}")
             await session.rollback()
-            return False
+            raise Exception(f"Failed to update bot context: {str(e)}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error in update_bot_context: {str(e)}")
+            if 'session' in locals():
+                await session.rollback()
+            raise
 
     async def get_bot_by_id(self, bot_id: int):
         async with self.session_maker() as session:
@@ -313,3 +316,6 @@ class DatabaseManager:
                 await session.rollback()
                 logger.error(f"Error updating bot: {str(e)}")
                 raise
+
+# 创建全局数据库管理器实例
+db_manager = DatabaseManager()

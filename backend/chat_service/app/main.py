@@ -1,10 +1,10 @@
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from event_bus import event_bus
-from services.websocket import websocket_manager
-from database import DatabaseManager, DatabaseConnectionError
 import logging
 import uvicorn
+from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from services import websocket
+from event_bus import event_bus
+from db_managers import db_manager
 from message_router import message_router
 
 # 配置日志
@@ -44,9 +44,7 @@ async def startup_event():
         await event_bus.start()
         logger.info("Event bus started successfully")
         
-        # 初始化数据库连接
-        global db_manager
-        db_manager = DatabaseManager()
+        # 等待数据库初始化
         await db_manager._init_task
         logger.info("Database initialized successfully")
 
@@ -58,12 +56,14 @@ async def startup_event():
 
         # 初始化 WebSocket 管理器
         logger.info("Initializing WebSocket manager...")
+        if not hasattr(app.state, 'websocket_manager'):
+            app.state.websocket_manager = websocket
+            logger.info(f"Active WebSocket connections: {len(websocket.active_connections)}")
         logger.info("WebSocket manager initialized successfully")
 
         logger.info("Application startup complete")
-    except DatabaseConnectionError as e:
-        logger.critical(f"Failed to start application due to database connection error: {str(e)}")
-        # 可以选择优雅地关闭应用
+    except Exception as e:
+        logger.critical(f"Failed to start application: {str(e)}")
         import sys
         sys.exit(1)
 
@@ -78,8 +78,8 @@ async def shutdown_event():
         logger.info("Event bus stopped")
 
         # 关闭所有 WebSocket 连接
-        for client_id in list(websocket_manager.active_connections.keys()):
-            await websocket_manager.disconnect(client_id)
+        for client_id in list(websocket.active_connections.keys()):
+            await websocket.disconnect(client_id)
         logger.info("All WebSocket connections closed")
 
         logger.info("Application shutdown complete")
@@ -87,17 +87,17 @@ async def shutdown_event():
         logger.error(f"Error during shutdown: {str(e)}")
 
 @app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
+async def websocket_endpoint(ws: WebSocket, client_id: str):
     """
     WebSocket 连接端点
     """
     try:
         logger.info(f"New WebSocket connection request from client {client_id}")
-        await websocket_manager.connect(websocket, client_id)
-        await websocket_manager.receive_message(websocket, client_id)
+        await websocket.connect(ws, client_id)
+        await websocket.receive_message(ws, client_id)
     except Exception as e:
         logger.error(f"WebSocket error for client {client_id}: {str(e)}")
-        await websocket_manager.disconnect(client_id)
+        await websocket.disconnect(client_id)
 
 @app.get("/health")
 async def health_check():

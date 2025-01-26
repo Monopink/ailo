@@ -1,6 +1,5 @@
-from .websocket import WebSocketManager, websocket_manager
+from .websocket import websocket
 
 __all__ = [
-    'WebSocketManager',
-    'websocket_manager',
+    'websocket',
 ]

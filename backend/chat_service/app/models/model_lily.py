@@ -5,26 +5,26 @@ from datetime import datetime
 from typing import Any, Callable, Optional, Dict
 from .base import BaseModel
 from event_bus import event_bus, EventTypes
-from llm_apis.mirrored_llm import MirroredLLMAPI as LLMAPI
+from llm_apis.mock_llm import MockLLMAPI as LLMAPI
+from db_managers import db_manager
 import json
 
 logger = logging.getLogger(__name__)
 
 class LilyModel(BaseModel):
-    def __init__(self, bot: Any, db_manager: Any, cleanup_callback: Callable[[], None]):
+    def __init__(self, bot: Any, cleanup_callback: Callable[[], None]):
         """
         初始化 Lily 模型
         Args:
             bot: Bot 实例
-            db_manager: 数据库管理器实例
             cleanup_callback: 清理回调函数
         """
-        # 首先调用父类的初始化方法
-        super().__init__(bot=bot, db_manager=db_manager, cleanup_callback=cleanup_callback)
+        # 调用父类的初始化方法
+        super().__init__(bot=bot, cleanup_callback=cleanup_callback)
         
         # Lily 特定的初始化
         self.llm_api = LLMAPI()
-        self.process_delay_time = 3 # 等待新消息的延迟时间
+        self.process_delay_time = 3  # 等待新消息的延迟时间
         self.process_wait_time = 0   # 处理消息前的等待时间
         self.typing_speed = 0.05     # 打字速度
         self.sleep_timeout = 20      # 睡眠超时时间
@@ -40,7 +40,7 @@ class LilyModel(BaseModel):
         self.important_context_limit = 1000 # 重要上下文限制
         self.memory_limit = 1000 # 记忆限制
         
-        self.context: Dict = {}
+        self.context = []
         self.relationship_type: Optional[str] = None
         self.relationship_score: int = 0
         self.style = None # bot性格风格
@@ -58,11 +58,14 @@ class LilyModel(BaseModel):
     async def _load_bot_context(self) -> None:
         """从数据库加载 bot 上下文"""
         try:
-            context_data = await self.db_manager.get_bot_context(self.bot.id, self.bot.user_id)
+            context_data = await db_manager.get_bot_context(self.bot.id, self.bot.user_id)
             if context_data:
                 self.context = context_data.get('context', {})
                 self.relationship_type = context_data.get('relationship_type')
                 self.relationship_score = context_data.get('relationship_score', 0)
+                self.style = getattr(self.bot, f"{self.relationship_type}_style", "")
+                self.memory = context_data.get('memory')
+                self.important_context = context_data.get('important_context', {})
                 logger.info(f"Loaded context for bot {self.bot.id}")
         except Exception as e:
             logger.error(f"Error loading bot context: {str(e)}")
@@ -107,14 +110,17 @@ class LilyModel(BaseModel):
         while True:
             try:
                 message = await self.message_queue.get()
+                combined_content = message['content']
                 
-                # 等待 process_delay_time，期间如果有新消息则重置等待
+                # 等待 process_delay_time，期间如果有新消息则合并内容
                 while True:
                     try:
                         await asyncio.sleep(self.process_delay_time)
                         if self.message_queue.empty():
                             break
-                        message = self.message_queue.get_nowait()
+                        next_message = self.message_queue.get_nowait()
+                        combined_content += f"\n{next_message['content']}"
+                        message = {**next_message, 'content': combined_content}
                     except asyncio.QueueEmpty:
                         break
 
@@ -129,7 +135,9 @@ class LilyModel(BaseModel):
                                 await asyncio.sleep(self.process_wait_time)
                                 if self.message_queue.empty():
                                     break
-                                message = self.message_queue.get_nowait()
+                                next_message = self.message_queue.get_nowait()
+                                combined_content += f"\n{next_message['content']}"
+                                message = {**next_message, 'content': combined_content}
                                 self.process_wait_time = self._calculate_wait_time()
                             except asyncio.QueueEmpty:
                                 break
@@ -151,7 +159,6 @@ class LilyModel(BaseModel):
         返回值改为 None，因为消息发送由事件总线处理
         """
         try:
-            
             # 更新上下文
             self.update_context('last_message', message)
             self.update_context('last_message_time', datetime.now())
@@ -162,19 +169,19 @@ class LilyModel(BaseModel):
                 logger.error("Failed to generate response")
                 return
 
-            # 模拟思考和打字时间
-            thinking_time = len(response_content['message']) * self.typing_speed
-            await asyncio.sleep(thinking_time)
-
-            # 构造标准响应消息
+            # 构造响应消息
             response = {
                 'from_id': str(self.bot.id),
                 'to_id': message['from_id'],
-                'content': json.dumps(response_content, ensure_ascii=False),
+                'content': response_content,  # 直接使用响应内容，不需要 JSON 处理
                 'message_type': 'chat',
                 'message_service': message.get('message_service', 'unknown'),
                 'timestamp': datetime.now().isoformat()
             }
+
+            # 模拟思考和打字时间
+            thinking_time = len(str(response_content)) * self.typing_speed
+            await asyncio.sleep(thinking_time)
 
             # 通过事件总线发送响应
             await event_bus.publish(EventTypes.SEND_MESSAGE, response)
@@ -186,48 +193,96 @@ class LilyModel(BaseModel):
             logger.error(f"Error processing message: {str(e)}", exc_info=True)
 
     async def generate_response(self, message: dict) -> dict:
-        """
-        生成响应消息
-        """
+        """生成响应消息"""
         try:
-            # 获取 bot 的性格风格
-            style = getattr(self.bot, f"{self.bot.relationship_type.value}_style", "")
+            # 构建系统提示
+            system_prompt = {
+                "role": "system",
+                "content": (
+                    f"You are Lily, an AI assistant with the following traits:\n"
+                    f"Style: {self.style}\n"
+                    f"Memory: {self.memory}\n"
+                    f"Relationship: {self.relationship_type} (Score: {self.relationship_score})"
+                )
+            }
             
-            # 构建上下文信息
-            context = {
-                'bot_name': f"Bot_{self.bot.id}",
-                'user_id': message['from_id'],
-                'relationship_type': self.bot.relationship_type.value,
-                'relationship_score': self.bot.relationship_score,
-                'style': style,
-                'memory': self.bot.memory,  # 使用 memory 字段
-                'short_term_memory': self.context.get('short_term_memory', ''),
-                'message': message['content']
+            # 初始化或更新上下文历史
+            if 'history' not in self.context:
+                self.context['history'] = [system_prompt]
+            elif self.context['history'][0]['role'] != 'system':
+                self.context['history'].insert(0, system_prompt)
+            
+            # 添加用户消息到历史记录
+            user_message = {
+                "role": "user",
+                "content": message['content']
+            }
+            self.context['history'].append(user_message)
+            
+            # 准备 LLM API 请求
+            llm_request = {
+                "messages": self.context['history'][-self.context_limit:],  # 限制上下文长度
             }
 
-            logger.debug(f"Send context to LLM: {context}")
+            # 调用 LLM API
+            llm_response = await self.llm_api.generate_response(llm_request)
 
-            # 调用 LLM API 生成回复
-            llm_response = await self.llm_api.generate_response(context)
+            # 验证响应
+            if not await self.llm_api.validate_response(llm_response):
+                logger.error("Invalid LLM response")
+                return None
 
-            return llm_response
+            # 从响应中提取助手消息
+            assistant_message = llm_response['choices'][0]['message']
+            
+            # 将助手回复添加到历史记录
+            self.context['history'].append(assistant_message)
+            
+            # 管理上下文长度
+            if len(self.context['history']) > self.context_limit:
+                # 保留系统消息和最近的消息
+                self.context['history'] = [
+                    self.context['history'][0],  # 系统消息
+                    *self.context['history'][-(self.context_limit-1):]  # 最近的消息
+                ]
+
+            # 更新重要上下文（如果需要）
+            self._update_important_context(message['content'], assistant_message['content'])
+
+            return assistant_message['content']
 
         except Exception as e:
-            logger.error(f"Error generating response: {str(e)}")
+            logger.error(f"Error generating response: {str(e)}", exc_info=True)
             return None
+
+    def _update_important_context(self, user_message: str, assistant_response: str) -> None:
+        """更新重要上下文"""
+        # 简单的重要性判断逻辑
+        important_keywords = ['记住', '牢记', '重要', '不要忘记', '记录']
+        
+        if any(keyword in user_message for keyword in important_keywords):
+            timestamp = datetime.now().isoformat()
+            self.important_context[timestamp] = {
+                'user_message': user_message,
+                'assistant_response': assistant_response
+            }
+            
+            # 限制重要上下文的大小
+            if len(self.important_context) > self.important_context_limit:
+                oldest_key = min(self.important_context.keys())
+                del self.important_context[oldest_key]
 
     async def save_context(self):
         """
         保存上下文到数据库
         """
         try:
-            # 更新bot的上下文信息
             bot_update = {
                 'context': self.context,
                 'important_context': self.important_context,
                 'memory': self.memory
             }
-            await self.db_manager.update_bot(self.bot.id, bot_update)
+            await db_manager.update_bot(self.bot.id, bot_update)
             
         except Exception as e:
             logger.error(f"Error saving context: {str(e)}")
@@ -256,7 +311,7 @@ class LilyModel(BaseModel):
             # 保存当前上下文
             await self.save_context()
             
-            # 取消并等待处理任务完成
+            # 取消处理任务
             if self.processing_task and not self.processing_task.done():
                 logger.info(f"Cancelling processing task for bot {self.bot.id}")
                 self.processing_task.cancel()
@@ -265,13 +320,17 @@ class LilyModel(BaseModel):
                 except asyncio.CancelledError:
                     pass
 
-            # 清空消息队列
-            while not self.message_queue.empty():
+            # 清空消息队列 - 修改这部分逻辑
+            remaining_messages = []
+            while True:
                 try:
-                    self.message_queue.get_nowait()
-                    self.message_queue.task_done()
+                    remaining_messages.append(self.message_queue.get_nowait())
                 except asyncio.QueueEmpty:
                     break
+            
+            # 对收集到的消息执行 task_done
+            for _ in remaining_messages:
+                self.message_queue.task_done()
             
             # 取消睡眠任务
             if self.sleep_task:

@@ -1,12 +1,15 @@
-from typing import Dict, Type, Optional, Callable
+
+import asyncio
 import logging
+from asyncio import Lock
 from datetime import datetime
+from typing import Dict, Type, Optional, Callable, Any
+
+from db_managers import db_manager
+from event_bus import event_bus, EventTypes
+
 from models.base import BaseModel
 from models.model_lily import LilyModel
-from database import DatabaseManager
-from event_bus import event_bus, EventTypes
-from asyncio import Lock
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +19,7 @@ class ModelInstance:
         self.message_service = message_service
 
 class MessageRouter:
-    def __init__(self, db_manager: DatabaseManager):
-        self.db_manager = db_manager
+    def __init__(self):
         self.model_registry: Dict[str, Type[BaseModel]] = {
             'lily': LilyModel
         }
@@ -33,7 +35,7 @@ class MessageRouter:
         """处理接收到的消息"""
         try:
             # 保存接收到的消息
-            await self.db_manager.save_message(message)
+            await db_manager.save_message(message)
             
             # 验证消息并路由
             await self.route_message(message)
@@ -44,7 +46,7 @@ class MessageRouter:
     async def save_send_message(self, message: dict) -> None:
         """保存处理后的消息到数据库"""
         try:
-            await self.db_manager.save_message(message)
+            await db_manager.save_message(message)
         except Exception as e:
             logger.error(f"Error saving processed message: {str(e)}", exc_info=True)
 
@@ -83,10 +85,10 @@ class MessageRouter:
             return False
         return True
 
-    async def _get_and_validate_bot(self, bot_id: str, from_id: str) -> Optional[any]:
+    async def _get_and_validate_bot(self, bot_id: str, from_id: str) -> Optional[Any]:
         """获取并验证 bot"""
         try:
-            bot = await self.db_manager.get_bot_by_id(int(bot_id))
+            bot = await db_manager.get_bot_by_id(int(bot_id))
             if not bot:
                 logger.warning(f"Bot not found: {bot_id}")
                 return None
@@ -105,11 +107,11 @@ class MessageRouter:
             logger.error(f"Error getting/validating bot: {str(e)}", exc_info=True)
             return None
 
-    async def _verify_user_permission(self, user_id: str, bot: any) -> bool:
+    async def _verify_user_permission(self, user_id: str, bot: Any) -> bool:
         """验证用户权限"""
         return not bot.user_id or str(bot.user_id) == user_id
 
-    async def _get_or_create_model(self, bot: any, message_service: str) -> Optional[ModelInstance]:
+    async def _get_or_create_model(self, bot: Any, message_service: str) -> Optional[ModelInstance]:
         """获取或创建模型实例"""
         try:
             model_key = str(bot.id)
@@ -135,7 +137,6 @@ class MessageRouter:
                 # 创建模型实例
                 model = model_class(
                     bot=bot,
-                    db_manager=self.db_manager,
                     cleanup_callback=lambda: asyncio.create_task(self.cleanup_model(model_key))
                 )
                 self.active_models[model_key] = ModelInstance(model, message_service)
@@ -160,7 +161,7 @@ class MessageRouter:
                     # 确保模型实例完成所有未完成的任务
                     if hasattr(instance.model, 'cleanup'):
                         try:
-                            await instance.model.cleanup()
+                            await instance.model.before_sleep_task()
                         except Exception as e:
                             logger.error(f"Error during model cleanup: {str(e)}")
                     
@@ -174,4 +175,4 @@ class MessageRouter:
             logger.error(f"Error in cleanup_model for {model_key}: {str(e)}", exc_info=True)
 
 # 创建全局路由器实例
-message_router = MessageRouter(DatabaseManager())
+message_router = MessageRouter()

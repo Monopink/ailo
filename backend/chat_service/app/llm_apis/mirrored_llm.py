@@ -1,21 +1,22 @@
+from typing import Dict, Any, Optional
 from .base import BaseLLMAPI
 import logging
 
 logger = logging.getLogger(__name__)
 
 class MirroredLLMAPI(BaseLLMAPI):
-    async def generate_response(self, context: dict) -> dict:
+    async def generate_response(self, context: Dict[str, Any]) -> Optional[Dict]:
         """
-        返回用户的输入消息，用于测试
+        直接返回收到的context，用于测试
         Args:
             context: 上下文字典
         Returns:
-            str: 用户的输入消息
+            Dict: 原样返回收到的context
         """
         logger.info(f"MirroredLLM received context")
         return context
 
-    async def validate_response(self, response: str) -> bool:
+    async def validate_response(self, response: Dict) -> bool:
         """
         验证响应是否存在
         Args:

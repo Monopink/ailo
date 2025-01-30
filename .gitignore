@@ -1,2 +1,3 @@
 
 backend/chat_service/app/app.log
+backend/chat_service/app/models/convert_timestamp.py

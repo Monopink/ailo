@@ -1,18 +1,31 @@
+import json
+import random
 import asyncio
 import logging
-import random
-from datetime import datetime
-from typing import Any, Callable, Optional, Dict
+from typing import Any, Dict, Optional, Callable, Awaitable
 from .base import BaseModel
-from event_bus import event_bus, EventTypes
-from llm_apis.mock_llm import MockLLMAPI as LLMAPI
-from db_managers import db_manager
-import json
+from llm_apis import mock_llm as main_llm
+
+from .message_utils import send_message
+from .db_utils import load_full_data, update_context, update_memory
+from .context_utils import convert_timestamp, varify_context, append_context, remove_last_context, refresh_system_context
 
 logger = logging.getLogger(__name__)
 
-class LilyModel(BaseModel):
-    def __init__(self, bot: Any, cleanup_callback: Callable[[], None]):
+class ModelLily(BaseModel):
+
+    # 导入外部方法
+    _convert_timestamp = convert_timestamp
+    _send_message = send_message
+    _load_full_data = load_full_data
+    _update_context = update_context
+    _update_memory = update_memory
+    _varify_context = varify_context
+    _append_context = append_context
+    _remove_last_context = remove_last_context
+    _refresh_system_context = refresh_system_context
+
+    def __init__(self, bot: Any, message_service: str, cleanup_callback: Callable[[str], Awaitable[None]]):
         """
         初始化 Lily 模型
         Args:
@@ -20,234 +33,176 @@ class LilyModel(BaseModel):
             cleanup_callback: 清理回调函数
         """
         # 调用父类的初始化方法
-        super().__init__(bot=bot, cleanup_callback=cleanup_callback)
-        
-        # Lily 特定的初始化
-        self.llm_api = LLMAPI()
-        self.process_delay_time = 3  # 等待新消息的延迟时间
-        self.process_wait_time = 0   # 处理消息前的等待时间
-        self.typing_speed = 0.05     # 打字速度
-        self.sleep_timeout = 20      # 睡眠超时时间
-        self.is_awake = False        # bot是否苏醒
-        self.is_processing = False    # 处理状态
-        self.message_queue = asyncio.Queue() # 消息队列
-        self.processing_lock = asyncio.Lock() # 处理锁
-        self.processing_task = asyncio.create_task(self._process_message_queue()) # 启动消息处理循环
-        self.sleep_task = None # 睡眠任务
+        super().__init__(message_service=message_service, bot=bot, cleanup_callback=cleanup_callback)
 
-        # 上下文相关的初始化
-        self.context_limit = 1000 # 上下文限制
-        self.important_context_limit = 1000 # 重要上下文限制
-        self.memory_limit = 1000 # 记忆限制
-        
-        self.context = []
-        self.relationship_type: Optional[str] = None
-        self.relationship_score: int = 0
-        self.style = None # bot性格风格
-        self.important_context = {} # 重要对话
-        self.memory = None # 记忆
-        self.birth_date = None # 出生日期
-
-    def _reset_sleep_timer(self):
-        """重置睡眠定时器"""
-        logger.debug(f"Resetting sleep timer for bot {self.bot.id}")
-        if self.sleep_task:
-            self.sleep_task.cancel()
-        self.sleep_task = asyncio.create_task(self._sleep())
-
-    async def _load_bot_context(self) -> None:
-        """从数据库加载 bot 上下文"""
-        try:
-            context_data = await db_manager.get_bot_context(self.bot.id, self.bot.user_id)
-            if context_data:
-                self.context = context_data.get('context', {})
-                self.relationship_type = context_data.get('relationship_type')
-                self.relationship_score = context_data.get('relationship_score', 0)
-                self.style = getattr(self.bot, f"{self.relationship_type}_style", "")
-                self.memory = context_data.get('memory')
-                self.important_context = context_data.get('important_context', {})
-                logger.info(f"Loaded context for bot {self.bot.id}")
-        except Exception as e:
-            logger.error(f"Error loading bot context: {str(e)}")
-
-    def _calculate_wait_time(self) -> int:
-        """计算等待时间"""
-        if not self.context:
-            return 0
-            
+        # 特定的初始化
+        self.time_zone: str = bot.time_zone # 时区
+        self.context: Dict = bot.context # 上下文
+        self.memory: str = getattr(bot, 'memory', '') # 记忆
+        self.style: str = getattr(bot, f"{bot.relationship_type.value}_style", '') if bot.relationship_type else '' # bot性格风格
+        self.relationship_type: Optional[str] = bot.relationship_type.value if bot.relationship_type else None
+        self.relationship_score: int = getattr(bot, 'relationship_score', 0)
+        self.birth_date: str = getattr(bot, 'birth_date', '') # 出生日期
+        self.typing_speed: float = 0     # 打字速度
+        # 计算苏醒时间  
         if self.relationship_type == 'stranger':
-            base_time = 100 - self.relationship_score
-        elif self.relationship_type in ['friend', 'confidant', 'lover']:
-            base_time = 0
+            self.to_wakeup_time = 2 * (100 - self.relationship_score)
+        elif self.relationship_type in ['friend']:
+            self.to_wakeup_time = 10
+        elif self.relationship_type in ['confidant', 'lover']:
+            self.to_wakeup_time = 0
         else:
-            base_time = 0
+            self.to_wakeup_time = 0
 
-        if random.random() < 0.5:  # 50% 概率保持原值
-            return base_time
-        
-        return random.randint(0, base_time)
+        self.context_limit: int = 1000 # 上下文限制
+        self.memory_limit: int = 1000 # 记忆限制
+        self.response_filter: bool = True # 是否过滤响应
 
-    async def process_message(self, message: dict) -> None:
-        """处理接收到的消息"""
-        logger.info(f"Bot {self.bot.id} received message from {message['from_id']}")
-        
-        self._reset_sleep_timer()
-        await self.message_queue.put(message)
-        
-        # 发送typing状态
-        typing_message = {
-            'from_id': str(self.bot.id),
-            'to_id': message['from_id'],
-            'content': '',
-            'message_type': 'typing',
-            'message_service': message.get('message_service', 'unknown'),
-            'timestamp': datetime.now().isoformat()
-        }
-        await event_bus.publish(EventTypes.SEND_MESSAGE, typing_message)
+        self.to_sleep_time: int = 20      # 睡眠超时时间
+        self.to_process_time: int = 4     # 处理消息等待时间
+        self.default_system_context: str = "You are Lily, an AI assistant with the following traits:\n"
 
-    async def _process_message_queue(self) -> None:
-        """消息队列处理循环"""
-        while True:
-            try:
-                message = await self.message_queue.get()
-                combined_content = message['content']
-                
-                # 等待 process_delay_time，期间如果有新消息则合并内容
-                while True:
-                    try:
-                        await asyncio.sleep(self.process_delay_time)
-                        if self.message_queue.empty():
-                            break
-                        next_message = self.message_queue.get_nowait()
-                        combined_content += f"\n{next_message['content']}"
-                        message = {**next_message, 'content': combined_content}
-                    except asyncio.QueueEmpty:
-                        break
+        # 初始化队列和锁
+        self.is_awake = False        # bot是否苏醒
+        self.is_processing = False  # 添加处理状态标志
+        self.sleep_task: asyncio.Task | None = None       # 睡眠任务
+        self.wakeup_task: asyncio.Task | None = None      # 唤醒任务
+        self.process_task: asyncio.Task | None = None     # 消息处理任务
+        self.message_queue = asyncio.Queue()  # 消息队列
 
-                async with self.processing_lock:
-                    if not self.is_awake:
-                        await self._load_bot_context()
-                        self.process_wait_time = self._calculate_wait_time()
-                        
-                        # 等待 process_wait_time，期间如果有新消息则重新计算等待时间
-                        while True:
-                            try:
-                                await asyncio.sleep(self.process_wait_time)
-                                if self.message_queue.empty():
-                                    break
-                                next_message = self.message_queue.get_nowait()
-                                combined_content += f"\n{next_message['content']}"
-                                message = {**next_message, 'content': combined_content}
-                                self.process_wait_time = self._calculate_wait_time()
-                            except asyncio.QueueEmpty:
-                                break
-                        
-                        self.is_awake = True
-                        
-                    await self._handle_single_message(message)
-                    
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in message queue processing: {str(e)}", exc_info=True)
-            finally:
-                self.message_queue.task_done()
+    async def _sleep_timer(self, to_sleep_time: int = 0) -> None:
+        """睡眠并清理实例"""
+        try:
+            logger.debug(f"Starting sleep timer for {to_sleep_time} seconds for bot {self.bot.id}")
+            await asyncio.sleep(to_sleep_time)
+            
+            # 保存当前上下文
+            await self._update_context()
+            
+            # 执行清理回调
+            if self.cleanup_callback:
+                try:
+                    await self.cleanup_callback(str(self.bot.id))
+                    logger.debug(f"Cleanup callback executed for bot {self.bot.id}")
+                except Exception as e:
+                    logger.error(f"Cleanup callback failed for bot {self.bot.id}: {str(e)}", exc_info=True)
+                    raise
+            
+            logger.info(f"Bot {self.bot.id} has entered sleep mode")
+            
+        except asyncio.CancelledError:
+            logger.debug(f"Sleep timer cancelled for bot {self.bot.id}")
+            raise
+        except Exception as e:
+            logger.error(f"Sleep timer failed for bot {self.bot.id}: {str(e)}", exc_info=True)
+            raise
 
-    async def _handle_single_message(self, message: dict) -> None:
-        """
-        处理单条消息的核心逻辑
-        返回值改为 None，因为消息发送由事件总线处理
+    def _set_sleep_timer(self, to_sleep_time: Optional[int] = None) -> None:
+        """重置睡眠定时器
+        Args:
+            to_sleep_time: 睡眠时间, None代表默认值, 0代表取消睡眠定时器
         """
         try:
-            # 更新上下文
-            self.update_context('last_message', message)
-            self.update_context('last_message_time', datetime.now())
+            logger.debug(f"Resetting sleep timer for bot {self.bot.id}")
+            if self.sleep_task and not self.sleep_task.done():
+                self.sleep_task.cancel()
+                logger.debug(f"Previous sleep timer cancelled for bot {self.bot.id}")
+            
+            if to_sleep_time == None:
+                to_sleep_time = self.to_sleep_time
+            
+            if to_sleep_time > 0:
+                self.sleep_task = asyncio.create_task(self._sleep_timer(to_sleep_time))
+                logger.debug(f"New sleep timer set for {to_sleep_time} seconds for bot {self.bot.id}")
+        except Exception as e:
+            logger.error(f"Failed to set sleep timer for bot {self.bot.id}: {str(e)}", exc_info=True)
+            raise
 
-            # 生成响应
-            response_content = await self.generate_response(message)
-            if not response_content:
-                logger.error("Failed to generate response")
+    async def _wakeup_timer(self, to_wakeup_time: int = 0, to_awake: bool = True) -> None:
+        """等待时间唤醒
+        Args:
+            to_wakeup_time: 唤醒时间
+            to_awake: 是否唤醒, True代表唤醒, False代表保持睡眠
+        """
+        try:
+            logger.debug(f"Starting wakeup timer for {to_wakeup_time} seconds for bot {self.bot.id}")
+            await asyncio.sleep(to_wakeup_time)
+            
+            if to_awake:
+                self.is_awake = True
+                logger.info(f"Bot {self.bot.id} has awakened")
+            else:
+                logger.info(f"Bot {self.bot.id} remains in sleep state")
+        except asyncio.CancelledError:
+            logger.debug(f"Wakeup timer cancelled for bot {self.bot.id}")
+            raise
+        except Exception as e:
+            logger.error(f"Wakeup timer failed for bot {self.bot.id}: {str(e)}", exc_info=True)
+            raise
+
+    async def _wait_wakeup_timer(self, to_wakeup_time: Optional[int] = None) -> None:
+        """等待唤醒定时器
+        Args:
+            to_wakeup_time: 唤醒时间, None代表默认值
+        """
+        try:
+            if self.wakeup_task and not self.wakeup_task.done():
+                logger.debug(f"Cancelling existing wakeup timer for bot {self.bot.id}")
+                self.wakeup_task.cancel()
+                await asyncio.sleep(0)  # 让取消操作完成
+
+            if to_wakeup_time != None:
+                logger.debug(f"Setting fixed wakeup timer for {to_wakeup_time} seconds for bot {self.bot.id}")
+                self.wakeup_task = asyncio.create_task(asyncio.sleep(to_wakeup_time))
+                await self.wakeup_task
+                return
+            
+            if self.is_awake or not self.context or not self.to_wakeup_time:
+                logger.debug(f"Bot {self.bot.id} is already awake or context is empty or to_wakeup_time is 0")
                 return
 
-            # 构造响应消息
-            response = {
-                'from_id': str(self.bot.id),
-                'to_id': message['from_id'],
-                'content': response_content,  # 直接使用响应内容，不需要 JSON 处理
-                'message_type': 'chat',
-                'message_service': message.get('message_service', 'unknown'),
-                'timestamp': datetime.now().isoformat()
-            }
+            random_number: int = random.randint(1, 100)
+            to_wakeup: bool = True
 
-            # 模拟思考和打字时间
-            thinking_time = len(str(response_content)) * self.typing_speed
-            await asyncio.sleep(thinking_time)
+            # 50% 概率保持原值, 50% 概率随机调整
+            if random_number <= 50:
+                self.to_wakeup_time = int(self.to_wakeup_time * random_number / 50)
+                logger.debug(f"Adjusted wakeup time to {self.to_wakeup_time} seconds for bot {self.bot.id}")
+            
+            # 5% 概率不会唤醒
+            if random_number <= 5:
+                to_wakeup = False
+                logger.debug(f"Bot {self.bot.id} will not wake up (random chance)")
 
-            # 通过事件总线发送响应
-            await event_bus.publish(EventTypes.SEND_MESSAGE, response)
+            logger.debug(f"Starting dynamic wakeup timer for {self.to_wakeup_time} seconds for bot {self.bot.id}")
+            self.wakeup_task = asyncio.create_task(self._wakeup_timer(self.to_wakeup_time, to_wakeup))
+            await self.wakeup_task
 
-            # 保存上下文
-            await self.save_context()
-
+        except asyncio.CancelledError:
+            logger.debug(f"Wait wakeup timer cancelled for bot {self.bot.id}")
+            raise
         except Exception as e:
-            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            logger.error(f"Wait wakeup timer failed for bot {self.bot.id}: {str(e)}", exc_info=True)
+            raise
 
-    async def generate_response(self, message: dict) -> dict:
+    async def _validate_response(self, response: str|None) -> bool:
+        """验证响应"""
+        return True
+
+    async def _generate_response(self) -> str|None:
         """生成响应消息"""
         try:
-            # 构建系统提示
-            system_prompt = {
-                "role": "system",
-                "content": (
-                    f"You are Lily, an AI assistant with the following traits:\n"
-                    f"Style: {self.style}\n"
-                    f"Memory: {self.memory}\n"
-                    f"Relationship: {self.relationship_type} (Score: {self.relationship_score})"
-                )
-            }
-            
-            # 初始化或更新上下文历史
-            if 'history' not in self.context:
-                self.context['history'] = [system_prompt]
-            elif self.context['history'][0]['role'] != 'system':
-                self.context['history'].insert(0, system_prompt)
-            
-            # 添加用户消息到历史记录
-            user_message = {
-                "role": "user",
-                "content": message['content']
-            }
-            self.context['history'].append(user_message)
-            
-            # 准备 LLM API 请求
-            llm_request = {
-                "messages": self.context['history'][-self.context_limit:],  # 限制上下文长度
-            }
-
             # 调用 LLM API
-            llm_response = await self.llm_api.generate_response(llm_request)
+            llm_response = await main_llm.generate_response(self.context)
 
             # 验证响应
-            if not await self.llm_api.validate_response(llm_response):
-                logger.error("Invalid LLM response")
-                return None
+            is_valid, error_msg = await main_llm.validate_response(llm_response)
+            if not is_valid:
+                logger.error(f"Invalid LLM response: {error_msg}")
+                raise ValueError(f"LLM response validation failed: {error_msg}")
 
             # 从响应中提取助手消息
             assistant_message = llm_response['choices'][0]['message']
-            
-            # 将助手回复添加到历史记录
-            self.context['history'].append(assistant_message)
-            
-            # 管理上下文长度
-            if len(self.context['history']) > self.context_limit:
-                # 保留系统消息和最近的消息
-                self.context['history'] = [
-                    self.context['history'][0],  # 系统消息
-                    *self.context['history'][-(self.context_limit-1):]  # 最近的消息
-                ]
-
-            # 更新重要上下文（如果需要）
-            self._update_important_context(message['content'], assistant_message['content'])
 
             return assistant_message['content']
 
@@ -255,89 +210,126 @@ class LilyModel(BaseModel):
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
             return None
 
-    def _update_important_context(self, user_message: str, assistant_response: str) -> None:
-        """更新重要上下文"""
-        # 简单的重要性判断逻辑
-        important_keywords = ['记住', '牢记', '重要', '不要忘记', '记录']
-        
-        if any(keyword in user_message for keyword in important_keywords):
-            timestamp = datetime.now().isoformat()
-            self.important_context[timestamp] = {
-                'user_message': user_message,
-                'assistant_response': assistant_response
-            }
-            
-            # 限制重要上下文的大小
-            if len(self.important_context) > self.important_context_limit:
-                oldest_key = min(self.important_context.keys())
-                del self.important_context[oldest_key]
-
-    async def save_context(self):
-        """
-        保存上下文到数据库
-        """
+    async def _process_single_message(self, single_message: str) -> None:
+        """处理单个内容"""
         try:
-            bot_update = {
-                'context': self.context,
-                'important_context': self.important_context,
-                'memory': self.memory
-            }
-            await db_manager.update_bot(self.bot.id, bot_update)
+            logger.debug(f"Processing single message: {single_message[:100]}...")
             
+            # 更新上下文
+            self._varify_context()
+            self._append_context("user", single_message)
+            logger.debug("Context updated with user message")
+
+            if not self.is_awake:
+                logger.info(f"Bot {self.bot.id} is sleeping, skipping message processing")
+                # 重置睡眠定时器
+                self._set_sleep_timer()
+                return
+
+            # 发送typing消息
+            asyncio.create_task(self._send_message(message_type='typing'))
+            logger.debug("Sent typing indicator")
+
+            response_content = await self._generate_response()
+            logger.debug("Generated response from LLM")
+
+            if not await self._validate_response(response_content):
+                logger.error("Invalid LLM response")
+                return
+            
+            if not response_content:
+                logger.error("Failed to generate response")
+                return
+            
+            self._append_context("assistant", response_content)
+            logger.debug("Context updated with assistant response")
+
+            # 打字时间
+            typing_time = len(str(response_content)) * self.typing_speed
+            logger.debug(f"Starting sleep for {typing_time} seconds...")
+            await asyncio.sleep(typing_time)
+            logger.debug("Sleep completed")
+
+            # 发送响应消息
+            await self._send_message(content=response_content)
+            logger.info(f"Sent response message of length {len(response_content)}")
+
+            # 重置睡眠定时器
+            self._set_sleep_timer()
+
+            # 保存上下文
+            await self._update_context()
+            logger.debug("Context saved to database")
+
         except Exception as e:
-            logger.error(f"Error saving context: {str(e)}")
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
 
-    async def _sleep(self):
-        """睡眠并清理实例"""
+    async def _process_message_queue(self) -> None:
+        """处理内容队列"""
+        self.is_processing = True
         try:
-            await asyncio.sleep(self.sleep_timeout)
-            await self.before_sleep_task()  # 先执行清理前的准备工作
-            
-            # 等待清理完成
-            if asyncio.iscoroutinefunction(self.cleanup_callback):
-                await self.cleanup_callback()
+            # 获取队列中的所有消息数量
+            queue_size = self.message_queue.qsize()
+            if queue_size > 0:
+                # 一次性获取并合并所有消息
+                single_message = "\n".join([
+                    await self.message_queue.get()
+                    for _ in range(queue_size)
+                ])
+                # 处理合并后的消息
+                await self._process_single_message(single_message)
+
+        finally:
+            self.is_processing = False
+            # 如果队列中还有新消息，启动新的处理任务
+            if not self.message_queue.empty():
+                asyncio.create_task(self._process_message_queue())
+
+    async def _process_timer(self) -> None:
+        """消息处理定时器"""
+        try:
+            # 等待处理消息
+            await asyncio.sleep(self.to_process_time)
+            # 如果bot未唤醒，等待唤醒
+            if not self.is_awake:
+                await self._wait_wakeup_timer()
+            # 如果当前没有处理过程在运行，启动处理
+            if not self.is_processing:
+                asyncio.create_task(self._process_message_queue())
+        except Exception as e:
+            logger.error(f"Error in process timer: {str(e)}", exc_info=True)
+            raise
+
+    async def process_message(self, original_message: dict) -> None:
+        """
+        入口函数，处理接收到的消息
+        """
+        logger.debug(f"Received message: {original_message}")
+
+        # 取消设置睡眠定时器
+        self._set_sleep_timer(0)
+
+        try:
+            # 取消现有的消息处理任务
+            if self.process_task and not self.process_task.done():
+                self.process_task.cancel()
+                logger.debug("Cancelled existing process task.")
+
+            # 将消息放入队列
+            content = original_message.get('content', '')
+            timestamp = original_message.get('timestamp')
+            message_type = original_message.get('message_type', '')
+            if content and timestamp and message_type == 'chat':
+                #formatted_message = f"{content}[{self._convert_timestamp(timestamp)}]"
+                #await self.message_queue.put(formatted_message)
+                await self.message_queue.put(f"{content}")
+                logger.debug("Message appended to the message queue.")
             else:
-                self.cleanup_callback()
-            
-            logger.info(f"Bot {self.bot.id} entered sleep state")
-            
-        except asyncio.CancelledError:
-            logger.debug(f"Sleep task for bot {self.bot.id} cancelled")
+                logger.warning("Skipping message due to missing content timestamp or message type.")
 
-    async def before_sleep_task(self):
-        """睡眠前的操作"""
-        logger.info(f"Starting before-sleep task for bot {self.bot.id}")
-        try:
-            # 保存当前上下文
-            await self.save_context()
-            
-            # 取消处理任务
-            if self.processing_task and not self.processing_task.done():
-                logger.info(f"Cancelling processing task for bot {self.bot.id}")
-                self.processing_task.cancel()
-                try:
-                    await self.processing_task
-                except asyncio.CancelledError:
-                    pass
+            # 创建新的消息处理任务
+            self.process_task = asyncio.create_task(self._process_timer())
+            logger.debug("New process task created.")
 
-            # 清空消息队列 - 修改这部分逻辑
-            remaining_messages = []
-            while True:
-                try:
-                    remaining_messages.append(self.message_queue.get_nowait())
-                except asyncio.QueueEmpty:
-                    break
-            
-            # 对收集到的消息执行 task_done
-            for _ in remaining_messages:
-                self.message_queue.task_done()
-            
-            # 取消睡眠任务
-            if self.sleep_task:
-                logger.debug(f"Cancelling sleep task for bot {self.bot.id}")
-                self.sleep_task.cancel()
-                self.sleep_task = None
-
-            logger.info(f"Before-sleep task completed for bot {self.bot.id}")
         except Exception as e:
-            logger.error(f"Error during before-sleep task for bot {self.bot.id}: {str(e)}", exc_info=True)
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)

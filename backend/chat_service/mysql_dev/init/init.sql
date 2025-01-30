@@ -43,7 +43,6 @@ CREATE TABLE bot (
     relationship_score INT DEFAULT 0,
     relationship_type ENUM('stranger', 'friend', 'confidant', 'lover') DEFAULT 'stranger',
     context JSON,
-    important_context JSON,
     memory TEXT,
     stranger_style TEXT,
     friend_style TEXT,

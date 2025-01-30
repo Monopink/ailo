@@ -38,12 +38,13 @@ class WebSocketManager:
                 data = await websocket.receive_text()
                 message = json.loads(data)
                 
-                # 添加消息源信息
+                # 添加消息源信息和消息类型
                 message['from_id'] = client_id
                 message['message_service'] = 'websocket'
+                message['message_type'] = 'chat'
                 
                 # 发布消息到事件总线
-                logger.debug(f"Publishing message from client {client_id} to event bus")
+                logger.debug(f"Publishing message from client {message} to event bus")
                 await event_bus.publish(EventTypes.MESSAGE_RECEIVED, message)
                 logger.debug(f"Message published successfully for client {client_id}")
                 

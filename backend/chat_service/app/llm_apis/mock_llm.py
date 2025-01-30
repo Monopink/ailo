@@ -2,12 +2,12 @@ import asyncio
 import random
 import time
 import logging
-from typing import Dict, Any, List
-from .base import BaseLLMAPI
+from typing import Dict, Any, List, Optional
+from .base import BaseLLM
 
 logger = logging.getLogger(__name__)
 
-class MockLLMAPI(BaseLLMAPI):
+class MockLLM(BaseLLM):
     async def generate_response(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
         
@@ -98,30 +98,34 @@ class MockLLMAPI(BaseLLMAPI):
         logger.debug(f"Generated mock content: {response}")
         return response
 
-    async def validate_response(self, response: Dict[str, Any]) -> bool:
+    async def validate_response(self, response: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         """
-        验证响应是否合适
-        """
-        logger.debug(f"Validating response: {response}")
+        验证响应是否符合标准LLM响应结构
         
+        Args:
+            response: LLM响应内容
+            
+        Returns:
+            tuple[bool, Optional[str]]: (是否有效, 错误信息)
+        """
         if "error" in response:
-            logger.error(f"Response contains error: {response['error']}")
-            return False
-            
+            error_msg = f"API error: {response['error']}"
+            return False, error_msg
+
         try:
-            choices = response.get("choices", [])
-            if not choices:
-                logger.error("Response contains no choices")
-                return False
-                
-            content = choices[0].get("message", {}).get("content", "")
-            if not content:
-                logger.error("Response content is empty")
-                return False
-            
-            logger.debug("Response validation successful")
-            return True
-            
+            required_fields = ["id", "object", "created", "model", "choices", "usage"]
+            missing_fields = [field for field in required_fields if field not in response]
+            if missing_fields:
+                return False, f"Missing required fields: {missing_fields}"
+
+            if not response["choices"] or not isinstance(response["choices"], list):
+                return False, "Invalid or empty choices field"
+
+            choice = response["choices"][0]
+            if not all(key in choice["message"] for key in ["role", "content"]):
+                return False, "Invalid message format in choice"
+
+            return True, None
+
         except Exception as e:
-            logger.error(f"Error during response validation: {str(e)}", exc_info=True)
-            return False
+            return False, f"Validation error: {str(e)}"

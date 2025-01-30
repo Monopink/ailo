@@ -2,11 +2,11 @@ import aiohttp
 import json
 import logging
 from typing import Optional
-from .base import BaseLLMAPI
+from .base import BaseLLM
 
 logger = logging.getLogger(__name__)
 
-class DoubaoLLMAPI(BaseLLMAPI):
+class DoubaoLLM(BaseLLM):
     def __init__(self, api_key: str, api_url: Optional[str] = None):
         """
         初始化豆包API客户端

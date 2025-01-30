@@ -1,22 +1,18 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
-class BaseLLMAPI(ABC):
+class BaseLLM(ABC):
     def __init__(self):
         pass
 
     @abstractmethod
-    async def generate_response(self, context: Dict[str, Any]) -> Optional[Dict]:
+    async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         生成响应
         Args:
             context: 包含消息历史、bot信息等的上下文字典
                 {
                     "messages": List[Dict],  # 消息历史
-                    "bot_name": str,         # bot名称
-                    "user_id": str,          # 用户ID
-                    "relationship_type": str, # 关系类型
-                    "relationship_score": int # 关系分数
                 }
         Returns:
             Optional[Dict]: 响应消息
@@ -24,12 +20,12 @@ class BaseLLMAPI(ABC):
         pass
 
     @abstractmethod
-    async def validate_response(self, response: Dict) -> bool:
+    async def validate_response(self, response: Dict) -> tuple[bool, Optional[str]]:
         """
-        验证响应是否有效
+        验证响应是否符合标准LLM响应结构
         Args:
-            response: 响应内容
+            response: LLM响应内容
         Returns:
-            bool: 响应是否有效
+            tuple[bool, Optional[str]]: (是否有效, 错误信息)
         """
         pass

@@ -2,13 +2,74 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SAYS Dome</title>
     <style>
+        /* 防止 iOS 点击时的默认高亮效果 */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* 修改输入框样式，优化移动端体验 */
+        input, button {
+            font-size: 16px; /* 防止 iOS 自动放大 */
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            padding: 8px 12px;
+            appearance: none; /* 移除默认样式 */
+            -webkit-appearance: none;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            touch-action: manipulation; /* 优化触摸体验 */
+        }
+
+        button:active {
+            background-color: #0056b3;
+        }
+
+        /* 优化移动端文本选择 */
+        .messages {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        /* 优化移动端滚动 */
+        .messages {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        body {
+            margin: 0;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+        }
+        
         .chat-container {
             max-width: 800px;
-            margin: 20px auto;
+            width: 100%;
+            margin: 0 auto;
+            padding: 10px;
         }
+        
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .messages {
+            height: calc(100vh - 250px);
+            min-height: 300px;
+        }
+        
         .messages {
             height: 400px;
             border: 1px solid #ccc;
@@ -65,11 +126,130 @@
             background-color: #f44336;
             color: white;
         }
+
+        /* 移动端适配优化 */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+                /* 防止 iOS 橡皮筋效果 */
+                overscroll-behavior: none;
+            }
+
+            .chat-container {
+                padding: 5px;
+            }
+
+            .input-group {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .input-group input,
+            .input-group button {
+                width: 100%;
+                margin: 0;
+                height: 40px; /* 更容易点击 */
+            }
+
+            .input-container {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                padding: 10px;
+                background: white;
+                box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            }
+
+            .messages {
+                /* 调整消息区域高度，考虑固定的输入框 */
+                height: calc(100vh - 280px);
+                margin-bottom: 60px;
+            }
+
+            /* 优化消息显示 */
+            .message {
+                padding: 8px;
+                margin: 5px 0;
+                border-radius: 8px;
+            }
+        }
+
+        /* 状态指示器容器 */
+        .status-bar {
+            background: #f8f9fa;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .connection-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        /* 状态指示器前的小圆点 */
+        .connection-status::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-connected::before {
+            background-color: #4caf50;
+        }
+
+        .status-disconnected::before {
+            background-color: #f44336;
+        }
+
+        .status-typing::before {
+            background-color: #ff9800;
+        }
+
+        .status-connected {
+            color: #2e7d32;
+            background-color: #e8f5e9;
+        }
+
+        .status-disconnected {
+            color: #c62828;
+            background-color: #ffebee;
+        }
+
+        .status-typing {
+            color: #ef6c00;
+            background-color: #fff3e0;
+        }
+
+        /* 调整消息容器样式以配合新的状态栏 */
+        .messages {
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
     </style>
     <script>
         let socket;
         let messageHistory = [];
         let typingTimeout;
+
+        function getWebSocketUrl() {
+            // 获取当前页面的协议和主机地址
+            const host = window.location.hostname;
+            const port = '8000'; // WebSocket服务端口
+            return `${host}:${port}`;
+        }
 
         function addMessage(content, type = 'system') {
             const messages = document.getElementById("messages");
@@ -109,7 +289,9 @@
                 return;
             }
 
-            socket = new WebSocket(`ws://localhost:8000/ws/${fromId}`);
+            const wsBaseUrl = getWebSocketUrl();
+            socket = new WebSocket(`ws://${wsBaseUrl}/ws/${fromId}`);
+
 
             socket.onopen = () => {
                 addMessage("Connected to server", "system");
@@ -123,17 +305,14 @@
                         addMessage(`Error: ${data.error}`, "system");
                         console.error("Server error:", data);
                     } else if (data.message_type === 'typing') {
-                        // Clear any existing timeout
+                        const statusDiv = document.getElementById("connection-status");
+                        statusDiv.textContent = "Typing...";
+                        statusDiv.className = "connection-status status-typing";
+                        
                         if (typingTimeout) {
                             clearTimeout(typingTimeout);
                         }
                         
-                        // Update status to typing
-                        const statusDiv = document.getElementById("connection-status");
-                        statusDiv.textContent = "Typing...";
-                        statusDiv.className = "connection-status status-connected";
-                        
-                        // Set new timeout to revert status after 2 seconds
                         typingTimeout = setTimeout(() => {
                             statusDiv.textContent = "Connected";
                             statusDiv.className = "connection-status status-connected";
@@ -249,14 +428,15 @@
 <body>
     <div class="chat-container">
         <h1>SAYS</h1>
-        <div>
+        <div class="input-group">
             <input id="from_id" placeholder="Enter From ID">
             <input id="to_id" placeholder="Enter To ID">
             <button onclick="connect()">Connect</button>
             <button onclick="downloadHistory()">Download Chat History</button>
+        </div>
+        <div class="status-bar">
             <span id="connection-status" class="connection-status status-disconnected">Not connected</span>
         </div>
-        <br>
         <div id="messages" class="messages"></div>
         <div class="input-container">
             <input id="message" 

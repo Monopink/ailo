@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class EventBus:
     def __init__(self):
         self._subscribers: Dict[str, List[Callable]] = {}
@@ -15,7 +16,7 @@ class EventBus:
         """启动事件总线"""
         if self._running:
             return
-        
+
         logger.info("Starting event bus...")
         self._running = True
         # 创建新的处理任务
@@ -26,7 +27,7 @@ class EventBus:
         """停止事件总线"""
         if not self._running:
             return
-            
+
         logger.info("Stopping event bus...")
         self._running = False
         if self._process_task:
@@ -60,7 +61,9 @@ class EventBus:
             logger.warning("Event bus is not running, message ignored")
             return
         await self._message_queue.put((event_type, data))
-        logger.debug(f"Published event: {event_type}, subscribers count: {len(self._subscribers.get(event_type, []))}")
+        logger.debug(
+            f"Published event: {event_type}, subscribers count: {len(self._subscribers.get(event_type, []))}"
+        )
 
     async def _process_queue(self):
         """处理消息队列"""
@@ -69,24 +72,27 @@ class EventBus:
             try:
                 # 使用 wait_for 添加超时机制
                 event_type, data = await asyncio.wait_for(
-                    self._message_queue.get(),
-                    timeout=1.0  # 1秒超时
+                    self._message_queue.get(), timeout=1.0  # 1秒超时
                 )
-                
+
                 logger.debug(f"Processing event: {event_type}")
                 if event_type in self._subscribers:
                     subscribers = self._subscribers[event_type].copy()
-                    logger.debug(f"Found {len(subscribers)} subscribers for event: {event_type}")
+                    logger.debug(
+                        f"Found {len(subscribers)} subscribers for event: {event_type}"
+                    )
                     for callback in subscribers:
                         try:
                             await callback(data)
                         except Exception as e:
-                            logger.error(f"Error in subscriber callback for event {event_type}: {str(e)}")
+                            logger.error(
+                                f"Error in subscriber callback for event {event_type}: {str(e)}"
+                            )
                 else:
                     logger.warning(f"No subscribers found for event: {event_type}")
-                
+
                 self._message_queue.task_done()
-                
+
             except asyncio.TimeoutError:
                 # 超时继续循环
                 continue
@@ -97,11 +103,13 @@ class EventBus:
                 logger.error(f"Error in event bus processing: {str(e)}")
                 # 出错后短暂等待后继续
                 await asyncio.sleep(0.1)
-        
+
         logger.info("Message queue processor stopped")
+
 
 # 创建全局事件总线实例
 event_bus = EventBus()
+
 
 # 预定义的事件类型
 class EventTypes:

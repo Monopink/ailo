@@ -1,76 +1,90 @@
-import aiohttp
-import json
 import logging
-from typing import Optional
+import copy
+from typing import Dict, Any, Optional, AsyncGenerator
+from volcenginesdkarkruntime import Ark
 from .base import BaseLLM
 
 logger = logging.getLogger(__name__)
 
-class DoubaoLLM(BaseLLM):
-    def __init__(self, api_key: str, api_url: Optional[str] = None):
+
+class Doubao(BaseLLM):
+    def __init__(self, api_key: str, model_id: str, base_url: Optional[str] = None):
         """
         初始化豆包API客户端
         Args:
             api_key: 豆包API密钥
-            api_url: 可选的API地址
+            model_id: 模型ID
+            base_url: API基础URL，可选
         """
-        self.api_key = api_key
-        self.api_url = api_url or "https://api.doubao.com/v1/chat/completions"  # 示例URL，需要替换为实际的豆包API地址
-        self.headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
+        super().__init__()
+        self.model_id = model_id
+        self.base_url = base_url or "https://ark.cn-beijing.volces.com/api/v3"
+        self.client = Ark(base_url=self.base_url, api_key=api_key)
+        # 仅在API调用时使用加密，不影响存储
+        self.api_headers = {"x-is-encrypted": "true"}
 
-    async def generate_response(self, prompt: str) -> str:
-        """
-        调用豆包API生成响应
-        Args:
-            prompt: 输入的提示词
-        Returns:
-            str: 豆包API的响应
-        """
+    async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """生成响应，确保存储前解密内容"""
+        logger.info("Generating response with context: %s", context)
         try:
-            payload = {
-                "messages": [{"role": "user", "content": prompt}],
-                "model": "doubao-chat",  # 需要替换为实际的模型名称
-                "temperature": 0.7,
-                "max_tokens": 1000
+            messages = context.get("messages", [])
+            if not messages:
+                logger.warning("Messages list is empty")
+                raise ValueError("Messages list is empty")
+
+            # 创建消息的深拷贝用于加密
+            messages_for_api = copy.deepcopy(messages)
+
+            # API调用时使用加密的消息副本
+            completion = self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages_for_api,
+                extra_headers=self.api_headers,
+            )
+
+            # 确保存储解密后的内容
+            logger.info("Response generated successfully")
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": completion.choices[
+                                0
+                            ].message.content,  # SDK自动解密
+                        }
+                    }
+                ]
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.api_url,
-                    headers=self.headers,
-                    json=payload
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        logger.error(f"Doubao API error: {error_text}")
-                        return f"API调用失败: {response.status}"
-
-                    result = await response.json()
-                    if not result.get("choices"):
-                        logger.error(f"Unexpected API response: {result}")
-                        return "API返回格式错误"
-
-                    return self.format_response(result["choices"][0]["message"]["content"])
-
-        except aiohttp.ClientError as e:
-            logger.error(f"Network error when calling Doubao API: {str(e)}")
-            return f"网络请求错误: {str(e)}"
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Doubao API response: {str(e)}")
-            return "API响应解析失败"
         except Exception as e:
-            logger.error(f"Unexpected error when calling Doubao API: {str(e)}")
-            return f"未预期的错误: {str(e)}"
+            logger.error(f"Error calling Doubao API: {str(e)}", exc_info=True)
+            raise
 
-    async def validate_response(self, response: str) -> bool:
-        """
-        验证豆包API的响应是否有效
-        Args:
-            response: API响应内容
-        Returns:
-            bool: 响应是否有效
-        """
-        return bool(response and not response.startswith(("API调用失败", "网络请求错误", "API响应解析失败", "未预期的错误")))
+    async def validate_response(self, response: Dict) -> tuple[bool, Optional[str]]:
+        logger.info("Validating response: %s", response)
+        try:
+            if not isinstance(response, dict):
+                logger.warning("Response is not a dictionary")
+                return False, "Response is not a dictionary"
+
+            if "choices" not in response:
+                logger.warning("Response missing 'choices' field")
+                return False, "Response missing 'choices' field"
+
+            choices = response["choices"]
+            if not choices or not isinstance(choices, list):
+                logger.warning("Invalid or empty choices list")
+                return False, "Invalid or empty choices list"
+
+            first_choice = choices[0]
+            if "message" not in first_choice and "delta" not in first_choice:
+                logger.warning("Choice missing both 'message' and 'delta' fields")
+                return False, "Choice missing both 'message' and 'delta' fields"
+
+            logger.info("Response validation successful")
+            return True, None
+
+        except Exception as e:
+            logger.error(f"Validation error: {str(e)}", exc_info=True)
+            return False, f"Validation error: {str(e)}"

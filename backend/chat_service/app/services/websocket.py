@@ -6,6 +6,7 @@ from event_bus import event_bus, EventTypes
 
 logger = logging.getLogger(__name__)
 
+
 class WebSocketManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
@@ -37,17 +38,17 @@ class WebSocketManager:
             while True:
                 data = await websocket.receive_text()
                 message = json.loads(data)
-                
+
                 # 添加消息源信息和消息类型
-                message['from_id'] = client_id
-                message['message_service'] = 'websocket'
-                message['message_type'] = 'chat'
-                
+                message["from_id"] = client_id
+                message["message_service"] = "websocket"
+                message["message_type"] = "chat"
+
                 # 发布消息到事件总线
                 logger.debug(f"Publishing message from client {message} to event bus")
                 await event_bus.publish(EventTypes.MESSAGE_RECEIVED, message)
                 logger.debug(f"Message published successfully for client {client_id}")
-                
+
         except Exception as e:
             logger.error(f"Error processing message from client {client_id}: {str(e)}")
             await self.disconnect(client_id)
@@ -70,11 +71,11 @@ class WebSocketManager:
         """
         try:
             # 检查消息是否来自 websocket 服务
-            if message.get('message_service') != 'websocket':
+            if message.get("message_service") != "websocket":
                 logger.debug(f"Ignoring non-websocket message: {message}")
                 return
-                
-            to_id = message.get('to_id')
+
+            to_id = message.get("to_id")
             if not to_id:
                 logger.warning("Message missing to_id")
                 return
@@ -85,7 +86,7 @@ class WebSocketManager:
                 logger.debug(f"Processed message sent successfully to client {to_id}")
             else:
                 logger.warning(f"No active connection found for client {to_id}")
-                
+
         except Exception as e:
             logger.error(f"Error handling processed message: {str(e)}", exc_info=True)
 
@@ -95,6 +96,7 @@ class WebSocketManager:
         """
         for client_id in list(self.active_connections.keys()):
             await self.send_message(client_id, message)
+
 
 # 创建全局 WebSocket 管理器实例
 websocket = WebSocketManager()

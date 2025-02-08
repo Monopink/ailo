@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class MirroredLLM(BaseLLM):
     async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -18,55 +19,48 @@ class MirroredLLM(BaseLLM):
         """
         try:
             logger.info("MirroredLLM received context")
-            
+
             # 将context序列化为JSON字符串，确保Unicode字符正确处理
             serialized_content = json.dumps(context, ensure_ascii=False)
-            
+
             # 构造标准LLM响应结构
             response = {
                 "id": f"mirror-{random.randint(1000000, 9999999)}",
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": "mirrored-llm",
-                "choices": [{
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": serialized_content
-                    },
-                    "logprobs": None,
-                    "finish_reason": "stop"
-                }],
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": serialized_content},
+                        "logprobs": None,
+                        "finish_reason": "stop",
+                    }
+                ],
                 "usage": {
                     "prompt_tokens": len(str(context)) // 4,
                     "completion_tokens": len(serialized_content) // 4,
                     "total_tokens": (len(str(context)) + len(serialized_content)) // 4,
-                    "prompt_tokens_details": {
-                        "cached_tokens": 0
-                    }
-                }
+                    "prompt_tokens_details": {"cached_tokens": 0},
+                },
             }
-            
+
             return response
-            
+
         except Exception as e:
             logger.error(f"Error in generate_response: {str(e)}")
             # 返回错误响应而不是 None
-            return {
-                "error": {
-                    "message": str(e),
-                    "type": "internal_error",
-                    "code": 500
-                }
-            }
+            return {"error": {"message": str(e), "type": "internal_error", "code": 500}}
 
-    async def validate_response(self, response: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    async def validate_response(
+        self, response: Dict[str, Any]
+    ) -> tuple[bool, Optional[str]]:
         """
         验证响应是否符合标准LLM响应结构
-        
+
         Args:
             response: LLM响应内容
-            
+
         Returns:
             tuple[bool, Optional[str]]: (是否有效, 错误信息)
         """
@@ -76,7 +70,9 @@ class MirroredLLM(BaseLLM):
 
         try:
             required_fields = ["id", "object", "created", "model", "choices", "usage"]
-            missing_fields = [field for field in required_fields if field not in response]
+            missing_fields = [
+                field for field in required_fields if field not in response
+            ]
             if missing_fields:
                 return False, f"Missing required fields: {missing_fields}"
 

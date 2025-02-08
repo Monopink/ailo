@@ -13,13 +13,13 @@ from .mysql import (
 db_manager = MySQLManager()
 
 __all__ = [
-    'db_manager',
-    'MySQLManager',
-    'User',
-    'Bot',
-    'MessageHistory',
-    'UserStatus',
-    'UserRole',
-    'BotStatus',
-    'RelationType',
+    "db_manager",
+    "MySQLManager",
+    "User",
+    "Bot",
+    "MessageHistory",
+    "UserStatus",
+    "UserRole",
+    "BotStatus",
+    "RelationType",
 ]

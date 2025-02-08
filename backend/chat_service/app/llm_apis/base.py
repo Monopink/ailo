@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
+
 class BaseLLM(ABC):
     def __init__(self):
         pass

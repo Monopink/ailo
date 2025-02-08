@@ -18,9 +18,9 @@ class BaseModel(ABC):
         self.cleanup_callback = cleanup_callback
 
     @abstractmethod
-    async def process_message(self, message: Dict[str, Any]) -> None:
+    async def receive_message(self, message: Dict[str, Any]) -> None:
         """
-        处理接收到的消息的入口方法
+        接收消息的入口方法
         
         Args:
             message: 消息字典，包含以下字段：

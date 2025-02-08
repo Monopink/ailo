@@ -10,11 +10,8 @@ from message_router import message_router
 # 配置日志
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s %(levelname)s: %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('app.log')
-    ]
+    format="%(asctime)s %(levelname)s: %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler("app.log")],
 )
 logger = logging.getLogger(__name__)
 
@@ -28,8 +25,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
+    expose_headers=["*"],
 )
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -38,34 +36,38 @@ async def startup_event():
     """
     try:
         logger.info("Starting application initialization...")
-        
+
         # 启动事件总线
         logger.info("Starting event bus...")
         await event_bus.start()
         logger.info("Event bus started successfully")
-        
+
         # 等待数据库初始化
         await db_manager._init_task
         logger.info("Database initialized successfully")
 
         # 确保 message_router 已经创建并订阅了事件
         logger.info("Initializing message router...")
-        if not hasattr(app.state, 'message_router'):
+        if not hasattr(app.state, "message_router"):
             app.state.message_router = message_router
         logger.info("Message router initialized successfully")
 
         # 初始化 WebSocket 管理器
         logger.info("Initializing WebSocket manager...")
-        if not hasattr(app.state, 'websocket_manager'):
+        if not hasattr(app.state, "websocket_manager"):
             app.state.websocket_manager = websocket
-            logger.info(f"Active WebSocket connections: {len(websocket.active_connections)}")
+            logger.info(
+                f"Active WebSocket connections: {len(websocket.active_connections)}"
+            )
         logger.info("WebSocket manager initialized successfully")
 
         logger.info("Application startup complete")
     except Exception as e:
         logger.critical(f"Failed to start application: {str(e)}")
         import sys
+
         sys.exit(1)
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -86,6 +88,7 @@ async def shutdown_event():
     except Exception as e:
         logger.error(f"Error during shutdown: {str(e)}")
 
+
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(ws: WebSocket, client_id: str):
     """
@@ -99,6 +102,7 @@ async def websocket_endpoint(ws: WebSocket, client_id: str):
         logger.error(f"WebSocket error for client {client_id}: {str(e)}")
         await websocket.disconnect(client_id)
 
+
 @app.get("/health")
 async def health_check():
     """
@@ -107,19 +111,17 @@ async def health_check():
     return {
         "status": "healthy",
         "database": "connected" if db_manager._init_task.done() else "initializing",
-        "event_bus": "running" if event_bus._running else "stopped"
+        "event_bus": "running" if event_bus._running else "stopped",
     }
+
 
 @app.get("/")
 async def root():
     """
     根路径响应
     """
-    return {
-        "message": "Welcome to Says API",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    return {"message": "Welcome to Says API", "version": "1.0.0", "status": "running"}
+
 
 if __name__ == "__main__":
     uvicorn.run(
@@ -130,5 +132,5 @@ if __name__ == "__main__":
         log_level="debug",
         ws_ping_interval=20,
         ws_ping_timeout=20,
-        access_log=True
+        access_log=True,
     )

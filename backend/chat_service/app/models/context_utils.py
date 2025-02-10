@@ -40,14 +40,13 @@ def create_instant_context(self) -> str:
 def refresh_system_context(self) -> None:
     """刷新系统上下文"""
     try:
-        # 检查并更新关系类型对应的风格
-        if self.relationship_type != self.bot.relationship_type.value:
-            self.style = (
-                getattr(self.bot, f"{self.relationship_type}_style", "")
-                if self.relationship_type
-                else ""
-            )
-            logger.info(f"Updated relationship style for bot {self.bot.id}")
+        # 从 JSON 格式的 styles 中获取对应关系类型的风格
+        style = (
+            self.bot.styles.get(self.relationship_type, "")
+            if self.relationship_type
+            else ""
+        )
+        logger.info(f"Updated relationship style for bot {self.bot.id}")
 
         # 获取即时上下文（包含时间信息）
         instant_context = self._create_instant_context()
@@ -55,9 +54,9 @@ def refresh_system_context(self) -> None:
         # 构建新的系统上下文
         system_context_content = (
             f"{self.system_context_prefix}\n"
-            f"{self.style}\n"
-            f"{self.info}\n"
+            f"{self.bot.info}\n"
             f"{self.memory}\n"
+            f"{style}\n"
             f"{self.system_context_suffix}"
             f"{instant_context}\n"
         )
@@ -110,8 +109,7 @@ def varify_context(self) -> None:
 
 
 def append_context(self, role: str, context_content: str) -> None:
-    """
-    追加或合并上下文消息
+    """追加或合并上下文消息
 
     Args:
         role: 消息角色 ('system', 'user', 或 'assistant')

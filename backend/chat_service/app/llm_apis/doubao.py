@@ -1,6 +1,6 @@
 import logging
 import copy
-from typing import Dict, Any, Optional, AsyncGenerator
+from typing import Dict, Any, Optional
 from volcenginesdkarkruntime import Ark
 from .base import BaseLLM
 

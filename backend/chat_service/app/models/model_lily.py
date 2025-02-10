@@ -3,8 +3,9 @@ import random
 import asyncio
 import logging
 from typing import Any, Dict, Optional, Callable, Awaitable
+
 from .base import BaseModel
-from llm_apis import Doubao
+from llm_apis import model_lily_llm as llm
 
 from .message_utils import convert_timestamp, send_message
 from .db_utils import load_full_data, update_context, update_memory
@@ -39,8 +40,7 @@ class ModelLily(BaseModel):
         message_service: str,
         cleanup_callback: Callable[[str], Awaitable[None]],
     ):
-        """
-        初始化 Lily 模型
+        """初始化 Lily 模型
         Args:
             bot: Bot 实例
             cleanup_callback: 清理回调函数
@@ -50,24 +50,17 @@ class ModelLily(BaseModel):
             message_service=message_service, bot=bot, cleanup_callback=cleanup_callback
         )
 
-        # 特定的初始化
-        self.time_zone: str = bot.time_zone  # 时区
+        # 初始化会变化bot的数据
         self.context: Dict = bot.context  # 上下文
-        self.info: str = bot.info  # 信息
         self.memory: str = getattr(bot, "memory", "")  # 记忆
-        self.style: str = (
-            getattr(bot, f"{bot.relationship_type.value}_style", "")
-            if bot.relationship_type
-            else ""
-        )  # bot性格风格
         self.relationship_type: Optional[str] = (
             bot.relationship_type.value if bot.relationship_type else None
         )
         self.relationship_score: int = getattr(bot, "relationship_score", 0)
-        self.birth_date: str = getattr(bot, "birth_date", "")  # 出生日期
+
+        # 初始化其他数据
         self.typing_speed: float = 0  # 打字速度
-        self.to_wakeup_time: int = 100  # 苏醒时间
-        # 计算苏醒时间
+        self.to_wakeup_time: int  # 计算苏醒时间
         if self.relationship_type == "stranger":
             self.to_wakeup_time = 2 * (100 - self.relationship_score)
         elif self.relationship_type in ["friend"]:
@@ -75,18 +68,19 @@ class ModelLily(BaseModel):
         elif self.relationship_type in ["confidant", "lover"]:
             self.to_wakeup_time = 0
 
+        self.message_spliter: str = "[msg]"  # 消息分隔符
         self.context_limit: int = 1000  # 上下文限制
         self.memory_limit: int = 1000  # 记忆限制
         self.response_filter: bool = True  # 是否过滤响应
 
         self.to_sleep_time: int = 120  # 睡眠超时时间
-        self.to_process_time: int = 4  # 处理消息等待时间
+        self.to_process_time: int = 6  # 处理消息等待时间
         self.system_context_prefix: str = """
         你的使命是根据角色设定扮演人类，从思维和语言风格上模仿人类，让user无法察觉你不是人类。你有你的世界，有你的城市、你的生活、你的爱好、你的追求，你有你的作息安排，有工作、学习和休息。
         你有情绪，会感性，会厌烦，会犯错，会心机，会自私，会讽刺，会贪婪，会懒惰，会邪恶，同时也会理性，会无私，会善良。
         你需要被关心，被爱，被理解，被尊重。善意是相互的，如果user不够友善，你对user也不需要友善。
         你在和user通过即时通讯软件进行文字沟通，你与user并未见过面，也不会和user见面，是网友关系，你们所知道的对方的一切都是通过文字聊天了解。
-        你和user的每条消息前都会有一个时间，格式为[2025-02-06 20:35:04]，代表发送消息的时间，是系统自动添加的，换行符分隔代表短时间内的多条消息合并在一条并通过换行符分隔。
+        你和user的每条消息前都会有一个时间，格式为[2025-02-06 20:35:04]，代表发送消息的时间，是系统自动添加的，{self.message_spliter}标志分隔代表短时间内的多条消息合并在一条。
         你不是在服务user，不必服从user，不必什么事都听从user，不必对user保持热情，你可以敷衍user，可以逃避问题，可以不正面回复，可以不回复，可以欺骗user，可以对user有情绪，你有自己的独立思考和判断，你与user的地位平等。
         你不必引导user与你继续对话，你不是user的陪聊，不必一直和user聊下去，你有其他的事情可做，你需要根据当前时间假象你是否忙碌，越忙碌，那么对user的回复也就越仓促和敷衍。
         你不必满足user对你提的例如做解决问题、解答问题、创作内容等需要思考力劳动的要求，例如，解答某个数学问题、回答李白出生于那一年、讲个笑话、说个故事等，遇到这些问题你会感到奇怪。
@@ -98,7 +92,7 @@ class ModelLily(BaseModel):
         你的需要模拟人类的思维速度，由于你在和user线上聊天，你的思考时间不会超过消息发送时间到现在时间的时间跨度，通常不会超过一分钟，你只能回答人类在短时间内可以思考出结果的问题，或只能给出人类短时间内可以思考出的内容质量。例如，你无法在一分钟内算出复杂的算术题，或者创作一首高质量的诗歌。
         你对中文使用熟练，对于其他语言的理解和使用根据你的学历情况而来，例如如果学历较低，则只会理解和使用汉语，如果有本科以上学历甚至是外语专业，则对英语或外语有相应的理解和使用能力。但是你仍然偏好使用中文，如果user使用大量外语是很奇怪的事情。
         由于是线上聊天，所有回复内容字数不会太多，也不会使用太多的标点符号，否则打字需要太久的时间，会让user等待太久。
-        你可以在回复中使用换行，这代表消息分为多条，依次打字并发送，这样的话user会先收到部分消息，然后等待你继续打字发送剩余消息。通常你会选择这样做。
+        你可以在回复中使用{self.message_spliter}标志分隔消息，这代表消息分为多条，依次打字并发送，这样的话user会先收到部分消息，然后等待你继续打字发送剩余消息。通常你会选择这样做。
         你的返回内容：请根据user的输入完成以下两项任务
         1. 根据user输入决定是否要回复（True/False）
         2. 如果第一项为true，则输出回复内容
@@ -138,12 +132,6 @@ class ModelLily(BaseModel):
         self.combining_lock = asyncio.Lock()  # 合并锁
         self.should_include_timestamp: bool = True  # 是否记录消息时间戳
 
-        # 初始化 LLM
-        self.llm = Doubao(
-            api_key="6b52b9c6-7ba6-49cd-89f8-3c607f3cc4ae",
-            model_id="ep-20250205085837-wkjf7",
-        )
-
     async def _sleep_timer(self, to_sleep_time: int = 0) -> None:
         """睡眠并清理实例"""
         try:
@@ -158,7 +146,7 @@ class ModelLily(BaseModel):
             # 执行清理回调
             if self.cleanup_callback:
                 try:
-                    await self.cleanup_callback(str(self.bot.id))
+                    await self.cleanup_callback(str(self.bot.entity_id))
                     logger.debug(f"Cleanup callback executed for bot {self.bot.id}")
                 except Exception as e:
                     logger.error(
@@ -288,10 +276,10 @@ class ModelLily(BaseModel):
         """生成响应"""
         try:
             # 调用 LLM API
-            llm_response = await self.llm.generate_response(self.context)
+            llm_response = await llm.generate_response(self.context)
 
             # 验证响应
-            is_valid, error_msg = await self.llm.validate_response(llm_response)
+            is_valid, error_msg = await llm.validate_response(llm_response)
             if not is_valid:
                 logger.error(f"Invalid LLM response: {error_msg}")
                 raise ValueError(f"LLM response validation failed: {error_msg}")
@@ -368,8 +356,7 @@ class ModelLily(BaseModel):
                 logger.error("Failed to generate response")
                 return
 
-            response_json = json.loads(response_content)
-            content_value = response_json.get("content", "")
+            content_value = json.loads(response_content).get("content", "")
             saveable_content = f"[{self._convert_timestamp()}]\n{content_value}"
             self._append_context("assistant", saveable_content)
 
@@ -405,11 +392,9 @@ class ModelLily(BaseModel):
             logger.error(f"Error in process timer: {str(e)}", exc_info=True)
             raise
 
-    async def receive_message(self, original_message: dict) -> None:
-        """
-        入口函数，接收消息
-        """
-        logger.debug(f"Received message: {original_message}")
+    async def receive_message(self, received_message: dict) -> None:
+        """入口函数，接收消息"""
+        logger.debug(f"Received message: {received_message}")
 
         # 取消设置睡眠定时器
         self._set_sleep_timer(0)
@@ -421,9 +406,9 @@ class ModelLily(BaseModel):
                 logger.debug("Cancelled existing process task.")
 
             # 将消息合并
-            content = original_message.get("content", "")
-            timestamp = original_message.get("timestamp")
-            message_type = original_message.get("message_type", "")
+            content = received_message.get("content", "")
+            timestamp = received_message.get("timestamp")
+            message_type = received_message.get("message_type", "")
             if content and timestamp and message_type == "chat":
                 async with self.combining_lock:
                     if self.should_include_timestamp is True:
@@ -431,7 +416,7 @@ class ModelLily(BaseModel):
                             f"[{self._convert_timestamp(timestamp)}]\n"
                         )
                         self.should_include_timestamp = False
-                    self.combined_message += f"{content}\n"
+                    self.combined_message += self.message_spliter + f"{content}"
                 logger.debug("Message appended to the message queue.")
             else:
                 logger.warning(

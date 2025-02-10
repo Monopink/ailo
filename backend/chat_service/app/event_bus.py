@@ -113,5 +113,5 @@ event_bus = EventBus()
 
 # 预定义的事件类型
 class EventTypes:
-    MESSAGE_RECEIVED = "message_received"
+    RECEIVED_MESSAGE = "received_message"
     SEND_MESSAGE = "send_message"

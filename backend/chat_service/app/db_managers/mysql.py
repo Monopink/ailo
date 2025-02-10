@@ -30,7 +30,7 @@ class UserStatus(enum.Enum):
 class UserRole(enum.Enum):
     user = "user"
     admin = "admin"
-    moderator = "moderator"
+    tester = "tester"
 
 
 class BotStatus(enum.Enum):
@@ -43,22 +43,23 @@ class RelationType(enum.Enum):
     friend = "friend"
     confidant = "confidant"
     lover = "lover"
+    ex = "ex"
+    neutral = "neutral"
+    dislike = "dislike"
+    enemy = "enemy"
 
 
 # 模型定义
 class User(Base):
-    __tablename__ = "user"
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+    entity_id = Column(String(36), unique=True, nullable=False)
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-    )
     last_login = Column(DateTime)
     status = Column(Enum(UserStatus), default=UserStatus.active)
     role = Column(Enum(UserRole), default=UserRole.user)
@@ -68,72 +69,76 @@ class User(Base):
 
 
 class Bot(Base):
-    __tablename__ = "bot"
+    __tablename__ = "bots"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+    entity_id = Column(String(36), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    user_entity_id = Column(String(36))
     model = Column(String(50), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-    )
     status = Column(Enum(BotStatus), default=BotStatus.active)
     gender = Column(String(10), nullable=False)
     birth_date = Column(DateTime)
     time_zone = Column(String(10), default="+8:00")
     city_name = Column(String(100))
-    user_id = Column(Integer, ForeignKey("user.id", ondelete="SET NULL"))
     relationship_score = Column(Integer, default=0)
     relationship_type = Column(Enum(RelationType), default=RelationType.stranger)
     context = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
-    stranger_style = Column(Text)
-    friend_style = Column(Text)
-    confidant_style = Column(Text)
-    lover_style = Column(Text)
+    styles = Column(JSON)
 
 
 class MessageHistory(Base):
     __tablename__ = "message_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    from_id = Column(String(36), nullable=False)
-    to_id = Column(String(36), nullable=False)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+    message_id = Column(String(36))
+    from_entity = Column(String(36), nullable=False)
+    to_entity = Column(String(36), nullable=False)
     content = Column(Text, nullable=False)
-    message_type = Column(String(50), default="chat")
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    message_type = Column(Enum("chat", "chat_notyping", "system"), default="chat")
+    message_service = Column(String(36), nullable=False)
+    timestamp = Column(DateTime)
     status = Column(Enum("sent", "delivered", "read", "failed"), default="sent")
     meta_data = Column(JSON)
-    message_service = Column(String(36))
 
     # 显式声明要映射的列
     __mapper_args__ = {
         "include_properties": [
             "id",
-            "from_id",
-            "to_id",
+            "created_at",
+            "updated_at",
+            "message_id",
+            "from_entity",
+            "to_entity",
             "content",
             "message_type",
-            "created_at",
+            "message_service",
+            "timestamp",
             "status",
             "meta_data",
-            "message_service",
         ]
     }
 
     def to_dict(self):
         return {
             "id": self.id,
-            "from_id": self.from_id,
-            "to_id": self.to_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "message_id": self.message_id,
+            "from_entity": self.from_entity,
+            "to_entity": self.to_entity,
             "content": self.content,
             "message_type": self.message_type,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "message_service": self.message_service,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "status": self.status,
             "meta_data": self.meta_data,
-            "message_service": self.message_service,
         }
 
 
@@ -174,7 +179,7 @@ class MySQLManager:
                 raise Exception(error_msg) from e
 
     async def get_bot_data(
-        self, bot_id: int, user_id: Optional[int] = None
+        self, bot_id: int, related_user_id: Optional[int] = None
     ) -> Optional[dict]:
         """获取bot的所有相关数据"""
         try:
@@ -182,7 +187,10 @@ class MySQLManager:
                 result = await session.execute(select(Bot).where(Bot.id == bot_id))
                 bot = result.scalar_one_or_none()
 
-                if bot and (bot.user_id is None or bot.user_id == user_id):
+                if bot and (
+                    bot.related_user_id is None
+                    or bot.related_user_id == related_user_id
+                ):
                     return {
                         "context": bot.context,
                         "info": bot.info,
@@ -193,10 +201,7 @@ class MySQLManager:
                             if bot.relationship_type
                             else None
                         ),
-                        "stranger_style": bot.stranger_style,
-                        "friend_style": bot.friend_style,
-                        "confidant_style": bot.confidant_style,
-                        "lover_style": bot.lover_style,
+                        "styles": bot.styles or {},
                     }
                 return None
         except SQLAlchemyError as e:
@@ -237,40 +242,56 @@ class MySQLManager:
 
     async def get_bot_by_id(self, bot_id: int):
         """获取bot信息"""
-        async with self.session_maker() as session:
-            result = await session.execute(select(Bot).where(Bot.id == bot_id))
-            return result.scalar_one_or_none()
+        try:
+            async with self.session_maker() as session:
+                result = await session.execute(select(Bot).where(Bot.id == bot_id))
+                return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_bot_by_id: {str(e)}")
+            raise Exception(f"Failed to get bot by id: {str(e)}") from e
+
+    async def get_bot_by_entity_id(self, entity_id: str):
+        """通过 entity_id 获取 bot 信息"""
+        try:
+            async with self.session_maker() as session:
+                result = await session.execute(
+                    select(Bot).where(Bot.entity_id == entity_id)
+                )
+                return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_bot_by_entity_id: {str(e)}")
+            raise Exception(f"Failed to get bot by entity_id: {str(e)}") from e
 
     async def save_message(self, message: dict):
         """保存消息到数据库"""
         try:
             async with self.session_maker() as session:
                 # 处理时间戳
-                created_at = message.get("created_at")
-                if isinstance(created_at, str):
+                timestamp = message.get("timestamp")
+                if isinstance(timestamp, str):
                     try:
-                        # 处理 ISO 格式的时间字符串
-                        created_at = datetime.fromisoformat(
-                            created_at.replace("Z", "+00:00")
+                        # 将 ISO 格式转换为 datetime 对象
+                        timestamp = datetime.fromisoformat(
+                            timestamp.replace("Z", "+00:00")
                         )
                     except ValueError:
                         logger.warning(
-                            f"Invalid timestamp format: {created_at}, using current time"
+                            "Invalid timestamp format, using current time instead."
                         )
-                        created_at = datetime.utcnow()
-                elif not isinstance(created_at, datetime):
-                    created_at = datetime.utcnow()
+                        timestamp = datetime.now(timezone.utc)
+                elif timestamp is None:
+                    timestamp = datetime.now(timezone.utc)
 
-                # 构建消息数据
                 message_data = {
-                    "from_id": message["from_id"],
-                    "to_id": message["to_id"],
+                    "from_entity": message["from_entity"],
+                    "to_entity": message["to_entity"],
+                    "message_id": message.get("message_id", ""),
                     "content": message.get("content", ""),
-                    "message_type": message.get("message_type", "chat"),
+                    "message_type": message.get("message_type"),
                     "message_service": message.get("message_service"),
-                    "meta_data": message.get("meta_data"),
+                    "timestamp": timestamp,
                     "status": message.get("status", "sent"),
-                    "created_at": created_at,  # 使用处理后的时间戳
+                    "meta_data": message.get("meta_data", {}),
                 }
 
                 # 创建新消息实例
@@ -290,19 +311,21 @@ class MySQLManager:
             result = await session.execute(select(User).where(User.id == user_id))
             return result.scalar_one_or_none()
 
-    async def get_messages_by_bot(self, from_id: str, to_id: str, limit: int = 10):
+    async def get_messages_by_bot(
+        self, from_entity: str, to_entity: str, limit: int = 10
+    ):
         """获取会话历史消息"""
         async with self.session_maker() as session:
             query = (
                 select(MessageHistory)
                 .where(
                     (
-                        (MessageHistory.from_id == from_id)
-                        & (MessageHistory.to_id == to_id)
+                        (MessageHistory.from_entity == from_entity)
+                        & (MessageHistory.to_entity == to_entity)
                     )
                     | (
-                        (MessageHistory.from_id == to_id)
-                        & (MessageHistory.to_id == from_id)
+                        (MessageHistory.from_entity == to_entity)
+                        & (MessageHistory.to_entity == from_entity)
                     )
                 )
                 .order_by(MessageHistory.created_at.desc())

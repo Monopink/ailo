@@ -9,21 +9,6 @@ async def load_full_data(self) -> None:
     pass
 
 
-"""
-    try:
-        bot_data = await db_manager.get_bot_data(self.bot.id, self.bot.user_id)
-        if bot_data:
-            self.context = bot_data.get('context', {})
-            self.relationship_type = bot_data.get('relationship_type')
-            self.relationship_score = bot_data.get('relationship_score', 0)
-            self.memory = bot_data.get('memory', '')
-            self.style = bot_data.get(f"{self.relationship_type}_style", '') if bot_data and self.relationship_type else ''
-            logger.info(f"Loaded full data for bot {self.bot.id}")
-    except Exception as e:
-        logger.error(f"Error loading bot full data: {str(e)}")
-"""
-
-
 async def update_context(self) -> None:
     """保存上下文到数据库"""
     try:

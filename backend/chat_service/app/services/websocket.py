@@ -40,19 +40,22 @@ class WebSocketManager:
                 data = await websocket.receive_text()
                 message = json.loads(data)
 
-                # 添加消息源信息和消息类型
-                message["from_entity"] = client_id
-                message["message_service"] = "websocket"
-                message["message_type"] = "chat"
+                # 验证必要的消息字段
+                required_fields = ["from_entity", "to_entity", "message_type"]
+                if not all(field in message for field in required_fields):
+                    logger.warning(f"Message missing required fields: {message}")
+                    continue
 
-                # 确保消息包含时间戳，如果没有则使用当前时间
+                # 添加消息服务信息
+                message["message_service"] = "websocket"
+
+                # 确保消息包含时间戳
                 if "timestamp" not in message:
-                    message["timestamp"] = datetime.now(timezone.utc)
+                    message["timestamp"] = datetime.now(timezone.utc).isoformat()
 
                 # 发布消息到事件总线
-                logger.debug(f"Publishing message from client {message} to event bus")
+                logger.debug(f"Publishing message from client {client_id}: {message}")
                 await event_bus.publish(EventTypes.RECEIVED_MESSAGE, message)
-                logger.debug(f"Message published successfully for client {client_id}")
 
         except Exception as e:
             logger.error(f"Error processing message from client {client_id}: {str(e)}")

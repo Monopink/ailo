@@ -1,4 +1,3 @@
-import enum
 import asyncio
 import logging
 from typing import Optional
@@ -8,6 +7,15 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, JSON, ForeignKey
 from sqlalchemy.exc import SQLAlchemyError  # 导入 SQLAlchemy 异常基类
+from enums import (
+    UserStatus,
+    UserRole,
+    BotStatus,
+    RelationType,
+    MessageType,
+    MessageStatus,
+)
+import enum
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
@@ -18,35 +26,6 @@ engine = create_async_engine(DATABASE_URL, echo=True)  # echo=True 会打印出�
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()
-
-
-# 枚举类型定义
-class UserStatus(enum.Enum):
-    active = "active"
-    inactive = "inactive"
-    banned = "banned"
-
-
-class UserRole(enum.Enum):
-    user = "user"
-    admin = "admin"
-    tester = "tester"
-
-
-class BotStatus(enum.Enum):
-    active = "active"
-    inactive = "inactive"
-
-
-class RelationType(enum.Enum):
-    stranger = "stranger"
-    friend = "friend"
-    confidant = "confidant"
-    lover = "lover"
-    ex = "ex"
-    neutral = "neutral"
-    dislike = "dislike"
-    enemy = "enemy"
 
 
 # 模型定义
@@ -61,8 +40,8 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     last_login = Column(DateTime)
-    status = Column(Enum(UserStatus), default=UserStatus.active)
-    role = Column(Enum(UserRole), default=UserRole.user)
+    status = Column(String(20), default="active")
+    role = Column(String(20), default="user")
     language = Column(String(10), default="zh")
     area = Column(String(100), default="China")
     phone = Column(String(20))
@@ -78,13 +57,13 @@ class Bot(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     user_entity_id = Column(String(36))
     model = Column(String(50), nullable=False)
-    status = Column(Enum(BotStatus), default=BotStatus.active)
+    status = Column(String(20), default="active")
     gender = Column(String(10), nullable=False)
     birth_date = Column(DateTime)
     time_zone = Column(String(10), default="+8:00")
     city_name = Column(String(100))
     relationship_score = Column(Integer, default=0)
-    relationship_type = Column(Enum(RelationType), default=RelationType.stranger)
+    relationship_type = Column(String(20), default="stranger")
     context = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
@@ -101,10 +80,10 @@ class MessageHistory(Base):
     from_entity = Column(String(36), nullable=False)
     to_entity = Column(String(36), nullable=False)
     content = Column(Text, nullable=False)
-    message_type = Column(Enum("chat", "chat_notyping", "system"), default="chat")
+    message_type = Column(String(20), default="chat")
     message_service = Column(String(36), nullable=False)
     timestamp = Column(DateTime)
-    status = Column(Enum("sent", "delivered", "read", "failed"), default="sent")
+    status = Column(String(20), default="sent")
     meta_data = Column(JSON)
 
     # 显式声明要映射的列
@@ -146,6 +125,22 @@ class MySQLManager:
     def __init__(self):
         self.session_maker = async_session
         self._init_task = asyncio.create_task(self._initialize())
+
+    def _convert_enum_to_str(self, value: Optional[enum.Enum]) -> Optional[str]:
+        """将枚举值转换为字符串"""
+        return value.value.lower() if value is not None else None
+
+    def _convert_str_to_enum(
+        self, enum_class: type, value: Optional[str]
+    ) -> Optional[enum.Enum]:
+        """将字符串转换为枚举值"""
+        if value is None:
+            return None
+        try:
+            return enum_class.__members__[value.upper()]
+        except KeyError:
+            logger.warning(f"Invalid enum value: {value} for enum class: {enum_class}")
+            return None
 
     async def _initialize(self):
         """初始化数据库连接，包含重试机制"""
@@ -196,11 +191,7 @@ class MySQLManager:
                         "info": bot.info,
                         "memory": bot.memory,
                         "relationship_score": bot.relationship_score,
-                        "relationship_type": (
-                            bot.relationship_type.value
-                            if bot.relationship_type
-                            else None
-                        ),
+                        "relationship_type": (bot.relationship_type),
                         "styles": bot.styles or {},
                     }
                 return None
@@ -257,7 +248,14 @@ class MySQLManager:
                 result = await session.execute(
                     select(Bot).where(Bot.entity_id == entity_id)
                 )
-                return result.scalar_one_or_none()
+                bot = result.scalar_one_or_none()
+                if bot:
+                    # 转换枚举值
+                    bot.status = self._convert_str_to_enum(BotStatus, bot.status)
+                    bot.relationship_type = self._convert_str_to_enum(
+                        RelationType, bot.relationship_type
+                    )
+                return bot
         except SQLAlchemyError as e:
             logger.error(f"Database error in get_bot_by_entity_id: {str(e)}")
             raise Exception(f"Failed to get bot by entity_id: {str(e)}") from e
@@ -343,7 +341,8 @@ class MySQLManager:
                 result = await session.execute(select(Bot).where(Bot.id == bot_id))
                 bot = result.scalar_one_or_none()
                 if bot:
-                    bot.status = status
+                    # 转换为小写字符串存储
+                    bot.status = self._convert_enum_to_str(status)
                     await session.commit()
                     return True
                 return False
@@ -376,6 +375,6 @@ class MySQLManager:
         """获取所有活跃的bot"""
         async with self.session_maker() as session:
             result = await session.execute(
-                select(Bot).where(Bot.status == BotStatus.active)
+                select(Bot).where(Bot.status == BotStatus.ACTIVE)
             )
             return result.scalars().all()

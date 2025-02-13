@@ -10,7 +10,7 @@ from message_router import message_router
 # 配置日志
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s: %(message)s",
+    format="%(asctime)s %(filename)s %(levelname)s, line %(lineno)d: %(message)s",
     handlers=[logging.StreamHandler(), logging.FileHandler("app.log")],
 )
 logger = logging.getLogger(__name__)

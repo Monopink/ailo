@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from event_bus import event_bus, EventTypes
+from enums import MessageType
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +34,15 @@ def convert_timestamp(self, timestamp: str | None = None) -> str:
         # 格式化输出
         return local_time.strftime("%Y-%m-%d %H:%M:%S")
     except ValueError as e:
-        logger.error(f"ValueError in convert_timestamp: {str(e)}")
+        logger.error(f"ValueError in _convert_timestamp: {str(e)}")
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in convert_timestamp: {str(e)}")
+        logger.error(f"Unexpected error in _convert_timestamp: {str(e)}")
         raise
 
 
 async def send_message(
-    self, content: Optional[str] = "", message_type: str = "chat"
+    self, content: Optional[str] = "", message_type: str = MessageType.CHAT.name
 ) -> None:
     """发送消息
     Args:

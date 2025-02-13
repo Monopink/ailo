@@ -8,6 +8,7 @@ from event_bus import event_bus, EventTypes
 
 from models.base import BaseModel
 from models.model_lily import ModelLily
+from enums import MessageType, MessageTypeCategory, BotStatus
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +54,8 @@ class MessageRouter:
     async def save_message(self, message: dict) -> None:
         """保存消息到数据库"""
         try:
-            message_type = message.get("message_type")
-            if message_type in ["chat", "chat_notyping", "system"]:
-                # 保存接收到的消息
+            message_type = MessageType.parse(str(message.get("message_type")))
+            if message_type and message_type.category == MessageTypeCategory.CONTENT:
                 await db_manager.save_message(message)
             else:
                 logger.debug(f"Skipping message save for type: {message_type}")
@@ -107,14 +107,18 @@ class MessageRouter:
                 )
                 return None
 
-            if bot.status.value != "active":
-                logger.info(
-                    f"Bot of entity_id: {bot_entity_id} status is {bot.status.value}"
-                )
+            if bot.status != BotStatus.ACTIVE:
+                logger.info(f"Bot of entity_id: {bot_entity_id} status is {bot.status}")
                 return None
 
             return bot
 
+        except ValueError as e:
+            logger.error(
+                f"Invalid bot status value for bot of entity_id: {bot_entity_id}: {str(e)}",
+                exc_info=True,
+            )
+            return None
         except Exception as e:
             logger.error(
                 f"Error getting/validating bot of entity_id: {str(e)}", exc_info=True
@@ -209,6 +213,12 @@ class MessageRouter:
                 return
 
             # 未找到实例，创建新实例并路由消息
+            message_type = MessageType.parse(str(message.get("message_type")))
+            # 验证消息类型，非内容类消息直接返回
+            if not message_type or message_type.category != MessageTypeCategory.CONTENT:
+                logger.warning(f"Skipping non-content message routing: {message_type}")
+                return
+
             # 获取并验证 bot
             bot = await self._get_and_validate_bot(bot_entity_id, user_entity_id)
             if not bot:

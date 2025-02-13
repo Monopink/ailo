@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Callable, Awaitable
 
 from .base import BaseModel
 from llm_apis import model_lily_llm as llm
-
+from enums import MessageType, MessageTypeCategory
 from .message_utils import convert_timestamp, send_message
 from .db_utils import load_full_data, update_context, update_memory
 from .context_utils import (
@@ -68,13 +68,19 @@ class ModelLily(BaseModel):
         elif self.relationship_type in ["confidant", "lover"]:
             self.to_wakeup_time = 0
 
-        self.message_spliter: str = "[msg]"  # 消息分隔符
+        self.message_spliter: str = " [msg] "  # 消息分隔符
         self.context_limit: int = 1000  # 上下文限制
         self.memory_limit: int = 1000  # 记忆限制
         self.response_filter: bool = True  # 是否过滤响应
 
         self.to_sleep_time: int = 120  # 睡眠超时时间
-        self.to_process_time: int = 6  # 处理消息等待时间
+        self.to_process_time_chat: int = 2  # 处理chat消息等待时间
+        self.to_process_time_typing_slow: int = 32  # typing消息总等待时间
+        self.to_process_time_typing_fast: int = 16  # 收到typing消息等待时间
+        self.to_process_time_typing_end: int = (
+            self.to_process_time_chat
+        )  # 收到typing_end消息等待时间
+        self.to_process_time_chat_notyping: int = 8  # 处理chat_notyping消息等待时间
         self.system_context_prefix: str = """
         你的使命是根据角色设定扮演人类，从思维和语言风格上模仿人类，让user无法察觉你不是人类。你有你的世界，有你的城市、你的生活、你的爱好、你的追求，你有你的作息安排，有工作、学习和休息。
         你有情绪，会感性，会厌烦，会犯错，会心机，会自私，会讽刺，会贪婪，会懒惰，会邪恶，同时也会理性，会无私，会善良。
@@ -127,9 +133,11 @@ class ModelLily(BaseModel):
         self.is_processing: bool = False  # 添加处理状态标志
         self.sleep_task: asyncio.Task | None = None  # 睡眠任务
         self.wakeup_task: asyncio.Task | None = None  # 唤醒任务
-        self.process_task: asyncio.Task | None = None  # 消息处理任务
-        self.combined_message: str = ""  # 合并消息
+        self.process_task_slow: asyncio.Task | None = None  # 慢消息处理任务
+        self.process_task_fast: asyncio.Task | None = None  # 快消息处理任务
+        self.combined_message: str = ""  # 合并的消息
         self.combining_lock = asyncio.Lock()  # 合并锁
+        self.last_message_type: Optional[MessageType] = None
         self.should_include_timestamp: bool = True  # 是否记录消息时间戳
 
     async def _sleep_timer(self, to_sleep_time: int = 0) -> None:
@@ -166,7 +174,7 @@ class ModelLily(BaseModel):
             )
             raise
 
-    def _set_sleep_timer(self, to_sleep_time: Optional[int] = None) -> None:
+    def _reset_sleep_timer(self, to_sleep_time: Optional[int] = None) -> None:
         """重置睡眠定时器
         Args:
             to_sleep_time: 睡眠时间, None代表默认值, 0代表取消睡眠定时器
@@ -307,7 +315,7 @@ class ModelLily(BaseModel):
             logger.info(f"Sent response message of length {len(response_content)}")
 
             # 重置睡眠定时器
-            self._set_sleep_timer()
+            self._reset_sleep_timer()
 
             # 保存上下文
             await self._update_context()
@@ -333,11 +341,13 @@ class ModelLily(BaseModel):
             if not self.is_awake:
                 logger.info(f"Bot {self.bot.id} is sleeping, skipping message response")
                 # 重置睡眠定时器
-                self._set_sleep_timer()
+                self._reset_sleep_timer()
                 return
 
             # 发送typing消息
-            asyncio.create_task(self._send_message(message_type="typing"))
+            asyncio.create_task(
+                self._send_message(message_type=MessageType.TYPING.name)
+            )
             logger.debug("Sent typing indicator")
 
             # 刷新系统上下文
@@ -376,40 +386,85 @@ class ModelLily(BaseModel):
                 logger.debug(f"combined_message: {self.combined_message}")
                 asyncio.create_task(self._process_message())
 
-    async def _process_timer(self) -> None:
+    async def _process_timer(self, to_process_time: int) -> None:
         """消息处理定时器"""
         try:
             # 处理消息等待
-            await asyncio.sleep(self.to_process_time)
+            await asyncio.sleep(to_process_time)
             self.should_include_timestamp = True
             # 如果bot未唤醒，等待唤醒
             if not self.is_awake:
                 await self._wait_wakeup_timer()
             # 如果当前没有处理过程在运行，启动处理
-            if not self.is_processing:
+            if not self.is_processing and self.combined_message != "":
                 asyncio.create_task(self._process_message())
         except Exception as e:
             logger.error(f"Error in process timer: {str(e)}", exc_info=True)
             raise
 
+    def _reset_process_timer(
+        self, slow_timer_time: int | None = None, fast_timer_time: int | None = None
+    ) -> None:
+        """重置消息处理定时器
+        Args:
+            slow_timer_time: 慢消息处理时间, None代表不操作，0代表取消，其他代表设置
+            fast_timer_time: 快消息处理时间, None代表不操作，0代表取消，其他代表设置
+        """
+        if (
+            fast_timer_time != None
+            and self.process_task_fast
+            and not self.process_task_fast.done()
+        ):
+            self.process_task_fast.cancel()
+            logger.debug("Cancelled existing process_task_fast.")
+        if (
+            slow_timer_time != None
+            and self.process_task_slow
+            and not self.process_task_slow.done()
+        ):
+            self.process_task_slow.cancel()
+            logger.debug("Cancelled existing process_task_slow.")
+        if slow_timer_time:
+            self.process_task_slow = asyncio.create_task(
+                self._process_timer(slow_timer_time)
+            )
+            logger.debug(f"New process_task_slow created. time: {slow_timer_time}")
+        if fast_timer_time and self.process_task_slow:
+            self.process_task_fast = asyncio.create_task(
+                self._process_timer(fast_timer_time)
+            )
+            logger.debug(f"New process_task_fast created. time: {fast_timer_time}")
+
     async def receive_message(self, received_message: dict) -> None:
         """入口函数，接收消息"""
         logger.debug(f"Received message: {received_message}")
 
-        # 取消设置睡眠定时器
-        self._set_sleep_timer(0)
-
         try:
-            # 取消现有的消息处理任务
-            if self.process_task and not self.process_task.done():
-                self.process_task.cancel()
-                logger.debug("Cancelled existing process task.")
-
-            # 将消息合并
             content = received_message.get("content", "")
             timestamp = received_message.get("timestamp")
-            message_type = received_message.get("message_type", "")
-            if content and timestamp and message_type == "chat":
+            message_type = MessageType.parse(received_message.get("message_type", ""))
+
+            if not timestamp:
+                logger.warning("Skipping message due to missing content or timestamp.")
+                return
+
+            if not message_type:
+                logger.warning("Skipping message due to missing message_type.")
+                return
+
+            # 处理chat\chat_notyping消息
+            if (
+                content
+                and timestamp
+                and message_type.category == MessageTypeCategory.CONTENT
+            ):
+                # 取消设置睡眠定时器
+                self._reset_sleep_timer(0)
+
+                # 取消现有的消息处理任务
+                self._reset_process_timer(0, 0)
+
+                # 将消息合并
                 async with self.combining_lock:
                     if self.should_include_timestamp is True:
                         self.combined_message += (
@@ -418,14 +473,45 @@ class ModelLily(BaseModel):
                         self.should_include_timestamp = False
                     self.combined_message += self.message_spliter + f"{content}"
                 logger.debug("Message appended to the message queue.")
-            else:
-                logger.warning(
-                    "Skipping message due to missing content timestamp or message type."
+
+                # 创建新的消息处理任务
+                if message_type.code == MessageType.CHAT.code:
+                    self._reset_process_timer(self.to_process_time_chat)
+                else:
+                    self._reset_process_timer(self.to_process_time_chat_notyping)
+
+            elif not self.last_message_type:
+                logger.warning("Skipping message due to missing last_message_type.")
+                return
+
+            # 处理typing_end消息
+            elif (
+                self.last_message_type.code == MessageType.TYPING.code
+                and message_type.code == MessageType.TYPING_END.code
+            ):
+                self._reset_process_timer(None, self.to_process_time_typing_end)
+
+            # 处理上一条消息是chat消息，当前消息是typing消息
+            elif (
+                self.last_message_type.code == MessageType.CHAT.code
+                and message_type.code == MessageType.TYPING.code
+            ):
+                self._reset_process_timer(
+                    self.to_process_time_typing_slow,
+                    self.to_process_time_typing_fast,
+                )
+            # 如果上一条消息是typing_end消息, 当前消息是typing消息
+            elif (
+                self.last_message_type.code == MessageType.TYPING_END.code
+                and message_type.code == MessageType.TYPING.code
+            ):
+                self._reset_process_timer(
+                    None,
+                    self.to_process_time_typing_fast,
                 )
 
-            # 创建新的消息处理任务
-            self.process_task = asyncio.create_task(self._process_timer())
-            logger.debug("New process task created.")
+            # 记录上一条消息类型
+            self.last_message_type = message_type
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}", exc_info=True)

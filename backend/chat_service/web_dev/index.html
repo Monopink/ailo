@@ -13,7 +13,8 @@
         }
 
         /* 修改输入框样式，优化移动端体验 */
-        input,
+        input:not([type="checkbox"]),
+        /* 排除复选框 */
         button {
             font-size: 16px;
             /* 防止 iOS 自动放大 */
@@ -255,11 +256,108 @@
             border-top: none;
             border-radius: 0 0 4px 4px;
         }
+
+        /* 控制面板样式更新 */
+        .control-panel {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        .control-panel-header {
+            padding: 10px 15px;
+            background: #e9ecef;
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-panel-content {
+            padding: 15px;
+            display: none;
+        }
+
+        .control-panel-content.show {
+            display: block;
+        }
+
+        .control-panel h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .toggle-icon {
+            font-family: monospace;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            .control-panel {
+                margin: 10px 0;
+            }
+
+            .control-group {
+                flex-direction: column;
+            }
+
+            .control-item {
+                width: 100%;
+            }
+        }
+
+        /* 控制面板内容样式优化 */
+        .control-panel-content {
+            padding: 15px;
+            display: none;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-item {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Typing 消息样式 */
+        .message.self-message[data-type="typing"],
+        .message.self-message[data-type="typing_end"],
+        .message.other-message[data-type="typing"],
+        .message.other-message[data-type="typing_end"] {
+            font-style: italic;
+            color: #999;
+        }
+
+        .message-type {
+            font-size: 0.8em;
+            color: #666;
+            margin-left: 8px;
+        }
     </style>
     <script>
         let socket;
         let messageHistory = [];
-        let typingTimeout;
+        let isWaitingResponse = false;     // 是否正在等待回复
+        let hasTypingSent = false;         // 是否已经发送过 typing 消息
+        let hasTypingEndSent = false;      // 是否已经发送过 typing_end 消息
+
+        const MessageTypes = {
+            CHAT: 'chat',
+            TYPING: 'typing',
+            TYPING_END: 'typing_end'
+        };
+
+        // 简化配置
+        let config = {
+            typingStatusDuration: 2000  // typing 状态显示持续时间
+        };
 
         function getWebSocketUrl() {
             // 获取当前页面的协议和主机地址
@@ -268,35 +366,38 @@
             return `${host}:${port}`;
         }
 
-        function addMessage(content, type = 'system') {
+        function addMessage(content, type = 'system', messageType = null, shouldSave = true) {
             const messages = document.getElementById("messages");
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}-message`;
 
-            // 创建消息内容元素
+            if (messageType) {
+                messageDiv.setAttribute('data-type', messageType);
+            }
+
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            contentDiv.textContent = content;
+            contentDiv.textContent = content;  // 直接显示内容，不添加任何标记
 
-            // 创建时间元素
             const timeDiv = document.createElement('div');
             timeDiv.className = 'message-time';
             const now = new Date();
             timeDiv.textContent = now.toLocaleTimeString();
 
-            // 添加内容和时间到消息div
             messageDiv.appendChild(contentDiv);
             messageDiv.appendChild(timeDiv);
-
             messages.appendChild(messageDiv);
             messages.scrollTop = messages.scrollHeight;
 
-            // 保存消息历史
-            messageHistory.push({
-                content: content,
-                type: type,
-                timestamp: now.toISOString()
-            });
+            if (shouldSave) {
+                messageHistory.push({
+                    content: content,
+                    type: type,
+                    messageType: messageType,
+                    timestamp: now.toISOString()
+                });
+                saveChatHistory();
+            }
         }
 
         function connect() {
@@ -321,32 +422,27 @@
                     if (data.error) {
                         addMessage(`Error: ${data.error}`, "system");
                         console.error("Server error:", data);
-                    } else if (data.message_type === 'typing') {
+                    } else if (data.message_type === MessageTypes.CHAT) {
+                        addMessage(data.content || data.reply, 'other', MessageTypes.CHAT);
+                        isWaitingResponse = false;
+                        hasTypingSent = false;
+                        hasTypingEndSent = false;
+                        updateConnectionStatus();
+                    } else if (data.message_type === MessageTypes.TYPING || data.message_type === MessageTypes.TYPING_END) {
+                        const displayType = data.message_type.charAt(0).toUpperCase() + data.message_type.slice(1);
+                        addMessage(`[${displayType}]`, 'other', data.message_type);
+
+                        // 更新状态指示器，不显示时长
                         const statusDiv = document.getElementById("connection-status");
-                        statusDiv.textContent = "Typing...";
-                        statusDiv.className = "connection-status status-typing";
-
-                        if (typingTimeout) {
-                            clearTimeout(typingTimeout);
+                        if (data.message_type === MessageTypes.TYPING) {
+                            statusDiv.textContent = "Typing";
+                            statusDiv.className = "connection-status status-typing";
+                            setTimeout(() => {
+                                updateConnectionStatus();
+                            }, config.typingStatusDuration);
+                        } else {
+                            updateConnectionStatus();
                         }
-
-                        typingTimeout = setTimeout(() => {
-                            statusDiv.textContent = "Connected";
-                            statusDiv.className = "connection-status status-connected";
-                        }, 2000);
-                    } else {
-                        // Clear typing timeout if exists and update status immediately
-                        if (typingTimeout) {
-                            clearTimeout(typingTimeout);
-                            const statusDiv = document.getElementById("connection-status");
-                            statusDiv.textContent = "Connected";
-                            statusDiv.className = "connection-status status-connected";
-                        }
-
-                        // Process the message
-                        const messageType = data.message_type === 'chat' ? 'other' : data.message_type || "system";
-                        const content = data.content || data.reply;
-                        addMessage(content, messageType);
                     }
                 } catch (e) {
                     console.error("Failed to parse message:", e);
@@ -368,35 +464,69 @@
             updateConnectionStatus();
         }
 
+        function createMessage(content, messageType) {
+            return {
+                from_entity: document.getElementById("from_entity").value,
+                to_entity: document.getElementById("to_entity").value,
+                content: content || '',
+                message_type: messageType,
+                timestamp: new Date().toISOString()
+            };
+        }
+
+        function sendTypingStatus(type = MessageTypes.TYPING) {
+            if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+            const message = createMessage('', type);
+            socket.send(JSON.stringify(message));
+
+            // 首字母大写，设置data-type但不显示类型标记
+            const displayType = type.charAt(0).toUpperCase() + type.slice(1);
+            addMessage(`[${displayType}]`, 'self', type, true);  // 添加参数控制是否显示类型标记
+        }
+
+        function handleTyping() {
+            const input = document.getElementById("message");
+            const hasText = input.value.trim().length > 0;
+
+            if (isWaitingResponse) {
+                if (hasText) {
+                    if (!hasTypingSent || hasTypingEndSent) {
+                        // 如果未发送过 typing 消息，或者已经发送过 typing_end，则可以发送 typing
+                        sendTypingStatus(MessageTypes.TYPING);
+                        hasTypingSent = true;
+                        hasTypingEndSent = false;
+                    }
+                } else {
+                    if (hasTypingSent && !hasTypingEndSent) {
+                        // 如果已发送过 typing 消息且未发送过 typing_end，则可以发送 typing_end
+                        sendTypingStatus(MessageTypes.TYPING_END);
+                        hasTypingEndSent = true;
+                        hasTypingSent = false;  // 允许再次发送 typing
+                    }
+                }
+            }
+        }
+
         function sendMessage() {
             const input = document.getElementById("message");
-            const fromId = document.getElementById("from_entity").value;
-            const toId = document.getElementById("to_entity").value;
             const content = input.value.trim();
 
-            if (!content) {
-                return;
-            }
+            if (!content) return;
 
-            if (!toId) {
-                addMessage("Please enter a to ID", "system");
-                return;
-            }
-
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                const message = {
-                    from_entity: fromId,
-                    to_entity: toId,
-                    content: content,
-                    timestamp: new Date().toISOString()
-                };
-
-                socket.send(JSON.stringify(message));
-                addMessage(content, "self");
-                input.value = '';
-            } else {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
                 addMessage("Not connected to server", "system");
+                return;
             }
+
+            const message = createMessage(content, MessageTypes.CHAT);
+            socket.send(JSON.stringify(message));
+            addMessage(content, "self");
+
+            isWaitingResponse = true;
+            hasTypingSent = false;      // 发送消息后重置所有状态
+            hasTypingEndSent = false;
+            input.value = '';
         }
 
         // 下载聊天记录
@@ -440,21 +570,89 @@
                     break;
             }
         }
+
+        function toggleControlPanel() {
+            const content = document.querySelector('.control-panel-content');
+            const icon = document.querySelector('.toggle-icon');
+            const isVisible = content.classList.toggle('show');
+            icon.textContent = isVisible ? '[-]' : '[+]';
+        }
+
+        // 初始化时加载历史消息
+        function loadChatHistory() {
+            const savedHistory = localStorage.getItem('chatHistory');
+            if (savedHistory) {
+                messageHistory = JSON.parse(savedHistory);
+                messageHistory.forEach(msg => {
+                    addMessage(msg.content, msg.type, msg.messageType, false);
+                });
+            }
+        }
+
+        // 保存消息到本地存储
+        function saveChatHistory() {
+            localStorage.setItem('chatHistory', JSON.stringify(messageHistory));
+        }
+
+        // 清空聊天记录
+        function clearChatHistory() {
+            if (confirm('Are you sure you want to clear all chat history?')) {
+                messageHistory = [];
+                localStorage.removeItem('chatHistory');
+                const messages = document.getElementById("messages");
+                messages.innerHTML = '';
+                addMessage("Chat history cleared", "system");
+            }
+        }
+
+        // 页面加载时初始化
+        window.onload = function () {
+            const messageInput = document.getElementById("message");
+            messageInput.addEventListener('input', handleTyping);
+            messageInput.addEventListener('keyup', function (e) {
+                if (isWaitingResponse) {
+                    handleTyping();
+                }
+            });
+            loadChatHistory();
+        };
     </script>
 </head>
 
 <body>
     <div class="chat-container">
         <h1>SAYS</h1>
-        <div class="input-group">
-            <input id="from_entity" placeholder="Enter From ID">
-            <input id="to_entity" placeholder="Enter To ID">
-            <button onclick="connect()">Connect</button>
-            <button onclick="downloadHistory()">Download Chat History</button>
+
+        <div class="control-panel">
+            <div class="control-panel-header" onclick="toggleControlPanel()">
+                <h3>Controls Panel</h3>
+                <span class="toggle-icon">[+]</span>
+            </div>
+            <div class="control-panel-content">
+                <div class="control-group">
+                    <div class="control-item">
+                        <input id="from_entity" placeholder="Enter From ID">
+                        <input id="to_entity" placeholder="Enter To ID">
+                        <button onclick="connect()">Connect</button>
+                    </div>
+                    <div class="control-item">
+                        <label for="typingStatusDuration">Typing status duration (ms):</label>
+                        <input type="number" id="typingStatusDuration" value="2000" min="0" step="100"
+                            onchange="config.typingStatusDuration = parseInt(this.value)">
+                    </div>
+                    <div class="control-item">
+                        <button onclick="downloadHistory()">Download Chat History</button>
+                        <button onclick="clearChatHistory()" style="background-color: #dc3545;">Clear Chat
+                            History</button>
+                    </div>
+                </div>
+            </div>
         </div>
+
         <div class="status-bar">
             <span id="connection-status" class="connection-status status-disconnected">Not connected</span>
         </div>
+
         <div id="messages" class="messages"></div>
         <div class="input-container">
             <input id="message" placeholder="Type a message" onkeypress="if(event.key === 'Enter') sendMessage()">

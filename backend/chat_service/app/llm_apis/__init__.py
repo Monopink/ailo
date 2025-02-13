@@ -18,8 +18,8 @@ llm_instances: Dict[str, BaseLLM] = {
 
 # 导出默认实例
 default_llm = llm_instances["mock"]
-model_lily_llm = llm_instances["doubao_pro_32k"]
-# model_lily_llm = llm_instances["mock_json"]
+# model_lily_llm = llm_instances["doubao_pro_32k"]
+model_lily_llm = llm_instances["mock_json"]
 
 __all__ = [
     "BaseLLM",

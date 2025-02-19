@@ -3,10 +3,6 @@ from .mysql import (
     User,
     Bot,
     MessageHistory,
-    UserStatus,
-    UserRole,
-    BotStatus,
-    RelationType,
 )
 
 # 创建数据库管理器实例
@@ -18,8 +14,4 @@ __all__ = [
     "User",
     "Bot",
     "MessageHistory",
-    "UserStatus",
-    "UserRole",
-    "BotStatus",
-    "RelationType",
 ]

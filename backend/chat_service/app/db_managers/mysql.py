@@ -11,7 +11,7 @@ from enums import (
     UserStatus,
     UserRole,
     BotStatus,
-    RelationType,
+    RelationshipType,
     MessageType,
     MessageStatus,
 )
@@ -59,8 +59,8 @@ class Bot(Base):
     model = Column(String(50), nullable=False)
     status = Column(String(20), default="active")
     gender = Column(String(10), nullable=False)
-    birth_date = Column(DateTime)
-    time_zone = Column(String(10), default="+8:00")
+    birthday = Column(DateTime)
+    timezone = Column(String(10), default="Asia/Shanghai")
     city_name = Column(String(100))
     relationship_score = Column(Integer, default=0)
     relationship_type = Column(String(20), default="stranger")
@@ -253,7 +253,7 @@ class MySQLManager:
                     # 转换枚举值
                     bot.status = self._convert_str_to_enum(BotStatus, bot.status)
                     bot.relationship_type = self._convert_str_to_enum(
-                        RelationType, bot.relationship_type
+                        RelationshipType, bot.relationship_type
                     )
                 return bot
         except SQLAlchemyError as e:

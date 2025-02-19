@@ -127,7 +127,7 @@ class BotStatus(enum.Enum):
     INACTIVE = "inactive"
 
 
-class RelationType(enum.Enum):
+class RelationshipType(enum.Enum):
     STRANGER = "stranger"
     FRIEND = "friend"
     CONFIDANT = "confidant"

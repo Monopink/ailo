@@ -1,9 +1,10 @@
 import logging
 from typing import Optional
-from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from event_bus import event_bus, EventTypes
+from datetime import datetime, timezone
+
 from enums import MessageType
+from event_bus import event_bus, EventTypes
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def convert_timestamp(self, timestamp: str | None = None) -> str:
     """
     try:
         # 获取时区对象
-        timezone_obj = ZoneInfo(self.bot.time_zone)
+        timezone_obj = ZoneInfo(self.bot.timezone)
 
         if timestamp is None:
             # 使用当前UTC时间

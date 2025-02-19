@@ -40,8 +40,8 @@ CREATE TABLE bots (
     model VARCHAR(50) NOT NULL,
     status VARCHAR(20) DEFAULT 'active',
     gender VARCHAR(10) NOT NULL,
-    birth_date DATETIME,
-    time_zone VARCHAR(50) DEFAULT 'Asia/Shanghai',
+    birthday DATETIME,
+    timezone VARCHAR(50) DEFAULT 'Asia/Shanghai',
     city_name VARCHAR(100),
     relationship_score INT DEFAULT 0,
     relationship_type VARCHAR(20) DEFAULT 'stranger',
@@ -147,7 +147,7 @@ INSERT INTO users (entity_id, username, email, password_hash, status, role, lang
 ('u1004', '赵六', 'zhaoliu@example.com', 'hashed_password_4', 'active', 'user', 'zh', '深圳', '13800138004');
 
 -- 插入示例bot数据
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birth_date, time_zone, city_name, relationship_score, relationship_type, info, memory, styles) 
+INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles) 
 SELECT 
     'b9001', u.id, u.entity_id, 'lily', 'active', 'female', '2000-01-01', 'Asia/Shanghai', '广州', 80, 'friend',
     '姓名：李倩
@@ -174,7 +174,7 @@ MBTI：INFP
     )
 FROM users u WHERE u.entity_id = 'u1001';
 
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birth_date, time_zone, city_name, relationship_score, relationship_type, info, memory, styles)
+INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles)
 SELECT 
     'b9002', u.id, u.entity_id, 'lily', 'active', 'female', '1995-05-05', 'Asia/Shanghai', '上海', 60, 'confidant',
     '', '善于倾听和给出建议。',
@@ -186,7 +186,7 @@ SELECT
     )
 FROM users u WHERE u.entity_id = 'u1002';
 
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birth_date, time_zone, city_name, relationship_score, relationship_type, info, memory, styles)
+INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles)
 SELECT 
     'b9003', u.id, u.entity_id, 'lily', 'active', 'female', '2000-01-01', 'Asia/Shanghai', '广州', 80, 'friend',
     '', '熟悉粤式文化和美食。',
@@ -198,7 +198,7 @@ SELECT
     )
 FROM users u WHERE u.entity_id = 'u1003';
 
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birth_date, time_zone, city_name, relationship_score, relationship_type, info, memory, styles)
+INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles)
 SELECT 
     'b9004', u.id, u.entity_id, 'lily', 'inactive', 'female', '1995-05-05', 'Asia/Shanghai', '深圳', 60, 'confidant',
     '', '了解科技和创新领域。',

@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime
+from .context_strategy import ContextComponents, ContextStrategyFactory, DefaultPrompts
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +22,6 @@ def create_instant_context(self) -> str:
         str: 包含当前时间的即时上下文字符串
     """
     try:
-        from datetime import datetime
-
         current_time = datetime.now()
 
         # 格式化时间信息
@@ -40,27 +40,27 @@ def create_instant_context(self) -> str:
 def refresh_system_context(self) -> None:
     """刷新系统上下文"""
     try:
-        # 从 JSON 格式的 styles 中获取对应关系类型的风格
-        style = (
-            self.bot.styles.get(self.relationship_type, "")
-            if self.relationship_type
-            else ""
-        )
-        logger.info(f"Updated relationship style for bot {self.bot.id}")
+        # 获取即时上下文
+        self.instant_context = self._create_instant_context()
 
-        # 获取即时上下文（包含时间信息）
-        instant_context = self._create_instant_context()
+        # 创建 ContextComponents 实例
+        components = ContextComponents()
+        
+        # 设置属性而不是通过构造函数
+        components.info = self.bot.info
+        components.styles = self.styles
+        components.memory = self.memory
+        components.instant_context = self.instant_context
+        components.message_spliter = self.message_spliter
 
-        # 构建新的系统上下文
-        system_context_content = (
-            f"{self.system_context_prefix}\n"
-            f"{self.bot.info}\n"
-            f"{self.memory}\n"
-            f"{style}\n"
-            f"{self.system_context_suffix}"
-            f"{instant_context}\n"
+        # 创建上下文策略
+        system_prompt, strategy = ContextStrategyFactory.create(
+            relationship_type=self.relationship_type,
+            components=components,
+            include_summary=self.need_summary
         )
-        new_system_context = {"role": "system", "content": system_context_content}
+
+        new_system_context = {"role": "system", "content": system_prompt}
         logger.debug(f"New system context: {new_system_context}")
 
         # 更新context中的系统消息
@@ -69,12 +69,9 @@ def refresh_system_context(self) -> None:
         else:
             self.context["messages"] = [new_system_context]
 
-        logger.debug(f"System context refreshed for bot {self.bot.id}")
     except Exception as e:
-        logger.error(
-            f"Error refreshing system context for bot {self.bot.id}: {str(e)}",
-            exc_info=True,
-        )
+        logger.error(f"Error refreshing system context: {str(e)}", exc_info=True)
+        raise
 
 
 def varify_context(self) -> None:
@@ -105,7 +102,7 @@ def varify_context(self) -> None:
         )
         # 在发生错误时也初始化上下文
         self.context = {"messages": []}
-        self._refresh_system_context()
+        # self._refresh_system_context()
 
 
 def append_context(self, role: str, context_content: str) -> None:

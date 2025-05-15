@@ -52,42 +52,38 @@ class ModelLily(BaseModel):
 
         # 初始化会变化bot的数据
         self.context: Dict = getattr(bot, "context", {})  # 上下文
-        self.styles: Dict = getattr(bot, "styles", {})  # 风格
         self.memory: str = getattr(bot, "memory", "")  # 记忆
         self.relationship_type: Optional[str] = (
             bot.relationship_type.value if bot.relationship_type else None
         )
         self.relationship_score: int = getattr(bot, "relationship_score", 0)
-        self.message_spliter: str = " [msg] "  # 消息分隔符
-
         self.instant_context: str = ""  # 即时上下文
+        self.message_tag: str = " [msg] "  # 消息分隔符
 
         # 初始化其他数据
         self.typing_speed: float = 0  # 打字速度
-        self.to_wakeup_time: int = 0  # 当前苏醒时间
-        self.default_to_wakeup_time: int  # 默认苏醒时间
+        self.to_wakeup_secs: int = 0  # 当前苏醒时间
+        self.default_to_wakeup_secs: int  # 默认苏醒时间
         if self.relationship_type == "stranger":
-            self.default_to_wakeup_time = 2 * (100 - self.relationship_score)
+            self.default_to_wakeup_secs = 2 * (100 - self.relationship_score)
         elif self.relationship_type in ["friend"]:
-            self.default_to_wakeup_time = 20
+            self.default_to_wakeup_secs = 20
         elif self.relationship_type in ["confidant", "lover"]:
-            self.default_to_wakeup_time = 0
+            self.default_to_wakeup_secs = 0
         else:
-            self.default_to_wakeup_time = 50
+            self.default_to_wakeup_secs = 50
 
         self.context_limit: int = 1000  # 上下文限制
         self.memory_limit: int = 1000  # 记忆限制
         self.need_summary: bool = False  # 是否需要总结
         self.response_filter: bool = True  # 是否过滤响应
 
-        self.to_sleep_time: int = 120  # 睡眠超时时间
-        self.to_process_time_chat: int = 2  # 处理chat消息等待时间
-        self.to_process_time_typing_main: int = 32  # typing消息总等待时间
-        self.to_process_time_typing_fast: int = 16  # 收到typing消息等待时间
-        self.to_process_time_typing_end: int = (
-            self.to_process_time_chat
-        )  # 收到typing_end消息等待时间
-        self.to_process_time_chat_notyping: int = 8  # 处理chat_notyping消息等待时间
+        self.to_sleep_secs: int = 120  # 睡眠超时时间
+        self.chat_secs: int = 2  # 处理chat消息等待时间
+        self.typing_secs_total: int = 32  # typing消息总等待时间
+        self.typing_secs_short: int = 16  # 收到typing消息等待时间
+        self.typing_end_secs: int = self.chat_secs  # 收到typing_end消息等待时间
+        self.chat_notyping_secs: int = 8  # 处理chat_notyping消息等待时间
 
         # 初始化队列和锁
         self.is_awake: bool = False  # bot是否苏醒
@@ -95,19 +91,19 @@ class ModelLily(BaseModel):
         self.sleep_task: asyncio.Task | None = None  # 睡眠任务
         self.wakeup_task: asyncio.Task | None = None  # 唤醒任务
         self.process_task_main: asyncio.Task | None = None  # 主消息处理任务
-        self.process_task_fast: asyncio.Task | None = None  # 快消息处理任务
+        self.process_task_sub: asyncio.Task | None = None  # 快消息处理任务
         self.combined_message: str = ""  # 合并的消息
         self.combining_lock: asyncio.Lock = asyncio.Lock()  # 合并锁
         self.last_message_type: Optional[MessageType] = None
-        self.should_include_timestamp: bool = True  # 是否记录消息时间戳
+        self.include_timestamp: bool = True  # 是否记录消息时间戳
 
-    async def _sleep_timer(self, to_sleep_time: int = 0) -> None:
+    async def _sleep_timer(self, to_sleep_secs: int = 0) -> None:
         """睡眠并清理实例"""
         try:
             logger.debug(
-                f"Starting sleep timer for {to_sleep_time} seconds for bot {self.bot.id}"
+                f"Starting sleep timer for {to_sleep_secs} seconds for bot {self.bot.id}"
             )
-            await asyncio.sleep(to_sleep_time)
+            await asyncio.sleep(to_sleep_secs)
 
             # 保存当前上下文
             await self._update_context()
@@ -135,23 +131,23 @@ class ModelLily(BaseModel):
             )
             raise
 
-    def _reset_sleep_timer(self, to_sleep_time: Optional[int] = None) -> None:
+    def _reset_sleep_timer(self, to_sleep_secs: Optional[int] = None) -> None:
         """重置睡眠定时器
         Args:
-            to_sleep_time: 睡眠时间, None代表默认值, 0代表取消睡眠定时器
+            to_sleep_secs: 睡眠时间, None代表默认值, 0代表取消睡眠定时器
         """
         logger.debug(f"Resetting sleep timer for bot {self.bot.id}")
         if self.sleep_task and not self.sleep_task.done():
             self.sleep_task.cancel()
             logger.debug(f"Previous sleep timer cancelled for bot {self.bot.id}")
 
-        if to_sleep_time is None:
-            to_sleep_time = self.to_sleep_time
+        if to_sleep_secs is None:
+            to_sleep_secs = self.to_sleep_secs
 
-        if to_sleep_time > 0:
-            self.sleep_task = asyncio.create_task(self._sleep_timer(to_sleep_time))
+        if to_sleep_secs > 0:
+            self.sleep_task = asyncio.create_task(self._sleep_timer(to_sleep_secs))
             logger.debug(
-                f"New sleep timer set for {to_sleep_time} seconds for bot {self.bot.id}"
+                f"New sleep timer set for {to_sleep_secs} seconds for bot {self.bot.id}"
             )
 
     async def _wakeup_timer(self, to_awake: bool = True) -> None:
@@ -160,11 +156,11 @@ class ModelLily(BaseModel):
             to_awake: 是否唤醒, True代表唤醒, False代表保持睡眠
         """
         logger.debug(
-            f"To wakeup timer is {self.to_wakeup_time} seconds for bot {self.bot.id}"
+            f"To wakeup timer is {self.to_wakeup_secs} seconds for bot {self.bot.id}"
         )
-        while self.to_wakeup_time > 0:
+        while self.to_wakeup_secs > 0:
             await asyncio.sleep(1)
-            self.to_wakeup_time -= 1
+            self.to_wakeup_secs -= 1
 
         logger.debug(f"To wakeup timer is over for bot {self.bot.id}")
         if to_awake:
@@ -176,16 +172,16 @@ class ModelLily(BaseModel):
             logger.info(f"Bot {self.bot.id} has entered sleep mode")
             return
 
-    async def _wait_wakeup_timer(self, to_wakeup_time: Optional[int] = None) -> None:
+    async def _wait_wakeup_timer(self, to_wakeup_secs: Optional[int] = None) -> None:
         """等待唤醒定时器
         Args:
-            to_wakeup_time: 唤醒时间, None代表默认值
+            to_wakeup_secs: 唤醒时间, None代表默认值
         """
         if self.is_awake:
             logger.debug("Bot is awake, skipping wakeup timer")
             return
         if not self.context:
-            self.to_wakeup_time = 0
+            self.to_wakeup_secs = 0
             logger.debug("Bot is not awake, setting to wakeup timer to 0")
             await self._wakeup_timer()
             return
@@ -195,10 +191,10 @@ class ModelLily(BaseModel):
             await asyncio.sleep(0)
             logger.debug("Cancelled existing wakeup timer.")
 
-        if to_wakeup_time != None:
-            self.to_wakeup_time = to_wakeup_time
+        if to_wakeup_secs != None:
+            self.to_wakeup_secs = to_wakeup_secs
             logger.debug(
-                f"Setting fixed wakeup timer for {to_wakeup_time} seconds for bot {self.bot.id}"
+                f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}"
             )
             self.wakeup_task = asyncio.create_task(self._wakeup_timer())
             logger.debug("Created new wakeup timer")
@@ -206,16 +202,16 @@ class ModelLily(BaseModel):
             return
 
         else:
-            if not self.to_wakeup_time:
-                self.to_wakeup_time = self.default_to_wakeup_time
+            if not self.to_wakeup_secs:
+                self.to_wakeup_secs = self.default_to_wakeup_secs
 
             random_number: int = random.randint(1, 100)
             to_wakeup: bool = True
 
             # 50% 概率保持原值, 50% 概率随机调整
             if random_number <= 50:
-                self.to_wakeup_time = max(
-                    int(self.to_wakeup_time * random_number / 50), 1
+                self.to_wakeup_secs = max(
+                    int(self.to_wakeup_secs * random_number / 50), 1
                 )
 
             # 5% 概率不会唤醒
@@ -255,9 +251,9 @@ class ModelLily(BaseModel):
         """回复消息"""
         try:
             # 打字时间
-            typing_time = len(str(response_content)) * self.typing_speed
-            logger.debug(f"Starting typing for {typing_time} seconds...")
-            await asyncio.sleep(typing_time)
+            typing_secs = len(str(response_content)) * self.typing_speed
+            logger.debug(f"Starting typing for {typing_secs} seconds...")
+            await asyncio.sleep(typing_secs)
             logger.debug("Typing completed")
 
             # 发送响应消息
@@ -345,12 +341,12 @@ class ModelLily(BaseModel):
                 logger.debug(f"combined_message: {self.combined_message}")
                 asyncio.create_task(self._process_message())
 
-    async def _process_timer(self, to_process_time: int) -> None:
+    async def _process_timer(self, to_process_secs: int) -> None:
         """消息处理定时器"""
         try:
             # 处理消息等待
-            await asyncio.sleep(to_process_time)
-            self.should_include_timestamp = True
+            await asyncio.sleep(to_process_secs)
+            self.include_timestamp = True
             # 如果bot未唤醒，等待唤醒
             if not self.is_awake:
                 await self._wait_wakeup_timer()
@@ -364,37 +360,43 @@ class ModelLily(BaseModel):
             raise
 
     def _reset_process_timer(
-        self, main_timer_time: int | None = None, fast_timer_time: int | None = None
+        self,
+        secs_main: int | None = None,
+        secs_sub: int | None = None,
+        secs_adjust: int | None = None,
     ) -> None:
         """重置消息处理定时器
         Args:
-            main_timer_time: 慢消息处理时间, None代表不操作，0代表取消，其他代表设置
-            fast_timer_time: 快消息处理时间, None代表不操作，0代表取消，其他代表设置
+            secs_main: 主消息处理时间, None代表不操作，0代表取消，其他代表设置
+            secs_sub: 子消息处理时间, None代表不操作，0代表取消，其他代表设置
+            secs_adjust: 调整主消息处理时间, None代表不操作，0代表取消，其他代表设置
         """
+        # 取消现有的子消息处理任务
         if (
-            fast_timer_time != None
-            and self.process_task_fast
-            and not self.process_task_fast.done()
+            secs_sub != None
+            and self.process_task_sub
+            and not self.process_task_sub.done()
         ):
-            self.process_task_fast.cancel()
-            logger.debug("Cancelled existing process_task_fast.")
+            self.process_task_sub.cancel()
+            logger.debug("Cancelled existing process_task_sub.")
+        # 取消现有的主消息处理任务
         if (
-            main_timer_time != None
+            (secs_main != None or secs_adjust != None)
             and self.process_task_main
             and not self.process_task_main.done()
         ):
             self.process_task_main.cancel()
             logger.debug("Cancelled existing process_task_main.")
-        if main_timer_time:
-            self.process_task_main = asyncio.create_task(
-                self._process_timer(main_timer_time)
-            )
-            logger.debug(f"New process_task_main created. time: {main_timer_time}")
-        if fast_timer_time and self.process_task_main:
-            self.process_task_fast = asyncio.create_task(
-                self._process_timer(fast_timer_time)
-            )
-            logger.debug(f"New process_task_fast created. time: {fast_timer_time}")
+            if secs_adjust != None:
+                secs_main = secs_adjust
+        # 创建新的主消息处理任务
+        if secs_main:
+            self.process_task_main = asyncio.create_task(self._process_timer(secs_main))
+            logger.debug(f"New process_task_main created. secs: {secs_main}")
+        # 创建新的子消息处理任务
+        if secs_sub and self.process_task_main:
+            self.process_task_sub = asyncio.create_task(self._process_timer(secs_sub))
+            logger.debug(f"New process_task_sub created. secs: {secs_sub}")
 
     async def receive_message(self, received_message: dict) -> None:
         """入口函数，接收消息"""
@@ -422,19 +424,19 @@ class ModelLily(BaseModel):
 
                 # 将消息合并
                 async with self.combining_lock:
-                    if self.should_include_timestamp is True:
+                    if self.include_timestamp is True:
                         self.combined_message += (
                             f"[{self._convert_timestamp(timestamp)}]\n"
                         )
-                        self.should_include_timestamp = False
-                    self.combined_message += self.message_spliter + f"{content}"
+                        self.include_timestamp = False
+                    self.combined_message += self.message_tag + f"{content}"
                 logger.debug("Message appended to the message queue.")
 
                 # 创建新的消息处理任务
-                if message_type.code == MessageType.CHAT.code:
-                    self._reset_process_timer(self.to_process_time_chat)
+                if message_type == MessageType.CHAT:
+                    self._reset_process_timer(self.chat_secs)
                 else:
-                    self._reset_process_timer(self.to_process_time_chat_notyping)
+                    self._reset_process_timer(self.chat_notyping_secs)
 
             elif not self.last_message_type:
                 logger.warning(
@@ -443,28 +445,29 @@ class ModelLily(BaseModel):
 
             # 处理typing_end消息
             elif (
-                self.last_message_type.code == MessageType.TYPING.code
-                and message_type.code == MessageType.TYPING_END.code
+                self.last_message_type == MessageType.TYPING
+                and message_type == MessageType.TYPING_END
             ):
-                self._reset_process_timer(None, self.to_process_time_typing_end)
+                self._reset_process_timer(None, self.typing_end_secs)
 
             # 处理上一条消息是chat消息，当前消息是typing消息
             elif (
-                self.last_message_type.code == MessageType.CHAT.code
-                and message_type.code == MessageType.TYPING.code
-            ):
-                self._reset_process_timer(
-                    self.to_process_time_typing_main,
-                    self.to_process_time_typing_fast,
-                )
-            # 如果上一条消息是typing_end消息, 当前消息是typing消息
-            elif (
-                self.last_message_type.code == MessageType.TYPING_END.code
-                and message_type.code == MessageType.TYPING.code
+                self.last_message_type == MessageType.CHAT
+                and message_type == MessageType.TYPING
             ):
                 self._reset_process_timer(
                     None,
-                    self.to_process_time_typing_fast,
+                    self.typing_secs_short,
+                    self.typing_secs_total,
+                )
+            # 如果上一条消息是typing_end消息, 当前消息是typing消息
+            elif (
+                self.last_message_type == MessageType.TYPING_END
+                and message_type == MessageType.TYPING
+            ):
+                self._reset_process_timer(
+                    None,
+                    self.typing_secs_short,
                 )
 
             # 记录上一条消息类型

@@ -1,6 +1,7 @@
 import logging
+from zhdate import ZhDate
 from datetime import datetime
-from .context_strategy import ContextComponents, ContextStrategyFactory, DefaultPrompts
+from .context_strategy import ContextComponents, ContextStrategyFactory
 
 logger = logging.getLogger(__name__)
 
@@ -16,25 +17,59 @@ async def trim_memory(self) -> None:
 
 
 def create_instant_context(self) -> str:
-    """创建即时上下文，包含当前时间信息
-
+    """创建即时上下文，包含当前时间、基本状态信息以及农历信息
     Returns:
-        str: 包含当前时间的即时上下文字符串
+        str: 格式化的即时上下文字符串
     """
     try:
-        current_time = datetime.now()
+        # 使用 _convert_timestamp 获取 bot 时区的当前时间
+        current_time = self._convert_timestamp()
 
-        # 格式化时间信息
-        time_context = (
-            f"现在是{current_time.strftime('%Y年%m月%d日 %H:%M')}, "
-            f"{'上午' if current_time.hour < 12 else '下午' if current_time.hour < 18 else '晚上'}"
+        # 将当前时间字符串解析为 datetime 对象（假定时间格式为 '%Y-%m-%d %H:%M:%S'）
+        dt_current = datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S")
+        weekday_str = [
+            "星期一",
+            "星期二",
+            "星期三",
+            "星期四",
+            "星期五",
+            "星期六",
+            "星期日",
+        ][dt_current.weekday()]
+
+        # 根据时间判断时间段
+        hour = int(current_time.split()[1].split(":")[0])
+        if 0 <= hour < 6:
+            time_period = "凌晨"
+        elif 6 <= hour < 9:
+            time_period = "早上"
+        elif 9 <= hour < 12:
+            time_period = "上午"
+        elif 12 <= hour < 14:
+            time_period = "中午"
+        elif 14 <= hour < 18:
+            time_period = "下午"
+        elif 18 <= hour < 24:
+            time_period = "晚上"
+        else:
+            time_period = "未知时间"
+
+        # 使用 zhdate 库获取农历信息
+        lunar_info = ZhDate.from_datetime(dt_current).chinese()
+
+        # 构建即时上下文，增加了今天是星期几以及农历信息chrome-extension://mpognobbkildjkofajifpdfhcoklimli/components/private-intro/private-intro.html
+        instant_context = (
+            f"现在是{current_time}，{time_period}，{weekday_str}。\n"
+            f"农历：{lunar_info}。\n"
+            f"你在{self.bot.city_name if hasattr(self.bot, 'city_name') else '某市'}。"
         )
 
-        logger.debug(f"Created instant context with time: {time_context}")
-        return time_context
+        logger.debug(f"Created instant context with time: {instant_context}")
+        return instant_context
+
     except Exception as e:
         logger.error(f"Error creating instant context: {str(e)}", exc_info=True)
-        return ""
+        return "当前状态未知。"
 
 
 def refresh_system_context(self) -> None:
@@ -45,19 +80,19 @@ def refresh_system_context(self) -> None:
 
         # 创建 ContextComponents 实例
         components = ContextComponents()
-        
+
         # 设置属性而不是通过构造函数
         components.info = self.bot.info
-        components.styles = self.styles
+        components.styles = self.bot.styles
         components.memory = self.memory
         components.instant_context = self.instant_context
-        components.message_spliter = self.message_spliter
+        components.message_tag = self.message_tag
 
         # 创建上下文策略
         system_prompt, strategy = ContextStrategyFactory.create(
             relationship_type=self.relationship_type,
             components=components,
-            include_summary=self.need_summary
+            include_summary=self.need_summary,
         )
 
         new_system_context = {"role": "system", "content": system_prompt}

@@ -107,6 +107,12 @@ says
 │       │   ├── main.py  # 后端服务主入口
 │       │   ├── message_router.py  # 后端服务消息路由
 │       │   ├── models  # 后端服务模型
+│       │   │   ├── base.py
+│       │   │   ├── model_lily.py
+│       │   │   ├── context_strategy.py
+│       │   │   └── ...
+│       │   └── db_managers # 数据库管理
+│       │       └── mysql.py
 │       │   └── services  # 后端服务服务
 │       ├── docker-compose.dev.yml  # 后端服务开发环境docker-compose
 │       ├── docker-compose.yml  # 后端服务生产环境docker-compose
@@ -120,7 +126,7 @@ says
 │           ├── index.html  # 开发环境websocket前端index.html
 │           └── usr  # 开发环境websocket前端usr
 ├── database  # 数据库
-│   └── init.sql  # 数据库初始化
+│   └── init.sql  # 数据库初始化 (Note: This seems to be a top-level init.sql, distinct from mysql_dev/init/init.sql)
 ├── docker-compose.yml  # 项目docker-compose
 └── frontend  # 前端服务
     └── web  # 前端服务web
@@ -132,7 +138,8 @@ rules:
     include:
       - backend/chat_service/app/event_bus.py
       - backend/chat_service/app/message_router.py
-      - backend/chat_service/app/database.py
+      - backend/chat_service/app/database.py # Assuming this is a high-level DB interface
+      - backend/chat_service/app/db_managers/mysql.py # Actual models and manager
       - backend/chat_service/app/services/websocket.py
 
   # 消息路由相关
@@ -140,15 +147,17 @@ rules:
     include:
       - backend/chat_service/app/models/base.py
       - backend/chat_service/app/models/model_lily.py
-      - backend/chat_service/app/database.py
+      - backend/chat_service/app/db_managers/mysql.py # For bot data fetching
       - backend/chat_service/app/event_bus.py
 
-  # 模型相关
+  # 模型相关 - model_lily.py
   - when: backend/chat_service/app/models/model_lily.py
     include:
       - backend/chat_service/app/models/base.py
-      - backend/chat_service/app/llm_apis/doubao.py
-      - backend/chat_service/app/database.py
+      - backend/chat_service/app/llm_apis/doubao.py # Specific LLM API
+      - backend/chat_service/app/db_managers/mysql.py # For DB interactions (Bot, Emotion models)
+      - backend/chat_service/app/models/context_strategy.py # For prompt generation
+      - backend/chat_service/app/enums.py # For MessageType, etc.
 
   # LLM API 相关
   - when: backend/chat_service/app/llm_apis/doubao.py
@@ -160,10 +169,18 @@ rules:
     include:
       - backend/chat_service/app/event_bus.py
 
-  # 数据库相关
+  # 数据库接口文件 (if database.py is a high-level interface)
   - when: backend/chat_service/app/database.py
     include:
-      - backend/chat_service/mysql/init/init.sql
+      - backend/chat_service/app/db_managers/mysql.py # Its implementation
+      - backend/chat_service/mysql_dev/init/init.sql # Schema it might relate to
+
+  # 数据库模型和管理器 - db_managers/mysql.py (New/Modified Rule)
+  - when: backend/chat_service/app/db_managers/mysql.py
+    include:
+      - backend/chat_service/mysql_dev/init/init.sql # Defines the schema for models
+      - backend/chat_service/app/enums.py # Used in model definitions (e.g., BotStatus)
+      - backend/chat_service/app/models/model_lily.py # A primary consumer of this manager
 
   # 服务基类相关
   - when: backend/chat_service/app/services/base.py
@@ -174,16 +191,29 @@ rules:
   - when: backend/chat_service/app/models/base.py
     include:
       - backend/chat_service/app/models/__init__.py
+      
+  # 上下文策略相关 (New Rule)
+  - when: backend/chat_service/app/models/context_strategy.py
+    include:
+      - backend/chat_service/app/enums.py # Uses RelationshipType, FriendLevel, etc.
+      - backend/chat_service/app/models/model_lily.py # Primary user of the context strategy
+
+  # 枚举相关 (New Rule)
+  - when: backend/chat_service/app/enums.py
+    include:
+      - backend/chat_service/app/models/context_strategy.py # Uses enums
+      - backend/chat_service/app/db_managers/mysql.py # Uses enums for model fields/status
+      - backend/chat_service/app/models/model_lily.py # Uses enums for message types
 
 # 初始化文件规则
   - when: backend/chat_service/app/**/__init__.py
     include:
       - backend/chat_service/app/**/base.py
 
-# 数据库初始化
-  - when: backend/chat_service/mysql/init/init.sql
+# 数据库初始化脚本
+  - when: backend/chat_service/mysql_dev/init/init.sql
     include:
-      - backend/chat_service/app/database.py
+      - backend/chat_service/app/db_managers/mysql.py # File containing models mapped to this SQL
 
 # 特殊规则：当查看任何 Python 文件时
   - when: "**/*.py"

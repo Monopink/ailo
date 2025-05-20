@@ -1,11 +1,18 @@
+"""
+数据库管理模块，提供与MySQL数据库交互的功能。
+
+Base 是 SQLAlchemy 的声明式基类，用于定义所有 ORM 模型的基类。
+所有继承自 Base 的类都会被映射到数据库表，并自动创建表结构。
+"""
+
 import asyncio
 import logging
-from typing import Optional
-from datetime import datetime, timezone
+from typing import Optional, List, Dict
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey
 from sqlalchemy.exc import SQLAlchemyError  # 导入 SQLAlchemy 异常基类
 from enums import (
     UserStatus,
@@ -25,6 +32,7 @@ DATABASE_URL = "mysql+aiomysql://root:root@db/says_dev?charset=utf8mb4"
 engine = create_async_engine(DATABASE_URL, echo=True)  # echo=True 会打印出执行的SQL语句
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+# 创建声明式基类，所有模型类都继承自这个基类
 Base = declarative_base()
 
 
@@ -60,14 +68,31 @@ class Bot(Base):
     status = Column(String(20), default="active")
     gender = Column(String(10), nullable=False)
     birthday = Column(DateTime)
-    timezone = Column(String(10), default="Asia/Shanghai")
+    timezone = Column(String(50), default="Asia/Shanghai")
     city_name = Column(String(100))
-    relationship_score = Column(Integer, default=0)
-    relationship_type = Column(String(20), default="stranger")
+    friend_score = Column(Integer, default=0)
+    romance_score = Column(Integer, default=0)
+    friend_score_upper_limit = Column(Integer, default=5000)
+    friend_score_lower_limit = Column(Integer, default=0)
+    romance_score_upper_limit = Column(Integer, default=5000)
+    friend_score_pos_k = Column(Integer, default=1000)
+    friend_score_neg_k = Column(Integer, default=100)
+    romance_score_k = Column(Integer, default=1000)
+    friend_score_anger_minus = Column(Integer, default=0)
+    romance_score_anger_minus = Column(Integer, default=0)
+    last_chat_time = Column(DateTime)
+    relationship_type = Column(String(20), default="friend")
+    relationship_level = Column(String(20), default="neutral")
+    relationship_style = Column(Text)
+    friend_config = Column(JSON)
+    romance_config = Column(JSON)
+    override_config = Column(JSON)
+    is_polite = Column(Integer, default=0)  # 新增：是否礼貌
+    is_crushing = Column(Integer, default=0)  # 新增：是否暗恋
+    emotions_config = Column(JSON)
     context = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
-    styles = Column(JSON)
 
 
 class MessageHistory(Base):
@@ -121,6 +146,28 @@ class MessageHistory(Base):
         }
 
 
+class Emotion(Base):
+    """情绪模型，对应数据库中的 emotions 表
+
+    继承自 Base 表示这是一个 ORM 模型，会映射到数据库表
+    """
+
+    __tablename__ = "emotions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime, default=datetime.now(timezone.utc)
+    )  # MySQL 会通过触发器自动更新
+    bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False)
+    emotion_type = Column(String(50), nullable=False)  # 情绪类型，如 anger, happy
+    emotion_score = Column(Integer, default=0)  # 情绪分数，范围 1-12
+    emotion_level = Column(Integer, default=0)  # 情绪等级
+    start_time = Column(DateTime)  # 情绪开始时间
+    end_time = Column(DateTime)  # 情绪结束时间
+    update_time = Column(DateTime)  # 情绪更新时间
+
+
 class MySQLManager:
     def __init__(self):
         self.session_maker = async_session
@@ -151,8 +198,27 @@ class MySQLManager:
 
         while True:
             try:
+                logger.info("Attempting to connect to database...")
                 async with self.session_maker() as session:
+                    # 测试连接
                     await session.execute(text("SELECT 1"))
+                    logger.info("Database connection test successful")
+
+                    # 检查表结构
+                    try:
+                        # 检查 bots 表是否有所有必要的列
+                        await session.execute(
+                            text("SELECT friend_score FROM bots LIMIT 1")
+                        )
+                        logger.info("Database schema validation successful")
+                    except SQLAlchemyError as schema_error:
+                        logger.warning(
+                            f"Database schema validation failed: {str(schema_error)}"
+                        )
+                        logger.warning(
+                            "This might be expected if the database is newly created or being updated"
+                        )
+
                 logger.info("Database connection initialized successfully")
                 break
             except SQLAlchemyError as e:
@@ -182,17 +248,27 @@ class MySQLManager:
                 result = await session.execute(select(Bot).where(Bot.id == bot_id))
                 bot = result.scalar_one_or_none()
 
-                if bot and (
-                    bot.related_user_id is None
-                    or bot.related_user_id == related_user_id
-                ):
+                if bot and (bot.user_id is None or bot.user_id == related_user_id):
+                    # 构建relationship字典
+                    relationship = {
+                        "type": bot.relationship_type,
+                        "level": bot.relationship_level,
+                        "style": bot.relationship_style,
+                    }
+
                     return {
                         "context": bot.context,
                         "info": bot.info,
                         "memory": bot.memory,
-                        "relationship_score": bot.relationship_score,
-                        "relationship_type": (bot.relationship_type),
-                        "styles": bot.styles or {},
+                        "friend_score": bot.friend_score,
+                        "romance_score": bot.romance_score,
+                        "relationship": relationship,
+                        "friend_config": bot.friend_config,
+                        "romance_config": bot.romance_config,
+                        "override_config": bot.override_config,
+                        "is_polite": bool(bot.is_polite),
+                        "is_crushing": bool(bot.is_crushing),
+                        "emotions_config": bot.emotions_config,
                     }
                 return None
         except SQLAlchemyError as e:
@@ -252,9 +328,6 @@ class MySQLManager:
                 if bot:
                     # 转换枚举值
                     bot.status = self._convert_str_to_enum(BotStatus, bot.status)
-                    bot.relationship_type = self._convert_str_to_enum(
-                        RelationshipType, bot.relationship_type
-                    )
                 return bot
         except SQLAlchemyError as e:
             logger.error(f"Database error in get_bot_by_entity_id: {str(e)}")
@@ -378,3 +451,130 @@ class MySQLManager:
                 select(Bot).where(Bot.status == BotStatus.ACTIVE)
             )
             return result.scalars().all()
+
+    async def get_bot_emotions(self, bot_id: int) -> List[Dict]:
+        """获取bot的情绪数据"""
+        try:
+            async with self.session_maker() as session:
+                result = await session.execute(
+                    select(Emotion).where(Emotion.bot_id == bot_id)
+                )
+                emotions = result.scalars().all()
+                return [
+                    {
+                        "id": emotion.id,
+                        "emotion_type": emotion.emotion_type,
+                        "emotion_score": emotion.emotion_score,
+                        "emotion_level": emotion.emotion_level,
+                        "start_time": (
+                            emotion.start_time.isoformat()
+                            if emotion.start_time
+                            else None
+                        ),
+                        "end_time": (
+                            emotion.end_time.isoformat() if emotion.end_time else None
+                        ),
+                        "update_time": (
+                            emotion.update_time.isoformat()
+                            if emotion.update_time
+                            else None
+                        ),
+                    }
+                    for emotion in emotions
+                ]
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_bot_emotions: {str(e)}")
+            raise Exception(f"Failed to get bot emotions: {str(e)}") from e
+
+    async def update_bot_emotion(
+        self, bot_id: int, emotion_type: str, emotion_score: int, emotion_level: int
+    ) -> bool:
+        """更新bot的情绪数据"""
+        try:
+            async with self.session_maker() as session:
+                # 查找现有情绪
+                result = await session.execute(
+                    select(Emotion).where(
+                        (Emotion.bot_id == bot_id)
+                        & (Emotion.emotion_type == emotion_type)
+                    )
+                )
+                emotion = result.scalar_one_or_none()
+
+                now = datetime.now(timezone.utc)
+
+                if emotion:
+                    # 更新现有情绪
+                    emotion.emotion_score = emotion_score
+                    emotion.emotion_level = emotion_level
+                    emotion.update_time = now
+                    if emotion_score > 0:
+                        # 如果分数大于0，设置开始时间和结束时间
+                        if not emotion.start_time:
+                            emotion.start_time = now
+                        # 设置结束时间为当前时间加上一小时
+                        emotion.end_time = now + timedelta(hours=1)
+                    else:
+                        # 如果分数为0，清除开始时间和结束时间
+                        emotion.start_time = None
+                        emotion.end_time = None
+                else:
+                    # 创建新情绪
+                    new_emotion = Emotion(
+                        bot_id=bot_id,
+                        emotion_type=emotion_type,
+                        emotion_score=emotion_score,
+                        emotion_level=emotion_level,
+                        update_time=now,
+                    )
+                    if emotion_score > 0:
+                        new_emotion.start_time = now
+                        new_emotion.end_time = now + timedelta(hours=1)
+
+                    session.add(new_emotion)
+
+                await session.commit()
+                return True
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in update_bot_emotion: {str(e)}")
+            await session.rollback()
+            raise Exception(f"Failed to update bot emotion: {str(e)}") from e
+
+    async def update_bot_relationship(
+        self,
+        bot_id: int,
+        relationship_type: Optional[str] = None,
+        relationship_level: Optional[str] = None,
+        relationship_style: Optional[str] = None,
+    ) -> bool:
+        """更新bot的关系信息
+
+        Args:
+            bot_id: Bot ID
+            relationship_type: 关系类型
+            relationship_level: 关系等级
+            relationship_style: 关系风格
+
+        Returns:
+            bool: 更新是否成功
+        """
+        try:
+            async with self.session_maker() as session:
+                result = await session.execute(select(Bot).where(Bot.id == bot_id))
+                bot = result.scalar_one_or_none()
+                if bot:
+                    # 更新关系字段
+                    if relationship_type:
+                        bot.relationship_type = relationship_type
+                    if relationship_level:
+                        bot.relationship_level = relationship_level
+                    if relationship_style:
+                        bot.relationship_style = relationship_style
+
+                    await session.commit()
+                    return True
+                return False
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in update_bot_relationship: {str(e)}")
+            await session.rollback()
+            raise Exception(f"Failed to update bot relationship: {str(e)}") from e

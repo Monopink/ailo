@@ -57,7 +57,7 @@ def create_instant_context(self) -> str:
         # 使用 zhdate 库获取农历信息
         lunar_info = ZhDate.from_datetime(dt_current).chinese()
 
-        # 构建即时上下文，增加了今天是星期几以及农历信息chrome-extension://mpognobbkildjkofajifpdfhcoklimli/components/private-intro/private-intro.html
+        # 构建即时上下文
         instant_context = (
             f"现在是{current_time}，{time_period}，{weekday_str}。\n"
             f"农历：{lunar_info}。\n"
@@ -81,16 +81,18 @@ def refresh_system_context(self) -> None:
         # 创建 ContextComponents 实例
         components = ContextComponents()
 
-        # 设置属性而不是通过构造函数
+        # 设置属性
         components.info = self.bot.info
-        components.styles = self.bot.styles
         components.memory = self.memory
+        components.style = self.relationship_style
         components.instant_context = self.instant_context
         components.message_tag = self.message_tag
+        components.include_summary = self.need_summary  # 设置是否包含总结任务
 
         # 创建上下文策略
         system_prompt, strategy = ContextStrategyFactory.create(
             relationship_type=self.relationship_type,
+            relationship_level=self.relationship_level,
             components=components,
             include_summary=self.need_summary,
         )

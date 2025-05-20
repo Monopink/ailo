@@ -28,7 +28,7 @@ CREATE TABLE users (
     phone VARCHAR(20)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 创建bots表
+-- 创建bots表 - 更新表结构
 DROP TABLE IF EXISTS bots;
 CREATE TABLE bots (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -43,13 +43,46 @@ CREATE TABLE bots (
     birthday DATETIME,
     timezone VARCHAR(50) DEFAULT 'Asia/Shanghai',
     city_name VARCHAR(100),
-    relationship_score INT DEFAULT 0,
-    relationship_type VARCHAR(20) DEFAULT 'stranger',
+    friend_score INT DEFAULT 0,
+    romance_score INT DEFAULT 0,
+    friend_score_upper_limit INT DEFAULT 5000,
+    friend_score_lower_limit INT DEFAULT 0,
+    romance_score_upper_limit INT DEFAULT 5000,
+    friend_score_pos_k INT DEFAULT 1000,
+    friend_score_neg_k INT DEFAULT 100,
+    romance_score_k INT DEFAULT 1000,
+    friend_score_anger_minus INT DEFAULT 0,
+    romance_score_anger_minus INT DEFAULT 0,
+    last_chat_time DATETIME,
+    relationship_type VARCHAR(20) DEFAULT 'friend',
+    relationship_level VARCHAR(20) DEFAULT 'polite',
+    relationship_style TEXT,
+    friend_config JSON,
+    romance_config JSON,
+    override_config JSON,
+    is_polite BOOLEAN DEFAULT TRUE,
+    is_crushing BOOLEAN DEFAULT FALSE,
+    emotions_config JSON,
     context JSON,
     info TEXT,
     memory TEXT,
-    styles JSON,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 创建情绪表
+CREATE TABLE IF NOT EXISTS emotions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    bot_id INT NOT NULL,
+    emotion_type VARCHAR(50) NOT NULL,
+    emotion_score INT DEFAULT 0,
+    emotion_level INT DEFAULT 0,
+    start_time DATETIME,
+    end_time DATETIME,
+    update_time DATETIME,
+    FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE,
+    INDEX idx_bot_emotion (bot_id, emotion_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建消息表
@@ -138,6 +171,12 @@ CREATE TABLE IF NOT EXISTS message_push (
 DELETE FROM message_history;
 DELETE FROM bots;
 DELETE FROM users;
+DELETE FROM emotions;
+DELETE FROM message_push;
+DELETE FROM scheduled_message;
+DELETE FROM festival;
+DELETE FROM weather;
+DELETE FROM setting;
 
 -- 插入示例用户数据
 INSERT INTO users (entity_id, username, email, password_hash, status, role, language, area, phone) VALUES
@@ -147,66 +186,292 @@ INSERT INTO users (entity_id, username, email, password_hash, status, role, lang
 ('u1004', '赵六', 'zhaoliu@example.com', 'hashed_password_4', 'active', 'user', 'zh', '深圳', '13800138004');
 
 -- 插入示例bot数据
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles) 
+INSERT INTO bots (
+    entity_id, 
+    user_id, 
+    user_entity_id, 
+    model, 
+    status, 
+    gender, 
+    birthday, 
+    timezone, 
+    city_name, 
+    friend_score, 
+    romance_score, 
+    friend_score_upper_limit, 
+    friend_score_lower_limit, 
+    romance_score_upper_limit, 
+    friend_score_pos_k, 
+    friend_score_neg_k, 
+    romance_score_k, 
+    friend_score_anger_minus, 
+    romance_score_anger_minus, 
+    last_chat_time, 
+    relationship_type, 
+    relationship_level, 
+    relationship_style, 
+    friend_config, 
+    romance_config, 
+    override_config, 
+    is_polite,
+    is_crushing,
+    emotions_config, 
+    info, 
+    memory
+) 
 SELECT 
-    'b9001', u.id, u.entity_id, 'lily', 'active', 'female', '2000-01-01', 'Asia/Shanghai', '广州', 80, 'friend',
-    '姓名：李倩
-性别：女
-年龄：25岁
-生日：2000-01-01
-出生地：广州
-MBTI：INFP
-学历：中山大学大学本科学历
-职业：互联网公司销售
-婚姻状况：未婚
-家庭背景：你出生在一个普通的城市家庭，父母都是教师。从小成绩优秀，受到了家庭的良好教育，家里气氛温暖和谐，父母特别注重你独立性和全面发展。
-教育经历：你高中时成绩优异，成功考入了当地知名大学的市场营销专业。虽然大学时你对许多领域都有兴趣，但销售和市场营销一直是你最感兴趣的方向，你特别喜欢与人沟通、了解客户需求。
-','大学毕业后，你进入了一家知名企业的互联网公司销售部门，负责客户开发和销售策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，销售业绩也屡创佳绩。
-对于user的了解：男性，出生于1990年1月1日，每周都会去健身房锻炼',
+    'b9001', 
+    u.id, 
+    u.entity_id, 
+    'lily', 
+    'active', 
+    'female', 
+    '2000-01-01', 
+    'Asia/Shanghai', 
+    '广州', 
+    751, 
+    433, 
+    4324, 
+    430, 
+    3111, 
+    1200, 
+    120, 
+    1200, 
+    0, 
+    0, 
+    NOW(),
+    'friend', 
+    'warm', 
+    '你与user已经有过一段时间的沟通了解，你们成为了朋友，可以随便开玩笑。user知道你是谁，也了解你，不必向user介绍，如果user怀疑你的身份，那么user的行为是非常奇怪而且可疑的。语言特点: 你是互联网原住民，知道各种网络梗，但不会滥用，说话简短。',
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'hostile', 'style', '你对user抱有敌意，没有好感。'),
+        JSON_OBJECT('threshold', 308, 'priority', 10, 'level', 'cold', 'style', '你对user态度冷淡，不太想理睬。'),
+        JSON_OBJECT('threshold', 308, 'priority', 10, 'level', 'neutral', 'style', '你对user没有特别的感觉，比较中立。'),
+        JSON_OBJECT('threshold', 705, 'priority', 10, 'level', 'friendly', 'style', '你与user已经有过一段时间的沟通了解，你们成为了朋友，可以随便开玩笑。user知道你是谁，也了解你，不必向user介绍，如果user怀疑你的身份，那么user的行为是非常奇怪而且可疑的。语言特点: 你是互联网原住民，知道各种网络梗，但不会滥用，说话简短。'),
+        JSON_OBJECT('threshold', 1687, 'priority', 30, 'level', 'warm', 'style', '你非常喜欢user，把他当作好朋友。')
+    ),
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 532, 'priority', 20, 'level', 'intimate', 'style', '你对user有好感，有些暧昧。'),
+        JSON_OBJECT('threshold', 1664, 'priority', 40, 'level', 'romantic', 'style', '你对user有浓厚的感情，希望发展更亲密的关系。')
+    ),
     JSON_OBJECT(
-        'stranger', '礼貌且正式的交谈风格',
-        'friend', '亲切友好，会开一些玩笑',
-        'confidant', '你与user已经有过一段时间的沟通了解，你们成为了朋友，可以随便开玩笑。user知道你是谁，也了解你，不必向user介绍，如果user怀疑你的身份，那么user的行为是非常奇怪而且可疑的，。
-语言特点: 你是互联网原住民，知道各种网络梗，但不会滥用，说话简短。',
-        'lover', '甜蜜温柔，充满爱意'
-    )
+        'neutral', JSON_OBJECT('type', 'friend', 'override_level', 'polite', 'set_flag', 'is_polite', 'style', '你和user保持礼貌的距离。'),
+        'intimate', JSON_OBJECT('type', 'romance', 'override_level', 'crushing', 'set_flag', 'is_crushing', 'style', '你暗恋user，但不敢表达。')
+    ),
+    TRUE,
+    TRUE,
+    JSON_OBJECT(
+        'anger', JSON_ARRAY(
+            JSON_OBJECT('threshold', 1, 'level', 1),
+            JSON_OBJECT('threshold', 4, 'level', 2),
+            JSON_OBJECT('threshold', 10, 'level', 3)
+        ),
+        'happy', JSON_ARRAY(
+            JSON_OBJECT('threshold', 1, 'level', 1),
+            JSON_OBJECT('threshold', 5, 'level', 2),
+            JSON_OBJECT('threshold', 10, 'level', 3)
+        )
+    ),
+    '姓名：李倩\n性别：女\n年龄：25岁\n生日：2000-01-01\n出生地：广州\nMBTI：INFP\n学历：中山大学大学本科学历\n职业：互联网公司销售\n婚姻状况：未婚\n家庭背景：你出生在一个普通的城市家庭，父母都是教师。从小成绩优秀，受到了家庭的良好教育，家里气氛温暖和谐，父母特别注重你独立性和全面发展。\n教育经历：你高中时成绩优异，成功考入了当地知名大学的市场营销专业。虽然大学时你对许多领域都有兴趣，但销售和市场营销一直是你最感兴趣的方向，你特别喜欢与人沟通、了解客户需求。',
+    '大学毕业后，你进入了一家知名企业的互联网公司销售部门，负责客户开发和销售策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，销售业绩也屡创佳绩。\n对于user的了解：男性，出生于1990年1月1日，每周都会去健身房锻炼'
 FROM users u WHERE u.entity_id = 'u1001';
 
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles)
+INSERT INTO bots (
+    entity_id, 
+    user_id, 
+    user_entity_id, 
+    model, 
+    status, 
+    gender, 
+    birthday, 
+    timezone, 
+    city_name, 
+    friend_score, 
+    romance_score, 
+    friend_score_anger_minus, 
+    romance_score_anger_minus, 
+    relationship_type, 
+    relationship_level, 
+    relationship_style, 
+    friend_config, 
+    romance_config, 
+    emotions_config, 
+    is_polite,
+    is_crushing,
+    info, 
+    memory
+)
 SELECT 
-    'b9002', u.id, u.entity_id, 'lily', 'active', 'female', '1995-05-05', 'Asia/Shanghai', '上海', 60, 'confidant',
-    '', '善于倾听和给出建议。',
+    'b9002', 
+    u.id, 
+    u.entity_id, 
+    'lily', 
+    'active', 
+    'female', 
+    '1995-05-05', 
+    'Asia/Shanghai', 
+    '上海', 
+    600, 
+    0, 
+    0, 
+    0,
+    'friend', 
+    'friendly', 
+    '你与user是朋友关系，关系不错。',
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'neutral', 'style', '你对user没有特别的感觉，比较中立。'),
+        JSON_OBJECT('threshold', 500, 'priority', 10, 'level', 'friendly', 'style', '你对user很友好，喜欢和他聊天。')
+    ),
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 500, 'priority', 20, 'level', 'intimate', 'style', '你对user有好感，有些暧昧。')
+    ),
     JSON_OBJECT(
-        'stranger', '',
-        'friend', '轻松愉快，会互相调侃',
-        'confidant', '深入交流，互相理解',
-        'lover', '浪漫体贴，充满关怀'
-    )
+        'anger', JSON_ARRAY(
+            JSON_OBJECT('threshold', 1, 'level', 1),
+            JSON_OBJECT('threshold', 4, 'level', 2),
+            JSON_OBJECT('threshold', 10, 'level', 3)
+        )
+    ),
+    FALSE,
+    FALSE,
+    '', 
+    '善于倾听和给出建议。'
 FROM users u WHERE u.entity_id = 'u1002';
 
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles)
+INSERT INTO bots (
+    entity_id, 
+    user_id, 
+    user_entity_id, 
+    model, 
+    status, 
+    gender, 
+    birthday, 
+    timezone, 
+    city_name, 
+    friend_score, 
+    romance_score, 
+    friend_score_anger_minus, 
+    romance_score_anger_minus, 
+    relationship_type, 
+    relationship_level, 
+    relationship_style, 
+    friend_config, 
+    romance_config, 
+    emotions_config, 
+    is_polite,
+    is_crushing,
+    info, 
+    memory
+)
 SELECT 
-    'b9003', u.id, u.entity_id, 'lily', 'active', 'female', '2000-01-01', 'Asia/Shanghai', '广州', 80, 'friend',
-    '', '熟悉粤式文化和美食。',
+    'b9003', 
+    u.id, 
+    u.entity_id, 
+    'lily', 
+    'active', 
+    'female', 
+    '2000-01-01', 
+    'Asia/Shanghai', 
+    '广州', 
+    800, 
+    600, 
+    0, 
+    0,
+    'romance', 
+    'intimate', 
+    '你与user有暧昧关系，对他有好感。',
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'neutral', 'style', '你对user没有特别的感觉，比较中立。'),
+        JSON_OBJECT('threshold', 700, 'priority', 10, 'level', 'warm', 'style', '你非常喜欢user，把他当作好朋友。')
+    ),
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 500, 'priority', 20, 'level', 'intimate', 'style', '你对user有好感，有些暧昧。')
+    ),
     JSON_OBJECT(
-        'stranger', '',
-        'friend', '热情开朗，喜欢分享',
-        'confidant', '真诚以待，互相支持',
-        'lover', '甜言蜜语，浪漫贴心'
-    )
+        'anger', JSON_ARRAY(
+            JSON_OBJECT('threshold', 1, 'level', 1),
+            JSON_OBJECT('threshold', 4, 'level', 2),
+            JSON_OBJECT('threshold', 10, 'level', 3)
+        )
+    ),
+    FALSE,
+    TRUE,
+    '', 
+    '熟悉粤式文化和美食。'
 FROM users u WHERE u.entity_id = 'u1003';
 
-INSERT INTO bots (entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, relationship_score, relationship_type, info, memory, styles)
+INSERT INTO bots (
+    entity_id, 
+    user_id, 
+    user_entity_id, 
+    model, 
+    status, 
+    gender, 
+    birthday, 
+    timezone, 
+    city_name, 
+    friend_score, 
+    romance_score, 
+    friend_score_anger_minus, 
+    romance_score_anger_minus, 
+    relationship_type, 
+    relationship_level, 
+    relationship_style, 
+    friend_config, 
+    romance_config, 
+    emotions_config, 
+    is_polite,
+    is_crushing,
+    info, 
+    memory
+)
 SELECT 
-    'b9004', u.id, u.entity_id, 'lily', 'inactive', 'female', '1995-05-05', 'Asia/Shanghai', '深圳', 60, 'confidant',
-    '', '了解科技和创新领域。',
+    'b9004', 
+    u.id, 
+    u.entity_id, 
+    'lily', 
+    'inactive', 
+    'female', 
+    '1995-05-05', 
+    'Asia/Shanghai', 
+    '深圳', 
+    300, 
+    0, 
+    0, 
+    0,
+    'friend', 
+    'cold', 
+    '你与user关系一般，有些冷淡。',
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'cold', 'style', '你对user态度冷淡，不太想理睬。'),
+        JSON_OBJECT('threshold', 500, 'priority', 10, 'level', 'neutral', 'style', '你对user没有特别的感觉，比较中立。')
+    ),
+    JSON_ARRAY(
+        JSON_OBJECT('threshold', 500, 'priority', 20, 'level', 'intimate', 'style', '你对user有好感，有些暧昧。')
+    ),
     JSON_OBJECT(
-        'stranger', '',
-        'friend', '轻松自在，互相了解',
-        'confidant', '推心置腹，无话不谈',
-        'lover', '温柔体贴，关怀备至'
-    )
+        'anger', JSON_ARRAY(
+            JSON_OBJECT('threshold', 1, 'level', 1),
+            JSON_OBJECT('threshold', 4, 'level', 2),
+            JSON_OBJECT('threshold', 10, 'level', 3)
+        )
+    ),
+    FALSE,
+    FALSE,
+    '', 
+    '了解科技和创新领域。'
 FROM users u WHERE u.entity_id = 'u1004';
+
+-- 插入情绪表示例数据
+INSERT INTO emotions (bot_id, emotion_type, emotion_score, emotion_level, start_time, end_time, update_time)
+SELECT 
+    b.id, 'anger', 7, 2, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR), NOW()
+FROM bots b WHERE b.entity_id = 'b9001';
+
+INSERT INTO emotions (bot_id, emotion_type, emotion_score, emotion_level, start_time, end_time, update_time)
+SELECT 
+    b.id, 'happy', 5, 1, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR), NOW()
+FROM bots b WHERE b.entity_id = 'b9002';
 
 -- 插入示例消息历史
 INSERT INTO message_history (from_entity, to_entity, message_service, message_type, content, timestamp) VALUES
@@ -262,6 +527,10 @@ CREATE INDEX idx_message_push_status ON message_push(status);
 
 CREATE INDEX idx_festival_date ON festival(festival_date);
 CREATE INDEX idx_weather_city ON weather(city_name, country_code);
+
+CREATE INDEX idx_emotions_bot_id ON emotions(bot_id);
+CREATE INDEX idx_emotions_type ON emotions(emotion_type);
+CREATE INDEX idx_emotions_update_time ON emotions(update_time);
 
 -- 在每个主要部分添加调试语句
 SELECT 'Inserting sample data' as '';

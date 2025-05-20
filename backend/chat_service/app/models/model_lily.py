@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Callable, Awaitable
 from .base import BaseModel
 from llm_apis import model_lily_llm as llm
 from enums import MessageType, MessageTypeCategory
+from db_managers import db_manager
 from .message_parts import convert_timestamp, send_message
 from .db_parts import load_full_data, update_context, update_memory
 from .context_parts import (
@@ -53,10 +54,40 @@ class ModelLily(BaseModel):
         # 初始化会变化bot的数据
         self.context: Dict = getattr(bot, "context", {})  # 上下文
         self.memory: str = getattr(bot, "memory", "")  # 记忆
-        self.relationship_type: Optional[str] = (
-            bot.relationship_type.value if bot.relationship_type else None
+
+        # 新的关系系统
+        self.friend_score: int = getattr(bot, "friend_score", 0)
+        self.romance_score: int = getattr(bot, "romance_score", 0)
+
+        # 直接使用数据库字段，不构建字典
+        self.relationship_type: str = getattr(bot, "relationship_type", "friend")
+        self.relationship_level: str = getattr(bot, "relationship_level", "neutral")
+        self.relationship_style: str = getattr(bot, "relationship_style", "")
+
+        # 其他配置
+        self.friend_config: list = getattr(bot, "friend_config", [])
+        self.romance_config: list = getattr(bot, "romance_config", [])
+        self.override_config: Dict = getattr(bot, "override_config", {})
+        self.is_polite: bool = bool(getattr(bot, "is_polite", 0))
+        self.is_crushing: bool = bool(getattr(bot, "is_crushing", 0))
+        self.emotions_config: Dict = getattr(bot, "emotions_config", {})
+
+        # 分数相关字段
+        self.friend_score_pos_k: int = getattr(bot, "friend_score_pos_k", 1000)
+        self.friend_score_neg_k: int = getattr(bot, "friend_score_neg_k", 100)
+        self.romance_score_k: int = getattr(bot, "romance_score_k", 1000)
+        self.friend_score_upper_limit: int = getattr(
+            bot, "friend_score_upper_limit", 5000
         )
-        self.relationship_score: int = getattr(bot, "relationship_score", 0)
+        self.friend_score_lower_limit: int = getattr(bot, "friend_score_lower_limit", 0)
+        self.romance_score_upper_limit: int = getattr(
+            bot, "romance_score_upper_limit", 5000
+        )
+        self.friend_score_anger_minus: int = getattr(bot, "friend_score_anger_minus", 0)
+        self.romance_score_anger_minus: int = getattr(
+            bot, "romance_score_anger_minus", 0
+        )
+
         self.instant_context: str = ""  # 即时上下文
         self.message_tag: str = " [msg] "  # 消息分隔符
 
@@ -64,14 +95,31 @@ class ModelLily(BaseModel):
         self.typing_speed: float = 0  # 打字速度
         self.to_wakeup_secs: int = 0  # 当前苏醒时间
         self.default_to_wakeup_secs: int  # 默认苏醒时间
-        if self.relationship_type == "stranger":
-            self.default_to_wakeup_secs = 2 * (100 - self.relationship_score)
-        elif self.relationship_type in ["friend"]:
-            self.default_to_wakeup_secs = 20
-        elif self.relationship_type in ["confidant", "lover"]:
-            self.default_to_wakeup_secs = 0
+
+        # 根据关系类型和等级设置默认苏醒时间
+        relation_type = self.relationship_type
+        relation_level = self.relationship_level
+
+        if relation_type == "friend":
+            if relation_level in ["hostile", "cold"]:
+                self.default_to_wakeup_secs = 60
+            elif relation_level == "neutral":
+                self.default_to_wakeup_secs = 30
+            elif relation_level == "friendly":
+                self.default_to_wakeup_secs = 15
+            elif relation_level == "warm":
+                self.default_to_wakeup_secs = 5
+            else:
+                self.default_to_wakeup_secs = 30
+        elif relation_type == "romance":
+            if relation_level == "intimate":
+                self.default_to_wakeup_secs = 3
+            elif relation_level == "romantic":
+                self.default_to_wakeup_secs = 0
+            else:
+                self.default_to_wakeup_secs = 10
         else:
-            self.default_to_wakeup_secs = 50
+            self.default_to_wakeup_secs = 30
 
         self.context_limit: int = 1000  # 上下文限制
         self.memory_limit: int = 1000  # 记忆限制
@@ -191,7 +239,7 @@ class ModelLily(BaseModel):
             await asyncio.sleep(0)
             logger.debug("Cancelled existing wakeup timer.")
 
-        if to_wakeup_secs != None:
+        if to_wakeup_secs is not None:
             self.to_wakeup_secs = to_wakeup_secs
             logger.debug(
                 f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}"
@@ -223,8 +271,103 @@ class ModelLily(BaseModel):
             await self.wakeup_task
 
     async def _validate_response(self, response: str | None) -> bool:
-        """验证响应"""
-        return True
+        """验证响应
+
+        根据 context_strategy 提供的格式验证响应是否符合要求
+
+        Args:
+            response: LLM 生成的响应字符串
+
+        Returns:
+            bool: 验证是否通过
+        """
+        if not response:
+            logger.error("Response is empty")
+            return False
+
+        try:
+            # 解析 JSON 响应
+            response_data = json.loads(response)
+
+            # 必需字段检查
+            required_fields = [
+                "is_attack",
+                "response",
+                "content",
+                "emotions",
+                "friend_score",
+                "romance_score",
+            ]
+
+            for field in required_fields:
+                if field not in response_data:
+                    logger.error(f"Missing required field: {field}")
+                    return False
+
+            # 类型检查
+            if not isinstance(response_data["is_attack"], bool):
+                logger.error("Field 'is_attack' must be a boolean")
+                return False
+
+            if not isinstance(response_data["response"], bool):
+                logger.error("Field 'response' must be a boolean")
+                return False
+
+            if not isinstance(response_data["content"], str):
+                logger.error("Field 'content' must be a string")
+                return False
+
+            # 检查情绪字段
+            emotions = response_data["emotions"]
+            if not isinstance(emotions, dict):
+                logger.error("Field 'emotions' must be a dictionary")
+                return False
+
+            if "types" not in emotions or "scores" not in emotions:
+                logger.error("Field 'emotions' must contain 'types' and 'scores'")
+                return False
+
+            if not isinstance(emotions["types"], list):
+                logger.error("Field 'emotions.types' must be a list")
+                return False
+
+            if not isinstance(emotions["scores"], dict):
+                logger.error("Field 'emotions.scores' must be a dictionary")
+                return False
+
+            # 检查分数字段
+            if not isinstance(response_data["friend_score"], int):
+                logger.error("Field 'friend_score' must be an integer")
+                return False
+
+            if not isinstance(response_data["romance_score"], int):
+                logger.error("Field 'romance_score' must be an integer")
+                return False
+
+            # 检查分数范围
+            if not (-5 <= response_data["friend_score"] <= 5):
+                logger.error("Field 'friend_score' must be between -5 and 5")
+                return False
+
+            if not (-5 <= response_data["romance_score"] <= 5):
+                logger.error("Field 'romance_score' must be between -5 and 5")
+                return False
+
+            # 如果有总结字段，检查类型
+            if "summary" in response_data and not isinstance(
+                response_data["summary"], str
+            ):
+                logger.error("Field 'summary' must be a string")
+                return False
+
+            return True
+
+        except json.JSONDecodeError:
+            logger.error("Response is not valid JSON")
+            return False
+        except Exception as e:
+            logger.error(f"Error validating response: {str(e)}")
+            return False
 
     async def _generate_response(self) -> str | None:
         """生成响应"""
@@ -240,12 +383,125 @@ class ModelLily(BaseModel):
 
             # 从响应中提取助手消息
             assistant_message = llm_response["choices"][0]["message"]
+            response_content = assistant_message["content"]
 
-            return assistant_message["content"]
+            # 处理情绪和关系分数
+            await self._process_emotions_and_scores(response_content)
+
+            return response_content
 
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
             return None
+
+    async def _process_emotions_and_scores(self, response_content: str) -> None:
+        """处理情绪和关系分数"""
+        try:
+            # 解析 JSON 响应
+            response_data = json.loads(response_content)
+
+            # 处理情绪分数
+            if "emotions" in response_data:
+                emotions_data = response_data["emotions"]
+                emotion_types = emotions_data.get("types", [])
+                emotion_scores = emotions_data.get("scores", {})
+
+                # 更新情绪数据库
+                for emotion_type in emotion_types:
+                    if emotion_type in emotion_scores:
+                        emotion_score = emotion_scores[emotion_type]
+                        # 根据分数确定等级
+                        emotion_level = 0
+                        if emotion_type in self.emotions_config:
+                            thresholds = self.emotions_config.get(emotion_type, [])
+                            for threshold_config in thresholds:
+                                if emotion_score >= threshold_config.get(
+                                    "threshold", 0
+                                ):
+                                    emotion_level = threshold_config.get("level", 0)
+
+                        # 更新数据库
+                        await db_manager.update_bot_emotion(
+                            self.bot.id, emotion_type, emotion_score, emotion_level
+                        )
+                        logger.debug(
+                            f"Updated emotion {emotion_type} with score {emotion_score} and level {emotion_level}"
+                        )
+
+            # 处理友情分数
+            friend_score = response_data.get("friend_score", 0)
+            # 处理浪漫分数
+            romance_score = response_data.get("romance_score", 0)
+
+            # 更新关系分数
+            if friend_score != 0 or romance_score != 0:
+                # 计算实际增减的分数
+                friend_delta = (
+                    friend_score * self.friend_score_pos_k
+                    if friend_score > 0
+                    else friend_score * self.friend_score_neg_k
+                )
+                romance_delta = romance_score * self.romance_score_k
+
+                # 应用情绪影响
+                # 如果有生气情绪，减少分数增长
+                if (
+                    hasattr(self, "friend_score_anger_minus")
+                    and self.friend_score_anger_minus > 0
+                ):
+                    if friend_delta > 0:
+                        friend_delta = max(
+                            0, friend_delta - self.friend_score_anger_minus
+                        )
+
+                if (
+                    hasattr(self, "romance_score_anger_minus")
+                    and self.romance_score_anger_minus > 0
+                ):
+                    if romance_delta > 0:
+                        romance_delta = max(
+                            0, romance_delta - self.romance_score_anger_minus
+                        )
+
+                # 更新分数
+                new_friend_score = max(
+                    self.friend_score_lower_limit,
+                    min(
+                        self.friend_score_upper_limit,
+                        self.friend_score + friend_delta,
+                    ),
+                )
+                new_romance_score = max(
+                    0,
+                    min(
+                        self.romance_score_upper_limit,
+                        self.romance_score + romance_delta,
+                    ),
+                )
+
+                # 更新数据库
+                await db_manager.update_bot(
+                    self.bot.id,
+                    {
+                        "friend_score": new_friend_score,
+                        "romance_score": new_romance_score,
+                    },
+                )
+
+                # 更新本地值
+                self.friend_score = new_friend_score
+                self.romance_score = new_romance_score
+
+                logger.debug(
+                    f"Updated relationship scores: friend_score={new_friend_score}, romance_score={new_romance_score}"
+                )
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing response JSON: {str(e)}")
+        except Exception as e:
+            logger.error(
+                f"Error processing emotions and scores: {str(e)}", exc_info=True
+            )
 
     async def _reply_message(self, response_content: str) -> None:
         """回复消息"""
@@ -274,7 +530,7 @@ class ModelLily(BaseModel):
         """处理消息"""
         self.is_processing = True
         try:
-            logger.debug(f"Processing message...")
+            logger.debug("Processing message...")
 
             # 更新上下文
             self._varify_context()
@@ -373,7 +629,7 @@ class ModelLily(BaseModel):
         """
         # 取消现有的子消息处理任务
         if (
-            secs_sub != None
+            secs_sub is not None
             and self.process_task_sub
             and not self.process_task_sub.done()
         ):
@@ -381,13 +637,13 @@ class ModelLily(BaseModel):
             logger.debug("Cancelled existing process_task_sub.")
         # 取消现有的主消息处理任务
         if (
-            (secs_main != None or secs_adjust != None)
+            (secs_main is not None or secs_adjust is not None)
             and self.process_task_main
             and not self.process_task_main.done()
         ):
             self.process_task_main.cancel()
             logger.debug("Cancelled existing process_task_main.")
-            if secs_adjust != None:
+            if secs_adjust is not None:
                 secs_main = secs_adjust
         # 创建新的主消息处理任务
         if secs_main:

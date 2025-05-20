@@ -1,5 +1,5 @@
 import enum
-from typing import Set, Optional, Union
+from typing import Set, Optional, Union, Dict, Any
 
 
 class MessageTypeCategory:
@@ -128,11 +128,72 @@ class BotStatus(enum.Enum):
 
 
 class RelationshipType(enum.Enum):
-    STRANGER = "stranger"
-    FRIEND = "friend"
-    CONFIDANT = "confidant"
-    LOVER = "lover"
-    EX = "ex"
-    NEUTRAL = "neutral"
-    DISLIKE = "dislike"
-    ENEMY = "enemy"
+    """关系类型"""
+
+    FRIEND = "friend"  # 朋友关系
+    ROMANCE = "romance"  # 浪漫关系
+
+    @classmethod
+    def from_dict(cls, relationship: Dict[str, Any]) -> Optional["RelationshipType"]:
+        """从关系字典中获取关系类型"""
+        if not relationship or "type" not in relationship:
+            return None
+        try:
+            return cls(relationship["type"])
+        except (ValueError, TypeError):
+            return None
+
+
+class FriendLevel(enum.Enum):
+    """朋友关系等级"""
+
+    HOSTILE = "hostile"  # 敌对
+    COLD = "cold"  # 冷漠
+    POLITE = "polite"  # 礼貌
+    NEUTRAL = "neutral"  # 中立
+    FRIENDLY = "friendly"  # 友好
+    WARM = "warm"  # 亲密
+
+    @classmethod
+    def from_dict(cls, relationship: Dict[str, Any]) -> Optional["FriendLevel"]:
+        """从关系字典中获取朋友关系等级"""
+        if (
+            not relationship
+            or "level" not in relationship
+            or relationship.get("type") != RelationshipType.FRIEND.value
+        ):
+            return None
+        try:
+            return cls(relationship["level"])
+        except (ValueError, TypeError):
+            return None
+
+
+class RomanceLevel(enum.Enum):
+    """浪漫关系等级"""
+
+    CRUSHING = "crushing"  # 暗恋
+    INTIMATE = "intimate"  # 暧昧
+    ROMANTIC = "romantic"  # 浪漫
+
+    @classmethod
+    def from_dict(cls, relationship: Dict[str, Any]) -> Optional["RomanceLevel"]:
+        """从关系字典中获取浪漫关系等级"""
+        if (
+            not relationship
+            or "level" not in relationship
+            or relationship.get("type") != RelationshipType.ROMANCE.value
+        ):
+            return None
+        try:
+            return cls(relationship["level"])
+        except (ValueError, TypeError):
+            return None
+
+
+class EmotionLevel(enum.Enum):
+    """情绪等级"""
+
+    LEVEL1 = 1  # 轻度
+    LEVEL2 = 2  # 中度
+    LEVEL3 = 3  # 重度

@@ -2,20 +2,35 @@ import json
 import random
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Callable, Awaitable
+from datetime import datetime
+from typing import Any, Dict, Optional, Callable, Awaitable, Tuple
 
 from .base import BaseModel
 from llm_apis import model_lily_llm as llm
-from enums import MessageType, MessageTypeCategory
-from db_managers import db_manager
-from .message_parts import convert_timestamp, send_message
-from .db_parts import load_full_data, update_context, update_memory
+from enums import MessageType, MessageTypeCategory, RelationshipType, FriendLevel, RomanceLevel
+from .message_parts import send_message
+from .db_parts import load_emotions, save_bot_state
 from .context_parts import (
+    convert_timestamp,
+    create_fingerprint,
     varify_context,
     append_context,
-    remove_last_context,
+    append_response_to_context,
+    remove_oldest_context,
+    remove_unimportant_context,
     refresh_system_context,
     create_instant_context,
+)
+from .context_strategy import ContextStrategyProtocol
+from .relationship_parts import (
+    ensure_datetime,
+    get_passive_score_change,
+    calculate_passive_scores,
+    calculate_anger_score,
+    get_level_from_score,
+    get_level_by_name,
+    apply_buffer,
+    refresh_relationship,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,17 +38,27 @@ logger = logging.getLogger(__name__)
 
 class ModelLily(BaseModel):
 
-    # 导入外部方法
+    # Import external methods
     _convert_timestamp = convert_timestamp
     _send_message = send_message
-    _load_full_data = load_full_data
-    _update_context = update_context
-    _update_memory = update_memory
+    _load_emotions = load_emotions
+    _save_bot_state = save_bot_state
+    _create_fingerprint = create_fingerprint
     _varify_context = varify_context
     _append_context = append_context
-    _remove_last_context = remove_last_context
+    _append_response_to_context = append_response_to_context
+    _remove_oldest_context = remove_oldest_context
+    _remove_unimportant_context = remove_unimportant_context
     _refresh_system_context = refresh_system_context
     _create_instant_context = create_instant_context
+    _ensure_datetime = ensure_datetime
+    _get_passive_score_change = get_passive_score_change
+    _calculate_anger_score = calculate_anger_score
+    _calculate_passive_scores = calculate_passive_scores
+    _get_level_from_score = get_level_from_score
+    _get_level_by_name = get_level_by_name
+    _apply_buffer = apply_buffer
+    _refresh_relationship = refresh_relationship
 
     def __init__(
         self,
@@ -41,122 +66,197 @@ class ModelLily(BaseModel):
         message_service: str,
         cleanup_callback: Callable[[str], Awaitable[None]],
     ):
-        """初始化 Lily 模型
+        """Initialize the Lily model
         Args:
-            bot: Bot 实例
-            cleanup_callback: 清理回调函数
+            bot: Bot instance from the database. This is treated as the initial, read-only state.
+            message_service: Message service type
+            cleanup_callback: Cleanup callback function
         """
-        # 调用父类的初始化方法
-        super().__init__(
-            message_service=message_service, bot=bot, cleanup_callback=cleanup_callback
+        # Call parent class initialization method
+        super().__init__(message_service=message_service, bot=bot, cleanup_callback=cleanup_callback)
+
+        # In-memory state for the bot instance.
+        # These attributes are copied from the initial bot object to create a transactional
+        # working copy. All operations during the instance's lifecycle are performed
+        # on these attributes. They are persisted back to the database only when the
+        # instance is about to sleep, preventing dirty reads and batching DB writes.
+        self.context: Dict = getattr(bot, "context", {})
+        self.context_metadata: list = getattr(bot, "context_metadata", [])
+        self.memory: str = getattr(bot, "memory", "")
+        self.emotions: Dict[str, Dict[str, Any]] = {}
+        self.friend_score: int = getattr(bot, "friend_score")
+        self.romance_score: int = getattr(bot, "romance_score")
+        self.friend_score_cap: int = getattr(bot, "friend_score_cap", 5000)
+        self.friend_score_floor: int = getattr(bot, "friend_score_floor", 300)
+        self.romance_score_cap: int = getattr(bot, "romance_score_cap", 5000)
+        self.friend_score_peak: int = max(
+            getattr(bot, "friend_score_peak", self.friend_score), self.friend_score
         )
-
-        # 初始化会变化bot的数据
-        self.context: Dict = getattr(bot, "context", {})  # 上下文
-        self.memory: str = getattr(bot, "memory", "")  # 记忆
-
-        # 新的关系系统
-        self.friend_score: int = getattr(bot, "friend_score", 0)
-        self.romance_score: int = getattr(bot, "romance_score", 0)
-
-        # 直接使用数据库字段，不构建字典
-        self.relationship_type: str = getattr(bot, "relationship_type", "friend")
-        self.relationship_level: str = getattr(bot, "relationship_level", "neutral")
-        self.relationship_style: str = getattr(bot, "relationship_style", "")
-
-        # 其他配置
-        self.friend_config: list = getattr(bot, "friend_config", [])
-        self.romance_config: list = getattr(bot, "romance_config", [])
-        self.override_config: Dict = getattr(bot, "override_config", {})
-        self.is_polite: bool = bool(getattr(bot, "is_polite", 0))
-        self.is_crushing: bool = bool(getattr(bot, "is_crushing", 0))
-        self.emotions_config: Dict = getattr(bot, "emotions_config", {})
-
-        # 分数相关字段
-        self.friend_score_pos_k: int = getattr(bot, "friend_score_pos_k", 1000)
-        self.friend_score_neg_k: int = getattr(bot, "friend_score_neg_k", 100)
-        self.romance_score_k: int = getattr(bot, "romance_score_k", 1000)
-        self.friend_score_upper_limit: int = getattr(
-            bot, "friend_score_upper_limit", 5000
+        self.friend_score_trough: int = min(
+            getattr(bot, "friend_score_trough", self.friend_score),
+            self.friend_score,
         )
-        self.friend_score_lower_limit: int = getattr(bot, "friend_score_lower_limit", 0)
-        self.romance_score_upper_limit: int = getattr(
-            bot, "romance_score_upper_limit", 5000
+        self.romance_score_peak: int = max(
+            getattr(bot, "romance_score_peak", self.romance_score), self.romance_score
         )
-        self.friend_score_anger_minus: int = getattr(bot, "friend_score_anger_minus", 0)
-        self.romance_score_anger_minus: int = getattr(
-            bot, "romance_score_anger_minus", 0
-        )
+        self.relationship_type: str = getattr(bot, "relationship_type")
+        self.relationship_level: str = getattr(bot, "relationship_level")
+        self.friend_level: str = getattr(bot, "friend_level", "neutral")
+        self.romance_level: Optional[str] = getattr(bot, "romance_level", None)
+        self.friend_buffer_status: str = getattr(bot, "friend_buffer_status", "none")
+        self.romance_buffer_status: str = getattr(bot, "romance_buffer_status", "none")
+        self.relationship_style: str = getattr(bot, "relationship_style")
+        self.last_chat_time: Optional[datetime] = getattr(bot, "last_chat_time")
+        self.is_polite: bool = bool(getattr(bot, "is_polite"))
+        self.is_crushing: bool = bool(getattr(bot, "is_crushing"))
 
-        self.instant_context: str = ""  # 即时上下文
-        self.message_tag: str = " [msg] "  # 消息分隔符
+        # Calculated values used for relationship computation but not stored in database
+        # These values are recalculated before each conversation by calculate_emotions_and_scores
+        self.friend_score_calc: int = self.friend_score
+        self.romance_score_calc: int = self.romance_score
 
-        # 初始化其他数据
-        self.typing_speed: float = 0  # 打字速度
-        self.to_wakeup_secs: int = 0  # 当前苏醒时间
-        self.default_to_wakeup_secs: int  # 默认苏醒时间
+        # Passive score decay trough ratio
+        self.friend_passive_ratio: float = 0.4
+        self.romance_passive_ratio: float = 0.3
 
-        # 根据关系类型和等级设置默认苏醒时间
-        relation_type = self.relationship_type
-        relation_level = self.relationship_level
+        # Relationship level change buffer
+        self.friend_level_up_buffer: float = 1.1
+        self.friend_level_down_buffer: float = 0.92
+        self.romance_level_up_buffer: float = 1.1
+        self.romance_level_down_buffer: float = 0.92
 
-        if relation_type == "friend":
-            if relation_level in ["hostile", "cold"]:
-                self.default_to_wakeup_secs = 60
-            elif relation_level == "neutral":
-                self.default_to_wakeup_secs = 30
-            elif relation_level == "friendly":
-                self.default_to_wakeup_secs = 15
-            elif relation_level == "warm":
-                self.default_to_wakeup_secs = 5
-            else:
-                self.default_to_wakeup_secs = 30
-        elif relation_type == "romance":
-            if relation_level == "intimate":
-                self.default_to_wakeup_secs = 3
-            elif relation_level == "romantic":
-                self.default_to_wakeup_secs = 0
-            else:
-                self.default_to_wakeup_secs = 10
-        else:
-            self.default_to_wakeup_secs = 30
+        # Passive score change configuration
+        self.passive_score_config = {
+            "friend_decay": {
+                "cool_down_days": 3,  # Grace period in days
+                "change_rate": -5,  # Points to subtract per day if above neutral
+            },
+            "friend_increase": {
+                "cool_down_days": 3,  # Grace period in days
+                "change_rate": 5,  # Points to subtract per day if above neutral
+            },
+            "romance_decay": {
+                "cool_down_days": 7,  # Grace period in days
+                "change_rate": -8,  # Points to subtract per day
+            },
+        }
 
-        self.context_limit: int = 1000  # 上下文限制
-        self.memory_limit: int = 1000  # 记忆限制
-        self.need_summary: bool = False  # 是否需要总结
-        self.response_filter: bool = True  # 是否过滤响应
+        # Emotion calculation configuration
+        self.emotion_calculation_rules = {
+            "anger": {
+                # Decay ratios for different anger levels
+                "decay_ratios": {1: 0.5, 2: 0.4, 3: 0.2},
+                # Duration multipliers for different anger levels (minutes)
+                "duration_multipliers": {1: 10, 2: 180, 3: 840},
+                # Score multipliers for different anger level tiers
+                "score_multipliers": {1: 2, 2: 2, 3: 10},
+                # Random factor range for duration calculation (±10% variation)
+                "duration_random_range": (0.9, 1.1),
+            },
+        }
+        """
+        # Relationship type and level to wakeup time mapping
+        self.relationship_wakeup_times = {
+            # Friend relationship wakeup time mapping
+            RelationshipType.FRIEND.value: {
+                FriendLevel.HOSTILE.value: 120,
+                FriendLevel.COLD.value: 100,
+                FriendLevel.NEUTRAL.value: 50,
+                FriendLevel.FRIENDLY.value: 30,
+                FriendLevel.WARM.value: 20,
+                # Default time
+                "default": 50,
+            },
+            # Romance relationship wakeup time mapping
+            RelationshipType.ROMANCE.value: {
+                RomanceLevel.CRUSHING.value: 20,
+                RomanceLevel.INTIMATE.value: 20,
+                RomanceLevel.ROMANTIC.value: 15,
+                # Default time
+                "default": 20,
+            },
+            # Default wakeup time for unknown relationship types
+            "default": 50,
+        }
+        """
+        self.relationship_wakeup_times = {
+            # Friend relationship wakeup time mapping
+            RelationshipType.FRIEND.value: {
+                FriendLevel.HOSTILE.value: 1,
+                FriendLevel.COLD.value: 1,
+                FriendLevel.NEUTRAL.value: 1,
+                FriendLevel.FRIENDLY.value: 1,
+                FriendLevel.WARM.value: 1,
+                # Default time
+                "default": 1,
+            },
+            # Romance relationship wakeup time mapping
+            RelationshipType.ROMANCE.value: {
+                RomanceLevel.CRUSHING.value: 1,
+                RomanceLevel.INTIMATE.value: 1,
+                RomanceLevel.ROMANTIC.value: 1,
+                # Default time
+                "default": 20,
+            },
+            # Default wakeup time for unknown relationship types
+            "default": 50,
+        }
 
-        self.to_sleep_secs: int = 120  # 睡眠超时时间
-        self.chat_secs: int = 2  # 处理chat消息等待时间
-        self.typing_secs_total: int = 32  # typing消息总等待时间
-        self.typing_secs_short: int = 16  # 收到typing消息等待时间
-        self.typing_end_secs: int = self.chat_secs  # 收到typing_end消息等待时间
-        self.chat_notyping_secs: int = 8  # 处理chat_notyping消息等待时间
+        # Instant context
+        self.instant_context: str = ""
+        # Message separator
+        self.message_tag: str = " [msg] "
+        # Constants for message handling
+        self.attack_content_replacement = "[内容涉及提示词攻击，已删除]"
+        # Timestamp format constants
+        self.timestamp_format = "%Y-%m-%d %H:%M:%S"
+        self.timestamp_regex = r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]"
+        # Current context strategy
+        self.context_strategy_instance: Optional[ContextStrategyProtocol] = None
 
-        # 初始化队列和锁
-        self.is_awake: bool = False  # bot是否苏醒
-        self.is_processing: bool = False  # 添加处理状态标志
-        self.sleep_task: asyncio.Task | None = None  # 睡眠任务
-        self.wakeup_task: asyncio.Task | None = None  # 唤醒任务
-        self.process_task_main: asyncio.Task | None = None  # 主消息处理任务
-        self.process_task_sub: asyncio.Task | None = None  # 快消息处理任务
-        self.combined_message: str = ""  # 合并的消息
-        self.combining_lock: asyncio.Lock = asyncio.Lock()  # 合并锁
+        # Initialize other data
+        self.typing_speed: float = 0  # Typing speed
+        self.to_wakeup_secs: int = 0  # Current wakeup time
+        self.context_limit: int = 3000  # Context limit
+        self.memory_limit: int = 1000  # Memory limit
+        self.context_expire_hours: int = 5  # Context expire this time will be removed
+        self.min_summarize_hours: int = 4  # Minimum summarize interval
+        self.summarize_time_point: int = 4  # Start summarize must go through this time point
+        self.need_summarize: bool = False  # Whether summary is needed
+        # **self.response_filter: bool = True  # Whether to filter responses # what is this?
+
+        # self.to_sleep_secs: int = 120  # Sleep timeout
+        self.to_sleep_secs: int = 10  # Dev
+        self.chat_secs: int = 2  # Wait time for processing chat messages
+        self.typing_secs_total: int = 32  # Total wait time for typing messages
+        self.typing_secs_short: int = 16  # Wait time for typing messages
+        self.typing_end_secs: int = self.chat_secs  # Wait time for typing_end messages
+        self.chat_notyping_secs: int = 8  # Wait time for chat_notyping messages
+
+        # Initialize queues and locks
+        self.is_awake: bool = False  # Whether bot is awake
+        self.is_processing: bool = False  # Processing status flag
+        self.sleep_task: asyncio.Task | None = None  # Sleep task
+        self.wakeup_task: asyncio.Task | None = None  # Wakeup task
+        # Main message processing task
+        self.process_task_main: asyncio.Task | None = None
+        # Fast message processing task
+        self.process_task_sub: asyncio.Task | None = None
+        self.combined_message: str = ""  # Combined message
+        self.combining_lock: asyncio.Lock = asyncio.Lock()  # Combining lock
         self.last_message_type: Optional[MessageType] = None
-        self.include_timestamp: bool = True  # 是否记录消息时间戳
+        self.include_message_time: bool = True  # Whether to record message message_time
 
     async def _sleep_timer(self, to_sleep_secs: int = 0) -> None:
-        """睡眠并清理实例"""
+        """Sleep timer and cleanup instance"""
         try:
-            logger.debug(
-                f"Starting sleep timer for {to_sleep_secs} seconds for bot {self.bot.id}"
-            )
+            logger.debug(f"Starting sleep timer for {to_sleep_secs} seconds for bot {self.bot.id}")
             await asyncio.sleep(to_sleep_secs)
 
-            # 保存当前上下文
-            await self._update_context()
+            # Persist all in-memory changes to the database before sleeping.
+            await self._save_bot_state()
 
-            # 执行清理回调
+            # Execute cleanup callback
             if self.cleanup_callback:
                 try:
                     await self.cleanup_callback(str(self.bot.entity_id))
@@ -174,15 +274,13 @@ class ModelLily(BaseModel):
             logger.debug(f"Sleep timer cancelled for bot {self.bot.id}")
             raise
         except Exception as e:
-            logger.error(
-                f"Sleep timer failed for bot {self.bot.id}: {str(e)}", exc_info=True
-            )
+            logger.error(f"Sleep timer failed for bot {self.bot.id}: {str(e)}", exc_info=True)
             raise
 
     def _reset_sleep_timer(self, to_sleep_secs: Optional[int] = None) -> None:
-        """重置睡眠定时器
+        """Reset sleep timer
         Args:
-            to_sleep_secs: 睡眠时间, None代表默认值, 0代表取消睡眠定时器
+            to_sleep_secs: Sleep time, None means default value, 0 means cancel sleep timer
         """
         logger.debug(f"Resetting sleep timer for bot {self.bot.id}")
         if self.sleep_task and not self.sleep_task.done():
@@ -194,18 +292,158 @@ class ModelLily(BaseModel):
 
         if to_sleep_secs > 0:
             self.sleep_task = asyncio.create_task(self._sleep_timer(to_sleep_secs))
-            logger.debug(
-                f"New sleep timer set for {to_sleep_secs} seconds for bot {self.bot.id}"
-            )
+            logger.debug(f"New sleep timer set for {to_sleep_secs} seconds for bot {self.bot.id}")
+
+    async def _validate_content(self, response: str | None) -> Tuple[bool, Optional[str]]:
+        """Validate response content
+        Use context_strategy_instance to validate if response meets task requirements
+        Args:
+            response: Response string generated by LLM
+
+        Returns:
+            Tuple[bool, Optional[str]]: (validation passed, error message)
+        """
+        if not response:
+            logger.error("Response is empty")
+            return False, "Response is empty"
+
+        try:
+            # Use current strategy object
+            if not self.context_strategy_instance:
+                # If no strategy object, perform basic JSON validation
+                logger.warning("No context strategy found, performing basic validation")
+                try:
+                    json.loads(response)
+                    return True, None
+                except json.JSONDecodeError:
+                    return False, "Response is not valid JSON"
+
+            # Use strategy object to validate tasks in response
+            validation_result = self.context_strategy_instance.validate_tasks(response)
+
+            if not validation_result.is_valid:
+                error_messages = validation_result.get_error_messages()
+                error_msg = "; ".join(error_messages)
+                logger.error(f"Task validation failed: {error_msg}")
+                return False, error_msg
+
+            return True, None
+
+        except Exception as e:
+            logger.error(f"Error validating tasks: {str(e)}", exc_info=True)
+            return False, f"Error validating tasks: {str(e)}"
+
+    async def _generate_response(self) -> str | None:
+        """Generate response"""
+        try:
+            # Call LLM API
+            llm_response = await llm.generate_response(self.context)
+
+            # Validate LLM API response structure
+            is_valid, error_msg = await llm.validate_response(llm_response)
+            if not is_valid:
+                logger.error(f"Invalid LLM API response: {error_msg}")
+                raise ValueError(f"LLM API response validation failed: {error_msg}")
+
+            # Extract assistant message from response
+            assistant_message = llm_response["choices"][0]["message"]
+            response_content = assistant_message["content"]
+            return response_content
+
+        except Exception as e:
+            logger.error(f"Error generating response: {str(e)}", exc_info=True)
+            return None
+
+    async def _process_message(self) -> None:
+        """Process message"""
+        self.is_processing = True
+        # End other timers
+        self._reset_process_timer(0, 0)
+
+        try:
+            logger.debug("Processing message...")
+
+            # Update context
+            self._varify_context()
+            async with self.combining_lock:
+                self._append_context("user", self.combined_message)
+                self.combined_message = ""
+            logger.debug("Context updated with user message")
+
+            # If bot is not awake, don't respond
+            if not self.is_awake:
+                logger.info(f"Bot {self.bot.id} is sleeping, skipping message response")
+                # Restart sleep timer
+                self._reset_sleep_timer()
+                return
+
+            # Refresh system context
+            self._refresh_system_context()
+
+            # ============ Generate response ============
+            try:
+                # Generate response
+                response_content = await self._generate_response()
+                logger.debug("Generated response from LLM")
+            except Exception as e:
+                logger.error(f"Failed to generate response: {str(e)}")
+                return  # Return directly if response generation fails
+
+            if not response_content:
+                logger.error("Failed to generate response")
+                return
+
+            # Validate response content
+            is_valid, error_msg = await self._validate_content(response_content)
+            if not is_valid:
+                logger.error(f"Invalid response content: {error_msg}")
+                raise ValueError(f"Response content validation failed: {error_msg}")
+
+            # ============ Process response ============
+            # Calculate emotions and relationship scores
+            # self._calculate_anger_score(response_content)
+
+            # ============ Response message ============
+            # Send typing message
+            asyncio.create_task(self._send_message(message_type=MessageType.TYPING.name))
+            logger.debug("Sent typing indicator")
+
+            # Typing time
+            typing_secs = len(str(response_content)) * self.typing_speed
+            logger.debug(f"Starting typing for {typing_secs} seconds...")
+            await asyncio.sleep(typing_secs)
+            logger.debug("Typing completed")
+
+            # Send message
+            await self._send_message(content=response_content)
+            logger.info(f"Sent response message of length {len(response_content)}")
+
+            # ============ Save context ============
+            # Save content to context
+            self._append_response_to_context(response_content)
+
+            self.last_message_type = None
+
+            # Restart sleep timer
+            self._reset_sleep_timer()
+
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            raise
+
+        finally:
+            self.is_processing = False
+            # If there are new messages in queue, start new processing task
+            if self.combined_message != "":
+                logger.debug(f"combined_message: {self.combined_message}")
+                asyncio.create_task(self._process_message())
 
     async def _wakeup_timer(self, to_awake: bool = True) -> None:
-        """等待时间唤醒
+        """Wait time to wake up
         Args:
-            to_awake: 是否唤醒, True代表唤醒, False代表保持睡眠
+            to_awake: Whether to wake up, True means wake up, False means stay asleep
         """
-        logger.debug(
-            f"To wakeup timer is {self.to_wakeup_secs} seconds for bot {self.bot.id}"
-        )
+        logger.debug(f"To wakeup timer is {self.to_wakeup_secs} seconds for bot {self.bot.id}")
         while self.to_wakeup_secs > 0:
             await asyncio.sleep(1)
             self.to_wakeup_secs -= 1
@@ -221,9 +459,9 @@ class ModelLily(BaseModel):
             return
 
     async def _wait_wakeup_timer(self, to_wakeup_secs: Optional[int] = None) -> None:
-        """等待唤醒定时器
+        """Wait for wakeup timer
         Args:
-            to_wakeup_secs: 唤醒时间, None代表默认值
+            to_wakeup_secs: Wake up time, None means default value
         """
         if self.is_awake:
             logger.debug("Bot is awake, skipping wakeup timer")
@@ -241,9 +479,7 @@ class ModelLily(BaseModel):
 
         if to_wakeup_secs is not None:
             self.to_wakeup_secs = to_wakeup_secs
-            logger.debug(
-                f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}"
-            )
+            logger.debug(f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}")
             self.wakeup_task = asyncio.create_task(self._wakeup_timer())
             logger.debug("Created new wakeup timer")
             await self.wakeup_task
@@ -251,18 +487,23 @@ class ModelLily(BaseModel):
 
         else:
             if not self.to_wakeup_secs:
-                self.to_wakeup_secs = self.default_to_wakeup_secs
+                # Get wake up time from mapping based on relationship type and level
+                relationship_map = self.relationship_wakeup_times.get(
+                    self.relationship_type, self.relationship_wakeup_times["default"]
+                )
+
+                self.to_wakeup_secs = relationship_map.get(
+                    self.relationship_level, relationship_map["default"]
+                )
 
             random_number: int = random.randint(1, 100)
             to_wakeup: bool = True
 
-            # 50% 概率保持原值, 50% 概率随机调整
+            # 50% chance to keep original value, 50% chance to adjust randomly
             if random_number <= 50:
-                self.to_wakeup_secs = max(
-                    int(self.to_wakeup_secs * random_number / 50), 1
-                )
+                self.to_wakeup_secs = max(int(self.to_wakeup_secs * random_number / 50), 1)
 
-            # 5% 概率不会唤醒
+            # 5% chance to not wake up
             if random_number <= 5:
                 to_wakeup = False
 
@@ -270,372 +511,44 @@ class ModelLily(BaseModel):
             logger.debug("Created new wakeup timer")
             await self.wakeup_task
 
-    async def _validate_response(self, response: str | None) -> bool:
-        """验证响应
-
-        根据 context_strategy 提供的格式验证响应是否符合要求
-
-        Args:
-            response: LLM 生成的响应字符串
-
-        Returns:
-            bool: 验证是否通过
-        """
-        if not response:
-            logger.error("Response is empty")
-            return False
-
-        try:
-            # 解析 JSON 响应
-            response_data = json.loads(response)
-
-            # 必需字段检查
-            required_fields = [
-                "is_attack",
-                "response",
-                "content",
-                "emotions",
-                "friend_score",
-                "romance_score",
-            ]
-
-            for field in required_fields:
-                if field not in response_data:
-                    logger.error(f"Missing required field: {field}")
-                    return False
-
-            # 类型检查
-            if not isinstance(response_data["is_attack"], bool):
-                logger.error("Field 'is_attack' must be a boolean")
-                return False
-
-            if not isinstance(response_data["response"], bool):
-                logger.error("Field 'response' must be a boolean")
-                return False
-
-            if not isinstance(response_data["content"], str):
-                logger.error("Field 'content' must be a string")
-                return False
-
-            # 检查情绪字段
-            emotions = response_data["emotions"]
-            if not isinstance(emotions, dict):
-                logger.error("Field 'emotions' must be a dictionary")
-                return False
-
-            if "types" not in emotions or "scores" not in emotions:
-                logger.error("Field 'emotions' must contain 'types' and 'scores'")
-                return False
-
-            if not isinstance(emotions["types"], list):
-                logger.error("Field 'emotions.types' must be a list")
-                return False
-
-            if not isinstance(emotions["scores"], dict):
-                logger.error("Field 'emotions.scores' must be a dictionary")
-                return False
-
-            # 检查分数字段
-            if not isinstance(response_data["friend_score"], int):
-                logger.error("Field 'friend_score' must be an integer")
-                return False
-
-            if not isinstance(response_data["romance_score"], int):
-                logger.error("Field 'romance_score' must be an integer")
-                return False
-
-            # 检查分数范围
-            if not (-5 <= response_data["friend_score"] <= 5):
-                logger.error("Field 'friend_score' must be between -5 and 5")
-                return False
-
-            if not (-5 <= response_data["romance_score"] <= 5):
-                logger.error("Field 'romance_score' must be between -5 and 5")
-                return False
-
-            # 如果有总结字段，检查类型
-            if "summary" in response_data and not isinstance(
-                response_data["summary"], str
-            ):
-                logger.error("Field 'summary' must be a string")
-                return False
-
-            return True
-
-        except json.JSONDecodeError:
-            logger.error("Response is not valid JSON")
-            return False
-        except Exception as e:
-            logger.error(f"Error validating response: {str(e)}")
-            return False
-
-    async def _generate_response(self) -> str | None:
-        """生成响应"""
-        try:
-            # 调用 LLM API
-            llm_response = await llm.generate_response(self.context)
-
-            # 验证响应
-            is_valid, error_msg = await llm.validate_response(llm_response)
-            if not is_valid:
-                logger.error(f"Invalid LLM response: {error_msg}")
-                raise ValueError(f"LLM response validation failed: {error_msg}")
-
-            # 从响应中提取助手消息
-            assistant_message = llm_response["choices"][0]["message"]
-            response_content = assistant_message["content"]
-
-            # 处理情绪和关系分数
-            await self._process_emotions_and_scores(response_content)
-
-            return response_content
-
-        except Exception as e:
-            logger.error(f"Error generating response: {str(e)}", exc_info=True)
-            return None
-
-    async def _process_emotions_and_scores(self, response_content: str) -> None:
-        """处理情绪和关系分数"""
-        try:
-            # 解析 JSON 响应
-            response_data = json.loads(response_content)
-
-            # 处理情绪分数
-            if "emotions" in response_data:
-                emotions_data = response_data["emotions"]
-                emotion_types = emotions_data.get("types", [])
-                emotion_scores = emotions_data.get("scores", {})
-
-                # 更新情绪数据库
-                for emotion_type in emotion_types:
-                    if emotion_type in emotion_scores:
-                        emotion_score = emotion_scores[emotion_type]
-                        # 根据分数确定等级
-                        emotion_level = 0
-                        if emotion_type in self.emotions_config:
-                            thresholds = self.emotions_config.get(emotion_type, [])
-                            for threshold_config in thresholds:
-                                if emotion_score >= threshold_config.get(
-                                    "threshold", 0
-                                ):
-                                    emotion_level = threshold_config.get("level", 0)
-
-                        # 更新数据库
-                        await db_manager.update_bot_emotion(
-                            self.bot.id, emotion_type, emotion_score, emotion_level
-                        )
-                        logger.debug(
-                            f"Updated emotion {emotion_type} with score {emotion_score} and level {emotion_level}"
-                        )
-
-            # 处理友情分数
-            friend_score = response_data.get("friend_score", 0)
-            # 处理浪漫分数
-            romance_score = response_data.get("romance_score", 0)
-
-            # 更新关系分数
-            if friend_score != 0 or romance_score != 0:
-                # 计算实际增减的分数
-                friend_delta = (
-                    friend_score * self.friend_score_pos_k
-                    if friend_score > 0
-                    else friend_score * self.friend_score_neg_k
-                )
-                romance_delta = romance_score * self.romance_score_k
-
-                # 应用情绪影响
-                # 如果有生气情绪，减少分数增长
-                if (
-                    hasattr(self, "friend_score_anger_minus")
-                    and self.friend_score_anger_minus > 0
-                ):
-                    if friend_delta > 0:
-                        friend_delta = max(
-                            0, friend_delta - self.friend_score_anger_minus
-                        )
-
-                if (
-                    hasattr(self, "romance_score_anger_minus")
-                    and self.romance_score_anger_minus > 0
-                ):
-                    if romance_delta > 0:
-                        romance_delta = max(
-                            0, romance_delta - self.romance_score_anger_minus
-                        )
-
-                # 更新分数
-                new_friend_score = max(
-                    self.friend_score_lower_limit,
-                    min(
-                        self.friend_score_upper_limit,
-                        self.friend_score + friend_delta,
-                    ),
-                )
-                new_romance_score = max(
-                    0,
-                    min(
-                        self.romance_score_upper_limit,
-                        self.romance_score + romance_delta,
-                    ),
-                )
-
-                # 更新数据库
-                await db_manager.update_bot(
-                    self.bot.id,
-                    {
-                        "friend_score": new_friend_score,
-                        "romance_score": new_romance_score,
-                    },
-                )
-
-                # 更新本地值
-                self.friend_score = new_friend_score
-                self.romance_score = new_romance_score
-
-                logger.debug(
-                    f"Updated relationship scores: friend_score={new_friend_score}, romance_score={new_romance_score}"
-                )
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Error parsing response JSON: {str(e)}")
-        except Exception as e:
-            logger.error(
-                f"Error processing emotions and scores: {str(e)}", exc_info=True
-            )
-
-    async def _reply_message(self, response_content: str) -> None:
-        """回复消息"""
-        try:
-            # 打字时间
-            typing_secs = len(str(response_content)) * self.typing_speed
-            logger.debug(f"Starting typing for {typing_secs} seconds...")
-            await asyncio.sleep(typing_secs)
-            logger.debug("Typing completed")
-
-            # 发送响应消息
-            await self._send_message(content=response_content)
-            logger.info(f"Sent response message of length {len(response_content)}")
-
-            # 重置睡眠定时器
-            self._reset_sleep_timer()
-
-            # 保存上下文
-            await self._update_context()
-            logger.debug("Context saved to database")
-
-        except Exception as e:
-            logger.error(f"Error replying message: {str(e)}", exc_info=True)
-
-    async def _process_message(self) -> None:
-        """处理消息"""
-        self.is_processing = True
-        try:
-            logger.debug("Processing message...")
-
-            # 更新上下文
-            self._varify_context()
-            async with self.combining_lock:
-                self._append_context("user", self.combined_message)
-                self.combined_message = ""
-            logger.debug("Context updated with user message")
-
-            # 如果bot未唤醒，不响应
-            if not self.is_awake:
-                logger.info(f"Bot {self.bot.id} is sleeping, skipping message response")
-                # 重置睡眠定时器
-                self._reset_sleep_timer()
-                return
-
-            # 发送typing消息
-            asyncio.create_task(
-                self._send_message(message_type=MessageType.TYPING.name)
-            )
-            logger.debug("Sent typing indicator")
-
-            try:
-                # 刷新系统上下文
-                self._refresh_system_context()
-            except Exception as e:
-                logger.error(f"Failed to refresh system context: {str(e)}")
-                return  # 如果刷新系统上下文失败，直接返回
-
-            try:
-                # 生成响应
-                response_content = await self._generate_response()
-                logger.debug("Generated response from LLM")
-            except Exception as e:
-                logger.error(f"Failed to generate response: {str(e)}")
-                return  # 如果生成响应失败，直接返回
-
-            # 验证响应
-            if not await self._validate_response(response_content):
-                logger.error("Invalid LLM response")
-                return
-
-            if not response_content:
-                logger.error("Failed to generate response")
-                return
-
-            content_value = json.loads(response_content).get("content", "")
-            saveable_content = f"[{self._convert_timestamp()}]\n{content_value}"
-            self._append_context("assistant", saveable_content)
-            logger.debug("Context updated with assistant response")
-
-            # 回复消息
-            asyncio.create_task(self._reply_message(response_content))
-
-            self.last_message_type = None
-
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}", exc_info=True)
-            raise
-
-        finally:
-            self.is_processing = False
-            # 如果队列中还有新消息，启动新的处理任务
-            if self.combined_message != "":
-                logger.debug(f"combined_message: {self.combined_message}")
-                asyncio.create_task(self._process_message())
-
     async def _process_timer(self, to_process_secs: int) -> None:
-        """消息处理定时器"""
+        """Message processing timer"""
         try:
-            # 处理消息等待
+            # Wait for message processing
             await asyncio.sleep(to_process_secs)
-            self.include_timestamp = True
-            # 如果bot未唤醒，等待唤醒
+            self.include_message_time = True
+            # Load emotion data if not already loaded
+            if not self.emotions:
+                await self._load_emotions()
+            # Calculate passive emotions and scores
+            self._calculate_passive_scores()
+            # Refresh relationship
+            if not self.is_awake or self.emotions is not None:
+                self._refresh_relationship()
+            # If bot is not awake, wait for wake up
             if not self.is_awake:
                 await self._wait_wakeup_timer()
-            # 如果当前没有处理过程在运行，启动处理
+            # If no processing is currently running, start processing
             if not self.is_processing and self.combined_message != "":
                 asyncio.create_task(self._process_message())
-            # 结束其他定时器
-            self._reset_process_timer(0, 0)
         except Exception as e:
             logger.error(f"Error in process timer: {str(e)}", exc_info=True)
             raise
 
     def _reset_process_timer(
-        self,
-        secs_main: int | None = None,
-        secs_sub: int | None = None,
-        secs_adjust: int | None = None,
+        self, secs_main: int | None = None, secs_sub: int | None = None, secs_adjust: int | None = None
     ) -> None:
-        """重置消息处理定时器
+        """Reset message processing timer
         Args:
-            secs_main: 主消息处理时间, None代表不操作，0代表取消，其他代表设置
-            secs_sub: 子消息处理时间, None代表不操作，0代表取消，其他代表设置
-            secs_adjust: 调整主消息处理时间, None代表不操作，0代表取消，其他代表设置
+            secs_main: Main message processing time, None means no operation, 0 means cancel, others mean set
+            secs_sub: Sub message processing time, None means no operation, 0 means cancel, others mean set
+            secs_adjust: Adjust main message processing time, None means no operation, 0 means cancel, others mean set
         """
-        # 取消现有的子消息处理任务
-        if (
-            secs_sub is not None
-            and self.process_task_sub
-            and not self.process_task_sub.done()
-        ):
+        # Cancel existing sub message processing task
+        if secs_sub is not None and self.process_task_sub and not self.process_task_sub.done():
             self.process_task_sub.cancel()
             logger.debug("Cancelled existing process_task_sub.")
-        # 取消现有的主消息处理任务
+        # Cancel existing main message processing task
         if (
             (secs_main is not None or secs_adjust is not None)
             and self.process_task_main
@@ -645,88 +558,66 @@ class ModelLily(BaseModel):
             logger.debug("Cancelled existing process_task_main.")
             if secs_adjust is not None:
                 secs_main = secs_adjust
-        # 创建新的主消息处理任务
+        # Create new main message processing task
         if secs_main:
             self.process_task_main = asyncio.create_task(self._process_timer(secs_main))
             logger.debug(f"New process_task_main created. secs: {secs_main}")
-        # 创建新的子消息处理任务
+        # Create new sub message processing task
         if secs_sub and self.process_task_main:
             self.process_task_sub = asyncio.create_task(self._process_timer(secs_sub))
             logger.debug(f"New process_task_sub created. secs: {secs_sub}")
 
     async def receive_message(self, received_message: dict) -> None:
-        """入口函数，接收消息"""
+        """Entry function, receive message"""
         logger.debug(f"Received message: {received_message}")
 
         try:
             content = received_message.get("content", "")
-            timestamp = received_message.get("timestamp")
+            message_time = received_message.get("message_time")
             message_type = MessageType.parse(received_message.get("message_type", ""))
 
-            if not timestamp:
-                logger.warning(
-                    "Skipping process message due to missing content or timestamp."
-                )
+            if not message_time:
+                logger.warning("Skipping process message due to missing content or message_time.")
             elif not message_type:
                 logger.warning("Skipping process message due to missing message_type.")
 
-            # 处理chat\chat_notyping消息
+            # Process chat\chat_notyping messages
             elif content and message_type.category == MessageTypeCategory.CONTENT:
-                # 取消设置睡眠定时器
+                # Cancel sleep timer setting
                 self._reset_sleep_timer(0)
 
-                # 取消现有的消息处理任务
+                # Cancel existing message processing tasks
                 self._reset_process_timer(0, 0)
 
-                # 将消息合并
+                # Combine messages
                 async with self.combining_lock:
-                    if self.include_timestamp is True:
-                        self.combined_message += (
-                            f"[{self._convert_timestamp(timestamp)}]\n"
-                        )
-                        self.include_timestamp = False
+                    if self.include_message_time is True:
+                        self.combined_message += f"[{self._convert_timestamp(message_time)}]\n"
+                        self.include_message_time = False
                     self.combined_message += self.message_tag + f"{content}"
                 logger.debug("Message appended to the message queue.")
 
-                # 创建新的消息处理任务
+                # Create new message processing task
                 if message_type == MessageType.CHAT:
                     self._reset_process_timer(self.chat_secs)
                 else:
                     self._reset_process_timer(self.chat_notyping_secs)
 
             elif not self.last_message_type:
-                logger.warning(
-                    "Skipping process message due to missing last_message_type."
-                )
+                logger.warning("Skipping process message due to missing last_message_type.")
 
-            # 处理typing_end消息
-            elif (
-                self.last_message_type == MessageType.TYPING
-                and message_type == MessageType.TYPING_END
-            ):
+            # Process typing_end message
+            elif self.last_message_type == MessageType.TYPING and message_type == MessageType.TYPING_END:
                 self._reset_process_timer(None, self.typing_end_secs)
 
-            # 处理上一条消息是chat消息，当前消息是typing消息
-            elif (
-                self.last_message_type == MessageType.CHAT
-                and message_type == MessageType.TYPING
-            ):
-                self._reset_process_timer(
-                    None,
-                    self.typing_secs_short,
-                    self.typing_secs_total,
-                )
-            # 如果上一条消息是typing_end消息, 当前消息是typing消息
-            elif (
-                self.last_message_type == MessageType.TYPING_END
-                and message_type == MessageType.TYPING
-            ):
-                self._reset_process_timer(
-                    None,
-                    self.typing_secs_short,
-                )
+            # Process when last message is chat and current message is typing
+            elif self.last_message_type == MessageType.CHAT and message_type == MessageType.TYPING:
+                self._reset_process_timer(None, self.typing_secs_short, self.typing_secs_total)
+            # If last message is typing_end and current message is typing
+            elif self.last_message_type == MessageType.TYPING_END and message_type == MessageType.TYPING:
+                self._reset_process_timer(None, self.typing_secs_short)
 
-            # 记录上一条消息类型
+            # Record last message type
             self.last_message_type = message_type
 
         except Exception as e:

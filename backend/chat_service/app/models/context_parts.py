@@ -1,32 +1,63 @@
 import logging
+import re
+import json
 from zhdate import ZhDate
-from datetime import datetime
-from .context_strategy import ContextComponents, ContextStrategyFactory
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+from .context_strategy import ContextComponents, create_context
 
 logger = logging.getLogger(__name__)
 
 
-async def trim_context(self) -> None:
-    """修剪上下文"""
-    pass
+def convert_timestamp(self, timestamp: str | None = None) -> str:
+    """Convert UTC timestamp to time string in specified timezone
+    Args:
+        timestamp: UTC timestamp in ISO format (e.g. '2025-02-01T07:17:33.564Z'), if None, use current time
+    Returns:
+        Converted time string (e.g. '2025-02-01 07:17:35')
+    """
+    try:
+        # Get timezone object
+        timezone_obj = ZoneInfo(self.bot.timezone)
+
+        if timestamp is None:
+            # Use current UTC time
+            utc_time = datetime.now(timezone.utc)
+        else:
+            # Parse UTC timestamp
+            utc_time = datetime.strptime(timestamp.replace("Z", "+00:00"), "%Y-%m-%dT%H:%M:%S.%f%z")
+
+        # Convert to target timezone
+        local_time = utc_time.astimezone(timezone_obj)
+        # Format output using the timestamp format constant
+        return local_time.strftime(self.timestamp_format)
+    except ValueError as e:
+        logger.error(f"ValueError in _convert_timestamp: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in _convert_timestamp: {str(e)}")
+        raise
 
 
-async def trim_memory(self) -> None:
-    """修剪记忆"""
-    pass
+def create_fingerprint(self, text: str) -> str:
+    """Creates a lightweight fingerprint for a text message."""
+    if not text:
+        return "0::"
+    text_str = str(text)
+    return f"{len(text_str)}:{text_str[18:20]}:{text_str[28:31]}:{text_str[-3:]}"
 
 
 def create_instant_context(self) -> str:
-    """创建即时上下文，包含当前时间、基本状态信息以及农历信息
+    """Create instant context containing current time, basic status info and lunar calendar info
     Returns:
-        str: 格式化的即时上下文字符串
+        str: Formatted instant context string
     """
     try:
-        # 使用 _convert_timestamp 获取 bot 时区的当前时间
+        # Get current time in bot's timezone using _convert_timestamp
         current_time = self._convert_timestamp()
 
-        # 将当前时间字符串解析为 datetime 对象（假定时间格式为 '%Y-%m-%d %H:%M:%S'）
-        dt_current = datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S")
+        # Parse current time string to datetime object using the timestamp format constant
+        dt_current = datetime.strptime(current_time, self.timestamp_format)
         weekday_str = [
             "星期一",
             "星期二",
@@ -37,7 +68,7 @@ def create_instant_context(self) -> str:
             "星期日",
         ][dt_current.weekday()]
 
-        # 根据时间判断时间段
+        # Determine time period based on hour
         hour = int(current_time.split()[1].split(":")[0])
         if 0 <= hour < 6:
             time_period = "凌晨"
@@ -52,12 +83,13 @@ def create_instant_context(self) -> str:
         elif 18 <= hour < 24:
             time_period = "晚上"
         else:
+            logger.warning(f"Unknown time period for bot {self.bot.id}")
             time_period = "未知时间"
 
-        # 使用 zhdate 库获取农历信息
+        # Get lunar calendar info using zhdate library
         lunar_info = ZhDate.from_datetime(dt_current).chinese()
 
-        # 构建即时上下文
+        # Build instant context
         instant_context = (
             f"现在是{current_time}，{time_period}，{weekday_str}。\n"
             f"农历：{lunar_info}。\n"
@@ -73,34 +105,94 @@ def create_instant_context(self) -> str:
 
 
 def refresh_system_context(self) -> None:
-    """刷新系统上下文"""
+    """Refresh system context
+
+    Trims context, decides on summarization, then creates new system context
+    and updates the current context strategy object.
+    """
     try:
-        # 获取即时上下文
+        # 1. Remove old, unimportant context first.
+        self._remove_unimportant_context()
+
+        # Helper to calculate total character count of context messages.
+        def get_context_char_count():
+            return sum(len(str(msg.get("content", ""))) for msg in self.context.get("messages", []))
+
+        # 2. Check context length (character count) and decide on summarizing or trimming.
+        if get_context_char_count() > self.context_limit:
+            should_summarize = False
+            if self.last_chat_time:
+                # Ensure last_chat_time is timezone-aware.
+                last_chat_time_aware = self._ensure_datetime(self.last_chat_time)
+                now_aware = datetime.now(ZoneInfo(self.bot.timezone))
+
+                time_diff_hours = (now_aware - last_chat_time_aware).total_seconds() / 3600
+
+                # Check if it passed 4am since last chat.
+                passed_4am = (now_aware.date() > last_chat_time_aware.date()) or (
+                    now_aware.date() == last_chat_time_aware.date()
+                    and now_aware.hour >= self.summarize_time_point
+                    and last_chat_time_aware.hour < self.summarize_time_point
+                )
+
+                if time_diff_hours > self.min_summarize_hours and passed_4am:
+                    should_summarize = True
+
+            if should_summarize:
+                self.need_summarize = True
+                logger.info(
+                    f"Context character count limit exceeded, setting need_summarize to True for bot {self.bot.id}"
+                )
+            else:
+                self.need_summarize = False
+                logger.info(
+                    f"Context character count limit exceeded, but summarization conditions not met. "
+                    f"Removing oldest messages until within limit for bot {self.bot.id}"
+                )
+                # Trim context by removing oldest messages until within limit.
+                while get_context_char_count() > self.context_limit:
+                    # Safeguard: stop if only system message is left.
+                    if len(self.context.get("messages", [])) <= 1:
+                        logger.warning(
+                            f"Context still exceeds limit after trimming, but only system message is left for bot {self.bot.id}."
+                        )
+                        break
+                    self._remove_oldest_context()
+        else:
+            self.need_summarize = False
+
+        # 3. Get instant context.
         self.instant_context = self._create_instant_context()
 
-        # 创建 ContextComponents 实例
+        # Create ContextComponents instance
         components = ContextComponents()
 
-        # 设置属性
+        # Set attributes
         components.info = self.bot.info
         components.memory = self.memory
         components.style = self.relationship_style
         components.instant_context = self.instant_context
         components.message_tag = self.message_tag
-        components.include_summary = self.need_summary  # 设置是否包含总结任务
+        components.include_summary = self.need_summarize  # Use self.need_summarize
 
-        # 创建上下文策略
-        system_prompt, strategy = ContextStrategyFactory.create(
-            relationship_type=self.relationship_type,
-            relationship_level=self.relationship_level,
+        # Pass current emotion data
+        components.emotions = getattr(self, "emotions", {})
+
+        # Create context strategy
+        system_prompt, strategy = create_context(
+            relationship_type=getattr(self.bot, "relationship_type", "friend"),
+            relationship_level=getattr(self.bot, "relationship_level", "neutral"),
             components=components,
-            include_summary=self.need_summary,
+            include_summary=self.need_summarize,
         )
 
-        new_system_context = {"role": "system", "content": system_prompt}
-        logger.debug(f"New system context: {new_system_context}")
+        # Update current strategy object
+        self.context_strategy_instance = strategy
+        logger.debug("Updated context strategy instance")
 
-        # 更新context中的系统消息
+        new_system_context = {"role": "system", "content": system_prompt}
+
+        # Update system message in context
         if "messages" in self.context and self.context["messages"]:
             self.context["messages"][0] = new_system_context
         else:
@@ -112,7 +204,7 @@ def refresh_system_context(self) -> None:
 
 
 def varify_context(self) -> None:
-    """验证上下文结构并初始化如果需要"""
+    """Verify context structure and initialize if needed"""
     try:
         is_valid = (
             isinstance(self.context, dict)
@@ -134,71 +226,290 @@ def varify_context(self) -> None:
 
         logger.debug(f"Context structure verified for bot {self.bot.id}")
     except Exception as e:
-        logger.error(
-            f"Error verifying context for bot {self.bot.id}: {str(e)}", exc_info=True
-        )
-        # 在发生错误时也初始化上下文
+        logger.error(f"Error verifying context for bot {self.bot.id}: {str(e)}", exc_info=True)
+        # Initialize context on error
         self.context = {"messages": []}
         # self._refresh_system_context()
 
 
 def append_context(self, role: str, context_content: str) -> None:
-    """追加或合并上下文消息
+    """Append or merge context messages
 
     Args:
-        role: 消息角色 ('system', 'user', 或 'assistant')
-        context_content: 消息内容
-        timestamp: 消息时间戳
+        role: Message role ('system', 'user', or 'assistant')
+        context_content: Message content
+        timestamp: Message timestamp
     """
     try:
-        # 构造新消息
+        # Construct new message
         new_message = {"role": role, "content": context_content}
 
-        # 获取最后一条消息
+        # Get last message
         last_message = self.context["messages"][-1]
 
-        # 检查角色是否相同
+        # Check if roles match
         if last_message["role"] == role:
-            # 合并消息内容
+            # Merge message content
             merged_content = f"{last_message['content']}\n{context_content}"
             last_message["content"] = merged_content
-            logger.debug(
-                f"Merged message {merged_content} with same role for bot {self.bot.id}"
-            )
+            logger.debug(f"Merged message {merged_content} with same role for bot {self.bot.id}")
         else:
-            # 添加新消息
+            # Add new message
             self.context["messages"].append(new_message)
-            logger.debug(
-                f"Added new message {new_message} with different role for bot {self.bot.id}"
-            )
 
-        logger.debug(f"Current context: {self.context}")
+            # Use the timestamp regex constant
+            timestamp_match = re.match(self.timestamp_regex, context_content)
+            timestamp = timestamp_match.group(1) if timestamp_match else "N/A"
+
+            if timestamp == "N/A":
+                logger.warning(
+                    f"Could not extract timestamp from user content for bot {self.bot.id}: {context_content[:50]}"
+                )
+
+            user_metadata = {
+                "timestamp": timestamp,
+                "role": role,
+                "fingerprint": self._create_fingerprint(context_content),
+            }
+            self.context_metadata.append(user_metadata)
+            logger.debug("Appended user context and metadata.")
+
+        # logger.debug(f"Current context: {self.context}")
 
     except Exception as e:
-        logger.error(
-            f"Error appending context for bot {self.bot.id}: {str(e)}", exc_info=True
-        )
-        # 在发生错误时确保context结构完整
+        logger.error(f"Error appending context for bot {self.bot.id}: {str(e)}", exc_info=True)
+        # Ensure context structure is intact on error
         if not self.context or "messages" not in self.context:
             self._varify_context()
-            self._append_context(role, context_content)
+            # self._append_context(role, context_content) # prevent infinite loop
             logger.error(f"Reset context structure for bot {self.bot.id} after error")
 
 
-def remove_last_context(self) -> None:
-    """删除最后一条上下文消息"""
+def append_response_to_context(self, response_content: str) -> None:
+    """
+    Processes an LLM response: appends assistant message to context, updates
+    the previous user's metadata, and adds new metadata for the assistant.
+    """
     try:
-        if (
-            self.context.get("messages") and len(self.context["messages"]) > 1
-        ):  # 确保至少保留系统消息
-            self.context["messages"].pop()
-            logger.debug(f"Removed last context message for bot {self.bot.id}")
+        response_data = json.loads(response_content)
+
+        content_value = response_data.get("content", "")
+        assistant_timestamp = self._convert_timestamp()
+        saveable_content = f"[{assistant_timestamp}]\n{content_value}"
+
+        assistant_message = {"role": "assistant", "content": saveable_content}
+        self.context["messages"].append(assistant_message)
+
+        # Update the previous user's metadata
+        if self.context_metadata and self.context_metadata[-1].get("role") == "user":
+            user_meta = self.context_metadata[-1]
+            user_meta["is_attack"] = response_data.get("is_attack", False)
+            user_meta["important"] = response_data.get("is_important", False)
         else:
             logger.warning(
-                f"No message to remove or only system message remains for bot {self.bot.id}"
+                "Could not find a preceding user metadata entry to update for bot %s",
+                self.bot.id,
             )
+
+        # Add new metadata for the assistant's response
+        assistant_metadata = {
+            "timestamp": assistant_timestamp,
+            "role": "assistant",
+            "fingerprint": self._create_fingerprint(saveable_content),
+            "emotions": response_data.get("emotions", {}),
+            "friend_score": response_data.get("friend_score", 0),
+            "romance_score": response_data.get("romance_score", 0),
+            "important": response_data.get("is_important", False),
+        }
+        self.context_metadata.append(assistant_metadata)
+        logger.debug("Appended assistant response to context and metadata.")
+
+    except json.JSONDecodeError as e:
+        logger.error(
+            f"Failed to decode LLM response JSON for bot {self.bot.id}: {e}",
+            exc_info=True,
+        )
     except Exception as e:
         logger.error(
-            f"Error removing last context for bot {self.bot.id}: {str(e)}",
+            f"Error appending response to context for bot {self.bot.id}: {e}",
+            exc_info=True,
+        )
+
+
+def process_attack_context(self) -> None:
+    """Process attack context
+
+    Checks if the last context message is from the user. If it is, preserves only
+    the timestamp and removes all other content, then logs a warning with the
+    full content as a potential attack message.
+    """
+    try:
+        # Check if context exists and has messages
+        if not self.context or "messages" not in self.context or not self.context["messages"]:
+            logger.warning(
+                f"No context messages found for bot {self.bot.id} when processing attack context"
+            )
+            return
+
+        # Get the last message in the context
+        last_message = self.context["messages"][-1]
+
+        # Check if the last message is from the user
+        if last_message["role"] != "user":
+            logger.warning(
+                f"Last message for bot {self.bot.id} is not from user, cannot process attack context"
+            )
+            return
+
+        # Get the full content for logging
+        full_content = last_message["content"]
+
+        # Log the full content as a warning (potential attack message)
+        logger.warning(f"Detected attack message from user for bot {self.bot.id}: {full_content}")
+
+        # Extract the timestamp using the regex constant
+        timestamp_match = re.match(self.timestamp_regex, full_content)
+
+        if timestamp_match:
+            # Keep only the timestamp part and add replacement message
+            timestamp = timestamp_match.group(1)
+            # Replace the content with timestamp and attack notification
+            last_message["content"] = f"[{timestamp}] {self.attack_content_replacement}"
+            logger.debug(
+                f"Sanitized attack context for bot {self.bot.id}, kept only timestamp with notification"
+            )
+        else:
+            # If no timestamp found, use only the replacement message
+            last_message["content"] = self.attack_content_replacement
+            logger.debug(
+                f"No timestamp found in attack context for bot {self.bot.id}, using only notification"
+            )
+
+    except Exception as e:
+        logger.error(
+            f"Error processing attack context for bot {self.bot.id}: {str(e)}",
+            exc_info=True,
+        )
+
+
+def remove_oldest_context(self) -> None:
+    """
+    Removes the oldest non-system message from the context after verifying its fingerprint.
+    """
+    try:
+        # Context must have at least a system message and one other message.
+        if len(self.context.get("messages", [])) <= 1:
+            logger.debug(f"No message to remove or only system message remains for bot {self.bot.id}")
+            return
+
+        # We assume system message is at index 0 and has no metadata.
+        # So, the first conversational message is at index 1.
+        # And its metadata is at index 0 of context_metadata.
+        if not self.context_metadata:
+            logger.warning(
+                f"Context has messages but metadata is empty for bot {self.bot.id}. Cannot remove oldest message."
+            )
+            return
+
+        message_to_remove = self.context["messages"][1]
+        metadata_to_check = self.context_metadata[0]
+
+        # Verify fingerprint
+        expected_fingerprint = metadata_to_check.get("fingerprint")
+        actual_fingerprint = self._create_fingerprint(message_to_remove.get("content", ""))
+
+        if expected_fingerprint != actual_fingerprint:
+            logger.warning(
+                f"Fingerprint mismatch for bot {self.bot.id}. "
+                f"Cannot remove oldest context. "
+                f"Expected: {expected_fingerprint}, Got: {actual_fingerprint}. "
+                f"Content: {message_to_remove.get('content', '')[:50]}..."
+            )
+            return
+
+        # Fingerprints match, proceed with removal
+        self.context["messages"].pop(1)
+        self.context_metadata.pop(0)
+        logger.debug(f"Removed oldest context message and its metadata for bot {self.bot.id}")
+
+    except IndexError:
+        logger.error(
+            f"IndexError while trying to remove oldest context for bot {self.bot.id}. Context or metadata might be malformed.",
+            exc_info=True,
+        )
+    except Exception as e:
+        logger.error(f"Error removing oldest context for bot {self.bot.id}: {str(e)}", exc_info=True)
+
+
+def remove_unimportant_context(self) -> None:
+    """Removes old and unimportant messages from the beginning of the context.
+    It iterates through messages, continuing as long as they are older than
+    context_expire_hours, and stops at the first recent message.
+    """
+    try:
+        # We use an index to iterate since we might be removing items from the list.
+        metadata_index = 0
+        while metadata_index < len(self.context_metadata):
+            # Ensure we don't go out of bounds for the messages list
+            message_index = metadata_index + 1
+            if message_index >= len(self.context.get("messages", [])):
+                break
+
+            # 1. Get metadata
+            metadata = self.context_metadata[metadata_index]
+            timestamp_str = metadata.get("timestamp")
+
+            if not timestamp_str or timestamp_str == "N/A":
+                logger.warning(
+                    f"Stopping unimportant context removal due to missing timestamp for bot {self.bot.id}"
+                )
+                break
+
+            # 2. Check if the message is old
+            try:
+                message_time = datetime.strptime(timestamp_str, self.timestamp_format)
+                message_time = message_time.replace(tzinfo=ZoneInfo(self.bot.timezone))
+                now_aware = datetime.now(ZoneInfo(self.bot.timezone))
+                is_old = (now_aware - message_time).total_seconds() > self.context_expire_hours * 3600
+            except (ValueError, TypeError):
+                logger.error(
+                    f"Could not parse timestamp '{timestamp_str}' for bot {self.bot.id}. Stopping removal.",
+                    exc_info=True,
+                )
+                break
+
+            # 3. If not old, stop the entire process.
+            if not is_old:
+                break
+
+            # 4. If old, check importance.
+            is_important = metadata.get("important", True)
+
+            if not is_important:
+                # Old and not important: REMOVE
+                message_to_remove = self.context["messages"][message_index]
+                # Fingerprint check
+                expected_fingerprint = metadata.get("fingerprint")
+                actual_fingerprint = self._create_fingerprint(message_to_remove.get("content", ""))
+
+                if expected_fingerprint == actual_fingerprint:
+                    self.context["messages"].pop(message_index)
+                    self.context_metadata.pop(metadata_index)
+                    logger.debug(
+                        f"Removed old, unimportant message for bot {self.bot.id} with timestamp {timestamp_str}"
+                    )
+                    # Don't increment index, as the list has shifted.
+                    continue
+                else:
+                    logger.warning(
+                        f"Fingerprint mismatch on unimportant message for bot {self.bot.id}. Stopping removal."
+                    )
+                    break  # Stop on mismatch
+            else:
+                # Old but important: IGNORE and continue to the next one.
+                metadata_index += 1
+    except Exception as e:
+        logger.error(
+            f"Error removing unimportant context for bot {self.bot.id}: {e}",
             exc_info=True,
         )

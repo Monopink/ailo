@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional, Awaitable
+from typing import Any, Callable, Dict, Awaitable
 
 
 class BaseModel(ABC):
-    """模型基类"""
+    """Base model class"""
 
     def __init__(
         self,
@@ -12,11 +12,11 @@ class BaseModel(ABC):
         cleanup_callback: Callable[[str], Awaitable[None]],
     ):
         """
-        初始化模型
+        Initialize the model
         Args:
-            bot: Bot 实例，包含 bot 的基本信息
-            message_service: 消息服务类型
-            cleanup_callback: 清理回调函数，接受一个字符串参数（bot.entity_id）并返回一个可等待对象
+            bot: Bot instance containing basic bot information
+            message_service: Message service type
+            cleanup_callback: Cleanup callback function that takes a string parameter (bot.entity_id) and returns an awaitable
         """
         self.bot = bot
         self.message_service = message_service
@@ -25,15 +25,15 @@ class BaseModel(ABC):
     @abstractmethod
     async def receive_message(self, message: Dict[str, Any]) -> None:
         """
-        接收消息的入口方法
+        Entry method for receiving messages
 
         Args:
-            message: 消息字典，包含以下字段：
-                - from_entity: str, 发送者ID
-                - to_entity: str, 接收者ID
-                - content: str, 消息内容
-                - message_type: str, 消息类型
-                - message_service: str, 消息服务类型
-                - timestamp: str, 时间戳
+            message: Message dictionary containing the following fields:
+                - from_entity: str, sender ID
+                - to_entity: str, receiver ID
+                - content: str, message content
+                - message_type: str, message type
+                - message_service: str, message service type
+                - message_time: str, message timestamp
         """
         pass

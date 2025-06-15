@@ -1,42 +1,44 @@
 """
-数据库管理模块，提供与MySQL数据库交互的功能。
+Database management module that provides functionality for interacting with MySQL database.
 
-Base 是 SQLAlchemy 的声明式基类，用于定义所有 ORM 模型的基类。
-所有继承自 Base 的类都会被映射到数据库表，并自动创建表结构。
+Base is SQLAlchemy's declarative base class used to define the base class for all ORM models.
+All classes inheriting from Base will be mapped to database tables and table structures will be created automatically.
 """
 
 import asyncio
 import logging
-from typing import Optional, List, Dict
-from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any
+from datetime import datetime, timezone
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey
-from sqlalchemy.exc import SQLAlchemyError  # 导入 SQLAlchemy 异常基类
-from enums import (
-    UserStatus,
-    UserRole,
-    BotStatus,
-    RelationshipType,
-    MessageType,
-    MessageStatus,
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Text,
+    JSON,
+    ForeignKey,
+    DECIMAL,
 )
+from sqlalchemy.exc import SQLAlchemyError  # Import SQLAlchemy base exception class
+from enums import BotStatus
 import enum
+from datetime import timedelta
 
-# 配置日志记录器
 logger = logging.getLogger(__name__)
 
-# 数据库配置
+# Database configuration
 DATABASE_URL = "mysql+aiomysql://root:root@db/says_dev?charset=utf8mb4"
-engine = create_async_engine(DATABASE_URL, echo=True)  # echo=True 会打印出执行的SQL语句
+engine = create_async_engine(DATABASE_URL, echo=True)  # echo=True will print executed SQL statements
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-# 创建声明式基类，所有模型类都继承自这个基类
+# Create declarative base class that all model classes will inherit from
 Base = declarative_base()
 
 
-# 模型定义
+# Model definitions
 class User(Base):
     __tablename__ = "users"
 
@@ -72,25 +74,31 @@ class Bot(Base):
     city_name = Column(String(100))
     friend_score = Column(Integer, default=0)
     romance_score = Column(Integer, default=0)
-    friend_score_upper_limit = Column(Integer, default=5000)
-    friend_score_lower_limit = Column(Integer, default=0)
-    romance_score_upper_limit = Column(Integer, default=5000)
+    friend_score_cap = Column(Integer, default=5000)
+    friend_score_floor = Column(Integer, default=0)
+    romance_score_cap = Column(Integer, default=5000)
+    friend_score_peak = Column(Integer, default=0)
+    friend_score_trough = Column(Integer, default=0)
+    romance_score_peak = Column(Integer, default=0)
     friend_score_pos_k = Column(Integer, default=1000)
     friend_score_neg_k = Column(Integer, default=100)
     romance_score_k = Column(Integer, default=1000)
-    friend_score_anger_minus = Column(Integer, default=0)
-    romance_score_anger_minus = Column(Integer, default=0)
     last_chat_time = Column(DateTime)
     relationship_type = Column(String(20), default="friend")
     relationship_level = Column(String(20), default="neutral")
+    friend_level = Column(String(20), default="neutral")
+    romance_level = Column(String(20))
+    friend_buffer_status = Column(String(20), default="none")
+    romance_buffer_status = Column(String(20), default="none")
     relationship_style = Column(Text)
     friend_config = Column(JSON)
     romance_config = Column(JSON)
     override_config = Column(JSON)
-    is_polite = Column(Integer, default=0)  # 新增：是否礼貌
-    is_crushing = Column(Integer, default=0)  # 新增：是否暗恋
+    is_polite = Column(Integer, default=0)
+    is_crushing = Column(Integer, default=0)
     emotions_config = Column(JSON)
     context = Column(JSON)
+    context_metadata = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
 
@@ -107,11 +115,11 @@ class MessageHistory(Base):
     content = Column(Text, nullable=False)
     message_type = Column(String(20), default="chat")
     message_service = Column(String(36), nullable=False)
-    timestamp = Column(DateTime)
+    message_time = Column(DateTime)
     status = Column(String(20), default="sent")
-    meta_data = Column(JSON)
+    message_metadata = Column(JSON)
 
-    # 显式声明要映射的列
+    # Explicitly declare columns to be mapped
     __mapper_args__ = {
         "include_properties": [
             "id",
@@ -123,9 +131,9 @@ class MessageHistory(Base):
             "content",
             "message_type",
             "message_service",
-            "timestamp",
+            "message_time",
             "status",
-            "meta_data",
+            "message_metadata",
         ]
     }
 
@@ -140,16 +148,16 @@ class MessageHistory(Base):
             "content": self.content,
             "message_type": self.message_type,
             "message_service": self.message_service,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "message_time": (self.message_time.isoformat() if self.message_time else None),
             "status": self.status,
-            "meta_data": self.meta_data,
+            "message_metadata": self.message_metadata,
         }
 
 
 class Emotion(Base):
-    """情绪模型，对应数据库中的 emotions 表
+    """Emotion model, corresponding to the emotions table in the database
 
-    继承自 Base 表示这是一个 ORM 模型，会映射到数据库表
+    Inherits from Base indicating it's an ORM model that maps to a database table
     """
 
     __tablename__ = "emotions"
@@ -158,14 +166,22 @@ class Emotion(Base):
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
     updated_at = Column(
         DateTime, default=datetime.now(timezone.utc)
-    )  # MySQL 会通过触发器自动更新
+    )  # MySQL will automatically update this through triggers
     bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False)
-    emotion_type = Column(String(50), nullable=False)  # 情绪类型，如 anger, happy
-    emotion_score = Column(Integer, default=0)  # 情绪分数，范围 1-12
-    emotion_level = Column(Integer, default=0)  # 情绪等级
-    start_time = Column(DateTime)  # 情绪开始时间
-    end_time = Column(DateTime)  # 情绪结束时间
-    update_time = Column(DateTime)  # 情绪更新时间
+    emotion_type = Column(String(50), nullable=False)  # Emotion type, such as anger, happy
+    emotion_score = Column(Integer, default=0)  # Emotion score, range 1-12
+    original_emotion_score = Column(Integer, default=0)  # Original emotion score before decay
+    emotion_level = Column(Integer, default=0)  # Emotion level
+    friend_score_delta = Column(Integer, default=0)  # Impact on friend score
+    original_friend_score_delta = Column(Integer, default=0)  # Original impact on friend score
+    romance_score_delta = Column(Integer, default=0)  # Impact on romance score
+    original_romance_score_delta = Column(Integer, default=0)  # Original impact on romance score
+    decay_ratio = Column(DECIMAL(3, 2), default=0.8)  # Decay ratio for emotion over time
+    start_time = Column(DateTime)  # Emotion start time
+    end_time = Column(DateTime)  # Emotion end time (actual end time)
+    original_end_time = Column(DateTime)  # Original planned end time
+    is_ended = Column(Integer, default=0)  # Whether the emotion has ended
+    update_time = Column(DateTime)  # Emotion update time
 
 
 class MySQLManager:
@@ -174,13 +190,11 @@ class MySQLManager:
         self._init_task = asyncio.create_task(self._initialize())
 
     def _convert_enum_to_str(self, value: Optional[enum.Enum]) -> Optional[str]:
-        """将枚举值转换为字符串"""
+        """Convert enum value to string."""
         return value.value.lower() if value is not None else None
 
-    def _convert_str_to_enum(
-        self, enum_class: type, value: Optional[str]
-    ) -> Optional[enum.Enum]:
-        """将字符串转换为枚举值"""
+    def _convert_str_to_enum(self, enum_class: type, value: Optional[str]) -> Optional[enum.Enum]:
+        """Convert string to enum value."""
         if value is None:
             return None
         try:
@@ -190,31 +204,27 @@ class MySQLManager:
             return None
 
     async def _initialize(self):
-        """初始化数据库连接，包含重试机制"""
+        """Initialize database connection with retry mechanism."""
         max_retries = 100
         retry_count = 0
-        base_delay = 1  # 初始延迟1秒
-        max_delay = 30  # 最大延迟30秒
+        base_delay = 1  # Initial delay 1 second
+        max_delay = 30  # Maximum delay 30 seconds
 
         while True:
             try:
                 logger.info("Attempting to connect to database...")
                 async with self.session_maker() as session:
-                    # 测试连接
+                    # Test connection
                     await session.execute(text("SELECT 1"))
                     logger.info("Database connection test successful")
 
-                    # 检查表结构
+                    # Check table schema
                     try:
-                        # 检查 bots 表是否有所有必要的列
-                        await session.execute(
-                            text("SELECT friend_score FROM bots LIMIT 1")
-                        )
+                        # Check if bots table has all necessary columns
+                        await session.execute(text("SELECT friend_score FROM bots LIMIT 1"))
                         logger.info("Database schema validation successful")
                     except SQLAlchemyError as schema_error:
-                        logger.warning(
-                            f"Database schema validation failed: {str(schema_error)}"
-                        )
+                        logger.warning(f"Database schema validation failed: {str(schema_error)}")
                         logger.warning(
                             "This might be expected if the database is newly created or being updated"
                         )
@@ -228,7 +238,7 @@ class MySQLManager:
                     logger.critical(error_msg)
                     raise Exception(error_msg) from e
 
-                # 计算下一次重试的延迟时间（指数退避）
+                # Calculate delay for next retry (exponential backoff)
                 delay = min(base_delay * (2 ** (retry_count - 1)), max_delay)
                 logger.warning(
                     f"Database connection attempt {retry_count} failed. Retrying in {delay} seconds... Error: {str(e)}"
@@ -239,17 +249,45 @@ class MySQLManager:
                 logger.critical(error_msg)
                 raise Exception(error_msg) from e
 
-    async def get_bot_data(
-        self, bot_id: int, related_user_id: Optional[int] = None
-    ) -> Optional[dict]:
-        """获取bot的所有相关数据"""
+    async def get_user_by_id(self, user_id: int):
+        """Get user information."""
+        async with self.session_maker() as session:
+            result = await session.execute(select(User).where(User.id == user_id))
+            return result.scalar_one_or_none()
+
+    async def get_bot_by_id(self, bot_id: int):
+        """Get bot information by id."""
+        try:
+            async with self.session_maker() as session:
+                result = await session.execute(select(Bot).where(Bot.id == bot_id))
+                return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_bot_by_id: {str(e)}")
+            raise Exception(f"Failed to get bot by id: {str(e)}") from e
+
+    async def get_bot_by_entity_id(self, entity_id: str):
+        """Get bot information by entity_id."""
+        try:
+            async with self.session_maker() as session:
+                result = await session.execute(select(Bot).where(Bot.entity_id == entity_id))
+                bot = result.scalar_one_or_none()
+                if bot:
+                    # Convert enum value
+                    bot.status = self._convert_str_to_enum(BotStatus, bot.status)
+                return bot
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_bot_by_entity_id: {str(e)}")
+            raise Exception(f"Failed to get bot by entity_id: {str(e)}") from e
+
+    async def get_bot_data(self, bot_id: int, related_user_id: Optional[int] = None) -> Optional[dict]:
+        """Get all relevant data for a bot."""
         try:
             async with self.session_maker() as session:
                 result = await session.execute(select(Bot).where(Bot.id == bot_id))
                 bot = result.scalar_one_or_none()
 
                 if bot and (bot.user_id is None or bot.user_id == related_user_id):
-                    # 构建relationship字典
+                    # Build relationship dictionary
                     relationship = {
                         "type": bot.relationship_type,
                         "level": bot.relationship_level,
@@ -275,156 +313,8 @@ class MySQLManager:
             logger.error(f"Database error in get_bot_data: {str(e)}")
             raise Exception(f"Failed to get bot data: {str(e)}") from e
 
-    async def update_bot_context(self, bot_id: int, context: dict) -> bool:
-        """更新bot的context字段"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(select(Bot).where(Bot.id == bot_id))
-                bot = result.scalar_one_or_none()
-                if bot:
-                    bot.context = context
-                    await session.commit()
-                    return True
-                return False
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in update_bot_context: {str(e)}")
-            await session.rollback()
-            raise Exception(f"Failed to update bot context: {str(e)}") from e
-
-    async def update_bot_memory(self, bot_id: int, memory: str) -> bool:
-        """更新bot的memory字段"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(select(Bot).where(Bot.id == bot_id))
-                bot = result.scalar_one_or_none()
-                if bot:
-                    bot.memory = memory
-                    await session.commit()
-                    return True
-                return False
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in update_bot_memory: {str(e)}")
-            await session.rollback()
-            raise Exception(f"Failed to update bot memory: {str(e)}") from e
-
-    async def get_bot_by_id(self, bot_id: int):
-        """获取bot信息"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(select(Bot).where(Bot.id == bot_id))
-                return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in get_bot_by_id: {str(e)}")
-            raise Exception(f"Failed to get bot by id: {str(e)}") from e
-
-    async def get_bot_by_entity_id(self, entity_id: str):
-        """通过 entity_id 获取 bot 信息"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(
-                    select(Bot).where(Bot.entity_id == entity_id)
-                )
-                bot = result.scalar_one_or_none()
-                if bot:
-                    # 转换枚举值
-                    bot.status = self._convert_str_to_enum(BotStatus, bot.status)
-                return bot
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in get_bot_by_entity_id: {str(e)}")
-            raise Exception(f"Failed to get bot by entity_id: {str(e)}") from e
-
-    async def save_message(self, message: dict):
-        """保存消息到数据库"""
-        try:
-            async with self.session_maker() as session:
-                # 处理时间戳
-                timestamp = message.get("timestamp")
-                if isinstance(timestamp, str):
-                    try:
-                        # 将 ISO 格式转换为 datetime 对象
-                        timestamp = datetime.fromisoformat(
-                            timestamp.replace("Z", "+00:00")
-                        )
-                    except ValueError:
-                        logger.warning(
-                            "Invalid timestamp format, using current time instead."
-                        )
-                        timestamp = datetime.now(timezone.utc)
-                elif timestamp is None:
-                    timestamp = datetime.now(timezone.utc)
-
-                message_data = {
-                    "from_entity": message["from_entity"],
-                    "to_entity": message["to_entity"],
-                    "message_id": message.get("message_id", ""),
-                    "content": message.get("content", ""),
-                    "message_type": message.get("message_type"),
-                    "message_service": message.get("message_service"),
-                    "timestamp": timestamp,
-                    "status": message.get("status", "sent"),
-                    "meta_data": message.get("meta_data", {}),
-                }
-
-                # 创建新消息实例
-                new_message = MessageHistory(**message_data)
-                session.add(new_message)
-                await session.commit()
-                return new_message
-        except Exception as e:
-            logger.error(f"Error saving message: {str(e)}")
-            if "session" in locals():
-                await session.rollback()
-            raise
-
-    async def get_user_by_id(self, user_id: int):
-        """获取用户信息"""
-        async with self.session_maker() as session:
-            result = await session.execute(select(User).where(User.id == user_id))
-            return result.scalar_one_or_none()
-
-    async def get_messages_by_bot(
-        self, from_entity: str, to_entity: str, limit: int = 10
-    ):
-        """获取会话历史消息"""
-        async with self.session_maker() as session:
-            query = (
-                select(MessageHistory)
-                .where(
-                    (
-                        (MessageHistory.from_entity == from_entity)
-                        & (MessageHistory.to_entity == to_entity)
-                    )
-                    | (
-                        (MessageHistory.from_entity == to_entity)
-                        & (MessageHistory.to_entity == from_entity)
-                    )
-                )
-                .order_by(MessageHistory.created_at.desc())
-                .limit(limit)
-            )
-
-            result = await session.execute(query)
-            messages = result.scalars().all()
-            return [msg.to_dict() for msg in messages]
-
-    async def update_bot_status(self, bot_id: int, status: BotStatus):
-        """更新bot状态"""
-        async with self.session_maker() as session:
-            try:
-                result = await session.execute(select(Bot).where(Bot.id == bot_id))
-                bot = result.scalar_one_or_none()
-                if bot:
-                    # 转换为小写字符串存储
-                    bot.status = self._convert_enum_to_str(status)
-                    await session.commit()
-                    return True
-                return False
-            except Exception as e:
-                logger.error(f"Error updating bot status: {str(e)}")
-                return False
-
-    async def update_bot(self, bot_id: int, bot_data: dict) -> None:
-        """更新bot信息"""
+    async def update_bot_data(self, bot_id: int, bot_data: dict) -> None:
+        """Update bot information based on a dictionary of changes."""
         async with self.session_maker() as session:
             try:
                 stmt = select(Bot).where(Bot.id == bot_id)
@@ -444,137 +334,324 @@ class MySQLManager:
                 logger.error(f"Error updating bot: {str(e)}")
                 raise
 
-    async def get_active_bots(self):
-        """获取所有活跃的bot"""
-        async with self.session_maker() as session:
-            result = await session.execute(
-                select(Bot).where(Bot.status == BotStatus.ACTIVE)
-            )
-            return result.scalars().all()
+    async def get_emotions_data(self, bot_id: int) -> Dict[str, Dict[str, Any]]:
+        """Get the current active emotions for a bot
 
-    async def get_bot_emotions(self, bot_id: int) -> List[Dict]:
-        """获取bot的情绪数据"""
-        try:
-            async with self.session_maker() as session:
-                result = await session.execute(
-                    select(Emotion).where(Emotion.bot_id == bot_id)
-                )
-                emotions = result.scalars().all()
-                return [
-                    {
-                        "id": emotion.id,
-                        "emotion_type": emotion.emotion_type,
-                        "emotion_score": emotion.emotion_score,
-                        "emotion_level": emotion.emotion_level,
-                        "start_time": (
-                            emotion.start_time.isoformat()
-                            if emotion.start_time
-                            else None
-                        ),
-                        "end_time": (
-                            emotion.end_time.isoformat() if emotion.end_time else None
-                        ),
-                        "update_time": (
-                            emotion.update_time.isoformat()
-                            if emotion.update_time
-                            else None
-                        ),
-                    }
-                    for emotion in emotions
-                ]
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in get_bot_emotions: {str(e)}")
-            raise Exception(f"Failed to get bot emotions: {str(e)}") from e
-
-    async def update_bot_emotion(
-        self, bot_id: int, emotion_type: str, emotion_score: int, emotion_level: int
-    ) -> bool:
-        """更新bot的情绪数据"""
-        try:
-            async with self.session_maker() as session:
-                # 查找现有情绪
-                result = await session.execute(
-                    select(Emotion).where(
-                        (Emotion.bot_id == bot_id)
-                        & (Emotion.emotion_type == emotion_type)
-                    )
-                )
-                emotion = result.scalar_one_or_none()
-
-                now = datetime.now(timezone.utc)
-
-                if emotion:
-                    # 更新现有情绪
-                    emotion.emotion_score = emotion_score
-                    emotion.emotion_level = emotion_level
-                    emotion.update_time = now
-                    if emotion_score > 0:
-                        # 如果分数大于0，设置开始时间和结束时间
-                        if not emotion.start_time:
-                            emotion.start_time = now
-                        # 设置结束时间为当前时间加上一小时
-                        emotion.end_time = now + timedelta(hours=1)
-                    else:
-                        # 如果分数为0，清除开始时间和结束时间
-                        emotion.start_time = None
-                        emotion.end_time = None
-                else:
-                    # 创建新情绪
-                    new_emotion = Emotion(
-                        bot_id=bot_id,
-                        emotion_type=emotion_type,
-                        emotion_score=emotion_score,
-                        emotion_level=emotion_level,
-                        update_time=now,
-                    )
-                    if emotion_score > 0:
-                        new_emotion.start_time = now
-                        new_emotion.end_time = now + timedelta(hours=1)
-
-                    session.add(new_emotion)
-
-                await session.commit()
-                return True
-        except SQLAlchemyError as e:
-            logger.error(f"Database error in update_bot_emotion: {str(e)}")
-            await session.rollback()
-            raise Exception(f"Failed to update bot emotion: {str(e)}") from e
-
-    async def update_bot_relationship(
-        self,
-        bot_id: int,
-        relationship_type: Optional[str] = None,
-        relationship_level: Optional[str] = None,
-        relationship_style: Optional[str] = None,
-    ) -> bool:
-        """更新bot的关系信息
+        Retrieves emotions that have not ended (is_ended=FALSE).
+        If there are multiple active emotions of the same type, selects the one with the most recent start_time.
 
         Args:
             bot_id: Bot ID
-            relationship_type: 关系类型
-            relationship_level: 关系等级
-            relationship_style: 关系风格
 
         Returns:
-            bool: 更新是否成功
+            Dict[str, Dict[str, Any]]: Mapping from emotion type to emotion details
         """
         try:
             async with self.session_maker() as session:
-                result = await session.execute(select(Bot).where(Bot.id == bot_id))
-                bot = result.scalar_one_or_none()
-                if bot:
-                    # 更新关系字段
-                    if relationship_type:
-                        bot.relationship_type = relationship_type
-                    if relationship_level:
-                        bot.relationship_level = relationship_level
-                    if relationship_style:
-                        bot.relationship_style = relationship_style
+                now = datetime.now(timezone.utc)
 
-                    await session.commit()
-                    return True
-                return False
+                # Query for valid emotions that have not ended
+                query = """
+                SELECT e.* 
+                FROM emotions e
+                INNER JOIN (
+                    SELECT emotion_type, MAX(start_time) as latest_start_time
+                    FROM emotions
+                    WHERE bot_id = :bot_id 
+                        AND start_time IS NOT NULL 
+                        AND is_ended = FALSE
+                    GROUP BY emotion_type
+                ) latest ON e.emotion_type = latest.emotion_type AND e.start_time = latest.latest_start_time
+                WHERE e.bot_id = :bot_id
+                """
+
+                result = await session.execute(text(query), {"bot_id": bot_id, "now": now})
+                emotions = result.fetchall()
+
+                # Check for duplicate emotions with the same type and start_time
+                emotion_counts = {}
+                for emotion in emotions:
+                    emotion_type = emotion.emotion_type
+                    if emotion_type in emotion_counts:
+                        emotion_counts[emotion_type] += 1
+                    else:
+                        emotion_counts[emotion_type] = 1
+
+                # Log warning for duplicate emotions
+                for emotion_type, count in emotion_counts.items():
+                    if count > 1:
+                        logger.warning(
+                            f"Multiple active emotions found for bot {bot_id}, type {emotion_type}. "
+                            f"Using the one with most recent start_time."
+                        )
+
+                # Build the return result
+                emotions_dict = {}
+                for emotion in emotions:
+                    emotions_dict[emotion.emotion_type] = {
+                        "emotion_score": emotion.emotion_score,
+                        "original_emotion_score": emotion.original_emotion_score,
+                        "emotion_level": emotion.emotion_level,
+                        "friend_score_delta": emotion.friend_score_delta,
+                        "original_friend_score_delta": emotion.original_friend_score_delta,
+                        "romance_score_delta": emotion.romance_score_delta,
+                        "original_romance_score_delta": emotion.original_romance_score_delta,
+                        "decay_ratio": (float(emotion.decay_ratio) if emotion.decay_ratio else 0.8),
+                        "start_time": (emotion.start_time.isoformat() if emotion.start_time else None),
+                        "end_time": (emotion.end_time.isoformat() if emotion.end_time else None),
+                        "original_end_time": (
+                            emotion.original_end_time.isoformat() if emotion.original_end_time else None
+                        ),
+                        "is_ended": bool(emotion.is_ended),
+                        "update_time": (emotion.update_time.isoformat() if emotion.update_time else None),
+                    }
+
+                return emotions_dict
+
         except SQLAlchemyError as e:
-            logger.error(f"Database error in update_bot_relationship: {str(e)}")
+            logger.error(f"Database error in get_current_bot_emotions: {str(e)}")
+            raise Exception(f"Failed to get current bot emotions: {str(e)}") from e
+
+    async def update_emotions_data(self, bot_id: int, emotions: Dict[str, Dict[str, Any]]) -> bool:
+        """Batch update a bot's emotion data
+
+        If there exists an emotion with the same emotion_type and same start_time,
+        update that emotion, otherwise create a new emotion record.
+
+        Args:
+            bot_id: Bot ID
+            emotions: Emotion data in format {emotion_type: {emotion_details}}
+
+        Returns:
+            bool: Whether the update was successful
+        """
+        try:
+            async with self.session_maker() as session:
+                for emotion_type, emotion_data in emotions.items():
+                    # Parse time fields
+                    start_time = None
+                    if "start_time" in emotion_data and emotion_data["start_time"]:
+                        if isinstance(emotion_data["start_time"], str):
+                            start_time = datetime.fromisoformat(
+                                emotion_data["start_time"].replace("Z", "+00:00")
+                            )
+                        else:
+                            start_time = emotion_data["start_time"]
+                    else:
+                        start_time = datetime.now(timezone.utc)
+
+                    end_time = None
+                    if "end_time" in emotion_data and emotion_data["end_time"]:
+                        if isinstance(emotion_data["end_time"], str):
+                            end_time = datetime.fromisoformat(emotion_data["end_time"].replace("Z", "+00:00"))
+                        else:
+                            end_time = emotion_data["end_time"]
+                    else:
+                        # Default end time is start time plus one hour
+                        end_time = start_time + timedelta(hours=1)
+
+                    original_end_time = None
+                    if "original_end_time" in emotion_data and emotion_data["original_end_time"]:
+                        if isinstance(emotion_data["original_end_time"], str):
+                            original_end_time = datetime.fromisoformat(
+                                emotion_data["original_end_time"].replace("Z", "+00:00")
+                            )
+                        else:
+                            original_end_time = emotion_data["original_end_time"]
+                    else:
+                        # Default original end time is same as end time
+                        original_end_time = end_time
+
+                    update_time = None
+                    if "update_time" in emotion_data and emotion_data["update_time"]:
+                        if isinstance(emotion_data["update_time"], str):
+                            update_time = datetime.fromisoformat(
+                                emotion_data["update_time"].replace("Z", "+00:00")
+                            )
+                        else:
+                            update_time = emotion_data["update_time"]
+                    else:
+                        update_time = datetime.now(timezone.utc)
+
+                    # Get original values from data or use current values
+                    original_emotion_score = emotion_data.get(
+                        "original_emotion_score", emotion_data.get("emotion_score", 0)
+                    )
+
+                    original_friend_score_delta = emotion_data.get(
+                        "original_friend_score_delta",
+                        emotion_data.get("friend_score_delta", 0),
+                    )
+
+                    original_romance_score_delta = emotion_data.get(
+                        "original_romance_score_delta",
+                        emotion_data.get("romance_score_delta", 0),
+                    )
+
+                    decay_ratio = emotion_data.get("decay_ratio", 0.8)
+                    is_ended = emotion_data.get("is_ended", False)
+
+                    # Find if there's an emotion with the same type and start time
+                    if start_time:
+                        # Query for emotions with the same type and start time
+                        query = """
+                        SELECT * FROM emotions 
+                        WHERE bot_id = :bot_id 
+                        AND emotion_type = :emotion_type 
+                        AND start_time = :start_time
+                        """
+
+                        result = await session.execute(
+                            text(query),
+                            {
+                                "bot_id": bot_id,
+                                "emotion_type": emotion_type,
+                                "start_time": start_time,
+                            },
+                        )
+                        existing_emotion = result.fetchone()
+
+                        if existing_emotion:
+                            # Update existing emotion
+                            update_query = """
+                            UPDATE emotions 
+                            SET emotion_score = :emotion_score,
+                                emotion_level = :emotion_level,
+                                original_emotion_score = :original_emotion_score,
+                                friend_score_delta = :friend_score_delta,
+                                original_friend_score_delta = :original_friend_score_delta,
+                                romance_score_delta = :romance_score_delta,
+                                original_romance_score_delta = :original_romance_score_delta,
+                                decay_ratio = :decay_ratio,
+                                end_time = :end_time,
+                                original_end_time = :original_end_time,
+                                is_ended = :is_ended,
+                                update_time = :update_time
+                            WHERE id = :id
+                            """
+
+                            await session.execute(
+                                text(update_query),
+                                {
+                                    "id": existing_emotion.id,
+                                    "emotion_score": emotion_data.get(
+                                        "emotion_score", existing_emotion.emotion_score
+                                    ),
+                                    "emotion_level": emotion_data.get(
+                                        "emotion_level", existing_emotion.emotion_level
+                                    ),
+                                    "original_emotion_score": original_emotion_score,
+                                    "friend_score_delta": emotion_data.get("friend_score_delta", 0),
+                                    "original_friend_score_delta": original_friend_score_delta,
+                                    "romance_score_delta": emotion_data.get("romance_score_delta", 0),
+                                    "original_romance_score_delta": original_romance_score_delta,
+                                    "decay_ratio": decay_ratio,
+                                    "end_time": end_time,
+                                    "original_end_time": original_end_time,
+                                    "is_ended": is_ended,
+                                    "update_time": update_time,
+                                },
+                            )
+                            logger.debug(f"Updated existing emotion: {emotion_type} for bot {bot_id}")
+                        else:
+                            # Create new emotion
+                            insert_query = """
+                            INSERT INTO emotions 
+                            (bot_id, emotion_type, emotion_score, original_emotion_score, emotion_level, 
+                             friend_score_delta, original_friend_score_delta, 
+                             romance_score_delta, original_romance_score_delta, 
+                             decay_ratio, start_time, end_time, original_end_time, is_ended, update_time)
+                            VALUES
+                            (:bot_id, :emotion_type, :emotion_score, :original_emotion_score, :emotion_level, 
+                             :friend_score_delta, :original_friend_score_delta, 
+                             :romance_score_delta, :original_romance_score_delta, 
+                             :decay_ratio, :start_time, :end_time, :original_end_time, :is_ended, :update_time)
+                            """
+
+                            await session.execute(
+                                text(insert_query),
+                                {
+                                    "bot_id": bot_id,
+                                    "emotion_type": emotion_type,
+                                    "emotion_score": emotion_data.get("emotion_score", 0),
+                                    "original_emotion_score": original_emotion_score,
+                                    "emotion_level": emotion_data.get("emotion_level", 0),
+                                    "friend_score_delta": emotion_data.get("friend_score_delta", 0),
+                                    "original_friend_score_delta": original_friend_score_delta,
+                                    "romance_score_delta": emotion_data.get("romance_score_delta", 0),
+                                    "original_romance_score_delta": original_romance_score_delta,
+                                    "decay_ratio": decay_ratio,
+                                    "start_time": start_time,
+                                    "end_time": end_time,
+                                    "original_end_time": original_end_time,
+                                    "is_ended": is_ended,
+                                    "update_time": update_time,
+                                },
+                            )
+                            logger.debug(f"Created new emotion: {emotion_type} for bot {bot_id}")
+
+                await session.commit()
+                return True
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in update_bot_emotions: {str(e)}")
             await session.rollback()
-            raise Exception(f"Failed to update bot relationship: {str(e)}") from e
+            raise Exception(f"Failed to update bot emotions: {str(e)}") from e
+
+    async def get_messages_by_bot(self, from_entity: str, to_entity: str, limit: int = 10):
+        """Get session history messages."""
+        async with self.session_maker() as session:
+            query = (
+                select(MessageHistory)
+                .where(
+                    ((MessageHistory.from_entity == from_entity) & (MessageHistory.to_entity == to_entity))
+                    | ((MessageHistory.from_entity == to_entity) & (MessageHistory.to_entity == from_entity))
+                )
+                .order_by(MessageHistory.created_at.desc())
+                .limit(limit)
+            )
+
+            result = await session.execute(query)
+            messages = result.scalars().all()
+            return [msg.to_dict() for msg in messages]
+
+    async def save_message(self, message: dict):
+        """Save message to the database."""
+        try:
+            async with self.session_maker() as session:
+                # Handle timestamp
+                timestamp = message.get("timestamp")
+                if isinstance(timestamp, str):
+                    try:
+                        # Convert ISO format to datetime object
+                        timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    except ValueError:
+                        logger.warning("Invalid timestamp format, using current time instead.")
+                        timestamp = datetime.now(timezone.utc)
+                elif timestamp is None:
+                    timestamp = datetime.now(timezone.utc)
+
+                message_data = {
+                    "created_at": timestamp,
+                    "updated_at": timestamp,
+                    "from_entity": message["from_entity"],
+                    "to_entity": message["to_entity"],
+                    "message_id": message.get("message_id", ""),
+                    "content": message.get("content", ""),
+                    "message_type": message.get("message_type"),
+                    "message_service": message.get("message_service"),
+                    "message_time": timestamp,
+                    "status": message.get("status", "sent"),
+                    "message_metadata": message.get("message_metadata", {}),
+                }
+
+                # Create new message instance
+                new_message = MessageHistory(**message_data)
+                session.add(new_message)
+                await session.commit()
+                return new_message
+        except Exception as e:
+            logger.error(f"Error saving message: {str(e)}")
+            if "session" in locals():
+                await session.rollback()
+            raise

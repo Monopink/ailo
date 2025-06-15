@@ -394,7 +394,7 @@
                     content: content,
                     type: type,
                     messageType: messageType,
-                    timestamp: now.toISOString()
+                    message_time: now.toISOString()
                 });
                 saveChatHistory();
             }
@@ -423,7 +423,16 @@
                         addMessage(`Error: ${data.error}`, "system");
                         console.error("Server error:", data);
                     } else if (data.message_type === MessageTypes.CHAT) {
-                        addMessage(data.content || data.reply, 'other', MessageTypes.CHAT);
+                        // data.content is the stringified JSON from response_content
+                        // It needs to be parsed again.
+                        try {
+                            const innerData = JSON.parse(data.content || data.reply);
+                            addMessage(innerData.content, 'other', MessageTypes.CHAT); // Use innerData.content
+                        } catch (e) {
+                            console.error("Failed to parse inner message content:", e);
+                            // Fallback: display the raw string if inner parsing fails
+                            addMessage(data.content || data.reply, 'other', MessageTypes.CHAT);
+                        }
                         isWaitingResponse = false;
                         hasTypingSent = false;
                         hasTypingEndSent = false;
@@ -470,7 +479,7 @@
                 to_entity: document.getElementById("to_entity").value,
                 content: content || '',
                 message_type: messageType,
-                timestamp: new Date().toISOString()
+                message_time: new Date().toISOString()
             };
         }
 

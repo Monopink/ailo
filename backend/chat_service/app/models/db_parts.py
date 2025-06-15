@@ -1,69 +1,70 @@
 import logging
 from db_managers import db_manager
-from typing import Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
 
-async def load_full_data(self) -> None:
-    """从数据库加载 bot 所有数据"""
-    pass
-
-
-async def update_context(self) -> None:
-    """保存上下文到数据库"""
+async def load_emotions(self) -> None:
+    """Load current emotion data from the database into the in-memory state."""
     try:
-        # 更新上下文
-        await db_manager.update_bot_context(self.bot.id, self.context)
-
+        self.emotions = await db_manager.get_emotions_data(self.bot.id)
     except Exception as e:
-        logger.error(f"Error saving context: {str(e)}")
+        logger.error(f"Error loading emotions for bot {self.bot.id}: {str(e)}")
+        self.emotions = {}
 
 
-async def update_memory(self) -> None:
-    """保存记忆到数据库"""
-    try:
-        await db_manager.update_bot_memory(self.bot.id, self.memory)
-    except Exception as e:
-        logger.error(f"Error saving memory: {str(e)}")
-
-
-async def update_relationship(
-    self,
-    new_type: Optional[str] = None,
-    new_level: Optional[str] = None,
-    new_style: Optional[str] = None,
-) -> None:
-    """更新关系信息
-
-    Args:
-        new_type: 新的关系类型
-        new_level: 新的关系等级
-        new_style: 新的关系风格
+async def save_bot_state(self) -> None:
+    """
+    Persists all modified in-memory bot state to the database.
+    This includes core bot attributes, context, memory in one call,
+    and emotions data in a separate call.
     """
     try:
-        # 更新内存中的关系字段
-        if new_type:
-            self.relationship_type = new_type
-        if new_level:
-            self.relationship_level = new_level
-        if new_style:
-            self.relationship_style = new_style
+        # 1. Prepare bot data update payload
+        update_payload: Dict[str, Any] = {}
 
-        # 直接更新数据库，不构建字典
-        await db_manager.update_bot_relationship(
-            self.bot.id,
-            relationship_type=self.relationship_type,
-            relationship_level=self.relationship_level,
-            relationship_style=self.relationship_style,
-        )
+        # Compare in-memory state with the initial state from self.bot to build the payload
+        update_payload["friend_score"] = self.friend_score
+        update_payload["friend_score_cap"] = self.friend_score_cap
+        update_payload["friend_score_floor"] = self.friend_score_floor
+        update_payload["friend_score_peak"] = self.friend_score_peak
+        update_payload["friend_score_trough"] = self.friend_score_trough
+        update_payload["romance_score"] = self.romance_score
+        update_payload["romance_score_cap"] = self.romance_score_cap
+        update_payload["romance_score_peak"] = self.romance_score_peak
+        update_payload["relationship_type"] = self.relationship_type
+        update_payload["relationship_level"] = self.relationship_level
+        update_payload["friend_level"] = self.friend_level
+        update_payload["romance_level"] = self.romance_level
+        update_payload["friend_buffer_status"] = self.friend_buffer_status
+        update_payload["romance_buffer_status"] = self.romance_buffer_status
+        update_payload["relationship_style"] = self.relationship_style
+        update_payload["is_polite"] = self.is_polite
+        update_payload["is_crushing"] = self.is_crushing
+        update_payload["last_chat_time"] = self.last_chat_time
+        update_payload["context"] = self.context
+        update_payload["memory"] = self.memory
+        update_payload["context_metadata"] = self.context_metadata
 
-        # 刷新系统上下文
-        self._refresh_system_context()
+        # 2. Update bot data if needed
+        if update_payload:
+            logger.info(f"Saving bot data for bot {self.bot.id}. Fields: {list(update_payload.keys())}")
+            await db_manager.update_bot_data(
+                bot_id=self.bot.id,
+                bot_data=update_payload,
+            )
+            logger.debug(f"Successfully saved bot data for bot {self.bot.id}")
 
-        logger.debug(
-            f"Updated relationship for bot {self.bot.id}: type={self.relationship_type}, level={self.relationship_level}"
-        )
+        # 3. Update emotions data separately if needed
+        if self.emotions:
+            logger.info(f"Saving emotions data for bot {self.bot.id}")
+            await db_manager.update_emotions_data(bot_id=self.bot.id, emotions=self.emotions)
+            logger.debug(f"Successfully saved emotions data for bot {self.bot.id}")
+
+        if not update_payload and not self.emotions:
+            logger.debug(f"No state changes to save for bot {self.bot.id}")
+
     except Exception as e:
-        logger.error(f"Error updating relationship: {str(e)}", exc_info=True)
+        logger.error(f"Error saving bot state for bot {self.bot.id}: {str(e)}", exc_info=True)
         raise

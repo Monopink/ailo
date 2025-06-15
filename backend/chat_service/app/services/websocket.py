@@ -50,8 +50,8 @@ class WebSocketManager:
                 message["message_service"] = "websocket"
 
                 # 确保消息包含时间戳
-                if "timestamp" not in message:
-                    message["timestamp"] = datetime.now(timezone.utc).isoformat()
+                if "message_time" not in message:
+                    message["message_time"] = datetime.now(timezone.utc).isoformat()
 
                 # 发布消息到事件总线
                 logger.debug(f"Publishing message from client {client_id}: {message}")

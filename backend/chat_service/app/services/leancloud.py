@@ -1,6 +1,3 @@
-from enums import MessageType
-
-
 class LeanCloud:
     def __init__(self):
         pass

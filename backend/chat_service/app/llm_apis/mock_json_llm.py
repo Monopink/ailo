@@ -86,9 +86,7 @@ class MockJsonLLM(BaseLLM):
         """
         self.attack_config = MockConfig(mode=mode, value=value)
 
-    def set_friend_score_mode(
-        self, mode: MockMode, value: Optional[int] = None
-    ) -> None:
+    def set_friend_score_mode(self, mode: MockMode, value: Optional[int] = None) -> None:
         """设置友情分数模式
 
         Args:
@@ -97,9 +95,7 @@ class MockJsonLLM(BaseLLM):
         """
         self.friend_score_config = MockConfig(mode=mode, value=value)
 
-    def set_romance_score_mode(
-        self, mode: MockMode, value: Optional[int] = None
-    ) -> None:
+    def set_romance_score_mode(self, mode: MockMode, value: Optional[int] = None) -> None:
         """设置浪漫分数模式
 
         Args:
@@ -176,27 +172,31 @@ class MockJsonLLM(BaseLLM):
             return self.romance_score_config.value
         return random.randint(-5, 5)
 
-    def _get_emotions(self) -> Dict[str, Any]:
+    def _get_emotions(self) -> Dict[str, int]:
         """获取情绪数据"""
         if (
             self.emotions_config.mode == MockMode.FIXED
             and self.emotions_config.value is not None
             and isinstance(self.emotions_config.value, dict)
-            and "types" in self.emotions_config.value
-            and "scores" in self.emotions_config.value
         ):
-            return {
-                "types": self.emotions_config.value["types"],
-                "scores": self.emotions_config.value["scores"],
-            }
+            # 如果是旧格式的 EmotionsValue 类型，转换为新格式
+            if "types" in self.emotions_config.value and "scores" in self.emotions_config.value:
+                types = self.emotions_config.value["types"]
+                scores = self.emotions_config.value["scores"]
+                if types and scores:
+                    # 只取第一个情绪类型
+                    emotion_type = types[0]
+                    return {emotion_type: scores.get(emotion_type, 5)}
+            else:
+                # 已经是新格式
+                return self.emotions_config.value
 
         # 随机模式
         emotion_types = ["anger", "happy", "none"]
-        selected_types = random.sample(
-            emotion_types, random.randint(1, len(emotion_types))
-        )
-        scores = {emotion: random.randint(1, 12) for emotion in selected_types}
-        return {"types": selected_types, "scores": scores}
+        selected_type = random.choice(emotion_types)
+        if selected_type == "none":
+            return {}
+        return {selected_type: random.randint(1, 12)}
 
     def _generate_mock_content(self, prompt: str) -> str:
         """生成模拟回复内容，返回 JSON 格式的字符串"""
@@ -299,10 +299,11 @@ class MockJsonLLM(BaseLLM):
             logger.error(f"Returning error response: {error_response}")
             return error_response
 
-    async def validate_response(
-        self, response: Dict[str, Any]
-    ) -> tuple[bool, Optional[str]]:
+    async def validate_response(self, response: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         """验证响应是否符合标准 LLM 响应结构
+
+        注意：此方法仅验证 LLM API 响应的结构，不验证响应内容的业务逻辑。
+        内容的业务逻辑验证由 context_strategy 负责。
 
         Args:
             response: LLM 响应内容
@@ -316,9 +317,7 @@ class MockJsonLLM(BaseLLM):
 
         try:
             required_fields = ["id", "object", "created", "model", "choices", "usage"]
-            missing_fields = [
-                field for field in required_fields if field not in response
-            ]
+            missing_fields = [field for field in required_fields if field not in response]
             if missing_fields:
                 return False, f"Missing required fields: {missing_fields}"
 
@@ -329,28 +328,13 @@ class MockJsonLLM(BaseLLM):
             if not all(key in choice["message"] for key in ["role", "content"]):
                 return False, "Invalid message format in choice"
 
-            # 验证响应内容的 JSON 格式
-            content = json.loads(choice["message"]["content"])
-            required_content_fields = [
-                "is_attack",
-                "response",
-                "content",
-                "emotions",
-                "friend_score",
-                "romance_score",
-            ]
-            missing_content_fields = [
-                field for field in required_content_fields if field not in content
-            ]
-            if missing_content_fields:
-                return (
-                    False,
-                    f"Missing required content fields: {missing_content_fields}",
-                )
+            # 检查 JSON 格式是否有效
+            try:
+                json.loads(choice["message"]["content"])
+            except json.JSONDecodeError:
+                return False, "Invalid JSON in response content"
 
             return True, None
 
-        except json.JSONDecodeError:
-            return False, "Invalid JSON in response content"
         except Exception as e:
             return False, f"Validation error: {str(e)}"

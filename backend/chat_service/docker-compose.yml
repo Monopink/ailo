@@ -19,6 +19,11 @@ services:
     networks:
       - app-network
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   db:
     image: mysql:8.0
@@ -51,6 +56,28 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle_logs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8001:8080"
+    environment:
+      - DOZZLE_LEVEL=info
+      - DOZZLE_TAILSIZE=300
+      - DOZZLE_FILTER=status=running
+    networks:
+      - app-network
+    restart: unless-stopped
+    labels:
+      - "com.dozzle.enable=true"
 
 networks:
   app-network:

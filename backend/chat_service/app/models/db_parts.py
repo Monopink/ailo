@@ -1,16 +1,15 @@
-import logging
 from db_managers import db_manager
 from typing import Dict, Any
-
-logger = logging.getLogger(__name__)
 
 
 async def load_emotions(self) -> None:
     """Load current emotion data from the database into the in-memory state."""
     try:
         self.emotions = await db_manager.get_emotions_data(self.bot.id)
+        self.logger.info("emotions_loaded", emotions=self.emotions)
+        self.loaded_emotions = True
     except Exception as e:
-        logger.error(f"Error loading emotions for bot {self.bot.id}: {str(e)}")
+        self.logger.error("error_loading_emotions", error=str(e))
         self.emotions = {}
 
 
@@ -49,22 +48,19 @@ async def save_bot_state(self) -> None:
 
         # 2. Update bot data if needed
         if update_payload:
-            logger.info(f"Saving bot data for bot {self.bot.id}. Fields: {list(update_payload.keys())}")
-            await db_manager.update_bot_data(
-                bot_id=self.bot.id,
-                bot_data=update_payload,
-            )
-            logger.debug(f"Successfully saved bot data for bot {self.bot.id}")
+            self.logger.info("saving_bot_data", fields=list(update_payload.keys()))
+            await db_manager.update_bot_data(bot_id=self.bot.id, bot_data=update_payload)
+            self.logger.info("bot_data_saved")
 
         # 3. Update emotions data separately if needed
         if self.emotions:
-            logger.info(f"Saving emotions data for bot {self.bot.id}")
+            self.logger.info("saving_emotions_data")
             await db_manager.update_emotions_data(bot_id=self.bot.id, emotions=self.emotions)
-            logger.debug(f"Successfully saved emotions data for bot {self.bot.id}")
+            self.logger.info("emotions_data_saved")
 
         if not update_payload and not self.emotions:
-            logger.debug(f"No state changes to save for bot {self.bot.id}")
+            self.logger.info("no_state_changes")
 
     except Exception as e:
-        logger.error(f"Error saving bot state for bot {self.bot.id}: {str(e)}", exc_info=True)
+        self.logger.error("error_saving_bot_state", error=str(e), exc_info=True)
         raise

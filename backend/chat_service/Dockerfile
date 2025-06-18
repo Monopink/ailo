@@ -17,6 +17,7 @@ RUN apt-get update \
         build-essential \
         default-libmysqlclient-dev \
         pkg-config \
+        curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

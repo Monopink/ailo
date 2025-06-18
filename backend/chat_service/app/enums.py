@@ -202,8 +202,8 @@ class EmotionLevel(enum.Enum):
 class EmotionType(enum.Enum):
     """Emotion types"""
 
-    ANGER = "anger"  # Anger
-    TOUCHED = "touched"  # Touched/Moved
+    ANGER = "anger"
+    MOVED = "moved"
 
 
 class ValidationErrorType(enum.Enum):

@@ -83,6 +83,7 @@ class TestModel:
     _refresh_relationship = refresh_relationship
 
     def __init__(self, bot, emotions, state):
+        self.logger = logging.getLogger(__name__)
         self.bot = bot
         self.emotions = emotions
         # Unpack state from bot object, similar to ModelLily
@@ -207,13 +208,7 @@ if __name__ == "__main__":
             "style": "你暗恋user，但不敢表达。",
         },
     }
-    EMOTIONS_CONFIG = {
-        "anger": [
-            {"threshold": 1, "level": 1},
-            {"threshold": 4, "level": 2},
-            {"threshold": 10, "level": 3},
-        ]
-    }
+    EMOTIONS_CONFIG = {"anger": {"thresholds": {"1": 1, "2": 4, "3": 10}}}
     PASSIVE_SCORE_CONFIG = {
         "friend_decay": {
             "cool_down_days": 3,  # Grace period in days

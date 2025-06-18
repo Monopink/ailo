@@ -3,27 +3,27 @@ import time
 import random
 from typing import Dict, Any, Optional
 from .base import BaseLLM
-import logging
+from utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("says.llm_apis.mirrored_llm")
 
 
 class MirroredLLM(BaseLLM):
     async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        将收到的context序列化后放入标准LLM响应结构中返回
+        Serialize received context into standard LLM response structure
         Args:
-            context: 上下文字典
+            context: Context dictionary
         Returns:
-            Dict: 标准化的LLM响应结构
+            Dict: Standardized LLM response structure
         """
         try:
-            logger.info("MirroredLLM received context")
+            logger.info("received_context")
 
-            # 将context序列化为JSON字符串，确保Unicode字符正确处理
+            # Serialize context to JSON string, ensuring proper Unicode handling
             serialized_content = json.dumps(context, ensure_ascii=False)
 
-            # 构造标准LLM响应结构
+            # Construct standard LLM response structure
             response = {
                 "id": f"mirror-{random.randint(1000000, 9999999)}",
                 "object": "chat.completion",
@@ -48,21 +48,19 @@ class MirroredLLM(BaseLLM):
             return response
 
         except Exception as e:
-            logger.error(f"Error in generate_response: {str(e)}")
-            # 返回错误响应而不是 None
+            logger.error("generate_response_error", error=str(e))
+            # Return error response instead of None
             return {"error": {"message": str(e), "type": "internal_error", "code": 500}}
 
-    async def validate_response(
-        self, response: Dict[str, Any]
-    ) -> tuple[bool, Optional[str]]:
+    async def validate_response(self, response: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         """
-        验证响应是否符合标准LLM响应结构
+        Validate if response matches standard LLM response structure
 
         Args:
-            response: LLM响应内容
+            response: LLM response content
 
         Returns:
-            tuple[bool, Optional[str]]: (是否有效, 错误信息)
+            tuple[bool, Optional[str]]: (is_valid, error_message)
         """
         if "error" in response:
             error_msg = f"API error: {response['error']}"
@@ -70,20 +68,23 @@ class MirroredLLM(BaseLLM):
 
         try:
             required_fields = ["id", "object", "created", "model", "choices", "usage"]
-            missing_fields = [
-                field for field in required_fields if field not in response
-            ]
+            missing_fields = [field for field in required_fields if field not in response]
             if missing_fields:
+                logger.warning("missing_required_fields", fields=missing_fields)
                 return False, f"Missing required fields: {missing_fields}"
 
             if not response["choices"] or not isinstance(response["choices"], list):
+                logger.warning("invalid_choices_field")
                 return False, "Invalid or empty choices field"
 
             choice = response["choices"][0]
             if not all(key in choice["message"] for key in ["role", "content"]):
+                logger.warning("invalid_message_format")
                 return False, "Invalid message format in choice"
 
+            logger.info("response_validation_successful")
             return True, None
 
         except Exception as e:
+            logger.error("validation_error", error=str(e))
             return False, f"Validation error: {str(e)}"

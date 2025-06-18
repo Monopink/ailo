@@ -6,7 +6,6 @@ All classes inheriting from Base will be mapped to database tables and table str
 """
 
 import asyncio
-import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy import select, text
@@ -22,16 +21,17 @@ from sqlalchemy import (
     ForeignKey,
     DECIMAL,
 )
-from sqlalchemy.exc import SQLAlchemyError  # Import SQLAlchemy base exception class
+from sqlalchemy.exc import SQLAlchemyError
 from enums import BotStatus
 import enum
 from datetime import timedelta
+from utils.logging import get_logger, bind_context
 
-logger = logging.getLogger(__name__)
+logger = get_logger("says.db_managers.mysql")
 
 # Database configuration
 DATABASE_URL = "mysql+aiomysql://root:root@db/says_dev?charset=utf8mb4"
-engine = create_async_engine(DATABASE_URL, echo=True)  # echo=True will print executed SQL statements
+engine = create_async_engine(DATABASE_URL, echo=True)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # Create declarative base class that all model classes will inherit from
@@ -188,6 +188,8 @@ class MySQLManager:
     def __init__(self):
         self.session_maker = async_session
         self._init_task = asyncio.create_task(self._initialize())
+        # Create base logger
+        self.logger = get_logger("says.db_managers.mysql_manager")
 
     def _convert_enum_to_str(self, value: Optional[enum.Enum]) -> Optional[str]:
         """Convert enum value to string."""
@@ -200,7 +202,7 @@ class MySQLManager:
         try:
             return enum_class.__members__[value.upper()]
         except KeyError:
-            logger.warning(f"Invalid enum value: {value} for enum class: {enum_class}")
+            self.logger.warning("invalid_enum_value", value=value, enum_class=enum_class.__name__)
             return None
 
     async def _initialize(self):
@@ -212,41 +214,46 @@ class MySQLManager:
 
         while True:
             try:
-                logger.info("Attempting to connect to database...")
+                self.logger.info("attempting_database_connection")
                 async with self.session_maker() as session:
                     # Test connection
                     await session.execute(text("SELECT 1"))
-                    logger.info("Database connection test successful")
+                    self.logger.info("database_connection_test_successful")
 
                     # Check table schema
                     try:
                         # Check if bots table has all necessary columns
                         await session.execute(text("SELECT friend_score FROM bots LIMIT 1"))
-                        logger.info("Database schema validation successful")
+                        self.logger.info("database_schema_validation_successful")
                     except SQLAlchemyError as schema_error:
-                        logger.warning(f"Database schema validation failed: {str(schema_error)}")
-                        logger.warning(
-                            "This might be expected if the database is newly created or being updated"
+                        self.logger.warning(
+                            "database_schema_validation_failed",
+                            error=str(schema_error),
+                            message="This might be expected if the database is newly created or being updated",
                         )
 
-                logger.info("Database connection initialized successfully")
+                self.logger.info("database_connection_initialized")
                 break
             except SQLAlchemyError as e:
                 retry_count += 1
                 if retry_count > max_retries:
-                    error_msg = f"Database initialization failed after {max_retries} attempts: {str(e)}"
-                    logger.critical(error_msg)
+                    error_msg = f"Database initialization failed after {max_retries} attempts"
+                    self.logger.critical(
+                        "database_initialization_failed", error=str(e), attempts=max_retries
+                    )
                     raise Exception(error_msg) from e
 
                 # Calculate delay for next retry (exponential backoff)
                 delay = min(base_delay * (2 ** (retry_count - 1)), max_delay)
-                logger.warning(
-                    f"Database connection attempt {retry_count} failed. Retrying in {delay} seconds... Error: {str(e)}"
+                self.logger.warning(
+                    "database_connection_retry", attempt=retry_count, delay=delay, error=str(e)
                 )
                 await asyncio.sleep(delay)
             except Exception as e:
-                error_msg = f"Unexpected error during database initialization: {str(e)}"
-                logger.critical(error_msg)
+                error_msg = "Unexpected error during database initialization"
+                self.logger.critical(
+                    "unexpected_database_initialization_error", error=str(e), exc_info=True
+                )
                 raise Exception(error_msg) from e
 
     async def get_user_by_id(self, user_id: int):
@@ -258,25 +265,45 @@ class MySQLManager:
     async def get_bot_by_id(self, bot_id: int):
         """Get bot information by id."""
         try:
+            # Create contextualized logger for this operation
+            op_logger = bind_context(self.logger, operation="get_bot_by_id", bot_id=bot_id)
+            op_logger.info("fetching_bot_by_id")
+
             async with self.session_maker() as session:
                 result = await session.execute(select(Bot).where(Bot.id == bot_id))
-                return result.scalar_one_or_none()
+                bot = result.scalar_one_or_none()
+
+                if bot:
+                    op_logger.info("bot_found")
+                else:
+                    op_logger.info("bot_not_found")
+
+                return bot
         except SQLAlchemyError as e:
-            logger.error(f"Database error in get_bot_by_id: {str(e)}")
+            self.logger.error("database_error_get_bot_by_id", bot_id=bot_id, error=str(e))
             raise Exception(f"Failed to get bot by id: {str(e)}") from e
 
     async def get_bot_by_entity_id(self, entity_id: str):
         """Get bot information by entity_id."""
         try:
+            # Create contextualized logger for this operation
+            op_logger = bind_context(self.logger, operation="get_bot_by_entity_id", entity_id=entity_id)
+            op_logger.info("fetching_bot_by_entity_id")
+
             async with self.session_maker() as session:
                 result = await session.execute(select(Bot).where(Bot.entity_id == entity_id))
                 bot = result.scalar_one_or_none()
+
                 if bot:
                     # Convert enum value
                     bot.status = self._convert_str_to_enum(BotStatus, bot.status)
+                    op_logger.info("bot_found", status=str(bot.status))
+                else:
+                    op_logger.info("bot_not_found")
+
                 return bot
         except SQLAlchemyError as e:
-            logger.error(f"Database error in get_bot_by_entity_id: {str(e)}")
+            self.logger.error("database_error_get_bot_by_entity_id", entity_id=entity_id, error=str(e))
             raise Exception(f"Failed to get bot by entity_id: {str(e)}") from e
 
     async def get_bot_data(self, bot_id: int, related_user_id: Optional[int] = None) -> Optional[dict]:
@@ -310,7 +337,7 @@ class MySQLManager:
                     }
                 return None
         except SQLAlchemyError as e:
-            logger.error(f"Database error in get_bot_data: {str(e)}")
+            self.logger.error(f"Database error in get_bot_data: {str(e)}")
             raise Exception(f"Failed to get bot data: {str(e)}") from e
 
     async def update_bot_data(self, bot_id: int, bot_data: dict) -> None:
@@ -326,12 +353,12 @@ class MySQLManager:
                         setattr(bot, key, value)
                     await session.commit()
                 else:
-                    logger.error(f"Bot not found with id: {bot_id}")
+                    self.logger.error(f"Bot not found with id: {bot_id}")
                     raise ValueError(f"Bot not found with id: {bot_id}")
 
             except Exception as e:
                 await session.rollback()
-                logger.error(f"Error updating bot: {str(e)}")
+                self.logger.error(f"Error updating bot: {str(e)}")
                 raise
 
     async def get_emotions_data(self, bot_id: int) -> Dict[str, Dict[str, Any]]:
@@ -380,7 +407,7 @@ class MySQLManager:
                 # Log warning for duplicate emotions
                 for emotion_type, count in emotion_counts.items():
                     if count > 1:
-                        logger.warning(
+                        self.logger.warning(
                             f"Multiple active emotions found for bot {bot_id}, type {emotion_type}. "
                             f"Using the one with most recent start_time."
                         )
@@ -409,7 +436,7 @@ class MySQLManager:
                 return emotions_dict
 
         except SQLAlchemyError as e:
-            logger.error(f"Database error in get_current_bot_emotions: {str(e)}")
+            self.logger.error(f"Database error in get_current_bot_emotions: {str(e)}")
             raise Exception(f"Failed to get current bot emotions: {str(e)}") from e
 
     async def update_emotions_data(self, bot_id: int, emotions: Dict[str, Dict[str, Any]]) -> bool:
@@ -426,6 +453,10 @@ class MySQLManager:
             bool: Whether the update was successful
         """
         try:
+            # Create contextualized logger for this operation
+            op_logger = bind_context(self.logger, operation="update_emotions_data", bot_id=bot_id)
+            op_logger.info("updating_emotions", emotion_count=len(emotions))
+
             async with self.session_maker() as session:
                 for emotion_type, emotion_data in emotions.items():
                     # Parse time fields
@@ -443,7 +474,9 @@ class MySQLManager:
                     end_time = None
                     if "end_time" in emotion_data and emotion_data["end_time"]:
                         if isinstance(emotion_data["end_time"], str):
-                            end_time = datetime.fromisoformat(emotion_data["end_time"].replace("Z", "+00:00"))
+                            end_time = datetime.fromisoformat(
+                                emotion_data["end_time"].replace("Z", "+00:00")
+                            )
                         else:
                             end_time = emotion_data["end_time"]
                     else:
@@ -552,7 +585,7 @@ class MySQLManager:
                                     "update_time": update_time,
                                 },
                             )
-                            logger.debug(f"Updated existing emotion: {emotion_type} for bot {bot_id}")
+                            op_logger.info(f"Updated existing emotion: {emotion_type} for bot {bot_id}")
                         else:
                             # Create new emotion
                             insert_query = """
@@ -588,13 +621,13 @@ class MySQLManager:
                                     "update_time": update_time,
                                 },
                             )
-                            logger.debug(f"Created new emotion: {emotion_type} for bot {bot_id}")
+                            op_logger.info(f"Created new emotion: {emotion_type} for bot {bot_id}")
 
                 await session.commit()
                 return True
 
         except SQLAlchemyError as e:
-            logger.error(f"Database error in update_bot_emotions: {str(e)}")
+            self.logger.error(f"Database error in update_bot_emotions: {str(e)}")
             await session.rollback()
             raise Exception(f"Failed to update bot emotions: {str(e)}") from e
 
@@ -605,7 +638,10 @@ class MySQLManager:
                 select(MessageHistory)
                 .where(
                     ((MessageHistory.from_entity == from_entity) & (MessageHistory.to_entity == to_entity))
-                    | ((MessageHistory.from_entity == to_entity) & (MessageHistory.to_entity == from_entity))
+                    | (
+                        (MessageHistory.from_entity == to_entity)
+                        & (MessageHistory.to_entity == from_entity)
+                    )
                 )
                 .order_by(MessageHistory.created_at.desc())
                 .limit(limit)
@@ -626,7 +662,7 @@ class MySQLManager:
                         # Convert ISO format to datetime object
                         timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                     except ValueError:
-                        logger.warning("Invalid timestamp format, using current time instead.")
+                        self.logger.warning("Invalid timestamp format, using current time instead.")
                         timestamp = datetime.now(timezone.utc)
                 elif timestamp is None:
                     timestamp = datetime.now(timezone.utc)
@@ -651,7 +687,7 @@ class MySQLManager:
                 await session.commit()
                 return new_message
         except Exception as e:
-            logger.error(f"Error saving message: {str(e)}")
+            self.logger.error(f"Error saving message: {str(e)}")
             if "session" in locals():
                 await session.rollback()
             raise

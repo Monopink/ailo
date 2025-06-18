@@ -1,27 +1,75 @@
 import logging
+import sys
 import uvicorn
-from fastapi import FastAPI, WebSocket
+import structlog
+from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from services import websocket
 from event_bus import event_bus
 from db_managers import db_manager
 from message_router import message_router
+from exceptions import AppException
+from fastapi.responses import JSONResponse
+from utils.logging import get_logger, bind_context
 
-# 配置日志
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(filename)s %(levelname)s, line %(lineno)d: %(message)s",
-    handlers=[logging.StreamHandler(), logging.FileHandler("app.log")],
-)
-logger = logging.getLogger(__name__)
 
-# 创建 FastAPI 应用
+# Configure structured logging
+def configure_logging():
+    # The default basicConfig sets the root logger level to WARNING.
+    # We will configure it manually to ensure DEBUG messages are captured.
+    # logging.basicConfig(level=logging.INFO)
+
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.processors.CallsiteParameterAdder(),
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer(),
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+    # Get the root logger
+    root_logger = logging.getLogger()
+    # Set the root logger level to the lowest level we want to capture (DEBUG)
+    root_logger.setLevel(logging.DEBUG)
+
+    # Clear any existing handlers to avoid duplicate logs
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+
+    # Set up file logging to capture all details (DEBUG and above)
+    file_handler = logging.FileHandler("app.log")
+    file_handler.setLevel(logging.DEBUG)
+
+    # Set up console logging for DEBUG level as well
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+
+    # Add the handlers to the root logger
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+
+
+configure_logging()
+logger = get_logger("says.main")
+
+# Create FastAPI application
 app = FastAPI()
 
-# 配置 CORS
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该指定具体的域名
+    allow_origins=["*"],  # Should specify actual domains in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,41 +77,51 @@ app.add_middleware(
 )
 
 
+async def app_exception_handler(request: Request, exc: AppException):
+    logger.error("application_exception", status_code=exc.status_code, detail=exc.detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+
 @app.on_event("startup")
 async def startup_event():
     """
-    应用启动时的初始化
+    Initialize application on startup
     """
     try:
-        logger.info("Starting application initialization...")
+        logger.info("starting_application")
 
-        # 启动事件总线
-        logger.info("Starting event bus...")
+        # Start event bus
+        logger.info("starting_event_bus")
         await event_bus.start()
-        logger.info("Event bus started successfully")
+        logger.info("event_bus_started")
 
-        # 等待数据库初始化
+        # Wait for database initialization
         await db_manager._init_task
-        logger.info("Database initialized successfully")
+        logger.info("database_initialized")
 
-        # 确保 message_router 已经创建并订阅了事件
-        logger.info("Initializing message router...")
+        # Ensure message_router is created and subscribed to events
+        logger.info("initializing_message_router")
         if not hasattr(app.state, "message_router"):
             app.state.message_router = message_router
-        logger.info("Message router initialized successfully")
+        logger.info("message_router_initialized")
 
-        # 初始化 WebSocket 管理器
-        logger.info("Initializing WebSocket manager...")
+        # Initialize WebSocket manager
+        logger.info("initializing_websocket_manager")
         if not hasattr(app.state, "websocket_manager"):
             app.state.websocket_manager = websocket
-            logger.info(
-                f"Active WebSocket connections: {len(websocket.active_connections)}"
-            )
-        logger.info("WebSocket manager initialized successfully")
+            active_connections = len(websocket.active_connections)
+            logger.info("websocket_connections", count=active_connections)
+        logger.info("websocket_manager_initialized")
 
-        logger.info("Application startup complete")
+        logger.info("application_startup_complete")
+
+        # Add the exception handler to the app
+        app.add_exception_handler(AppException, app_exception_handler)
     except Exception as e:
-        logger.critical(f"Failed to start application: {str(e)}")
+        logger.critical("application_startup_failed", error=str(e), exc_info=True)
         import sys
 
         sys.exit(1)
@@ -72,55 +130,60 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """
-    应用关闭时的清理
+    Clean up resources on application shutdown
     """
     try:
-        # 停止事件总线
+        # Stop event bus
         await event_bus.stop()
-        logger.info("Event bus stopped")
+        logger.info("event_bus_stopped")
 
-        # 关闭所有 WebSocket 连接
+        # Close all WebSocket connections
         for client_id in list(websocket.active_connections.keys()):
             await websocket.disconnect(client_id)
-        logger.info("All WebSocket connections closed")
+        logger.info("websocket_connections_closed")
 
-        logger.info("Application shutdown complete")
+        logger.info("application_shutdown_complete")
     except Exception as e:
-        logger.error(f"Error during shutdown: {str(e)}")
+        logger.error("shutdown_error", error=str(e), exc_info=True)
 
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(ws: WebSocket, client_id: str):
     """
-    WebSocket 连接端点
+    WebSocket connection endpoint
     """
+    ws_logger = bind_context(logger, client_id=client_id)
     try:
-        logger.info(f"New WebSocket connection request from client {client_id}")
+        ws_logger.info("websocket_connection_request")
         await websocket.connect(ws, client_id)
         await websocket.receive_message(ws, client_id)
     except Exception as e:
-        logger.error(f"WebSocket error for client {client_id}: {str(e)}")
+        ws_logger.error("websocket_error", error=str(e), exc_info=True)
         await websocket.disconnect(client_id)
 
 
 @app.get("/health")
 async def health_check():
     """
-    健康检查端点
+    Health check endpoint
     """
-    return {
+    status = {
         "status": "healthy",
         "database": "connected" if db_manager._init_task.done() else "initializing",
         "event_bus": "running" if event_bus._running else "stopped",
     }
+    logger.debug("health_check", **status)
+    return status
 
 
 @app.get("/")
 async def root():
     """
-    根路径响应
+    Root path response
     """
-    return {"message": "Welcome to Says API", "version": "1.0.0", "status": "running"}
+    response = {"message": "Welcome to Says API", "version": "1.0.0", "status": "running"}
+    logger.info("root_endpoint_accessed")
+    return response
 
 
 if __name__ == "__main__":
@@ -129,7 +192,7 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="debug",
+        log_level="info",  # Changed from debug to info for production logs
         ws_ping_interval=20,
         ws_ping_timeout=20,
         access_log=True,

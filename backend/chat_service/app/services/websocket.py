@@ -1,11 +1,11 @@
 import json
-import logging
 from datetime import datetime, timezone
 from typing import Dict, Any
 from fastapi import WebSocket
 from event_bus import event_bus, EventTypes
+from utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("says.services.websocket")
 
 
 class WebSocketManager:
@@ -13,7 +13,7 @@ class WebSocketManager:
         self.active_connections: Dict[str, WebSocket] = {}
         # 直接订阅 SEND_MESSAGE 事件
         event_bus.subscribe(EventTypes.SEND_MESSAGE, self.handle_send_message)
-        logger.info("WebSocketManager initialized and subscribed to events")
+        logger.info("websocket_manager_initialized", event_subscription=True)
 
     async def connect(self, websocket: WebSocket, client_id: str):
         """
@@ -21,7 +21,7 @@ class WebSocketManager:
         """
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        logger.info(f"Client connected: {client_id}")
+        logger.info("client_connected", client_id=client_id)
 
     async def disconnect(self, client_id: str):
         """
@@ -29,7 +29,7 @@ class WebSocketManager:
         """
         if client_id in self.active_connections:
             del self.active_connections[client_id]
-        logger.info(f"Client disconnected: {client_id}")
+        logger.info("client_disconnected", client_id=client_id)
 
     async def receive_message(self, websocket: WebSocket, client_id: str):
         """
@@ -43,7 +43,7 @@ class WebSocketManager:
                 # 验证必要的消息字段
                 required_fields = ["from_entity", "to_entity", "message_type"]
                 if not all(field in message for field in required_fields):
-                    logger.warning(f"Message missing required fields: {message}")
+                    logger.warning("message_missing_fields", client_id=client_id, message=message)
                     continue
 
                 # 添加消息服务信息
@@ -54,11 +54,17 @@ class WebSocketManager:
                     message["message_time"] = datetime.now(timezone.utc).isoformat()
 
                 # 发布消息到事件总线
-                logger.debug(f"Publishing message from client {client_id}: {message}")
+                logger.info(
+                    "publishing_message",
+                    client_id=client_id,
+                    from_entity=message.get("from_entity"),
+                    to_entity=message.get("to_entity"),
+                    message_type=message.get("message_type"),
+                )
                 await event_bus.publish(EventTypes.RECEIVED_MESSAGE, message)
 
         except Exception as e:
-            logger.error(f"Error processing message from client {client_id}: {str(e)}")
+            logger.error("message_processing_error", client_id=client_id, error=str(e), exc_info=True)
             await self.disconnect(client_id)
 
     async def send_message(self, client_id: str, message: Dict[str, Any]):
@@ -70,7 +76,7 @@ class WebSocketManager:
                 websocket = self.active_connections[client_id]
                 await websocket.send_text(json.dumps(message))
             except Exception as e:
-                logger.error(f"Error sending message to client {client_id}: {str(e)}")
+                logger.error("message_sending_error", client_id=client_id, error=str(e), exc_info=True)
                 await self.disconnect(client_id)
 
     async def handle_send_message(self, message: Dict[str, Any]):
@@ -80,27 +86,28 @@ class WebSocketManager:
         try:
             # 检查消息是否来自 websocket 服务
             if message.get("message_service") != "websocket":
-                logger.debug(f"Ignoring non-websocket message: {message}")
+                logger.info(
+                    "ignoring_non_websocket_message", message_service=message.get("message_service")
+                )
                 return
 
             to_entity = message.get("to_entity")
             if not to_entity:
-                logger.warning("Message missing to_entity")
+                logger.warning("message_missing_to_entity")
                 return
 
-            logger.debug(
-                f"Handling processed websocket message to {to_entity}: {message}"
+            logger.info(
+                "handling_processed_message", to_entity=to_entity, message_type=message.get("message_type")
             )
+
             if to_entity in self.active_connections:
                 await self.send_message(to_entity, message)
-                logger.debug(
-                    f"Processed message sent successfully to client {to_entity}"
-                )
+                logger.info("message_sent_successfully", client_id=to_entity)
             else:
-                logger.warning(f"No active connection found for client {to_entity}")
+                logger.warning("no_active_connection", client_id=to_entity)
 
         except Exception as e:
-            logger.error(f"Error handling processed message: {str(e)}", exc_info=True)
+            logger.error("processed_message_error", error=str(e), exc_info=True)
 
     async def broadcast(self, message: Dict[str, Any]):
         """

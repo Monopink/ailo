@@ -1,90 +1,88 @@
-import logging
 import copy
 from typing import Dict, Any, Optional
 from volcenginesdkarkruntime import Ark
 from .base import BaseLLM
+from utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("says.llm_apis.doubao")
 
 
 class Doubao(BaseLLM):
     def __init__(self, api_key: str, model_id: str, base_url: Optional[str] = None):
         """
-        初始化豆包API客户端
+        Initialize Doubao API client
         Args:
-            api_key: 豆包API密钥
-            model_id: 模型ID
-            base_url: API基础URL，可选
+            api_key: API key
+            model_id: Model ID
+            base_url: Base URL for API, optional
         """
         super().__init__()
         self.model_id = model_id
         self.base_url = base_url or "https://ark.cn-beijing.volces.com/api/v3"
         self.client = Ark(base_url=self.base_url, api_key=api_key)
-        # 仅在API调用时使用加密，不影响存储
+        # Only use encryption during API calls, not affecting storage
         self.api_headers = {"x-is-encrypted": "true"}
 
     async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """生成响应，确保存储前解密内容"""
-        logger.info("Generating response with context: %s", context)
+        """Generate response, ensure content is decrypted before storage"""
+        logger.info("generating_response", context=context)
         try:
             messages = context.get("messages", [])
             if not messages:
-                logger.warning("Messages list is empty")
+                logger.warning("empty_messages_list")
                 raise ValueError("Messages list is empty")
 
-            # 创建消息的深拷贝用于加密
+            # Create deep copy of messages for encryption
             messages_for_api = copy.deepcopy(messages)
 
-            # API调用时使用加密的消息副本
+            # Use encrypted message copy for API call
             completion = self.client.chat.completions.create(
                 model=self.model_id,
                 messages=messages_for_api,
                 extra_headers=self.api_headers,
             )
 
-            # 确保存储解密后的内容
-            logger.info("Response generated successfully")
+            # Ensure decrypted content for storage
+            logger.info("response_generated_successfully")
             return {
                 "choices": [
                     {
                         "message": {
                             "role": "assistant",
-                            "content": completion.choices[
-                                0
-                            ].message.content,  # SDK自动解密
+                            "content": completion.choices[0].message.content,  # SDK auto-decrypts
                         }
                     }
                 ]
             }
 
         except Exception as e:
-            logger.error(f"Error calling Doubao API: {str(e)}", exc_info=True)
+            logger.error("doubao_api_error", error=str(e), exc_info=True)
             raise
 
     async def validate_response(self, response: Dict) -> tuple[bool, Optional[str]]:
-        logger.info("Validating response: %s", response)
+        logger.info("validating_response", response=response)
         try:
             if not isinstance(response, dict):
-                logger.warning("Response is not a dictionary")
+                logger.warning("invalid_response_type")
                 return False, "Response is not a dictionary"
 
             if "choices" not in response:
-                logger.warning("Response missing 'choices' field")
+                logger.warning("missing_choices_field")
                 return False, "Response missing 'choices' field"
 
             choices = response["choices"]
             if not choices or not isinstance(choices, list):
-                logger.warning("Invalid or empty choices list")
+                logger.warning("invalid_choices_list")
                 return False, "Invalid or empty choices list"
 
             first_choice = choices[0]
             if "message" not in first_choice and "delta" not in first_choice:
-                logger.warning("Choice missing both 'message' and 'delta' fields")
+                logger.warning("missing_message_and_delta_fields")
                 return False, "Choice missing both 'message' and 'delta' fields"
 
-            logger.info("Response validation successful")
+            logger.info("response_validation_successful")
             return True, None
 
         except Exception as e:
-            logger.error(f"Validation error: {str(e)}", exc_info=True)
+            logger.error("validation_error", error=str(e), exc_info=True)
             return False, f"Validation error: {str(e)}"

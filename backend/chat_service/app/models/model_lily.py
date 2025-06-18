@@ -1,64 +1,81 @@
 import json
 import random
 import asyncio
-import logging
 from datetime import datetime
-from typing import Any, Dict, Optional, Callable, Awaitable, Tuple
+from typing import Any, Dict, Optional, Callable, Awaitable
 
 from .base import BaseModel
 from llm_apis import model_lily_llm as llm
-from enums import MessageType, MessageTypeCategory, RelationshipType, FriendLevel, RomanceLevel
+from enums import (
+    MessageType,
+    MessageTypeCategory,
+    RelationshipType,
+    FriendLevel,
+    RomanceLevel,
+    BufferStatus,
+)
 from .message_parts import send_message
 from .db_parts import load_emotions, save_bot_state
+from .llm_parts import generate_response, validate_content, get_response_content
 from .context_parts import (
     convert_timestamp,
     create_fingerprint,
     varify_context,
     append_context,
     append_response_to_context,
+    process_attack_context,
     remove_oldest_context,
-    remove_unimportant_context,
+    remove_expire_context,
     refresh_system_context,
     create_instant_context,
+    summary_to_memory,
 )
 from .context_strategy import ContextStrategyProtocol
 from .relationship_parts import (
     ensure_datetime,
     get_passive_score_change,
     calculate_passive_scores,
-    calculate_anger_score,
     get_level_from_score,
     get_level_by_name,
     apply_buffer,
     refresh_relationship,
+    new_anger_emotion,
+    process_emotions_and_score,
 )
+from utils.logging import get_logger, bind_context
 
-logger = logging.getLogger(__name__)
+logger = get_logger("says.models.model_lily")
 
 
 class ModelLily(BaseModel):
 
     # Import external methods
-    _convert_timestamp = convert_timestamp
     _send_message = send_message
     _load_emotions = load_emotions
     _save_bot_state = save_bot_state
+    _generate_response = generate_response
+    _validate_content = validate_content
+    _get_response_content = get_response_content
+    _convert_timestamp = convert_timestamp
     _create_fingerprint = create_fingerprint
     _varify_context = varify_context
     _append_context = append_context
     _append_response_to_context = append_response_to_context
+    _process_attack_context = process_attack_context
     _remove_oldest_context = remove_oldest_context
-    _remove_unimportant_context = remove_unimportant_context
+    _remove_expire_context = remove_expire_context
     _refresh_system_context = refresh_system_context
     _create_instant_context = create_instant_context
+    _summary_to_memory = summary_to_memory
     _ensure_datetime = ensure_datetime
     _get_passive_score_change = get_passive_score_change
-    _calculate_anger_score = calculate_anger_score
     _calculate_passive_scores = calculate_passive_scores
     _get_level_from_score = get_level_from_score
     _get_level_by_name = get_level_by_name
     _apply_buffer = apply_buffer
     _refresh_relationship = refresh_relationship
+    _process_emotions_and_score = process_emotions_and_score
+    _new_anger_emotion = new_anger_emotion
 
     def __init__(
         self,
@@ -74,6 +91,10 @@ class ModelLily(BaseModel):
         """
         # Call parent class initialization method
         super().__init__(message_service=message_service, bot=bot, cleanup_callback=cleanup_callback)
+
+        # Create a context-bound logger for this bot instance
+        self.logger = bind_context(logger, bot_id=self.bot.id, entity_id=self.bot.entity_id)
+        self.logger.info("Initialized ModelLily instance")
 
         # In-memory state for the bot instance.
         # These attributes are copied from the initial bot object to create a transactional
@@ -101,10 +122,10 @@ class ModelLily(BaseModel):
         )
         self.relationship_type: str = getattr(bot, "relationship_type")
         self.relationship_level: str = getattr(bot, "relationship_level")
-        self.friend_level: str = getattr(bot, "friend_level", "neutral")
+        self.friend_level: str = getattr(bot, "friend_level")
         self.romance_level: Optional[str] = getattr(bot, "romance_level", None)
-        self.friend_buffer_status: str = getattr(bot, "friend_buffer_status", "none")
-        self.romance_buffer_status: str = getattr(bot, "romance_buffer_status", "none")
+        self.friend_buffer_status: str = getattr(bot, "friend_buffer_status", BufferStatus.NONE.value)
+        self.romance_buffer_status: str = getattr(bot, "romance_buffer_status", BufferStatus.NONE.value)
         self.relationship_style: str = getattr(bot, "relationship_style")
         self.last_chat_time: Optional[datetime] = getattr(bot, "last_chat_time")
         self.is_polite: bool = bool(getattr(bot, "is_polite"))
@@ -154,7 +175,7 @@ class ModelLily(BaseModel):
                 "duration_random_range": (0.9, 1.1),
             },
         }
-        """
+
         # Relationship type and level to wakeup time mapping
         self.relationship_wakeup_times = {
             # Friend relationship wakeup time mapping
@@ -178,29 +199,6 @@ class ModelLily(BaseModel):
             # Default wakeup time for unknown relationship types
             "default": 50,
         }
-        """
-        self.relationship_wakeup_times = {
-            # Friend relationship wakeup time mapping
-            RelationshipType.FRIEND.value: {
-                FriendLevel.HOSTILE.value: 1,
-                FriendLevel.COLD.value: 1,
-                FriendLevel.NEUTRAL.value: 1,
-                FriendLevel.FRIENDLY.value: 1,
-                FriendLevel.WARM.value: 1,
-                # Default time
-                "default": 1,
-            },
-            # Romance relationship wakeup time mapping
-            RelationshipType.ROMANCE.value: {
-                RomanceLevel.CRUSHING.value: 1,
-                RomanceLevel.INTIMATE.value: 1,
-                RomanceLevel.ROMANTIC.value: 1,
-                # Default time
-                "default": 20,
-            },
-            # Default wakeup time for unknown relationship types
-            "default": 50,
-        }
 
         # Instant context
         self.instant_context: str = ""
@@ -215,23 +213,32 @@ class ModelLily(BaseModel):
         self.context_strategy_instance: Optional[ContextStrategyProtocol] = None
 
         # Initialize other data
-        self.typing_speed: float = 0  # Typing speed
+        self.typing_speed: float = 0.3  # Seconds per character
         self.to_wakeup_secs: int = 0  # Current wakeup time
-        self.context_limit: int = 3000  # Context limit
-        self.memory_limit: int = 1000  # Memory limit
+        self.memory_limit: int = 1500  # Memory limit
+        self.context_limit: int = 5000  # Context limit
         self.context_expire_hours: int = 5  # Context expire this time will be removed
-        self.min_summarize_hours: int = 4  # Minimum summarize interval
-        self.summarize_time_point: int = 4  # Start summarize must go through this time point
-        self.need_summarize: bool = False  # Whether summary is needed
-        # **self.response_filter: bool = True  # Whether to filter responses # what is this?
+        self.min_summary_hours: int = 4  # Minimum summarize interval
+        self.summary_time_point: int = 4  # Start summarize must go through this time point
+        self.need_summary: bool = False  # Whether summary is needed
+        # Number of context not removed when summary to memory,
+        # recommend using even number to reserve the messages between both sides
+        self.context_expire_num: int = 6
 
-        # self.to_sleep_secs: int = 120  # Sleep timeout
-        self.to_sleep_secs: int = 10  # Dev
+        self.to_sleep_secs: int = 120  # Sleep timeout
         self.chat_secs: int = 2  # Wait time for processing chat messages
         self.typing_secs_total: int = 32  # Total wait time for typing messages
         self.typing_secs_short: int = 16  # Wait time for typing messages
         self.typing_end_secs: int = self.chat_secs  # Wait time for typing_end messages
         self.chat_notyping_secs: int = 8  # Wait time for chat_notyping messages
+
+        # LLM call retry settings
+        self.llm_max_retries: int = 1  # Maximum number of retries
+        self.llm_retry_delay_secs: int = 2  # Delay between retries in seconds
+
+        # Relationship flag
+        self.loaded_emotions: bool = False
+        self.calculated_passive_scores: bool = False
 
         # Initialize queues and locks
         self.is_awake: bool = False  # Whether bot is awake
@@ -247,10 +254,25 @@ class ModelLily(BaseModel):
         self.last_message_type: Optional[MessageType] = None
         self.include_message_time: bool = True  # Whether to record message message_time
 
+        self.logger.debug(
+            "Initialized ModelLily instance",
+            emotions=self.emotions,
+            friend_score=self.friend_score,
+            romance_score=self.romance_score,
+            relationship_type=self.relationship_type,
+            relationship_level=self.relationship_level,
+            friend_level=self.friend_level,
+            romance_level=self.romance_level,
+            friend_buffer_status=self.friend_buffer_status,
+            romance_buffer_status=self.romance_buffer_status,
+            relationship_style=self.relationship_style,
+            last_chat_time=self.last_chat_time,
+        )
+
     async def _sleep_timer(self, to_sleep_secs: int = 0) -> None:
         """Sleep timer and cleanup instance"""
         try:
-            logger.debug(f"Starting sleep timer for {to_sleep_secs} seconds for bot {self.bot.id}")
+            self.logger.info(f"Starting sleep timer for {to_sleep_secs} seconds")
             await asyncio.sleep(to_sleep_secs)
 
             # Persist all in-memory changes to the database before sleeping.
@@ -260,21 +282,18 @@ class ModelLily(BaseModel):
             if self.cleanup_callback:
                 try:
                     await self.cleanup_callback(str(self.bot.entity_id))
-                    logger.debug(f"Cleanup callback executed for bot {self.bot.id}")
+                    self.logger.info("Cleanup callback executed")
                 except Exception as e:
-                    logger.error(
-                        f"Cleanup callback failed for bot {self.bot.id}: {str(e)}",
-                        exc_info=True,
-                    )
+                    self.logger.error("Cleanup callback failed", error=str(e), exc_info=True)
                     raise
 
-            logger.info(f"Bot {self.bot.id} has entered sleep mode")
+            self.logger.info("Bot has entered sleep mode")
 
         except asyncio.CancelledError:
-            logger.debug(f"Sleep timer cancelled for bot {self.bot.id}")
+            self.logger.info("Sleep timer cancelled")
             raise
         except Exception as e:
-            logger.error(f"Sleep timer failed for bot {self.bot.id}: {str(e)}", exc_info=True)
+            self.logger.error("Sleep timer failed", error=str(e), exc_info=True)
             raise
 
     def _reset_sleep_timer(self, to_sleep_secs: Optional[int] = None) -> None:
@@ -282,77 +301,33 @@ class ModelLily(BaseModel):
         Args:
             to_sleep_secs: Sleep time, None means default value, 0 means cancel sleep timer
         """
-        logger.debug(f"Resetting sleep timer for bot {self.bot.id}")
+        self.logger.info(f"Resetting sleep timer for bot {self.bot.id}")
         if self.sleep_task and not self.sleep_task.done():
             self.sleep_task.cancel()
-            logger.debug(f"Previous sleep timer cancelled for bot {self.bot.id}")
+            self.logger.info(f"Previous sleep timer cancelled for bot {self.bot.id}")
 
         if to_sleep_secs is None:
             to_sleep_secs = self.to_sleep_secs
 
         if to_sleep_secs > 0:
             self.sleep_task = asyncio.create_task(self._sleep_timer(to_sleep_secs))
-            logger.debug(f"New sleep timer set for {to_sleep_secs} seconds for bot {self.bot.id}")
+            self.logger.info(f"New sleep timer set for {to_sleep_secs} seconds for bot {self.bot.id}")
 
-    async def _validate_content(self, response: str | None) -> Tuple[bool, Optional[str]]:
-        """Validate response content
-        Use context_strategy_instance to validate if response meets task requirements
-        Args:
-            response: Response string generated by LLM
+    async def _typing_and_send_message(self, message_content: str) -> None:
+        """Typing and send message"""
+        # Send typing message
+        asyncio.create_task(self._send_message(message_type=MessageType.TYPING.name))
+        self.logger.info("Sent typing indicator")
 
-        Returns:
-            Tuple[bool, Optional[str]]: (validation passed, error message)
-        """
-        if not response:
-            logger.error("Response is empty")
-            return False, "Response is empty"
+        # Typing time
+        typing_secs = len(str(message_content)) * self.typing_speed
+        self.logger.info(f"Starting typing for {typing_secs} seconds...")
+        await asyncio.sleep(typing_secs)
+        self.logger.info("Typing completed")
 
-        try:
-            # Use current strategy object
-            if not self.context_strategy_instance:
-                # If no strategy object, perform basic JSON validation
-                logger.warning("No context strategy found, performing basic validation")
-                try:
-                    json.loads(response)
-                    return True, None
-                except json.JSONDecodeError:
-                    return False, "Response is not valid JSON"
-
-            # Use strategy object to validate tasks in response
-            validation_result = self.context_strategy_instance.validate_tasks(response)
-
-            if not validation_result.is_valid:
-                error_messages = validation_result.get_error_messages()
-                error_msg = "; ".join(error_messages)
-                logger.error(f"Task validation failed: {error_msg}")
-                return False, error_msg
-
-            return True, None
-
-        except Exception as e:
-            logger.error(f"Error validating tasks: {str(e)}", exc_info=True)
-            return False, f"Error validating tasks: {str(e)}"
-
-    async def _generate_response(self) -> str | None:
-        """Generate response"""
-        try:
-            # Call LLM API
-            llm_response = await llm.generate_response(self.context)
-
-            # Validate LLM API response structure
-            is_valid, error_msg = await llm.validate_response(llm_response)
-            if not is_valid:
-                logger.error(f"Invalid LLM API response: {error_msg}")
-                raise ValueError(f"LLM API response validation failed: {error_msg}")
-
-            # Extract assistant message from response
-            assistant_message = llm_response["choices"][0]["message"]
-            response_content = assistant_message["content"]
-            return response_content
-
-        except Exception as e:
-            logger.error(f"Error generating response: {str(e)}", exc_info=True)
-            return None
+        # Send message
+        await self._send_message(content=message_content)
+        self.logger.info(f"Sent response message of length {len(message_content)}")
 
     async def _process_message(self) -> None:
         """Process message"""
@@ -361,18 +336,18 @@ class ModelLily(BaseModel):
         self._reset_process_timer(0, 0)
 
         try:
-            logger.debug("Processing message...")
+            self.logger.info("Processing message...")
 
             # Update context
             self._varify_context()
             async with self.combining_lock:
                 self._append_context("user", self.combined_message)
                 self.combined_message = ""
-            logger.debug("Context updated with user message")
+            self.logger.info("Context updated with user message")
 
             # If bot is not awake, don't respond
             if not self.is_awake:
-                logger.info(f"Bot {self.bot.id} is sleeping, skipping message response")
+                self.logger.info(f"Bot {self.bot.id} is sleeping, skipping message response")
                 # Restart sleep timer
                 self._reset_sleep_timer()
                 return
@@ -380,62 +355,47 @@ class ModelLily(BaseModel):
             # Refresh system context
             self._refresh_system_context()
 
-            # ============ Generate response ============
-            try:
-                # Generate response
-                response_content = await self._generate_response()
-                logger.debug("Generated response from LLM")
-            except Exception as e:
-                logger.error(f"Failed to generate response: {str(e)}")
-                return  # Return directly if response generation fails
+            response_content = await self._get_response_content(llm)
 
             if not response_content:
-                logger.error("Failed to generate response")
+                self.logger.error(
+                    f"Failed to generate a valid response for bot {self.bot.id} after all retries."
+                )
                 return
 
-            # Validate response content
-            is_valid, error_msg = await self._validate_content(response_content)
-            if not is_valid:
-                logger.error(f"Invalid response content: {error_msg}")
-                raise ValueError(f"Response content validation failed: {error_msg}")
+            response_result = json.loads(response_content)
 
-            # ============ Process response ============
-            # Calculate emotions and relationship scores
-            # self._calculate_anger_score(response_content)
-
-            # ============ Response message ============
-            # Send typing message
-            asyncio.create_task(self._send_message(message_type=MessageType.TYPING.name))
-            logger.debug("Sent typing indicator")
-
-            # Typing time
-            typing_secs = len(str(response_content)) * self.typing_speed
-            logger.debug(f"Starting typing for {typing_secs} seconds...")
-            await asyncio.sleep(typing_secs)
-            logger.debug("Typing completed")
+            # Save content to memory
+            self._summary_to_memory(response_result)
 
             # Send message
-            await self._send_message(content=response_content)
-            logger.info(f"Sent response message of length {len(response_content)}")
+            message_content = response_result.get("content")
+            await self._typing_and_send_message(message_content)
 
-            # ============ Save context ============
+            if response_result.get("is_attack"):
+                self._process_attack_context()
+
             # Save content to context
-            self._append_response_to_context(response_content)
+            self._append_response_to_context(response_result)
 
+            # Calculate emotions and relationship scores
+            self._process_emotions_and_score(response_result)
+
+            # None means process is finished
             self.last_message_type = None
 
             # Restart sleep timer
             self._reset_sleep_timer()
 
         except Exception as e:
-            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            self.logger.error(f"Error processing message: {str(e)}", exc_info=True)
             raise
 
         finally:
             self.is_processing = False
             # If there are new messages in queue, start new processing task
             if self.combined_message != "":
-                logger.debug(f"combined_message: {self.combined_message}")
+                self.logger.info(f"combined_message: {self.combined_message}")
                 asyncio.create_task(self._process_message())
 
     async def _wakeup_timer(self, to_awake: bool = True) -> None:
@@ -443,19 +403,19 @@ class ModelLily(BaseModel):
         Args:
             to_awake: Whether to wake up, True means wake up, False means stay asleep
         """
-        logger.debug(f"To wakeup timer is {self.to_wakeup_secs} seconds for bot {self.bot.id}")
+        self.logger.info(f"To wakeup timer is {self.to_wakeup_secs} seconds for bot {self.bot.id}")
         while self.to_wakeup_secs > 0:
             await asyncio.sleep(1)
             self.to_wakeup_secs -= 1
 
-        logger.debug(f"To wakeup timer is over for bot {self.bot.id}")
+        self.logger.info(f"To wakeup timer is over for bot {self.bot.id}")
         if to_awake:
             self.is_awake = True
-            logger.info(f"Bot {self.bot.id} has woken up")
+            self.logger.info(f"Bot {self.bot.id} has woken up")
             return
         else:
             self.is_awake = False
-            logger.info(f"Bot {self.bot.id} has entered sleep mode")
+            self.logger.info(f"Bot {self.bot.id} has entered sleep mode")
             return
 
     async def _wait_wakeup_timer(self, to_wakeup_secs: Optional[int] = None) -> None:
@@ -464,24 +424,26 @@ class ModelLily(BaseModel):
             to_wakeup_secs: Wake up time, None means default value
         """
         if self.is_awake:
-            logger.debug("Bot is awake, skipping wakeup timer")
+            self.logger.info("Bot is awake, skipping wakeup timer")
             return
         if not self.context:
             self.to_wakeup_secs = 0
-            logger.debug("Bot is not awake, setting to wakeup timer to 0")
+            self.logger.info("Bot is not awake, setting to wakeup timer to 0")
             await self._wakeup_timer()
             return
 
         if self.wakeup_task and not self.wakeup_task.done():
             self.wakeup_task.cancel()
             await asyncio.sleep(0)
-            logger.debug("Cancelled existing wakeup timer.")
+            self.logger.info("Cancelled existing wakeup timer.")
 
         if to_wakeup_secs is not None:
             self.to_wakeup_secs = to_wakeup_secs
-            logger.debug(f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}")
+            self.logger.info(
+                f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}"
+            )
             self.wakeup_task = asyncio.create_task(self._wakeup_timer())
-            logger.debug("Created new wakeup timer")
+            self.logger.info("Created new wakeup timer")
             await self.wakeup_task
             return
 
@@ -508,7 +470,7 @@ class ModelLily(BaseModel):
                 to_wakeup = False
 
             self.wakeup_task = asyncio.create_task(self._wakeup_timer(to_wakeup))
-            logger.debug("Created new wakeup timer")
+            self.logger.info("Created new wakeup timer")
             await self.wakeup_task
 
     async def _process_timer(self, to_process_secs: int) -> None:
@@ -518,13 +480,21 @@ class ModelLily(BaseModel):
             await asyncio.sleep(to_process_secs)
             self.include_message_time = True
             # Load emotion data if not already loaded
-            if not self.emotions:
+            if not self.loaded_emotions:
                 await self._load_emotions()
-            # Calculate passive emotions and scores
-            self._calculate_passive_scores()
-            # Refresh relationship
-            if not self.is_awake or self.emotions is not None:
+            # Refresh relationship after bot initialized
+            if not self.calculated_passive_scores:
+                self._calculate_passive_scores()
                 self._refresh_relationship()
+                self.calculated_passive_scores = True
+                self.logger.info("Refreshed relationship because bot initialized")
+            # Refresh relationship when has emotions
+            elif self.emotions:  # Check both is not None and not empty
+                self._calculate_passive_scores()
+                self._refresh_relationship()
+                self.logger.info("Refreshed relationship because has emotions", emotions=self.emotions)
+            else:
+                self.logger.info("No need to refresh relationship")
             # If bot is not awake, wait for wake up
             if not self.is_awake:
                 await self._wait_wakeup_timer()
@@ -532,7 +502,7 @@ class ModelLily(BaseModel):
             if not self.is_processing and self.combined_message != "":
                 asyncio.create_task(self._process_message())
         except Exception as e:
-            logger.error(f"Error in process timer: {str(e)}", exc_info=True)
+            self.logger.error(f"Error in process timer: {str(e)}", exc_info=True)
             raise
 
     def _reset_process_timer(
@@ -547,7 +517,7 @@ class ModelLily(BaseModel):
         # Cancel existing sub message processing task
         if secs_sub is not None and self.process_task_sub and not self.process_task_sub.done():
             self.process_task_sub.cancel()
-            logger.debug("Cancelled existing process_task_sub.")
+            self.logger.info("Cancelled existing process_task_sub.")
         # Cancel existing main message processing task
         if (
             (secs_main is not None or secs_adjust is not None)
@@ -555,21 +525,21 @@ class ModelLily(BaseModel):
             and not self.process_task_main.done()
         ):
             self.process_task_main.cancel()
-            logger.debug("Cancelled existing process_task_main.")
+            self.logger.info("Cancelled existing process_task_main.")
             if secs_adjust is not None:
                 secs_main = secs_adjust
         # Create new main message processing task
         if secs_main:
             self.process_task_main = asyncio.create_task(self._process_timer(secs_main))
-            logger.debug(f"New process_task_main created. secs: {secs_main}")
+            self.logger.info(f"New process_task_main created. secs: {secs_main}")
         # Create new sub message processing task
         if secs_sub and self.process_task_main:
             self.process_task_sub = asyncio.create_task(self._process_timer(secs_sub))
-            logger.debug(f"New process_task_sub created. secs: {secs_sub}")
+            self.logger.info(f"New process_task_sub created. secs: {secs_sub}")
 
     async def receive_message(self, received_message: dict) -> None:
         """Entry function, receive message"""
-        logger.debug(f"Received message: {received_message}")
+        self.logger.info(f"Received message: {received_message}")
 
         try:
             content = received_message.get("content", "")
@@ -577,9 +547,9 @@ class ModelLily(BaseModel):
             message_type = MessageType.parse(received_message.get("message_type", ""))
 
             if not message_time:
-                logger.warning("Skipping process message due to missing content or message_time.")
+                self.logger.warning("Skipping process message due to missing content or message_time.")
             elif not message_type:
-                logger.warning("Skipping process message due to missing message_type.")
+                self.logger.warning("Skipping process message due to missing message_type.")
 
             # Process chat\chat_notyping messages
             elif content and message_type.category == MessageTypeCategory.CONTENT:
@@ -595,7 +565,7 @@ class ModelLily(BaseModel):
                         self.combined_message += f"[{self._convert_timestamp(message_time)}]\n"
                         self.include_message_time = False
                     self.combined_message += self.message_tag + f"{content}"
-                logger.debug("Message appended to the message queue.")
+                self.logger.info("Message appended to the message queue.")
 
                 # Create new message processing task
                 if message_type == MessageType.CHAT:
@@ -604,7 +574,7 @@ class ModelLily(BaseModel):
                     self._reset_process_timer(self.chat_notyping_secs)
 
             elif not self.last_message_type:
-                logger.warning("Skipping process message due to missing last_message_type.")
+                self.logger.info("Skipping process message due to missing last_message_type.")
 
             # Process typing_end message
             elif self.last_message_type == MessageType.TYPING and message_type == MessageType.TYPING_END:
@@ -621,4 +591,4 @@ class ModelLily(BaseModel):
             self.last_message_type = message_type
 
         except Exception as e:
-            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            self.logger.error(f"Error processing message: {str(e)}", exc_info=True)

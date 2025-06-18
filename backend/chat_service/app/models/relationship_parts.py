@@ -1,12 +1,8 @@
-import json
-import logging
 import random
 from datetime import datetime, timedelta, timezone
 from typing import Tuple, Dict, Any, Optional
 
-from enums import BufferStatus
-
-logger = logging.getLogger(__name__)
+from enums import BufferStatus, EmotionType, FriendLevel, RelationshipType
 
 
 def ensure_datetime(self, dt_value: Any) -> Optional[datetime]:
@@ -37,11 +33,11 @@ def ensure_datetime(self, dt_value: Any) -> Optional[datetime]:
                 dt = dt.replace(tzinfo=timezone.utc)
             return dt
         except ValueError as e:
-            logger.error(f"Error parsing datetime string: {e}")
+            self.logger.error("datetime_parse_error", error=str(e))
             return None
 
     # Other types cannot be processed
-    logger.error(f"Unsupported datetime type: {type(dt_value)}")
+    self.logger.error("unsupported_datetime_type", type=str(type(dt_value)))
     return None
 
 
@@ -58,13 +54,18 @@ def get_passive_score_change(self, days: int) -> Tuple[int, int]:
     """
     try:
         if not hasattr(self, "passive_score_config"):
-            logger.warning("passive_score_config not found on model instance. Skipping passive change.")
+            self.logger.warning(
+                "passive_score_config_missing",
+                message="Config not found on model instance. Skipping passive change.",
+            )
             return 0, 0
 
         if self.friend_score < 0 or self.romance_score < 0:
-            logger.warning(
-                f"Friend score or romance score is negative. Skipping passive change. "
-                f"friend_score={self.friend_score}, romance_score={self.romance_score}"
+            self.logger.warning(
+                "negative_relationship_scores",
+                friend_score=self.friend_score,
+                romance_score=self.romance_score,
+                message="Skipping passive change",
             )
             return 0, 0
 
@@ -79,7 +80,7 @@ def get_passive_score_change(self, days: int) -> Tuple[int, int]:
             (
                 rel.get("threshold", 0)
                 for rel in getattr(self.bot, "friend_config")
-                if rel.get("level") == "neutral"
+                if rel.get("level") == FriendLevel.NEUTRAL.value
             ),
             0,
         )
@@ -109,13 +110,15 @@ def get_passive_score_change(self, days: int) -> Tuple[int, int]:
         else:
             romance_score_change = 0
 
-        logger.debug(
-            f"get_passive_score_change: Passive score change after {days} days: "
-            f"friend={friend_score_change}, romance={romance_score_change}"
+        self.logger.info(
+            "passive_score_change_calculated",
+            days=days,
+            friend_change=friend_score_change,
+            romance_change=romance_score_change,
         )
         return friend_score_change, romance_score_change
     except Exception as e:
-        logger.error(f"Error calculating passive score changes: {e}", exc_info=True)
+        self.logger.error("passive_score_calculation_error", error=str(e), exc_info=True)
         return 0, 0
 
 
@@ -132,8 +135,8 @@ def calculate_passive_scores(self) -> None:
         now = datetime.now(timezone.utc)
 
         # Initialize emotion and passive score changes
-        emotion_f_score_delta = 0
-        emotion_r_score_delta = 0
+        emotion_fnd_sc_delta = 0
+        emotion_rom_sc_delta = 0
 
         # Use helper function to process last_chat_time
         last_chat_time = self._ensure_datetime(getattr(self.bot, "last_chat_time", None))
@@ -151,9 +154,10 @@ def calculate_passive_scores(self) -> None:
             try:
                 # Check if the emotion type has already been processed
                 if emotion_type in emotion_type_counter:
-                    logger.error(
-                        f"Error: Emotion type {emotion_type} appears multiple times for bot {self.bot.id}. "
-                        f"Each emotion type should only appear once."
+                    self.logger.error(
+                        "duplicate_emotion_type",
+                        emotion_type=emotion_type,
+                        message="Each emotion type should only appear once",
                     )
                     continue  # Skip this emotion
                 else:
@@ -172,16 +176,18 @@ def calculate_passive_scores(self) -> None:
 
                 missing_fields = [field for field in required_fields if emotion_data.get(field) is None]
                 if missing_fields:
-                    logger.warning(
-                        f"Incomplete emotion data for {emotion_type} (bot {self.bot.id}): missing {', '.join(missing_fields)}"
+                    self.logger.warning(
+                        "incomplete_emotion_data",
+                        emotion_type=emotion_type,
+                        missing_fields=missing_fields,
                     )
                     continue
 
                 # Process specific emotion types
-                if emotion_type == "anger":
+                if emotion_type == EmotionType.ANGER.name:
                     # Skip emotions that have ended
                     if emotion_data.get("is_ended", False):
-                        logger.info(f"Skipping ended emotion {emotion_type} for bot {self.bot.id}")
+                        self.logger.info("skipping_ended_emotion", emotion_type=emotion_type)
                         continue
 
                     # Process time fields
@@ -190,122 +196,137 @@ def calculate_passive_scores(self) -> None:
 
                     # Verify if last_chat_time is within the emotion time range
                     if last_chat_time and last_chat_time > end_time:
-                        logger.warning(
-                            f"Emotion {emotion_type} outside valid time range for bot {self.bot.id}: "
-                            f"last_chat={last_chat_time}, emotion={start_time} to {end_time}"
+                        self.logger.warning(
+                            "emotion_outside_valid_range",
+                            emotion_type=emotion_type,
+                            last_chat_time=last_chat_time.isoformat(),
+                            emotion_start=start_time.isoformat(),
+                            emotion_end=end_time.isoformat(),
                         )
                         continue
 
                     # Validate total duration validity
                     total_duration = (end_time - start_time).total_seconds()
                     if total_duration <= 0:
-                        logger.warning(
-                            f"Invalid emotion duration for {emotion_type} (bot {self.bot.id}): {total_duration}s"
+                        self.logger.warning(
+                            "invalid_emotion_duration", emotion_type=emotion_type, duration=total_duration
                         )
                         continue
 
                     # Calculate elapsed time percentage
-                    if now >= end_time:
-                        time_percentage = 1.0
-                    else:
-                        elapsed_time = (now - start_time).total_seconds()
-                        time_percentage = min(1.0, max(0.0, elapsed_time / total_duration))
+                    elapsed_time = (now - start_time).total_seconds()
+                    time_percentage = min(1.0, max(0.0, elapsed_time / total_duration))
 
                     # Get original score deltas and decay ratio
                     decay_ratio = emotion_data["decay_ratio"]
-                    original_f_score_delta = emotion_data["original_friend_score_delta"]
-                    original_r_score_delta = emotion_data["original_romance_score_delta"]
-                    f_score_delta = emotion_data["friend_score_delta"]
-                    r_score_delta = emotion_data["romance_score_delta"]
+                    original_fnd_sc_delta = emotion_data["original_friend_score_delta"]
+                    original_rom_sc_delta = emotion_data["original_romance_score_delta"]
+                    fnd_sc_delta = emotion_data["friend_score_delta"]
+                    rom_sc_delta = emotion_data["romance_score_delta"]
 
                     if (
-                        original_f_score_delta > 0
-                        or original_r_score_delta > 0
-                        or f_score_delta > 0
-                        or r_score_delta > 0
+                        original_fnd_sc_delta > 0
+                        or original_rom_sc_delta > 0
+                        or fnd_sc_delta > 0
+                        or rom_sc_delta > 0
                     ):
-                        logger.warning(
-                            f"Emotion {emotion_type} has a positive original or current score delta. This is not allowed. "
-                            f"original_f_score_delta: {original_f_score_delta}, original_r_score_delta: {original_r_score_delta}, "
-                            f"f_score_delta: {f_score_delta}, r_score_delta: {r_score_delta}"
+                        self.logger.warning(
+                            "positive_emotion_delta_not_allowed",
+                            emotion_type=emotion_type,
+                            original_fnd_sc_delta=original_fnd_sc_delta,
+                            original_rom_sc_delta=original_rom_sc_delta,
+                            fnd_sc_delta=fnd_sc_delta,
+                            rom_sc_delta=rom_sc_delta,
                         )
                         continue
 
-                    if f_score_delta < original_f_score_delta:
-                        logger.warning(
-                            f"Emotion {emotion_type} has a positive current score delta. This is not allowed. "
-                            f"f_score_delta: {f_score_delta}, original_f_score_delta: {original_f_score_delta}"
+                    if fnd_sc_delta < original_fnd_sc_delta:
+                        self.logger.warning(
+                            "invalid_friend_score_delta",
+                            emotion_type=emotion_type,
+                            fnd_sc_delta=fnd_sc_delta,
+                            original_fnd_sc_delta=original_fnd_sc_delta,
                         )
-                        f_score_delta = original_f_score_delta
+                        fnd_sc_delta = original_fnd_sc_delta
 
-                    if r_score_delta < original_r_score_delta:
-                        logger.warning(
-                            f"Emotion {emotion_type} has a positive current score delta. This is not allowed. "
-                            f"r_score_delta: {r_score_delta}, original_r_score_delta: {original_r_score_delta}"
+                    if rom_sc_delta < original_rom_sc_delta:
+                        self.logger.warning(
+                            "invalid_romance_score_delta",
+                            emotion_type=emotion_type,
+                            rom_sc_delta=rom_sc_delta,
+                            original_rom_sc_delta=original_rom_sc_delta,
                         )
-                        r_score_delta = original_r_score_delta
+                        rom_sc_delta = original_rom_sc_delta
 
                     if decay_ratio > 1:
-                        logger.warning(
-                            f"Emotion {emotion_type} has a decay ratio greater than 1. This is not allowed. decay_ratio: {decay_ratio}"
+                        self.logger.warning(
+                            "invalid_decay_ratio", emotion_type=emotion_type, decay_ratio=decay_ratio
                         )
                         decay_ratio = self.emotion_calculation_rules.get("decay_ratio", 2)
 
                     # Calculate emotion impact on scores (negative for anger)
-                    anger_f_score_delta = round(
-                        f_score_delta - original_f_score_delta * decay_ratio * time_percentage
+                    anger_fnd_sc_delta = round(
+                        fnd_sc_delta - original_fnd_sc_delta * decay_ratio * time_percentage
                     )
-                    anger_r_score_delta = round(
-                        r_score_delta - original_r_score_delta * decay_ratio * time_percentage
+                    anger_rom_sc_delta = round(
+                        rom_sc_delta - original_rom_sc_delta * decay_ratio * time_percentage
                     )
-                    emotion_f_score_delta += min(anger_f_score_delta, f_score_delta)
-                    emotion_r_score_delta += min(anger_r_score_delta, r_score_delta)
+                    emotion_fnd_sc_delta += min(anger_fnd_sc_delta, fnd_sc_delta)
+                    emotion_rom_sc_delta += min(anger_rom_sc_delta, rom_sc_delta)
 
                     # Check if emotion has ended
-                    if anger_f_score_delta >= 0 and anger_r_score_delta >= 0:
+                    if anger_fnd_sc_delta >= 0 and anger_rom_sc_delta >= 0:
                         emotion_data["is_ended"] = True
-                        logger.info(f"Emotion {emotion_type} has ended for bot {self.bot.id}")
+                        self.logger.info("emotion_ended_naturally", emotion_type=emotion_type)
                     elif now > end_time or emotion_data.get("emotion_score") <= 0:
                         # Calculate days since emotion ended
                         days_passed = (now - end_time).days
 
                         # Mark emotion as ended in memory
                         emotion_data["is_ended"] = True
-                        logger.info(f"Marked emotion {emotion_type} as ended for bot {self.bot.id}")
+                        self.logger.info("emotion_marked_as_ended", emotion_type=emotion_type)
 
-                if emotion_f_score_delta != 0 or emotion_r_score_delta != 0:
-                    logger.debug(
-                        f"The {emotion_type} score changes for bot {self.bot.id}: "
-                        f"friend={emotion_f_score_delta}, romance={emotion_r_score_delta}"
+                if emotion_fnd_sc_delta != 0 or emotion_rom_sc_delta != 0:
+                    self.logger.info(
+                        "emotion_score_changes",
+                        emotion_type=emotion_type,
+                        friend_delta=emotion_fnd_sc_delta,
+                        romance_delta=emotion_rom_sc_delta,
                     )
             except Exception as e:
-                logger.error(f"Error processing emotion {emotion_type}: {e}", exc_info=True)
+                self.logger.error(
+                    "emotion_processing_error", emotion_type=emotion_type, error=str(e), exc_info=True
+                )
 
         # Get passive score changes
-        passive_f_score_change, passive_r_score_change = self._get_passive_score_change(days_passed)
+        passive_fnd_sc_change, passive_rom_sc_change = self._get_passive_score_change(days_passed)
 
         # Update calculated values, ensuring the delta is rounded
         self.friend_score_calc = max(
-            0, round(self.friend_score + emotion_f_score_delta + passive_f_score_change)
+            0, round(self.friend_score + emotion_fnd_sc_delta + passive_fnd_sc_change)
         )
         self.romance_score_calc = max(
             0,
-            round(self.romance_score + emotion_r_score_delta + passive_r_score_change),
+            round(self.romance_score + emotion_rom_sc_delta + passive_rom_sc_change),
         )
-        self.friend_score = max(0, round(self.friend_score + passive_f_score_change))
-        self.romance_score = max(0, round(self.romance_score + passive_r_score_change))
+        self.friend_score = max(0, round(self.friend_score + passive_fnd_sc_change))
+        self.romance_score = max(0, round(self.romance_score + passive_rom_sc_change))
 
         # Update peak and trough values
         self.friend_score_peak = max(self.friend_score_peak, self.friend_score)
         self.friend_score_trough = min(self.friend_score_trough, self.friend_score)
         self.romance_score_peak = max(self.romance_score_peak, self.romance_score)
 
-        logger.debug(
-            f"Score changes for bot {self.bot.id}: "
-            f"friend_score={self.friend_score}, friend_score_calc={self.friend_score_calc} "
-            f"(anger={emotion_f_score_delta}, passive={passive_f_score_change}), "
-            f"romance_score={self.romance_score}, romance_score_calc={self.romance_score_calc} "
-            f"(anger={emotion_r_score_delta}, passive={passive_r_score_change})"
+        self.logger.info(
+            "relationship_scores_updated",
+            friend_score=self.friend_score,
+            friend_score_calc=self.friend_score_calc,
+            emotion_friend_delta=emotion_fnd_sc_delta,
+            passive_friend_delta=passive_fnd_sc_change,
+            romance_score=self.romance_score,
+            romance_score_calc=self.romance_score_calc,
+            emotion_romance_delta=emotion_rom_sc_delta,
+            passive_romance_delta=passive_rom_sc_change,
         )
 
         # Update last_chat_time in memory
@@ -315,256 +336,13 @@ def calculate_passive_scores(self) -> None:
                 self.bot.last_chat_time = current_time
                 self.last_chat_time = current_time  # Also update the direct attribute on self
 
-            logger.debug(f"Updated last_chat_time to {current_time} for bot {self.bot.id}")
+            self.logger.info("last_chat_time_updated", timestamp=current_time.isoformat())
             # DB update removed, will be persisted later.
         except Exception as e:
-            logger.error(
-                f"Error updating last_chat_time for bot {self.bot.id}: {str(e)}",
-                exc_info=True,
-            )
+            self.logger.error("error_updating_last_chat_time", error=str(e), exc_info=True)
 
     except Exception as e:
-        logger.error(f"Error calculating emotions and scores: {str(e)}", exc_info=True)
-
-
-def calculate_anger_score(self, response_content: str) -> None:
-    """Process anger emotion from response content and update scores accordingly.
-
-    This method focuses exclusively on processing anger emotions:
-    1. Extracts anger score from response content
-    2. Calculates appropriate emotion level based on configured thresholds
-    3. Computes score deltas using a tiered calculation system
-    4. Sets emotion duration based on anger level
-    5. Updates or creates anger emotion records
-
-    Formulas:
-    - Level 1 score delta: friend/romance_score * anger_score * multiplier
-    - Level 2 score delta: friend/romance_score * level1_max * multiplier +
-                          friend/romance_score * (anger_score - level1_max) * multiplier
-    - Level 3 score delta: friend/romance_score * level1_max * multiplier +
-                          friend/romance_score * (level2_max - level1_max) * multiplier +
-                          friend/romance_score * (anger_score - level2_max) * multiplier
-
-    - Level 1 duration: start_time + (anger_score * 120 / friend_score_neg_k * duration_multiplier) minutes ± random_factor
-    - Level 2 duration: start_time + ((anger_score - level1_max) * 120 / friend_score_neg_k * duration_multiplier) minutes ± random_factor
-    - Level 3 duration: start_time + ((anger_score - level2_max) * 120 / friend_score_neg_k * duration_multiplier) minutes ± random_factor
-    """
-    try:
-        # Parse JSON response
-        response_data = json.loads(response_content)
-
-        # Check if emotions data exists in the response
-        if "emotions" not in response_data:
-            logger.debug("No emotions data in response")
-            return
-
-        # Extract anger score from emotions data
-        emotions_data = response_data.get("emotions", {})
-        current_anger_score = emotions_data.get("anger", 0)
-
-        # If no anger, nothing to process
-        if current_anger_score <= 0:
-            logger.debug("No anger emotion to process")
-            return
-
-        # Get relationship scores from response
-        friend_score_change = response_data.get("friend_score", 0)
-        romance_score_change = response_data.get("romance_score", 0)
-
-        # Get bot configuration values
-        emotions_config = getattr(self.bot, "emotions_config", {})
-        friend_score_neg_k = getattr(self.bot, "friend_score_neg_k", 100)
-
-        # Get anger thresholds from config
-        anger_thresholds = emotions_config.get("anger", [])
-
-        # Get anger configuration from emotion_config
-        anger_config = self.emotion_calculation_rules.get("anger", {})
-
-        # Sort thresholds by level
-        sorted_thresholds = sorted(anger_thresholds, key=lambda x: x.get("level", 0))
-
-        # Determine anger level based on current score
-        current_level = 0
-        level1_max = 0
-        level2_max = 0
-
-        for threshold in sorted_thresholds:
-            threshold_value = threshold.get("threshold", 0)
-            level = threshold.get("level", 0)
-
-            if current_anger_score >= threshold_value:
-                current_level = level
-
-            # Store threshold values for level calculations
-            if level == 1:
-                level1_max = threshold_value
-            elif level == 2:
-                level2_max = threshold_value
-
-        # Set decay ratio based on anger level using config
-        decay_ratios = anger_config.get("decay_ratios", {1: 0.5, 2: 0.4, 3: 0.2})
-        decay_ratio = decay_ratios.get(current_level, 0.5)
-
-        # Calculate score deltas based on tiered system
-        friend_score_delta = 0
-        romance_score_delta = 0
-
-        # Get score multipliers from config
-        score_multipliers = anger_config.get("score_multipliers", {1: 2, 2: 2, 3: 10})
-
-        # Calculate score deltas based on anger level
-        if current_level == 1:
-            level1_multiplier = score_multipliers.get(1, 2)
-            friend_score_delta = friend_score_change * current_anger_score * level1_multiplier
-            romance_score_delta = romance_score_change * current_anger_score * level1_multiplier
-        elif current_level == 2:
-            level1_multiplier = score_multipliers.get(1, 2)
-            level2_multiplier = score_multipliers.get(2, 2)
-            friend_score_delta = (
-                friend_score_change * level1_max * level1_multiplier
-                + friend_score_change * (current_anger_score - level1_max) * level2_multiplier
-            )
-            romance_score_delta = (
-                romance_score_change * level1_max * level1_multiplier
-                + romance_score_change * (current_anger_score - level1_max) * level2_multiplier
-            )
-        elif current_level == 3:
-            level1_multiplier = score_multipliers.get(1, 2)
-            level2_multiplier = score_multipliers.get(2, 2)
-            level3_multiplier = score_multipliers.get(3, 10)
-            friend_score_delta = (
-                friend_score_change * level1_max * level1_multiplier
-                + friend_score_change * (level2_max - level1_max) * level2_multiplier
-                + friend_score_change * (current_anger_score - level2_max) * level3_multiplier
-            )
-            romance_score_delta = (
-                romance_score_change * level1_max * level1_multiplier
-                + romance_score_change * (level2_max - level1_max) * level2_multiplier
-                + romance_score_change * (current_anger_score - level2_max) * level3_multiplier
-            )
-
-        # Calculate duration based on anger level
-        now = datetime.now(timezone.utc)
-        end_time = now
-
-        # Get duration multipliers and random range from config
-        duration_multipliers = anger_config.get("duration_multipliers", {1: 10, 2: 180, 3: 840})
-        duration_random_range = anger_config.get("duration_random_range", (0.9, 1.1))
-
-        # Apply duration formula based on level using config duration multipliers
-        if current_level > 0:
-            duration_multiplier = duration_multipliers.get(current_level, 10)
-
-            # Calculate base duration in minutes
-            if current_level == 1:
-                base_minutes = round(current_anger_score * 120 / friend_score_neg_k * duration_multiplier)
-            elif current_level == 2:
-                base_minutes = round(
-                    (current_anger_score - level1_max) * 120 / friend_score_neg_k * duration_multiplier
-                )
-            elif current_level == 3:
-                base_minutes = round(
-                    (current_anger_score - level2_max) * 120 / friend_score_neg_k * duration_multiplier
-                )
-            else:
-                base_minutes = 60  # Default 1 hour
-
-            # Apply random factor from config range
-            random_factor = random.uniform(*duration_random_range)
-            minutes = base_minutes * random_factor
-            end_time = now + timedelta(minutes=minutes)
-
-        # Check if we already have an anger emotion
-        existing_anger = self.emotions.get("anger", {})
-        original_anger_score = existing_anger.get("original_emotion_score", 0)
-
-        # Prepare updated emotion data
-        updated_emotion: Dict[str, Any] = {}
-
-        if original_anger_score > 0:
-            # Anger already exists, update it
-            if current_anger_score < original_anger_score:
-                # Anger is decreasing
-                ratio = current_anger_score / original_anger_score
-                original_f_score_delta = existing_anger.get("original_friend_score_delta", 0)
-                original_r_score_delta = existing_anger.get("original_romance_score_delta", 0)
-
-                # Update score deltas proportionally and round to the nearest integer
-                friend_score_delta = round(original_f_score_delta * ratio)
-                romance_score_delta = round(original_r_score_delta * ratio)
-
-                # Adjust end time if ratio exceeds decay ratio
-                original_end_time = self._ensure_datetime(existing_anger.get("original_end_time", ""))
-                start_time = self._ensure_datetime(existing_anger.get("start_time", ""))
-
-                if original_end_time and start_time and ratio > decay_ratio:
-                    # Calculate new duration as a fraction of original
-                    original_duration = (original_end_time - start_time).total_seconds()
-                    new_duration = original_duration * (decay_ratio - 1 + ratio)
-                    end_time = start_time + timedelta(seconds=new_duration)
-
-                updated_emotion = {
-                    "anger": {
-                        **existing_anger,
-                        "emotion_score": current_anger_score,
-                        "friend_score_delta": friend_score_delta,
-                        "romance_score_delta": romance_score_delta,
-                        "end_time": end_time.isoformat(),
-                        "update_time": now.isoformat(),
-                    }
-                }
-            else:
-                # Anger is increasing or unchanged - create new record with new original values
-                updated_emotion = {
-                    "anger": {
-                        "emotion_score": current_anger_score,
-                        "original_emotion_score": current_anger_score,
-                        "emotion_level": current_level,
-                        "friend_score_delta": friend_score_delta,
-                        "original_friend_score_delta": friend_score_delta,
-                        "romance_score_delta": romance_score_delta,
-                        "original_romance_score_delta": romance_score_delta,
-                        "decay_ratio": decay_ratio,
-                        "start_time": now.isoformat(),
-                        "end_time": end_time.isoformat(),
-                        "original_end_time": end_time.isoformat(),
-                        "is_ended": False,
-                        "update_time": now.isoformat(),
-                    }
-                }
-        else:
-            # New anger emotion
-            updated_emotion = {
-                "anger": {
-                    "emotion_score": current_anger_score,
-                    "original_emotion_score": current_anger_score,
-                    "emotion_level": current_level,
-                    "friend_score_delta": friend_score_delta,
-                    "original_friend_score_delta": friend_score_delta,
-                    "romance_score_delta": romance_score_delta,
-                    "original_romance_score_delta": romance_score_delta,
-                    "decay_ratio": decay_ratio,
-                    "start_time": now.isoformat(),
-                    "end_time": end_time.isoformat(),
-                    "original_end_time": end_time.isoformat(),
-                    "is_ended": False,
-                    "update_time": now.isoformat(),
-                }
-            }
-
-        # Update local emotions data
-        self.emotions.update(updated_emotion)
-
-        # DB update removed, will be persisted later.
-        logger.debug(
-            f"Updated anger emotion for bot {self.bot.id}: level={current_level}, score={current_anger_score}"
-        )
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing response JSON: {str(e)}")
-    except Exception as e:
-        logger.error(f"Error processing anger emotion: {str(e)}", exc_info=True)
+        self.logger.error("error_calculating_emotions_scores", error=str(e), exc_info=True)
 
 
 def refresh_relationship(self) -> None:
@@ -576,17 +354,27 @@ def refresh_relationship(self) -> None:
     3. Applies override configurations if conditions are met.
     4. Updates the bot's relationship attributes in memory.
     """
-    logger.debug(
-        f"Refreshing relationship for bot {self.bot.entity_id} "
-        f"with F_calc:{self.friend_score_calc}, R_calc:{self.romance_score_calc}"
+    self.logger.info(
+        "refreshing_relationship",
+        friend_score_calc=self.friend_score_calc,
+        romance_score_calc=self.romance_score_calc,
     )
 
-    original_rel_type = self.relationship_type
-    original_rel_level = self.relationship_level
+    # Get original relationship type, use self.bot.relationship_type if self.relationship_type doesn't exist
+    original_rel_type = getattr(self, "relationship_type", self.bot.relationship_type)
+    original_rel_level = getattr(self, "relationship_level", self.bot.relationship_level)
 
     # Get current relationship levels based on scores
-    current_friend_rel = self._get_level_from_score(self.friend_score_calc, "friend")
-    current_romance_rel = self._get_level_from_score(self.romance_score_calc, "romance")
+    current_friend_rel = self._get_level_from_score(self.friend_score_calc, RelationshipType.FRIEND.value)
+    current_romance_rel = self._get_level_from_score(
+        self.romance_score_calc, RelationshipType.ROMANCE.value
+    )
+
+    self.logger.debug(
+        "current_relationship_levels",
+        current_friend_rel=current_friend_rel,
+        current_romance_rel=current_romance_rel,
+    )
 
     # Apply hysteresis to determine the new stable level
     self.friend_level, self.friend_buffer_status = self._apply_buffer(
@@ -597,7 +385,7 @@ def refresh_relationship(self) -> None:
         level_up_buffer=self.friend_level_up_buffer,
         level_down_buffer=self.friend_level_down_buffer,
         relationship_config=self.bot.friend_config,
-        rel_type="friend",
+        rel_type=RelationshipType.FRIEND.value,
     )
 
     self.romance_level, self.romance_buffer_status = self._apply_buffer(
@@ -608,40 +396,132 @@ def refresh_relationship(self) -> None:
         level_up_buffer=self.romance_level_up_buffer,
         level_down_buffer=self.romance_level_down_buffer,
         relationship_config=self.bot.romance_config,
-        rel_type="romance",
+        rel_type=RelationshipType.ROMANCE.value,
+    )
+
+    self.logger.debug(
+        "after_buffer_application",
+        friend_level=self.friend_level,
+        friend_buffer_status=self.friend_buffer_status,
+        romance_level=self.romance_level,
+        romance_buffer_status=self.romance_buffer_status,
     )
 
     # Determine the primary relationship based on priority
-    friend_rel_obj = self._get_level_by_name(self.friend_level, "friend")
-    romance_rel_obj = self._get_level_by_name(self.romance_level, "romance")
+    friend_rel_obj = self._get_level_by_name(self.friend_level, RelationshipType.FRIEND.value)
+    romance_rel_obj = self._get_level_by_name(self.romance_level, RelationshipType.ROMANCE.value)
+
+    self.logger.debug(
+        "relationship_objects", friend_rel_obj=friend_rel_obj, romance_rel_obj=romance_rel_obj
+    )
 
     primary_rel = None
     if friend_rel_obj and romance_rel_obj:
-        primary_rel = (
-            friend_rel_obj
-            if friend_rel_obj.get("priority", 0) >= romance_rel_obj.get("priority", 0)
-            else romance_rel_obj
+        friend_priority = friend_rel_obj.get("priority", 0)
+        romance_priority = romance_rel_obj.get("priority", 0)
+        self.logger.debug(
+            "comparing_priorities", friend_priority=friend_priority, romance_priority=romance_priority
         )
+        primary_rel = friend_rel_obj if friend_priority >= romance_priority else romance_rel_obj
     elif friend_rel_obj:
         primary_rel = friend_rel_obj
     elif romance_rel_obj:
         primary_rel = romance_rel_obj
 
-    # Update relationship attributes
+    self.logger.debug("primary_relationship_selected", primary_rel=primary_rel)
+
+    # Start with base relationship attributes, which can be overridden
     if primary_rel:
-        self.relationship_type = primary_rel.get("type", self.relationship_type)
-        self.relationship_level = primary_rel.get("level", self.relationship_level)
-        self.relationship_style = primary_rel.get("style", self.relationship_style)
+        final_rel_type = primary_rel.get("type", self.relationship_type)
+        final_rel_level = primary_rel.get("level", self.relationship_level)
+        final_rel_style = primary_rel.get("style", self.relationship_style)
     else:
         # Fallback to original if no relationship could be determined
-        self.relationship_type = original_rel_type
-        self.relationship_level = original_rel_level
+        final_rel_type = original_rel_type
+        final_rel_level = original_rel_level
+        final_rel_style = self.relationship_style  # Use the original style
+        self.logger.warning(
+            "fallback_to_original_relationship",
+            original_type=original_rel_type,
+            original_level=original_rel_level,
+        )
 
-    logger.info(
-        f"Relationship updated for bot {self.bot.entity_id}: "
-        f"Type='{self.relationship_type}', Level='{self.relationship_level}', "
-        f"Friend Level='{self.friend_level}' (Buffer: {self.friend_buffer_status}), "
-        f"Romance Level='{self.romance_level}' (Buffer: {self.romance_buffer_status})."
+    # Apply override_config if it exists
+    override_config = getattr(self.bot, "override_config", None)
+    if override_config and isinstance(override_config, dict):
+        # First, check if an active override should be applied
+        for ovr_key, ovr_details in override_config.items():
+            if not isinstance(ovr_details, dict):
+                continue
+
+            set_flag_attr = ovr_details.get("set_flag")
+            if (
+                ovr_details.get("type") == final_rel_type
+                and set_flag_attr
+                and hasattr(self, set_flag_attr)
+                and getattr(self, set_flag_attr)
+            ):
+                self.logger.info(f"Applying override '{ovr_key}' because flag '{set_flag_attr}' is True.")
+                final_rel_level = ovr_details.get("override_level", final_rel_level)
+                final_rel_style = ovr_details.get("style", final_rel_style)
+                # An override is a transient state, turn off the flag once the relationship progresses beyond it.
+                # The flag is NOT turned off upon application. It's turned off in the next block if level is higher.
+                break  # Apply only the first matching override
+
+        # Second, check for flags that should be turned off because the relationship has progressed
+        for ovr_key, ovr_details in override_config.items():
+            if not isinstance(ovr_details, dict):
+                continue
+
+            set_flag_attr = ovr_details.get("set_flag")
+            # Only check active flags relevant to the current relationship type
+            if not (
+                ovr_details.get("type") == final_rel_type
+                and set_flag_attr
+                and hasattr(self, set_flag_attr)
+                and getattr(self, set_flag_attr)
+            ):
+                continue
+
+            override_level_name = ovr_details.get("override_level")
+            if not override_level_name:
+                continue
+
+            # Get the relationship configuration for the current type
+            rel_config = getattr(self.bot, f"{final_rel_type}_config", [])
+            if not rel_config:
+                continue
+
+            # Find thresholds for comparison
+            current_level_obj = self._get_level_by_name(final_rel_level, final_rel_type)
+            override_level_obj = self._get_level_by_name(override_level_name, final_rel_type)
+
+            if current_level_obj and override_level_obj:
+                current_threshold = current_level_obj.get("threshold", -1)
+                override_threshold = override_level_obj.get("threshold", -1)
+
+                # If current level is higher than override level, the override state is obsolete
+                if current_threshold > override_threshold:
+                    self.logger.debug(
+                        f"Setting flag '{set_flag_attr}' to False because current level "
+                        f"'{final_rel_level}' is higher than override level '{override_level_name}'."
+                    )
+                    setattr(self, set_flag_attr, False)
+
+    # Update relationship attributes with the final, potentially overridden, values
+    self.relationship_type = final_rel_type
+    self.relationship_level = final_rel_level
+    self.relationship_style = final_rel_style
+
+    self.logger.info(
+        "relationship_updated",
+        bot_id=self.bot.entity_id,
+        relationship_type=self.relationship_type,
+        relationship_level=self.relationship_level,
+        friend_level=self.friend_level,
+        friend_buffer_status=self.friend_buffer_status,
+        romance_level=self.romance_level,
+        romance_buffer_status=self.romance_buffer_status,
     )
 
 
@@ -726,3 +606,231 @@ def apply_buffer(
         new_buffer_status = BufferStatus.NONE.value
 
     return new_level, new_buffer_status
+
+
+def new_anger_emotion(
+    self, anger_emotion_score: int, friend_score_change: int, romance_score_change: int
+) -> None:
+    """
+    Creates a new anger emotion record.
+    """
+    try:
+        if anger_emotion_score <= 0:
+            self.logger.warning("invalid_anger_score", score=anger_emotion_score)
+            return
+
+        # Get bot configuration values
+        emotions_config = getattr(self.bot, "emotions_config")
+        friend_score_neg_k = getattr(self.bot, "friend_score_neg_k")
+
+        # Get anger configs
+        anger_thresholds = emotions_config.get(EmotionType.ANGER.name).get("thresholds")
+        anger_calc_rules = self.emotion_calculation_rules.get(EmotionType.ANGER.name)
+
+        # Determine anger level based on current score
+        emotion_level = 0
+        # Sort levels by threshold to find the correct level
+        sorted_threshold = sorted(anger_thresholds.items(), key=lambda item: item[1])
+        for level, threshold in sorted_threshold:
+            if anger_emotion_score >= threshold:
+                emotion_level = int(level)
+        if emotion_level == 0:
+            return
+
+        # Get thresholds for each level directly from the config
+        lv1_threshold = anger_thresholds.get(1)
+        lv2_threshold = anger_thresholds.get(2)
+        lv3_threshold = anger_thresholds.get(3)
+
+        # Set decay ratio based on anger level using config
+        decay_ratios = anger_calc_rules.get("decay_ratios")
+        decay_ratio = decay_ratios.get(emotion_level)
+
+        # Calculate score deltas based on tiered system
+        friend_score_delta = 0
+        romance_score_delta = 0
+
+        # Get score multipliers from config
+        score_multipliers = anger_calc_rules.get("score_multipliers")
+
+        # Calculate score deltas based on anger level
+        if emotion_level >= 1:
+            lv1_score_mult = score_multipliers.get(1)
+            stage_score = min(anger_emotion_score - lv1_threshold + 1, lv2_threshold - lv1_threshold)
+            friend_score_delta -= -friend_score_change * stage_score * lv1_score_mult
+            romance_score_delta -= -romance_score_change * stage_score * lv1_score_mult
+        if emotion_level >= 2:
+            lv2_score_mult = score_multipliers.get(2)
+            stage_score = min(anger_emotion_score - lv2_threshold + 1, lv3_threshold - lv2_threshold)
+            friend_score_delta -= round(self.friend_score * stage_score * lv2_score_mult / 100)
+            romance_score_delta -= round(self.romance_score * stage_score * lv2_score_mult / 100)
+        if emotion_level == 3:
+            lv3_score_mult = score_multipliers.get(3)
+            stage_score = min(anger_emotion_score - lv3_threshold + 1, 13 - lv3_threshold)
+            friend_score_delta -= round(self.friend_score * 2 ** (stage_score - 1) * lv3_score_mult / 100)
+            romance_score_delta -= round(self.romance_score * 2 ** (stage_score - 1) * lv3_score_mult / 100)
+
+        # Calculate duration based on anger level
+        now = datetime.now(timezone.utc)
+        end_time = now
+
+        # Apply duration formula based on level using config duration multipliers
+        # Get duration multipliers and random range from config
+        duration_multipliers = anger_calc_rules.get("duration_multipliers")
+        duration_random_range = anger_calc_rules.get("duration_random_range")
+        duration_multiplier = duration_multipliers.get(emotion_level)
+
+        # Calculate base duration in minutes
+        base_minutes = round(stage_score * 120 / friend_score_neg_k * duration_multiplier)
+
+        # Apply random factor from config range
+        random_factor = random.uniform(*duration_random_range)
+        minutes = base_minutes * random_factor
+        end_time = now + timedelta(minutes=minutes)
+
+        # New anger emotion
+        new_anger_emotion = {
+            EmotionType.ANGER.name: {
+                "emotion_score": anger_emotion_score,
+                "original_emotion_score": anger_emotion_score,
+                "emotion_level": emotion_level,
+                "friend_score_delta": friend_score_delta,
+                "original_friend_score_delta": friend_score_delta,
+                "romance_score_delta": romance_score_delta,
+                "original_romance_score_delta": romance_score_delta,
+                "decay_ratio": decay_ratio,
+                "start_time": now.isoformat(),
+                "end_time": end_time.isoformat(),
+                "original_end_time": end_time.isoformat(),
+                "is_ended": False,
+                "update_time": now.isoformat(),
+            }
+        }
+
+        # Clear existing anger emotion while preserving other emotions
+        if EmotionType.ANGER.name in self.emotions:
+            del self.emotions[EmotionType.ANGER.name]
+
+        # Update local emotions data with new anger emotion
+        self.emotions.update(new_anger_emotion)
+
+        # Sleep probability
+        if random.random() < 0.1 * anger_emotion_score:
+            self.is_awake = False
+
+        self.logger.info(
+            "new_anger_emotion_created",
+            emotion_score=anger_emotion_score,
+            emotion_level=emotion_level,
+            friend_delta=friend_score_delta,
+            romance_delta=romance_score_delta,
+            end_time=end_time.isoformat(),
+        )
+
+    except Exception as e:
+        self.logger.error("error_creating_anger_emotion", error=str(e), exc_info=True)
+
+
+def process_emotions_and_score(self, response_result: dict) -> None:
+    """Process score changes and emotions from response content and update scores accordingly.
+
+    This method focuses exclusively on processing anger emotions:
+    1. Extracts anger score from response content
+    2. Calculates appropriate emotion level based on configured thresholds
+    3. Computes score deltas using a tiered calculation system
+    4. Sets emotion duration based on anger level
+    5. Updates or creates anger emotion records
+    """
+    # Check if emotions data exists in the response
+    if "emotions" not in response_result:
+        self.logger.warning("no_emotions_data_in_response")
+        if "friend_score" not in response_result or "romance_score" not in response_result:
+            self.logger.warning("no_score_data_in_response")
+            return
+
+    emotions_data = response_result.get("emotions", {})
+    friend_score_change = response_result.get("friend_score", 0)
+    romance_score_change = response_result.get("romance_score", 0)
+
+    # Friend score and romance score only decrease in negative mode
+    negative_mode = False
+    for emotion, emotion_score in emotions_data.items():
+        try:
+            if emotion_score < 0 or emotion_score > 12:
+                self.logger.warning("invalid_emotion_score", emotion=emotion, score=emotion_score)
+                continue
+
+            if emotion == EmotionType.MOVED.name:
+                if friend_score_change > 0:
+                    self.friend_score += friend_score_change * emotion_score
+                if romance_score_change > 0:
+                    self.romance_score += romance_score_change * emotion_score
+                self.logger.info("moved_emotion_processed", emotion_score=emotion_score)
+
+            elif emotion == EmotionType.ANGER.name:
+                negative_mode = True
+                # Check if we already have an anger emotion
+                existing_anger = self.emotions.get(EmotionType.ANGER.name, {})
+                ex_angr_sc = existing_anger.get("emotion_score", 0)
+                ex_orig_angr_sc = existing_anger.get("original_emotion_score", 0)
+                ex_is_ended = existing_anger.get("is_ended", False)
+
+                # ==== Create a new anger emotion ====
+                # If no anger emotion or the existing anger is ended or new anger score more than existing
+                if not existing_anger or ex_angr_sc == 0 or ex_is_ended or ex_orig_angr_sc < emotion_score:
+                    # Get relationship scores from response
+                    self._new_anger_emotion(emotion_score, friend_score_change, romance_score_change)
+                else:
+                    # Prepare updated emotion data
+                    updated_emotion: Dict[str, Any] = {}
+
+                    # ==== Update the existing anger emotion ====
+                    ratio = emotion_score / ex_orig_angr_sc
+                    ex_orig_fnd_sc_delta = existing_anger.get("original_friend_score_delta", 0)
+                    ex_orig_rom_sc_delta = existing_anger.get("original_romance_score_delta", 0)
+
+                    # Update score deltas proportionally and round to the nearest integer
+                    friend_score_delta = round(ex_orig_fnd_sc_delta * ratio)
+                    romance_score_delta = round(ex_orig_rom_sc_delta * ratio)
+
+                    """
+                    # No ideal way to adjust end time, so just keep the original end time
+                    # Adjust end time if ratio exceeds decay ratio
+                    ex_orig_end_time = self._ensure_datetime(existing_anger.get("original_end_time", ""))
+                    ex_start_time = self._ensure_datetime(existing_anger.get("start_time", ""))
+
+                    decay_ratio = existing_anger.get("decay_ratio", 0)
+
+                    if ex_orig_end_time and ex_start_time and ratio > decay_ratio:
+                        # Calculate new duration as a fraction of original
+                        original_duration = (ex_orig_end_time - ex_start_time).total_seconds()
+                        new_duration = original_duration * (decay_ratio - 1 + ratio)
+                        end_time = ex_start_time + timedelta(seconds=new_duration)
+                    """
+
+                    now = datetime.now(timezone.utc)
+
+                    updated_emotion = {
+                        EmotionType.ANGER.name: {
+                            **existing_anger,
+                            "emotion_score": emotion_score,
+                            "friend_score_delta": friend_score_delta,
+                            "romance_score_delta": romance_score_delta,
+                            # "end_time": end_time.isoformat(),
+                            "update_time": now.isoformat(),
+                        }
+                    }
+
+                    # Update local emotions data
+                    self.emotions.update(updated_emotion)
+
+            self.logger.info("emotion_processed", emotion=emotion, score=emotion_score)
+        except Exception as e:
+            self.logger.error("error_processing_emotion", emotion=emotion, error=str(e), exc_info=True)
+
+    if negative_mode:
+        friend_score_change = min(friend_score_change, 0)
+        romance_score_change = min(romance_score_change, 0)
+
+    self.friend_score += friend_score_change
+    self.romance_score += romance_score_change

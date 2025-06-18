@@ -1,11 +1,11 @@
 from typing import Dict, Any, Optional
 import json
 import asyncio
-import logging
+from utils.logging import get_logger
 
 from .base import BaseLLM
 
-logger = logging.getLogger(__name__)
+logger = get_logger("says.llm_apis.mock_manual_llm")
 
 
 class MockLLMManual(BaseLLM):
@@ -33,7 +33,7 @@ class MockLLMManual(BaseLLM):
         """Initialize with hardcoded response queue."""
         super().__init__()
         self._current_index = 0
-        logger.info("MockLLMManual initialized")
+        logger.info("initialized")
 
         # HARDCODED RESPONSES - EDIT THESE DIRECTLY
         # All responses must be valid JSON strings matching the model's expected format
@@ -78,7 +78,7 @@ class MockLLMManual(BaseLLM):
                 ensure_ascii=False,
             ),
         ]
-        logger.info(f"Loaded {len(self.RESPONSES)} hardcoded responses")
+        logger.info("responses_loaded", count=len(self.RESPONSES))
 
     async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -95,7 +95,7 @@ class MockLLMManual(BaseLLM):
 
         # Get next response from the queue
         if not self.RESPONSES:
-            logger.warning("No responses configured, using default")
+            logger.warning("no_responses_configured_using_default")
             content = json.dumps(
                 {
                     "is_attack": False,
@@ -109,14 +109,15 @@ class MockLLMManual(BaseLLM):
             )
         else:
             content = self.RESPONSES[self._current_index]
-            logger.debug(f"Using response at index {self._current_index}")
+            logger.info("using_response", index=self._current_index)
             self._current_index = (self._current_index + 1) % len(self.RESPONSES)
-            logger.debug(f"Next index will be {self._current_index}")
+            logger.info("next_index_updated", next_index=self._current_index)
 
         # Create response structure
         response = self.DEFAULT_RESPONSE_TEMPLATE.copy()
         response["choices"][0]["message"]["content"] = content
 
+        logger.info("response_generated")
         return response
 
     async def validate_response(self, response: Dict) -> tuple[bool, Optional[str]]:
@@ -130,23 +131,23 @@ class MockLLMManual(BaseLLM):
             tuple: (is_valid, error_message)
         """
         if not isinstance(response, dict):
-            logger.error("Response validation failed: not a dictionary")
+            logger.error("validation_failed", reason="not_a_dictionary")
             return False, "Response is not a dictionary"
 
         if "choices" not in response:
-            logger.error("Response validation failed: missing 'choices' field")
+            logger.error("validation_failed", reason="missing_choices_field")
             return False, "Response missing 'choices' field"
 
         if not response["choices"] or not isinstance(response["choices"], list):
-            logger.error("Response validation failed: invalid 'choices' field")
+            logger.error("validation_failed", reason="invalid_choices_field")
             return False, "Response has invalid 'choices' field"
 
         if "message" not in response["choices"][0]:
-            logger.error("Response validation failed: missing 'message' in first choice")
+            logger.error("validation_failed", reason="missing_message_in_first_choice")
             return False, "Response missing 'message' in first choice"
 
         if "content" not in response["choices"][0]["message"]:
-            logger.error("Response validation failed: missing 'content' in message")
+            logger.error("validation_failed", reason="missing_content_in_message")
             return False, "Response missing 'content' in first choice message"
 
         # Basic JSON validation of content
@@ -154,8 +155,8 @@ class MockLLMManual(BaseLLM):
             content = response["choices"][0]["message"]["content"]
             json.loads(content)
         except json.JSONDecodeError:
-            logger.error("Response validation failed: content is not valid JSON")
+            logger.error("validation_failed", reason="invalid_json_content")
             return False, "Response content is not valid JSON"
 
-        logger.debug("Response validation successful")
+        logger.info("validation_successful")
         return True, None

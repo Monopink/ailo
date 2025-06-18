@@ -1,50 +1,50 @@
 import asyncio
 import random
 import time
-import logging
 from typing import Dict, Any, List, Optional
 from .base import BaseLLM
+from utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("says.llm_apis.mock_llm")
 
 
 class MockLLM(BaseLLM):
     async def generate_response(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
-
-        模拟大模型API响应
+        Mock LLM API response
         Args:
-            request: 包含messages等参数的请求字典
+            request: Request dictionary containing messages and other parameters
         Returns:
-            Dict: 模拟的API响应
+            Dict: Mocked API response
         """
         try:
-            logger.info(f"Received request: {request}")
+            logger.debug("received_request", request=request)
 
-            # 验证请求参数
+            # Validate request parameters
             messages: List[Dict[str, str]] = request.get("messages", [])
             if not messages:
                 error_msg = "Messages cannot be empty"
-                logger.error(error_msg)
+                logger.error("empty_messages")
                 raise ValueError(error_msg)
 
-            logger.debug(f"Processing messages: {messages}")
-            logger.debug(
-                f"Request parameters: temperature={request.get('temperature')}, "
-                f"max_tokens={request.get('max_tokens')}, "
-                f"top_p={request.get('top_p')}"
+            logger.info("processing_messages", messages=messages)
+            logger.info(
+                "request_parameters",
+                temperature=request.get("temperature"),
+                max_tokens=request.get("max_tokens"),
+                top_p=request.get("top_p"),
             )
 
-            # 模拟 API 调用延迟
+            # Simulate API call delay
             delay = random.uniform(0.5, 2.0)
-            logger.debug(f"Simulating API delay: {delay:.2f} seconds")
+            logger.info("simulating_api_delay", delay=f"{delay:.2f}")
             await asyncio.sleep(delay)
 
-            # 生成模拟回复内容
+            # Generate mock response content
             response_content = self._generate_mock_content(messages[-1]["content"])
-            logger.debug(f"Generated response content: {response_content}")
+            logger.info("generated_response_content", content=response_content)
 
-            # 构造标准响应格式
+            # Construct standard response format
             response = {
                 "id": f"mockcmpl-{random.randint(1000000, 9999999)}",
                 "object": "chat.completion",
@@ -64,7 +64,7 @@ class MockLLM(BaseLLM):
                 ],
             }
 
-            logger.info(f"Generated response: {response}")
+            logger.info("generated_response", response=response)
             return response
 
         except Exception as e:
@@ -75,17 +75,17 @@ class MockLLM(BaseLLM):
                     "code": 500,
                 }
             }
-            logger.error(f"Error in generate_response: {str(e)}", exc_info=True)
-            logger.error(f"Returning error response: {error_response}")
+            logger.error("generate_response_error", error=str(e), exc_info=True)
+            logger.error("error_response", response=error_response)
             return error_response
 
     def _generate_mock_content(self, prompt: str) -> str:
         """
-        生成模拟回复内容
+        Generate mock response content
         """
-        logger.debug(f"Generating mock content for prompt: {prompt}")
+        logger.info("generating_mock_content", prompt=prompt)
 
-        # 简单的回复生成逻辑
+        # Simple response generation logic
         keywords = ["有趣", "理解", "建议", "想法", "感觉", "希望", "开心", "思考"]
         responses = [
             f"我{random.choice(keywords)}你说的内容。",
@@ -95,20 +95,18 @@ class MockLLM(BaseLLM):
         ]
 
         response = random.choice(responses)
-        logger.debug(f"Generated mock content: {response}")
+        logger.info("generated_mock_content", content=response)
         return response
 
-    async def validate_response(
-        self, response: Dict[str, Any]
-    ) -> tuple[bool, Optional[str]]:
+    async def validate_response(self, response: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         """
-        验证响应是否符合标准LLM响应结构
+        Validate if response matches standard LLM response structure
 
         Args:
-            response: LLM响应内容
+            response: LLM response content
 
         Returns:
-            tuple[bool, Optional[str]]: (是否有效, 错误信息)
+            tuple[bool, Optional[str]]: (is_valid, error_message)
         """
         if "error" in response:
             error_msg = f"API error: {response['error']}"
@@ -116,20 +114,23 @@ class MockLLM(BaseLLM):
 
         try:
             required_fields = ["id", "object", "created", "model", "choices", "usage"]
-            missing_fields = [
-                field for field in required_fields if field not in response
-            ]
+            missing_fields = [field for field in required_fields if field not in response]
             if missing_fields:
+                logger.warning("missing_required_fields", fields=missing_fields)
                 return False, f"Missing required fields: {missing_fields}"
 
             if not response["choices"] or not isinstance(response["choices"], list):
+                logger.warning("invalid_choices_field")
                 return False, "Invalid or empty choices field"
 
             choice = response["choices"][0]
             if not all(key in choice["message"] for key in ["role", "content"]):
+                logger.warning("invalid_message_format")
                 return False, "Invalid message format in choice"
 
+            logger.info("response_validation_successful")
             return True, None
 
         except Exception as e:
+            logger.error("validation_error", error=str(e))
             return False, f"Validation error: {str(e)}"

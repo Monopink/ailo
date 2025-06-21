@@ -5,13 +5,14 @@ from typing import Optional
 from exceptions import LLMAPIError, LLMResponseError, LLMContentError
 
 
-async def generate_response(self, llm) -> str:
+async def generate_response(self, llm, **kwargs) -> str:
     """
     Generates a response using the provided LLM client.
 
     Args:
         self: The ModelLily instance (for context).
         llm: The LLM client object.
+        **kwargs: Additional keyword arguments to pass to the LLM's generate_response method.
 
     Returns:
         The content of the generated response as a string.
@@ -22,7 +23,8 @@ async def generate_response(self, llm) -> str:
     """
     try:
         # Call LLM API
-        llm_response = await llm.generate_response(self.context)
+        llm_response = await llm.generate_response(self.context, **kwargs)
+        self.logger.info("llm_response_generated", llm_response=llm_response)
 
         # Validate LLM API response structure
         is_valid, error_msg = await llm.validate_response(llm_response)
@@ -90,7 +92,7 @@ async def validate_content(self, response: str | None) -> bool:
         raise LLMContentError(f"Error validating tasks: {str(e)}")
 
 
-async def get_response_content(self, llm) -> Optional[str]:
+async def get_response_content(self, llm, **kwargs) -> Optional[str]:
     """
     Gets response content from the LLM, with a retry mechanism.
 
@@ -99,6 +101,7 @@ async def get_response_content(self, llm) -> Optional[str]:
     Args:
         self: The ModelLily instance (for config and methods).
         llm: The LLM client object.
+        **kwargs: Additional keyword arguments to pass to the generate_response function.
 
     Returns:
         The validated response content as a string, or None if all retries fail.
@@ -107,7 +110,7 @@ async def get_response_content(self, llm) -> Optional[str]:
     for attempt in range(self.llm_max_retries):
         try:
             # Step 1: Generate response from LLM
-            response_content = await generate_response(self, llm)
+            response_content = await generate_response(self, llm, **kwargs)
             self.logger.info("llm_response_generated", attempt=attempt + 1)
 
             # Step 2: Validate the content of the response

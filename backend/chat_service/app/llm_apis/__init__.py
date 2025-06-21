@@ -13,19 +13,25 @@ llm_instances: Dict[str, BaseLLM] = {
     "mock_json": MockJsonLLM(),
     "mirrored": MirroredLLM(),
     "mock_manual": MockLLMManual(),
-    "doubao_pro_32k": Doubao(
+    "doubao-1.5-pro-32k": Doubao(
         api_key="6b52b9c6-7ba6-49cd-89f8-3c607f3cc4ae",
-        model_id="ep-20250205085837-wkjf7",
+        model_id="ep-20250619205259-nzbw8",
+    ),
+    "doubao-seed-1.6": Doubao(
+        api_key="6b52b9c6-7ba6-49cd-89f8-3c607f3cc4ae",
+        model_id="ep-20250619205554-wwsr7",
     ),
 }
 
 # Export default instance
-default_llm = llm_instances["mock"]
-# model_lily_llm = llm_instances["doubao_pro_32k"]
-model_lily_llm = llm_instances["mock_manual"]
+default_llm = llm_instances["doubao-1.5-pro-32k"]
+model_lily_standard_llm = llm_instances["mock_manual"]
+# model_lily_advanced_llm = llm_instances["mock_manual"]
+model_lily_advanced_llm = llm_instances["doubao-seed-1.6"]
 
 __all__ = [
     "BaseLLM",
     "default_llm",
-    "model_lily_llm",
+    "model_lily_standard_llm",
+    "model_lily_advanced_llm",
 ]

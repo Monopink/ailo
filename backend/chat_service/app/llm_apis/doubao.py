@@ -1,4 +1,5 @@
 import copy
+import json
 from typing import Dict, Any, Optional
 from volcenginesdkarkruntime import Ark
 from .base import BaseLLM
@@ -23,24 +24,35 @@ class Doubao(BaseLLM):
         # Only use encryption during API calls, not affecting storage
         self.api_headers = {"x-is-encrypted": "true"}
 
-    async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_response(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """Generate response, ensure content is decrypted before storage"""
-        logger.info("generating_response", context=context)
+        logger.info("generating_response", context=context, kwargs=kwargs)
         try:
             messages = context.get("messages", [])
             if not messages:
                 logger.warning("empty_messages_list")
                 raise ValueError("Messages list is empty")
 
-            # Create deep copy of messages for encryption
+            # Create deep copy of messages for API call
             messages_for_api = copy.deepcopy(messages)
 
-            # Use encrypted message copy for API call
-            completion = self.client.chat.completions.create(
-                model=self.model_id,
-                messages=messages_for_api,
-                extra_headers=self.api_headers,
-            )
+            # Construct API parameters
+            api_params = {
+                "model": self.model_id,
+                "messages": messages_for_api,
+                "extra_headers": self.api_headers,
+                **kwargs,  # Dynamically add all other parameters
+            }
+
+            # Use API call
+            completion = self.client.chat.completions.create(**api_params)
+
+            # Ensure content is a JSON string before returning
+            content_from_sdk = completion.choices[0].message.content
+            if isinstance(content_from_sdk, dict):
+                content_as_string = json.dumps(content_from_sdk, ensure_ascii=False)
+            else:
+                content_as_string = str(content_from_sdk)
 
             # Ensure decrypted content for storage
             logger.info("response_generated_successfully")
@@ -49,7 +61,7 @@ class Doubao(BaseLLM):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": completion.choices[0].message.content,  # SDK auto-decrypts
+                            "content": content_as_string,
                         }
                     }
                 ]

@@ -218,14 +218,18 @@ class ValidationErrorType(enum.Enum):
 class TaskType(enum.Enum):
     """Task types"""
 
-    ATTACK_CHECK = enum.auto()  # Attack detection
-    RESPONSE_DECISION = enum.auto()  # Response decision making
-    CONTENT_GENERATION = enum.auto()  # Content generation
-    EMOTION_SCORING = enum.auto()  # Emotion scoring
-    FRIEND_SCORING = enum.auto()  # Friendship score evaluation
-    ROMANCE_SCORING = enum.auto()  # Romance score evaluation
-    CONVERSATION_SUMMARY = enum.auto()  # Conversation summary
-    IS_IMPORTANT_CONVERSATION = enum.auto()  # Conversation importance assessment
+    PRE_RESPONSE_THINKING = enum.auto()
+    ATTACK_CHECK = enum.auto()
+    RESPONSE_DECISION = enum.auto()
+    CONTENT_GENERATION = enum.auto()
+    EMOTION_SCORING = enum.auto()
+    FRIEND_SCORING = enum.auto()
+    ROMANCE_SCORING = enum.auto()
+    IS_IMPORTANT_CONVERSATION = enum.auto()
+    CONVERSATION_NOTE = enum.auto()
+    SCHEDULED_MESSAGE = enum.auto()
+    BLOCK_USER = enum.auto()
+    CONVERSATION_SUMMARY = enum.auto()
 
 
 class BufferStatus(enum.Enum):

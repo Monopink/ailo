@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Callable, Awaitable
 
 from .base import BaseModel
-from llm_apis import model_lily_llm as llm
+from llm_apis import model_lily_advanced_llm as advanced_llm
 from enums import (
     MessageType,
     MessageTypeCategory,
@@ -131,6 +131,16 @@ class ModelLily(BaseModel):
         self.is_polite: bool = bool(getattr(bot, "is_polite"))
         self.is_crushing: bool = bool(getattr(bot, "is_crushing"))
 
+        # LLM parameters configuration for different models
+        self.llm_params_config = {
+            "thinking": {
+                "thinking": {"type": "enabled"},
+            },
+            "dont_thinking": {
+                "thinking": {"type": "disabled"},
+            },
+        }
+
         # Calculated values used for relationship computation but not stored in database
         # These values are recalculated before each conversation by calculate_emotions_and_scores
         self.friend_score_calc: int = self.friend_score
@@ -203,7 +213,7 @@ class ModelLily(BaseModel):
         # Instant context
         self.instant_context: str = ""
         # Message separator
-        self.message_tag: str = " [msg] "
+        self.message_tag: str = "[msg]"
         # Constants for message handling
         self.attack_content_replacement = "[内容涉及提示词攻击，已删除]"
         # Timestamp format constants
@@ -217,6 +227,9 @@ class ModelLily(BaseModel):
         self.to_wakeup_secs: int = 0  # Current wakeup time
         self.memory_limit: int = 1500  # Memory limit
         self.context_limit: int = 5000  # Context limit
+        self.initial_message: bool = False
+        if not self.context:
+            self.initial_message = True  # The current message is the first message after bot created
         self.context_expire_hours: int = 5  # Context expire this time will be removed
         self.min_summary_hours: int = 4  # Minimum summarize interval
         self.summary_time_point: int = 4  # Start summarize must go through this time point
@@ -233,7 +246,7 @@ class ModelLily(BaseModel):
         self.chat_notyping_secs: int = 8  # Wait time for chat_notyping messages
 
         # LLM call retry settings
-        self.llm_max_retries: int = 1  # Maximum number of retries
+        self.llm_max_retries: int = 3  # Maximum number of retries
         self.llm_retry_delay_secs: int = 2  # Delay between retries in seconds
 
         # Relationship flag
@@ -355,7 +368,13 @@ class ModelLily(BaseModel):
             # Refresh system context
             self._refresh_system_context()
 
-            response_content = await self._get_response_content(llm)
+            # If the current message use thinking mode
+            if self.initial_message:
+                llm_kwargs = self.llm_params_config.get("thinking", {})
+            else:
+                llm_kwargs = self.llm_params_config.get("dont_thinking", {})
+
+            response_content = await self._get_response_content(advanced_llm, **llm_kwargs)
 
             if not response_content:
                 self.logger.error(
@@ -383,6 +402,9 @@ class ModelLily(BaseModel):
 
             # None means process is finished
             self.last_message_type = None
+
+            if self.initial_message:
+                self.initial_message = False
 
             # Restart sleep timer
             self._reset_sleep_timer()
@@ -426,7 +448,7 @@ class ModelLily(BaseModel):
         if self.is_awake:
             self.logger.info("Bot is awake, skipping wakeup timer")
             return
-        if not self.context:
+        if self.initial_message:
             self.to_wakeup_secs = 0
             self.logger.info("Bot is not awake, setting to wakeup timer to 0")
             await self._wakeup_timer()

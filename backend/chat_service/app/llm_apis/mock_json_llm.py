@@ -229,17 +229,18 @@ class MockJsonLLM(BaseLLM):
         logger.info("generated_mock_content", response=response)
         return response
 
-    async def generate_response(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_response(self, request: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """Mock LLM API response
 
         Args:
             request: Request dictionary containing messages and other parameters
+            **kwargs: Additional keyword arguments (ignored in this implementation)
 
         Returns:
             Dict: Mocked API response
         """
         try:
-            logger.debug("received_request", request=request)
+            logger.debug("received_request", request=request, kwargs=kwargs)
 
             # Validate request parameters
             messages: List[Dict[str, str]] = request.get("messages", [])

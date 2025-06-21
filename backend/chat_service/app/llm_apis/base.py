@@ -4,29 +4,30 @@ from typing import Dict, Any, Optional
 
 class BaseLLM(ABC):
     def __init__(self):
-        pass
+        self.model_id: Optional[str] = None
 
     @abstractmethod
-    async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_response(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
-        生成响应
+        Generate response
         Args:
-            context: 包含消息历史、bot信息等的上下文字典
+            context: Context dictionary containing message history, bot information, etc.
                 {
-                    "messages": List[Dict],  # 消息历史
+                    "messages": List[Dict],  # Message history
                 }
+            **kwargs: Other parameters passed to the API
         Returns:
-            Optional[Dict]: 响应消息
+            Optional[Dict]: Response message
         """
         pass
 
     @abstractmethod
     async def validate_response(self, response: Dict) -> tuple[bool, Optional[str]]:
         """
-        验证响应是否符合标准LLM响应结构
+        Validate if the response conforms to the standard LLM response structure
         Args:
-            response: LLM响应内容
+            response: LLM response content
         Returns:
-            tuple[bool, Optional[str]]: (是否有效, 错误信息)
+            tuple[bool, Optional[str]]: (is_valid, error_message)
         """
         pass

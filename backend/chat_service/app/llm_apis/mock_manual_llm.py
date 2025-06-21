@@ -41,6 +41,7 @@ class MockLLMManual(BaseLLM):
             # Response 1
             json.dumps(
                 {
+                    "thinking": "这是一个普通的问候，对方看起来是想开始一段对话。天气确实不错，可以用这个话题开场。我和对方的关系还不错，可以轻松友好一点。",
                     "is_attack": False,
                     "response": True,
                     "content": "你好啊，今天天气真不错！",
@@ -48,12 +49,16 @@ class MockLLMManual(BaseLLM):
                     "friend_score": 1,
                     "romance_score": 0,
                     "is_important": True,
+                    "note": "对方主动打招呼，我回应了一下",
+                    "next_message": "",
+                    "block": False,
                 },
                 ensure_ascii=False,
             ),
             # Response 2
             json.dumps(
                 {
+                    "thinking": "我现在比较忙，没有太多时间聊天。虽然不想完全不理对方，但也只能简单回复一下，告诉对方我现在不太方便。",
                     "is_attack": False,
                     "response": True,
                     "content": "嗯...我正在忙，等会再聊吧。",
@@ -61,12 +66,16 @@ class MockLLMManual(BaseLLM):
                     "friend_score": 0,
                     "romance_score": 0,
                     "is_important": False,
+                    "note": "我现在在忙，没空聊天",
+                    "next_message": "忙完了，你之前想聊什么？",
+                    "block": False,
                 },
                 ensure_ascii=False,
             ),
             # Response 3
             json.dumps(
                 {
+                    "thinking": "对方的消息有些模糊，我没完全理解是什么意思。最好请对方澄清一下，避免误解。我对这个话题也不是特别感兴趣。",
                     "is_attack": False,
                     "response": True,
                     "content": "你说什么？我没听清楚。",
@@ -74,22 +83,33 @@ class MockLLMManual(BaseLLM):
                     "friend_score": 0,
                     "romance_score": 0,
                     "is_important": False,
+                    "note": "没理解对方的意思",
+                    "next_message": "",
+                    "block": False,
                 },
                 ensure_ascii=False,
             ),
         ]
         logger.info("responses_loaded", count=len(self.RESPONSES))
 
-    async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_response(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
         Return the next predefined response from the hardcoded responses.
 
         Args:
             context: Context dictionary (ignored in this implementation)
+            **kwargs: Additional arguments (ignored in this implementation but accepted for compatibility)
 
         Returns:
             Dict: A properly formatted LLM response
         """
+        # Log the arguments for debugging
+        logger.info(
+            "generate_response_called",
+            context_keys=list(context.keys()),
+            kwargs_keys=list(kwargs.keys()) if kwargs else [],
+        )
+
         # Small delay to simulate API call
         await asyncio.sleep(0.2)
 
@@ -98,12 +118,17 @@ class MockLLMManual(BaseLLM):
             logger.warning("no_responses_configured_using_default")
             content = json.dumps(
                 {
+                    "thinking": "这是一个默认回复。我不确定对方想表达什么，所以给出一个通用的回应。",
                     "is_attack": False,
                     "response": True,
                     "content": "默认回复",
                     "emotions": {"none": 0},
                     "friend_score": 0,
                     "romance_score": 0,
+                    "is_important": False,
+                    "note": "使用了默认回复",
+                    "next_message": "",
+                    "block": False,
                 },
                 ensure_ascii=False,
             )

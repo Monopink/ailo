@@ -9,16 +9,17 @@ logger = get_logger("says.llm_apis.mirrored_llm")
 
 
 class MirroredLLM(BaseLLM):
-    async def generate_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_response(self, context: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
         Serialize received context into standard LLM response structure
         Args:
             context: Context dictionary
+            **kwargs: Additional keyword arguments (ignored in this implementation)
         Returns:
             Dict: Standardized LLM response structure
         """
         try:
-            logger.info("received_context")
+            logger.info("received_context", kwargs_keys=list(kwargs.keys()) if kwargs else [])
 
             # Serialize context to JSON string, ensuring proper Unicode handling
             serialized_content = json.dumps(context, ensure_ascii=False)

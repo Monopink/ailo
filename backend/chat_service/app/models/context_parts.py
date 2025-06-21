@@ -190,6 +190,8 @@ def refresh_system_context(self) -> None:
             relationship_level=getattr(self.bot, "relationship_level", "neutral"),
             components=components,
             include_summary=self.need_summary,
+            include_thought=not self.initial_message,
+            memory_limit=getattr(self, "memory_limit", 1000),
         )
 
         # Update current strategy object

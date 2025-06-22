@@ -1,7 +1,19 @@
-import logging
+import sys
+import os
 import json
 from datetime import datetime, timedelta, timezone
-from relationship_parts import (
+
+# ruff: noqa: E402
+
+# prevent generating __pycache__ files
+sys.dont_write_bytecode = True
+
+# Add the parent directory to the Python path to allow importing 'enums'.
+# This is necessary because relationship_parts.py, which we are testing, depends on it.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Now import relationship_parts after modifying sys.path
+from relationship_parts import (  # noqa: E402
     ensure_datetime,
     get_passive_score_change,
     calculate_passive_scores,
@@ -11,9 +23,29 @@ from relationship_parts import (
     apply_buffer,
 )
 
-# Set up basic logging for the test
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+
+# Mock for the logger, to simulate structlog without importing it.
+# The functions in relationship_parts.py expect a logger with this interface.
+class MockLogger:
+    """A mock logger to print log messages to the console."""
+
+    def _log(self, log_level: str, event: str, **kwargs):
+        """Helper to format and print logs."""
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        details = ", ".join(f"{k}={v}" for k, v in kwargs.items())
+        print(f"{timestamp} [{log_level.upper():<7}] {event} " + (f"| {details}" if details else ""))
+
+    def debug(self, event, **kwargs):
+        self._log("debug", event, **kwargs)
+
+    def info(self, event, **kwargs):
+        self._log("info", event, **kwargs)
+
+    def warning(self, event, **kwargs):
+        self._log("warning", event, **kwargs)
+
+    def error(self, event, **kwargs):
+        self._log("error", event, **kwargs)
 
 
 class MockBot:
@@ -83,7 +115,7 @@ class TestModel:
     _refresh_relationship = refresh_relationship
 
     def __init__(self, bot, emotions, state):
-        self.logger = logging.getLogger(__name__)
+        self.logger = MockLogger()
         self.bot = bot
         self.emotions = emotions
         # Unpack state from bot object, similar to ModelLily
@@ -287,7 +319,7 @@ if __name__ == "__main__":
         "friend_buffer_status": "level_down_buffer",
         "romance_buffer_status": "none",
         "relationship_style": "温暖",
-        "is_polite": False,
+        "is_polite": True,
         "is_crushing": False,
     }
     test_config_2 = {
@@ -314,56 +346,55 @@ if __name__ == "__main__":
     }
 
     run_test("No2 Bot - Passive Decay", bot_config_2, test_config_2, emotions_2)
-"""
-    # --- Scenario 3: Level Down with Buffer ---
-    bot_config_3 = {
-        "bot_id": 3,
-        "entity_id": "b9003",
-        "last_chat_time": "2025-05-14T07:47:16.095350+00:00",
-        "friend_config": FRIEND_CONFIG,
-        "romance_config": ROMANCE_CONFIG,
-        "override_config": OVERRIDE_CONFIG,
-        "emotions_config": EMOTIONS_CONFIG,
-        "friend_score": 305,  # Just above the 300 threshold for friendly
-        "romance_score": 0,
-        "self_friend_score": 305,
-        "self_romance_score": 0,
-        "friend_score_peak": 305,
-        "friend_score_trough": 305,
-        "romance_score_peak": 0,
-        "relationship_type": "friend",
-        "relationship_level": "friendly",
-        "friend_level": "friendly",
-        "romance_level": None,
-        "friend_buffer_status": "none",
-        "romance_buffer_status": "none",
-        "relationship_style": "友好",
-        "is_polite": False,
-        "is_crushing": False,
-    }
-    test_config_3 = {
-        "passive_score_config": PASSIVE_SCORE_CONFIG,
-        "is_awake": True,
-        "friend_level_down_buffer": 0.92,  # must be below 300 * 0.92 = 276 to level down
-    }
-    # This response will lower the score
-    emotions_3 = {
-        "anger": {
-            "emotion_score": 2,
-            "original_emotion_score": 2,
-            "emotion_level": 1,
-            "friend_score_delta": -20,
-            "original_friend_score_delta": -20,
-            "romance_score_delta": 0,
-            "original_romance_score_delta": 0,
-            "decay_ratio": 0.8,
-            "start_time": "2025-05-14T07:47:16.095350+00:00",
-            "end_time": "2025-05-16T07:47:16.095350+00:00",
-            "original_end_time": "2025-05-14T07:47:16.095350+00:00",
-            "is_ended": False,
-            "update_time": now.isoformat(),
-        }
-    }
 
-    run_test("No3 Bot - Level Down Buffer", bot_config_3, test_config_3, emotions_3)
-"""
+    # # --- Scenario 3: Level Down with Buffer ---
+    # bot_config_3 = {
+    #     "bot_id": 3,
+    #     "entity_id": "b9003",
+    #     "last_chat_time": "2025-05-14T07:47:16.095350+00:00",
+    #     "friend_config": FRIEND_CONFIG,
+    #     "romance_config": ROMANCE_CONFIG,
+    #     "override_config": OVERRIDE_CONFIG,
+    #     "emotions_config": EMOTIONS_CONFIG,
+    #     "friend_score": 305,  # Just above the 300 threshold for friendly
+    #     "romance_score": 0,
+    #     "self_friend_score": 305,
+    #     "self_romance_score": 0,
+    #     "friend_score_peak": 305,
+    #     "friend_score_trough": 305,
+    #     "romance_score_peak": 0,
+    #     "relationship_type": "friend",
+    #     "relationship_level": "friendly",
+    #     "friend_level": "friendly",
+    #     "romance_level": None,
+    #     "friend_buffer_status": "none",
+    #     "romance_buffer_status": "none",
+    #     "relationship_style": "友好",
+    #     "is_polite": False,
+    #     "is_crushing": False,
+    # }
+    # test_config_3 = {
+    #     "passive_score_config": PASSIVE_SCORE_CONFIG,
+    #     "is_awake": True,
+    #     "friend_level_down_buffer": 0.92,  # must be below 300 * 0.92 = 276 to level down
+    # }
+    # # This response will lower the score
+    # emotions_3 = {
+    #     "anger": {
+    #         "emotion_score": 2,
+    #         "original_emotion_score": 2,
+    #         "emotion_level": 1,
+    #         "friend_score_delta": -20,
+    #         "original_friend_score_delta": -20,
+    #         "romance_score_delta": 0,
+    #         "original_romance_score_delta": 0,
+    #         "decay_ratio": 0.8,
+    #         "start_time": "2025-05-14T07:47:16.095350+00:00",
+    #         "end_time": "2025-05-16T07:47:16.095350+00:00",
+    #         "original_end_time": "2025-05-14T07:47:16.095350+00:00",
+    #         "is_ended": False,
+    #         "update_time": now.isoformat(),
+    #     }
+    # }
+
+    # run_test("No3 Bot - Level Down Buffer", bot_config_3, test_config_3, emotions_3)

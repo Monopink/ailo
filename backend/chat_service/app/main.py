@@ -31,7 +31,7 @@ def configure_logging():
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer(),
+            structlog.processors.JSONRenderer(ensure_ascii=False),
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -48,7 +48,7 @@ def configure_logging():
         root_logger.handlers.clear()
 
     # Set up file logging to capture all details (DEBUG and above)
-    file_handler = logging.FileHandler("app.log")
+    file_handler = logging.FileHandler("app.log", encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
 
     # Set up console logging for DEBUG level as well
@@ -192,7 +192,7 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="info",  # Changed from debug to info for production logs
+        log_level="debug",  # Changed from debug to info for production logs
         ws_ping_interval=20,
         ws_ping_timeout=20,
         access_log=True,

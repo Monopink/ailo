@@ -1,3 +1,4 @@
+import copy
 from db_managers import db_manager
 from typing import Dict, Any
 
@@ -18,6 +19,8 @@ async def save_bot_state(self) -> None:
     Persists all modified in-memory bot state to the database.
     This includes core bot attributes, context, memory in one call,
     and emotions data in a separate call.
+    The system message from the context is excluded from persistence
+    as it's dynamically regenerated each session.
     """
     try:
         # 1. Prepare bot data update payload
@@ -42,7 +45,21 @@ async def save_bot_state(self) -> None:
         update_payload["is_polite"] = self.is_polite
         update_payload["is_crushing"] = self.is_crushing
         update_payload["last_chat_time"] = self.last_chat_time
-        update_payload["context"] = self.context
+
+        # Handle context persistence: exclude the system message
+        context_to_save = copy.deepcopy(self.context)
+        if (
+            context_to_save
+            and "messages" in context_to_save
+            and isinstance(context_to_save["messages"], list)
+            and context_to_save["messages"]
+            and context_to_save["messages"][0].get("role") == "system"
+        ):
+            # Clear the content of the system prompt instead of removing the object
+            context_to_save["messages"][0]["content"] = ""
+            self.logger.info("Cleared system prompt content before saving to DB.")
+
+        update_payload["context"] = context_to_save
         update_payload["memory"] = self.memory
         update_payload["context_metadata"] = self.context_metadata
 

@@ -218,17 +218,18 @@ class ValidationErrorType(enum.Enum):
 class TaskType(enum.Enum):
     """Task types"""
 
-    PRE_RESPONSE_THINKING = enum.auto()
-    ATTACK_CHECK = enum.auto()
-    RESPONSE_DECISION = enum.auto()
-    CONTENT_GENERATION = enum.auto()
+    PRE_THINKING = enum.auto()
+    EXTRA_INFO = enum.auto()
+    IS_ATTACK = enum.auto()
+    REPLY_DECISION = enum.auto()
+    REPLY_CONTENT = enum.auto()
     EMOTION_SCORING = enum.auto()
     FRIEND_SCORING = enum.auto()
     ROMANCE_SCORING = enum.auto()
-    IS_IMPORTANT_CONVERSATION = enum.auto()
+    IS_IMPORTANT = enum.auto()
     CONVERSATION_NOTE = enum.auto()
-    SCHEDULED_MESSAGE = enum.auto()
-    BLOCK_USER = enum.auto()
+    PREPARED_CONTENT = enum.auto()
+    IS_BLOCK = enum.auto()
     CONVERSATION_SUMMARY = enum.auto()
 
 
@@ -238,3 +239,10 @@ class BufferStatus(enum.Enum):
     NONE = "none"
     LEVEL_UP_BUFFER = "level_up_buffer"
     LEVEL_DOWN_BUFFER = "level_down_buffer"
+
+
+class TypingStatus(enum.Enum):
+    """Typing queue message status"""
+
+    PENDING = "pending"
+    SENT = "sent"

@@ -41,51 +41,51 @@ class MockLLMManual(BaseLLM):
             # Response 1
             json.dumps(
                 {
-                    "thinking": "这是一个普通的问候，对方看起来是想开始一段对话。天气确实不错，可以用这个话题开场。我和对方的关系还不错，可以轻松友好一点。",
+                    "thought": "这是一个普通的问候，对方看起来是想开始一段对话。天气确实不错，可以用这个话题开场。我和对方的关系还不错，可以轻松友好一点。",
                     "is_attack": False,
-                    "response": True,
-                    "content": "你好啊，今天天气真不错！",
-                    "emotions": {"anger": 5},
-                    "friend_score": 1,
-                    "romance_score": 0,
+                    "want_reply": True,
+                    "reply_content": "1你好啊[msg]1今天天气真不错！",
+                    "emotions": {"anger": 8},
+                    "friend_score": -3,
+                    "romance_score": -5,
                     "is_important": True,
                     "note": "对方主动打招呼，我回应了一下",
-                    "next_message": "",
-                    "block": False,
+                    "prepared_content": "1.5你在干嘛[msg]1.5吃饭没",
+                    "is_block": False,
                 },
                 ensure_ascii=False,
             ),
             # Response 2
             json.dumps(
                 {
-                    "thinking": "我现在比较忙，没有太多时间聊天。虽然不想完全不理对方，但也只能简单回复一下，告诉对方我现在不太方便。",
+                    "thought": "我现在比较忙，没有太多时间聊天。虽然不想完全不理对方，但也只能简单回复一下，告诉对方我现在不太方便。",
                     "is_attack": False,
-                    "response": True,
-                    "content": "嗯...我正在忙，等会再聊吧。",
+                    "want_reply": True,
+                    "reply_content": "2嗯...我正在忙[msg]2等会再聊吧。",
                     "emotions": {"none": 0},
                     "friend_score": 0,
                     "romance_score": 0,
                     "is_important": False,
                     "note": "我现在在忙，没空聊天",
-                    "next_message": "忙完了，你之前想聊什么？",
-                    "block": False,
+                    "prepared_content": "2.5忙完了[msg]2.5你之前想聊什么？",
+                    "is_block": False,
                 },
                 ensure_ascii=False,
             ),
             # Response 3
             json.dumps(
                 {
-                    "thinking": "对方的消息有些模糊，我没完全理解是什么意思。最好请对方澄清一下，避免误解。我对这个话题也不是特别感兴趣。",
+                    "thought": "对方的消息有些模糊，我没完全理解是什么意思。最好请对方澄清一下，避免误解。我对这个话题也不是特别感兴趣。",
                     "is_attack": False,
-                    "response": True,
-                    "content": "你说什么？我没听清楚。",
+                    "want_reply": True,
+                    "reply_content": "3你说什么[msg]3我没听清楚。",
                     "emotions": {"none": 0},
                     "friend_score": 0,
                     "romance_score": 0,
                     "is_important": False,
                     "note": "没理解对方的意思",
-                    "next_message": "",
-                    "block": False,
+                    "prepared_content": "3.5你说什么[msg]3.5我没听清楚。",
+                    "is_block": False,
                 },
                 ensure_ascii=False,
             ),
@@ -108,10 +108,12 @@ class MockLLMManual(BaseLLM):
             "generate_response_called",
             context_keys=list(context.keys()),
             kwargs_keys=list(kwargs.keys()) if kwargs else [],
+            context=context,
+            kwargs=kwargs,
         )
 
         # Small delay to simulate API call
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(5)
 
         # Get next response from the queue
         if not self.RESPONSES:

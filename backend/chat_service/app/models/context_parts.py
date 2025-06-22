@@ -1,4 +1,3 @@
-import re
 import json
 
 try:
@@ -8,7 +7,8 @@ except ImportError:
     exit(1)
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from .context_strategy import ContextComponents, create_context
+from .context_strategy import ContextComponents, create_context, TaskDefinition
+from enums import TaskType
 
 
 def convert_timestamp(self, timestamp: str | None = None) -> str:
@@ -46,7 +46,7 @@ def create_fingerprint(self, text: str) -> str:
     if not text:
         return "0::"
     text_str = str(text)
-    return f"{len(text_str)}:{text_str[18:20]}:{text_str[28:31]}:{text_str[-3:]}"
+    return f"{len(text_str)}:{text_str[:5]}:{text_str[-5:]}"
 
 
 def create_instant_context(self) -> str:
@@ -101,6 +101,11 @@ def create_instant_context(self) -> str:
             f"{lunar_info}\n"
             f"你在{self.bot.city_name if hasattr(self.bot, 'city_name') else '中国'}。"
         )
+
+        if self.unsent_message:
+            instant_context += f"[之前未发送消息]{self.unsent_message}"
+
+        # 消息发送时间、年龄、用户名
 
         self.logger.info(f"Created instant context with time: {instant_context}")
         return instant_context
@@ -180,18 +185,20 @@ def refresh_system_context(self) -> None:
         components.instant_context = self.instant_context
         components.message_tag = self.message_tag
         components.include_summary = self.need_summary
+        components.attack_content_replacement = self.attack_content_replacement
 
         # Pass current emotion data
         components.emotions = getattr(self, "emotions", {})
 
         # Create context strategy
         system_prompt, strategy = create_context(
-            relationship_type=getattr(self.bot, "relationship_type", "friend"),
-            relationship_level=getattr(self.bot, "relationship_level", "neutral"),
+            relationship_type=self.relationship_type,
+            relationship_level=self.relationship_level,
             components=components,
             include_summary=self.need_summary,
             include_thought=not self.initial_message,
-            memory_limit=getattr(self, "memory_limit", 1000),
+            memory_limit=self.memory_limit,
+            include_extra_info=self.need_extra_info,
         )
 
         # Update current strategy object
@@ -265,17 +272,17 @@ def append_context(self, role: str, context_content: str) -> None:
             # Add new message
             self.context["messages"].append(new_message)
 
-            # Use the timestamp regex constant
-            timestamp_match = re.match(self.timestamp_regex, context_content)
-            timestamp = timestamp_match.group(1) if timestamp_match else "N/A"
+            # Generate current timestamp for metadata
+            current_timestamp = self._convert_timestamp()
 
-            if timestamp == "N/A":
+            if not current_timestamp:
                 self.logger.warning(
-                    f"Could not extract timestamp from user content for bot {self.bot.id}: {context_content[:50]}"
+                    f"Could not generate timestamp for user content for bot {self.bot.id}: {context_content[:50]}"
                 )
+                current_timestamp = "N/A"
 
             user_metadata = {
-                "timestamp": timestamp,
+                "timestamp": current_timestamp,
                 "role": role,
                 "fingerprint": self._create_fingerprint(context_content),
             }
@@ -293,40 +300,102 @@ def append_context(self, role: str, context_content: str) -> None:
             self.logger.error(f"Reset context structure for bot {self.bot.id} after error")
 
 
-def append_response_to_context(self, response_result: dict) -> None:
+def append_response_to_context(self, llm_task_result: dict) -> None:
     """
     Processes an LLM response: appends assistant message to context, updates
     the previous user's metadata, and adds new metadata for the assistant.
     """
     try:
-        content_value = response_result.get("content", "")
-        assistant_timestamp = self._convert_timestamp()
-        saveable_content = f"[{assistant_timestamp}]\n{content_value}"
+        # 1. Prepare the content for the assistant's message in the context
+        content_value = llm_task_result.get(TaskDefinition.get_response_key(TaskType.REPLY_CONTENT), "")
+        prepared_content_value = llm_task_result.get(
+            TaskDefinition.get_response_key(TaskType.PREPARED_CONTENT), ""
+        )
+        # assistant_timestamp = self._convert_timestamp()
+
+        # Build message with optional emotion and note tags
+        # Example: [emotions]anger:5, happy:3
+        emotions_part = ""
+        emotions_data = llm_task_result.get(TaskDefinition.get_response_key(TaskType.EMOTION_SCORING))
+        if emotions_data and isinstance(emotions_data, dict):
+            # Add emotions part only if it's not just "none:0"
+            if not (len(emotions_data) == 1 and "none" in emotions_data):
+                emotions_str = ", ".join([f"{k}:{v}" for k, v in emotions_data.items()])
+                if emotions_str:
+                    emotions_part = f"[emotions]{emotions_str}"
+
+        # Example: [note]对方开始询问地域信息...
+        note_part = ""
+        note_data = llm_task_result.get(TaskDefinition.get_response_key(TaskType.CONVERSATION_NOTE))
+        if note_data and isinstance(note_data, str):
+            note_part = f"[note]{note_data}"
+
+        # Combine all parts for the savable content
+        # Example: [2025-06-21...]\nHi[emotions]anger:1[note]...
+        # saveable_content = f"[{assistant_timestamp}]\n{content_value}"
+        saveable_content = content_value
+        if prepared_content_value:
+            saveable_content += self.message_tag + prepared_content_value
+        if emotions_part:
+            saveable_content += emotions_part
+        if note_part:
+            saveable_content += note_part
 
         assistant_message = {"role": "assistant", "content": saveable_content}
         self.context["messages"].append(assistant_message)
 
-        # Update the previous user's metadata
+        # 2. Update the previous user's metadata
         if self.context_metadata and self.context_metadata[-1].get("role") == "user":
             user_meta = self.context_metadata[-1]
-            user_meta["is_attack"] = response_result.get("is_attack", False)
-            user_meta["important"] = response_result.get("is_important", False)
+            user_meta["is_attack"] = llm_task_result.get(
+                TaskDefinition.get_response_key(TaskType.IS_ATTACK), False
+            )
+            user_meta["is_important"] = llm_task_result.get(
+                TaskDefinition.get_response_key(TaskType.IS_IMPORTANT), False
+            )
         else:
             self.logger.warning(
                 "Could not find a preceding user metadata entry to update for bot %s",
                 self.bot.id,
             )
 
-        # Add new metadata for the assistant's response
+        # 3. Add new metadata for the assistant's response, maintaining order
+        # This order should align with the TaskDefinition in context_strategy.py
+        assistant_timestamp = self._convert_timestamp()
         assistant_metadata = {
             "timestamp": assistant_timestamp,
             "role": "assistant",
             "fingerprint": self._create_fingerprint(saveable_content),
-            "emotions": response_result.get("emotions", {}),
-            "friend_score": response_result.get("friend_score", 0),
-            "romance_score": response_result.get("romance_score", 0),
-            "important": response_result.get("is_important", False),
         }
+        # PRE_RESPONSE_THINKING
+        thought_key = TaskDefinition.get_response_key(TaskType.PRE_THINKING)
+        if thought_key in llm_task_result:
+            assistant_metadata[thought_key] = llm_task_result.get(thought_key)
+        # EMOTION_SCORING
+        emotion_key = TaskDefinition.get_response_key(TaskType.EMOTION_SCORING)
+        assistant_metadata[emotion_key] = llm_task_result.get(emotion_key, {})
+        # FRIEND_SCORING
+        friend_score_key = TaskDefinition.get_response_key(TaskType.FRIEND_SCORING)
+        assistant_metadata[friend_score_key] = llm_task_result.get(friend_score_key, 0)
+        # ROMANCE_SCORING
+        romance_score_key = TaskDefinition.get_response_key(TaskType.ROMANCE_SCORING)
+        assistant_metadata[romance_score_key] = llm_task_result.get(romance_score_key, 0)
+        # CONVERSATION_NOTE
+        note_key = TaskDefinition.get_response_key(TaskType.CONVERSATION_NOTE)
+        if note_key in llm_task_result and llm_task_result[note_key]:
+            assistant_metadata[note_key] = llm_task_result.get(note_key)
+        # IS_IMPORTANT
+        important_key = TaskDefinition.get_response_key(TaskType.IS_IMPORTANT)
+        assistant_metadata[important_key] = llm_task_result.get(important_key, False)
+        # PREPARED_CONTENT
+        next_content_key = TaskDefinition.get_response_key(TaskType.PREPARED_CONTENT)
+        if next_content_key in llm_task_result and llm_task_result[next_content_key]:
+            assistant_metadata[next_content_key] = llm_task_result.get(next_content_key)
+        # IS_BLOCK
+        block_key = TaskDefinition.get_response_key(TaskType.IS_BLOCK)
+        if block_key in llm_task_result:
+            assistant_metadata[block_key] = llm_task_result.get(block_key)
+
         self.context_metadata.append(assistant_metadata)
         self.logger.info("Appended assistant response to context and metadata.")
 
@@ -357,7 +426,7 @@ def process_attack_context(self) -> None:
             )
             return
 
-        # Get the last message in the context
+        # Get the last message in the context (user message) and its metadata
         last_message = self.context["messages"][-1]
 
         # Check if the last message is from the user
@@ -367,29 +436,38 @@ def process_attack_context(self) -> None:
             )
             return
 
+        if not self.context_metadata:
+            self.logger.warning(f"Metadata is empty for bot {self.bot.id}, cannot process attack context.")
+            return
+
+        last_metadata = self.context_metadata[-1]
+
+        # Verify fingerprint before proceeding
+        expected_fingerprint = last_metadata.get("fingerprint")
+        actual_fingerprint = self._create_fingerprint(last_message.get("content", ""))
+
+        if expected_fingerprint != actual_fingerprint:
+            self.logger.warning(
+                f"Fingerprint mismatch for bot {self.bot.id} during attack processing. "
+                f"Expected: {expected_fingerprint}, Got: {actual_fingerprint}. "
+                f"Content: {last_message.get('content', '')[:50]}..."
+            )
+            return
+
         # Get the full content for logging
         full_content = last_message["content"]
 
         # Log the full content as a warning (potential attack message)
         self.logger.warning(f"Detected attack message from user for bot {self.bot.id}: {full_content}")
 
-        # Extract the timestamp using the regex constant
-        timestamp_match = re.match(self.timestamp_regex, full_content)
+        # Just use the replacement message directly. The short timestamp `[HH:MM]`
+        # is part of the content and will be replaced along with it.
+        sanitized_content = self.attack_content_replacement
 
-        if timestamp_match:
-            # Keep only the timestamp part and add replacement message
-            timestamp = timestamp_match.group(1)
-            # Replace the content with timestamp and attack notification
-            last_message["content"] = f"[{timestamp}] {self.attack_content_replacement}"
-            self.logger.info(
-                f"Sanitized attack context for bot {self.bot.id}, kept only timestamp with notification"
-            )
-        else:
-            # If no timestamp found, use only the replacement message
-            last_message["content"] = self.attack_content_replacement
-            self.logger.info(
-                f"No timestamp found in attack context for bot {self.bot.id}, using only notification"
-            )
+        # Update the message content and its fingerprint in metadata
+        last_message["content"] = sanitized_content
+        last_metadata["fingerprint"] = self._create_fingerprint(sanitized_content)
+        self.logger.info(f"Sanitized attack context and updated fingerprint for bot {self.bot.id}")
 
     except Exception as e:
         self.logger.error(
@@ -462,6 +540,7 @@ def remove_expire_context(self, include_important: bool = False) -> None:
         if not timestamp_str or timestamp_str == "N/A":
             return
 
+        is_old_enough = False
         try:
             message_time = datetime.strptime(timestamp_str, self.timestamp_format)
             message_time = message_time.replace(tzinfo=ZoneInfo(self.bot.timezone))
@@ -485,7 +564,7 @@ def remove_expire_context(self, include_important: bool = False) -> None:
                 break
 
             metadata = self.context_metadata[metadata_index]
-            is_important = metadata.get("important", True)
+            is_important = metadata.get("is_important", True)
 
             # Decide whether to delete this message.
             if include_important or not is_important:
@@ -508,7 +587,7 @@ def remove_expire_context(self, include_important: bool = False) -> None:
                     )
                     break  # Stop on mismatch
             else:
-                # Old but important, and we are not including them. Skip.
+                # Old but is_important, and we are not including them. Skip.
                 metadata_index += 1
     except Exception as e:
         self.logger.error(
@@ -517,10 +596,11 @@ def remove_expire_context(self, include_important: bool = False) -> None:
         )
 
 
-def summary_to_memory(self, response_result: dict) -> None:
+def summary_to_memory(self, llm_task_result: dict) -> None:
     """Processes the summary from the LLM response and updates memory."""
     try:
-        summary = response_result.get("summary")
+        summary_key = TaskDefinition.get_response_key(TaskType.CONVERSATION_SUMMARY)
+        summary = llm_task_result.get(summary_key)
 
         if summary is None:
             if self.need_summary:

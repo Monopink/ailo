@@ -195,6 +195,30 @@ class MySQLManager:
         """Convert enum value to string."""
         return value.value.lower() if value is not None else None
 
+    def _convert_emotions_config_keys(self, config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Converts string keys in emotions_config thresholds to integers for safety."""
+        if not config or not isinstance(config, dict):
+            return config
+
+        try:
+            new_config = {}
+            for emotion_type, details in config.items():
+                if (
+                    isinstance(details, dict)
+                    and "thresholds" in details
+                    and isinstance(details.get("thresholds"), dict)
+                ):
+                    # Create a copy of details to avoid modifying the original dict in-place
+                    new_details = details.copy()
+                    new_details["thresholds"] = {int(k): v for k, v in details["thresholds"].items()}
+                    new_config[emotion_type] = new_details
+                else:
+                    new_config[emotion_type] = details
+            return new_config
+        except (ValueError, TypeError) as e:
+            self.logger.warning("failed_to_convert_emotions_config_keys", config=config, error=str(e))
+            return config  # Return original on error
+
     def _convert_str_to_enum(self, enum_class: type, value: Optional[str]) -> Optional[enum.Enum]:
         """Convert string to enum value."""
         if value is None:
@@ -297,6 +321,9 @@ class MySQLManager:
                 if bot:
                     # Convert enum value
                     bot.status = self._convert_str_to_enum(BotStatus, bot.status)
+                    # Convert emotions_config keys
+                    if bot.emotions_config:
+                        bot.emotions_config = self._convert_emotions_config_keys(bot.emotions_config)
                     op_logger.info("bot_found", status=str(bot.status))
                 else:
                     op_logger.info("bot_not_found")
@@ -333,7 +360,7 @@ class MySQLManager:
                         "override_config": bot.override_config,
                         "is_polite": bool(bot.is_polite),
                         "is_crushing": bool(bot.is_crushing),
-                        "emotions_config": bot.emotions_config,
+                        "emotions_config": self._convert_emotions_config_keys(bot.emotions_config),
                     }
                 return None
         except SQLAlchemyError as e:

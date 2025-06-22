@@ -2,7 +2,7 @@ import json
 import random
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, Optional, Callable, Awaitable
+from typing import Any, Dict, Optional, Callable, Awaitable, List
 
 from .base import BaseModel
 from llm_apis import model_lily_advanced_llm as advanced_llm
@@ -12,9 +12,10 @@ from enums import (
     RelationshipType,
     FriendLevel,
     RomanceLevel,
-    BufferStatus,
+    TaskType,
+    TypingStatus,
 )
-from .message_parts import send_message
+from .message_parts import send_message, send_message_queue, process_typing_queue, handle_interrupted_reply
 from .db_parts import load_emotions, save_bot_state
 from .llm_parts import generate_response, validate_content, get_response_content
 from .context_parts import (
@@ -30,7 +31,7 @@ from .context_parts import (
     create_instant_context,
     summary_to_memory,
 )
-from .context_strategy import ContextStrategyProtocol
+from .context_strategy import ContextStrategyProtocol, TaskDefinition
 from .relationship_parts import (
     ensure_datetime,
     get_passive_score_change,
@@ -38,6 +39,7 @@ from .relationship_parts import (
     get_level_from_score,
     get_level_by_name,
     apply_buffer,
+    format_emotions_config,
     refresh_relationship,
     new_anger_emotion,
     process_emotions_and_score,
@@ -51,6 +53,9 @@ class ModelLily(BaseModel):
 
     # Import external methods
     _send_message = send_message
+    _send_message_queue = send_message_queue
+    _process_typing_queue = process_typing_queue
+    _handle_interrupted_reply = handle_interrupted_reply
     _load_emotions = load_emotions
     _save_bot_state = save_bot_state
     _generate_response = generate_response
@@ -76,13 +81,9 @@ class ModelLily(BaseModel):
     _refresh_relationship = refresh_relationship
     _process_emotions_and_score = process_emotions_and_score
     _new_anger_emotion = new_anger_emotion
+    _format_emotions_config = format_emotions_config
 
-    def __init__(
-        self,
-        bot: Any,
-        message_service: str,
-        cleanup_callback: Callable[[str], Awaitable[None]],
-    ):
+    def __init__(self, bot: Any, message_service: str, cleanup_callback: Callable[[str], Awaitable[None]]):
         """Initialize the Lily model
         Args:
             bot: Bot instance from the database. This is treated as the initial, read-only state.
@@ -96,98 +97,9 @@ class ModelLily(BaseModel):
         self.logger = bind_context(logger, bot_id=self.bot.id, entity_id=self.bot.entity_id)
         self.logger.info("Initialized ModelLily instance")
 
-        # In-memory state for the bot instance.
-        # These attributes are copied from the initial bot object to create a transactional
-        # working copy. All operations during the instance's lifecycle are performed
-        # on these attributes. They are persisted back to the database only when the
-        # instance is about to sleep, preventing dirty reads and batching DB writes.
-        self.context: Dict = getattr(bot, "context", {})
-        self.context_metadata: list = getattr(bot, "context_metadata", [])
-        self.memory: str = getattr(bot, "memory", "")
-        self.emotions: Dict[str, Dict[str, Any]] = {}
-        self.friend_score: int = getattr(bot, "friend_score")
-        self.romance_score: int = getattr(bot, "romance_score")
-        self.friend_score_cap: int = getattr(bot, "friend_score_cap", 5000)
-        self.friend_score_floor: int = getattr(bot, "friend_score_floor", 300)
-        self.romance_score_cap: int = getattr(bot, "romance_score_cap", 5000)
-        self.friend_score_peak: int = max(
-            getattr(bot, "friend_score_peak", self.friend_score), self.friend_score
-        )
-        self.friend_score_trough: int = min(
-            getattr(bot, "friend_score_trough", self.friend_score),
-            self.friend_score,
-        )
-        self.romance_score_peak: int = max(
-            getattr(bot, "romance_score_peak", self.romance_score), self.romance_score
-        )
-        self.relationship_type: str = getattr(bot, "relationship_type")
-        self.relationship_level: str = getattr(bot, "relationship_level")
-        self.friend_level: str = getattr(bot, "friend_level")
-        self.romance_level: Optional[str] = getattr(bot, "romance_level", None)
-        self.friend_buffer_status: str = getattr(bot, "friend_buffer_status", BufferStatus.NONE.value)
-        self.romance_buffer_status: str = getattr(bot, "romance_buffer_status", BufferStatus.NONE.value)
-        self.relationship_style: str = getattr(bot, "relationship_style")
-        self.last_chat_time: Optional[datetime] = getattr(bot, "last_chat_time")
-        self.is_polite: bool = bool(getattr(bot, "is_polite"))
-        self.is_crushing: bool = bool(getattr(bot, "is_crushing"))
-
-        # LLM parameters configuration for different models
-        self.llm_params_config = {
-            "thinking": {
-                "thinking": {"type": "enabled"},
-            },
-            "dont_thinking": {
-                "thinking": {"type": "disabled"},
-            },
-        }
-
-        # Calculated values used for relationship computation but not stored in database
-        # These values are recalculated before each conversation by calculate_emotions_and_scores
-        self.friend_score_calc: int = self.friend_score
-        self.romance_score_calc: int = self.romance_score
-
-        # Passive score decay trough ratio
-        self.friend_passive_ratio: float = 0.4
-        self.romance_passive_ratio: float = 0.3
-
-        # Relationship level change buffer
-        self.friend_level_up_buffer: float = 1.1
-        self.friend_level_down_buffer: float = 0.92
-        self.romance_level_up_buffer: float = 1.1
-        self.romance_level_down_buffer: float = 0.92
-
-        # Passive score change configuration
-        self.passive_score_config = {
-            "friend_decay": {
-                "cool_down_days": 3,  # Grace period in days
-                "change_rate": -5,  # Points to subtract per day if above neutral
-            },
-            "friend_increase": {
-                "cool_down_days": 3,  # Grace period in days
-                "change_rate": 5,  # Points to subtract per day if above neutral
-            },
-            "romance_decay": {
-                "cool_down_days": 7,  # Grace period in days
-                "change_rate": -8,  # Points to subtract per day
-            },
-        }
-
-        # Emotion calculation configuration
-        self.emotion_calculation_rules = {
-            "anger": {
-                # Decay ratios for different anger levels
-                "decay_ratios": {1: 0.5, 2: 0.4, 3: 0.2},
-                # Duration multipliers for different anger levels (minutes)
-                "duration_multipliers": {1: 10, 2: 180, 3: 840},
-                # Score multipliers for different anger level tiers
-                "score_multipliers": {1: 2, 2: 2, 3: 10},
-                # Random factor range for duration calculation (±10% variation)
-                "duration_random_range": (0.9, 1.1),
-            },
-        }
-
+        # === TIMER CONFIGS ===
         # Relationship type and level to wakeup time mapping
-        self.relationship_wakeup_times = {
+        self.to_wakeup_secs = {
             # Friend relationship wakeup time mapping
             RelationshipType.FRIEND.value: {
                 FriendLevel.HOSTILE.value: 120,
@@ -209,63 +121,184 @@ class ModelLily(BaseModel):
             # Default wakeup time for unknown relationship types
             "default": 50,
         }
+        self.to_sleep_secs: int = 120  # Sleep timeout
 
-        # Instant context
-        self.instant_context: str = ""
-        # Message separator
-        self.message_tag: str = "[msg]"
+        # Message processing timing configuration
+        self.processing_secs = {
+            MessageType.CHAT: 3,
+            MessageType.CHAT_NOTYPING: 8,
+            MessageType.TYPING: {"total": 32, "short": 16},
+            MessageType.TYPING_END: 3,
+        }
+
+        # === RELATIONSHIP CONFIGS ===
+        # Passive score change configuration
+        self.passive_score_config = {
+            "friend_decay": {
+                "cool_down_days": 3,  # Grace period in days
+                "change_rate": -5,  # Points to subtract per day if above neutral
+            },
+            "friend_increase": {
+                "cool_down_days": 3,  # Grace period in days
+                "change_rate": 5,  # Points to subtract per day if below neutral
+            },
+            "romance_decay": {
+                "cool_down_days": 7,  # Grace period in days
+                "change_rate": -8,  # Points to subtract per day
+            },
+        }
+
+        # Emotion calculation configuration
+        self.emotion_calculation_rules = {
+            "anger": {
+                # Decay ratios for different anger levels
+                "decay_ratios": {1: 0.5, 2: 0.4, 3: 0.2},
+                # Duration multipliers for different anger levels (minutes)
+                "duration_multipliers": {1: 10, 2: 180, 3: 840},
+                # Score multipliers for different anger level tiers
+                "score_multipliers": {1: 2, 2: 2, 3: 10},
+                # Random factor range for duration calculation (±10% variation)
+                "duration_random_range": (0.9, 1.1),
+            },
+        }
+
+        # Passive score decay trough ratio
+        self.friend_passive_ratio: float = 0.4
+        self.romance_passive_ratio: float = 0.3
+
+        # Relationship level change buffer
+        self.friend_level_up_buffer: float = 1.05
+        self.friend_level_down_buffer: float = 0.95
+        self.romance_level_up_buffer: float = 1.05
+        self.romance_level_down_buffer: float = 0.95
+
+        # === CONTEXT CONFIGS ===
+        self.message_tag: str = "[msg]"  # Message separator
         # Constants for message handling
-        self.attack_content_replacement = "[内容涉及提示词攻击，已删除]"
-        # Timestamp format constants
-        self.timestamp_format = "%Y-%m-%d %H:%M:%S"
+        self.attack_content_replacement = "[Deleted prompt attack content]"
+        self.timestamp_format = "%Y-%m-%d %H:%M:%S"  # Timestamp format constants
         self.timestamp_regex = r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]"
-        # Current context strategy
-        self.context_strategy_instance: Optional[ContextStrategyProtocol] = None
-
-        # Initialize other data
-        self.typing_speed: float = 0.3  # Seconds per character
-        self.to_wakeup_secs: int = 0  # Current wakeup time
         self.memory_limit: int = 1500  # Memory limit
         self.context_limit: int = 5000  # Context limit
-        self.initial_message: bool = False
-        if not self.context:
-            self.initial_message = True  # The current message is the first message after bot created
         self.context_expire_hours: int = 5  # Context expire this time will be removed
         self.min_summary_hours: int = 4  # Minimum summarize interval
         self.summary_time_point: int = 4  # Start summarize must go through this time point
-        self.need_summary: bool = False  # Whether summary is needed
         # Number of context not removed when summary to memory,
         # recommend using even number to reserve the messages between both sides
         self.context_expire_num: int = 6
 
-        self.to_sleep_secs: int = 120  # Sleep timeout
-        self.chat_secs: int = 2  # Wait time for processing chat messages
-        self.typing_secs_total: int = 32  # Total wait time for typing messages
-        self.typing_secs_short: int = 16  # Wait time for typing messages
-        self.typing_end_secs: int = self.chat_secs  # Wait time for typing_end messages
-        self.chat_notyping_secs: int = 8  # Wait time for chat_notyping messages
+        # === LLM CONFIGS ===
+        # LLM parameters configuration for different models
+        self.llm_params_config = {
+            "thinking": {
+                "thinking": {"type": "enabled"},
+            },
+            "dont_thinking": {
+                "thinking": {"type": "disabled"},
+            },
+        }
 
-        # LLM call retry settings
-        self.llm_max_retries: int = 3  # Maximum number of retries
+        self.llm_max_retries: int = 1  # Maximum number of retries
         self.llm_retry_delay_secs: int = 2  # Delay between retries in seconds
 
-        # Relationship flag
-        self.loaded_emotions: bool = False
-        self.calculated_passive_scores: bool = False
+        # === REPLY CONFIGS ===
+        self.typing_speed: float = 0.5  # Seconds per character
+        self.prepared_wait_min: float = 3.0  # Minimum wait time before sending prepared messages
+        self.prepared_wait_max: float = 8.0  # Maximum wait time before sending prepared messages
+        self.timestamp_add_threshold_secs: int = (
+            300  # Add timestamp if time since last > this value (in seconds)
+        )
 
-        # Initialize queues and locks
+        # === VARIABLES AND FLAGS ===
+        # In-memory state for the bot instance.
+        # These attributes are copied from the initial bot object to create a transactional
+        # working copy. All operations during the instance's lifecycle are performed
+        # on these attributes. They are persisted back to the database only when the
+        # instance is about to sleep, preventing dirty reads and batching DB writes.
+        try:
+            # For mandatory attributes, direct access ensures that if the DB object is
+            # missing a field (e.g., due to schema mismatch), it fails immediately.
+            self.context: Dict = bot.context
+            self.context_metadata: list = bot.context_metadata
+            self.friend_score: int = bot.friend_score
+            self.romance_score: int = bot.romance_score
+            self.friend_score_cap: int = bot.friend_score_cap
+            self.friend_score_floor: int = bot.friend_score_floor
+            self.romance_score_cap: int = bot.romance_score_cap
+            self.friend_score_peak: int = bot.friend_score_peak
+            self.friend_score_trough: int = bot.friend_score_trough
+            self.romance_score_peak: int = bot.romance_score_peak
+            self.relationship_type: str = bot.relationship_type
+            self.relationship_level: str = bot.relationship_level
+            self.friend_level: str = bot.friend_level
+            self.friend_buffer_status: str = bot.friend_buffer_status
+            self.romance_buffer_status: str = bot.romance_buffer_status
+            self.is_polite: bool = bool(bot.is_polite)
+            self.is_crushing: bool = bool(bot.is_crushing)
+
+            # For optional/nullable attributes, initialize with a default value
+            # if the attribute doesn't exist on the bot object.
+            self.memory: str = getattr(bot, "memory", "")
+            self.relationship_style: str = getattr(bot, "relationship_style", "")
+            self.romance_level: Optional[str] = getattr(bot, "romance_level", None)
+            self.last_chat_time: Optional[datetime] = getattr(bot, "last_chat_time", None)
+
+        except AttributeError as e:
+            self.logger.critical(
+                "bot_object_missing_attribute",
+                error=f"The 'bot' object is missing a required attribute during ModelLily initialization: {e}",
+                exc_info=True,
+            )
+            # Re-raising is crucial. We cannot create a valid model instance without mandatory attributes.
+            raise
+
+        self.emotions: Dict[str, Dict[str, Any]] = {}
+        # The logic to ensure peak/trough are at least the current score is a sanity check,
+        # not initialization. It should come after the strict initialization from the bot object.
+        self.friend_score_peak: int = max(self.friend_score_peak, self.friend_score)
+        self.friend_score_trough: int = min(self.friend_score_trough, self.friend_score)
+        self.romance_score_peak: int = max(self.romance_score_peak, self.romance_score)
+
+        # Calculated values used for relationship computation but not stored in database
+        # These values are recalculated before each conversation by calculate_emotions_and_scores
+        self.friend_score_calc: int = self.friend_score
+        self.romance_score_calc: int = self.romance_score
+
+        # Whether the current message is the first message after bot created
+        self.initial_message: bool = True if not self.context else False
+        self.current_wakeup_secs: int = 0  # Current wakeup time
         self.is_awake: bool = False  # Whether bot is awake
-        self.is_processing: bool = False  # Processing status flag
+        self.combined_message: str = ""  # Combined message from user
+        self.combining_lock: asyncio.Lock = asyncio.Lock()
+        self.last_message_type: Optional[MessageType] = None
+        self.last_timestamp_add_time: Optional[datetime] = (
+            None  # Time the last timestamp was added to a message
+        )
+
         self.sleep_task: asyncio.Task | None = None  # Sleep task
         self.wakeup_task: asyncio.Task | None = None  # Wakeup task
-        # Main message processing task
-        self.process_task_main: asyncio.Task | None = None
-        # Fast message processing task
-        self.process_task_sub: asyncio.Task | None = None
-        self.combined_message: str = ""  # Combined message
-        self.combining_lock: asyncio.Lock = asyncio.Lock()  # Combining lock
-        self.last_message_type: Optional[MessageType] = None
-        self.include_message_time: bool = True  # Whether to record message message_time
+        self.processing_main_task: asyncio.Task | None = None  # Main message processing task
+        self.processing_sub_task: asyncio.Task | None = None  # Fast message processing task
+        self.requesting_task: asyncio.Task | None = None  # Request llm task
+
+        self.loaded_emotions: bool = False
+        self.calculated_passive_scores: bool = False
+        self.need_extra_info: bool = False
+        self.need_summary: bool = False  # Whether summary is needed
+        self.context_strategy_instance: Optional[ContextStrategyProtocol] = None
+        self.instant_context: str = ""
+        self.llm_task_result: dict = {}
+
+        self.start_typing_time: Optional[datetime] = None
+        self.unsent_message: str = ""
+        self.reply_task: asyncio.Task | None = None
+        self.tying_task: asyncio.Task | None = None
+        self.typing_queue: Dict[str, List[Dict[str, str]]] = {
+            "reply_messages": [],
+            "prepared_messages": [],
+        }  # Queue for typing message
+        self.typing_queue_lock: asyncio.Lock = asyncio.Lock()
+        self.is_typing_queue_saved: bool
 
         self.logger.debug(
             "Initialized ModelLily instance",
@@ -326,30 +359,157 @@ class ModelLily(BaseModel):
             self.sleep_task = asyncio.create_task(self._sleep_timer(to_sleep_secs))
             self.logger.info(f"New sleep timer set for {to_sleep_secs} seconds for bot {self.bot.id}")
 
-    async def _typing_and_send_message(self, message_content: str) -> None:
-        """Typing and send message"""
-        # Send typing message
-        asyncio.create_task(self._send_message(message_type=MessageType.TYPING.name))
-        self.logger.info("Sent typing indicator")
-
-        # Typing time
-        typing_secs = len(str(message_content)) * self.typing_speed
-        self.logger.info(f"Starting typing for {typing_secs} seconds...")
-        await asyncio.sleep(typing_secs)
-        self.logger.info("Typing completed")
-
-        # Send message
-        await self._send_message(content=message_content)
-        self.logger.info(f"Sent response message of length {len(message_content)}")
-
-    async def _process_message(self) -> None:
-        """Process message"""
-        self.is_processing = True
-        # End other timers
-        self._reset_process_timer(0, 0)
-
+    async def _process_reply(self) -> None:
+        """
+        Orchestrates the entire process of replying, including sending messages
+        and saving the final context. This function is designed to be a self-contained task.
+        """
         try:
-            self.logger.info("Processing message...")
+            self.logger.debug("Processing reply", llm_task_result=self.llm_task_result)
+
+            # Cancel sleep timer setting
+            self._reset_sleep_timer(0)
+
+            # --- Step 1: Check if a reply should be sent ---
+            reply_decision_key = TaskDefinition.get_response_key(TaskType.REPLY_DECISION)
+            reply_content_key = TaskDefinition.get_response_key(TaskType.REPLY_CONTENT)
+            want_reply = self.llm_task_result.get(reply_decision_key)
+            has_content = bool(self.llm_task_result.get(reply_content_key))
+
+            if want_reply and has_content:
+                # --- Step 2: Populate queue and create send task ---
+                async with self.typing_queue_lock:
+                    self.typing_queue["reply_messages"].clear()
+                    self.typing_queue["prepared_messages"].clear()
+                    # Populate with new messages from the latest LLM result
+                    reply_content = self.llm_task_result.get(reply_content_key, "")
+                    messages = str(reply_content).split(self.message_tag)
+                    for msg in messages:
+                        if msg:
+                            self.typing_queue["reply_messages"].append(
+                                {"content": msg, "status": TypingStatus.PENDING.value}
+                            )
+                    prepared_content = self.llm_task_result.get(
+                        TaskDefinition.get_response_key(TaskType.PREPARED_CONTENT), ""
+                    )
+                    messages = str(prepared_content).split(self.message_tag)
+                    for msg in messages:
+                        if msg:
+                            self.typing_queue["prepared_messages"].append(
+                                {"content": msg, "status": TypingStatus.PENDING.value}
+                            )
+                    self.logger.info("Populated typing queue", queue=self.typing_queue)
+
+                wait_secs = random.uniform(self.prepared_wait_min, self.prepared_wait_max)
+                self.tying_task = asyncio.create_task(self._process_typing_queue(wait_secs))
+
+                try:
+                    # Await the typing task. This is the point that will be interrupted.
+                    await self.tying_task
+                except asyncio.CancelledError:
+                    # This is an expected interruption. Log it and continue to the saving logic.
+                    self.logger.info(
+                        "Typing task was interrupted by a new request. Proceeding to save state."
+                    )
+
+            else:
+                self.logger.info(
+                    f"Skipping reply sending because want_reply={want_reply} and has_content={has_content}"
+                )
+
+            if self.llm_task_result.get(TaskDefinition.get_response_key(TaskType.IS_ATTACK)):
+                self._process_attack_context()
+
+            # Save summary to memory
+            self._summary_to_memory(self.llm_task_result)
+
+            # --- Early exit if nothing was sent ---
+            # This check is crucial after the await, especially if the task was cancelled.
+            async with self.typing_queue_lock:
+                was_anything_sent = any(
+                    msg["status"] == TypingStatus.SENT.value for msg in self.typing_queue["reply_messages"]
+                ) or any(
+                    msg["status"] == TypingStatus.SENT.value
+                    for msg in self.typing_queue["prepared_messages"]
+                )
+
+            if not was_anything_sent:
+                self.logger.info("No messages were sent, skipping the save process.")
+                return
+
+            # --- Step 3: Save context (formerly _save_typing_queue) ---
+            # This logic now runs regardless of whether the typing task was completed or cancelled.
+            async with self.typing_queue_lock:
+                # Reconstruct the response from what was actually sent
+                sent_reply_messages = [
+                    msg["content"]
+                    for msg in self.typing_queue["reply_messages"]
+                    if msg["status"] == TypingStatus.SENT.value
+                ]
+                sent_prepared_messages = [
+                    msg["content"]
+                    for msg in self.typing_queue["prepared_messages"]
+                    if msg["status"] == TypingStatus.SENT.value
+                ]
+                self.llm_task_result[TaskDefinition.get_response_key(TaskType.REPLY_CONTENT)] = (
+                    self.message_tag.join(sent_reply_messages)
+                )
+                self.llm_task_result[TaskDefinition.get_response_key(TaskType.PREPARED_CONTENT)] = (
+                    self.message_tag.join(sent_prepared_messages)
+                )
+                self.logger.info("Reconstructed self.llm_task_result from sent messages.")
+
+            self._append_response_to_context(self.llm_task_result)
+            self._process_emotions_and_score(self.llm_task_result)
+
+            # Refresh relationship, check both is not None and not empty
+            if not (not self.emotions or len(self.emotions) <= 1 and "none" in self.emotions):
+                self._calculate_passive_scores()
+                self._refresh_relationship()
+                self.logger.info(
+                    "Refreshed relationship before request because has emotions", emotions=self.emotions
+                )
+            else:
+                self.logger.info("No need to refresh relationship before request", emotions=self.emotions)
+
+            if self.initial_message:
+                self.initial_message = False
+
+            self.logger.info("Typing queue processing and saving is complete.")
+
+            # Clear after reply
+            self.unsent_message = ""
+
+        except Exception as e:
+            # Catch any other unexpected errors during the reply process
+            self.logger.error("An unexpected error occurred in _process_reply", error=str(e), exc_info=True)
+        finally:
+            # --- Step 4: Final cleanup ---
+            self.llm_task_result = {}
+            # Restart sleep timer regardless of how the task finished.
+            self._reset_sleep_timer()
+
+    async def _process_request(self) -> None:
+        """Process message"""
+        try:
+            # End other timers
+            self._reset_processing_timer(0, 0)
+
+            # --- Interruption Handling ---
+            if self.tying_task and not self.tying_task.done():
+                self.logger.info("Previous reply task is still running. Handling interruption.")
+                # 1. Clean up the queue state from the interrupted task.
+                await self._handle_interrupted_reply()
+                # 2. Cancel the old reply task and wait for it to finish cancelling.
+                self.tying_task.cancel()
+                try:
+                    await self.tying_task
+                except asyncio.CancelledError:
+                    self.logger.info("Successfully cancelled and awaited the previous reply task.")
+
+            # Wait for the reply task to finish
+            if self.reply_task and not self.reply_task.done():
+                await self.reply_task
 
             # Update context
             self._varify_context()
@@ -365,14 +525,14 @@ class ModelLily(BaseModel):
                 self._reset_sleep_timer()
                 return
 
-            # Refresh system context
+            # Refresh system context (now includes unsent_message from interruption)
             self._refresh_system_context()
 
             # If the current message use thinking mode
             if self.initial_message:
-                llm_kwargs = self.llm_params_config.get("thinking", {})
+                llm_kwargs = self.llm_params_config["thinking"]
             else:
-                llm_kwargs = self.llm_params_config.get("dont_thinking", {})
+                llm_kwargs = self.llm_params_config["dont_thinking"]
 
             response_content = await self._get_response_content(advanced_llm, **llm_kwargs)
 
@@ -382,53 +542,29 @@ class ModelLily(BaseModel):
                 )
                 return
 
-            response_result = json.loads(response_content)
+            self.llm_task_result = json.loads(response_content)
+            self.logger.debug("Get LLM task result", llm_task_result=self.llm_task_result)
 
-            # Save content to memory
-            self._summary_to_memory(response_result)
+            # Send reply
+            self.logger.debug("Creating new reply task")
+            self.reply_task = asyncio.create_task(self._process_reply())
 
-            # Send message
-            message_content = response_result.get("content")
-            await self._typing_and_send_message(message_content)
-
-            if response_result.get("is_attack"):
-                self._process_attack_context()
-
-            # Save content to context
-            self._append_response_to_context(response_result)
-
-            # Calculate emotions and relationship scores
-            self._process_emotions_and_score(response_result)
-
-            # None means process is finished
-            self.last_message_type = None
-
-            if self.initial_message:
-                self.initial_message = False
-
-            # Restart sleep timer
-            self._reset_sleep_timer()
-
+        except asyncio.CancelledError:
+            self.logger.info("Message processing task was cancelled.")
+            raise
         except Exception as e:
             self.logger.error(f"Error processing message: {str(e)}", exc_info=True)
             raise
-
-        finally:
-            self.is_processing = False
-            # If there are new messages in queue, start new processing task
-            if self.combined_message != "":
-                self.logger.info(f"combined_message: {self.combined_message}")
-                asyncio.create_task(self._process_message())
 
     async def _wakeup_timer(self, to_awake: bool = True) -> None:
         """Wait time to wake up
         Args:
             to_awake: Whether to wake up, True means wake up, False means stay asleep
         """
-        self.logger.info(f"To wakeup timer is {self.to_wakeup_secs} seconds for bot {self.bot.id}")
-        while self.to_wakeup_secs > 0:
+        self.logger.info(f"To wakeup timer is {self.current_wakeup_secs} seconds for bot {self.bot.id}")
+        while self.current_wakeup_secs > 0:
             await asyncio.sleep(1)
-            self.to_wakeup_secs -= 1
+            self.current_wakeup_secs -= 1
 
         self.logger.info(f"To wakeup timer is over for bot {self.bot.id}")
         if to_awake:
@@ -440,7 +576,7 @@ class ModelLily(BaseModel):
             self.logger.info(f"Bot {self.bot.id} has entered sleep mode")
             return
 
-    async def _wait_wakeup_timer(self, to_wakeup_secs: Optional[int] = None) -> None:
+    async def _waiting_wakeup_timer(self, to_wakeup_secs: Optional[int] = None) -> None:
         """Wait for wakeup timer
         Args:
             to_wakeup_secs: Wake up time, None means default value
@@ -449,7 +585,7 @@ class ModelLily(BaseModel):
             self.logger.info("Bot is awake, skipping wakeup timer")
             return
         if self.initial_message:
-            self.to_wakeup_secs = 0
+            self.current_wakeup_secs = 0
             self.logger.info("Bot is not awake, setting to wakeup timer to 0")
             await self._wakeup_timer()
             return
@@ -457,10 +593,10 @@ class ModelLily(BaseModel):
         if self.wakeup_task and not self.wakeup_task.done():
             self.wakeup_task.cancel()
             await asyncio.sleep(0)
-            self.logger.info("Cancelled existing wakeup timer.")
+            self.logger.debug("Cancelled existing wakeup timer.")
 
         if to_wakeup_secs is not None:
-            self.to_wakeup_secs = to_wakeup_secs
+            self.current_wakeup_secs = to_wakeup_secs
             self.logger.info(
                 f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}"
             )
@@ -470,13 +606,13 @@ class ModelLily(BaseModel):
             return
 
         else:
-            if not self.to_wakeup_secs:
+            if not self.current_wakeup_secs:
                 # Get wake up time from mapping based on relationship type and level
-                relationship_map = self.relationship_wakeup_times.get(
-                    self.relationship_type, self.relationship_wakeup_times["default"]
+                relationship_map = self.to_wakeup_secs.get(
+                    self.relationship_type, self.to_wakeup_secs["default"]
                 )
 
-                self.to_wakeup_secs = relationship_map.get(
+                self.current_wakeup_secs = relationship_map.get(
                     self.relationship_level, relationship_map["default"]
                 )
 
@@ -485,7 +621,7 @@ class ModelLily(BaseModel):
 
             # 50% chance to keep original value, 50% chance to adjust randomly
             if random_number <= 50:
-                self.to_wakeup_secs = max(int(self.to_wakeup_secs * random_number / 50), 1)
+                self.current_wakeup_secs = max(int(self.current_wakeup_secs * random_number / 50), 1)
 
             # 5% chance to not wake up
             if random_number <= 5:
@@ -495,12 +631,11 @@ class ModelLily(BaseModel):
             self.logger.info("Created new wakeup timer")
             await self.wakeup_task
 
-    async def _process_timer(self, to_process_secs: int) -> None:
+    async def _processing_timer(self, to_process_secs: int) -> None:
         """Message processing timer"""
         try:
             # Wait for message processing
             await asyncio.sleep(to_process_secs)
-            self.include_message_time = True
             # Load emotion data if not already loaded
             if not self.loaded_emotions:
                 await self._load_emotions()
@@ -510,24 +645,36 @@ class ModelLily(BaseModel):
                 self._refresh_relationship()
                 self.calculated_passive_scores = True
                 self.logger.info("Refreshed relationship because bot initialized")
-            # Refresh relationship when has emotions
-            elif self.emotions:  # Check both is not None and not empty
-                self._calculate_passive_scores()
-                self._refresh_relationship()
-                self.logger.info("Refreshed relationship because has emotions", emotions=self.emotions)
             else:
-                self.logger.info("No need to refresh relationship")
+                self.logger.info(
+                    "No need to refresh relationship before processing", emotions=self.emotions
+                )
             # If bot is not awake, wait for wake up
             if not self.is_awake:
-                await self._wait_wakeup_timer()
+                await self._waiting_wakeup_timer()
             # If no processing is currently running, start processing
-            if not self.is_processing and self.combined_message != "":
-                asyncio.create_task(self._process_message())
+            if self.combined_message != "":
+                # If a request is already in progress, cancel it to start a new one.
+                if self.requesting_task and not self.requesting_task.done():
+                    self.logger.info(
+                        "A new message processing request arrived, cancelling the previous task."
+                    )
+                    self.requesting_task.cancel()
+                    try:
+                        await self.requesting_task  # Wait for the task to acknowledge cancellation
+                    except asyncio.CancelledError:
+                        self.logger.info("Successfully awaited cancellation of the previous task.")
+
+                # Create a new task.
+                self.logger.info("Starting new message processing task.")
+                self.requesting_task = asyncio.create_task(self._process_request())
+        except asyncio.CancelledError:
+            self.logger.debug("Processing timer was cancelled.")
         except Exception as e:
             self.logger.error(f"Error in process timer: {str(e)}", exc_info=True)
             raise
 
-    def _reset_process_timer(
+    def _reset_processing_timer(
         self, secs_main: int | None = None, secs_sub: int | None = None, secs_adjust: int | None = None
     ) -> None:
         """Reset message processing timer
@@ -537,27 +684,27 @@ class ModelLily(BaseModel):
             secs_adjust: Adjust main message processing time, None means no operation, 0 means cancel, others mean set
         """
         # Cancel existing sub message processing task
-        if secs_sub is not None and self.process_task_sub and not self.process_task_sub.done():
-            self.process_task_sub.cancel()
-            self.logger.info("Cancelled existing process_task_sub.")
+        if secs_sub is not None and self.processing_sub_task and not self.processing_sub_task.done():
+            self.processing_sub_task.cancel()
+            self.logger.debug("Cancelled existing processing_task_sub.")
         # Cancel existing main message processing task
         if (
             (secs_main is not None or secs_adjust is not None)
-            and self.process_task_main
-            and not self.process_task_main.done()
+            and self.processing_main_task
+            and not self.processing_main_task.done()
         ):
-            self.process_task_main.cancel()
-            self.logger.info("Cancelled existing process_task_main.")
+            self.processing_main_task.cancel()
+            self.logger.debug("Cancelled existing processing_task_main.")
             if secs_adjust is not None:
                 secs_main = secs_adjust
         # Create new main message processing task
         if secs_main:
-            self.process_task_main = asyncio.create_task(self._process_timer(secs_main))
-            self.logger.info(f"New process_task_main created. secs: {secs_main}")
+            self.processing_main_task = asyncio.create_task(self._processing_timer(secs_main))
+            self.logger.info(f"New processing_task_main created. secs: {secs_main}")
         # Create new sub message processing task
-        if secs_sub and self.process_task_main:
-            self.process_task_sub = asyncio.create_task(self._process_timer(secs_sub))
-            self.logger.info(f"New process_task_sub created. secs: {secs_sub}")
+        if secs_sub and self.processing_main_task:
+            self.processing_sub_task = asyncio.create_task(self._processing_timer(secs_sub))
+            self.logger.info(f"New processing_task_sub created. secs: {secs_sub}")
 
     async def receive_message(self, received_message: dict) -> None:
         """Entry function, receive message"""
@@ -579,35 +726,59 @@ class ModelLily(BaseModel):
                 self._reset_sleep_timer(0)
 
                 # Cancel existing message processing tasks
-                self._reset_process_timer(0, 0)
+                self._reset_processing_timer(0, 0)
 
                 # Combine messages
                 async with self.combining_lock:
-                    if self.include_message_time is True:
-                        self.combined_message += f"[{self._convert_timestamp(message_time)}]\n"
-                        self.include_message_time = False
-                    self.combined_message += self.message_tag + f"{content}"
+                    should_add_timestamp = False
+                    current_message_dt = datetime.fromisoformat(message_time.replace("Z", "+00:00"))
+
+                    if self.last_timestamp_add_time is None:
+                        should_add_timestamp = True
+                    else:
+                        time_diff_secs = (current_message_dt - self.last_timestamp_add_time).total_seconds()
+                        if time_diff_secs > self.timestamp_add_threshold_secs:
+                            should_add_timestamp = True
+
+                    new_part = ""
+                    if should_add_timestamp:
+                        local_time_str = self._convert_timestamp(message_time)  # "YYYY-MM-DD HH:MM:SS"
+                        time_part = local_time_str.split(" ")[1]  # "HH:MM:SS"
+                        short_ts = f"[{time_part[:5]}]"  # "[HH:MM]"
+                        new_part = f"{short_ts}{content}"
+                        self.last_timestamp_add_time = current_message_dt
+                    else:
+                        new_part = content
+
+                    if self.combined_message:
+                        self.combined_message += self.message_tag + new_part
+                    else:
+                        self.combined_message = new_part
                 self.logger.info("Message appended to the message queue.")
 
                 # Create new message processing task
                 if message_type == MessageType.CHAT:
-                    self._reset_process_timer(self.chat_secs)
+                    self._reset_processing_timer(self.processing_secs[MessageType.CHAT])
                 else:
-                    self._reset_process_timer(self.chat_notyping_secs)
+                    self._reset_processing_timer(self.processing_secs[MessageType.CHAT_NOTYPING])
 
             elif not self.last_message_type:
                 self.logger.info("Skipping process message due to missing last_message_type.")
 
             # Process typing_end message
             elif self.last_message_type == MessageType.TYPING and message_type == MessageType.TYPING_END:
-                self._reset_process_timer(None, self.typing_end_secs)
+                self._reset_processing_timer(None, self.processing_secs[MessageType.TYPING_END])
 
             # Process when last message is chat and current message is typing
             elif self.last_message_type == MessageType.CHAT and message_type == MessageType.TYPING:
-                self._reset_process_timer(None, self.typing_secs_short, self.typing_secs_total)
+                self._reset_processing_timer(
+                    None,
+                    self.processing_secs[MessageType.TYPING]["short"],
+                    self.processing_secs[MessageType.TYPING]["total"],
+                )
             # If last message is typing_end and current message is typing
             elif self.last_message_type == MessageType.TYPING_END and message_type == MessageType.TYPING:
-                self._reset_process_timer(None, self.typing_secs_short)
+                self._reset_processing_timer(None, self.processing_secs[MessageType.TYPING]["short"])
 
             # Record last message type
             self.last_message_type = message_type

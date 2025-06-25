@@ -547,7 +547,7 @@ def refresh_relationship(self) -> None:
     # Apply override_config if it exists
     override_config = getattr(self.bot, "override_config", None)
     if override_config and isinstance(override_config, dict):
-        self.logger.info("applying_override_config", override_config=override_config)
+        self.logger.debug("applying_override_config", override_config=override_config)
         for ovr_key, ovr_value in override_config.items():
             try:
                 # Use direct access to enforce that the override configuration is valid.
@@ -565,15 +565,17 @@ def refresh_relationship(self) -> None:
                 )
                 continue
 
-            if not (set_flag_attr and hasattr(self, set_flag_attr) and getattr(self, set_flag_attr)):
+            if not (set_flag_attr and hasattr(self, set_flag_attr)):
                 self.logger.warning(
-                    "Override config flag attribute is missing or False", override_config=override_config
+                    "Override config flag attribute is missing", override_config=override_config
                 )
                 continue
 
-            if override_type != new_rel_type:
+            if override_type != new_rel_type or not getattr(self, set_flag_attr):
                 self.logger.debug(
-                    "Skipping override because relationship type mismatch", override_config=override_config
+                    "Skipping override because relationship type mismatch or flag is False",
+                    override_level=override_level,
+                    set_flag=getattr(self, set_flag_attr),
                 )
                 continue  # Only check active flags relevant to the current relationship type
 

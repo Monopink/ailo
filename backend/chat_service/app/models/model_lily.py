@@ -21,6 +21,7 @@ from .llm_parts import generate_response, validate_content, get_response_content
 from .context_parts import (
     convert_timestamp,
     create_fingerprint,
+    verify_and_repair_metadata,
     varify_context,
     append_context,
     append_response_to_context,
@@ -63,6 +64,7 @@ class ModelLily(BaseModel):
     _get_response_content = get_response_content
     _convert_timestamp = convert_timestamp
     _create_fingerprint = create_fingerprint
+    _verify_and_repair_metadata = verify_and_repair_metadata
     _varify_context = varify_context
     _append_context = append_context
     _append_response_to_context = append_response_to_context
@@ -124,7 +126,7 @@ class ModelLily(BaseModel):
         self.to_sleep_secs: int = 120  # Sleep timeout
 
         # Message processing timing configuration
-        self.processing_secs = {
+        self.request_secs = {
             MessageType.CHAT: 3,
             MessageType.CHAT_NOTYPING: 8,
             MessageType.TYPING: {"total": 32, "short": 16},
@@ -178,8 +180,8 @@ class ModelLily(BaseModel):
         self.attack_content_replacement = "[Deleted prompt attack content]"
         self.timestamp_format = "%Y-%m-%d %H:%M:%S"  # Timestamp format constants
         self.timestamp_regex = r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]"
-        self.memory_limit: int = 1500  # Memory limit
-        self.context_limit: int = 5000  # Context limit
+        self.memory_limit: int = 2000  # Memory limit
+        self.context_limit: int = 9000  # Context limit
         self.context_expire_hours: int = 5  # Context expire this time will be removed
         self.min_summary_hours: int = 4  # Minimum summarize interval
         self.summary_time_point: int = 4  # Start summarize must go through this time point
@@ -191,7 +193,7 @@ class ModelLily(BaseModel):
         # LLM parameters configuration for different models
         self.llm_params_config = {
             "thinking": {
-                "thinking": {"type": "enabled"},
+                "thinking": {"type": "disabled"},
             },
             "dont_thinking": {
                 "thinking": {"type": "disabled"},
@@ -300,6 +302,9 @@ class ModelLily(BaseModel):
         self.typing_queue_lock: asyncio.Lock = asyncio.Lock()
         self.is_typing_queue_saved: bool
 
+        # Verify context and metadata consistency on initialization
+        self._verify_and_repair_metadata()
+
         self.logger.debug(
             "Initialized ModelLily instance",
             emotions=self.emotions,
@@ -318,7 +323,7 @@ class ModelLily(BaseModel):
     async def _sleep_timer(self, to_sleep_secs: int = 0) -> None:
         """Sleep timer and cleanup instance"""
         try:
-            self.logger.info(f"Starting sleep timer for {to_sleep_secs} seconds")
+            self.logger.info("sleep_timer_started", to_sleep_secs=to_sleep_secs)
             await asyncio.sleep(to_sleep_secs)
 
             # Persist all in-memory changes to the database before sleeping.
@@ -328,18 +333,18 @@ class ModelLily(BaseModel):
             if self.cleanup_callback:
                 try:
                     await self.cleanup_callback(str(self.bot.entity_id))
-                    self.logger.info("Cleanup callback executed")
+                    self.logger.info("cleanup_callback_executed")
                 except Exception as e:
-                    self.logger.error("Cleanup callback failed", error=str(e), exc_info=True)
+                    self.logger.error("cleanup_callback_failed", error=str(e), exc_info=True)
                     raise
 
-            self.logger.info("Bot has entered sleep mode")
+            self.logger.info("bot_sleep_mode_entered")
 
         except asyncio.CancelledError:
-            self.logger.info("Sleep timer cancelled")
+            self.logger.info("sleep_timer_cancelled")
             raise
         except Exception as e:
-            self.logger.error("Sleep timer failed", error=str(e), exc_info=True)
+            self.logger.error("sleep_timer_failed", error=str(e), exc_info=True)
             raise
 
     def _reset_sleep_timer(self, to_sleep_secs: Optional[int] = None) -> None:
@@ -347,17 +352,17 @@ class ModelLily(BaseModel):
         Args:
             to_sleep_secs: Sleep time, None means default value, 0 means cancel sleep timer
         """
-        self.logger.info(f"Resetting sleep timer for bot {self.bot.id}")
+        self.logger.info("sleep_timer_resetting")
         if self.sleep_task and not self.sleep_task.done():
             self.sleep_task.cancel()
-            self.logger.info(f"Previous sleep timer cancelled for bot {self.bot.id}")
+            self.logger.info("previous_sleep_timer_cancelled")
 
         if to_sleep_secs is None:
             to_sleep_secs = self.to_sleep_secs
 
         if to_sleep_secs > 0:
             self.sleep_task = asyncio.create_task(self._sleep_timer(to_sleep_secs))
-            self.logger.info(f"New sleep timer set for {to_sleep_secs} seconds for bot {self.bot.id}")
+            self.logger.info("new_sleep_timer_set", to_sleep_secs=to_sleep_secs)
 
     async def _process_reply(self) -> None:
         """
@@ -365,10 +370,11 @@ class ModelLily(BaseModel):
         and saving the final context. This function is designed to be a self-contained task.
         """
         try:
-            self.logger.debug("Processing reply", llm_task_result=self.llm_task_result)
-
             # Cancel sleep timer setting
             self._reset_sleep_timer(0)
+
+            # Copy the unsent message before sending
+            previous_unsent_message = self.unsent_message
 
             # --- Step 1: Check if a reply should be sent ---
             reply_decision_key = TaskDefinition.get_response_key(TaskType.REPLY_DECISION)
@@ -409,19 +415,15 @@ class ModelLily(BaseModel):
                 except asyncio.CancelledError:
                     # This is an expected interruption. Log it and continue to the saving logic.
                     self.logger.info(
-                        "Typing task was interrupted by a new request. Proceeding to save state."
+                        "typing_task_interrupted_by_new_request",
+                        reason="Proceeding to save state.",
                     )
 
             else:
-                self.logger.info(
-                    f"Skipping reply sending because want_reply={want_reply} and has_content={has_content}"
-                )
+                self.logger.info("reply_sending_skipped", want_reply=want_reply, has_content=has_content)
 
             if self.llm_task_result.get(TaskDefinition.get_response_key(TaskType.IS_ATTACK)):
                 self._process_attack_context()
-
-            # Save summary to memory
-            self._summary_to_memory(self.llm_task_result)
 
             # --- Early exit if nothing was sent ---
             # This check is crucial after the await, especially if the task was cancelled.
@@ -434,7 +436,7 @@ class ModelLily(BaseModel):
                 )
 
             if not was_anything_sent:
-                self.logger.info("No messages were sent, skipping the save process.")
+                self.logger.info("no_messages_were_sent_skipping_save")
                 return
 
             # --- Step 3: Save context (formerly _save_typing_queue) ---
@@ -457,7 +459,7 @@ class ModelLily(BaseModel):
                 self.llm_task_result[TaskDefinition.get_response_key(TaskType.PREPARED_CONTENT)] = (
                     self.message_tag.join(sent_prepared_messages)
                 )
-                self.logger.info("Reconstructed self.llm_task_result from sent messages.")
+                self.logger.info("reconstructed_llm_task_result_from_sent_messages")
 
             self._append_response_to_context(self.llm_task_result)
             self._process_emotions_and_score(self.llm_task_result)
@@ -467,37 +469,39 @@ class ModelLily(BaseModel):
                 self._calculate_passive_scores()
                 self._refresh_relationship()
                 self.logger.info(
-                    "Refreshed relationship before request because has emotions", emotions=self.emotions
+                    "relationship_refreshed_before_request_with_emotions", emotions=self.emotions
                 )
             else:
-                self.logger.info("No need to refresh relationship before request", emotions=self.emotions)
+                self.logger.info("relationship_refresh_skipped_before_request", emotions=self.emotions)
 
             if self.initial_message:
                 self.initial_message = False
 
-            self.logger.info("Typing queue processing and saving is complete.")
+            self.logger.info("typing_queue_processing_and_saving_complete")
 
-            # Clear after reply
-            self.unsent_message = ""
+            # Clear up if it has something before sending and nothing changed
+            if previous_unsent_message and previous_unsent_message == self.unsent_message:
+                self.unsent_message = ""
 
         except Exception as e:
             # Catch any other unexpected errors during the reply process
             self.logger.error("An unexpected error occurred in _process_reply", error=str(e), exc_info=True)
         finally:
-            # --- Step 4: Final cleanup ---
-            self.llm_task_result = {}
+            # Save summary to memory
+            self._summary_to_memory(self.llm_task_result)
             # Restart sleep timer regardless of how the task finished.
             self._reset_sleep_timer()
 
     async def _process_request(self) -> None:
         """Process message"""
         try:
-            # End other timers
-            self._reset_processing_timer(0, 0)
+            # End other timers and reset the last message type
+            self.last_message_type = None  # To Calculate waiting time
+            self._reset_request_timer(0, 0)
 
             # --- Interruption Handling ---
             if self.tying_task and not self.tying_task.done():
-                self.logger.info("Previous reply task is still running. Handling interruption.")
+                self.logger.info("previous_reply_task_is_running_handling_interruption")
                 # 1. Clean up the queue state from the interrupted task.
                 await self._handle_interrupted_reply()
                 # 2. Cancel the old reply task and wait for it to finish cancelling.
@@ -505,7 +509,7 @@ class ModelLily(BaseModel):
                 try:
                     await self.tying_task
                 except asyncio.CancelledError:
-                    self.logger.info("Successfully cancelled and awaited the previous reply task.")
+                    self.logger.info("successfully_cancelled_previous_reply_task")
 
             # Wait for the reply task to finish
             if self.reply_task and not self.reply_task.done():
@@ -516,11 +520,11 @@ class ModelLily(BaseModel):
             async with self.combining_lock:
                 self._append_context("user", self.combined_message)
                 self.combined_message = ""
-            self.logger.info("Context updated with user message")
+            self.logger.info("context_updated_with_user_message")
 
             # If bot is not awake, don't respond
             if not self.is_awake:
-                self.logger.info(f"Bot {self.bot.id} is sleeping, skipping message response")
+                self.logger.info("bot_is_sleeping_skipping_response")
                 # Restart sleep timer
                 self._reset_sleep_timer()
                 return
@@ -537,23 +541,21 @@ class ModelLily(BaseModel):
             response_content = await self._get_response_content(advanced_llm, **llm_kwargs)
 
             if not response_content:
-                self.logger.error(
-                    f"Failed to generate a valid response for bot {self.bot.id} after all retries."
-                )
+                self.logger.error("failed_to_generate_valid_response_after_retries")
                 return
 
             self.llm_task_result = json.loads(response_content)
-            self.logger.debug("Get LLM task result", llm_task_result=self.llm_task_result)
+            self.logger.debug("llm_task_result_received", llm_task_result=self.llm_task_result)
 
             # Send reply
-            self.logger.debug("Creating new reply task")
+            self.logger.debug("creating_new_reply_task")
             self.reply_task = asyncio.create_task(self._process_reply())
 
         except asyncio.CancelledError:
-            self.logger.info("Message processing task was cancelled.")
+            self.logger.info("message_processing_task_cancelled")
             raise
         except Exception as e:
-            self.logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            self.logger.error("error_processing_message", error=str(e), exc_info=True)
             raise
 
     async def _wakeup_timer(self, to_awake: bool = True) -> None:
@@ -561,19 +563,19 @@ class ModelLily(BaseModel):
         Args:
             to_awake: Whether to wake up, True means wake up, False means stay asleep
         """
-        self.logger.info(f"To wakeup timer is {self.current_wakeup_secs} seconds for bot {self.bot.id}")
+        self.logger.info("wakeup_timer_started", to_wakeup_secs=self.current_wakeup_secs)
         while self.current_wakeup_secs > 0:
             await asyncio.sleep(1)
             self.current_wakeup_secs -= 1
 
-        self.logger.info(f"To wakeup timer is over for bot {self.bot.id}")
+        self.logger.info("wakeup_timer_finished")
         if to_awake:
             self.is_awake = True
-            self.logger.info(f"Bot {self.bot.id} has woken up")
+            self.logger.info("bot_has_woken_up")
             return
         else:
             self.is_awake = False
-            self.logger.info(f"Bot {self.bot.id} has entered sleep mode")
+            self.logger.info("bot_has_entered_sleep_mode")
             return
 
     async def _waiting_wakeup_timer(self, to_wakeup_secs: Optional[int] = None) -> None:
@@ -582,26 +584,24 @@ class ModelLily(BaseModel):
             to_wakeup_secs: Wake up time, None means default value
         """
         if self.is_awake:
-            self.logger.info("Bot is awake, skipping wakeup timer")
+            self.logger.info("bot_is_awake_skipping_wakeup_timer")
             return
         if self.initial_message:
             self.current_wakeup_secs = 0
-            self.logger.info("Bot is not awake, setting to wakeup timer to 0")
+            self.logger.info("bot_not_awake_setting_wakeup_timer_to_zero")
             await self._wakeup_timer()
             return
 
         if self.wakeup_task and not self.wakeup_task.done():
             self.wakeup_task.cancel()
             await asyncio.sleep(0)
-            self.logger.debug("Cancelled existing wakeup timer.")
+            self.logger.debug("cancelled_existing_wakeup_timer")
 
         if to_wakeup_secs is not None:
             self.current_wakeup_secs = to_wakeup_secs
-            self.logger.info(
-                f"Setting fixed wakeup timer for {to_wakeup_secs} seconds for bot {self.bot.id}"
-            )
+            self.logger.info("setting_fixed_wakeup_timer", to_wakeup_secs=to_wakeup_secs)
             self.wakeup_task = asyncio.create_task(self._wakeup_timer())
-            self.logger.info("Created new wakeup timer")
+            self.logger.info("created_new_wakeup_timer")
             await self.wakeup_task
             return
 
@@ -628,10 +628,10 @@ class ModelLily(BaseModel):
                 to_wakeup = False
 
             self.wakeup_task = asyncio.create_task(self._wakeup_timer(to_wakeup))
-            self.logger.info("Created new wakeup timer")
+            self.logger.info("created_new_wakeup_timer")
             await self.wakeup_task
 
-    async def _processing_timer(self, to_process_secs: int) -> None:
+    async def _request_timer(self, to_process_secs: int) -> None:
         """Message processing timer"""
         try:
             # Wait for message processing
@@ -644,11 +644,9 @@ class ModelLily(BaseModel):
                 self._calculate_passive_scores()
                 self._refresh_relationship()
                 self.calculated_passive_scores = True
-                self.logger.info("Refreshed relationship because bot initialized")
+                self.logger.info("refreshed_relationship_on_bot_initialization")
             else:
-                self.logger.info(
-                    "No need to refresh relationship before processing", emotions=self.emotions
-                )
+                self.logger.info("relationship_refresh_skipped_before_processing", emotions=self.emotions)
             # If bot is not awake, wait for wake up
             if not self.is_awake:
                 await self._waiting_wakeup_timer()
@@ -656,25 +654,23 @@ class ModelLily(BaseModel):
             if self.combined_message != "":
                 # If a request is already in progress, cancel it to start a new one.
                 if self.requesting_task and not self.requesting_task.done():
-                    self.logger.info(
-                        "A new message processing request arrived, cancelling the previous task."
-                    )
+                    self.logger.info("new_message_processing_request_cancelling_previous")
                     self.requesting_task.cancel()
                     try:
                         await self.requesting_task  # Wait for the task to acknowledge cancellation
                     except asyncio.CancelledError:
-                        self.logger.info("Successfully awaited cancellation of the previous task.")
+                        self.logger.info("successfully_awaited_cancellation_of_previous_task")
 
                 # Create a new task.
-                self.logger.info("Starting new message processing task.")
+                self.logger.info("starting_new_message_processing_task")
                 self.requesting_task = asyncio.create_task(self._process_request())
         except asyncio.CancelledError:
-            self.logger.debug("Processing timer was cancelled.")
+            self.logger.debug("processing_timer_was_cancelled")
         except Exception as e:
-            self.logger.error(f"Error in process timer: {str(e)}", exc_info=True)
+            self.logger.error("error_in_process_timer", error=str(e), exc_info=True)
             raise
 
-    def _reset_processing_timer(
+    def _reset_request_timer(
         self, secs_main: int | None = None, secs_sub: int | None = None, secs_adjust: int | None = None
     ) -> None:
         """Reset message processing timer
@@ -686,7 +682,7 @@ class ModelLily(BaseModel):
         # Cancel existing sub message processing task
         if secs_sub is not None and self.processing_sub_task and not self.processing_sub_task.done():
             self.processing_sub_task.cancel()
-            self.logger.debug("Cancelled existing processing_task_sub.")
+            self.logger.debug("cancelled_existing_processing_task_sub")
         # Cancel existing main message processing task
         if (
             (secs_main is not None or secs_adjust is not None)
@@ -694,21 +690,21 @@ class ModelLily(BaseModel):
             and not self.processing_main_task.done()
         ):
             self.processing_main_task.cancel()
-            self.logger.debug("Cancelled existing processing_task_main.")
+            self.logger.debug("cancelled_existing_processing_task_main")
             if secs_adjust is not None:
                 secs_main = secs_adjust
         # Create new main message processing task
         if secs_main:
-            self.processing_main_task = asyncio.create_task(self._processing_timer(secs_main))
-            self.logger.info(f"New processing_task_main created. secs: {secs_main}")
+            self.processing_main_task = asyncio.create_task(self._request_timer(secs_main))
+            self.logger.info("new_processing_task_main_created", secs=secs_main)
         # Create new sub message processing task
         if secs_sub and self.processing_main_task:
-            self.processing_sub_task = asyncio.create_task(self._processing_timer(secs_sub))
-            self.logger.info(f"New processing_task_sub created. secs: {secs_sub}")
+            self.processing_sub_task = asyncio.create_task(self._request_timer(secs_sub))
+            self.logger.info("new_processing_task_sub_created", secs=secs_sub)
 
     async def receive_message(self, received_message: dict) -> None:
         """Entry function, receive message"""
-        self.logger.info(f"Received message: {received_message}")
+        self.logger.info("received_message", message=received_message)
 
         try:
             content = received_message.get("content", "")
@@ -716,9 +712,9 @@ class ModelLily(BaseModel):
             message_type = MessageType.parse(received_message.get("message_type", ""))
 
             if not message_time:
-                self.logger.warning("Skipping process message due to missing content or message_time.")
+                self.logger.warning("skipping_process_message_due_to_missing_content_or_message_time")
             elif not message_type:
-                self.logger.warning("Skipping process message due to missing message_type.")
+                self.logger.warning("skipping_process_message_due_to_missing_message_type")
 
             # Process chat\chat_notyping messages
             elif content and message_type.category == MessageTypeCategory.CONTENT:
@@ -726,7 +722,7 @@ class ModelLily(BaseModel):
                 self._reset_sleep_timer(0)
 
                 # Cancel existing message processing tasks
-                self._reset_processing_timer(0, 0)
+                self._reset_request_timer(0, 0)
 
                 # Combine messages
                 async with self.combining_lock:
@@ -754,34 +750,34 @@ class ModelLily(BaseModel):
                         self.combined_message += self.message_tag + new_part
                     else:
                         self.combined_message = new_part
-                self.logger.info("Message appended to the message queue.")
+                self.logger.info("message_appended_to_the_message_queue")
 
                 # Create new message processing task
                 if message_type == MessageType.CHAT:
-                    self._reset_processing_timer(self.processing_secs[MessageType.CHAT])
+                    self._reset_request_timer(self.request_secs[MessageType.CHAT])
                 else:
-                    self._reset_processing_timer(self.processing_secs[MessageType.CHAT_NOTYPING])
+                    self._reset_request_timer(self.request_secs[MessageType.CHAT_NOTYPING])
 
             elif not self.last_message_type:
-                self.logger.info("Skipping process message due to missing last_message_type.")
+                self.logger.info("skipping_process_message_due_to_missing_last_message_type")
 
             # Process typing_end message
             elif self.last_message_type == MessageType.TYPING and message_type == MessageType.TYPING_END:
-                self._reset_processing_timer(None, self.processing_secs[MessageType.TYPING_END])
+                self._reset_request_timer(None, self.request_secs[MessageType.TYPING_END])
 
             # Process when last message is chat and current message is typing
             elif self.last_message_type == MessageType.CHAT and message_type == MessageType.TYPING:
-                self._reset_processing_timer(
+                self._reset_request_timer(
                     None,
-                    self.processing_secs[MessageType.TYPING]["short"],
-                    self.processing_secs[MessageType.TYPING]["total"],
+                    self.request_secs[MessageType.TYPING]["short"],
+                    self.request_secs[MessageType.TYPING]["total"],
                 )
             # If last message is typing_end and current message is typing
             elif self.last_message_type == MessageType.TYPING_END and message_type == MessageType.TYPING:
-                self._reset_processing_timer(None, self.processing_secs[MessageType.TYPING]["short"])
+                self._reset_request_timer(None, self.request_secs[MessageType.TYPING]["short"])
 
             # Record last message type
             self.last_message_type = message_type
 
         except Exception as e:
-            self.logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            self.logger.error("error_processing_message", error=str(e), exc_info=True)

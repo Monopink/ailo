@@ -34,10 +34,10 @@ def convert_timestamp(self, timestamp: str | None = None) -> str:
         # Format output using the timestamp format constant
         return local_time.strftime(self.timestamp_format)
     except ValueError as e:
-        self.logger.error(f"ValueError in _convert_timestamp: {str(e)}")
+        self.logger.error("timestamp_conversion_value_error", error=str(e))
         raise
     except Exception as e:
-        self.logger.error(f"Unexpected error in _convert_timestamp: {str(e)}")
+        self.logger.error("timestamp_conversion_unexpected_error", error=str(e))
         raise
 
 
@@ -47,6 +47,112 @@ def create_fingerprint(self, text: str) -> str:
         return "0::"
     text_str = str(text)
     return f"{len(text_str)}:{text_str[:5]}:{text_str[-5:]}"
+
+
+def verify_and_repair_metadata(self) -> None:
+    """
+    Verifies context and metadata consistency by iterating through them.
+    - If a mismatch is found, it rebuilds metadata from that point.
+    - If metadata is longer than messages, it truncates the excess.
+    - If messages are longer than metadata, it appends the missing metadata.
+    This is a non-destructive self-healing mechanism.
+    """
+
+    def _create_repaired_metadata(message: dict) -> dict:
+        """Creates a new, repaired metadata entry for a given context message."""
+        content = message.get("content", "")
+        role = message.get("role")
+        return {
+            "role": role,
+            "fingerprint": self._create_fingerprint(content),
+            "timestamp": self._convert_timestamp(),
+            "is_important": True,  # Assume importance when repairing
+            "repaired": True,
+        }
+
+    try:
+        messages = self.context.get("messages", [])
+        if not messages:
+            if self.context_metadata:
+                self.logger.warning(
+                    "context_is_empty_but_metadata_exists",
+                    reason="Context messages are empty, clearing metadata.",
+                )
+                self.context_metadata.clear()
+            return
+
+        conversational_messages = messages[1:]
+        num_convo_messages = len(conversational_messages)
+        num_metadata_entries = len(self.context_metadata)
+
+        # Iterate through the common length of messages and metadata
+        common_len = min(num_convo_messages, num_metadata_entries)
+        for i in range(common_len):
+            message = conversational_messages[i]
+            metadata = self.context_metadata[i]
+            is_role_mismatch = metadata.get("role") != message.get("role")
+            is_fingerprint_mismatch = metadata.get("fingerprint") != self._create_fingerprint(
+                message.get("content", "")
+            )
+
+            if is_role_mismatch or is_fingerprint_mismatch:
+                reason = (
+                    f"Mismatch found (role: {is_role_mismatch}, fingerprint: {is_fingerprint_mismatch})"
+                )
+                self.logger.warning(
+                    "context_metadata_mismatch_and_rebuilding",
+                    index=i,
+                    reason=f"{reason}. Rebuilding from this point.",
+                    offending_message_content=message.get("content", "")[:100],
+                    offending_metadata=metadata,
+                )
+                # Keep the consistent part and rebuild the rest
+                consistent_part = self.context_metadata[:i]
+                rebuilt_part = [_create_repaired_metadata(msg) for msg in conversational_messages[i:]]
+                self.context_metadata = consistent_part + rebuilt_part
+                self.logger.info(
+                    f"Successfully rebuilt context metadata from index {i}.",
+                    rebuilt_count=len(rebuilt_part),
+                )
+                return  # Repair is done
+
+        # If the loop completes, the common part is consistent. Now handle tails.
+        if num_convo_messages > num_metadata_entries:
+            # Messages are longer, so append missing metadata
+            self.logger.warning(
+                "context_longer_than_metadata_and_appending",
+                message_count=num_convo_messages,
+                metadata_count=num_metadata_entries,
+                reason="Appending missing metadata for extra messages.",
+            )
+            rebuilt_tail = [
+                _create_repaired_metadata(msg) for msg in conversational_messages[num_metadata_entries:]
+            ]
+            self.context_metadata.extend(rebuilt_tail)
+            self.logger.info("Successfully appended missing metadata.", appended_count=len(rebuilt_tail))
+
+        elif num_metadata_entries > num_convo_messages:
+            # Metadata is longer, so truncate the excess
+            self.logger.warning(
+                "metadata_longer_than_context_and_truncating",
+                message_count=num_convo_messages,
+                metadata_count=num_metadata_entries,
+                reason="Truncating excess metadata entries.",
+            )
+            self.context_metadata = self.context_metadata[:num_convo_messages]
+            self.logger.info("Successfully truncated excess metadata.")
+
+        self.logger.info("Context and metadata consistency verified successfully.")
+
+    except Exception as e:
+        self.logger.critical(
+            "unexpected_error_in_context_verification",
+            error=str(e),
+            exc_info=True,
+            reason="An unexpected error occurred. Context was NOT cleared, but may be inconsistent.",
+            context=self.context,
+            metadata=self.context_metadata,
+        )
 
 
 def create_instant_context(self) -> str:
@@ -85,7 +191,7 @@ def create_instant_context(self) -> str:
         elif 18 <= hour < 24:
             time_period = "晚上"
         else:
-            self.logger.warning(f"Unknown time period for bot {self.bot.id}")
+            self.logger.warning("unknown_time_period", hour=hour)
             time_period = ""
 
         # Get lunar calendar info using zhdate library
@@ -93,25 +199,25 @@ def create_instant_context(self) -> str:
         try:
             lunar_info = f"农历：{ZhDate.from_datetime(dt_current).chinese()}"
         except Exception as e:
-            self.logger.error(f"Error getting lunar calendar info: {str(e)}", exc_info=True)
+            self.logger.error("lunar_info_generation_failed", error=str(e), exc_info=True)
 
         # Build instant context
         instant_context = (
             f"现在是{current_time}，{time_period}，{weekday_str}，"
-            f"{lunar_info}\n"
+            f"{lunar_info}"
             f"你在{self.bot.city_name if hasattr(self.bot, 'city_name') else '中国'}。"
         )
 
         if self.unsent_message:
-            instant_context += f"[之前未发送消息]{self.unsent_message}"
+            instant_context += f"\n[之前未发送消息]{self.unsent_message}"
 
         # 消息发送时间、年龄、用户名
 
-        self.logger.info(f"Created instant context with time: {instant_context}")
+        self.logger.info("instant_context_created", context=instant_context)
         return instant_context
 
     except Exception as e:
-        self.logger.error(f"Error creating instant context: {str(e)}", exc_info=True)
+        self.logger.error("create_instant_context_failed", error=str(e), exc_info=True)
         return ""
 
 
@@ -151,24 +257,49 @@ def refresh_system_context(self) -> None:
 
             if should_summarize:
                 self.need_summary = True
-                self.logger.info(
-                    f"Context character count limit exceeded, setting need_summary to True for bot {self.bot.id}"
-                )
+                self.logger.info("context_limit_exceeded_will_summarize")
             else:
                 self.need_summary = False
-                self.logger.info(
-                    f"Context character count limit exceeded, but summarization conditions not met. "
-                    f"Removing oldest messages until within limit for bot {self.bot.id}"
+                self.logger.warning(
+                    "context_limit_exceeded_will_trim",
+                    context_size=get_context_char_count(),
+                    context_limit=self.context_limit,
                 )
-                # Trim context by removing oldest messages until within limit.
+                # Trim context by removing oldest messages until within limit, with a safety break.
+                max_trims = len(self.context.get("messages", []))  # Safety break
+                trims_done = 0
                 while get_context_char_count() > self.context_limit:
-                    # Safeguard: stop if only system message is left.
+                    # Safeguard 1: Stop if only the system message is left.
                     if len(self.context.get("messages", [])) <= 1:
                         self.logger.warning(
-                            f"Context still exceeds limit after trimming, but only system message is left for bot {self.bot.id}."
+                            "context_trimming_stopped_only_system_message_left",
+                            context_size=get_context_char_count(),
+                            context_limit=self.context_limit,
                         )
                         break
-                    self._remove_oldest_context()
+                    # Safeguard 2: Prevent infinite loops.
+                    if trims_done >= max_trims:
+                        self.logger.error(
+                            "context_trimming_stopped_max_retries_reached",
+                            context_size=get_context_char_count(),
+                            context_limit=self.context_limit,
+                            max_trims=max_trims,
+                            reason="Stopped trimming to prevent potential infinite loop.",
+                        )
+                        break
+
+                    # Remove oldest context and check result
+                    was_removed = self._remove_oldest_context()
+                    if not was_removed:
+                        self.logger.error(
+                            "context_trimming_stopped_removal_failed",
+                            reason="Stopped trimming because remove_oldest_context failed to remove an entry.",
+                            context_size=get_context_char_count(),
+                            context_limit=self.context_limit,
+                        )
+                        break  # Stop if removal fails
+
+                    trims_done += 1
         else:
             self.need_summary = False
 
@@ -203,7 +334,7 @@ def refresh_system_context(self) -> None:
 
         # Update current strategy object
         self.context_strategy_instance = strategy
-        self.logger.info("Updated context strategy instance")
+        self.logger.info("context_strategy_updated")
 
         new_system_context = {"role": "system", "content": system_prompt}
 
@@ -214,7 +345,7 @@ def refresh_system_context(self) -> None:
             self.context["messages"] = [new_system_context]
 
     except Exception as e:
-        self.logger.error(f"Error refreshing system context: {str(e)}", exc_info=True)
+        self.logger.error("refresh_system_context_failed", error=str(e), exc_info=True)
         raise
 
 
@@ -233,15 +364,13 @@ def varify_context(self) -> None:
         )
 
         if not is_valid:
-            self.logger.warning(
-                f"Invalid context structure detected for bot {self.bot.id}, initializing new context"
-            )
+            self.logger.warning("invalid_context_structure_initializing")
             self.context = {"messages": []}
             self._refresh_system_context()
 
-        self.logger.info(f"Context structure verified for bot {self.bot.id}")
+        self.logger.info("context_structure_verified")
     except Exception as e:
-        self.logger.error(f"Error verifying context for bot {self.bot.id}: {str(e)}", exc_info=True)
+        self.logger.error("verify_context_failed", error=str(e), exc_info=True)
         # Initialize context on error
         self.context = {"messages": []}
         # self._refresh_system_context()
@@ -267,7 +396,7 @@ def append_context(self, role: str, context_content: str) -> None:
             # Merge message content
             merged_content = f"{last_message['content']}\n{context_content}"
             last_message["content"] = merged_content
-            self.logger.info(f"Merged message {merged_content} with same role for bot {self.bot.id}")
+            self.logger.info("context_merged_same_role")
         else:
             # Add new message
             self.context["messages"].append(new_message)
@@ -277,7 +406,7 @@ def append_context(self, role: str, context_content: str) -> None:
 
             if not current_timestamp:
                 self.logger.warning(
-                    f"Could not generate timestamp for user content for bot {self.bot.id}: {context_content[:50]}"
+                    "timestamp_generation_failed_for_user_content", content_preview=context_content[:50]
                 )
                 current_timestamp = "N/A"
 
@@ -287,17 +416,23 @@ def append_context(self, role: str, context_content: str) -> None:
                 "fingerprint": self._create_fingerprint(context_content),
             }
             self.context_metadata.append(user_metadata)
-            self.logger.info("Appended user context and metadata.")
+            self.logger.info("user_context_appended_with_metadata")
 
         # self.logger.debug(f"Current context: {self.context}")
 
     except Exception as e:
-        self.logger.error(f"Error appending context for bot {self.bot.id}: {str(e)}", exc_info=True)
+        self.logger.error(
+            "append_context_failed",
+            error=str(e),
+            role=role,
+            context_content=context_content,
+            exc_info=True,
+        )
         # Ensure context structure is intact on error
         if not self.context or "messages" not in self.context:
             self._varify_context()
             # self._append_context(role, context_content) # prevent infinite loop
-            self.logger.error(f"Reset context structure for bot {self.bot.id} after error")
+            self.logger.error("context_structure_reset_after_error")
 
 
 def append_response_to_context(self, llm_task_result: dict) -> None:
@@ -355,8 +490,11 @@ def append_response_to_context(self, llm_task_result: dict) -> None:
             )
         else:
             self.logger.warning(
-                "Could not find a preceding user metadata entry to update for bot %s",
-                self.bot.id,
+                "preceding_user_metadata_not_found",
+                last_message_role=(
+                    self.context["messages"][-1].get("role") if self.context.get("messages") else "N/A"
+                ),
+                llm_task_result=llm_task_result,
             )
 
         # 3. Add new metadata for the assistant's response, maintaining order
@@ -397,16 +535,17 @@ def append_response_to_context(self, llm_task_result: dict) -> None:
             assistant_metadata[block_key] = llm_task_result.get(block_key)
 
         self.context_metadata.append(assistant_metadata)
-        self.logger.info("Appended assistant response to context and metadata.")
+        self.logger.info("assistant_response_appended_to_context")
 
     except json.JSONDecodeError as e:
         self.logger.error(
-            f"Failed to decode LLM response JSON for bot {self.bot.id}: {e}",
-            exc_info=True,
+            "llm_response_json_decode_failed", error=str(e), llm_task_result=llm_task_result, exc_info=True
         )
     except Exception as e:
         self.logger.error(
-            f"Error appending response to context for bot {self.bot.id}: {e}",
+            "append_response_to_context_failed",
+            error=str(e),
+            llm_task_result=llm_task_result,
             exc_info=True,
         )
 
@@ -421,9 +560,7 @@ def process_attack_context(self) -> None:
     try:
         # Check if context exists and has messages
         if not self.context or "messages" not in self.context or not self.context["messages"]:
-            self.logger.warning(
-                f"No context messages found for bot {self.bot.id} when processing attack context"
-            )
+            self.logger.warning("process_attack_context_no_messages")
             return
 
         # Get the last message in the context (user message) and its metadata
@@ -432,97 +569,123 @@ def process_attack_context(self) -> None:
         # Check if the last message is from the user
         if last_message["role"] != "user":
             self.logger.warning(
-                f"Last message for bot {self.bot.id} is not from user, cannot process attack context"
+                "process_attack_context_last_message_not_user",
+                last_role=last_message.get("role"),
             )
             return
 
         if not self.context_metadata:
-            self.logger.warning(f"Metadata is empty for bot {self.bot.id}, cannot process attack context.")
+            self.logger.warning("process_attack_context_metadata_empty")
             return
 
         last_metadata = self.context_metadata[-1]
 
         # Verify fingerprint before proceeding
-        expected_fingerprint = last_metadata.get("fingerprint")
-        actual_fingerprint = self._create_fingerprint(last_message.get("content", ""))
+        try:
+            expected_fingerprint = last_metadata["fingerprint"]
+            actual_fingerprint = self._create_fingerprint(last_message.get("content", ""))
 
-        if expected_fingerprint != actual_fingerprint:
-            self.logger.warning(
-                f"Fingerprint mismatch for bot {self.bot.id} during attack processing. "
-                f"Expected: {expected_fingerprint}, Got: {actual_fingerprint}. "
-                f"Content: {last_message.get('content', '')[:50]}..."
+            if expected_fingerprint != actual_fingerprint:
+                self.logger.warning(
+                    "process_attack_context_fingerprint_mismatch",
+                    expected=expected_fingerprint,
+                    actual=actual_fingerprint,
+                    content_preview=last_message.get("content", "")[:50],
+                    last_message=last_message,
+                    last_metadata=last_metadata,
+                )
+                return
+
+            # Get the full content for logging
+            full_content = last_message["content"]
+
+            # Log the full content as a warning (potential attack message)
+            self.logger.warning("attack_message_detected", full_content=full_content)
+
+            # Just use the replacement message directly. The short timestamp `[HH:MM]`
+            # is part of the content and will be replaced along with it.
+            sanitized_content = self.attack_content_replacement
+
+            # Update the message content and its fingerprint in metadata
+            last_message["content"] = sanitized_content
+            last_metadata["fingerprint"] = self._create_fingerprint(sanitized_content)
+            self.logger.info("attack_context_sanitized")
+        except KeyError as e:
+            self.logger.error(
+                "process_attack_context_failed_missing_key",
+                missing_key=str(e),
+                reason="A message or metadata entry is missing a required key.",
+                last_message=last_message,
+                last_metadata=last_metadata,
+                exc_info=True,
             )
-            return
-
-        # Get the full content for logging
-        full_content = last_message["content"]
-
-        # Log the full content as a warning (potential attack message)
-        self.logger.warning(f"Detected attack message from user for bot {self.bot.id}: {full_content}")
-
-        # Just use the replacement message directly. The short timestamp `[HH:MM]`
-        # is part of the content and will be replaced along with it.
-        sanitized_content = self.attack_content_replacement
-
-        # Update the message content and its fingerprint in metadata
-        last_message["content"] = sanitized_content
-        last_metadata["fingerprint"] = self._create_fingerprint(sanitized_content)
-        self.logger.info(f"Sanitized attack context and updated fingerprint for bot {self.bot.id}")
 
     except Exception as e:
         self.logger.error(
-            f"Error processing attack context for bot {self.bot.id}: {str(e)}",
+            "process_attack_context_failed",
+            error=str(e),
+            last_message=self.context.get("messages", [])[-1] if self.context.get("messages") else None,
             exc_info=True,
         )
 
 
-def remove_oldest_context(self) -> None:
+def remove_oldest_context(self) -> bool:
     """
     Removes the oldest non-system message from the context after verifying its fingerprint.
+    Returns:
+        bool: True if a message was successfully removed, False otherwise.
     """
     try:
         # Context must have at least a system message and one other message.
         if len(self.context.get("messages", [])) <= 1:
-            self.logger.info(f"No message to remove or only system message remains for bot {self.bot.id}")
-            return
+            self.logger.info("remove_oldest_context_nothing_to_remove")
+            return False
 
         # We assume system message is at index 0 and has no metadata.
         # So, the first conversational message is at index 1.
         # And its metadata is at index 0 of context_metadata.
         if not self.context_metadata:
-            self.logger.warning(
-                f"Context has messages but metadata is empty for bot {self.bot.id}. Cannot remove oldest message."
-            )
-            return
+            self.logger.warning("remove_oldest_context_metadata_empty")
+            return False
 
         message_to_remove = self.context["messages"][1]
         metadata_to_check = self.context_metadata[0]
 
         # Verify fingerprint
-        expected_fingerprint = metadata_to_check.get("fingerprint")
+        expected_fingerprint = metadata_to_check["fingerprint"]
         actual_fingerprint = self._create_fingerprint(message_to_remove.get("content", ""))
 
         if expected_fingerprint != actual_fingerprint:
-            self.logger.warning(
-                f"Fingerprint mismatch for bot {self.bot.id}. "
-                f"Cannot remove oldest context. "
-                f"Expected: {expected_fingerprint}, Got: {actual_fingerprint}. "
-                f"Content: {message_to_remove.get('content', '')[:50]}..."
+            # SAFETY MEASURE: Log a severe warning about the mismatch, but proceed with
+            # removal to prevent infinite loops in the calling function. This is a
+            # self-healing action to remove corrupted/inconsistent data.
+            self.logger.error(
+                "fingerprint_mismatch_and_forcing_removal",
+                reason="Fingerprint mismatch detected. Forcing removal of oldest context entry to prevent infinite loops.",
+                expected=expected_fingerprint,
+                actual=actual_fingerprint,
+                content=message_to_remove.get("content", "")[:100],
             )
-            return
+            # Fall through to the removal logic even on mismatch.
 
-        # Fingerprints match, proceed with removal
+        # Fingerprints match or mismatch (in which case we force removal), proceed.
         self.context["messages"].pop(1)
         self.context_metadata.pop(0)
-        self.logger.info(f"Removed oldest context message and its metadata for bot {self.bot.id}")
+        self.logger.info("oldest_context_removed")
+        return True
 
     except IndexError:
         self.logger.error(
-            f"IndexError while trying to remove oldest context for bot {self.bot.id}. Context or metadata might be malformed.",
+            "remove_oldest_context_index_error",
             exc_info=True,
+            reason="Context or metadata might be malformed.",
+            context=self.context,
+            metadata=self.context_metadata,
         )
+        return False
     except Exception as e:
-        self.logger.error(f"Error removing oldest context for bot {self.bot.id}: {str(e)}", exc_info=True)
+        self.logger.error("remove_oldest_context_failed", error=str(e), exc_info=True)
+        return False
 
 
 def remove_expire_context(self, include_important: bool = False) -> None:
@@ -536,8 +699,20 @@ def remove_expire_context(self, include_important: bool = False) -> None:
         if not self.context_metadata:
             return
 
-        timestamp_str = self.context_metadata[0].get("timestamp")
-        if not timestamp_str or timestamp_str == "N/A":
+        try:
+            timestamp_str = self.context_metadata[0]["timestamp"]
+            if not timestamp_str or timestamp_str == "N/A":
+                # Handle cases where timestamp is present but empty or "N/A"
+                self.logger.warning(
+                    "remove_expire_context_invalid_timestamp_value", timestamp=timestamp_str
+                )
+                return
+        except KeyError:
+            self.logger.error(
+                "remove_expire_context_aborted_missing_timestamp",
+                reason="Oldest metadata entry is missing 'timestamp' key.",
+                metadata=self.context_metadata[0],
+            )
             return
 
         is_old_enough = False
@@ -547,51 +722,64 @@ def remove_expire_context(self, include_important: bool = False) -> None:
             now_aware = datetime.now(ZoneInfo(self.bot.timezone))
             is_old_enough = (now_aware - message_time).total_seconds() > self.context_expire_hours * 3600
         except (ValueError, TypeError):
-            self.logger.error(
-                f"Could not parse timestamp for pre-check in remove_expire_context for bot {self.bot.id}"
-            )
+            self.logger.error("remove_expire_context_timestamp_parse_error", timestamp=timestamp_str)
             return
 
         if not is_old_enough:
             return
 
-        self.logger.info(f"Conditions met, starting expired context removal for bot {self.bot.id}.")
+        self.logger.info("remove_expire_context_starting", include_important=include_important)
         # 2. Loop and remove messages that are old enough.
         metadata_index = 0
-        while metadata_index < len(self.context_metadata):
-            message_index = metadata_index + 1
-            if message_index >= len(self.context.get("messages", [])):
-                break
+        try:
+            while metadata_index < len(self.context_metadata):
+                message_index = metadata_index + 1
+                if message_index >= len(self.context.get("messages", [])):
+                    break
 
-            metadata = self.context_metadata[metadata_index]
-            is_important = metadata.get("is_important", True)
+                metadata = self.context_metadata[metadata_index]
+                is_important = metadata.get("is_important", True)
 
-            # Decide whether to delete this message.
-            if include_important or not is_important:
-                # Verify fingerprint before removing.
-                message_to_remove = self.context["messages"][message_index]
-                expected_fingerprint = metadata.get("fingerprint")
-                actual_fingerprint = self._create_fingerprint(message_to_remove.get("content", ""))
+                # Decide whether to delete this message.
+                if include_important or not is_important:
+                    # Verify fingerprint before removing.
+                    message_to_remove = self.context["messages"][message_index]
+                    expected_fingerprint = metadata["fingerprint"]
+                    actual_fingerprint = self._create_fingerprint(message_to_remove.get("content", ""))
 
-                if expected_fingerprint == actual_fingerprint:
-                    self.context["messages"].pop(message_index)
-                    self.context_metadata.pop(metadata_index)
-                    self.logger.info(
-                        f"Removed expired message for bot {self.bot.id} with timestamp {metadata.get('timestamp')}"
-                    )
-                    # Don't increment index, as the list has shifted.
-                    continue
+                    if expected_fingerprint == actual_fingerprint:
+                        self.context["messages"].pop(message_index)
+                        self.context_metadata.pop(metadata_index)
+                        self.logger.info(
+                            "expired_message_removed", timestamp=metadata.get("timestamp", "N/A")
+                        )
+                        # Don't increment index, as the list has shifted.
+                        continue
+                    else:
+                        self.logger.warning(
+                            "remove_expire_context_fingerprint_mismatch_stopping",
+                            expected=expected_fingerprint,
+                            actual=actual_fingerprint,
+                        )
+                        break  # Stop on mismatch
                 else:
-                    self.logger.warning(
-                        f"Fingerprint mismatch in remove_expire_context for bot {self.bot.id}. Stopping removal."
-                    )
-                    break  # Stop on mismatch
-            else:
-                # Old but is_important, and we are not including them. Skip.
-                metadata_index += 1
+                    # Old but is_important, and we are not including them. Skip.
+                    metadata_index += 1
+        except KeyError as e:
+            self.logger.error(
+                "remove_expire_context_aborted_missing_key",
+                missing_key=str(e),
+                reason="A metadata entry is missing a required key.",
+                metadata_being_processed=self.context_metadata[metadata_index],
+                exc_info=True,
+            )
     except Exception as e:
         self.logger.error(
-            f"Error in remove_expire_context for bot {self.bot.id}: {e}",
+            "remove_expire_context_failed",
+            error=str(e),
+            include_important=include_important,
+            context=self.context,
+            metadata=self.context_metadata,
             exc_info=True,
         )
 
@@ -604,19 +792,19 @@ def summary_to_memory(self, llm_task_result: dict) -> None:
 
         if summary is None:
             if self.need_summary:
-                self.logger.warning(
-                    f"need_summary for bot {self.bot.id} was True, but LLM response did not contain a 'summary'."
-                )
+                self.logger.warning("summary_missing_in_llm_response", llm_task_result=llm_task_result)
             return
 
         if len(summary) > self.memory_limit:
             summary = summary[: self.memory_limit]
-            self.logger.info(f"Summary for bot {self.bot.id} was truncated to memory_limit.")
+            self.logger.info("summary_truncated_to_memory_limit")
 
         self.memory = summary
-        self.logger.info(f"Updated memory for bot {self.bot.id} with new summary.")
+        self.logger.info("memory_updated_with_summary")
 
         # After updating memory, remove all expired contexts
         self._remove_expire_context(include_important=True)
     except Exception as e:
-        self.logger.error(f"Error in summary_to_memory for bot {self.bot.id}: {e}", exc_info=True)
+        self.logger.error(
+            "summary_to_memory_failed", error=str(e), llm_task_result=llm_task_result, exc_info=True
+        )

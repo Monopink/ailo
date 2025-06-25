@@ -6,7 +6,7 @@ from .db_managers import db_manager
 from .message_router import message_router
 from .exceptions import AppException
 from fastapi.responses import JSONResponse
-from .utils.logging import get_logger, bind_context
+from .utils.logging import get_logger, bind_context, configure_logging
 from .core.config import settings
 
 
@@ -39,6 +39,8 @@ async def startup_event():
     """
     Initialize application on startup
     """
+    # Configure logging first to ensure all subsequent logs are structured.
+    configure_logging()
     try:
         logger.info("starting_application")
 

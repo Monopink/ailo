@@ -1,9 +1,9 @@
-# backend/chat_service/Dockerfile.prod
+# backend/chat_service/Dockerfile.stable
 
 # ---- Build Stage ----
 # Use a specific version of Python for reproducibility.
 # Using 'as builder' names this stage.
-FROM python:3.10-slim as builder
+FROM python:3.11-slim as builder
 
 # Set the working directory
 WORKDIR /app
@@ -23,20 +23,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # ---- Final Stage ----
 # Use the same base image for the final stage.
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set the working directory
-WORKDIR /app
+# Set a neutral working directory to avoid import ambiguity
+WORKDIR /
 
 # Copy the virtual environment from the builder stage.
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy the application code into the final image.
+# Copy the application code into the /app directory
 COPY . /app
 
-# Activate the virtual environment.
+# Activate the virtual environment and set PYTHONPATH.
 ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONPATH="/app"
 
 # Set the command to run the application in production mode.
-# No --reload flag. The application is run by the 'app' user.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 

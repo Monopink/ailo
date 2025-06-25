@@ -1,3 +1,2 @@
-
+*.log
 relationship.xlsx
-backend/chat_service/app.log

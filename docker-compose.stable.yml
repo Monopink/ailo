@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Stable MySQL Database Service
   stable_mysql:
@@ -29,7 +27,7 @@ services:
     container_name: stable_chat_container
     build:
       context: ./backend/chat_service
-      dockerfile: Dockerfile.prod  # Use production Dockerfile
+      dockerfile: Dockerfile.stable  # Use production Dockerfile
     environment:
       # Set environment variables directly, no volume mounting
       PYTHONDONTWRITEBYTECODE: 1
@@ -40,8 +38,11 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE}
       LOG_LEVEL: "WARNING"  # Set log level to WARNING
+      LOG_FILE_PATH: "/app/logs/service.log"
     ports:
       - "8100:8000"  # Use different port to avoid conflict
+    volumes:
+      - ./logs/stable_chat:/app/logs
     networks:
       - stable-network
     depends_on:

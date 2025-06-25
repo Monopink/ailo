@@ -1,5 +1,80 @@
 import structlog
 from typing import Dict, Any, Optional
+import logging
+import os
+import pathlib
+from structlog.processors import CallsiteParameter, CallsiteParameterAdder
+from structlog.types import EventDict
+
+
+def format_log_level(_, __, event_dict: EventDict) -> EventDict:
+    """
+    Map python log levels to short uppercase names.
+    e.g., 'warning' -> 'WARN', 'critical' -> 'FATAL'
+    """
+    level_map = {
+        "warning": "WARN",
+        "critical": "FATAL",
+    }
+    level = event_dict.get("level")
+    if isinstance(level, str):
+        # Use mapped value if available, otherwise just uppercase the level
+        event_dict["level"] = level_map.get(level, level.upper())
+    return event_dict
+
+
+def configure_logging():
+    """
+    Configure structured logging for the application.
+    This setup ensures that logs are processed as JSON, which is ideal for
+    containerized environments and log aggregation tools like Dozzle.
+
+    If LOG_FILE_PATH environment variable is set, logs will also be written to that file.
+    """
+    # Configure basic logging
+    logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+
+    # Set up file logging if path is provided
+    log_file_path = os.environ.get("LOG_FILE_PATH")
+    if log_file_path:
+        # Ensure directory exists
+        log_dir = os.path.dirname(log_file_path)
+        pathlib.Path(log_dir).mkdir(parents=True, exist_ok=True)
+
+        # Add file handler
+        file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(logging.Formatter("%(message)s"))
+        logging.getLogger().addHandler(file_handler)
+
+    structlog.configure(
+        processors=[
+            structlog.stdlib.add_log_level,
+            format_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.processors.TimeStamper(fmt="iso"),
+            CallsiteParameterAdder(
+                {
+                    CallsiteParameter.MODULE,
+                    CallsiteParameter.FUNC_NAME,
+                    CallsiteParameter.LINENO,
+                }
+            ),
+            structlog.processors.StackInfoRenderer(),
+            structlog.dev.set_exc_info,
+            structlog.processors.dict_tracebacks,
+            structlog.processors.JSONRenderer(ensure_ascii=False),
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+    logger = get_logger("says.logging")
+    logger.info(
+        "logging_configured_successfully",
+        log_to_file=bool(log_file_path),
+        log_file=log_file_path if log_file_path else None,
+    )
 
 
 def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:

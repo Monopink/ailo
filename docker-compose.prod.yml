@@ -1,7 +1,3 @@
-version: '3.8'
-
-# Production Docker Compose Configuration
-
 services:
   # Accounts Service
   accounts_service:

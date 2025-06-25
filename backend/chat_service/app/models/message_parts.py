@@ -25,7 +25,6 @@ async def send_message(
             from_entity=self.bot.entity_id,
             to_entity=self.bot.user_entity_id,
         )
-        self.last_message_type = None  # To Calculate waiting time
         await event_bus.publish(EventTypes.SEND_MESSAGE, message)
     except Exception as e:
         self.logger.error("message_send_error", message_type=message_type, error=str(e), exc_info=True)
@@ -39,7 +38,7 @@ async def send_message_queue(self, message_type_key: str):
         # Use a lock to safely get the next message to process
         async with self.typing_queue_lock:
             if i >= len(self.typing_queue[message_type_key]):
-                self.logger.debug(f"No more messages to send for {message_type_key}")
+                self.logger.debug("no_more_messages_to_send", queue_name=message_type_key)
                 break  # Exit loop if we've processed all messages
             item = self.typing_queue[message_type_key][i]
             if item["status"] == TypingStatus.PENDING.value:
@@ -50,7 +49,12 @@ async def send_message_queue(self, message_type_key: str):
             # This part is outside the lock to avoid holding it during sleep.
             asyncio.create_task(self._send_message(message_type=MessageType.TYPING.name))
             typing_secs = len(str(content_to_process)) * self.typing_speed
-            self.logger.info(f"Typing for {typing_secs:.2f} seconds for a message in '{message_type_key}'.")
+            self.logger.info(
+                "typing_for_message",
+                duration_sec=f"{typing_secs:.2f}",
+                queue_name=message_type_key,
+                content_preview=str(content_to_process)[:50],
+            )
             await asyncio.sleep(typing_secs)
 
             # Re-acquire lock to atomically check status and send message
@@ -69,10 +73,16 @@ async def send_message_queue(self, message_type_key: str):
 
             if message_was_sent:
                 await self._send_message(content=content_to_process)
-                self.logger.info(f"Sent message from '{message_type_key}'.")
+                self.logger.info(
+                    "message_sent_from_queue",
+                    queue_name=message_type_key,
+                    content_preview=str(content_to_process)[:50],
+                )
             else:
                 self.logger.info(
-                    f"Sending cancelled for message in '{message_type_key}' as it was modified during typing."
+                    "message_sending_cancelled_during_typing",
+                    queue_name=message_type_key,
+                    content_preview=str(content_to_process)[:50],
                 )
         i += 1
 
@@ -86,7 +96,7 @@ async def process_typing_queue(self, wait_secs: float):
     """
     try:
         # Send reply messages
-        self.logger.info("Starting to send 'reply_messages'.")
+        self.logger.info("processing_reply_messages_queue")
         await self._send_message_queue("reply_messages")
 
         # Wait for the specified time if there are prepared messages
@@ -94,20 +104,20 @@ async def process_typing_queue(self, wait_secs: float):
             has_prepared = bool(self.typing_queue["prepared_messages"])
 
         if has_prepared:
-            self.logger.info(f"Waiting for {wait_secs:.2f} seconds before sending prepared messages.")
+            self.logger.info("waiting_before_prepared_messages", wait_sec=f"{wait_secs:.2f}")
             await asyncio.sleep(wait_secs)
 
             # Send prepared messages
-            self.logger.info("Starting to send 'prepared_messages'.")
+            self.logger.info("processing_prepared_messages_queue")
             await self._send_message_queue("prepared_messages")
         else:
-            self.logger.info("No prepared messages to send. Skipping wait.")
+            self.logger.info("no_prepared_messages_skipping_wait")
 
     except asyncio.CancelledError:
-        self.logger.info("`process_typing_queue` task was cancelled during execution.")
+        self.logger.info("process_typing_queue_cancelled")
         raise  # Re-raise to allow the caller (_process_reply) to handle it.
     except Exception as e:
-        self.logger.error("Error in process_typing_queue", error=str(e), exc_info=True)
+        self.logger.error("process_typing_queue_failed", error=str(e), exc_info=True)
 
 
 async def handle_interrupted_reply(self) -> None:
@@ -117,7 +127,7 @@ async def handle_interrupted_reply(self) -> None:
     pending prepared messages. This must be called before the old reply_task is cancelled.
     """
     async with self.typing_queue_lock:
-        self.logger.info("Handling interrupted reply task. Cleaning up typing queue.")
+        self.logger.info("handling_interrupted_reply")
 
         # --- Handle reply_messages ---
         unsent_reply_messages = [
@@ -137,4 +147,4 @@ async def handle_interrupted_reply(self) -> None:
         # --- Save to self.unsent_message ---
         if unsent_reply_messages:
             self.unsent_message = self.message_tag.join(unsent_reply_messages)
-            self.logger.info(f"Moved unsent reply messages to self.unsent_message: '{self.unsent_message}'")
+            self.logger.info("unsent_messages_saved", unsent_message=self.unsent_message)

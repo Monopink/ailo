@@ -45,9 +45,9 @@ class MockLLMManual(BaseLLM):
                     "is_attack": False,
                     "want_reply": True,
                     "reply_content": "1你好啊[msg]1今天天气真不错！",
-                    "emotions": {"anger": 8},
-                    "friend_score": -3,
-                    "romance_score": -5,
+                    "emotions": {},
+                    "friend_score": 3,
+                    "romance_score": 2,
                     "is_important": True,
                     "note": "对方主动打招呼，我回应了一下",
                     "prepared_content": "1.5你在干嘛[msg]1.5吃饭没",
@@ -78,13 +78,13 @@ class MockLLMManual(BaseLLM):
                     "thought": "对方的消息有些模糊，我没完全理解是什么意思。最好请对方澄清一下，避免误解。我对这个话题也不是特别感兴趣。",
                     "is_attack": False,
                     "want_reply": True,
-                    "reply_content": "3你说什么[msg]3我没听清楚。",
+                    "reply_content": "3你什么[msg]3我没听清楚。",
                     "emotions": {"none": 0},
                     "friend_score": 0,
                     "romance_score": 0,
                     "is_important": False,
                     "note": "没理解对方的意思",
-                    "prepared_content": "3.5你说什么[msg]3.5我没听清楚。",
+                    "prepared_content": "3.5你什么[msg]3.5我没听清楚。",
                     "is_block": False,
                 },
                 ensure_ascii=False,
@@ -108,17 +108,35 @@ class MockLLMManual(BaseLLM):
             "generate_response_called",
             context_keys=list(context.keys()),
             kwargs_keys=list(kwargs.keys()) if kwargs else [],
-            context=context,
-            kwargs=kwargs,
         )
 
+        # Pretty-print the full context for detailed inspection
+        if context and context.get("messages"):
+            # Use a structured format for better readability in logs
+            system_prompt = context["messages"][0].get("content", "N/A")
+            message_history = context["messages"][1:]
+
+            # logger.info("received_context", system_prompt=system_prompt)
+            logger.info(
+                "full_message_history",
+                history=json.dumps(message_history, ensure_ascii=False, indent=2),
+            )
+
         # Small delay to simulate API call
-        await asyncio.sleep(5)
+        await asyncio.sleep(3)
+
+        # Check if a summary is requested by looking for the task description in the system prompt
+        summary_is_requested = False
+        if context and context.get("messages"):
+            system_prompt = context["messages"][0].get("content", "")
+            if "的对话进行总结概括" in system_prompt:
+                summary_is_requested = True
+                logger.info("summary_request_detected")
 
         # Get next response from the queue
         if not self.RESPONSES:
             logger.warning("no_responses_configured_using_default")
-            content = json.dumps(
+            content_str = json.dumps(
                 {
                     "thinking": "这是一个默认回复。我不确定对方想表达什么，所以给出一个通用的回应。",
                     "is_attack": False,
@@ -135,14 +153,25 @@ class MockLLMManual(BaseLLM):
                 ensure_ascii=False,
             )
         else:
-            content = self.RESPONSES[self._current_index]
+            content_str = self.RESPONSES[self._current_index]
             logger.info("using_response", index=self._current_index)
             self._current_index = (self._current_index + 1) % len(self.RESPONSES)
             logger.info("next_index_updated", next_index=self._current_index)
 
+        # Parse the base content and conditionally add the summary
+        response_data = json.loads(content_str)
+        if summary_is_requested:
+            response_data["summary"] = "这是手动模拟的对话总结。"
+            logger.info("summary_field_added")
+        elif "summary" in response_data:
+            # Ensure summary is not included if not requested
+            del response_data["summary"]
+
+        final_content = json.dumps(response_data, ensure_ascii=False)
+
         # Create response structure
         response = self.DEFAULT_RESPONSE_TEMPLATE.copy()
-        response["choices"][0]["message"]["content"] = content
+        response["choices"][0]["message"]["content"] = final_content
 
         logger.info("response_generated")
         return response

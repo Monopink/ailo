@@ -133,7 +133,10 @@ message中role为assistant的content是经过system加工、合并后的你给{U
 
         # If no matching relationship type, log error and return default style
         logger.error(
-            f"Invalid relationship type: '{relationship_type}'. Expected '{RelationshipType.FRIEND.value}' or '{RelationshipType.ROMANCE.value}'. Using default friend neutral style."
+            "invalid_relationship_type",
+            relationship_type=relationship_type,
+            relationship_level=relationship_level,
+            reason=f"Expected '{RelationshipType.FRIEND.value}' or '{RelationshipType.ROMANCE.value}'.",
         )
         return
 
@@ -403,11 +406,12 @@ class ContextStrategy(ContextStrategyProtocol):
         for i, task in enumerate(self._tasks):
             task_desc = TaskDefinition.get_task_description(task)
             if task == TaskType.CONVERSATION_SUMMARY and self._memory_limit > 0:
+                word_count = round(self._memory_limit * 0.9)
                 # This description is different from the one in _task_definitions.
                 desc = (
                     f"{i+1}. 请对{components.memory_tag}和所有与"
                     "{USER}"
-                    f"的对话进行总结概括，字符数不超过{self._memory_limit}字符"
+                    f"的对话进行总结概括，字符数不超过{word_count}字符"
                 )
             else:
                 desc = f"{i+1}. {task_desc}"
@@ -488,12 +492,12 @@ class ContextStrategy(ContextStrategyProtocol):
                 if response_key == "emotions":
                     # Check emotion value range
                     for emotion_type, emotion_score in value.items():
-                        if emotion_type != "none" and not (1 <= emotion_score <= 12):
+                        if emotion_type != "none" and not (0 <= emotion_score <= 12):
                             result.add_error(
                                 ValidationError(
                                     error_type=ValidationErrorType.INVALID_RANGE,
                                     field_name=f"{response_key}.{emotion_type}",
-                                    message=f"Emotion score for {emotion_type} must be between 1 and 12",
+                                    message=f"Emotion score for {emotion_type} must be between 0 and 12",
                                 )
                             )
 
@@ -558,10 +562,14 @@ class ContextStrategy(ContextStrategyProtocol):
                 logger.info("Task validation successful")
             else:
                 error_messages = result.get_error_messages()
-                logger.error(f"Task validation failed: {'; '.join(error_messages)}")
+                logger.error(
+                    "task_validation_failed",
+                    errors=error_messages,
+                    response_content=response_content,
+                )
 
             return result
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             result = ValidationResult()
             result.add_error(
                 ValidationError(
@@ -569,7 +577,11 @@ class ContextStrategy(ContextStrategyProtocol):
                     message="Response is not valid JSON",
                 )
             )
-            logger.error("Task validation failed: Response is not valid JSON")
+            logger.error(
+                "task_validation_failed_not_json",
+                error=str(e),
+                response_content=response_content,
+            )
             return result
         except Exception as e:
             result = ValidationResult()
@@ -579,7 +591,12 @@ class ContextStrategy(ContextStrategyProtocol):
                     message=f"Error validating tasks: {str(e)}",
                 )
             )
-            logger.error(f"Task validation failed: Error validating tasks: {str(e)}", exc_info=True)
+            logger.error(
+                "task_validation_unexpected_error",
+                error=str(e),
+                response_content=response_content,
+                exc_info=True,
+            )
             return result
 
 
@@ -692,6 +709,6 @@ def create_context(
         if value:  # Only replace if the value is not empty
             system_prompt = system_prompt.replace(placeholder, value)
 
-    logger.debug("Generated system prompt: %s", system_prompt)
+    logger.debug("generated_system_prompt", system_prompt=system_prompt)
 
     return system_prompt, strategy

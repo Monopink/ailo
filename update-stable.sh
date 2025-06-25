@@ -9,7 +9,7 @@ docker-compose -f docker-compose.stable.yml down
 
 # Rebuild services
 echo "Rebuilding services..."
-docker-compose -f docker-compose.stable.yml build stable_chat web_dev_stable
+docker-compose -f docker-compose.stable.yml build stable_chat stable_web_dev
 
 # Start services
 echo "Starting updated services..."

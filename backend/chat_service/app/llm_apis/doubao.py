@@ -3,7 +3,7 @@ import json
 from typing import Dict, Any, Optional
 from volcenginesdkarkruntime import Ark
 from .base import BaseLLM
-from utils.logging import get_logger
+from ..utils.logging import get_logger
 
 logger = get_logger("says.llm_apis.doubao")
 

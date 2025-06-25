@@ -3,14 +3,14 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Protocol, runtime_checkable
 
-from enums import (
+from ..enums import (
     RelationshipType,
     FriendLevel,
     RomanceLevel,
     ValidationErrorType,
     TaskType,
 )
-from utils.logging import get_logger
+from ..utils.logging import get_logger
 
 logger = get_logger("says.models.context_strategy")
 

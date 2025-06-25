@@ -57,11 +57,17 @@ FastAPI 具体准则：
 关于数据模型、路径操作和中间件的最佳实践，请参阅 FastAPI 文档。
 
 项目介绍：
-这是一个ai聊天程序，技术架构采用前后端分离，即时通讯使用 leancloud 提供的即时通信能力（本地测试环境使用websocket），ai功能调用大模型api，同时后端对消息进行处理（历史消息读取、用户身份分析、上下文处理、主动发送消息等），使用mysql数据库。
+这是一个 AI 聊天程序，采用微服务架构，包含账号服务(accounts_service)、机器人服务(bots_service)和聊天服务(chat_service)。技术架构采用前后端分离，即时通讯使用 leancloud 提供的即时通信能力（本地测试环境使用websocket），AI功能调用大模型API，同时后端对消息进行处理（历史消息读取、用户身份分析、上下文处理、主动发送消息等），使用 MySQL 数据库。前端计划支持 Web、小程序和原生应用。
 
-模型职责：消息模型只负责处理消息，生成一个标准化的回复对象，并将其返回给调用方。
-消息路由职责：路由模块接收消息模型的处理结果，负责根据消息来源选择正确的发送逻辑。
-事件驱动：通过事件发布订阅机制或回调函数，解耦消息处理和消息发送的逻辑。
+微服务职责划分：
+- accounts_service：负责用户账号管理、认证和授权
+- bots_service：负责 AI 机器人的管理、创建和配置
+- chat_service：负责消息处理、AI 响应生成和消息路由
+
+消息处理架构：
+- 模型职责：消息模型只负责处理消息，生成一个标准化的回复对象，并将其返回给调用方
+- 消息路由职责：路由模块接收消息模型的处理结果，负责根据消息来源选择正确的发送逻辑
+- 事件驱动：通过事件发布订阅机制或回调函数，解耦消息处理和消息发送的逻辑
 
 消息流转的核心流程：
 
@@ -94,116 +100,193 @@ FastAPI 具体准则：
 - 主入口 main.py 保持简单，仅用于启动核心服务。
 
 文件结构：
-
 says
-├── backend  # 后端服务
-│   └── chat_service  # AI对话服务
-│       ├── Dockerfile  # 后端服务Dockerfile
-│       ├── app  # 后端服务代码
-│       │   ├── app.log  # 后端服务日志
-│       │   ├── database.py  # 后端服务数据库
-│       │   ├── event_bus.py  # 后端服务事件总线
-│       │   ├── llm_apis  # 后端服务大模型api
-│       │   ├── main.py  # 后端服务主入口
-│       │   ├── message_router.py  # 后端服务消息路由
-│       │   ├── models  # 后端服务模型
-│       │   │   ├── base.py
-│       │   │   ├── model_lily.py
-│       │   │   ├── context_strategy.py
-│       │   │   └── ...
-│       │   └── db_managers # 数据库管理
-│       │       └── mysql.py
-│       │   └── services  # 后端服务服务
-│       ├── docker-compose.dev.yml  # 后端服务开发环境docker-compose
-│       ├── docker-compose.yml  # 后端服务生产环境docker-compose
-│       ├── mysql_dev  # 后端服务开发环境mysql
-│       │   ├── conf  # 后端服务开发环境mysql配置
-│       │   └── init  # 后端服务开发环境mysql初始化
-│       ├── requirements.txt  # 后端服务依赖
-│       └── web_dev  # 后端服务websocket调试简易前端
-│           ├── Dockerfile  # 开发环境websocket前端Dockerfile
-│           ├── docker-compose.yml  # 开发环境websocket前端docker-compose
-│           ├── index.html  # 开发环境websocket前端index.html
-│           └── usr  # 开发环境websocket前端usr
+├── backend
+│   ├── accounts_service  # 账号服务
+│   │   ├── Dockerfile
+│   │   ├── app
+│   │   │   ├── core
+│   │   │   │   └── config.py  # 配置
+│   │   │   └── main.py  # 主入口
+│   │   └── requirements.txt  # 依赖
+│   ├── bots_service  # 机器人服务
+│   │   ├── Dockerfile
+│   │   ├── app
+│   │   │   ├── core
+│   │   │   │   └── config.py  # 配置
+│   │   │   └── main.py  # 主入口
+│   │   └── requirements.txt  # 依赖
+│   ├── chat_service  # AI对话服务
+│   │   ├── Dockerfile  # 开发环境Dockerfile
+│   │   ├── Dockerfile.prod  # 生产环境Dockerfile
+│   │   ├── app  # 服务代码
+│   │   │   ├── core
+│   │   │   │   └── config.py  # 配置
+│   │   │   ├── db_managers  # 数据库管理
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── mysql.py  # MySQL管理器
+│   │   │   ├── enums.py  # 枚举定义
+│   │   │   ├── event_bus.py  # 事件总线
+│   │   │   ├── exceptions.py  # 异常定义
+│   │   │   ├── llm_apis  # 大模型API
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── base.py  # API基类
+│   │   │   │   ├── doubao.py  # 豆包API
+│   │   │   │   └── mock_*.py  # 模拟API
+│   │   │   ├── main.py  # 主入口
+│   │   │   ├── message_router.py  # 消息路由
+│   │   │   ├── models  # 模型
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── base.py  # 基类
+│   │   │   │   ├── context_*.py  # 上下文处理
+│   │   │   │   ├── *_parts.py  # 模块组件
+│   │   │   │   └── model_lily.py  # 具体模型实现
+│   │   │   ├── services  # 服务
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── leancloud.py  # LeanCloud服务
+│   │   │   │   └── websocket.py  # WebSocket服务
+│   │   │   └── utils  # 工具
+│   │   │       ├── __init__.py
+│   │   │       └── logging.py  # 日志工具
+│   │   └── requirements.txt  # 依赖
 ├── database  # 数据库
-│   └── init.sql  # 数据库初始化 (Note: This seems to be a top-level init.sql, distinct from mysql_dev/init/init.sql)
-├── docker-compose.yml  # 项目docker-compose
-└── frontend  # 前端服务
-    └── web  # 前端服务web
+│   ├── conf  # 配置
+│   │   └── my.cnf  # MySQL配置
+│   └── init  # 初始化
+│       └── init.sql  # 数据库初始化脚本
+├── docker-compose.yml  # 开发环境docker-compose
+├── docker-compose.prod.yml  # 生产环境docker-compose
+├── frontend  # 前端
+│   └── web  # Web前端
+│       ├── Dockerfile
+│       └── index.html
+├── start.sh  # 启动脚本
+├── stop.sh  # 停止脚本
+└── restart.sh  # 重启脚本
 
 # 基础规则
 rules:
-  # 核心应用文件
+  # 核心应用文件 - chat_service
   - when: backend/chat_service/app/main.py
     include:
       - backend/chat_service/app/event_bus.py
       - backend/chat_service/app/message_router.py
-      - backend/chat_service/app/database.py # Assuming this is a high-level DB interface
-      - backend/chat_service/app/db_managers/mysql.py # Actual models and manager
+      - backend/chat_service/app/db_managers/mysql.py
       - backend/chat_service/app/services/websocket.py
+      - backend/chat_service/app/services/leancloud.py
+      - backend/chat_service/app/core/config.py
+      - backend/chat_service/app/exceptions.py
+
+  # 核心应用文件 - accounts_service
+  - when: backend/accounts_service/app/main.py
+    include:
+      - backend/accounts_service/app/core/config.py
+
+  # 核心应用文件 - bots_service
+  - when: backend/bots_service/app/main.py
+    include:
+      - backend/bots_service/app/core/config.py
 
   # 消息路由相关
   - when: backend/chat_service/app/message_router.py
     include:
       - backend/chat_service/app/models/base.py
       - backend/chat_service/app/models/model_lily.py
-      - backend/chat_service/app/db_managers/mysql.py # For bot data fetching
+      - backend/chat_service/app/db_managers/mysql.py
       - backend/chat_service/app/event_bus.py
+      - backend/chat_service/app/enums.py
 
   # 模型相关 - model_lily.py
   - when: backend/chat_service/app/models/model_lily.py
     include:
       - backend/chat_service/app/models/base.py
-      - backend/chat_service/app/llm_apis/doubao.py # Specific LLM API
-      - backend/chat_service/app/db_managers/mysql.py # For DB interactions (Bot, Emotion models)
-      - backend/chat_service/app/models/context_strategy.py # For prompt generation
-      - backend/chat_service/app/enums.py # For MessageType, etc.
+      - backend/chat_service/app/llm_apis/doubao.py
+      - backend/chat_service/app/db_managers/mysql.py
+      - backend/chat_service/app/models/context_strategy.py
+      - backend/chat_service/app/models/context_parts.py
+      - backend/chat_service/app/models/db_parts.py
+      - backend/chat_service/app/models/llm_parts.py
+      - backend/chat_service/app/models/message_parts.py
+      - backend/chat_service/app/models/relationship_parts.py
+      - backend/chat_service/app/enums.py
 
   # LLM API 相关
   - when: backend/chat_service/app/llm_apis/doubao.py
     include:
       - backend/chat_service/app/llm_apis/base.py
+      - backend/chat_service/app/llm_apis/mock_llm.py
+      - backend/chat_service/app/llm_apis/mock_json_llm.py
+      - backend/chat_service/app/llm_apis/mock_manual_llm.py
+      - backend/chat_service/app/llm_apis/mirrored_llm.py
 
   # WebSocket 相关
   - when: backend/chat_service/app/services/websocket.py
     include:
       - backend/chat_service/app/event_bus.py
+      - backend/chat_service/app/utils/logging.py
 
-  # 数据库接口文件 (if database.py is a high-level interface)
-  - when: backend/chat_service/app/database.py
+  # LeanCloud 相关
+  - when: backend/chat_service/app/services/leancloud.py
     include:
-      - backend/chat_service/app/db_managers/mysql.py # Its implementation
-      - backend/chat_service/mysql_dev/init/init.sql # Schema it might relate to
+      - backend/chat_service/app/event_bus.py
+      - backend/chat_service/app/utils/logging.py
 
-  # 数据库模型和管理器 - db_managers/mysql.py (New/Modified Rule)
+  # 数据库模型和管理器
   - when: backend/chat_service/app/db_managers/mysql.py
     include:
-      - backend/chat_service/mysql_dev/init/init.sql # Defines the schema for models
-      - backend/chat_service/app/enums.py # Used in model definitions (e.g., BotStatus)
-      - backend/chat_service/app/models/model_lily.py # A primary consumer of this manager
+      - backend/chat_service/app/db_managers/__init__.py
+      - database/init/init.sql
+      - backend/chat_service/app/enums.py
+      - backend/chat_service/app/core/config.py
 
   # 服务基类相关
-  - when: backend/chat_service/app/services/base.py
+  - when: backend/chat_service/app/services/__init__.py
     include:
-      - backend/chat_service/app/services/__init__.py
+      - backend/chat_service/app/services/websocket.py
+      - backend/chat_service/app/services/leancloud.py
 
   # 模型基类相关
   - when: backend/chat_service/app/models/base.py
     include:
       - backend/chat_service/app/models/__init__.py
+      - backend/chat_service/app/models/context_parts.py
+      - backend/chat_service/app/models/db_parts.py
+      - backend/chat_service/app/models/llm_parts.py
+      - backend/chat_service/app/models/message_parts.py
+      - backend/chat_service/app/models/relationship_parts.py
       
-  # 上下文策略相关 (New Rule)
+  # 上下文策略相关
   - when: backend/chat_service/app/models/context_strategy.py
     include:
-      - backend/chat_service/app/enums.py # Uses RelationshipType, FriendLevel, etc.
-      - backend/chat_service/app/models/model_lily.py # Primary user of the context strategy
+      - backend/chat_service/app/enums.py
+      - backend/chat_service/app/models/context_parts.py
+      - backend/chat_service/app/models/model_lily.py
 
-  # 枚举相关 (New Rule)
+  # 枚举相关
   - when: backend/chat_service/app/enums.py
     include:
-      - backend/chat_service/app/models/context_strategy.py # Uses enums
-      - backend/chat_service/app/db_managers/mysql.py # Uses enums for model fields/status
-      - backend/chat_service/app/models/model_lily.py # Uses enums for message types
+      - backend/chat_service/app/models/context_strategy.py
+      - backend/chat_service/app/db_managers/mysql.py
+      - backend/chat_service/app/models/model_lily.py
+      - backend/chat_service/app/message_router.py
+
+  # 配置相关
+  - when: backend/chat_service/app/core/config.py
+    include:
+      - backend/chat_service/app/main.py
+      - backend/chat_service/app/db_managers/mysql.py
+
+  # 异常相关
+  - when: backend/chat_service/app/exceptions.py
+    include:
+      - backend/chat_service/app/main.py
+
+  # 日志相关
+  - when: backend/chat_service/app/utils/logging.py
+    include:
+      - backend/chat_service/app/services/websocket.py
+      - backend/chat_service/app/services/leancloud.py
+      - backend/chat_service/app/main.py
 
 # 初始化文件规则
   - when: backend/chat_service/app/**/__init__.py
@@ -211,15 +294,35 @@ rules:
       - backend/chat_service/app/**/base.py
 
 # 数据库初始化脚本
-  - when: backend/chat_service/mysql_dev/init/init.sql
+  - when: database/init/init.sql
     include:
-      - backend/chat_service/app/db_managers/mysql.py # File containing models mapped to this SQL
+      - backend/chat_service/app/db_managers/mysql.py
+      - docker-compose.yml
+      - docker-compose.prod.yml
+
+# Docker 和部署相关
+  - when: docker-compose.yml
+    include:
+      - docker-compose.prod.yml
+      - backend/chat_service/Dockerfile
+      - backend/accounts_service/Dockerfile
+      - backend/bots_service/Dockerfile
+      - frontend/web/Dockerfile
+      - database/conf/my.cnf
+      - database/init/init.sql
+
+  - when: docker-compose.prod.yml
+    include:
+      - docker-compose.yml
+      - backend/chat_service/Dockerfile.prod
 
 # 特殊规则：当查看任何 Python 文件时
   - when: "**/*.py"
     include:
       - backend/chat_service/app/main.py
       - backend/chat_service/app/event_bus.py
+      - backend/accounts_service/app/main.py
+      - backend/bots_service/app/main.py
 
 # 文件类型规则
 fileTypes:
@@ -230,6 +333,10 @@ fileTypes:
   - extension: .sql
     relevantFiles:
       - init.sql
+  - extension: .yml
+    relevantFiles:
+      - docker-compose.yml
+      - docker-compose.prod.yml
 
 # 忽略规则
 ignore:
@@ -237,4 +344,6 @@ ignore:
   - "**/.git/**"
   - "**/venv/**"
   - "**/.env"
+  - "**/.env.prod"
   - "**/*.pyc"
+  - "**/app.log"

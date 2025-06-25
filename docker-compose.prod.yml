@@ -1,0 +1,58 @@
+version: '3.8'
+
+# Production Docker Compose Configuration
+
+services:
+  # Accounts Service
+  accounts_service:
+    container_name: accounts_service_container
+    build:
+      context: ./backend/accounts_service
+      # Use the production Dockerfile
+      dockerfile: Dockerfile.prod
+    env_file:
+      # Load production environment variables
+      - ./.env.prod
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+    ports:
+      # Expose the service port
+      - "${ACCOUNTS_SERVICE_PORT}:8000"
+    networks:
+      - says-network
+    # In production, it depends on an external DB, so depends_on is removed.
+    # Health checks or entrypoint scripts should handle DB readiness.
+    restart: always
+
+  # Bots Service
+  bots_service:
+    container_name: bots_service_container
+    build:
+      context: ./backend/bots_service
+      dockerfile: Dockerfile.prod
+    env_file:
+      - ./.env.prod
+    ports:
+      - "${BOTS_SERVICE_PORT}:8000"
+    networks:
+      - says-network
+    restart: always
+
+  # Chat Service
+  chat_service:
+    container_name: chat_service_container
+    build:
+      context: ./backend/chat_service
+      dockerfile: Dockerfile.prod
+    env_file:
+      - ./.env.prod
+    ports:
+      - "${CHAT_SERVICE_PORT}:8000"
+    networks:
+      - says-network
+    restart: always
+
+# Define the network for services to communicate
+networks:
+  says-network:
+    driver: bridge 

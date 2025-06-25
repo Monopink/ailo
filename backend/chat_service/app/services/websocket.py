@@ -2,8 +2,8 @@ import json
 from datetime import datetime, timezone
 from typing import Dict, Any
 from fastapi import WebSocket
-from event_bus import event_bus, EventTypes
-from utils.logging import get_logger
+from ..event_bus import event_bus, EventTypes
+from ..utils.logging import get_logger
 
 logger = get_logger("says.services.websocket")
 

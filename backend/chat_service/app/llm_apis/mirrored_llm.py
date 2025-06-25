@@ -3,7 +3,7 @@ import time
 import random
 from typing import Dict, Any, Optional
 from .base import BaseLLM
-from utils.logging import get_logger
+from ..utils.logging import get_logger
 
 logger = get_logger("says.llm_apis.mirrored_llm")
 

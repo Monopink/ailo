@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Callable, Awaitable, List
 
 from .base import BaseModel
-from llm_apis import model_lily_advanced_llm as advanced_llm
-from enums import (
+from ..llm_apis import model_lily_advanced_llm as advanced_llm
+from ..enums import (
     MessageType,
     MessageTypeCategory,
     RelationshipType,
@@ -44,7 +44,7 @@ from .relationship_parts import (
     new_anger_emotion,
     process_emotions_and_score,
 )
-from utils.logging import get_logger, bind_context
+from ..utils.logging import get_logger, bind_context
 
 logger = get_logger("says.models.model_lily")
 

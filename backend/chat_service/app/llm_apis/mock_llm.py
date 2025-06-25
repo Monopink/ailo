@@ -3,7 +3,7 @@ import random
 import time
 from typing import Dict, Any, List, Optional
 from .base import BaseLLM
-from utils.logging import get_logger
+from ..utils.logging import get_logger
 
 logger = get_logger("says.llm_apis.mock_llm")
 

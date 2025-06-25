@@ -22,17 +22,12 @@ from sqlalchemy import (
     DECIMAL,
 )
 from sqlalchemy.exc import SQLAlchemyError
-from enums import BotStatus
+from ..enums import BotStatus
 import enum
 from datetime import timedelta
-from utils.logging import get_logger, bind_context
+from ..utils.logging import get_logger, bind_context
 
 logger = get_logger("says.db_managers.mysql")
-
-# Database configuration
-DATABASE_URL = "mysql+aiomysql://root:root@db/says_dev?charset=utf8mb4"
-engine = create_async_engine(DATABASE_URL, echo=True)
-async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # Create declarative base class that all model classes will inherit from
 Base = declarative_base()
@@ -185,8 +180,9 @@ class Emotion(Base):
 
 
 class MySQLManager:
-    def __init__(self):
-        self.session_maker = async_session
+    def __init__(self, database_url: str):
+        self.engine = create_async_engine(database_url, echo=True)
+        self.session_maker = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
         self._init_task = asyncio.create_task(self._initialize())
         # Create base logger
         self.logger = get_logger("says.db_managers.mysql_manager")

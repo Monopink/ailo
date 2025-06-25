@@ -2,7 +2,7 @@ import random
 from datetime import datetime, timedelta, timezone
 from typing import Tuple, Dict, Any, Optional
 
-from enums import BufferStatus, EmotionType, FriendLevel, RelationshipType
+from ..enums import BufferStatus, EmotionType, FriendLevel, RelationshipType
 
 
 def ensure_datetime(self, dt_value: Any) -> Optional[datetime]:

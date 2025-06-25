@@ -1,70 +1,19 @@
-import logging
-import sys
-import uvicorn
-import structlog
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
-from services import websocket
-from event_bus import event_bus
-from db_managers import db_manager
-from message_router import message_router
-from exceptions import AppException
+from .services import websocket
+from .event_bus import event_bus
+from .db_managers import db_manager
+from .message_router import message_router
+from .exceptions import AppException
 from fastapi.responses import JSONResponse
-from utils.logging import get_logger, bind_context
+from .utils.logging import get_logger, bind_context
+from .core.config import settings
 
 
-# Configure structured logging
-def configure_logging():
-    # The default basicConfig sets the root logger level to WARNING.
-    # We will configure it manually to ensure DEBUG messages are captured.
-    # logging.basicConfig(level=logging.INFO)
-
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.stdlib.filter_by_level,
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.processors.CallsiteParameterAdder(),
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer(ensure_ascii=False),
-        ],
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,
-    )
-
-    # Get the root logger
-    root_logger = logging.getLogger()
-    # Set the root logger level to the lowest level we want to capture (DEBUG)
-    root_logger.setLevel(logging.DEBUG)
-
-    # Clear any existing handlers to avoid duplicate logs
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
-
-    # Set up file logging to capture all details (DEBUG and above)
-    file_handler = logging.FileHandler("app.log", encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-
-    # Set up console logging for DEBUG level as well
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
-
-    # Add the handlers to the root logger
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
-
-
-configure_logging()
 logger = get_logger("says.main")
 
 # Create FastAPI application
-app = FastAPI()
+app = FastAPI(title=settings.PROJECT_NAME)
 
 # Configure CORS
 app.add_middleware(
@@ -184,16 +133,3 @@ async def root():
     response = {"message": "Welcome to Says API", "version": "1.0.0", "status": "running"}
     logger.info("root_endpoint_accessed")
     return response
-
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="debug",  # Changed from debug to info for production logs
-        ws_ping_interval=20,
-        ws_ping_timeout=20,
-        access_log=True,
-    )

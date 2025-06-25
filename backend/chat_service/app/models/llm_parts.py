@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import Optional
 
-from exceptions import LLMAPIError, LLMResponseError, LLMContentError
+from ..exceptions import LLMAPIError, LLMResponseError, LLMContentError
 
 
 async def generate_response(self, llm, **kwargs) -> str:

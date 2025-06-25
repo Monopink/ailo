@@ -2,14 +2,14 @@ import asyncio
 from typing import Dict, Type, Optional, Any, Tuple
 from enum import Enum, auto
 
-from db_managers import db_manager
-from event_bus import event_bus, EventTypes
+from .db_managers import db_manager
+from .event_bus import event_bus, EventTypes
 
-from models.base import BaseModel
-from models.model_lily import ModelLily
-from enums import MessageType, MessageTypeCategory, BotStatus
-from exceptions import BotNotFoundError, AuthorizationError, DatabaseError
-from utils.logging import get_logger
+from .models.base import BaseModel
+from .models.model_lily import ModelLily
+from .enums import MessageType, MessageTypeCategory, BotStatus
+from .exceptions import BotNotFoundError, AuthorizationError, DatabaseError
+from .utils.logging import get_logger
 
 logger = get_logger("says.message_router")
 

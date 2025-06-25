@@ -8,7 +8,7 @@ except ImportError:
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from .context_strategy import ContextComponents, create_context, TaskDefinition
-from enums import TaskType
+from ..enums import TaskType
 
 
 def convert_timestamp(self, timestamp: str | None = None) -> str:

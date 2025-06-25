@@ -5,7 +5,7 @@ import json
 from typing import Dict, Any, List, Optional, Union, TypedDict, Tuple
 from enum import Enum
 from .base import BaseLLM
-from utils.logging import get_logger
+from ..utils.logging import get_logger
 
 logger = get_logger("says.llm_apis.mock_json_llm")
 

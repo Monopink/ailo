@@ -2,8 +2,8 @@ import asyncio
 from typing import Optional
 from datetime import datetime
 
-from enums import MessageType, TypingStatus
-from event_bus import event_bus, EventTypes
+from ..enums import MessageType, TypingStatus
+from ..event_bus import event_bus, EventTypes
 
 
 async def send_message(

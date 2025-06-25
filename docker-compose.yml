@@ -1,18 +1,136 @@
 version: '3.8'
 
 services:
-  backend:
-
-  db:
-
-  frontend:
-    build: ./frontend/web
-    container_name: frontend
+  # MySQL Database Service
+  mysql_db:
+    image: mysql:8.0
+    container_name: mysql_db_container
+    # Read environment variables from the .env file
+    env_file:
+      - ./.env
+    environment:
+      # These are required by the MySQL image to initialize the database
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command: 
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     ports:
-      - "8081:8080"
+      # Expose MySQL port to the host machine for direct access if needed
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      # Persist database data
+      - mysql_data:/var/lib/mysql
+      # Mount custom configuration
+      - ./database/conf:/etc/mysql/conf.d:ro
+      # Run initialization scripts on startup
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     networks:
-      - app_network
+      - says-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser", "-p${MYSQL_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: always
 
+  # Accounts Service
+  accounts_service:
+    container_name: accounts_service_container
+    # Build the service from its Dockerfile
+    build:
+      context: ./backend/accounts_service
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+    ports:
+      # Expose the service port to the host machine
+      - "${ACCOUNTS_SERVICE_PORT}:8000"
+    volumes:
+      # Mount local code into the container for hot-reloading
+      - ./backend/accounts_service:/app
+    networks:
+      - says-network
+    # Depends on the database to be ready
+    depends_on:
+      - mysql_db
+    restart: always
+
+  # Bots Service
+  bots_service:
+    container_name: bots_service_container
+    build:
+      context: ./backend/bots_service
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+    ports:
+      - "${BOTS_SERVICE_PORT}:8000"
+    volumes:
+      - ./backend/bots_service:/app
+    networks:
+      - says-network
+    depends_on:
+      - mysql_db
+    restart: always
+
+  # Chat Service
+  chat_service:
+    container_name: chat_service_container
+    build:
+      context: ./backend/chat_service
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+    ports:
+      - "${CHAT_SERVICE_PORT}:8000"
+    volumes:
+      - ./backend/chat_service:/app
+    networks:
+      - says-network
+    depends_on:
+      - mysql_db
+    restart: always
+
+  # Web Development Frontend
+  web_dev:
+    container_name: web_dev_container
+    build:
+      context: ./frontend/web_dev
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    networks:
+      - says-network
+    restart: always
+
+  # Log Viewer Service
+  dozzle:
+    container_name: dozzle_container
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "9999:8080"
+    restart: always
+    networks:
+      - says-network
+
+# Define the network for services to communicate
 networks:
-  app_network:
+  says-network:
     driver: bridge
+
+# Define the volume for persistent database storage
+volumes:
+  mysql_data:

@@ -713,100 +713,118 @@ def remove_oldest_context(self) -> bool:
 
 
 def remove_expire_context(self, include_important: bool = False) -> None:
-    """Removes expired messages from the context based on age and count thresholds."""
+    """
+    Removes expired messages from the context by iterating through each message.
+
+    A message is removed if it meets all the following criteria:
+    - The total number of conversational messages is greater than `self.context_expire_num`.
+    - The message's timestamp is older than `self.context_expire_hours`.
+    - The message is not marked as important, or `include_important` is True.
+
+    The process stops as soon as it encounters a message that is not old enough,
+    or when the message count drops to the configured limit.
+    """
     try:
-        # 1. Pre-condition checks: Both count and age must exceed thresholds.
-        num_conversational_messages = len(self.context.get("messages", [])) - 1
-        if num_conversational_messages < self.context_expire_num:
-            return
-
-        if not self.context_metadata:
-            return
-
-        try:
-            timestamp_str = self.context_metadata[0]["timestamp"]
-            if not timestamp_str or timestamp_str == "N/A":
-                # Handle cases where timestamp is present but empty or "N/A"
-                self.logger.warning(
-                    "remove_expire_context_invalid_timestamp_value", timestamp=timestamp_str
-                )
-                return
-        except KeyError:
-            self.logger.error(
-                "remove_expire_context_aborted_missing_timestamp",
-                reason="Oldest metadata entry is missing 'timestamp' key.",
-                metadata=self.context_metadata[0],
-            )
-            return
-
-        is_old_enough = False
-        try:
-            # 1. Parse the naive datetime string from metadata
-            naive_message_time = datetime.strptime(timestamp_str, self.timestamp_format)
-
-            # 2. Make it timezone-aware by attaching the bot's configured timezone
-            bot_timezone = ZoneInfo(self.bot.timezone)
-            aware_message_time_in_bot_tz = naive_message_time.replace(tzinfo=bot_timezone)
-
-            # 3. Get the current time in UTC for a reliable comparison
-            now_utc = datetime.now(timezone.utc)
-
-            # 4. Compare the two times. Python handles the comparison of aware datetimes correctly.
-            time_difference_seconds = (now_utc - aware_message_time_in_bot_tz).total_seconds()
-            is_old_enough = time_difference_seconds > self.context_expire_hours * 3600
-        except (ValueError, TypeError):
-            self.logger.error("remove_expire_context_timestamp_parse_error", timestamp=timestamp_str)
-            return
-
-        if not is_old_enough:
-            return
-
         self.logger.info("remove_expire_context_starting", include_important=include_important)
-        # 2. Loop and remove messages that are old enough.
+
         metadata_index = 0
-        try:
-            while metadata_index < len(self.context_metadata):
+        now_utc = datetime.now(timezone.utc)
+        bot_timezone = ZoneInfo(self.bot.timezone)
+
+        # Use a while loop because we are modifying the list we are iterating over.
+        while metadata_index < len(self.context_metadata):
+            # --- Stop Condition 1: Check message count ---
+            num_conversational_messages = len(self.context.get("messages", [])) - 1
+            if num_conversational_messages <= self.context_expire_num:
+                self.logger.info(
+                    "remove_expire_context_stopped_count_threshold_reached",
+                    message_count=num_conversational_messages,
+                    threshold=self.context_expire_num,
+                )
+                break
+
+            # Get metadata for the current message
+            try:
+                metadata = self.context_metadata[metadata_index]
+                timestamp_str = metadata.get("timestamp")
+            except IndexError:
+                self.logger.error("remove_expire_context_index_error_metadata", index=metadata_index)
+                break  # Should not happen if loop condition is correct
+            except KeyError:
+                self.logger.error(
+                    "remove_expire_context_aborted_missing_timestamp",
+                    reason="Metadata entry is missing 'timestamp' key.",
+                    metadata=metadata,
+                )
+                metadata_index += 1
+                continue
+
+            if not timestamp_str or timestamp_str == "N/A":
+                self.logger.warning(
+                    "remove_expire_context_skipping_invalid_timestamp",
+                    timestamp=timestamp_str,
+                    index=metadata_index,
+                )
+                metadata_index += 1
+                continue
+
+            # --- Stop Condition 2: Check message age ---
+            try:
+                naive_message_time = datetime.strptime(timestamp_str, self.timestamp_format)
+                aware_message_time = naive_message_time.replace(tzinfo=bot_timezone)
+                time_difference_hours = (now_utc - aware_message_time).total_seconds() / 3600
+
+                if time_difference_hours < self.context_expire_hours:
+                    self.logger.info(
+                        "remove_expire_context_stopped_age_threshold_reached",
+                        message_age_hours=time_difference_hours,
+                        threshold_hours=self.context_expire_hours,
+                        timestamp=timestamp_str,
+                    )
+                    break  # Stop processing since messages are ordered by time
+            except (ValueError, TypeError) as e:
+                self.logger.error(
+                    "remove_expire_context_timestamp_parse_error",
+                    timestamp=timestamp_str,
+                    error=str(e),
+                )
+                metadata_index += 1
+                continue
+
+            # --- Removal Logic: Check importance ---
+            is_important = metadata.get("is_important", True)  # Default to True to be safe
+            if include_important or not is_important:
+                # Corresponds to conversational messages, which start at index 1
                 message_index = metadata_index + 1
-                if message_index >= len(self.context.get("messages", [])):
+
+                try:
+                    message_to_remove = self.context["messages"][message_index]
+                except IndexError:
+                    self.logger.error("remove_expire_context_index_error_message", index=message_index)
                     break
 
-                metadata = self.context_metadata[metadata_index]
-                is_important = metadata.get("is_important", True)
-
-                # Decide whether to delete this message.
-                if include_important or not is_important:
-                    # Verify fingerprint before removing.
-                    message_to_remove = self.context["messages"][message_index]
-
-                    # In `remove_expire_context`, we stop on mismatch to be safe, unlike
-                    # `remove_oldest_context` which forces removal to break loops.
-                    if self._verify_single_metadata(message_to_remove, metadata):
-                        removed_message = self.context["messages"].pop(message_index)
-                        removed_metadata = self.context_metadata.pop(metadata_index)
-                        self.logger.info(
-                            "expired_message_removed",
-                            removed_message=removed_message,
-                            removed_metadata=removed_metadata,
-                        )
-                        # Don't increment index, as the list has shifted.
-                        continue
-                    else:
-                        self.logger.warning(
-                            "remove_expire_context_fingerprint_mismatch_stopping",
-                            reason="Stopping removal of expired context to ensure data integrity.",
-                        )
-                        break  # Stop on mismatch
+                # We can remove the message. Let's do a final fingerprint check.
+                if self._verify_single_metadata(message_to_remove, metadata):
+                    removed_message = self.context["messages"].pop(message_index)
+                    removed_metadata = self.context_metadata.pop(metadata_index)
+                    self.logger.info(
+                        "expired_message_removed",
+                        removed_message=removed_message,
+                        removed_metadata=removed_metadata,
+                    )
+                    # Do not increment metadata_index, as the list has shifted and the next item is now at the current index.
+                    continue
                 else:
-                    # Old but is_important, and we are not including them. Skip.
-                    metadata_index += 1
-        except KeyError as e:
-            self.logger.error(
-                "remove_expire_context_aborted_missing_key",
-                missing_key=str(e),
-                reason="A metadata entry is missing a required key.",
-                metadata_being_processed=self.context_metadata[metadata_index],
-                exc_info=True,
-            )
+                    self.logger.warning(
+                        "remove_expire_context_fingerprint_mismatch_stopping",
+                        reason="Stopping removal of expired context to ensure data integrity.",
+                    )
+                    # On mismatch, we stop the whole process to be safe.
+                    break
+            else:
+                # Message is important and we are not including them, so we skip it.
+                metadata_index += 1
+
     except Exception as e:
         self.logger.error(
             "remove_expire_context_failed",

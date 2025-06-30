@@ -78,7 +78,7 @@ FastAPI 具体准则：
    - 消息服务将标准化消息对象发布到 event_bus。
    - 事件总线负责广播消息或将消息分发到指定的模块 message_router 。
 3. 路由到消息模型：
-   - message_router 在数据库的bot表中查询对应id，然后查找对应字段model（假设为lily），根据model字段将消息给指定的bot model（model_lily.py）进行处理。
+   - message_router 在数据库的bot表中查询对应id，然后查找对应字段model（假设为ailo），根据model字段将消息给指定的bot model（model_ailo.py）进行处理。
    - 消息模型被设计为完全独立的处理单元，只负责逻辑处理和生成响应。
 4. 处理消息：
    - 消息模型接收消息，执行以下操作：
@@ -140,7 +140,7 @@ says
 │   │   │   │   ├── base.py  # 基类
 │   │   │   │   ├── context_*.py  # 上下文处理
 │   │   │   │   ├── *_parts.py  # 模块组件
-│   │   │   │   └── model_lily.py  # 具体模型实现
+│   │   │   │   └── model_ailo.py  # 具体模型实现
 │   │   │   ├── services  # 服务
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── leancloud.py  # LeanCloud服务
@@ -191,13 +191,13 @@ rules:
   - when: backend/chat_service/app/message_router.py
     include:
       - backend/chat_service/app/models/base.py
-      - backend/chat_service/app/models/model_lily.py
+      - backend/chat_service/app/models/model_ailo.py
       - backend/chat_service/app/db_managers/mysql.py
       - backend/chat_service/app/event_bus.py
       - backend/chat_service/app/enums.py
 
-  # 模型相关 - model_lily.py
-  - when: backend/chat_service/app/models/model_lily.py
+  # 模型相关 - model_ailo.py
+  - when: backend/chat_service/app/models/model_ailo.py
     include:
       - backend/chat_service/app/models/base.py
       - backend/chat_service/app/llm_apis/doubao.py
@@ -260,14 +260,14 @@ rules:
     include:
       - backend/chat_service/app/enums.py
       - backend/chat_service/app/models/context_parts.py
-      - backend/chat_service/app/models/model_lily.py
+      - backend/chat_service/app/models/model_ailo.py
 
   # 枚举相关
   - when: backend/chat_service/app/enums.py
     include:
       - backend/chat_service/app/models/context_strategy.py
       - backend/chat_service/app/db_managers/mysql.py
-      - backend/chat_service/app/models/model_lily.py
+      - backend/chat_service/app/models/model_ailo.py
       - backend/chat_service/app/message_router.py
 
   # 配置相关

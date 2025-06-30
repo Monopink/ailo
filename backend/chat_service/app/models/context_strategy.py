@@ -16,7 +16,7 @@ logger = get_logger("says.models.context_strategy")
 
 
 # Protocol defining the interface for context strategies.
-# Implemented by ContextStrategy and used by consumers like ModelLily for type checking.
+# Implemented by ContextStrategy and used by consumers like ModelAilo for type checking.
 @runtime_checkable
 class ContextStrategyProtocol(Protocol):
     """Context strategy protocol for type checking.

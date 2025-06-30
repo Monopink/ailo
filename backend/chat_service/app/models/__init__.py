@@ -1,7 +1,7 @@
 from .base import BaseModel
-from .model_lily import ModelLily
+from .model_ailo import ModelAilo
 
 __all__ = [
     "BaseModel",
-    "ModelLily",
+    "ModelAilo",
 ]

@@ -6,7 +6,7 @@ from .db_managers import db_manager
 from .event_bus import event_bus, EventTypes
 
 from .models.base import BaseModel
-from .models.model_lily import ModelLily
+from .models.model_ailo import ModelAilo
 from .enums import MessageType, MessageTypeCategory, BotStatus
 from .exceptions import BotNotFoundError, AuthorizationError, DatabaseError
 from .utils.logging import get_logger
@@ -30,7 +30,7 @@ class ModelInstanceStatus(Enum):
 
 class MessageRouter:
     def __init__(self):
-        self.model_registry: Dict[str, Type[BaseModel]] = {"lily": ModelLily}
+        self.model_registry: Dict[str, Type[BaseModel]] = {"ailo": ModelAilo}
         self.active_models: Dict[str, ModelInstance] = {}
         self.models_lock = asyncio.Lock()
 

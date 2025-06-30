@@ -118,7 +118,7 @@ class TestModel:
         self.logger = MockLogger()
         self.bot = bot
         self.emotions = emotions
-        # Unpack state from bot object, similar to ModelLily
+        # Unpack state from bot object, similar to ModelAilo
         self.friend_score = getattr(bot, "self_friend_score", 0)
         self.romance_score = getattr(bot, "self_romance_score", 0)
         self.relationship_type = getattr(bot, "relationship_type", "friend")
@@ -132,7 +132,7 @@ class TestModel:
         self.is_crushing = getattr(bot, "is_crushing", False)
         self.last_chat_time = getattr(bot, "last_chat_time", None)
 
-        # Get peak/trough from bot and update, similar to ModelLily
+        # Get peak/trough from bot and update, similar to ModelAilo
         self.friend_score_peak = max(getattr(bot, "friend_score_peak", 0), self.friend_score)
         self.friend_score_trough = min(getattr(bot, "friend_score_trough", 5000), self.friend_score)
         self.romance_score_peak = max(getattr(bot, "romance_score_peak", 0), self.romance_score)

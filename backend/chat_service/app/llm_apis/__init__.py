@@ -25,13 +25,13 @@ llm_instances: Dict[str, BaseLLM] = {
 
 # Export default instance
 default_llm = llm_instances["doubao-1.5-pro-32k"]
-model_lily_standard_llm = llm_instances["mock_manual"]
-model_lily_advanced_llm = llm_instances["mock_manual"]
-# model_lily_advanced_llm = llm_instances["doubao-seed-1.6"]
+model_ailo_standard_llm = llm_instances["mock_manual"]
+model_ailo_advanced_llm = llm_instances["mock_manual"]
+# model_ailo_advanced_llm = llm_instances["doubao-seed-1.6"]
 
 __all__ = [
     "BaseLLM",
     "default_llm",
-    "model_lily_standard_llm",
-    "model_lily_advanced_llm",
+    "model_ailo_standard_llm",
+    "model_ailo_advanced_llm",
 ]

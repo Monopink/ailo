@@ -78,7 +78,7 @@ class MockBot:
         self.friend_score_neg_k = 120
 
 
-class MockModelLily:
+class MockModelAilo:
     """
     Simulates the main model instance ('self') that process_emotions expects.
     It holds the state (like current emotions) and necessary configurations.
@@ -118,7 +118,7 @@ class MockModelLily:
         self.romance_score = 100
         # self.emotions = {}  # Start with no emotions for a clean test
 
-        # Emotion calculation rules, copied from ModelLily
+        # Emotion calculation rules, copied from ModelAilo
         self.emotion_calculation_rules = {
             "anger": {
                 "decay_ratios": {1: 0.5, 2: 0.4, 3: 0.2},
@@ -141,12 +141,12 @@ def run_test():
     """
     Main function to run the test.
     You can modify the 'response_result' dictionary and the initial
-    state of 'lily_instance.emotions' to test different scenarios.
+    state of 'ailo_instance.emotions' to test different scenarios.
     """
     print("--- Starting emotion processing test ---")
 
     # 1. Initialize the mock model instance
-    lily_instance = MockModelLily()
+    ailo_instance = MockModelAilo()
 
     # 2. ***** EDIT HERE TO TEST *****
     # This dictionary simulates the response from the LLM.
@@ -161,14 +161,14 @@ def run_test():
     }
 
     print("\n[State Before]")
-    print(f"Initial emotions: {json.dumps(lily_instance.emotions, indent=2, ensure_ascii=False)}")
+    print(f"Initial emotions: {json.dumps(ailo_instance.emotions, indent=2, ensure_ascii=False)}")
     print(f"Input response: {json.dumps(response_result, indent=2, ensure_ascii=False)}")
 
     # 3. Call the function to be tested
-    lily_instance.run_process_emotions(response_result)
+    ailo_instance.run_process_emotions(response_result)
 
     print("\n[State After]")
-    print(f"Updated emotions: {json.dumps(lily_instance.emotions, indent=2, ensure_ascii=False)}")
+    print(f"Updated emotions: {json.dumps(ailo_instance.emotions, indent=2, ensure_ascii=False)}")
 
     print("\n--- Test finished ---")
 

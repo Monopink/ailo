@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Callable, Awaitable, List
 
 from .base import BaseModel
-from ..llm_apis import model_lily_advanced_llm as advanced_llm
+from ..llm_apis import model_ailo_advanced_llm as advanced_llm
 from ..enums import (
     MessageType,
     MessageTypeCategory,
@@ -49,10 +49,10 @@ from .relationship_parts import (
 )
 from ..utils.logging import get_logger, bind_context
 
-logger = get_logger("says.models.model_lily")
+logger = get_logger("says.models.model_ailo")
 
 
-class ModelLily(BaseModel):
+class ModelAilo(BaseModel):
 
     # Import external methods
     _send_message = send_message
@@ -90,7 +90,7 @@ class ModelLily(BaseModel):
     _format_emotions_config = format_emotions_config
 
     def __init__(self, bot: Any, message_service: str, cleanup_callback: Callable[[str], Awaitable[None]]):
-        """Initialize the Lily model
+        """Initialize the Ailo model
         Args:
             bot: Bot instance from the database. This is treated as the initial, read-only state.
             message_service: Message service type
@@ -101,7 +101,7 @@ class ModelLily(BaseModel):
 
         # Create a context-bound logger for this bot instance
         self.logger = bind_context(logger, bot_id=self.bot.id, entity_id=self.bot.entity_id)
-        self.logger.info("Initialized ModelLily instance")
+        self.logger.info("Initialized ModelAilo instance")
 
         # === TIMER CONFIGS ===
         # Relationship type and level to wakeup time mapping
@@ -252,7 +252,7 @@ class ModelLily(BaseModel):
         except AttributeError as e:
             self.logger.critical(
                 "bot_object_missing_attribute",
-                error=f"The 'bot' object is missing a required attribute during ModelLily initialization: {e}",
+                error=f"The 'bot' object is missing a required attribute during ModelAilo initialization: {e}",
                 exc_info=True,
             )
             # Re-raising is crucial. We cannot create a valid model instance without mandatory attributes.
@@ -308,7 +308,7 @@ class ModelLily(BaseModel):
         self._verify_and_repair_metadata()
 
         self.logger.debug(
-            "Initialized ModelLily instance",
+            "Initialized ModelAilo instance",
             emotions=self.emotions,
             friend_score=self.friend_score,
             romance_score=self.romance_score,

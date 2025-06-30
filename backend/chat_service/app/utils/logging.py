@@ -1,8 +1,6 @@
 import structlog
 from typing import Dict, Any, Optional
 import logging
-import os
-import pathlib
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
 from structlog.types import EventDict
 
@@ -28,24 +26,8 @@ def configure_logging():
     Configure structured logging for the application.
     This setup ensures that logs are processed as JSON, which is ideal for
     containerized environments and log aggregation tools like Dozzle.
-
-    If LOG_FILE_PATH environment variable is set, logs will also be written to that file.
     """
-    # Configure basic logging
     logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-
-    # Set up file logging if path is provided
-    log_file_path = os.environ.get("LOG_FILE_PATH")
-    if log_file_path:
-        # Ensure directory exists
-        log_dir = os.path.dirname(log_file_path)
-        pathlib.Path(log_dir).mkdir(parents=True, exist_ok=True)
-
-        # Add file handler
-        file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(logging.Formatter("%(message)s"))
-        logging.getLogger().addHandler(file_handler)
 
     structlog.configure(
         processors=[
@@ -70,11 +52,7 @@ def configure_logging():
         cache_logger_on_first_use=True,
     )
     logger = get_logger("says.logging")
-    logger.info(
-        "logging_configured_successfully",
-        log_to_file=bool(log_file_path),
-        log_file=log_file_path if log_file_path else None,
-    )
+    logger.info("logging_configured_successfully")
 
 
 def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:

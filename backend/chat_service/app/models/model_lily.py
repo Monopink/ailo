@@ -21,6 +21,8 @@ from .llm_parts import generate_response, validate_content, get_response_content
 from .context_parts import (
     convert_timestamp,
     create_fingerprint,
+    verify_single_metadata,
+    create_repaired_metadata,
     verify_and_repair_metadata,
     varify_context,
     append_context,
@@ -64,6 +66,8 @@ class ModelLily(BaseModel):
     _get_response_content = get_response_content
     _convert_timestamp = convert_timestamp
     _create_fingerprint = create_fingerprint
+    _verify_single_metadata = verify_single_metadata
+    _create_repaired_metadata = create_repaired_metadata
     _verify_and_repair_metadata = verify_and_repair_metadata
     _varify_context = varify_context
     _append_context = append_context
@@ -182,12 +186,12 @@ class ModelLily(BaseModel):
         self.timestamp_regex = r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]"
         self.memory_limit: int = 2000  # Memory limit
         self.context_limit: int = 9000  # Context limit
-        self.context_expire_hours: int = 5  # Context expire this time will be removed
-        self.min_summary_hours: int = 4  # Minimum summarize interval
-        self.summary_time_point: int = 4  # Start summarize must go through this time point
         # Number of context not removed when summary to memory,
         # recommend using even number to reserve the messages between both sides
-        self.context_expire_num: int = 6
+        self.context_expire_num: int = 12
+        self.context_expire_hours: int = 10  # Context expire this time will be removed
+        self.min_summary_hours: int = 4  # Minimum summarize interval
+        self.summary_time_point: int = 4  # Start summarize must go through this time point
 
         # === LLM CONFIGS ===
         # LLM parameters configuration for different models
@@ -204,9 +208,9 @@ class ModelLily(BaseModel):
         self.llm_retry_delay_secs: int = 2  # Delay between retries in seconds
 
         # === REPLY CONFIGS ===
-        self.typing_speed: float = 0.5  # Seconds per character
-        self.prepared_wait_min: float = 3.0  # Minimum wait time before sending prepared messages
-        self.prepared_wait_max: float = 8.0  # Maximum wait time before sending prepared messages
+        self.typing_speed: float = 0.6  # Seconds per character
+        self.prepared_wait_min: float = 4.0  # Minimum wait time before sending prepared messages
+        self.prepared_wait_max: float = 16.0  # Maximum wait time before sending prepared messages
         self.timestamp_add_threshold_secs: int = (
             300  # Add timestamp if time since last > this value (in seconds)
         )
@@ -273,9 +277,7 @@ class ModelLily(BaseModel):
         self.combined_message: str = ""  # Combined message from user
         self.combining_lock: asyncio.Lock = asyncio.Lock()
         self.last_message_type: Optional[MessageType] = None
-        self.last_timestamp_add_time: Optional[datetime] = (
-            None  # Time the last timestamp was added to a message
-        )
+        self.include_message_time = True
 
         self.sleep_task: asyncio.Task | None = None  # Sleep task
         self.wakeup_task: asyncio.Task | None = None  # Wakeup task
@@ -497,6 +499,7 @@ class ModelLily(BaseModel):
         try:
             # End other timers and reset the last message type
             self.last_message_type = None  # To Calculate waiting time
+            self.include_message_time = True
             self._reset_request_timer(0, 0)
 
             # --- Interruption Handling ---
@@ -726,30 +729,11 @@ class ModelLily(BaseModel):
 
                 # Combine messages
                 async with self.combining_lock:
-                    should_add_timestamp = False
-                    current_message_dt = datetime.fromisoformat(message_time.replace("Z", "+00:00"))
-
-                    if self.last_timestamp_add_time is None:
-                        should_add_timestamp = True
+                    if self.include_message_time:
+                        self.combined_message += f"[{self._convert_timestamp(message_time)}]{content}"
+                        self.include_message_time = False
                     else:
-                        time_diff_secs = (current_message_dt - self.last_timestamp_add_time).total_seconds()
-                        if time_diff_secs > self.timestamp_add_threshold_secs:
-                            should_add_timestamp = True
-
-                    new_part = ""
-                    if should_add_timestamp:
-                        local_time_str = self._convert_timestamp(message_time)  # "YYYY-MM-DD HH:MM:SS"
-                        time_part = local_time_str.split(" ")[1]  # "HH:MM:SS"
-                        short_ts = f"[{time_part[:5]}]"  # "[HH:MM]"
-                        new_part = f"{short_ts}{content}"
-                        self.last_timestamp_add_time = current_message_dt
-                    else:
-                        new_part = content
-
-                    if self.combined_message:
-                        self.combined_message += self.message_tag + new_part
-                    else:
-                        self.combined_message = new_part
+                        self.combined_message += self.message_tag + f"{content}"
                 self.logger.info("message_appended_to_the_message_queue")
 
                 # Create new message processing task

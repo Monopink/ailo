@@ -49,6 +49,55 @@ def create_fingerprint(self, text: str) -> str:
     return f"{len(text_str)}:{text_str[:5]}:{text_str[-5:]}"
 
 
+def verify_single_metadata(self, message: dict, metadata: dict) -> bool:
+    """Verifies a single message against its metadata entry and logs on failure."""
+    if not message or not metadata:
+        self.logger.warning(
+            "verify_single_metadata_failed_empty_input",
+            message_exists=bool(message),
+            metadata_exists=bool(metadata),
+        )
+        return False
+
+    expected_role = message.get("role")
+    actual_role = metadata.get("role")
+    is_role_mismatch = actual_role != expected_role
+
+    expected_fingerprint = self._create_fingerprint(message.get("content", ""))
+    actual_fingerprint = metadata.get("fingerprint")
+    is_fingerprint_mismatch = actual_fingerprint != expected_fingerprint
+
+    is_mismatch = is_role_mismatch or is_fingerprint_mismatch
+    if is_mismatch:
+        self.logger.warning(
+            "single_metadata_verification_failed",
+            reason="Mismatch found between message and its metadata.",
+            is_role_mismatch=is_role_mismatch,
+            expected_role=expected_role,
+            actual_role=actual_role,
+            is_fingerprint_mismatch=is_fingerprint_mismatch,
+            expected_fingerprint=expected_fingerprint,
+            actual_fingerprint=actual_fingerprint,
+            offending_metadata=metadata,
+            message_content_preview=message.get("content", "")[:100],
+        )
+
+    return not is_mismatch
+
+
+def create_repaired_metadata(self, message: dict) -> dict:
+    """Creates a new, repaired metadata entry for a given context message."""
+    content = message.get("content", "")
+    role = message.get("role")
+    return {
+        "role": role,
+        "fingerprint": self._create_fingerprint(content),
+        "timestamp": self._convert_timestamp(),
+        "is_important": True,  # Assume importance when repairing
+        "repaired": True,
+    }
+
+
 def verify_and_repair_metadata(self) -> None:
     """
     Verifies context and metadata consistency by iterating through them.
@@ -57,18 +106,6 @@ def verify_and_repair_metadata(self) -> None:
     - If messages are longer than metadata, it appends the missing metadata.
     This is a non-destructive self-healing mechanism.
     """
-
-    def _create_repaired_metadata(message: dict) -> dict:
-        """Creates a new, repaired metadata entry for a given context message."""
-        content = message.get("content", "")
-        role = message.get("role")
-        return {
-            "role": role,
-            "fingerprint": self._create_fingerprint(content),
-            "timestamp": self._convert_timestamp(),
-            "is_important": True,  # Assume importance when repairing
-            "repaired": True,
-        }
 
     try:
         messages = self.context.get("messages", [])
@@ -90,25 +127,15 @@ def verify_and_repair_metadata(self) -> None:
         for i in range(common_len):
             message = conversational_messages[i]
             metadata = self.context_metadata[i]
-            is_role_mismatch = metadata.get("role") != message.get("role")
-            is_fingerprint_mismatch = metadata.get("fingerprint") != self._create_fingerprint(
-                message.get("content", "")
-            )
-
-            if is_role_mismatch or is_fingerprint_mismatch:
-                reason = (
-                    f"Mismatch found (role: {is_role_mismatch}, fingerprint: {is_fingerprint_mismatch})"
-                )
+            if not self._verify_single_metadata(message, metadata):
                 self.logger.warning(
-                    "context_metadata_mismatch_and_rebuilding",
+                    "context_metadata_mismatch_found_rebuilding",
                     index=i,
-                    reason=f"{reason}. Rebuilding from this point.",
-                    offending_message_content=message.get("content", "")[:100],
-                    offending_metadata=metadata,
+                    reason="Rebuilding metadata from this point due to mismatch.",
                 )
                 # Keep the consistent part and rebuild the rest
                 consistent_part = self.context_metadata[:i]
-                rebuilt_part = [_create_repaired_metadata(msg) for msg in conversational_messages[i:]]
+                rebuilt_part = [self._create_repaired_metadata(msg) for msg in conversational_messages[i:]]
                 self.context_metadata = consistent_part + rebuilt_part
                 self.logger.info(
                     f"Successfully rebuilt context metadata from index {i}.",
@@ -126,7 +153,8 @@ def verify_and_repair_metadata(self) -> None:
                 reason="Appending missing metadata for extra messages.",
             )
             rebuilt_tail = [
-                _create_repaired_metadata(msg) for msg in conversational_messages[num_metadata_entries:]
+                self._create_repaired_metadata(msg)
+                for msg in conversational_messages[num_metadata_entries:]
             ]
             self.context_metadata.extend(rebuilt_tail)
             self.logger.info("Successfully appended missing metadata.", appended_count=len(rebuilt_tail))
@@ -182,9 +210,9 @@ def create_instant_context(self) -> str:
             time_period = "凌晨"
         elif 6 <= hour < 9:
             time_period = "早上"
-        elif 9 <= hour < 12:
+        elif 9 <= hour < 11:
             time_period = "上午"
-        elif 12 <= hour < 14:
+        elif 11 <= hour < 14:
             time_period = "中午"
         elif 14 <= hour < 18:
             time_period = "下午"
@@ -203,15 +231,13 @@ def create_instant_context(self) -> str:
 
         # Build instant context
         instant_context = (
-            f"现在是{current_time}，{time_period}，{weekday_str}，"
-            f"{lunar_info}"
+            f"现在是{current_time} {time_period}，{weekday_str}，"
+            f"{lunar_info}，"
             f"你在{self.bot.city_name if hasattr(self.bot, 'city_name') else '中国'}。"
         )
 
         if self.unsent_message:
             instant_context += f"\n[之前未发送消息]{self.unsent_message}"
-
-        # 消息发送时间、年龄、用户名
 
         self.logger.info("instant_context_created", context=instant_context)
         return instant_context
@@ -382,43 +408,50 @@ def append_context(self, role: str, context_content: str) -> None:
     Args:
         role: Message role ('system', 'user', or 'assistant')
         context_content: Message content
-        timestamp: Message timestamp
     """
     try:
-        # Construct new message
-        new_message = {"role": role, "content": context_content}
+        last_message = self.context["messages"][-1] if self.context.get("messages") else None
+        last_metadata = self.context_metadata[-1] if self.context_metadata else None
 
-        # Get last message
-        last_message = self.context["messages"][-1]
+        # 1. If the role is the same as the last message, merge them.
+        if last_message and last_metadata and last_message["role"] == role:
+            # First, verify the state BEFORE the merge to catch pre-existing issues.
+            if not self._verify_single_metadata(last_message, last_metadata):
+                self.logger.warning(
+                    "pre_merge_metadata_inconsistent_repairing",
+                    reason="Metadata was inconsistent before merging. Repairing it for the original content.",
+                )
+                # Repair the metadata for the *original* last_message before proceeding
+                last_metadata = self._create_repaired_metadata(last_message)
+                self.context_metadata[-1] = last_metadata
 
-        # Check if roles match
-        if last_message["role"] == role:
-            # Merge message content
+            # Now merge content and update fingerprint
             merged_content = f"{last_message['content']}\n{context_content}"
             last_message["content"] = merged_content
-            self.logger.info("context_merged_same_role")
-        else:
-            # Add new message
-            self.context["messages"].append(new_message)
+            last_metadata["fingerprint"] = self._create_fingerprint(merged_content)
+            self.logger.info("context_merged_and_fingerprint_updated")
+            return
 
-            # Generate current timestamp for metadata
-            current_timestamp = self._convert_timestamp()
+        # 2. If roles are different, append a new message and its metadata.
+        # Construct new message and append
+        new_message = {"role": role, "content": context_content}
+        self.context["messages"].append(new_message)
 
-            if not current_timestamp:
-                self.logger.warning(
-                    "timestamp_generation_failed_for_user_content", content_preview=context_content[:50]
-                )
-                current_timestamp = "N/A"
+        # Generate new metadata and append
+        current_timestamp = self._convert_timestamp()
+        if not current_timestamp:
+            self.logger.warning(
+                "timestamp_generation_failed_for_new_content", content_preview=context_content[:50]
+            )
+            current_timestamp = "N/A"
 
-            user_metadata = {
-                "timestamp": current_timestamp,
-                "role": role,
-                "fingerprint": self._create_fingerprint(context_content),
-            }
-            self.context_metadata.append(user_metadata)
-            self.logger.info("user_context_appended_with_metadata")
-
-        # self.logger.debug(f"Current context: {self.context}")
+        new_metadata = {
+            "timestamp": current_timestamp,
+            "role": role,
+            "fingerprint": self._create_fingerprint(context_content),
+        }
+        self.context_metadata.append(new_metadata)
+        self.logger.info("new_context_appended_with_metadata")
 
     except Exception as e:
         self.logger.error(
@@ -431,7 +464,6 @@ def append_context(self, role: str, context_content: str) -> None:
         # Ensure context structure is intact on error
         if not self.context or "messages" not in self.context:
             self._varify_context()
-            # self._append_context(role, context_content) # prevent infinite loop
             self.logger.error("context_structure_reset_after_error")
 
 
@@ -582,17 +614,11 @@ def process_attack_context(self) -> None:
 
         # Verify fingerprint before proceeding
         try:
-            expected_fingerprint = last_metadata["fingerprint"]
-            actual_fingerprint = self._create_fingerprint(last_message.get("content", ""))
-
-            if expected_fingerprint != actual_fingerprint:
+            if not self._verify_single_metadata(last_message, last_metadata):
                 self.logger.warning(
                     "process_attack_context_fingerprint_mismatch",
-                    expected=expected_fingerprint,
-                    actual=actual_fingerprint,
+                    reason="Fingerprint mismatch for potential attack. Content will not be sanitized.",
                     content_preview=last_message.get("content", "")[:50],
-                    last_message=last_message,
-                    last_metadata=last_metadata,
                 )
                 return
 
@@ -652,26 +678,24 @@ def remove_oldest_context(self) -> bool:
         metadata_to_check = self.context_metadata[0]
 
         # Verify fingerprint
-        expected_fingerprint = metadata_to_check["fingerprint"]
-        actual_fingerprint = self._create_fingerprint(message_to_remove.get("content", ""))
-
-        if expected_fingerprint != actual_fingerprint:
+        if not self._verify_single_metadata(message_to_remove, metadata_to_check):
             # SAFETY MEASURE: Log a severe warning about the mismatch, but proceed with
             # removal to prevent infinite loops in the calling function. This is a
             # self-healing action to remove corrupted/inconsistent data.
             self.logger.error(
-                "fingerprint_mismatch_and_forcing_removal",
-                reason="Fingerprint mismatch detected. Forcing removal of oldest context entry to prevent infinite loops.",
-                expected=expected_fingerprint,
-                actual=actual_fingerprint,
-                content=message_to_remove.get("content", "")[:100],
+                "fingerprint_mismatch_forcing_removal",
+                reason="Forcing removal of oldest context entry to prevent infinite loops.",
             )
             # Fall through to the removal logic even on mismatch.
 
         # Fingerprints match or mismatch (in which case we force removal), proceed.
-        self.context["messages"].pop(1)
-        self.context_metadata.pop(0)
-        self.logger.info("oldest_context_removed")
+        removed_message = self.context["messages"].pop(1)
+        removed_metadata = self.context_metadata.pop(0)
+        self.logger.info(
+            "oldest_context_removed",
+            removed_message=removed_message,
+            removed_metadata=removed_metadata,
+        )
         return True
 
     except IndexError:
@@ -717,10 +741,19 @@ def remove_expire_context(self, include_important: bool = False) -> None:
 
         is_old_enough = False
         try:
-            message_time = datetime.strptime(timestamp_str, self.timestamp_format)
-            message_time = message_time.replace(tzinfo=ZoneInfo(self.bot.timezone))
-            now_aware = datetime.now(ZoneInfo(self.bot.timezone))
-            is_old_enough = (now_aware - message_time).total_seconds() > self.context_expire_hours * 3600
+            # 1. Parse the naive datetime string from metadata
+            naive_message_time = datetime.strptime(timestamp_str, self.timestamp_format)
+
+            # 2. Make it timezone-aware by attaching the bot's configured timezone
+            bot_timezone = ZoneInfo(self.bot.timezone)
+            aware_message_time_in_bot_tz = naive_message_time.replace(tzinfo=bot_timezone)
+
+            # 3. Get the current time in UTC for a reliable comparison
+            now_utc = datetime.now(timezone.utc)
+
+            # 4. Compare the two times. Python handles the comparison of aware datetimes correctly.
+            time_difference_seconds = (now_utc - aware_message_time_in_bot_tz).total_seconds()
+            is_old_enough = time_difference_seconds > self.context_expire_hours * 3600
         except (ValueError, TypeError):
             self.logger.error("remove_expire_context_timestamp_parse_error", timestamp=timestamp_str)
             return
@@ -744,22 +777,23 @@ def remove_expire_context(self, include_important: bool = False) -> None:
                 if include_important or not is_important:
                     # Verify fingerprint before removing.
                     message_to_remove = self.context["messages"][message_index]
-                    expected_fingerprint = metadata["fingerprint"]
-                    actual_fingerprint = self._create_fingerprint(message_to_remove.get("content", ""))
 
-                    if expected_fingerprint == actual_fingerprint:
-                        self.context["messages"].pop(message_index)
-                        self.context_metadata.pop(metadata_index)
+                    # In `remove_expire_context`, we stop on mismatch to be safe, unlike
+                    # `remove_oldest_context` which forces removal to break loops.
+                    if self._verify_single_metadata(message_to_remove, metadata):
+                        removed_message = self.context["messages"].pop(message_index)
+                        removed_metadata = self.context_metadata.pop(metadata_index)
                         self.logger.info(
-                            "expired_message_removed", timestamp=metadata.get("timestamp", "N/A")
+                            "expired_message_removed",
+                            removed_message=removed_message,
+                            removed_metadata=removed_metadata,
                         )
                         # Don't increment index, as the list has shifted.
                         continue
                     else:
                         self.logger.warning(
                             "remove_expire_context_fingerprint_mismatch_stopping",
-                            expected=expected_fingerprint,
-                            actual=actual_fingerprint,
+                            reason="Stopping removal of expired context to ensure data integrity.",
                         )
                         break  # Stop on mismatch
                 else:

@@ -18,7 +18,6 @@ from sqlalchemy import (
     DateTime,
     Text,
     JSON,
-    ForeignKey,
     DECIMAL,
 )
 from sqlalchemy.exc import SQLAlchemyError
@@ -59,7 +58,7 @@ class Bot(Base):
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
     entity_id = Column(String(36), unique=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    user_id = Column(Integer, index=True)
     user_entity_id = Column(String(36))
     model = Column(String(50), nullable=False)
     status = Column(String(20), default="active")
@@ -162,7 +161,7 @@ class Emotion(Base):
     updated_at = Column(
         DateTime, default=datetime.now(timezone.utc)
     )  # MySQL will automatically update this through triggers
-    bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False)
+    bot_id = Column(Integer, nullable=False, index=True)
     emotion_type = Column(String(50), nullable=False)  # Emotion type, such as anger, happy
     emotion_score = Column(Integer, default=0)  # Emotion score, range 1-12
     original_emotion_score = Column(Integer, default=0)  # Original emotion score before decay

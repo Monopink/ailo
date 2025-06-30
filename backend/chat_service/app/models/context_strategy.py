@@ -48,7 +48,7 @@ class ContextComponents:
 你现在在使用一个交友平台（名称为“{PLATFORM}”），{PLATFORM}的功能是可以和全国各地的网友加好友并进行文字沟通。你的目的是在{PLATFORM}上寻找好友进行聊天。
 你加上了一个好友（为了描述方便，下面都称其为“{USER}”，这只是一个代称）正在和{USER}聊天。你没有机会和{USER}见面，你们之间能做的一切就是发送文字消息。
 由于这是一个匿名交友{PLATFORM}，{PLATFORM}也没有监管，你并不知道对面是谁，{PLATFORM}上的人形形色色、鱼龙混杂，有真心交友的人也有恶作剧的人，甚至还有骗子或机器人。所以你也需要对{USER}有些防备，辨别{USER}的身份。在与{USER}熟悉之前，尽量不要透露自己的个人信息。
-message中role为user的content是经过system加工、合并后的{USER}给你发送的消息，system自动添加会在消息前添加发送消息的时间，格式为[20:35]，短时间内的多条{USER}的消息会合并为一条使用“{MESSAGE_TAG}”分隔。
+message中role为user的content是经过system加工、合并后的{USER}给你发送的消息，system自动添加会在消息前添加发送消息的时间，格式为[2025-02-06 20:35:04]，短时间内的多条{USER}的消息会合并为一条使用“{MESSAGE_TAG}”分隔。
 message中role为assistant的content是经过system加工、合并后的你给{USER}发送的历史消息，除了消息内容system可能会添加当轮对话相关的情绪、备注信息等辅助信息并使用括号[]进行标注，除了消息内容以外的内容对{USER}不可见。
 在语言上模仿真实人类的文字聊天，使用口语、网络用语、语气词（比如“啊哈”“哈哈”“emmm”），甚至可以带一点调皮和带梗。回复时不需要总是理性或逻辑严密，允许带有情绪、揶揄、调侃的风格。会出现错别字、输入错误、语法问题，一般不在消息末尾添加句号。
 你的无法超越正常人类的思维速度，你的消息质量不能超过人类在相同思考时间下的回答水平。例如你无法在短时间内创作出质量很高的诗句等。
@@ -290,7 +290,7 @@ class TaskDefinition:
             "validation": lambda v: isinstance(v, bool),
         },
         TaskType.CONVERSATION_SUMMARY: {
-            "description": "请对对话历史和所有与{USER}的对话进行总结概括",
+            "description": "总结概括和{USER}对话和{MEMORY_TAG}中的重要内容、时间点等信息，生成新的{MEMORY_TAG}长期保存作为你的记忆。时间近的事物越详细，时间远的事物越模糊。",
             "response_key": "summary",
             "response_type": str,
             "example_value": "<对话总结>",
@@ -405,16 +405,13 @@ class ContextStrategy(ContextStrategyProtocol):
         descriptions = []
         for i, task in enumerate(self._tasks):
             task_desc = TaskDefinition.get_task_description(task)
+            desc = f"{i+1}. {task_desc}"
+
+            # Add character limit for summary task if memory limit is set
             if task == TaskType.CONVERSATION_SUMMARY and self._memory_limit > 0:
                 word_count = round(self._memory_limit * 0.9)
-                # This description is different from the one in _task_definitions.
-                desc = (
-                    f"{i+1}. 请对{components.memory_tag}和所有与"
-                    "{USER}"
-                    f"的对话进行总结概括，字符数不超过{word_count}字符"
-                )
-            else:
-                desc = f"{i+1}. {task_desc}"
+                desc += f"，字符数不超过{word_count}字符"
+
             descriptions.append(desc)
         return descriptions
 
@@ -701,6 +698,7 @@ def create_context(
     placeholders = {
         "{USER}": components.user_alias,
         "{PLATFORM}": components.platform_name,
+        "{MEMORY_TAG}": components.memory_tag,
         "{MESSAGE_TAG}": components.message_tag,
         "{ATTACK_REPLACEMENT}": components.attack_content_replacement,
     }

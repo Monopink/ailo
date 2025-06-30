@@ -3,17 +3,10 @@
 echo "Starting to update the stable environment code..."
 echo "This script will rebuild services and apply the latest code changes while preserving database data."
 
-# Stop services
-echo "Stopping current services..."
-docker-compose -f docker-compose.stable.yml down
-
-# Rebuild services
-echo "Rebuilding services..."
-docker-compose -f docker-compose.stable.yml build stable_chat stable_web_dev
-
-# Start services
-echo "Starting updated services..."
-docker-compose -f docker-compose.stable.yml up -d
+# Stop services, rebuild if necessary, and start them again.
+# The --build flag tells Compose to rebuild images before starting containers.
+echo "Rebuilding and starting services..."
+docker-compose -f docker-compose.stable.yml up -d --build
 
 echo ""
 echo "Stable environment has been successfully updated!"

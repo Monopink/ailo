@@ -4,7 +4,14 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, Optional, Callable, Awaitable, List
 
+from .context_strategy import ContextStrategyProtocol, TaskDefinition
+from .model_ailo_mixins.context_mixin import ContextMixin
+from .model_ailo_mixins.db_mixin import DBMixin
+from .model_ailo_mixins.llm_mixin import LLMMixin
+from .model_ailo_mixins.message_mixin import MessageMixin
+from .model_ailo_mixins.relationship_mixin import RelationshipMixin
 from .base import BaseModel
+from ..utils.logging import get_logger, bind_context
 from ..llm_apis import model_ailo_advanced_llm as advanced_llm
 from ..enums import (
     MessageType,
@@ -15,80 +22,11 @@ from ..enums import (
     TaskType,
     TypingStatus,
 )
-from .message_parts import send_message, send_message_queue, process_typing_queue, handle_interrupted_reply
-from .db_parts import load_emotions, save_bot_state
-from .llm_parts import generate_response, validate_content, get_response_content
-from .context_parts import (
-    convert_timestamp,
-    create_fingerprint,
-    verify_single_metadata,
-    create_repaired_metadata,
-    verify_and_repair_metadata,
-    varify_context,
-    append_context,
-    append_response_to_context,
-    process_attack_context,
-    remove_oldest_context,
-    remove_expire_context,
-    refresh_system_context,
-    create_instant_context,
-    summary_to_memory,
-)
-from .context_strategy import ContextStrategyProtocol, TaskDefinition
-from .relationship_parts import (
-    ensure_datetime,
-    get_passive_score_change,
-    calculate_passive_scores,
-    get_level_from_score,
-    get_level_by_name,
-    apply_buffer,
-    format_emotions_config,
-    refresh_relationship,
-    new_anger_emotion,
-    process_emotions_and_score,
-)
-from ..utils.logging import get_logger, bind_context
 
 logger = get_logger("says.models.model_ailo")
 
 
-class ModelAilo(BaseModel):
-
-    # Import external methods
-    _send_message = send_message
-    _send_message_queue = send_message_queue
-    _process_typing_queue = process_typing_queue
-    _handle_interrupted_reply = handle_interrupted_reply
-    _load_emotions = load_emotions
-    _save_bot_state = save_bot_state
-    _generate_response = generate_response
-    _validate_content = validate_content
-    _get_response_content = get_response_content
-    _convert_timestamp = convert_timestamp
-    _create_fingerprint = create_fingerprint
-    _verify_single_metadata = verify_single_metadata
-    _create_repaired_metadata = create_repaired_metadata
-    _verify_and_repair_metadata = verify_and_repair_metadata
-    _varify_context = varify_context
-    _append_context = append_context
-    _append_response_to_context = append_response_to_context
-    _process_attack_context = process_attack_context
-    _remove_oldest_context = remove_oldest_context
-    _remove_expire_context = remove_expire_context
-    _refresh_system_context = refresh_system_context
-    _create_instant_context = create_instant_context
-    _summary_to_memory = summary_to_memory
-    _ensure_datetime = ensure_datetime
-    _get_passive_score_change = get_passive_score_change
-    _calculate_passive_scores = calculate_passive_scores
-    _get_level_from_score = get_level_from_score
-    _get_level_by_name = get_level_by_name
-    _apply_buffer = apply_buffer
-    _refresh_relationship = refresh_relationship
-    _process_emotions_and_score = process_emotions_and_score
-    _new_anger_emotion = new_anger_emotion
-    _format_emotions_config = format_emotions_config
-
+class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin, BaseModel):
     def __init__(self, bot: Any, message_service: str, cleanup_callback: Callable[[str], Awaitable[None]]):
         """Initialize the Ailo model
         Args:
@@ -629,6 +567,7 @@ class ModelAilo(BaseModel):
             # 5% chance to not wake up
             if random_number <= 5:
                 to_wakeup = False
+                self.logger.warning("bot_will_not_wake_up", random_number=random_number)
 
             self.wakeup_task = asyncio.create_task(self._wakeup_timer(to_wakeup))
             self.logger.info("created_new_wakeup_timer")

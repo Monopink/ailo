@@ -55,7 +55,7 @@ class MessageRouter:
     async def save_message(self, message: dict) -> None:
         """Save message to database"""
         try:
-            message_type = MessageType.parse(str(message.get("message_type")))
+            message_type = MessageType.parse(str(message["message_type"]))
             if message_type and message_type.category == MessageTypeCategory.CONTENT:
                 await db_manager.save_message(message)
             else:
@@ -184,7 +184,7 @@ class MessageRouter:
         try:
             bot_entity_id = str(message["to_entity"])
             user_entity_id = str(message["from_entity"])
-            message_service = message.get("message_service", "unknown")
+            message_service = message["message_service"]
 
             # First try to get active model instance
             status, instance = await self._get_active_model_instance(bot_entity_id, message_service)
@@ -199,7 +199,7 @@ class MessageRouter:
                 return
 
             # Instance not found, create new instance and route message
-            message_type = MessageType.parse(str(message.get("message_type")))
+            message_type = MessageType.parse(str(message["message_type"]))
             # Validate message type, return directly for non-content messages
             if not message_type or message_type.category != MessageTypeCategory.CONTENT:
                 logger.info("skipping_non_content_message", message_type=str(message_type))

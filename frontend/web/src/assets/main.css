@@ -1,0 +1,207 @@
+/* Base CSS Variables - Light and Dark Mode Support */
+:root {
+  /* Light Mode (Default) */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f2f2f2;
+  --color-bg-overlay: rgba(255, 255, 255, 0.95);
+  --color-border: #dadada;
+  --color-border-light: rgba(218, 218, 218, 0.15);
+  --color-text-primary: #111111;
+  --color-text-secondary: #494949;
+  --color-accent: #0066cc;
+  --color-accent-soft: #d9e7f8;
+  --color-user-message: #e1f0ff;
+  --color-user-text: #1a1a1a;
+  --color-bot-message: #e9e9eb;
+  --color-bot-text: #1a1a1a;
+  
+  /* UI Attributes */
+  --border-radius: 12px;
+  --border-radius-sm: 8px;
+  --box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --box-shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --border-width: 1px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', sans-serif;
+  --backdrop-blur: 15px;
+  --container-max-width: 1200px;
+  --chat-container-width: 90%;
+  --chat-container-height: 85vh;
+  --chat-container-max-width: 1100px;
+  --toast-width: 300px;
+  --toast-padding: 12px 16px;
+  --toast-border-radius: 10px;
+}
+
+/* Dark Mode Variables */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-primary: #1c1c1e;
+    --color-bg-secondary: #2c2c2e;
+    --color-bg-overlay: rgba(28, 28, 30, 0.95);
+    --color-border: #3d3d3f;
+    --color-border-light: rgba(61, 61, 63, 0.15);
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #adadad;
+    --color-accent: #0a84ff;
+    --color-accent-soft: #1c3046;
+    --color-user-message: #1c3046;
+    --color-user-text: #ffffff;
+    --color-bot-message: #303030;
+    --color-bot-text: #ffffff;
+  }
+}
+
+/* Global Reset & Base Styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: color 0.3s, background-color 0.3s;
+  overflow-x: hidden;
+}
+
+/* Responsive Grid Layout */
+.container {
+  width: 100%;
+  padding-right: 15px;
+  padding-left: 15px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* Button Styles - macOS style */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  border: var(--border-width) solid var(--color-border);
+  padding: 0.5rem 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  border-radius: var(--border-radius-sm);
+  transition: background-color 0.15s, opacity 0.15s;
+  cursor: pointer;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.btn:hover {
+  opacity: 0.85;
+}
+
+.btn:active {
+  opacity: 0.7;
+}
+
+.btn .emoji {
+  margin-right: 6px;
+  font-size: 1em;
+}
+
+.btn-primary {
+  color: #fff;
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* macOS style panels */
+.glass-panel {
+  background: var(--color-bg-overlay);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  backdrop-filter: blur(var(--backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur));
+  border: var(--border-width) solid var(--color-border);
+}
+
+.grid-bg {
+  background-image: 
+    linear-gradient(to right, var(--color-border-light) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-border-light) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-color: var(--color-bg-primary);
+}
+
+/* Form Elements */
+input, textarea {
+  border: var(--border-width) solid var(--color-border);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-radius: var(--border-radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+}
+
+/* Media Queries for Responsiveness */
+@media (max-width: 767px) {
+  /* Mobile Styles */
+  .hide-on-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  /* Tablet & Desktop Styles */
+  .hide-on-desktop {
+    display: none !important;
+  }
+}
+
+/* Utility Classes */
+.text-accent {
+  color: var(--color-accent);
+}
+
+/* Simple CSS Grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1rem;
+}
+
+/* Toast Styling for macOS-like notifications */
+.Vue-Toastification__toast {
+  width: var(--toast-width) !important;
+  padding: var(--toast-padding) !important;
+  border-radius: var(--toast-border-radius) !important;
+  box-shadow: var(--box-shadow) !important;
+  font-family: var(--font-sans) !important;
+  background-color: var(--color-bg-overlay) !important;
+  color: var(--color-text-primary) !important;
+  backdrop-filter: blur(var(--backdrop-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--backdrop-blur)) !important;
+  border: var(--border-width) solid var(--color-border) !important;
+}
+
+.Vue-Toastification__close-button {
+  color: var(--color-text-secondary) !important;
+}
+
+.Vue-Toastification__progress-bar {
+  background-color: var(--color-accent) !important;
+  opacity: 0.7 !important;
+}

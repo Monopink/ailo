@@ -1,0 +1,62 @@
+"""
+Bot model for bots_service
+"""
+
+from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean, func
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
+
+class Bot(Base):
+    __tablename__ = "bots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    entity_id = Column(String(36), unique=True, nullable=False)
+    user_id = Column(Integer, index=True)
+    user_entity_id = Column(String(36))
+    model = Column(String(50), nullable=False)
+    status = Column(String(20), default="active")
+    gender = Column(String(10), nullable=False)
+    birthday = Column(DateTime)
+    timezone = Column(String(50), default="Asia/Shanghai")
+    city_name = Column(String(100))
+    friend_score = Column(Integer, default=0)
+    romance_score = Column(Integer, default=0)
+    friend_score_cap = Column(Integer, default=5000)
+    friend_score_floor = Column(Integer, default=0)
+    romance_score_cap = Column(Integer, default=5000)
+    friend_score_peak = Column(Integer, default=0)
+    friend_score_trough = Column(Integer, default=0)
+    romance_score_peak = Column(Integer, default=0)
+    friend_score_pos_k = Column(Integer, default=1200)
+    friend_score_neg_k = Column(Integer, default=120)
+    romance_score_k = Column(Integer, default=1200)
+    last_chat_time = Column(DateTime)
+    relationship_type = Column(String(20), default="friend")
+    relationship_level = Column(String(20), default="polite")
+    friend_level = Column(String(20), default="polite")
+    romance_level = Column(String(20))
+    friend_buffer_status = Column(String(20), default="none")
+    romance_buffer_status = Column(String(20), default="none")
+    relationship_style = Column(Text)
+    friend_config = Column(JSON)
+    romance_config = Column(JSON)
+    override_config = Column(JSON)
+    is_polite = Column(Boolean, default=True)
+    is_crushing = Column(Boolean, default=False)
+    emotions_config = Column(JSON)
+    context = Column(JSON)
+    context_metadata = Column(JSON)
+    info = Column(Text)
+    memory = Column(Text)
+    # IM user fields (same as users table for consistent interface)
+    nickname = Column(String(50), comment="Display name for IM")
+    avatar_url = Column(String(500), comment="Profile picture URL")
+    bio = Column(Text, comment="Bot bio/description")
+    location = Column(String(100), comment="Bot location")
+    leancloud_conversation_id = Column(
+        String(50), unique=True, comment="LeanMessage system conversation ID"
+    )

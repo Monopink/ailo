@@ -7,7 +7,7 @@ from enum import Enum
 from .base import BaseLLM
 from ..utils.logging import get_logger
 
-logger = get_logger("says.llm_apis.mock_json_llm")
+logger = get_logger(__name__)
 
 
 class MockMode(Enum):

@@ -26,7 +26,7 @@ import enum
 from datetime import timedelta
 from ..utils.logging import get_logger, bind_context
 
-logger = get_logger("says.db_managers.mysql")
+logger = get_logger(__name__)
 
 # Create declarative base class that all model classes will inherit from
 Base = declarative_base()
@@ -95,6 +95,14 @@ class Bot(Base):
     context_metadata = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
+    # IM user fields (same as users table for consistent interface)
+    nickname = Column(String(50), comment="Display name for IM")
+    avatar_url = Column(String(500), comment="Profile picture URL")
+    bio = Column(Text, comment="Bot bio/description")
+    location = Column(String(100), comment="Bot location")
+    leancloud_conversation_id = Column(
+        String(50), unique=True, comment="LeanMessage system conversation ID"
+    )
 
 
 class MessageHistory(Base):
@@ -184,7 +192,7 @@ class MySQLManager:
         self.session_maker = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
         self._init_task = asyncio.create_task(self._initialize())
         # Create base logger
-        self.logger = get_logger("says.db_managers.mysql_manager")
+        self.logger = get_logger(__name__)
 
     def _convert_enum_to_str(self, value: Optional[enum.Enum]) -> Optional[str]:
         """Convert enum value to string."""

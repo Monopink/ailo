@@ -12,7 +12,7 @@ from ..enums import (
 )
 from ..utils.logging import get_logger
 
-logger = get_logger("says.models.context_strategy")
+logger = get_logger(__name__)
 
 
 # Protocol defining the interface for context strategies.

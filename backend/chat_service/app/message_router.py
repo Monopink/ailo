@@ -11,7 +11,7 @@ from .enums import MessageType, MessageTypeCategory, BotStatus
 from .exceptions import BotNotFoundError, AuthorizationError, DatabaseError
 from .utils.logging import get_logger
 
-logger = get_logger("says.message_router")
+logger = get_logger(__name__)
 
 
 class ModelInstance:
@@ -55,11 +55,23 @@ class MessageRouter:
     async def save_message(self, message: dict) -> None:
         """Save message to database"""
         try:
-            message_type = MessageType.parse(str(message["message_type"]))
+            message_type_value = message.get("message_type")
+            if not message_type_value:
+                logger.warning("missing_message_type", message=message)
+                return
+
+            message_type = MessageType.parse(message_type_value)
             if message_type and message_type.category == MessageTypeCategory.CONTENT:
                 await db_manager.save_message(message)
+                logger.info(
+                    "message_saved", message_type=message_type.name, from_entity=message.get("from_entity")
+                )
             else:
-                logger.info("skipping_message_save", message_type=str(message_type))
+                logger.info(
+                    "skipping_message_save",
+                    message_type=str(message_type),
+                    message_type_value=message_type_value,
+                )
         except Exception as e:
             logger.error("message_save_error", error=str(e), exc_info=True)
 
@@ -170,7 +182,7 @@ class MessageRouter:
                 if instance.message_service == message_service:
                     return ModelInstanceStatus.AVAILABLE, instance
                 else:
-                    logger.info(
+                    logger.warning(
                         "message_service_mismatch",
                         bot_entity_id=bot_entity_id,
                         expected_service=instance.message_service,
@@ -199,10 +211,10 @@ class MessageRouter:
                 return
 
             # Instance not found, create new instance and route message
-            message_type = MessageType.parse(str(message["message_type"]))
+            message_type = MessageType.parse(message["message_type"])
             # Validate message type, return directly for non-content messages
             if not message_type or message_type.category != MessageTypeCategory.CONTENT:
-                logger.info("skipping_non_content_message", message_type=str(message_type))
+                logger.warning("skipping_non_content_message", message_type=str(message_type))
                 return
 
             # Get and validate bot

@@ -23,7 +23,7 @@ from ..enums import (
     TypingStatus,
 )
 
-logger = get_logger("says.models.model_ailo")
+logger = get_logger(__name__)
 
 
 class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin, BaseModel):

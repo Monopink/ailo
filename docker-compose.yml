@@ -12,7 +12,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    command: 
+    command:
       - --default-authentication-plugin=caching_sha2_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -29,7 +29,7 @@ services:
     networks:
       - says-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser", "-p${MYSQL_PASSWORD}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser", "-p${MYSQL_PASSWORD}" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -101,6 +101,51 @@ services:
       - says-network
     depends_on:
       - mysql_db
+    restart: always
+
+  # Ngrok service for exposing chat_service webhook
+  ngrok:
+    container_name: ngrok_container
+    build:
+      context: ./backend/dev_tools/ngrok
+      dockerfile: Dockerfile
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040" # ngrok web interface
+    networks:
+      - says-network
+    depends_on:
+      - chat_service
+    restart: always
+
+  # Web Frontend (Vite)
+  web:
+    container_name: web_container
+    build:
+      context: ./frontend/web
+      dockerfile: Dockerfile
+      args:
+        - VITE_LEANCLOUD_APP_ID=${VITE_LEANCLOUD_APP_ID}
+        - VITE_LEANCLOUD_APP_KEY=${VITE_LEANCLOUD_APP_KEY}
+        - VITE_LEANCLOUD_SERVER_URL=${VITE_LEANCLOUD_SERVER_URL}
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+        - VITE_APP_VERSION=${VITE_APP_VERSION}
+    ports:
+      - "5173:5173" # Expose Vite's default port
+    environment:
+      - VITE_LEANCLOUD_APP_ID=${VITE_LEANCLOUD_APP_ID}
+      - VITE_LEANCLOUD_APP_KEY=${VITE_LEANCLOUD_APP_KEY}
+      - VITE_LEANCLOUD_SERVER_URL=${VITE_LEANCLOUD_SERVER_URL}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - VITE_APP_VERSION=${VITE_APP_VERSION}
+    volumes:
+      - ./frontend/web:/app # Mount local code for hot-reloading
+      - /app/node_modules # Anonymous volume to prevent local node_modules from overwriting container's
+    networks:
+      - says-network
+    depends_on:
+      - accounts_service # Depends on the API gateway/relevant backend service
     restart: always
 
   # Web Development Frontend

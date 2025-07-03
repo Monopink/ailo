@@ -1,16 +1,17 @@
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from .services import websocket
 from .event_bus import event_bus
 from .db_managers import db_manager
 from .message_router import message_router
 from .exceptions import AppException
-from fastapi.responses import JSONResponse
 from .utils.logging import get_logger, bind_context, configure_logging
 from .core.config import settings
+from .services.leanmessage import setup_leanmessage_handlers
 
 
-logger = get_logger("says.main")
+logger = get_logger(__name__)
 
 # Create FastAPI application
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -66,6 +67,11 @@ async def startup_event():
             active_connections = len(websocket.active_connections)
             logger.info("websocket_connections", count=active_connections)
         logger.info("websocket_manager_initialized")
+
+        # Initialize LeanMessage handlers
+        logger.info("initializing_leanmessage_handlers")
+        setup_leanmessage_handlers()
+        logger.info("leanmessage_handlers_initialized")
 
         logger.info("application_startup_complete")
 
@@ -125,6 +131,16 @@ async def health_check():
     }
     logger.debug("health_check", **status)
     return status
+
+
+@app.post("/webhook/leanmessage")
+async def leanmessage_webhook(request: Request):
+    """
+    LeanMessage webhook endpoint for receiving messages
+    """
+    from .services.leanmessage_webhook import handle_leanmessage_webhook
+
+    return await handle_leanmessage_webhook(request)
 
 
 @app.get("/")

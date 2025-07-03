@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from .base import BaseLLM
 from ..utils.logging import get_logger
 
-logger = get_logger("says.llm_apis.mock_llm")
+logger = get_logger(__name__)
 
 
 class MockLLM(BaseLLM):

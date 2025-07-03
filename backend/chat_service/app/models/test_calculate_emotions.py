@@ -13,7 +13,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Now import relationship_parts after modifying sys.path
-from relationship_parts import (  # noqa: E402
+from backend.chat_service.app.models.model_ailo_mixins.relationship_mixin import (  # noqa: E402
     ensure_datetime,
     get_passive_score_change,
     calculate_passive_scores,

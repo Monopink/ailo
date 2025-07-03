@@ -1,0 +1,341 @@
+/**
+ * LeanCloud Real-time Communication Service
+ * Provides real-time communication with the backend chat_service
+ */
+import { Realtime, TextMessage, Event } from 'leancloud-realtime';
+import { useToast } from 'vue-toastification';
+import { useChatStore } from '../stores/chat';
+
+let realtime = null;
+let client = null;
+let conversations = new Map(); // Cache for conversations
+let currentConversation = null;
+
+// Initialize toast service
+const toast = useToast();
+
+/**
+ * Initialize LeanCloud real-time communication service
+ * @param {Object} options - Initialization options
+ * @param {string} options.appId - LeanCloud App ID
+ * @param {string} options.appKey - LeanCloud App Key 
+ * @param {string} [options.server] - LeanCloud server URL (for custom server)
+ * @param {string} [options.region] - LeanCloud region code ('CN' or 'US')
+ * @returns {Promise<void>}
+ */
+export const initLeacloud = async (options) => {
+  // 最大重试次数
+  const maxRetries = 3;
+  let retries = 0;
+  let lastError = null;
+
+  // 检查必要的配置
+  if (!options.appId || !options.appKey) {
+    const error = new Error('LeanCloud appId and appKey are required');
+    console.error('LeanCloud initialization failed:', error);
+    toast.error('聊天服务初始化失败：缺少必要的配置信息');
+    throw error;
+  }
+
+  // 处理初始化选项
+  const initOptions = {
+    appId: options.appId,
+    appKey: options.appKey
+  };
+
+  // 根据提供的参数设置region或server
+  if (options.region) {
+    // 如果提供了region，使用region
+    console.log(`Using LeanCloud region: ${options.region}`);
+    initOptions.region = options.region;
+  } else if (options.server) {
+    // 如果提供了server URL，使用server
+    console.log(`Using LeanCloud server URL: ${options.server}`);
+    initOptions.server = options.server;
+  } else {
+    console.warn('No LeanCloud region or server URL provided. This may cause issues for CN region apps.');
+    // 尝试从环境变量获取
+    const envServerURL = import.meta.env.VITE_LEANCLOUD_SERVER_URL;
+    if (envServerURL) {
+      if (envServerURL === 'CN' || envServerURL === 'US') {
+        initOptions.region = envServerURL;
+        console.log(`Using region from environment: ${envServerURL}`);
+      } else {
+        initOptions.server = envServerURL;
+        console.log(`Using server URL from environment: ${envServerURL}`);
+      }
+    }
+  }
+
+  // 记录初始化参数（隐藏敏感信息）
+  console.log('LeanCloud initialization options:', {
+    appId: initOptions.appId,
+    appKey: initOptions.appKey ? '******' : undefined,
+    server: initOptions.server,
+    region: initOptions.region
+  });
+
+  while (retries < maxRetries) {
+    try {
+      console.log(`Attempting to initialize LeanCloud (attempt ${retries + 1}/${maxRetries})...`);
+
+      // Create Realtime instance
+      realtime = new Realtime(initOptions);
+
+      console.log('LeanCloud Realtime initialized successfully');
+      return; // 成功初始化，退出函数
+    } catch (error) {
+      lastError = error;
+      console.error(`LeanCloud initialization attempt ${retries + 1} failed:`, error);
+      retries++;
+
+      if (retries < maxRetries) {
+        // 等待一段时间后重试
+        const delay = retries * 1000; // 1秒, 2秒, 3秒...
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // 所有重试都失败了
+  console.error('LeanCloud Realtime initialization failed after multiple attempts:', lastError);
+  toast.error('聊天服务初始化失败，请刷新页面重试');
+  throw lastError;
+};
+
+/**
+ * Login to LeanCloud service
+ * @param {string} userId - User ID, typically user's entity_id
+ * @returns {Promise<Object>} Client instance after login
+ */
+export const loginLeacloud = async (userId) => {
+  if (!realtime) {
+    throw new Error('LeanCloud Realtime not initialized');
+  }
+
+  try {
+    // Ensure userId is a string
+    if (typeof userId !== 'string') {
+      console.error('Invalid userId type:', typeof userId);
+      throw new Error('userId must be a string');
+    }
+
+    console.log('Attempting to login to LeanCloud with userId:', userId);
+
+    // Create Client instance
+    client = await realtime.createIMClient(userId);
+
+    // Setup event handlers
+    setupClientEventHandlers();
+
+    console.log('LeanCloud client logged in successfully:', userId);
+    return client;
+  } catch (error) {
+    console.error('LeanCloud client login failed:', error);
+    toast.error('Chat service login failed, please try again');
+    throw error;
+  }
+};
+
+/**
+ * Setup client event handlers
+ */
+function setupClientEventHandlers() {
+  if (!client) return;
+
+  // Listen for new messages
+  client.on(Event.MESSAGE, handleMessage);
+
+  // Listen for connection state changes
+  client.on(Event.DISCONNECT, () => {
+    console.log('LeanCloud client disconnected');
+    toast.warning('Chat service disconnected, attempting to reconnect...');
+  });
+
+  client.on(Event.RECONNECT, () => {
+    console.log('LeanCloud client reconnected');
+    toast.success('Chat service reconnected');
+  });
+
+  client.on(Event.RECONNECT_ERROR, (error) => {
+    console.error('LeanCloud client reconnect failed:', error);
+    toast.error('Chat service reconnection failed, please refresh the page');
+  });
+}
+
+/**
+ * Handle received messages
+ * @param {Object} message - Received message object
+ */
+function handleMessage(message, conversation) {
+  console.log('Received message:', message);
+
+  const chatStore = useChatStore();
+
+  // Here you might need to find the correct chat to add the message to.
+  // This assumes the conversation ID is the same as the chat ID in the store.
+  const chatId = conversation.id;
+
+  chatStore.addMessage(chatId, {
+    id: message.id,
+    text: message.text,
+    sender: message.from === client.id ? 'user' : 'bot', // Or determine sender differently
+    timestamp: message.timestamp
+  });
+}
+
+/**
+ * Get or create a conversation
+ * @param {Object} options - Conversation options
+ * @param {string} options.name - Conversation name
+ * @param {Array<string>} options.members - List of member IDs
+ * @param {boolean} options.isUnique - Whether conversation is unique
+ * @returns {Promise<Object>} Conversation instance
+ */
+export const getOrCreateConversation = async (options) => {
+  if (!client) {
+    throw new Error('LeanCloud client not logged in');
+  }
+
+  try {
+    // Query or create conversation
+    const conversation = await client.createConversation({
+      name: options.name,
+      members: options.members,
+      unique: options.isUnique || true,
+    });
+
+    // Save to cache
+    conversations.set(conversation.id, conversation);
+
+    // Setup conversation event handlers
+    setupConversationEventHandlers(conversation);
+
+    console.log('Conversation created or found:', conversation.id);
+    return conversation;
+  } catch (error) {
+    console.error('Failed to create or get conversation:', error);
+    toast.error('Failed to create or get conversation');
+    throw error;
+  }
+};
+
+/**
+ * Setup conversation event handlers
+ * @param {Object} conversation - Conversation instance
+ */
+function setupConversationEventHandlers(conversation) {
+  if (!conversation) return;
+
+  // Listen for member changes
+  conversation.on(Event.MEMBERS_JOIN, (payload) => {
+    console.log('Members joined:', payload.members);
+  });
+
+  conversation.on(Event.MEMBERS_LEFT, (payload) => {
+    console.log('Members left:', payload.members);
+  });
+}
+
+/**
+ * Send message to specified conversation
+ * @param {string} conversationId - Conversation ID
+ * @param {string} content - Message content
+ * @returns {Promise<Object>} Sent message
+ */
+export const sendMessage = async (conversationId, content) => {
+  if (!client) {
+    throw new Error('LeanCloud client not logged in');
+  }
+
+  let conversation = conversations.get(conversationId);
+
+  // Get conversation if not in cache
+  if (!conversation) {
+    try {
+      conversation = await client.getConversation(conversationId);
+      conversations.set(conversationId, conversation);
+      setupConversationEventHandlers(conversation);
+    } catch (error) {
+      console.error('Failed to get conversation:', error);
+      toast.error('Failed to get conversation');
+      throw error;
+    }
+  }
+
+  try {
+    // Create text message
+    const message = new TextMessage(content);
+
+    // Send message
+    const result = await conversation.send(message);
+    console.log('Message sent:', result);
+    return result;
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    toast.error('Failed to send message');
+    throw error;
+  }
+};
+
+/**
+ * Get conversation history messages
+ * @param {string} conversationId - Conversation ID
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Number of messages to return
+ * @param {number} options.timestamp - Starting timestamp
+ * @returns {Promise<Array>} Message list
+ */
+export const getHistoryMessages = async (conversationId, options = {}) => {
+  if (!client) {
+    throw new Error('LeanCloud client not logged in');
+  }
+
+  let conversation = conversations.get(conversationId);
+
+  // Get conversation if not in cache
+  if (!conversation) {
+    try {
+      conversation = await client.getConversation(conversationId);
+      conversations.set(conversationId, conversation);
+      setupConversationEventHandlers(conversation);
+    } catch (error) {
+      console.error('Failed to get conversation:', error);
+      toast.error('Failed to get conversation');
+      throw error;
+    }
+  }
+
+  try {
+    // Get history messages
+    const messages = await conversation.queryMessages({
+      limit: options.limit || 20,
+      timestamp: options.timestamp
+    });
+
+    console.log('History messages:', messages);
+    return messages;
+  } catch (error) {
+    console.error('Failed to get history messages:', error);
+    toast.error('Failed to get history messages');
+    throw error;
+  }
+};
+
+/**
+ * Logout from LeanCloud service
+ * @returns {Promise<void>}
+ */
+export const logoutLeacloud = async () => {
+  if (!client) return;
+
+  try {
+    await client.close();
+    client = null;
+    conversations.clear();
+    console.log('LeanCloud client logged out');
+  } catch (error) {
+    console.error('LeanCloud client logout failed:', error);
+  }
+};

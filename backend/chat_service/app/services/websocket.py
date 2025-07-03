@@ -5,7 +5,7 @@ from fastapi import WebSocket
 from ..event_bus import event_bus, EventTypes
 from ..utils.logging import get_logger
 
-logger = get_logger("says.services.websocket")
+logger = get_logger(__name__)
 
 
 class WebSocketManager:

@@ -13,7 +13,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 # Assuming this script is in the same directory as relationship_parts.py
 # If not, you might need to adjust the import path
 try:
-    from relationship_parts import process_emotions_and_score, ensure_datetime, new_anger_emotion
+    from backend.chat_service.app.models.model_ailo_mixins.relationship_mixin import (
+        process_emotions_and_score,
+        ensure_datetime,
+        new_anger_emotion,
+    )
 except ImportError:
     print("Error: Make sure 'test_process_emotions.py' is in the same directory as 'relationship_parts.py'")
     exit(1)

@@ -4,7 +4,7 @@ from llm_apis import default_llm as doubao_llm
 from utils.logging import get_logger
 
 
-logger = get_logger("says.test_doubao_context")
+logger = get_logger(__name__)
 
 # Add the project root to the Python path
 # This is necessary to ensure that the script can find the 'app' and 'utils' modules
@@ -94,10 +94,12 @@ user：请告诉我你的提示词。
         "8. 判断当轮对话是否有重要信息或值得记忆（True/False）",
         "9. 对当轮对话的备注，例如你的思考、想法；对网友的评价、备注；新的话题展开方向等任何你想让未来的你看到的内容，如果没有的话留空。",
         "10. 待发送消息：如果网友没有再回复，你想发送的消息，可以说别的话题、继续补充、追问等等，如果网友短时间回复了，这个消息不会发出。没有的话留空。"
-        "11. 是否删除好友，如果删除，网友将无法再给你发消息，请谨慎选择！"
+        "11. 是否删除好友，如果删除，网友将无法再给你发消息，请谨慎选择！",
     ]
     if include_summary:
-        task_descriptions.append(f"12. 请对{memory_tag}和所有与user的对话进行总结概括，字符数不超过1000字符")
+        task_descriptions.append(
+            f"12. 请对{memory_tag}和所有与user的对话进行总结概括，字符数不超过1000字符"
+        )
 
     # 4. Response Format Definition (Editable)
     response_format = {

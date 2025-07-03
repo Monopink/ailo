@@ -1,7 +1,7 @@
 from .websocket import websocket
-from .leancloud import leancloud
+from .leanmessage import leanmessage_service
 
 __all__ = [
     "websocket",
-    "leancloud",
+    "leanmessage_service",
 ]

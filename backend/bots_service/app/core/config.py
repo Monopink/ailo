@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     DB_NAME: str
 
+    # LeanCloud settings
+    LEANCLOUD_APP_ID: str
+    LEANCLOUD_APP_KEY: str
+    LEANCLOUD_MASTER_KEY: str
+    LEANCLOUD_BASE_URL: str
+
     @property
     def database_url(self) -> str:
         """

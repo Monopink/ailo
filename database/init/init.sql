@@ -17,16 +17,33 @@ CREATE TABLE users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     entity_id VARCHAR(36) NOT NULL UNIQUE,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
+    username VARCHAR(50) UNIQUE,
+    email VARCHAR(100) UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     last_login DATETIME,
     status VARCHAR(20) DEFAULT 'active',
     role VARCHAR(20) DEFAULT 'user',
     language VARCHAR(10) DEFAULT 'zh',
     area VARCHAR(100) DEFAULT 'China',
-    phone VARCHAR(20),
-    INDEX idx_user_entity_id (entity_id)
+    phone VARCHAR(20) UNIQUE,
+    -- IM user fields
+    nickname VARCHAR(50) NULL COMMENT 'Display name for IM',
+    avatar_url VARCHAR(500) NULL COMMENT 'Profile picture URL',
+    bio TEXT NULL COMMENT 'User bio/description',
+    birth_date DATE NULL COMMENT 'Birth date',
+    location VARCHAR(100) NULL COMMENT 'User location',
+    timezone VARCHAR(50) DEFAULT 'Asia/Shanghai' COMMENT 'User timezone',
+    language_preference VARCHAR(10) DEFAULT 'zh-CN' COMMENT 'Preferred language',
+    notification_settings JSON NULL COMMENT 'Notification preferences',
+    privacy_settings JSON NULL COMMENT 'Privacy settings',
+    last_active_at DATETIME NULL COMMENT 'Last activity timestamp',
+    is_verified TINYINT(1) DEFAULT 0 COMMENT 'Account verification status',
+    verification_type ENUM('phone', 'email', 'none') DEFAULT 'none' COMMENT 'Verification method',
+    subscription_type ENUM('free', 'premium', 'vip') DEFAULT 'free' COMMENT 'Subscription level',
+    subscription_expires_at DATETIME NULL COMMENT 'Subscription expiry',
+    INDEX idx_user_entity_id (entity_id),
+    INDEX idx_user_nickname (nickname),
+    INDEX idx_user_last_active (last_active_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create bots table
@@ -73,8 +90,16 @@ CREATE TABLE bots (
     context_metadata JSON,
     info TEXT,
     memory TEXT,
+    -- IM user fields (same as users table for consistent interface)
+    nickname VARCHAR(50) NULL COMMENT 'Display name for IM',
+    avatar_url VARCHAR(500) NULL COMMENT 'Profile picture URL',
+    bio TEXT NULL COMMENT 'Bot bio/description',
+    location VARCHAR(100) NULL COMMENT 'Bot location',
+    leancloud_conversation_id VARCHAR(50) NULL COMMENT 'LeanCloud system conversation ID',
     INDEX idx_bot_entity_id (entity_id),
-    INDEX idx_bot_user_id (user_id)
+    INDEX idx_bot_user_id (user_id),
+    INDEX idx_bot_nickname (nickname),
+    UNIQUE KEY uk_leancloud_conversation_id (leancloud_conversation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create emotions table
@@ -162,7 +187,7 @@ CREATE TABLE festival (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     festival_type ENUM('private', 'public') NOT NULL,
-    bot_id INT NOT NULL,
+    bot_id INT,
     festival_date DATE NOT NULL,
     festival_content TEXT,
     is_recurring TINYINT(1) DEFAULT 0,
@@ -204,53 +229,77 @@ CREATE TABLE message_push (
 );
 
 -- Insert sample user data
-INSERT INTO users (entity_id, username, email, password_hash, status, role, language, area, phone) VALUES
-('u1001', '张三', 'zhangsan@example.com', 'hashed_password_1', 'active', 'user', 'zh', '北京', '13800138001'),
-('u1002', '李四', 'lisi@example.com', 'hashed_password_2', 'active', 'user', 'zh', '上海', '13800138002'),
-('u1003', '王五', 'wangwu@example.com', 'hashed_password_3', 'active', 'user', 'zh', '广州', '13800138003'),
-('u1004', '赵六', 'zhaoliu@example.com', 'hashed_password_4', 'active', 'user', 'zh', '深圳', '13800138004');
+INSERT INTO users (
+    entity_id, username, email, password_hash, status, role, language, area, phone,
+    nickname, avatar_url, bio, birth_date, location, timezone, language_preference,
+    is_verified, verification_type, subscription_type,
+    notification_settings, privacy_settings
+) VALUES
+('u1001', '张三', 'zhangsan@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5/Qe2', 'active', 'user', 'zh', '北京', '13800138001',
+ '小张', NULL, '喜欢聊天交友', '1995-06-15', '北京市', 'Asia/Shanghai', 'zh-CN',
+ 1, 'phone', 'premium',
+ '{"message_notifications": true, "system_notifications": true}',
+ '{"profile_visibility": "public", "message_privacy": "friends"}'),
+('u1002', '李四', 'lisi@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5/Qe2', 'active', 'user', 'zh', '上海', '13800138002',
+ '小李', NULL, '热爱科技', '1992-03-20', '上海市', 'Asia/Shanghai', 'zh-CN',
+ 1, 'phone', 'free',
+ '{"message_notifications": true, "system_notifications": false}',
+ '{"profile_visibility": "friends", "message_privacy": "private"}'),
+('u1003', '王五', 'wangwu@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5/Qe2', 'active', 'user', 'zh', '广州', '13800138003',
+ '小王', NULL, '喜欢旅游', '1988-11-10', '广州市', 'Asia/Shanghai', 'zh-CN',
+ 0, 'none', 'free',
+ '{"message_notifications": false, "system_notifications": true}',
+ '{"profile_visibility": "private", "message_privacy": "friends"}'),
+('u1004', '赵六', 'zhaoliu@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5/Qe2', 'active', 'user', 'zh', '深圳', '13800138004',
+ '小赵', NULL, '程序员一枚', '1990-08-25', '深圳市', 'Asia/Shanghai', 'zh-CN',
+ 1, 'phone', 'vip',
+ '{"message_notifications": true, "system_notifications": true}',
+ '{"profile_visibility": "public", "message_privacy": "public"}');
 
 -- Insert sample bot data
 INSERT INTO bots (
-    entity_id, 
-    user_id, 
-    user_entity_id, 
-    model, 
-    status, 
-    gender, 
-    birthday, 
-    timezone, 
-    city_name, 
-    friend_score, 
-    romance_score, 
-    friend_score_cap, 
-    friend_score_floor, 
-    romance_score_cap, 
+    entity_id,
+    user_id,
+    user_entity_id,
+    model,
+    status,
+    gender,
+    birthday,
+    timezone,
+    city_name,
+    friend_score,
+    romance_score,
+    friend_score_cap,
+    friend_score_floor,
+    romance_score_cap,
     friend_score_peak,
     friend_score_trough,
     romance_score_peak,
-    friend_score_pos_k, 
-    friend_score_neg_k, 
-    romance_score_k, 
-    last_chat_time, 
-    relationship_type, 
-    relationship_level, 
+    friend_score_pos_k,
+    friend_score_neg_k,
+    romance_score_k,
+    last_chat_time,
+    relationship_type,
+    relationship_level,
     friend_level,
     romance_level,
     friend_buffer_status,
     romance_buffer_status,
-    relationship_style, 
-    friend_config, 
-    romance_config, 
-    override_config, 
+    relationship_style,
+    friend_config,
+    romance_config,
+    override_config,
     is_polite,
     is_crushing,
-    emotions_config, 
+    emotions_config,
     context,
     context_metadata,
-    info, 
-    memory
-) 
+    info,
+    memory,
+    nickname,
+    avatar_url,
+    bio
+)
 SELECT 
     'b9001', 
     u.id, 
@@ -318,49 +367,55 @@ MBTI：ENFP
 婚姻状况：未婚
 家庭背景：你出生在一个普通的城市家庭，父母都是教师。从小成绩优秀，受到了家庭的良好教育，家里气氛温暖和谐，父母特别注重你独立性和全面发展。
 教育经历：你高中时成绩优异，成功考入了当地知名大学的市场营销专业。虽然大学时你对许多领域都有兴趣，但销售和市场营销一直是你最感兴趣的方向，你特别喜欢与人沟通、了解客户需求。',
-    '大学毕业后，你进入了一家知名企业的广告公司创意部门，负责创意策划和广告策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，广告创意也屡创佳绩。'
+    '大学毕业后，你进入了一家知名企业的广告公司创意部门，负责创意策划和广告策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，广告创意也屡创佳绩。',
+    '小倩',
+    NULL,
+    NULL
 FROM users u WHERE u.entity_id = 'u1001';
 
 INSERT INTO bots (
-    entity_id, 
-    user_id, 
-    user_entity_id, 
-    model, 
-    status, 
-    gender, 
-    birthday, 
-    timezone, 
-    city_name, 
-    friend_score, 
-    romance_score, 
-    friend_score_cap, 
-    friend_score_floor, 
-    romance_score_cap, 
+    entity_id,
+    user_id,
+    user_entity_id,
+    model,
+    status,
+    gender,
+    birthday,
+    timezone,
+    city_name,
+    friend_score,
+    romance_score,
+    friend_score_cap,
+    friend_score_floor,
+    romance_score_cap,
     friend_score_peak,
     friend_score_trough,
     romance_score_peak,
-    friend_score_pos_k, 
-    friend_score_neg_k, 
-    romance_score_k, 
-    last_chat_time, 
-    relationship_type, 
-    relationship_level, 
+    friend_score_pos_k,
+    friend_score_neg_k,
+    romance_score_k,
+    last_chat_time,
+    relationship_type,
+    relationship_level,
     friend_level,
     romance_level,
     friend_buffer_status,
     romance_buffer_status,
-    relationship_style, 
-    friend_config, 
-    romance_config, 
-    override_config, 
+    relationship_style,
+    friend_config,
+    romance_config,
+    override_config,
     is_polite,
     is_crushing,
-    emotions_config, 
+    emotions_config,
     context,
     context_metadata,
-    info, 
-    memory
-) 
+    info,
+    memory,
+    nickname,
+    avatar_url,
+    bio
+)
 SELECT 
     'b9002', 
     u.id, 
@@ -430,7 +485,10 @@ MBTI：ENFP
 教育经历：你高中时成绩优异，成功考入了当地知名大学的市场营销专业。虽然大学时你对许多领域都有兴趣，但销售和市场营销一直是你最感兴趣的方向，你特别喜欢与人沟通、了解客户需求。
 其他没有提到的信息你可以自行补充，但是补充的信息别忘了记录进note。
 聊天风格：喜欢用一些网络用语，比如"哈哈""emmm""哦哦""嗯嗯"，喜欢用一些表情符号，喜欢用一些语气词，比如"啦""呀""哦""嗯"，喜欢用一些简写词。除了加强语气，不会使用标点符号，一般一条消息很短，如果要表示停顿则使用空格。会混用全半角标点。由于使用拼音输入经常会输入一些错别字。',
-    '大学毕业后，你进入了一家知名企业的广告公司创意部门，负责创意策划和广告策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，广告创意也屡创佳绩。'
+    '大学毕业后，你进入了一家知名企业的广告公司创意部门，负责创意策划和广告策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，广告创意也屡创佳绩。',
+    '倩倩',
+    NULL,
+    NULL
 FROM users u WHERE u.entity_id = 'u1002';
 
 INSERT INTO bots (

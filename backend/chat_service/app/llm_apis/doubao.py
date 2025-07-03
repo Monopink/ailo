@@ -5,7 +5,7 @@ from volcenginesdkarkruntime import Ark
 from .base import BaseLLM
 from ..utils.logging import get_logger
 
-logger = get_logger("says.llm_apis.doubao")
+logger = get_logger(__name__)
 
 
 class Doubao(BaseLLM):

@@ -2,7 +2,7 @@ from typing import Dict, List, Callable, Any
 import asyncio
 from .utils.logging import get_logger
 
-logger = get_logger("says.event_bus")
+logger = get_logger(__name__)
 
 
 class EventBus:

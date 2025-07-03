@@ -5,7 +5,7 @@ from ..utils.logging import get_logger
 
 from .base import BaseLLM
 
-logger = get_logger("says.llm_apis.mock_manual_llm")
+logger = get_logger(__name__)
 
 
 class MockLLMManual(BaseLLM):

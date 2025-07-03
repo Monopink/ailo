@@ -51,7 +51,7 @@ def configure_logging():
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
-    logger = get_logger("says.logging")
+    logger = get_logger(__name__)
     logger.info("logging_configured_successfully")
 
 

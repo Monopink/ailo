@@ -113,7 +113,7 @@ class LeanMessageManager:
                     logger.error("missing_conversation_id", data=data)
                     return
 
-            await self._send_system_conversation_message(
+            self._send_system_conversation_message(
                 conversation_id=conversation_id,
                 from_peer=from_entity,
                 to_client=to_entity,
@@ -124,16 +124,16 @@ class LeanMessageManager:
         except Exception as e:
             logger.error("leanmessage_send_message_failed", error=str(e), exc_info=True)
 
-    async def _send_system_conversation_message(
+    def _send_system_conversation_message(
         self, conversation_id: str, from_peer: str, to_client: str, message_content: str
     ):
         """
         Send a message through LeanMessage system conversation using REST API.
-        Based on the leanmessage-demo implementation.
+        Based on LeanCloud REST API documentation: 给任意用户单独发消息
         """
         try:
-            # LeanMessage REST API endpoint for sending system conversation message
-            url = f"{settings.LEANCLOUD_BASE_URL}/1.1/rtm/conversations/{conversation_id}/messages"
+            # REST API endpoint for sending system conversation message
+            url = f"{settings.LEANCLOUD_BASE_URL}/1.2/rtm/service-conversations/{conversation_id}/messages"
 
             headers = {
                 "X-LC-Id": settings.LEANCLOUD_APP_ID,
@@ -141,11 +141,11 @@ class LeanMessageManager:
                 "Content-Type": "application/json",
             }
 
-            # Message data following LeanCloud format
+            # Message data following LeanCloud REST API format
             data = {
-                "from_peer": from_peer,  # Bot as sender
-                "message": {"_lctype": -1, "_lctext": message_content},  # Text message type
-                "to_peers": [to_client],  # Send to specific client
+                "from_client": from_peer,  # Bot as sender
+                "message": message_content,  # Plain text message
+                "to_clients": [to_client],  # Send to specific client
             }
 
             logger.info(
@@ -154,13 +154,19 @@ class LeanMessageManager:
                 from_peer=from_peer,
                 to_client=to_client,
                 message_content=message_content,
+                url=url,
             )
 
             response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
 
+            result = response.json()
             logger.info(
-                "system_conversation_message_sent", conversation_id=conversation_id, to_client=to_client
+                "system_conversation_message_sent",
+                conversation_id=conversation_id,
+                to_client=to_client,
+                from_peer=from_peer,
+                result=result,
             )
 
         except Exception as e:
@@ -169,6 +175,8 @@ class LeanMessageManager:
                 error=str(e),
                 conversation_id=conversation_id,
                 to_client=to_client,
+                from_peer=from_peer,
+                exc_info=True,
             )
             raise
 
@@ -232,7 +240,7 @@ class LeanMessageManager:
 
     def validate_message_structure(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Validate and convert LeanMessage message to chat_service format according to enums.py
+        Validate and convert LeanMessage message to bot_message_service format according to enums.py
         """
         try:
             # Extract basic fields
@@ -246,15 +254,15 @@ class LeanMessageManager:
             if not all([from_entity, conversation_id, message_content]):
                 raise ValueError("Missing required fields: from, conv.objectId, or data")
 
-            # Parse message content
-            parsed_content = self._parse_leanmessage_content(str(message_content))
+            # Parse message content and extract message type
+            parsed_content, message_type, _ = self._parse_leanmessage_content(str(message_content))
 
             # Create structured message according to enums.py format
             structured_message = {
                 "from_entity": from_entity,
                 "to_entity": None,  # Will be set later
                 "content": parsed_content,
-                "message_type": MessageType.CHAT.code,  # Default to chat message
+                "message_type": message_type,
                 "message_service": "leancloud",
                 "message_time": created_at or datetime.now(timezone.utc).isoformat(),
                 "conversation_id": conversation_id,
@@ -268,32 +276,48 @@ class LeanMessageManager:
             logger.error("message_validation_failed", error=str(e), message_data=message_data)
             raise
 
-    def _parse_leanmessage_content(self, content: str) -> str:
+    def _parse_leanmessage_content(self, content: str) -> tuple:
         """
-        Parse LeanMessage message content and extract text.
+        Parse LeanMessage message content and extract text and message type.
+        Returns: (content_text, message_type_code, structured_data)
         """
         try:
-            # Try to parse as JSON (LeanMessage format)
+            # Try to parse as JSON (structured message format)
             if content.startswith("{"):
                 parsed = json.loads(content)
                 if isinstance(parsed, dict):
-                    # Extract text from LeanMessage message format
-                    if "_lctext" in parsed:
-                        return parsed["_lctext"]
+                    # Check if it's our structured message format
+                    if "message_type" in parsed:
+                        # This is our structured message format from frontend
+                        content_text = parsed.get("content", "")
+                        frontend_message_type = parsed.get("message_type", "chat")
+
+                        # Convert frontend string type to backend enum code
+                        message_type_enum = MessageType.from_name(frontend_message_type)
+                        if message_type_enum is None:
+                            message_type_code = MessageType.CHAT.code
+                        else:
+                            message_type_code = message_type_enum.code
+
+                        return content_text, message_type_code, parsed
+                    elif "_lctext" in parsed:
+                        # Extract text from LeanMessage native format
+                        return parsed["_lctext"], MessageType.CHAT.code, parsed
                     elif "text" in parsed:
-                        return parsed["text"]
+                        return parsed["text"], MessageType.CHAT.code, parsed
                     else:
-                        return str(parsed)
+                        # Return the whole object as string if no recognized format
+                        return str(parsed), MessageType.CHAT.code, parsed
 
             # Return as plain text if not JSON
-            return content
+            return content, MessageType.CHAT.code, None
 
         except json.JSONDecodeError:
             # Return as plain text if JSON parsing fails
-            return content
+            return content, MessageType.CHAT.code, None
         except Exception as e:
             logger.error("content_parsing_failed", error=str(e), content=content)
-            return content
+            return content, MessageType.CHAT.code, None
 
     async def process_webhook_message(self, message_data: Dict[str, Any]) -> None:
         """

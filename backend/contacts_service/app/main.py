@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from .core.config import settings
-from .routers import bots, admin
+from .routers import contacts, admin
 import structlog
 
 # Configure logging
@@ -20,9 +20,9 @@ logger = structlog.get_logger(__name__)
 # Create FastAPI application
 app = FastAPI(title=settings.PROJECT_NAME)
 
-# Include routers
-app.include_router(bots.router)
-app.include_router(admin.router)
+# Include routers with API version prefix
+app.include_router(contacts.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 
 
 @app.on_event("startup")
@@ -30,7 +30,7 @@ async def startup_event():
     """
     Application startup logic.
     """
-    print("Starting up Bots Service...")
+    print("Starting up Contacts Service...")
     print(f"Connecting to database at: {settings.database_url}")
 
 
@@ -39,7 +39,7 @@ async def shutdown_event():
     """
     Application shutdown logic.
     """
-    print("Shutting down Bots Service.")
+    print("Shutting down Contacts Service.")
 
 
 @app.get("/health", tags=["Health"])

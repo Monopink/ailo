@@ -1,5 +1,5 @@
 """
-LeanMessage webhook handlers for chat_service.
+LeanMessage webhook handlers for bot_message_service.
 Handles incoming webhook requests from LeanMessage system conversations.
 """
 

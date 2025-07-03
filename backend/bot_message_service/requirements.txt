@@ -1,4 +1,4 @@
-# backend/chat_service/requirements.txt
+# backend/bot_message_service/requirements.txt
 # Cloud Services
 leancloud
 volcengine-python-sdk[ark]

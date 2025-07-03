@@ -55,7 +55,7 @@ class LeanMessageManager:
             "sys": True,  # Mark as system conversation
             "attr": {
                 "description": description,
-                "created_by": "says_bots_service",
+                "created_by": "says",
                 "created_at": datetime.now().isoformat(),
             },
         }

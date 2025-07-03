@@ -13,11 +13,11 @@ export default defineConfig({
         changeOrigin: true,
         // Don't rewrite path since accounts_service now expects /api/v1 prefix
       },
-      // Proxy /api/bots requests to bots_service
-      '/api/bots': {
-        target: 'http://bots_service_container:8000',
+      // Proxy /api/contacts requests to contacts_service
+      '/api/contacts': {
+        target: 'http://contacts_service_container:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/bots/, '/bots')
+        rewrite: (path) => path.replace(/^\/api\/contacts/, '/api/v1/contacts')
       },
     },
     // Add response headers to control caching

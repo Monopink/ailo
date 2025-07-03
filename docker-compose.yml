@@ -61,49 +61,49 @@ services:
       - mysql_db
     restart: always
 
-  # Bots Service
-  bots_service:
-    container_name: bots_service_container
+  # Contacts Service
+  contacts_service:
+    container_name: contacts_service_container
     build:
-      context: ./backend/bots_service
+      context: ./backend/contacts_service
       dockerfile: Dockerfile
     env_file:
       - ./.env
     environment:
       PYTHONDONTWRITEBYTECODE: 1
     ports:
-      - "${BOTS_SERVICE_PORT}:8000"
+      - "${CONTACTS_SERVICE_PORT}:8000"
     volumes:
-      - ./backend/bots_service:/app
-      - ./logs/bots_service:/app/logs
+      - ./backend/contacts_service:/app
+      - ./logs/contacts_service:/app/logs
     networks:
       - says-network
     depends_on:
       - mysql_db
     restart: always
 
-  # Chat Service
-  chat_service:
-    container_name: chat_service_container
+  # Bot Message Service
+  bot_message_service:
+    container_name: bot_message_service_container
     build:
-      context: ./backend/chat_service
+      context: ./backend/bot_message_service
       dockerfile: Dockerfile
     env_file:
       - ./.env
     environment:
       PYTHONDONTWRITEBYTECODE: 1
     ports:
-      - "${CHAT_SERVICE_PORT}:8000"
+      - "${BOT_MESSAGE_SERVICE_PORT}:8000"
     volumes:
-      - ./backend/chat_service:/app
-      - ./logs/chat_service:/app/logs
+      - ./backend/bot_message_service:/app
+      - ./logs/bot_message_service:/app/logs
     networks:
       - says-network
     depends_on:
       - mysql_db
     restart: always
 
-  # Ngrok service for exposing chat_service webhook
+  # Ngrok service for exposing bot_message_service webhook
   ngrok:
     container_name: ngrok_container
     build:
@@ -116,7 +116,7 @@ services:
     networks:
       - says-network
     depends_on:
-      - chat_service
+      - bot_message_service
     restart: always
 
   # Web Frontend (Vite)

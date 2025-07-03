@@ -1,5 +1,5 @@
 """
-Bot model for bots_service
+Bot model for contacts_service
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean, func

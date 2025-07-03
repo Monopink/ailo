@@ -118,7 +118,7 @@ export default {
       try {
         addDebugLog('INFO', '正在加载机器人列表...')
         
-        // Get bots from bots_service
+        // Get bots from contacts_service
         const response = await fetch('http://localhost:8002/admin/list-conversations')
         const data = await response.json()
         

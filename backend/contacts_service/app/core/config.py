@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # The path is relative to where the app is run from, which is the service root
     model_config = SettingsConfigDict(env_file="../../../.env", env_file_encoding="utf-8", extra="ignore")
 
-    PROJECT_NAME: str = "Says Bots Service"
+    PROJECT_NAME: str = "Says Contacts Service"
 
     # Database settings
     DB_HOST: str

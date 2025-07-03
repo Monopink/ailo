@@ -1,5 +1,5 @@
 """
-Database connection and session management for bots_service
+Database connection and session management for contacts_service
 """
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -11,18 +11,10 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 # Create async engine
-engine = create_async_engine(
-    settings.database_url,
-    echo=True,  # Set to False in production
-    future=True
-)
+engine = create_async_engine(settings.database_url, echo=True, future=True)  # Set to False in production
 
 # Create async session factory
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def get_db():

@@ -1,4 +1,4 @@
-# backend/bots_service/requirements.txt
+# backend/contacts_service/requirements.txt
 
 # Web Framework
 fastapi==0.109.2

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting ngrok tunnel for chat_service..."
+echo "🚀 Starting ngrok tunnel for bot_message_service..."
 
 # Check if NGROK_AUTHTOKEN is provided
 if [ -z "$NGROK_AUTHTOKEN" ]; then
@@ -22,18 +22,18 @@ fi
 echo "🔑 Configuring ngrok with authtoken..."
 ngrok config add-authtoken $NGROK_AUTHTOKEN
 
-# Wait for chat_service to be ready
-echo "⏳ Waiting for chat_service to be ready..."
-while ! curl -s http://chat_service:8000/health > /dev/null; do
-    echo "   Waiting for chat_service..."
+# Wait for bot_message_service to be ready
+echo "⏳ Waiting for bot_message_service to be ready..."
+while ! curl -s http://bot_message_service:8000/health > /dev/null; do
+    echo "   Waiting for bot_message_service..."
     sleep 2
 done
 
-echo "✅ chat_service is ready!"
+echo "✅ bot_message_service is ready!"
 
 # Start ngrok tunnel
 echo "🌐 Starting ngrok tunnel..."
-ngrok http chat_service:8000 --log=stdout --log-level=info &
+ngrok http bot_message_service:8000 --log=stdout --log-level=info &
 
 # Wait for ngrok to start
 sleep 5

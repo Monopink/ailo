@@ -49,8 +49,8 @@ class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin
                 FriendLevel.HOSTILE.value: 120,
                 FriendLevel.COLD.value: 100,
                 FriendLevel.NEUTRAL.value: 50,
-                FriendLevel.FRIENDLY.value: 30,
-                FriendLevel.WARM.value: 20,
+                FriendLevel.FRIENDLY.value: 10,
+                FriendLevel.WARM.value: 10,
                 # Default time
                 "default": 50,
             },

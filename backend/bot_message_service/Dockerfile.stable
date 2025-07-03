@@ -1,4 +1,4 @@
-# backend/chat_service/Dockerfile.stable
+# backend/bot_message_service/Dockerfile.stable
 
 # ---- Build Stage ----
 # Use a specific version of Python for reproducibility.

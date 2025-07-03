@@ -8,14 +8,14 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    command: 
+    command:
       - --default-authentication-plugin=caching_sha2_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     ports:
-      - "3307:3306"  # Use different port to avoid conflict
+      - "3307:3306" # Use different port to avoid conflict
     volumes:
-      - stable_mysql_data:/var/lib/mysql  # Use dedicated named volume
+      - stable_mysql_data:/var/lib/mysql # Use dedicated named volume
       - ./database/conf:/etc/mysql/conf.d:ro
       - ./database/init:/docker-entrypoint-initdb.d:ro
     networks:
@@ -26,8 +26,8 @@ services:
   stable_chat:
     container_name: stable_chat_container
     build:
-      context: ./backend/chat_service
-      dockerfile: Dockerfile.stable  # Use production Dockerfile
+      context: ./backend/bot_message_service
+      dockerfile: Dockerfile.stable # Use production Dockerfile
     environment:
       # Set environment variables directly, no volume mounting
       PYTHONDONTWRITEBYTECODE: 1
@@ -37,10 +37,10 @@ services:
       DB_USER: ${MYSQL_USER}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE}
-      LOG_LEVEL: "WARNING"  # Set log level to WARNING
+      LOG_LEVEL: "WARNING" # Set log level to WARNING
       LOG_FILE_PATH: "/app/logs/service.log"
     ports:
-      - "8100:8000"  # Use different port to avoid conflict
+      - "8100:8000" # Use different port to avoid conflict
     volumes:
       - ./logs/stable_chat:/app/logs
     networks:
@@ -54,9 +54,9 @@ services:
     container_name: stable_web_dev_container
     build:
       context: ./frontend/web_dev
-      dockerfile: Dockerfile.stable  # Use stable environment specific Dockerfile
+      dockerfile: Dockerfile.stable # Use stable environment specific Dockerfile
     ports:
-      - "8101:80"  # Use different port to avoid conflict
+      - "8101:80" # Use different port to avoid conflict
     networks:
       - stable-network
     depends_on:
@@ -69,4 +69,4 @@ networks:
 
 volumes:
   stable_mysql_data:
-    name: stable_mysql_data  # Explicitly named for easier backup and identification
+    name: stable_mysql_data # Explicitly named for easier backup and identification

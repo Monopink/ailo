@@ -63,21 +63,24 @@ apiClient.interceptors.response.use(response => {
   return Promise.reject(error);
 });
 
-export const getBots = (token) => {
-  // Call bots_service through Vite proxy at /api/bots
-  return axios.get('/api/bots', {
+export const getContacts = (token) => {
+  // Call contacts_service through Vite proxy at /api/contacts
+  return axios.get('/api/contacts', {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     }
   }).then(response => {
-    // Transform bots_service response format to match expected format
+    // Transform contacts_service response format to match expected format
     if (response.data && response.data.status === 'success') {
-      return { data: response.data.data }; // Extract the actual bot array
+      return { data: response.data.data }; // Extract the actual contact array
     } else {
-      throw new Error(response.data?.message || 'Failed to get bots');
+      throw new Error(response.data?.message || 'Failed to get contacts');
     }
   });
 };
+
+// Keep getBots as an alias for backward compatibility
+export const getBots = getContacts;
 
 export default apiClient;

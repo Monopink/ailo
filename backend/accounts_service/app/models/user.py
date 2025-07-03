@@ -1,9 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime, func, VARCHAR, Boolean, Text, Date, JSON
+from sqlalchemy import Column, Integer, String, DateTime, func, VARCHAR, Boolean, JSON, Enum
 from ..db.base_class import Base
-
-# If Base is defined in each model, this might not be needed.
-# But assuming a central Base class.
-# Base = declarative_base() # This might be replaced by the import
 
 
 class User(Base):
@@ -13,25 +9,23 @@ class User(Base):
     entity_id = Column(VARCHAR(36), unique=True, nullable=False, index=True)
     username = Column(String(50), unique=True, nullable=True)
     email = Column(String(100), unique=True, nullable=True)
-    phone = Column(String(255), unique=True, index=True, nullable=False)
+    phone = Column(String(20), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    timezone = Column(String(50), default="Asia/Shanghai", comment="Timezone")
+    language_preference = Column(String(10), default="zh-CN", comment="Preferred language")
+    last_active_at = Column(DateTime, nullable=True, comment="Last activity timestamp")
     last_login = Column(DateTime, nullable=True)
-    status = Column(String(20), default="active")  # 用户状态字段：'active', 'inactive', 'suspended', etc.
+    status = Column(String(20), default="active")
     role = Column(String(20), default="user")
+    language = Column(String(10), default="zh")
+    area = Column(String(100), default="China")
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    # IM user fields (matching database schema)
-    nickname = Column(String(50))
-    avatar_url = Column(String(500))
-    bio = Column(Text)
-    birth_date = Column(Date)
-    location = Column(String(100))
-    timezone = Column(String(50), default="Asia/Shanghai")
-    language_preference = Column(String(10), default="zh-CN")
-    notification_settings = Column(JSON)
-    privacy_settings = Column(JSON)
-    last_active_at = Column(DateTime)
+    # Account related fields
     is_verified = Column(Boolean, default=False)
-    verification_type = Column(String(10), default="none")
-    subscription_type = Column(String(10), default="free")
-    subscription_expires_at = Column(DateTime)
+    verification_type = Column(Enum("phone", "email", "none", name="verification_type"), default="none")
+    subscription_type = Column(Enum("free", "premium", "vip", name="subscription_type"), default="free")
+    subscription_expires_at = Column(DateTime, nullable=True)
+    # Settings (reserved for future use)
+    notification_settings = Column(JSON, nullable=True)
+    privacy_settings = Column(JSON, nullable=True)

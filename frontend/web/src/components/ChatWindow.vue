@@ -41,7 +41,7 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '../stores/chat';
 import MessageBubble from './MessageBubble.vue';
-import { sendMessage as sendLCMessage, sendMessageToSystemConversation, onMessage, offMessage, sendTypingIndicator, sendTypingEndIndicator } from '../services/leancloud';
+import { sendMessage as sendLCMessage, sendMessageToSystemConversation, onMessage, offMessage, sendTypingIndicator, sendTypingEndIndicator } from '../services/leanmessage';
 import { useAuthStore } from '../stores/auth';
 import { MessageType } from '../utils/messageTypes';
 
@@ -121,9 +121,16 @@ const sendMessage = async () => {
   }
 
   try {
+    // Check if we have a valid LeanCloud conversation ID
+    const conversationId = selectedChat.value.leancloud_conversation_id;
+    if (!conversationId || conversationId === selectedChat.value.entity_id) {
+      console.warn('⚠️ No valid LeanCloud conversation ID for chat:', selectedChat.value.entity_id);
+      throw new Error('No valid conversation ID available for this chat');
+    }
+
     // Send message to system conversation using LeanCloud conversation ID
-    console.log('Sending message to system conversation:', selectedChat.value.id);
-    await sendMessageToSystemConversation(selectedChat.value.id, content);
+    console.log('Sending message to system conversation:', conversationId);
+    await sendMessageToSystemConversation(conversationId, content);
 
     // Add message to local chat (it will also be received via onMessage)
     const userMessage = {
@@ -144,9 +151,16 @@ const sendMessage = async () => {
 
 // Handle incoming messages
 const handleIncomingMessage = (message, conversation) => {
+  console.log('📨 [ChatWindow] Received message:', message);
+  console.log('📨 [ChatWindow] Available chats:', chats.value.map(c => ({ id: c.id, name: c.name })));
+
   // Find the chat that corresponds to this conversation
   const chat = chats.value.find(c => c.id === message.from);
-  if (!chat) return;
+  console.log('📨 [ChatWindow] Found chat:', chat);
+  if (!chat) {
+    console.warn('📨 [ChatWindow] No chat found for message.from:', message.from);
+    return;
+  }
 
   // Handle different message types
   if (message.isTyping) {
@@ -206,8 +220,13 @@ const handleIncomingMessage = (message, conversation) => {
 };
 
 onMounted(() => {
-  // Listen for incoming messages
-  onMessage(handleIncomingMessage);
+  console.log('🔧 [ChatWindow] Component mounted, setting up message listener...');
+
+  // Add a delay to ensure LeanCloud client is ready
+  setTimeout(() => {
+    console.log('🔧 [ChatWindow] Setting up message listener after delay...');
+    onMessage(handleIncomingMessage);
+  }, 1000);
 });
 
 onUnmounted(() => {

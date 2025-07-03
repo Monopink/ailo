@@ -22,7 +22,7 @@ import { onMounted, watch } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useChatStore } from './stores/chat'
 import { useRouter } from 'vue-router'
-import { initLeanMessage, loginLeanMessage, logoutLeanMessage } from './services/leanmessage'
+import { initLeanMessage, loginLeanMessage, logoutLeanMessage, onMessage, connectToSystemConversation } from './services/leanmessage'
 import { initVersionManagement } from './utils/version'
 
 const authStore = useAuthStore()
@@ -58,10 +58,66 @@ watch(() => authStore.user, async (newUser, oldUser) => {
     try {
       console.log('User logged in, connecting to LeanMessage...')
       await loginLeanMessage(String(newUser.entity_id))
+
       await chatStore.fetchBots()
       console.log('✅ Connected to LeanMessage and fetched bots')
+      console.log('Chat store chats:', chatStore.chats.length)
+
+      // Use setTimeout to ensure this runs after Vue reactivity updates
+      setTimeout(async () => {
+        console.log('Starting delayed setup...')
+
+        // Connect to all system conversations for message listening
+        console.log('Connecting to system conversations...')
+        try {
+          for (const chat of chatStore.chats) {
+            // Only try to connect if we have a valid LeanCloud conversation ID
+            if (chat.leancloud_conversation_id && chat.leancloud_conversation_id !== chat.entity_id) {
+              console.log(`Connecting to system conversation: ${chat.leancloud_conversation_id}`)
+              const conversation = await connectToSystemConversation(chat.leancloud_conversation_id)
+              if (conversation) {
+                console.log('✅ Connected to conversation for chat:', chat.entity_id);
+              } else {
+                console.log('⚠️ Skipped invalid conversation ID for chat:', chat.entity_id);
+              }
+            } else {
+              console.log('⚠️ No valid LeanCloud conversation ID for chat:', chat.entity_id);
+            }
+          }
+          console.log('✅ Connected to all system conversations')
+        } catch (error) {
+          console.error('❌ Failed to connect to system conversations:', error)
+        }
+
+        // Setup message listener
+        console.log('Setting up message listener...')
+        try {
+          onMessage((message, _conversation) => {
+            console.log('📨 Received message:', message)
+
+            // Add message to chat store
+            if (message.isContent) {
+              // Find the chat by sender (bot entity_id)
+              const chatId = message.from
+              chatStore.addMessage(chatId, {
+                id: message.id,
+                content: message.text,
+                sender: message.from,
+                timestamp: new Date(message.timestamp),
+                isFromUser: message.from === String(newUser.entity_id)
+              })
+            }
+          })
+          console.log('✅ Message listener setup complete')
+        } catch (error) {
+          console.error('❌ Failed to setup message listener:', error)
+        }
+
+        console.log('Finished setting up everything')
+      }, 1000)
     } catch (error) {
       console.error('❌ Failed to connect to LeanMessage:', error)
+      console.error('Error details:', error.message, error.stack)
     }
   } else if (oldUser) {
     try {

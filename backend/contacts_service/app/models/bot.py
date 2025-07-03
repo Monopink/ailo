@@ -52,11 +52,7 @@ class Bot(Base):
     context_metadata = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
-    # IM user fields (same as users table for consistent interface)
-    nickname = Column(String(50), comment="Display name for IM")
-    avatar_url = Column(String(500), comment="Profile picture URL")
-    bio = Column(Text, comment="Bot bio/description")
-    location = Column(String(100), comment="Bot location")
+    # LeanCloud integration
     leancloud_conversation_id = Column(
         String(50), unique=True, comment="LeanMessage system conversation ID"
     )

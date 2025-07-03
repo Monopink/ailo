@@ -1,6 +1,6 @@
 /**
  * LeanCloud Real-time Communication Service
- * Provides real-time communication with the backend chat_service
+ * Provides real-time communication with the backend bot_message_service
  */
 import { Realtime, TextMessage, Event } from 'leancloud-realtime';
 import { useToast } from 'vue-toastification';

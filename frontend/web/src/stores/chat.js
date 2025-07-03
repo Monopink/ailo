@@ -45,24 +45,30 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function fetchBots() {
+    console.log('🔧 [DEBUG] fetchBots called')
     const authStore = useAuthStore();
+    console.log('🔧 [DEBUG] authStore.token:', !!authStore.token)
     if (!authStore.token) return;
 
     try {
+      console.log('🔧 [DEBUG] Fetching bots...')
       const response = await getBots(authStore.token);
+      console.log('🔧 [DEBUG] getBots response:', response)
 
       // Merge with existing chat data from localStorage
       const existingChats = chats.value;
 
       // Transform the bot data to fit the chat structure
+      console.log('🔧 [DEBUG] Received bots data:', response.data)
       const newChats = response.data.map(bot => {
+        console.log('🔧 [DEBUG] Processing bot:', bot)
         // Find existing chat data
         const existingChat = existingChats.find(c => c.id === bot.entity_id);
 
         return {
           id: bot.leancloud_conversation_id || bot.entity_id, // Use LeanMessage conversation ID if available
           entity_id: bot.entity_id, // Keep entity_id for reference
-          name: bot.entity_id, // Use entity_id directly as name
+          name: bot.nickname, // Use nickname for display only
           avatar: bot.avatar_url || bot.entity_id.charAt(0).toUpperCase(),
           bio: bot.bio || `AI Chat Bot - ${bot.entity_id}`,
           gender: bot.gender,

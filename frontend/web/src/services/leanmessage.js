@@ -12,6 +12,12 @@ const toast = useToast()
 
 // Initialize LeanMessage Realtime
 export async function initLeanMessage() {
+  // Check if already initialized
+  if (realtime) {
+    console.log('✅ LeanMessage already initialized')
+    return true
+  }
+
   // Maximum retry attempts
   const maxRetries = 3
   let retries = 0
@@ -64,6 +70,12 @@ export async function initLeanMessage() {
         console.log('✅ LeanMessage Realtime initialized successfully')
         return true // Success, exit function
       } catch (error) {
+        // Check if it's already initialized error
+        if (error.message && error.message.includes('is already initialized')) {
+          console.log('✅ LeanMessage already initialized (detected from error)')
+          return true
+        }
+
         lastError = error
         console.error(`LeanMessage initialization attempt ${retries + 1} failed:`, error)
         retries++
@@ -226,6 +238,12 @@ export async function connectToSystemConversation(conversationId) {
       return conversations.get(conversationId)
     }
 
+    // Check if conversationId is valid (not just entity_id)
+    if (!conversationId || conversationId.startsWith('b') || conversationId.startsWith('u')) {
+      console.warn('⚠️ Invalid conversation ID, skipping connection:', conversationId);
+      return null;
+    }
+
     console.log(`Connecting to system conversation: ${conversationId}`)
     const conversation = await client.getConversation(conversationId)
 
@@ -250,6 +268,12 @@ export async function sendMessageToSystemConversation(conversationId, messageTex
     }
 
     const conversation = await connectToSystemConversation(conversationId)
+
+    // Check if conversation is valid
+    if (!conversation) {
+      console.warn('⚠️ Cannot send message to invalid conversation ID:', conversationId);
+      throw new Error('Invalid conversation ID');
+    }
 
     // For system conversations, send plain text message (not structured JSON)
     const textMessage = new TextMessage(messageText)
@@ -411,8 +435,12 @@ export function onMessage(callback) {
     return
   }
 
+  console.log('🔧 [DEBUG] Setting up message listener on client:', client.id)
+
   client.on('message', (message, conversation) => {
-    console.log('📨 Received message:', message.text, 'from:', message.from)
+    console.log('📨 [LeanMessage] Received message:', message.text, 'from:', message.from)
+    console.log('📨 [LeanMessage] Conversation type:', conversation.constructor.name)
+    console.log('📨 [LeanMessage] Conversation ID:', conversation.id)
 
     // Try to parse structured message content
     let parsedMessage = message

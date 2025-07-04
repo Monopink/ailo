@@ -41,9 +41,9 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '../stores/chat';
 import MessageBubble from './MessageBubble.vue';
-import { sendMessage as sendLCMessage, sendMessageToSystemConversation, onMessage, offMessage, sendTypingIndicator, sendTypingEndIndicator } from '../services/leanmessage';
+import { messageService } from '../services/messaging';
 import { useAuthStore } from '../stores/auth';
-import { MessageType } from '../utils/messageTypes';
+import { MessageType } from '../services/messaging/types';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
@@ -73,7 +73,7 @@ watch(() => selectedChat.value?.messages, () => {
 // Handle input changes for typing indicator
 const isCurrentlyTyping = ref(false);
 
-const handleInput = () => {
+const handleInput = async () => {
   if (!selectedChat.value) return;
 
   // Clear existing timeout
@@ -84,22 +84,33 @@ const handleInput = () => {
   // Send typing indicator if user is typing and not already typing
   if (newMessage.value.trim().length > 0) {
     if (!isCurrentlyTyping.value) {
-      sendTypingIndicator(selectedChat.value.id);
-      isCurrentlyTyping.value = true;
+      try {
+        await messageService.sendTypingIndicator(selectedChat.value);
+        isCurrentlyTyping.value = true;
+      } catch (error) {
+        console.error('Failed to send typing indicator:', error);
+      }
     }
 
     // Send typing end after 3 seconds of no input
-    inputTimeout.value = setTimeout(() => {
+    inputTimeout.value = setTimeout(async () => {
       if (isCurrentlyTyping.value) {
-        sendTypingEndIndicator(selectedChat.value.id);
-        isCurrentlyTyping.value = false;
+        try {
+          await messageService.sendTypingEnd(selectedChat.value);
+          isCurrentlyTyping.value = false;
+        } catch (error) {
+          console.error('Failed to send typing end:', error);
+        }
       }
     }, 3000);
   } else {
     // Send typing end immediately if input is empty
     if (isCurrentlyTyping.value) {
-      sendTypingEndIndicator(selectedChat.value.id);
-      isCurrentlyTyping.value = false;
+      messageService.sendTypingEnd(selectedChat.value).then(() => {
+        isCurrentlyTyping.value = false;
+      }).catch(error => {
+        console.error('Failed to send typing end:', error);
+      });
     }
   }
 };
@@ -110,27 +121,18 @@ const sendMessage = async () => {
   const content = newMessage.value;
   newMessage.value = '';
 
-  // Clear typing timeout and send typing end
+  // Clear typing timeout (no need to send typing_end when sending message)
   if (inputTimeout.value) {
     clearTimeout(inputTimeout.value);
     inputTimeout.value = null;
   }
-  if (isCurrentlyTyping.value) {
-    sendTypingEndIndicator(selectedChat.value.id);
-    isCurrentlyTyping.value = false;
-  }
+  // Reset typing state without sending typing_end
+  isCurrentlyTyping.value = false;
 
   try {
-    // Check if we have a valid LeanCloud conversation ID
-    const conversationId = selectedChat.value.leancloud_conversation_id;
-    if (!conversationId || conversationId === selectedChat.value.entity_id) {
-      console.warn('⚠️ No valid LeanCloud conversation ID for chat:', selectedChat.value.entity_id);
-      throw new Error('No valid conversation ID available for this chat');
-    }
-
-    // Send message to system conversation using LeanCloud conversation ID
-    console.log('Sending message to system conversation:', conversationId);
-    await sendMessageToSystemConversation(conversationId, content);
+    // Send message using unified message service
+    console.log('Sending message to:', selectedChat.value.entity_id);
+    await messageService.sendChatMessage(selectedChat.value, content);
 
     // Add message to local chat (it will also be received via onMessage)
     const userMessage = {
@@ -149,90 +151,88 @@ const sendMessage = async () => {
   }
 };
 
-// Handle incoming messages
-const handleIncomingMessage = (message, conversation) => {
-  console.log('📨 [ChatWindow] Received message:', message);
-  console.log('📨 [ChatWindow] Available chats:', chats.value.map(c => ({ id: c.id, name: c.name })));
+// Handle typing messages from global events
+const handleTypingMessage = (event) => {
+  const { message } = event.detail
+  console.log('📨 [ChatWindow] Received typing message:', message)
 
-  // Find the chat that corresponds to this conversation
-  const chat = chats.value.find(c => c.id === message.from);
-  console.log('📨 [ChatWindow] Found chat:', chat);
+  // Find the chat that corresponds to this message
+  const chat = chats.value.find(c => c.id === message.from)
   if (!chat) {
-    console.warn('📨 [ChatWindow] No chat found for message.from:', message.from);
-    return;
+    console.warn('📨 [ChatWindow] No chat found for typing message from:', message.from)
+    return
   }
 
-  // Handle different message types
-  if (message.isTyping) {
+  // Only handle typing for the currently selected chat
+  if (!selectedChat.value || selectedChat.value.id !== chat.id) {
+    return
+  }
+
+  if (message.type === 2) { // TYPING
     // Show typing indicator
-    if (selectedChat.value && selectedChat.value.id === chat.id) {
-      isTyping.value = true;
-      // Clear existing timeout
-      if (typingTimeout.value) {
-        clearTimeout(typingTimeout.value);
-      }
-      // Auto-hide typing indicator after 10 seconds
-      typingTimeout.value = setTimeout(() => {
-        isTyping.value = false;
-      }, 10000);
-    }
-    return;
-  }
-
-  if (message.isTypingEnd) {
-    // Hide typing indicator
-    if (selectedChat.value && selectedChat.value.id === chat.id) {
-      isTyping.value = false;
-      if (typingTimeout.value) {
-        clearTimeout(typingTimeout.value);
-        typingTimeout.value = null;
-      }
-    }
-    return;
-  }
-
-  // Hide typing indicator when receiving any content message
-  if (message.isContent && selectedChat.value && selectedChat.value.id === chat.id) {
-    isTyping.value = false;
+    isTyping.value = true
+    // Clear existing timeout
     if (typingTimeout.value) {
-      clearTimeout(typingTimeout.value);
-      typingTimeout.value = null;
+      clearTimeout(typingTimeout.value)
+    }
+    // Auto-hide typing indicator after 10 seconds
+    typingTimeout.value = setTimeout(() => {
+      isTyping.value = false
+    }, 10000)
+  } else if (message.type === 3) { // TYPING_END
+    // Hide typing indicator
+    isTyping.value = false
+    if (typingTimeout.value) {
+      clearTimeout(typingTimeout.value)
+      typingTimeout.value = null
     }
   }
+}
 
-  // Only add content messages to chat history
-  if (message.isContent) {
-    const newMessage = {
-      id: message.id,
-      text: message.text,
-      sender: message.isSystem ? 'system' : 'bot',
-      timestamp: new Date(message.timestamp),
-      messageType: message.messageType
-    };
+// Handle chat messages to hide typing indicator
+const handleChatMessageReceived = (event) => {
+  const { message, chatId } = event.detail
 
-    chatStore.addMessage(chat.id, newMessage);
+  console.log('📨 [ChatWindow] Chat message event received:', {
+    chatId,
+    selectedChatId: selectedChat.value?.id,
+    messageFrom: message.from,
+    isTypingActive: isTyping.value
+  })
 
-    // Scroll to bottom if this is the selected chat
-    if (selectedChat.value && selectedChat.value.id === chat.id) {
-      nextTick(() => scrollToBottom());
-    }
+  // Only handle for the currently selected chat
+  if (!selectedChat.value || selectedChat.value.id !== chatId) {
+    console.log('📨 [ChatWindow] Ignoring chat message - not current chat')
+    return
   }
-};
+
+  // Hide typing indicator when receiving any chat message
+  console.log('📨 [ChatWindow] Chat message received, hiding typing indicator')
+  isTyping.value = false
+  if (typingTimeout.value) {
+    clearTimeout(typingTimeout.value)
+    typingTimeout.value = null
+  }
+}
 
 onMounted(() => {
-  console.log('🔧 [ChatWindow] Component mounted, setting up message listener...');
-
-  // Add a delay to ensure LeanCloud client is ready
-  setTimeout(() => {
-    console.log('🔧 [ChatWindow] Setting up message listener after delay...');
-    onMessage(handleIncomingMessage);
-  }, 1000);
-});
+  console.log('🔧 [ChatWindow] Component mounted')
+  // Listen for typing messages from global events
+  window.addEventListener('typing-message', handleTypingMessage)
+  // Listen for chat messages to hide typing indicator
+  window.addEventListener('chat-message-received', handleChatMessageReceived)
+})
 
 onUnmounted(() => {
-  // Remove message listener
-  offMessage(handleIncomingMessage);
-});
+  console.log('🔧 [ChatWindow] Component unmounted')
+  // Remove event listeners
+  window.removeEventListener('typing-message', handleTypingMessage)
+  window.removeEventListener('chat-message-received', handleChatMessageReceived)
+  // Clear typing timeout
+  if (typingTimeout.value) {
+    clearTimeout(typingTimeout.value)
+  }
+})
 </script>
 
 <style scoped>

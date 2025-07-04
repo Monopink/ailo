@@ -1,9 +1,5 @@
 {
-  "version": "1.0.2",
-  "buildTime": "2025-07-02T09:45:00Z",
-  "features": [
-    "LeanCloud integration",
-    "Auto cache refresh",
-    "API route fix"
-  ]
+  "version": "1751621541768",
+  "timestamp": "2025-07-04T09:32:21.768Z",
+  "build": "development"
 }

@@ -19,14 +19,14 @@ async def handle_leanmessage_webhook(request: Request) -> Dict[str, str]:
     LeanMessage sends webhook data in this format:
     [
         {
-            "fromIp": "121.238.214.92",
-            "conv": {"__type": "Pointer", "className": "_Conversation", "objectId": "55b99ad700b0387b8a3d7bf0"},
-            "msgId": "nYH9iBSBS_uogCEgvZwE7Q",
-            "from": "A",
+            "fromIp": "192.168.1.100",
+            "conv": {"__type": "Pointer", "className": "_Conversation", "objectId": "abc123def456ghi789"},
+            "msgId": "msg_12345abcdef",
+            "from": "user_123",
             "bin": false,
-            "data": "消息内容",
-            "createdAt": {"__type": "Date", "iso": "2015-07-30T14:37:42.584Z"},
-            "updatedAt": {"__type": "Date", "iso": "2015-07-30T14:37:42.584Z"}
+            "data": "Hello, this is a test message",
+            "createdAt": {"__type": "Date", "iso": "2023-12-01T08:30:00.000Z"},
+            "updatedAt": {"__type": "Date", "iso": "2023-12-01T08:30:00.000Z"}
         }
     ]
     """

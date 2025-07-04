@@ -70,12 +70,14 @@ export const useChatStore = defineStore('chat', () => {
           entity_id: bot.entity_id, // Keep entity_id for reference
           name: bot.nickname, // Use nickname for display only
           avatar: bot.avatar_url || bot.entity_id.charAt(0).toUpperCase(),
-          bio: bot.bio || `AI Chat Bot - ${bot.entity_id}`,
+          bio: bot.bio,
+          contact_type: bot.contact_type, // 1=user, 2=bot
           gender: bot.gender,
           relationship_type: bot.relationship_type,
           relationship_level: bot.relationship_level,
           friend_score: bot.friend_score,
           romance_score: bot.romance_score,
+          leancloud_conversation_id: bot.leancloud_conversation_id, // Store separately for clarity
           messages: existingChat?.messages || [], // Preserve existing messages
         };
       });

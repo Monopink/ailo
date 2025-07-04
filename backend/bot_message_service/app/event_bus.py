@@ -13,18 +13,18 @@ class EventBus:
         self._process_task = None
 
     async def start(self):
-        """启动事件总线"""
+        """Start the event bus"""
         if self._running:
             return
 
         logger.info("event_bus_starting")
         self._running = True
-        # 创建新的处理任务
+        # Create new processing task
         self._process_task = asyncio.create_task(self._process_queue())
         logger.info("event_bus_started")
 
     async def stop(self):
-        """停止事件总线"""
+        """Stop the event bus"""
         if not self._running:
             return
 
@@ -39,7 +39,7 @@ class EventBus:
         logger.info("event_bus_stopped")
 
     def subscribe(self, event_type: str, callback: Callable):
-        """订阅特定类型的事件"""
+        """Subscribe to a specific event type"""
         if event_type not in self._subscribers:
             self._subscribers[event_type] = []
         if callback not in self._subscribers[event_type]:
@@ -47,7 +47,7 @@ class EventBus:
             logger.info("event_subscribed", event_type=event_type)
 
     def unsubscribe(self, event_type: str, callback: Callable):
-        """取消订阅特定类型的事件"""
+        """Unsubscribe from a specific event type"""
         if event_type in self._subscribers:
             try:
                 self._subscribers[event_type].remove(callback)
@@ -56,7 +56,7 @@ class EventBus:
                 pass
 
     async def publish(self, event_type: str, data: Any):
-        """发布事件到队列"""
+        """Publish an event to the queue"""
         if not self._running:
             logger.warning("event_bus_not_running", event_type=event_type)
             return
@@ -68,12 +68,14 @@ class EventBus:
         )
 
     async def _process_queue(self):
-        """处理消息队列"""
+        """Process the message queue"""
         logger.info("message_queue_processor_started")
         while self._running:
             try:
-                # 使用 wait_for 添加超时机制
-                event_type, data = await asyncio.wait_for(self._message_queue.get(), timeout=1.0)  # 1秒超时
+                # Add timeout mechanism using wait_for
+                event_type, data = await asyncio.wait_for(
+                    self._message_queue.get(), timeout=1.0
+                )  # 1 second timeout
 
                 logger.info("processing_event", event_type=event_type)
                 if event_type in self._subscribers:
@@ -95,24 +97,24 @@ class EventBus:
                 self._message_queue.task_done()
 
             except asyncio.TimeoutError:
-                # 超时继续循环
+                # Continue loop on timeout
                 continue
             except asyncio.CancelledError:
                 logger.info("message_queue_processor_cancelled")
                 break
             except Exception as e:
                 logger.error("event_bus_processing_error", error=str(e), exc_info=True)
-                # 出错后短暂等待后继续
+                # Brief wait before continuing after error
                 await asyncio.sleep(0.1)
 
         logger.info("message_queue_processor_stopped")
 
 
-# 创建全局事件总线实例
+# Create global event bus instance
 event_bus = EventBus()
 
 
-# 预定义的事件类型
+# Predefined event types
 class EventTypes:
     RECEIVED_MESSAGE = "received_message"
     SEND_MESSAGE = "send_message"

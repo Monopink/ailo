@@ -22,7 +22,7 @@ import { onMounted, watch } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useChatStore } from './stores/chat'
 import { useRouter } from 'vue-router'
-import { initLeanMessage, loginLeanMessage, logoutLeanMessage, onMessage, connectToSystemConversation } from './services/leanmessage'
+import { messageService } from './services/messaging'
 import { initVersionManagement } from './utils/version'
 
 const authStore = useAuthStore()
@@ -40,13 +40,7 @@ onMounted(async () => {
   // Initialize version management and cache control
   initVersionManagement()
 
-  // Initialize LeanMessage
-  try {
-    await initLeanMessage()
-    console.log('✅ LeanMessage initialized')
-  } catch (error) {
-    console.error('❌ Failed to initialize LeanMessage:', error)
-  }
+  // LeanMessage initialization is now handled by messageService
 
   // Check authentication status
   await authStore.checkAuth()
@@ -56,78 +50,69 @@ onMounted(async () => {
 watch(() => authStore.user, async (newUser, oldUser) => {
   if (newUser && newUser.entity_id) {
     try {
-      console.log('User logged in, connecting to LeanMessage...')
-      await loginLeanMessage(String(newUser.entity_id))
+      console.log('User logged in, initializing message service...')
+      await messageService.initialize(String(newUser.entity_id))
 
       await chatStore.fetchBots()
-      console.log('✅ Connected to LeanMessage and fetched bots')
+      console.log('✅ Message service initialized and fetched bots')
       console.log('Chat store chats:', chatStore.chats.length)
 
-      // Use setTimeout to ensure this runs after Vue reactivity updates
-      setTimeout(async () => {
-        console.log('Starting delayed setup...')
+      // Setup message listener using new message service
+      console.log('Setting up message listener...')
+      messageService.onMessage((message, _conversation) => {
+        console.log('📨 Received message:', message)
 
-        // Connect to all system conversations for message listening
-        console.log('Connecting to system conversations...')
-        try {
-          for (const chat of chatStore.chats) {
-            // Only try to connect if we have a valid LeanCloud conversation ID
-            if (chat.leancloud_conversation_id && chat.leancloud_conversation_id !== chat.entity_id) {
-              console.log(`Connecting to system conversation: ${chat.leancloud_conversation_id}`)
-              const conversation = await connectToSystemConversation(chat.leancloud_conversation_id)
-              if (conversation) {
-                console.log('✅ Connected to conversation for chat:', chat.entity_id);
-              } else {
-                console.log('⚠️ Skipped invalid conversation ID for chat:', chat.entity_id);
-              }
-            } else {
-              console.log('⚠️ No valid LeanCloud conversation ID for chat:', chat.entity_id);
-            }
+        // Handle different message types
+        if (message.type === 1) { // CHAT message
+          // Find the chat by sender entity_id
+          const senderEntityId = message.from
+          const chat = chatStore.chats.find(c => c.entity_id === senderEntityId)
+
+          if (chat) {
+            chatStore.addMessage(senderEntityId, {
+              id: Date.now(), // Generate a simple ID
+              text: message.content, // Use 'text' field to match MessageBubble component
+              sender: message.from === String(newUser.entity_id) ? 'user' : 'bot',
+              timestamp: new Date(message.timestamp),
+              isFromUser: message.from === String(newUser.entity_id)
+            })
+
+            // Hide typing indicator when receiving a chat message
+            // Use chat.id (which might be conversation_id) for event
+            window.dispatchEvent(new CustomEvent('chat-message-received', {
+              detail: { message, chatId: chat.id }
+            }))
+          } else {
+            console.warn('📨 No chat found for message from:', senderEntityId)
           }
-          console.log('✅ Connected to all system conversations')
-        } catch (error) {
-          console.error('❌ Failed to connect to system conversations:', error)
         }
+        // Note: typing messages (type 2, 3) will be handled by ChatWindow component
+      })
 
-        // Setup message listener
-        console.log('Setting up message listener...')
-        try {
-          onMessage((message, _conversation) => {
-            console.log('📨 Received message:', message)
+      // Setup typing message listener
+      messageService.onTyping((message, _conversation) => {
+        console.log('📨 Received typing message:', message)
+        // Typing messages will be handled by individual ChatWindow components
+        // We'll emit a global event that ChatWindow can listen to
+        window.dispatchEvent(new CustomEvent('typing-message', {
+          detail: { message, conversation: _conversation }
+        }))
+      })
 
-            // Add message to chat store
-            if (message.isContent) {
-              // Find the chat by sender (bot entity_id)
-              const chatId = message.from
-              chatStore.addMessage(chatId, {
-                id: message.id,
-                content: message.text,
-                sender: message.from,
-                timestamp: new Date(message.timestamp),
-                isFromUser: message.from === String(newUser.entity_id)
-              })
-            }
-          })
-          console.log('✅ Message listener setup complete')
-        } catch (error) {
-          console.error('❌ Failed to setup message listener:', error)
-        }
-
-        console.log('Finished setting up everything')
-      }, 1000)
+      console.log('✅ Message listener setup complete')
     } catch (error) {
       console.error('❌ Failed to connect to LeanMessage:', error)
       console.error('Error details:', error.message, error.stack)
     }
   } else if (oldUser) {
     try {
-      console.log('User logged out, disconnecting from LeanMessage...')
-      await logoutLeanMessage()
+      console.log('User logged out, cleaning up message service...')
+      await messageService.cleanup()
       chatStore.chats = []
       chatStore.selectedChatId = null
-      console.log('✅ Disconnected from LeanMessage')
+      console.log('✅ Message service cleaned up')
     } catch (error) {
-      console.error('❌ Failed to disconnect from LeanMessage:', error)
+      console.error('❌ Failed to cleanup message service:', error)
     }
   }
 })

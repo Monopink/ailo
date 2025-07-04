@@ -71,8 +71,12 @@ export const getContacts = (token) => {
       'Content-Type': 'application/json'
     }
   }).then(response => {
+    // Debug: Log the full response
+    console.log('🔧 [DEBUG] Full API response:', response.data);
+
     // Transform contacts_service response format to match expected format
     if (response.data && response.data.status === 'success') {
+      console.log('🔧 [DEBUG] Contacts data:', response.data.data);
       return { data: response.data.data }; // Extract the actual contact array
     } else {
       throw new Error(response.data?.message || 'Failed to get contacts');

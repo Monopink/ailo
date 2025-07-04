@@ -3,12 +3,11 @@ import requests
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import leancloud
-from sqlalchemy import text
 from ..event_bus import event_bus, EventTypes
 from ..utils.logging import get_logger
 from ..core.config import settings
 from ..enums import MessageType
-from ..db_managers import db_manager
+from ..database import SessionLocal, bot_crud
 
 logger = get_logger(__name__)
 
@@ -185,16 +184,11 @@ class LeanMessageManager:
         Get bot entity_id from LeanMessage conversation ID by querying the database.
         """
         try:
-            # Query the database to find the bot with this conversation_id
-            async with db_manager.session_maker() as session:
-                result = await session.execute(
-                    text("SELECT entity_id FROM bots WHERE leancloud_conversation_id = :conv_id"),
-                    {"conv_id": conversation_id},
-                )
-                row = result.fetchone()
+            # Query the database to find the bot with this conversation_id from conversation_mappings
+            async with SessionLocal() as db:
+                bot_entity_id = await bot_crud.get_bot_by_conversation_id(db, conversation_id)
 
-            if row:
-                bot_entity_id = row[0]  # Get the entity_id from first column
+            if bot_entity_id:
                 logger.info(
                     "bot_found_for_conversation",
                     conversation_id=conversation_id,
@@ -214,16 +208,11 @@ class LeanMessageManager:
         Get LeanMessage conversation ID from bot entity_id by querying the database.
         """
         try:
-            # Query the database to find the conversation_id for this bot
-            async with db_manager.session_maker() as session:
-                result = await session.execute(
-                    text("SELECT leancloud_conversation_id FROM bots WHERE entity_id = :bot_id"),
-                    {"bot_id": bot_entity_id},
-                )
-                row = result.fetchone()
+            # Query the database to find the conversation_id for this bot from conversation_mappings
+            async with SessionLocal() as db:
+                conversation_id = await bot_crud.get_conversation_id_by_bot(db, bot_entity_id)
 
-            if row:
-                conversation_id = row[0]  # Get the conversation_id from first column
+            if conversation_id:
                 logger.info(
                     "conversation_found_for_bot",
                     bot_entity_id=bot_entity_id,

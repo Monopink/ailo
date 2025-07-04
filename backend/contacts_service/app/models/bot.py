@@ -52,7 +52,3 @@ class Bot(Base):
     context_metadata = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
-    # LeanCloud integration
-    leancloud_conversation_id = Column(
-        String(50), unique=True, comment="LeanMessage system conversation ID"
-    )

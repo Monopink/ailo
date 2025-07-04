@@ -1,7 +1,7 @@
 import copy
 from typing import Dict, Any
 
-from ...db_managers import db_manager
+from ...database import SessionLocal, bot_crud
 from ..protocols import ModelAiloLike
 
 
@@ -9,7 +9,9 @@ class DBMixin:
     async def _load_emotions(self: ModelAiloLike) -> None:
         """Load current emotion data from the database into the in-memory state."""
         try:
-            self.emotions = await db_manager.get_emotions_data(self.bot.id)
+            # Use new CRUD layer
+            async with SessionLocal() as db:
+                self.emotions = await bot_crud.get_bot_emotions(db, self.bot.id)
             self.logger.info("emotions_loaded", emotions=self.emotions)
             self.loaded_emotions = True
         except Exception as e:
@@ -66,16 +68,17 @@ class DBMixin:
             update_payload["context_metadata"] = self.context_metadata
 
             # 2. Update bot data if needed
-            if update_payload:
-                self.logger.info("saving_bot_data", fields=list(update_payload.keys()))
-                await db_manager.update_bot_data(bot_id=self.bot.id, bot_data=update_payload)
-                self.logger.info("bot_data_saved")
+            async with SessionLocal() as db:
+                if update_payload:
+                    self.logger.info("saving_bot_data", fields=list(update_payload.keys()))
+                    await bot_crud.update_bot_data(db, self.bot.id, update_payload)
+                    self.logger.info("bot_data_saved")
 
-            # 3. Update emotions data separately if needed
-            if self.emotions:
-                self.logger.info("saving_emotions_data")
-                await db_manager.update_emotions_data(bot_id=self.bot.id, emotions=self.emotions)
-                self.logger.info("emotions_data_saved")
+                # 3. Update emotions data separately if needed
+                if self.emotions:
+                    self.logger.info("saving_emotions_data")
+                    await bot_crud.update_bot_emotions(db, self.bot.id, self.emotions)
+                    self.logger.info("emotions_data_saved")
 
             if not update_payload and not self.emotions:
                 self.logger.info("no_state_changes")

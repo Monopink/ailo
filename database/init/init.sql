@@ -141,7 +141,7 @@ CREATE TABLE conversation_mappings (
     is_active TINYINT(1) DEFAULT 1,
     INDEX idx_user_contact (user_entity_id, contact_entity_id),
     INDEX idx_conversation_id (conversation_id),
-    UNIQUE KEY uk_user_contact_service (user_entity_id, contact_entity_id, im_service_type)
+    UNIQUE KEY uk_user_contacts_service (user_entity_id, contact_entity_id, im_service_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create emotions table

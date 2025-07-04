@@ -2,11 +2,11 @@ import asyncio
 from typing import Dict, Type, Optional, Any, Tuple
 from enum import Enum, auto
 
-from .db_managers import db_manager
+from .database import SessionLocal, bot_crud, message_crud
 from .event_bus import event_bus, EventTypes
 
-from .models.base import BaseModel
-from .models.model_ailo import ModelAilo
+from .message_models.base import BaseModel
+from .message_models.model_ailo import ModelAilo
 from .enums import MessageType, MessageTypeCategory, BotStatus
 from .exceptions import BotNotFoundError, AuthorizationError, DatabaseError
 from .utils.logging import get_logger
@@ -62,7 +62,8 @@ class MessageRouter:
 
             message_type = MessageType.parse(message_type_value)
             if message_type and message_type.category == MessageTypeCategory.CONTENT:
-                await db_manager.save_message(message)
+                async with SessionLocal() as db:
+                    await message_crud.save_message(db, message)
                 logger.info(
                     "message_saved", message_type=message_type.name, from_entity=message.get("from_entity")
                 )
@@ -103,16 +104,19 @@ class MessageRouter:
         Raises specific exceptions if validation fails.
         """
         try:
-            bot = await db_manager.get_bot_by_entity_id(bot_entity_id)
+            logger.info("querying_bot", bot_entity_id=bot_entity_id)
+            async with SessionLocal() as db:
+                bot = await bot_crud.get_by_entity_id(db, bot_entity_id)
+            logger.info("bot_query_result", bot_entity_id=bot_entity_id, found=bot is not None)
             if not bot:
                 raise BotNotFoundError(entity_id=bot_entity_id)
 
             if not await self._verify_user_permission(user_entity_id, bot):
                 raise AuthorizationError(f"User {user_entity_id} not authorized for bot {bot_entity_id}")
 
-            if bot.status != BotStatus.ACTIVE:
+            if bot.status != BotStatus.ACTIVE.value:
                 # This could also be a specific exception if needed, e.g., BotInactiveError
-                logger.info("bot_inactive", bot_entity_id=bot_entity_id, status=bot.status)
+                logger.warning("bot_inactive", bot_entity_id=bot_entity_id, status=bot.status)
                 return None
 
             return bot
@@ -211,10 +215,23 @@ class MessageRouter:
                 return
 
             # Instance not found, create new instance and route message
-            message_type = MessageType.parse(message["message_type"])
+            message_type_value = message["message_type"]
+            message_type = MessageType.parse(message_type_value)
+            logger.info(
+                "parsing_message_type",
+                message_type_value=message_type_value,
+                parsed_type=str(message_type),
+                category=message_type.category if message_type else None,
+            )
+
             # Validate message type, return directly for non-content messages
             if not message_type or message_type.category != MessageTypeCategory.CONTENT:
-                logger.warning("skipping_non_content_message", message_type=str(message_type))
+                logger.warning(
+                    "skipping_non_content_message",
+                    message_type_value=message_type_value,
+                    parsed_type=str(message_type),
+                    category=message_type.category if message_type else None,
+                )
                 return
 
             # Get and validate bot

@@ -1,5 +1,5 @@
 """
-Bot Service - Business logic for contact and social profile operations
+Contacts Service - Business logic for contact and social profile operations
 """
 
 from typing import List, Dict, Any, Optional
@@ -7,12 +7,13 @@ from sqlalchemy import select
 from ..database import AsyncSessionLocal
 from ..models.contact import Contact
 from ..models.social_profile import SocialProfile
+from ..models.conversation_mapping import ConversationMapping
 import structlog
 
 logger = structlog.get_logger(__name__)
 
 
-class BotService:
+class ContactsService:
     """Service class for contact and social profile operations"""
 
     async def get_user_contacts(self, user_entity_id: str) -> List[Dict[str, Any]]:
@@ -27,25 +28,37 @@ class BotService:
         """
         try:
             async with AsyncSessionLocal() as session:
-                # Get contacts with their social profiles
+                # Get contacts with their social profiles and conversation mappings
                 result = await session.execute(
-                    select(Contact, SocialProfile)
+                    select(Contact, SocialProfile, ConversationMapping)
                     .join(SocialProfile, Contact.contact_entity_id == SocialProfile.entity_id)
+                    .outerjoin(
+                        ConversationMapping,
+                        (ConversationMapping.contact_entity_id == Contact.contact_entity_id)
+                        & (ConversationMapping.im_service_type == "leancloud"),  # Use string value
+                    )
                     .where(Contact.user_entity_id == user_entity_id)
                     .where(Contact.status == 1)  # 1=normal
                 )
-                contacts_with_profiles = result.all()
+                contacts_with_data = result.all()
 
                 contact_list = []
-                for contact, profile in contacts_with_profiles:
+                for contact, profile, mapping in contacts_with_data:
+                    # Debug logging
+                    logger.info(
+                        "processing_contact",
+                        entity_id=contact.contact_entity_id,
+                        mapping_exists=mapping is not None,
+                        conversation_id=mapping.conversation_id if mapping else None,
+                    )
+
                     contact_list.append(
                         {
                             "id": contact.id,
                             "entity_id": contact.contact_entity_id,
                             "contact_type": contact.contact_type,
-                            "nickname": profile.nickname or contact.contact_entity_id,
-                            "bio": profile.bio
-                            or f"我是{profile.nickname or contact.contact_entity_id}，很高兴认识你！",
+                            "nickname": profile.nickname,
+                            "bio": profile.bio,
                             "avatar_url": profile.avatar_url,
                             "location": profile.location,
                             "last_message_time": contact.last_message_time,
@@ -53,6 +66,8 @@ class BotService:
                             "is_pinned": contact.is_pinned,
                             "remark": contact.remark,
                             "status": contact.status,
+                            "leancloud_conversation_id": mapping.conversation_id if mapping else None,
+                            "debug_mapping_exists": mapping is not None,
                         }
                     )
 
@@ -96,9 +111,8 @@ class BotService:
                     "id": contact.id,
                     "entity_id": contact.contact_entity_id,
                     "contact_type": contact.contact_type,
-                    "nickname": profile.nickname or contact.contact_entity_id,
-                    "bio": profile.bio
-                    or f"我是{profile.nickname or contact.contact_entity_id}，很高兴认识你！",
+                    "nickname": profile.nickname,
+                    "bio": profile.bio,
                     "avatar_url": profile.avatar_url,
                     "location": profile.location,
                     "last_message_time": contact.last_message_time,
@@ -153,4 +167,4 @@ class BotService:
 
 
 # Create global instance
-bot_service = BotService()
+contacts_service = ContactsService()

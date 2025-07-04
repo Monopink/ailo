@@ -6,7 +6,11 @@ Handles creation and management of LeanMessage system conversations for bots
 import requests
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from sqlalchemy import select
 from ..core.config import settings
+from ..database import AsyncSessionLocal
+from ..models.bot import Bot
+from ..models.conversation_mapping import ConversationMapping
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -122,14 +126,11 @@ class LeanMessageManager:
 
     async def setup_bot_system_conversations(self) -> Dict[str, Any]:
         """
-        Create system conversations for all bots and update bot records
+        Create system conversations for all bots and update conversation_mappings records
 
         Returns:
             Creation result statistics
         """
-        from ..database import AsyncSessionLocal
-        from ..models.bot import Bot
-        from sqlalchemy import select
 
         try:
             # Get all bots from database
@@ -145,28 +146,39 @@ class LeanMessageManager:
 
             for bot in bots:
                 entity_id = bot.entity_id
+                if not entity_id:
+                    logger.warning("bot_missing_entity_id", bot_id=bot.id)
+                    continue
 
-                # Check if bot already has a conversation ID
-                if bot.leancloud_conversation_id:
+                # Check if bot already has a conversation mapping
+                async with AsyncSessionLocal() as session:
+                    mapping_result = await session.execute(
+                        select(ConversationMapping)
+                        .where(ConversationMapping.contact_entity_id == entity_id)
+                        .where(ConversationMapping.im_service_type == "leancloud")  # Use string value
+                    )
+                    existing_mapping = mapping_result.scalar_one_or_none()
+
+                if existing_mapping and existing_mapping.conversation_id:
                     logger.info(
-                        "bot_already_has_conversation_id",
+                        "bot_already_has_conversation_mapping",
                         entity_id=entity_id,
-                        conversation_id=bot.leancloud_conversation_id,
+                        conversation_id=existing_mapping.conversation_id,
                     )
                     results["existing"].append(
-                        {"entity_id": entity_id, "conversation_id": bot.leancloud_conversation_id}
+                        {"entity_id": entity_id, "conversation_id": existing_mapping.conversation_id}
                     )
                     continue
 
                 # Check if conversation with this name already exists
                 if entity_id in existing_names:
                     logger.info("system_conversation_name_exists", entity_id=entity_id)
-                    # Find the conversation ID and update bot record
+                    # Find the conversation ID and update conversation mapping
                     for conv in existing_conversations or []:
                         if conv.get("name") == entity_id:
                             conversation_id = conv.get("objectId")
-                            if conversation_id:
-                                await self._update_bot_conversation_id(bot.id, conversation_id)
+                            if conversation_id and isinstance(conversation_id, str):
+                                await self._update_conversation_mapping(entity_id, conversation_id)
                                 results["updated"].append(
                                     {"entity_id": entity_id, "conversation_id": conversation_id}
                                 )
@@ -179,9 +191,9 @@ class LeanMessageManager:
 
                 if result:
                     conversation_id = result.get("objectId")
-                    if conversation_id:
-                        # Update bot record with conversation ID
-                        await self._update_bot_conversation_id(bot.id, conversation_id)
+                    if conversation_id and isinstance(conversation_id, str):
+                        # Update conversation mapping with conversation ID
+                        await self._update_conversation_mapping(entity_id, conversation_id)
 
                         results["created"].append(
                             {"entity_id": entity_id, "conversation_id": conversation_id}
@@ -201,30 +213,37 @@ class LeanMessageManager:
             logger.error("setup_bot_system_conversations_failed", error=str(e))
             return {"error": str(e)}
 
-    async def _update_bot_conversation_id(self, bot_id: int, conversation_id: str) -> bool:
-        """Update bot's LeanMessage conversation ID"""
-        from ..database import AsyncSessionLocal
-        from ..models.bot import Bot
-        from sqlalchemy import select
+    async def _update_conversation_mapping(self, entity_id: str, conversation_id: str) -> bool:
+        """Update or create conversation mapping with LeanCloud conversation ID"""
 
         try:
             async with AsyncSessionLocal() as session:
-                result = await session.execute(select(Bot).where(Bot.id == bot_id))
-                bot = result.scalar_one_or_none()
+                # Try to find existing mapping
+                result = await session.execute(
+                    select(ConversationMapping)
+                    .where(ConversationMapping.contact_entity_id == entity_id)
+                    .where(ConversationMapping.im_service_type == "leancloud")  # Use string value
+                )
+                mapping = result.scalar_one_or_none()
 
-                if bot:
-                    bot.leancloud_conversation_id = conversation_id
-                    await session.commit()
+                if mapping:
+                    # Update existing mapping
+                    mapping.conversation_id = conversation_id
                     logger.info(
-                        "bot_conversation_id_updated", bot_id=bot_id, conversation_id=conversation_id
+                        "conversation_mapping_updated", entity_id=entity_id, conversation_id=conversation_id
                     )
-                    return True
                 else:
-                    logger.warning("bot_not_found_for_conversation_update", bot_id=bot_id)
+                    # Create new mapping (this shouldn't happen if data is properly initialized)
+                    logger.warning("conversation_mapping_not_found_creating_new", entity_id=entity_id)
+                    # We don't have user_entity_id here, so we'll skip creating new mapping
+                    # This should be handled during data initialization
                     return False
 
+                await session.commit()
+                return True
+
         except Exception as e:
-            logger.error("update_bot_conversation_id_failed", bot_id=bot_id, error=str(e))
+            logger.error("update_conversation_mapping_failed", entity_id=entity_id, error=str(e))
             return False
 
 

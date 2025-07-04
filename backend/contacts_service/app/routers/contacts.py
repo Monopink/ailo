@@ -4,7 +4,7 @@ Contact and social profile related API routes
 
 from fastapi import APIRouter, Depends, HTTPException
 from ..auth import get_current_user
-from ..services.contact_service import contact_service
+from ..services.contacts_service import contacts_service
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -22,7 +22,7 @@ async def get_contacts(current_user: dict = Depends(get_current_user)):
         if not user_entity_id:
             raise HTTPException(status_code=400, detail="User entity_id not found in token")
 
-        contact_list = await contact_service.get_user_contacts(user_entity_id)
+        contact_list = await contacts_service.get_user_contacts(user_entity_id)
         return {"status": "success", "data": contact_list}
 
     except HTTPException:
@@ -42,7 +42,7 @@ async def get_contact(contact_entity_id: str, current_user: dict = Depends(get_c
         if not user_entity_id:
             raise HTTPException(status_code=400, detail="User entity_id not found in token")
 
-        contact = await contact_service.get_contact_by_entity_id(user_entity_id, contact_entity_id)
+        contact = await contacts_service.get_contact_by_entity_id(user_entity_id, contact_entity_id)
         if not contact:
             raise HTTPException(status_code=404, detail="Contact not found")
 
@@ -61,7 +61,7 @@ async def get_social_profile(entity_id: str, current_user: dict = Depends(get_cu
     Get social profile by entity ID
     """
     try:
-        profile = await contact_service.get_social_profile_by_entity_id(entity_id)
+        profile = await contacts_service.get_social_profile_by_entity_id(entity_id)
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
 

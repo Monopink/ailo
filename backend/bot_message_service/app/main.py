@@ -1,9 +1,10 @@
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from .services import websocket
 from .event_bus import event_bus
-from .db_managers import db_manager
+from .database import SessionLocal
 from .message_router import message_router
 from .exceptions import AppException
 from .utils.logging import get_logger, bind_context, configure_logging
@@ -50,9 +51,8 @@ async def startup_event():
         await event_bus.start()
         logger.info("event_bus_started")
 
-        # Wait for database initialization
-        await db_manager._init_task
-        logger.info("database_initialized")
+        # Database is ready (using SessionLocal directly)
+        logger.info("database_ready")
 
         # Ensure message_router is created and subscribed to events
         logger.info("initializing_message_router")
@@ -124,9 +124,17 @@ async def health_check():
     """
     Health check endpoint
     """
+    # Test database connection
+    try:
+        async with SessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+        database_status = "connected"
+    except Exception:
+        database_status = "error"
+
     status = {
         "status": "healthy",
-        "database": "connected" if db_manager._init_task.done() else "initializing",
+        "database": database_status,
         "event_bus": "running" if event_bus._running else "stopped",
     }
     logger.debug("health_check", **status)

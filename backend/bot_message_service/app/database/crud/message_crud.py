@@ -2,7 +2,7 @@
 CRUD operations for Message processing.
 """
 
-from typing import Optional, Dict, Any, List, Union
+from typing import Dict, Any, List, Union
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc
@@ -77,6 +77,43 @@ class CRUDMessage(CRUDBase[MessageHistory]):
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def get_messages_by_bot(
+        self, db: AsyncSession, from_entity: str, to_entity: str, limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Get session history messages."""
+        query = (
+            select(MessageHistory)
+            .where(
+                or_(
+                    and_(MessageHistory.from_entity == from_entity, MessageHistory.to_entity == to_entity),
+                    and_(MessageHistory.from_entity == to_entity, MessageHistory.to_entity == from_entity),
+                )
+            )
+            .order_by(desc(MessageHistory.created_at))
+            .limit(limit)
+        )
+
+        result = await db.execute(query)
+        messages = result.scalars().all()
+        return [self._message_to_dict(msg) for msg in messages]
+
+    def _message_to_dict(self, message: MessageHistory) -> Dict[str, Any]:
+        """Convert MessageHistory object to dictionary."""
+        return {
+            "id": message.id,
+            "message_id": message.message_id,
+            "from_entity": message.from_entity,
+            "to_entity": message.to_entity,
+            "content": message.content,
+            "message_type": message.message_type,
+            "message_service": message.message_service,
+            "message_time": message.message_time.isoformat() if message.message_time else None,
+            "status": message.status,
+            "message_metadata": message.message_metadata,
+            "created_at": message.created_at.isoformat() if message.created_at else None,
+            "updated_at": message.updated_at.isoformat() if message.updated_at else None,
+        }
 
     async def get_conversation_history(
         self, db: AsyncSession, entities: List[str], limit: int = 50

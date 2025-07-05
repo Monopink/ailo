@@ -51,7 +51,6 @@ const newMessage = ref('');
 const messagesContainer = ref(null);
 const isTyping = ref(false);
 const typingTimeout = ref(null);
-const inputTimeout = ref(null);
 
 const selectedChat = computed(() => {
   return chatStore.chats.find(chat => chat.id === chatStore.selectedChatId);
@@ -76,41 +75,29 @@ const isCurrentlyTyping = ref(false);
 const handleInput = async () => {
   if (!selectedChat.value) return;
 
-  // Clear existing timeout
-  if (inputTimeout.value) {
-    clearTimeout(inputTimeout.value);
-  }
+  const hasContent = newMessage.value.trim().length > 0;
 
-  // Send typing indicator if user is typing and not already typing
-  if (newMessage.value.trim().length > 0) {
+  if (hasContent) {
+    // Send typing indicator only when starting to type (not already typing)
     if (!isCurrentlyTyping.value) {
       try {
         await messageService.sendTypingIndicator(selectedChat.value);
         isCurrentlyTyping.value = true;
+        console.log('📤 Sent typing indicator (started typing)');
       } catch (error) {
         console.error('Failed to send typing indicator:', error);
       }
     }
-
-    // Send typing end after 3 seconds of no input
-    inputTimeout.value = setTimeout(async () => {
-      if (isCurrentlyTyping.value) {
-        try {
-          await messageService.sendTypingEnd(selectedChat.value);
-          isCurrentlyTyping.value = false;
-        } catch (error) {
-          console.error('Failed to send typing end:', error);
-        }
-      }
-    }, 3000);
   } else {
-    // Send typing end immediately if input is empty
+    // Send typing_end when input is completely cleared
     if (isCurrentlyTyping.value) {
-      messageService.sendTypingEnd(selectedChat.value).then(() => {
+      try {
+        await messageService.sendTypingEnd(selectedChat.value);
         isCurrentlyTyping.value = false;
-      }).catch(error => {
+        console.log('📤 Sent typing_end (input cleared)');
+      } catch (error) {
         console.error('Failed to send typing end:', error);
-      });
+      }
     }
   }
 };
@@ -121,12 +108,7 @@ const sendMessage = async () => {
   const content = newMessage.value;
   newMessage.value = '';
 
-  // Clear typing timeout (no need to send typing_end when sending message)
-  if (inputTimeout.value) {
-    clearTimeout(inputTimeout.value);
-    inputTimeout.value = null;
-  }
-  // Reset typing state without sending typing_end
+  // Reset typing state without sending typing_end (message sending implies typing stopped)
   isCurrentlyTyping.value = false;
 
   try {

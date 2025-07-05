@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from .services import websocket
 from .event_bus import event_bus
-from .database import SessionLocal
+from .database import SessionLocal, init_database
 from .message_router import message_router
 from .exceptions import AppException
 from .utils.logging import get_logger, bind_context, configure_logging
@@ -46,13 +46,15 @@ async def startup_event():
     try:
         logger.info("starting_application")
 
+        # Initialize database connection
+        logger.info("initializing_database")
+        await init_database()
+        logger.info("database_initialized")
+
         # Start event bus
         logger.info("starting_event_bus")
         await event_bus.start()
         logger.info("event_bus_started")
-
-        # Database is ready (using SessionLocal directly)
-        logger.info("database_ready")
 
         # Ensure message_router is created and subscribed to events
         logger.info("initializing_message_router")

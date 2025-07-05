@@ -118,23 +118,93 @@ class CRUDBot(CRUDBase[Bot]):
             raise Exception(f"Failed to get bot data: {str(e)}") from e
 
     async def update_bot_data(self, db: AsyncSession, bot_id: int, bot_data: Dict[str, Any]) -> None:
-        """Update bot information based on a dictionary of changes."""
+        """Update bot information based on a dictionary of changes with strict validation."""
+        # Create contextualized logger for this operation
+        op_logger = bind_context(logger, operation="update_bot_data", bot_id=bot_id)
+
+        # Strict validation - check if bot_id is valid
+        if not bot_id or not isinstance(bot_id, int) or bot_id <= 0:
+            op_logger.error("invalid_bot_id", bot_id=bot_id, bot_data=bot_data)
+            raise ValueError(f"Invalid bot_id: {bot_id}")
+
+        # Validate bot_data is not empty
+        if not bot_data:
+            op_logger.error("empty_bot_data", bot_id=bot_id)
+            raise ValueError("bot_data cannot be empty")
+
+        # Log all fields being updated for audit trail
+        op_logger.info("updating_bot_fields", fields=list(bot_data.keys()), values_count=len(bot_data))
+
+        # Check for potentially problematic values and log them
+        validation_warnings = []
+        for key, value in bot_data.items():
+            if value is None:
+                validation_warnings.append(f"Field '{key}' is being set to None")
+            elif isinstance(value, str) and not value.strip():
+                validation_warnings.append(f"Field '{key}' is being set to empty string")
+
+        if validation_warnings:
+            op_logger.warning(
+                "bot_data_validation_warnings",
+                warnings=validation_warnings,
+                bot_data=bot_data,
+                action="proceeding_with_update_for_data_integrity",
+            )
+
         try:
             stmt = select(Bot).where(Bot.id == bot_id)
             result = await db.execute(stmt)
             bot = result.scalar_one_or_none()
 
-            if bot:
-                for key, value in bot_data.items():
-                    setattr(bot, key, value)
-                await db.commit()
-            else:
-                logger.error(f"Bot not found with id: {bot_id}")
+            if not bot:
+                op_logger.error("bot_not_found", bot_id=bot_id, attempted_update=bot_data)
                 raise ValueError(f"Bot not found with id: {bot_id}")
 
+            # Track which fields actually exist on the model
+            valid_fields = []
+            invalid_fields = []
+
+            for key, value in bot_data.items():
+                if hasattr(bot, key):
+                    old_value = getattr(bot, key)
+                    setattr(bot, key, value)
+                    valid_fields.append(key)
+
+                    # Log significant changes
+                    if old_value != value:
+                        op_logger.info("field_updated", field=key, old_value=old_value, new_value=value)
+                else:
+                    invalid_fields.append(key)
+                    op_logger.error(
+                        "invalid_field_attempted", field=key, value=value, action="field_ignored"
+                    )
+
+            if invalid_fields:
+                op_logger.warning(
+                    "some_fields_ignored", invalid_fields=invalid_fields, valid_fields=valid_fields
+                )
+
+            await db.commit()
+
+            op_logger.info(
+                "bot_update_completed",
+                updated_fields=valid_fields,
+                ignored_fields=invalid_fields,
+                validation_warnings=validation_warnings,
+            )
+
+        except ValueError:
+            # Re-raise ValueError as is (bot not found, invalid bot_id, etc.)
+            raise
         except Exception as e:
             await db.rollback()
-            logger.error(f"Error updating bot: {str(e)}")
+            op_logger.error(
+                "bot_update_failed",
+                error=str(e),
+                bot_id=bot_id,
+                bot_data=bot_data,
+                validation_warnings=validation_warnings,
+            )
             raise
 
     # Emotion-related operations (strongly coupled with Bot)
@@ -218,7 +288,7 @@ class CRUDBot(CRUDBase[Bot]):
     async def update_bot_emotions(
         self, db: AsyncSession, bot_id: int, emotions: Dict[str, Dict[str, Any]]
     ) -> bool:
-        """Batch update a bot's emotion data
+        """Batch update a bot's emotion data with strict validation
 
         If there exists an emotion with the same emotion_type and same start_time,
         update that emotion, otherwise create a new emotion record.
@@ -230,43 +300,137 @@ class CRUDBot(CRUDBase[Bot]):
         Returns:
             bool: Whether the update was successful
         """
+        # Create contextualized logger for this operation
+        op_logger = bind_context(logger, operation="update_emotions_data", bot_id=bot_id)
+
+        # Strict validation - check if bot_id is valid
+        if not bot_id or not isinstance(bot_id, int) or bot_id <= 0:
+            op_logger.error("invalid_bot_id", bot_id=bot_id, emotions_data=emotions)
+            raise ValueError(f"Invalid bot_id: {bot_id}")
+
+        # Validate emotions data is not empty
+        if not emotions:
+            op_logger.error("empty_emotions_data", bot_id=bot_id)
+            raise ValueError("emotions data cannot be empty")
+
+        # Validate emotions structure
+        validation_errors = []
+        for emotion_type, emotion_data in emotions.items():
+            if not emotion_type or not isinstance(emotion_type, str):
+                validation_errors.append(f"Invalid emotion_type: {emotion_type}")
+
+            if not isinstance(emotion_data, dict):
+                validation_errors.append(f"emotion_data for {emotion_type} must be a dictionary")
+                continue
+
+            # Check for required fields in emotion_data
+            if not emotion_data:
+                validation_errors.append(f"Empty emotion_data for {emotion_type}")
+
+        # Log validation errors but continue for data integrity
+        if validation_errors:
+            op_logger.error(
+                "emotions_validation_failed",
+                errors=validation_errors,
+                bot_id=bot_id,
+                emotions_data=emotions,
+                action="attempting_to_save_anyway_for_data_integrity",
+            )
+
+        op_logger.info(
+            "updating_emotions", emotion_count=len(emotions), validation_errors=validation_errors
+        )
+
         try:
-            # Create contextualized logger for this operation
-            op_logger = bind_context(logger, operation="update_emotions_data", bot_id=bot_id)
-            op_logger.info("updating_emotions", emotion_count=len(emotions))
 
             for emotion_type, emotion_data in emotions.items():
-                # Parse time fields
+                # Skip invalid emotion types (already logged in validation)
+                if not emotion_type or not isinstance(emotion_type, str):
+                    op_logger.warning("skipping_invalid_emotion_type", emotion_type=emotion_type)
+                    continue
+
+                if not isinstance(emotion_data, dict):
+                    op_logger.warning("skipping_invalid_emotion_data", emotion_type=emotion_type)
+                    continue
+
+                # Parse time fields with strict validation
                 start_time = None
                 if "start_time" in emotion_data and emotion_data["start_time"]:
-                    if isinstance(emotion_data["start_time"], str):
-                        start_time = datetime.fromisoformat(
-                            emotion_data["start_time"].replace("Z", "+00:00")
+                    try:
+                        if isinstance(emotion_data["start_time"], str):
+                            start_time = datetime.fromisoformat(
+                                emotion_data["start_time"].replace("Z", "+00:00")
+                            )
+                        else:
+                            start_time = emotion_data["start_time"]
+                    except (ValueError, TypeError) as e:
+                        op_logger.error(
+                            "invalid_start_time_format",
+                            emotion_type=emotion_type,
+                            start_time_value=emotion_data["start_time"],
+                            error=str(e),
+                            action="using_current_time_as_fallback",
                         )
-                    else:
-                        start_time = emotion_data["start_time"]
+                        start_time = datetime.now(timezone.utc)
                 else:
+                    op_logger.warning(
+                        "missing_start_time",
+                        emotion_type=emotion_type,
+                        action="using_current_time_as_default",
+                    )
                     start_time = datetime.now(timezone.utc)
 
                 end_time = None
                 if "end_time" in emotion_data and emotion_data["end_time"]:
-                    if isinstance(emotion_data["end_time"], str):
-                        end_time = datetime.fromisoformat(emotion_data["end_time"].replace("Z", "+00:00"))
-                    else:
-                        end_time = emotion_data["end_time"]
+                    try:
+                        if isinstance(emotion_data["end_time"], str):
+                            end_time = datetime.fromisoformat(
+                                emotion_data["end_time"].replace("Z", "+00:00")
+                            )
+                        else:
+                            end_time = emotion_data["end_time"]
+                    except (ValueError, TypeError) as e:
+                        op_logger.error(
+                            "invalid_end_time_format",
+                            emotion_type=emotion_type,
+                            end_time_value=emotion_data["end_time"],
+                            error=str(e),
+                            action="using_start_time_plus_one_hour_as_fallback",
+                        )
+                        end_time = start_time + timedelta(hours=1)
                 else:
+                    op_logger.warning(
+                        "missing_end_time",
+                        emotion_type=emotion_type,
+                        action="using_start_time_plus_one_hour_as_default",
+                    )
                     # Default end time is start time plus one hour
                     end_time = start_time + timedelta(hours=1)
 
                 original_end_time = None
                 if "original_end_time" in emotion_data and emotion_data["original_end_time"]:
-                    if isinstance(emotion_data["original_end_time"], str):
-                        original_end_time = datetime.fromisoformat(
-                            emotion_data["original_end_time"].replace("Z", "+00:00")
+                    try:
+                        if isinstance(emotion_data["original_end_time"], str):
+                            original_end_time = datetime.fromisoformat(
+                                emotion_data["original_end_time"].replace("Z", "+00:00")
+                            )
+                        else:
+                            original_end_time = emotion_data["original_end_time"]
+                    except (ValueError, TypeError) as e:
+                        op_logger.error(
+                            "invalid_original_end_time_format",
+                            emotion_type=emotion_type,
+                            original_end_time_value=emotion_data["original_end_time"],
+                            error=str(e),
+                            action="using_end_time_as_fallback",
                         )
-                    else:
-                        original_end_time = emotion_data["original_end_time"]
+                        original_end_time = end_time
                 else:
+                    op_logger.warning(
+                        "missing_original_end_time",
+                        emotion_type=emotion_type,
+                        action="using_end_time_as_default",
+                    )
                     # Default original end time is same as end time
                     original_end_time = end_time
 

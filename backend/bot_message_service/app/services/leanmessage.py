@@ -271,41 +271,113 @@ class LeanMessageManager:
         Returns: (content_text, message_type_code, structured_data)
         """
         try:
+            logger.info("parsing_leanmessage_content", content=content, content_type=type(content).__name__)
+
             # Try to parse as JSON (structured message format)
             if content.startswith("{"):
                 parsed = json.loads(content)
-                if isinstance(parsed, dict):
-                    # Check if it's our structured message format
-                    if "message_type" in parsed:
-                        # This is our structured message format from frontend
-                        content_text = parsed.get("content", "")
-                        frontend_message_type = parsed.get("message_type", "chat")
+                logger.info("parsed_json_content", parsed=parsed)
 
-                        # Convert frontend string type to backend enum code
-                        message_type_enum = MessageType.from_name(frontend_message_type)
+                if isinstance(parsed, dict):
+                    # Check for new frontend format with numeric 'type' field
+                    if "type" in parsed:
+                        # New frontend format: {type: 2, from: 'u1001', to: 'u1002', content: '', ...}
+                        content_text = parsed.get("content", "")
+                        frontend_message_type = parsed.get("type")
+
+                        logger.info(
+                            "new_frontend_format_detected",
+                            type_value=frontend_message_type,
+                            type_value_type=type(frontend_message_type).__name__,
+                            content=content_text,
+                        )
+
+                        # Convert frontend numeric type to backend enum code
+                        if isinstance(frontend_message_type, int):
+                            message_type_enum = MessageType.from_code(frontend_message_type)
+                        else:
+                            message_type_enum = MessageType.from_name(str(frontend_message_type))
+
                         if message_type_enum is None:
+                            logger.warning("unknown_message_type", type_value=frontend_message_type)
                             message_type_code = MessageType.CHAT.code
                         else:
                             message_type_code = message_type_enum.code
 
+                        logger.info(
+                            "message_type_conversion",
+                            frontend_type=frontend_message_type,
+                            backend_code=message_type_code,
+                            enum_name=message_type_enum.name if message_type_enum else None,
+                        )
+
+                        # For typing messages, return empty content
+                        if message_type_code in [MessageType.TYPING.code, MessageType.TYPING_END.code]:
+                            logger.info(
+                                "typing_message_processed",
+                                message_type=message_type_code,
+                                content_returned="",
+                            )
+                            return "", message_type_code, parsed
+                        else:
+                            logger.info(
+                                "content_message_processed",
+                                message_type=message_type_code,
+                                content_returned=content_text,
+                            )
+                            return content_text, message_type_code, parsed
+
+                    # Check for old frontend format with string 'message_type' field
+                    elif "message_type" in parsed:
+                        # Old frontend format: {message_type: "typing", content: "", ...}
+                        content_text = parsed.get("content", "")
+                        frontend_message_type = parsed.get("message_type", "chat")
+
+                        logger.info(
+                            "old_frontend_format_detected",
+                            message_type=frontend_message_type,
+                            content=content_text,
+                        )
+
+                        # Convert frontend string type to backend enum code
+                        message_type_enum = MessageType.from_name(frontend_message_type)
+                        if message_type_enum is None:
+                            logger.warning("unknown_message_type", message_type=frontend_message_type)
+                            message_type_code = MessageType.CHAT.code
+                        else:
+                            message_type_code = message_type_enum.code
+
+                        logger.info(
+                            "message_type_conversion",
+                            frontend_type=frontend_message_type,
+                            backend_code=message_type_code,
+                            enum_name=message_type_enum.name if message_type_enum else None,
+                        )
+
                         return content_text, message_type_code, parsed
+
                     elif "_lctext" in parsed:
                         # Extract text from LeanMessage native format
+                        logger.info("leanmessage_native_format", lctext=parsed["_lctext"])
                         return parsed["_lctext"], MessageType.CHAT.code, parsed
                     elif "text" in parsed:
+                        logger.info("generic_text_format", text=parsed["text"])
                         return parsed["text"], MessageType.CHAT.code, parsed
                     else:
                         # Return the whole object as string if no recognized format
+                        logger.info("unrecognized_json_format", parsed=parsed)
                         return str(parsed), MessageType.CHAT.code, parsed
 
             # Return as plain text if not JSON
+            logger.info("plain_text_content", content=content)
             return content, MessageType.CHAT.code, None
 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             # Return as plain text if JSON parsing fails
+            logger.info("json_decode_failed", content=content, error=str(e))
             return content, MessageType.CHAT.code, None
         except Exception as e:
-            logger.error("content_parsing_failed", error=str(e), content=content)
+            logger.error("content_parsing_failed", error=str(e), content=content, exc_info=True)
             return content, MessageType.CHAT.code, None
 
     async def process_webhook_message(self, message_data: Dict[str, Any]) -> None:

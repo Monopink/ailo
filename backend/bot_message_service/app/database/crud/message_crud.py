@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc
 from .base_crud import CRUDBase
 from ..models.message import MessageHistory
+from ...utils.logging import get_logger, bind_context
+
+logger = get_logger(__name__)
 
 
 class CRUDMessage(CRUDBase[MessageHistory]):
@@ -36,18 +39,68 @@ class CRUDMessage(CRUDBase[MessageHistory]):
         return datetime.now(timezone.utc)
 
     async def save_message(self, db: AsyncSession, message: Dict[str, Any]) -> MessageHistory:
-        """Save a message to the database."""
+        """Save a message to the database with strict validation."""
+        # Create contextualized logger for this operation
+        op_logger = bind_context(logger, operation="save_message", message_id=message.get("message_id"))
+
+        # Strict validation - check required fields
+        validation_errors = []
+        required_fields = ["from_entity", "to_entity", "content", "message_service"]
+
+        for field in required_fields:
+            if not message.get(field):
+                validation_errors.append(f"Missing or empty required field: {field}")
+
+        # Log validation errors but continue to save data for completeness
+        if validation_errors:
+            op_logger.error(
+                "message_validation_failed",
+                errors=validation_errors,
+                message_data=message,
+                action="attempting_to_save_anyway_for_data_integrity",
+            )
+
+        # Additional field validation with detailed logging
+        message_id = message.get("message_id")
+        if not message_id:
+            op_logger.warning("missing_message_id", message_data=message)
+
+        from_entity = message.get("from_entity")
+        if not from_entity:
+            op_logger.error("missing_from_entity", message_data=message)
+
+        to_entity = message.get("to_entity")
+        if not to_entity:
+            op_logger.error("missing_to_entity", message_data=message)
+
+        content = message.get("content")
+        if not content:
+            op_logger.error("missing_content", message_data=message)
+
+        message_service = message.get("message_service")
+        if not message_service:
+            op_logger.error("missing_message_service", message_data=message)
+
+        # Check for potentially problematic values
+        message_type = message.get("message_type")
+        if not message_type:
+            op_logger.warning("missing_message_type", message_data=message, default_used="chat")
+
+        status = message.get("status")
+        if not status:
+            op_logger.warning("missing_status", message_data=message, default_used="sent")
+
         try:
-            # Create message record
+            # Create message record - still save even with validation errors for data integrity
             message_record = MessageHistory(
-                message_id=message.get("message_id"),
-                from_entity=message.get("from_entity"),
-                to_entity=message.get("to_entity"),
-                content=message.get("content"),
-                message_type=message.get("message_type", "chat"),
-                message_service=message.get("message_service"),
+                message_id=message_id,
+                from_entity=from_entity,
+                to_entity=to_entity,
+                content=content,
+                message_type=message_type or "chat",  # Use default only if None/empty
+                message_service=message_service,
                 message_time=self._parse_message_time(message.get("message_time")),
-                status=message.get("status", "sent"),
+                status=status or "sent",  # Use default only if None/empty
                 message_metadata=message.get("message_metadata"),
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
@@ -56,9 +109,26 @@ class CRUDMessage(CRUDBase[MessageHistory]):
             db.add(message_record)
             await db.commit()
             await db.refresh(message_record)
+
+            if validation_errors:
+                op_logger.info(
+                    "message_saved_despite_validation_errors",
+                    message_id=message_record.id,
+                    errors=validation_errors,
+                )
+            else:
+                op_logger.info("message_saved_successfully", message_id=message_record.id)
+
             return message_record
-        except Exception:
+
+        except Exception as e:
             await db.rollback()
+            op_logger.error(
+                "message_save_failed",
+                error=str(e),
+                message_data=message,
+                validation_errors=validation_errors,
+            )
             raise
 
     async def get_messages_by_entities(

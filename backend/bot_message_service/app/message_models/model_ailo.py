@@ -649,9 +649,9 @@ class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin
         self.logger.info("received_message", message=received_message)
 
         try:
-            content = received_message["content"]
-            message_time = received_message["message_time"]
-            message_type = MessageType.parse(received_message["message_type"])
+            content = received_message.get("content", "")
+            message_time = received_message.get("message_time")
+            message_type = MessageType.parse(received_message.get("message_type", ""))
 
             if not message_time:
                 self.logger.warning("skipping_process_message_due_to_missing_content_or_message_time")

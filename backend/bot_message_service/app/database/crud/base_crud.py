@@ -4,8 +4,7 @@ Base CRUD operations.
 
 from typing import Generic, TypeVar, Type, Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 from ..base import Base
 from ...utils.logging import get_logger, bind_context
 

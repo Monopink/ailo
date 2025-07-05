@@ -398,22 +398,25 @@ export class LeanCloudProvider {
     this.client.on('message', (message, conversation) => {
       try {
         console.log('📨 [LeanCloudProvider] Raw message received:', {
-          text: message.text,
+          content: message.content,
           from: message.from,
           conversation: conversation.id
         })
 
+        // Get message content from the correct field
+        const messageContent = message.content || message.text || ''
+
         // Try to parse as structured message
         let parsedMessage
         try {
-          parsedMessage = JSON.parse(message.text)
+          parsedMessage = JSON.parse(messageContent)
           console.log('🔍 [LeanCloudProvider] Parsed structured message:', parsedMessage)
         } catch {
           // If not JSON, treat as plain text chat message
           parsedMessage = createChatMessage(
             message.from,
             this.currentUserId,
-            message.text
+            messageContent
           )
           console.log('🔍 [LeanCloudProvider] Created chat message from plain text:', parsedMessage)
         }

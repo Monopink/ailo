@@ -69,13 +69,15 @@ watch(() => authStore.user, async (newUser, oldUser) => {
           const chat = chatStore.chats.find(c => c.entity_id === senderEntityId)
 
           if (chat) {
-            chatStore.addMessage(senderEntityId, {
+            const newMessage = {
               id: Date.now(), // Generate a simple ID
               text: message.content, // Use 'text' field to match MessageBubble component
               sender: message.from === String(newUser.entity_id) ? 'user' : 'bot',
               timestamp: new Date(message.timestamp),
               isFromUser: message.from === String(newUser.entity_id)
-            })
+            }
+
+            chatStore.addMessage(chat.id, newMessage)
 
             // Hide typing indicator when receiving a chat message
             // Use chat.id (which might be conversation_id) for event

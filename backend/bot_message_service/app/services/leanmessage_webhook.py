@@ -4,7 +4,7 @@ Handles incoming webhook requests from LeanMessage system conversations.
 """
 
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any
 from fastapi import Request
 from ..utils.logging import get_logger
 from ..services.leanmessage import leanmessage_service

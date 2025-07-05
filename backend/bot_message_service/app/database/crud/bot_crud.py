@@ -9,7 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from .base_crud import CRUDBase
 from ..models.bot import Bot
-from ...enums import BotStatus
+from ...enums import BotStatus, IMServiceType
 from ...utils.logging import get_logger, bind_context
 import enum
 
@@ -573,25 +573,95 @@ class CRUDBot(CRUDBase[Bot]):
     # LeanCloud conversation mapping operations (related to Bot)
     async def get_bot_by_conversation_id(self, db: AsyncSession, conversation_id: str) -> Optional[str]:
         """Get bot entity_id from LeanCloud conversation ID."""
-        result = await db.execute(
-            text(
-                "SELECT contact_entity_id FROM conversation_mappings WHERE conversation_id = :conv_id AND im_service_type = 'leancloud'"
-            ),
-            {"conv_id": conversation_id},
-        )
-        row = result.fetchone()
-        return row[0] if row else None
+        try:
+            # Create contextualized logger for this operation
+            op_logger = bind_context(
+                logger, operation="get_bot_by_conversation_id", conversation_id=conversation_id
+            )
+            op_logger.info("querying_bot_entity_id_by_conversation_id")
+
+            if not conversation_id:
+                op_logger.error("empty_conversation_id")
+                return None
+
+            result = await db.execute(
+                text(
+                    "SELECT contact_entity_id FROM conversation_mappings WHERE conversation_id = :conv_id AND im_service_type = :im_service"
+                ),
+                {"conv_id": conversation_id, "im_service": IMServiceType.LEANCLOUD.value},
+            )
+            row = result.fetchone()
+
+            if row:
+                bot_entity_id = row[0]
+                op_logger.info("bot_entity_id_found", bot_entity_id=bot_entity_id)
+                return bot_entity_id
+            else:
+                op_logger.warning("no_bot_entity_id_found")
+                return None
+
+        except SQLAlchemyError as e:
+            logger.error(
+                "database_error_get_bot_by_conversation_id",
+                conversation_id=conversation_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
+        except Exception as e:
+            logger.error(
+                "unexpected_error_get_bot_by_conversation_id",
+                conversation_id=conversation_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
 
     async def get_conversation_id_by_bot(self, db: AsyncSession, bot_entity_id: str) -> Optional[str]:
         """Get LeanCloud conversation ID from bot entity_id."""
-        result = await db.execute(
-            text(
-                "SELECT conversation_id FROM conversation_mappings WHERE contact_entity_id = :bot_id AND im_service_type = 'leancloud'"
-            ),
-            {"bot_id": bot_entity_id},
-        )
-        row = result.fetchone()
-        return row[0] if row else None
+        try:
+            # Create contextualized logger for this operation
+            op_logger = bind_context(
+                logger, operation="get_conversation_id_by_bot", bot_entity_id=bot_entity_id
+            )
+            op_logger.info("querying_conversation_id_by_bot_entity_id")
+
+            if not bot_entity_id:
+                op_logger.error("empty_bot_entity_id")
+                return None
+
+            result = await db.execute(
+                text(
+                    "SELECT conversation_id FROM conversation_mappings WHERE contact_entity_id = :bot_id AND im_service_type = :im_service"
+                ),
+                {"bot_id": bot_entity_id, "im_service": IMServiceType.LEANCLOUD.value},
+            )
+            row = result.fetchone()
+
+            if row:
+                conversation_id = row[0]
+                op_logger.info("conversation_id_found", conversation_id=conversation_id)
+                return conversation_id
+            else:
+                op_logger.warning("no_conversation_id_found")
+                return None
+
+        except SQLAlchemyError as e:
+            logger.error(
+                "database_error_get_conversation_id_by_bot",
+                bot_entity_id=bot_entity_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
+        except Exception as e:
+            logger.error(
+                "unexpected_error_get_conversation_id_by_bot",
+                bot_entity_id=bot_entity_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
 
 
 # Create instance

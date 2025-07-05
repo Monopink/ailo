@@ -114,7 +114,7 @@ class MessageRouter:
             if not await self._verify_user_permission(user_entity_id, bot):
                 raise AuthorizationError(f"User {user_entity_id} not authorized for bot {bot_entity_id}")
 
-            if bot.status != BotStatus.ACTIVE.value:
+            if bot.status != BotStatus.ACTIVE:
                 # This could also be a specific exception if needed, e.g., BotInactiveError
                 logger.warning("bot_inactive", bot_entity_id=bot_entity_id, status=bot.status)
                 return None

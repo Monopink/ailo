@@ -246,3 +246,11 @@ class TypingStatus(enum.Enum):
 
     PENDING = "pending"
     SENT = "sent"
+
+
+class IMServiceType(enum.Enum):
+    """IM service types"""
+
+    LEANCLOUD = "leancloud"
+    WEBSOCKET = "websocket"
+    CUSTOM = "custom"

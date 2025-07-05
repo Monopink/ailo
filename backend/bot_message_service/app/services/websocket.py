@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 from fastapi import WebSocket
 from ..event_bus import event_bus, EventTypes
+from ..enums import IMServiceType
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -11,13 +12,13 @@ logger = get_logger(__name__)
 class WebSocketManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
-        # 直接订阅 SEND_MESSAGE 事件
+        # Subscribe to SEND_MESSAGE event directly
         event_bus.subscribe(EventTypes.SEND_MESSAGE, self.handle_send_message)
         logger.info("websocket_manager_initialized", event_subscription=True)
 
     async def connect(self, websocket: WebSocket, client_id: str):
         """
-        处理新的 WebSocket 连接
+        Handle a new WebSocket connection.
         """
         await websocket.accept()
         self.active_connections[client_id] = websocket
@@ -25,7 +26,7 @@ class WebSocketManager:
 
     async def disconnect(self, client_id: str):
         """
-        处理 WebSocket 断开连接
+        Handle a WebSocket disconnection.
         """
         if client_id in self.active_connections:
             del self.active_connections[client_id]
@@ -33,27 +34,27 @@ class WebSocketManager:
 
     async def receive_message(self, websocket: WebSocket, client_id: str):
         """
-        处理接收到的消息
+        Handle received messages.
         """
         try:
             while True:
                 data = await websocket.receive_text()
                 message = json.loads(data)
 
-                # 验证必要的消息字段
+                # Validate required message fields
                 required_fields = ["from_entity", "to_entity", "message_type"]
                 if not all(field in message for field in required_fields):
                     logger.warning("message_missing_fields", client_id=client_id, message=message)
                     continue
 
-                # 添加消息服务信息
-                message["message_service"] = "websocket"
+                # Add message service information
+                message["message_service"] = IMServiceType.WEBSOCKET.value
 
-                # 确保消息包含时间戳
+                # Ensure the message contains a timestamp
                 if "message_time" not in message:
                     message["message_time"] = datetime.now(timezone.utc).isoformat()
 
-                # 发布消息到事件总线
+                # Publish the message to the event bus
                 logger.info(
                     "publishing_message",
                     client_id=client_id,
@@ -69,7 +70,7 @@ class WebSocketManager:
 
     async def send_message(self, client_id: str, message: Dict[str, Any]):
         """
-        发送消息到指定客户端
+        Send a message to a specific client.
         """
         if client_id in self.active_connections:
             try:
@@ -81,11 +82,11 @@ class WebSocketManager:
 
     async def handle_send_message(self, message: Dict[str, Any]):
         """
-        处理已处理的消息
+        Handle a processed message.
         """
         try:
-            # 检查消息是否来自 websocket 服务
-            if message.get("message_service") != "websocket":
+            # Check if the message is from the websocket service
+            if message.get("message_service") != IMServiceType.WEBSOCKET.value:
                 logger.info(
                     "ignoring_non_websocket_message", message_service=message.get("message_service")
                 )
@@ -111,11 +112,11 @@ class WebSocketManager:
 
     async def broadcast(self, message: Dict[str, Any]):
         """
-        广播消息给所有连接的客户端
+        Broadcast a message to all connected clients.
         """
         for client_id in list(self.active_connections.keys()):
             await self.send_message(client_id, message)
 
 
-# 创建全局 WebSocket 管理器实例
+# Create a global WebSocket manager instance
 websocket = WebSocketManager()

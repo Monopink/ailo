@@ -145,7 +145,7 @@ class LeanMessageManager:
             existing_names = {conv.get("name") for conv in existing_conversations or []}
 
             for bot in bots:
-                entity_id = bot.entity_id
+                entity_id = str(bot.entity_id)
                 if not entity_id:
                     logger.warning("bot_missing_entity_id", bot_id=bot.id)
                     continue

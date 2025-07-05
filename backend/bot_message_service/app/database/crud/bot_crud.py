@@ -172,7 +172,7 @@ class CRUDBot(CRUDBase[Bot]):
 
                     # Log significant changes
                     if old_value != value:
-                        op_logger.info("field_updated", field=key, old_value=old_value, new_value=value)
+                        op_logger.debug("field_updated", field=key, old_value=old_value, new_value=value)
                 else:
                     invalid_fields.append(key)
                     op_logger.error(

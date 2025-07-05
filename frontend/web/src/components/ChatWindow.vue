@@ -26,6 +26,8 @@
         v-model="newMessage"
         @keyup.enter="sendMessage"
         @input="handleInput"
+        @compositionstart="handleCompositionStart"
+        @compositionend="handleCompositionEnd"
         placeholder="输入消息..."
         class="message-input"
       />
@@ -130,17 +132,43 @@ watch(() => selectedChat.value?.id, (newChatId, oldChatId) => {
   }
 });
 
-// Handle input changes for typing indicator
+// Handle input changes for typing indicator with Chinese input support
 const isCurrentlyTyping = ref(false);
+const isComposing = ref(false);
+const typingTimer = ref(null);
+const typingEndTimer = ref(null);
+const TYPING_DELAY = 500; // 0.5 seconds delay
 
-const handleInput = async () => {
-  if (!selectedChat.value) return;
+// Chinese input method event handlers
+const handleCompositionStart = () => {
+  isComposing.value = true;
+  scheduleTypingStart(); // Schedule typing when composition starts
+};
 
-  const hasContent = newMessage.value.trim().length > 0;
+const handleCompositionEnd = () => {
+  isComposing.value = false;
+  // Check content after composition ends
+  if (!newMessage.value.trim()) {
+    scheduleTypingEnd(); // Schedule typing_end if content is empty
+  }
+};
 
-  if (hasContent) {
-    // Send typing indicator only when starting to type (not already typing)
-    if (!isCurrentlyTyping.value) {
+// Schedule typing with delay
+const scheduleTypingStart = () => {
+  // Cancel any pending typing_end
+  if (typingEndTimer.value) {
+    clearTimeout(typingEndTimer.value);
+    typingEndTimer.value = null;
+  }
+
+  // Cancel any previous typing timer
+  if (typingTimer.value) {
+    clearTimeout(typingTimer.value);
+  }
+
+  // Schedule typing after delay
+  typingTimer.value = setTimeout(async () => {
+    if (!isCurrentlyTyping.value && selectedChat.value) {
       try {
         await messageService.sendTypingIndicator(selectedChat.value);
         isCurrentlyTyping.value = true;
@@ -148,9 +176,26 @@ const handleInput = async () => {
         console.error('Failed to send typing indicator:', error);
       }
     }
-  } else {
-    // Send typing_end when input is completely cleared
-    if (isCurrentlyTyping.value) {
+    typingTimer.value = null;
+  }, TYPING_DELAY);
+};
+
+// Schedule typing_end with delay
+const scheduleTypingEnd = () => {
+  // Cancel any pending typing
+  if (typingTimer.value) {
+    clearTimeout(typingTimer.value);
+    typingTimer.value = null;
+  }
+
+  // Cancel any previous typing_end timer
+  if (typingEndTimer.value) {
+    clearTimeout(typingEndTimer.value);
+  }
+
+  // Schedule typing_end after delay
+  typingEndTimer.value = setTimeout(async () => {
+    if (isCurrentlyTyping.value && selectedChat.value) {
       try {
         await messageService.sendTypingEnd(selectedChat.value);
         isCurrentlyTyping.value = false;
@@ -158,6 +203,21 @@ const handleInput = async () => {
         console.error('Failed to send typing end:', error);
       }
     }
+    typingEndTimer.value = null;
+  }, TYPING_DELAY);
+};
+
+// Input event handler
+const handleInput = () => {
+  if (!selectedChat.value) return;
+  if (isComposing.value) return; // Skip during Chinese input composition
+
+  const hasContent = newMessage.value.trim().length > 0;
+
+  if (hasContent) {
+    scheduleTypingStart();
+  } else {
+    scheduleTypingEnd();
   }
 };
 
@@ -166,6 +226,16 @@ const sendMessage = async () => {
 
   const content = newMessage.value;
   newMessage.value = '';
+
+  // Cancel any pending typing timers
+  if (typingTimer.value) {
+    clearTimeout(typingTimer.value);
+    typingTimer.value = null;
+  }
+  if (typingEndTimer.value) {
+    clearTimeout(typingEndTimer.value);
+    typingEndTimer.value = null;
+  }
 
   // Reset typing state without sending typing_end (message sending implies typing stopped)
   isCurrentlyTyping.value = false;
@@ -264,7 +334,13 @@ onUnmounted(() => {
   // Remove event listeners
   window.removeEventListener('typing-message', handleTypingMessage)
   window.removeEventListener('chat-message-received', handleChatMessageReceived)
-  // Clear typing timeout
+  // Clear typing timers
+  if (typingTimer.value) {
+    clearTimeout(typingTimer.value)
+  }
+  if (typingEndTimer.value) {
+    clearTimeout(typingEndTimer.value)
+  }
   if (typingTimeout.value) {
     clearTimeout(typingTimeout.value)
   }

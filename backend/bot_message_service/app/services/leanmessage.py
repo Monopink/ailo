@@ -182,16 +182,9 @@ class LeanMessageManager:
             # Encrypt message content before sending
             try:
                 encrypted_message = encryption_service.encrypt_message(structured_message)
-                logger.info(
-                    "message_encrypted_for_sending",
-                    encryption_type=encrypted_message.get("encryption"),
-                    enc_version=encrypted_message.get("enc_version"),
-                    has_encryption_field=("encryption" in encrypted_message),
-                )
             except Exception as e:
                 logger.error("message_encryption_failed", error=str(e), exc_info=True)
-                # For debugging, let's see what happens if we don't fallback
-                raise e  # Temporarily raise the error to see what's wrong
+                raise
 
             # Convert to JSON string for LeanCloud message field
             return json.dumps(encrypted_message)
@@ -356,8 +349,8 @@ class LeanMessageManager:
                         frontend_from = lctext_data.get("from")
                         frontend_to = lctext_data.get("to")
                 except (json.JSONDecodeError, KeyError):
-                    # Log but don't fail - _lctext might contain plain text
-                    logger.debug("failed_to_parse_lctext_for_frontend_fields")
+                    # _lctext might contain plain text, skip parsing
+                    pass
 
         return frontend_from, frontend_to
 
@@ -378,20 +371,8 @@ class LeanMessageManager:
                 str(message_content)
             )
 
-            # Log only important parsing results
-            logger.debug(
-                "message_parsed",
-                message_type=message_type,
-                content_length=len(parsed_content) if parsed_content else 0,
-            )
-
             # Extract frontend fields from structured data
             frontend_from, frontend_to = self._extract_frontend_fields(structured_data)
-
-            # Field extraction logging simplified
-            logger.debug(
-                "fields_extracted", from_entity=frontend_from or from_entity, to_entity=frontend_to
-            )
 
             # Create message_metadata for non-standard fields
             message_metadata = {
@@ -424,7 +405,6 @@ class LeanMessageManager:
                 "message_metadata": message_metadata,
             }
 
-            logger.info("message_structure_validated", structured_message=structured_message)
             return structured_message
 
         except Exception as e:
@@ -453,17 +433,6 @@ class LeanMessageManager:
             else:
                 raise ValueError("Invalid content type")
 
-            logger.debug(
-                "json_parsed_successfully",
-                parsed_keys=list(parsed.keys()) if isinstance(parsed, dict) else "not_dict",
-                has_encryption_after_parse=(
-                    ("encryption" in parsed) if isinstance(parsed, dict) else False
-                ),
-                encryption_value_after_parse=(
-                    parsed.get("encryption") if isinstance(parsed, dict) else None
-                ),
-            )
-
             # Check if this is LeanCloud wrapper format
             if isinstance(parsed, dict) and "_lctext" in parsed:
                 # Extract the actual message from _lctext
@@ -472,16 +441,6 @@ class LeanMessageManager:
                     try:
                         # Parse the inner JSON
                         parsed = json.loads(lctext_content)
-                        logger.debug(
-                            "lctext_parsed_successfully",
-                            parsed_keys=list(parsed.keys()) if isinstance(parsed, dict) else "not_dict",
-                            has_encryption_after_lctext_parse=(
-                                ("encryption" in parsed) if isinstance(parsed, dict) else False
-                            ),
-                            encryption_value_after_lctext_parse=(
-                                parsed.get("encryption") if isinstance(parsed, dict) else None
-                            ),
-                        )
                     except json.JSONDecodeError:
                         logger.error("invalid_lctext_not_json", lctext_content=lctext_content[:100])
                         raise ValueError("_lctext must be valid JSON")
@@ -491,29 +450,12 @@ class LeanMessageManager:
             # Now we have the actual message content in parsed
             if isinstance(parsed, dict):
                 # Check if message is encrypted and decrypt it
-                logger.debug(
-                    "checking_encryption_status",
-                    has_encryption=("encryption" in parsed),
-                    encryption_value=parsed.get("encryption"),
-                    has_enc_version=("enc_version" in parsed),
-                    enc_version_value=parsed.get("enc_version"),
-                )
-
                 if encryption_service.is_encrypted(parsed):
-                    logger.info("message_is_encrypted_attempting_decrypt")
                     try:
-                        decrypted_parsed = encryption_service.decrypt_message(parsed)
-                        logger.info(
-                            "message_decrypted_on_receive",
-                            original_content_length=len(parsed.get("content", "")),
-                            decrypted_content_length=len(decrypted_parsed.get("content", "")),
-                        )
-                        parsed = decrypted_parsed
+                        parsed = encryption_service.decrypt_message(parsed)
                     except Exception as e:
                         logger.error("message_decryption_failed", error=str(e), exc_info=True)
-                        # Continue with encrypted message if decryption fails
-                else:
-                    logger.debug("message_not_encrypted_skipping_decrypt")
+                        raise
 
                 # Check for new frontend format with numeric 'type' field
                 if "type" in parsed:
@@ -521,12 +463,6 @@ class LeanMessageManager:
                     # Extract the actual content from the (possibly decrypted) JSON structure
                     content_text = parsed.get("content", "")
                     frontend_message_type = parsed.get("type")
-
-                    logger.debug(
-                        "content_extracted_after_decrypt",
-                        content_text=content_text,
-                        content_length=len(content_text) if content_text else 0,
-                    )
 
                     # Frontend format detected
 
@@ -603,8 +539,9 @@ class LeanMessageManager:
                         logger.error("invalid_lctext_not_json", lctext_content=lctext_content[:100])
                         raise ValueError("_lctext must be valid JSON")
                 else:
-                    # No _lctext found, this might be direct message format
-                    pass
+                    # No _lctext found, invalid format
+                    logger.error("missing_lctext_in_leancloud_format")
+                    raise ValueError("LeanCloud format must contain _lctext field")
             else:
                 # Not a dict, invalid format
                 logger.error("invalid_parsed_format", parsed_type=type(parsed))

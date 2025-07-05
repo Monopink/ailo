@@ -9,7 +9,7 @@ from ..base import Base
 
 class Emotions(Base):
     """Emotion model, corresponding to the emotions table in the database
-    
+
     Inherits from Base indicating it's an ORM model that maps to a database table
     """
 

@@ -464,14 +464,7 @@ export class LeanCloudProvider {
           })
         } else {
           // Decrypt message at provider level before passing to callbacks
-          let decryptedMessage
-          try {
-            decryptedMessage = this.messageEncryption.decryptMessage(parsedMessage)
-            console.log('🔓 [LeanCloudProvider] Message decrypted at provider level')
-          } catch (error) {
-            console.error('Failed to decrypt message at provider level:', error)
-            decryptedMessage = parsedMessage // Use original if decryption fails
-          }
+          const decryptedMessage = this.messageEncryption.decryptMessage(parsedMessage)
 
           this.messageCallbacks.forEach(callback => {
             try {

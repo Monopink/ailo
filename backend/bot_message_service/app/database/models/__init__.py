@@ -9,7 +9,7 @@ from .emotion import Emotions
 
 __all__ = [
     "User",
-    "Bot", 
+    "Bot",
     "MessageHistory",
     "Emotions",
 ]

@@ -2,6 +2,24 @@ import enum
 from typing import Set, Optional, Union, Dict, Any
 
 
+class EncryptionType(enum.Enum):
+    """Encryption algorithm types (numeric codes for efficiency)
+
+    Message Format Documentation:
+    See docs/message-formats.md for complete format specifications
+    """
+
+    NONE = 0  # No encryption (for backward compatibility)
+    BASE64 = 1  # Base64 encoding (pseudo-encryption)
+    AES_256_GCM = 2  # AES-256-GCM (future implementation)
+
+
+class EncryptionVersion(enum.Enum):
+    """Encryption version numbers"""
+
+    V1 = 1  # First version of encryption implementation
+
+
 class MessageTypeCategory:
     """Message categories"""
 

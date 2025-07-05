@@ -1,6 +1,9 @@
 /**
  * Frontend message types and structures
  * Numbers match backend definitions
+ *
+ * Message Format Documentation:
+ * See docs/message-formats.md for complete format specifications
  */
 
 export const MessageType = {
@@ -14,6 +17,23 @@ export const MessageType = {
 export const ContactType = {
   USER: 1,
   BOT: 2
+}
+
+// Service types
+export const ServiceType = {
+  LEANCLOUD: 1
+}
+
+// Encryption algorithms (numeric codes for efficiency)
+export const EncryptionType = {
+  NONE: 0,        // No encryption (for backward compatibility)
+  BASE64: 1,      // Base64 encoding (pseudo-encryption)
+  AES_256_GCM: 2  // AES-256-GCM (future implementation)
+}
+
+// Encryption versions
+export const EncryptionVersion = {
+  V1: 1  // First version of encryption implementation
 }
 
 /**

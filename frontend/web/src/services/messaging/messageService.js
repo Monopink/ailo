@@ -31,7 +31,7 @@ class MessageService {
       await this.provider.initialize(userId)
       this.currentUserId = userId
       this.isInitialized = true
-      
+
       console.log(`✅ Message service initialized with ${providerType} provider`)
     } catch (error) {
       console.error('❌ Failed to initialize message service:', error)
@@ -62,7 +62,7 @@ class MessageService {
    */
   async sendChatMessage(contact, content) {
     this._ensureInitialized()
-    
+
     const options = this._buildMessageOptions(contact)
     return await this.provider.sendChatMessage(contact.entity_id, content, options)
   }
@@ -72,7 +72,7 @@ class MessageService {
    */
   async sendTypingIndicator(contact) {
     this._ensureInitialized()
-    
+
     const options = this._buildMessageOptions(contact)
     return await this.provider.sendTypingIndicator(contact.entity_id, options)
   }
@@ -82,7 +82,7 @@ class MessageService {
    */
   async sendTypingEnd(contact) {
     this._ensureInitialized()
-    
+
     const options = this._buildMessageOptions(contact)
     return await this.provider.sendTypingEnd(contact.entity_id, options)
   }

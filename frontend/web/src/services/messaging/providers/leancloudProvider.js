@@ -10,12 +10,14 @@ import {
   createTypingEndMessage,
   ContactType
 } from '../types'
+import { messageEncryption } from '../../encryption/messageEncryption'
 
 export class LeanCloudProvider {
   constructor() {
     this.currentUserId = null
     this.messageCallbacks = new Set()
     this.typingCallbacks = new Set()
+    this.messageEncryption = messageEncryption
 
     // LeanCloud connection management
     this.realtime = null
@@ -178,19 +180,23 @@ export class LeanCloudProvider {
       throw new Error('Provider not initialized')
     }
 
+    // Create message object
     const message = createChatMessage(this.currentUserId, targetId, content)
+
+    // Encrypt message at provider level
+    const encryptedMessage = this.messageEncryption.encryptMessage(message)
 
     try {
       if (options.contactType === ContactType.BOT && options.conversationId) {
         // Bot: Use system conversation
-        await this._sendToSystemConversation(options.conversationId, message)
+        await this._sendToSystemConversation(options.conversationId, encryptedMessage)
       } else {
         // User: Use regular conversation
-        await this._sendToUserConversation(targetId, message)
+        await this._sendToUserConversation(targetId, encryptedMessage)
       }
 
-      console.log('✅ Chat message sent:', message.type)
-      return message
+      console.log('✅ Chat message sent:', encryptedMessage.type)
+      return encryptedMessage
     } catch (error) {
       console.error('❌ Failed to send chat message:', error)
       throw error
@@ -457,9 +463,19 @@ export class LeanCloudProvider {
             }
           })
         } else {
+          // Decrypt message at provider level before passing to callbacks
+          let decryptedMessage
+          try {
+            decryptedMessage = this.messageEncryption.decryptMessage(parsedMessage)
+            console.log('🔓 [LeanCloudProvider] Message decrypted at provider level')
+          } catch (error) {
+            console.error('Failed to decrypt message at provider level:', error)
+            decryptedMessage = parsedMessage // Use original if decryption fails
+          }
+
           this.messageCallbacks.forEach(callback => {
             try {
-              callback(parsedMessage, conversation)
+              callback(decryptedMessage, conversation)
             } catch (error) {
               console.error('Error in message callback:', error)
             }

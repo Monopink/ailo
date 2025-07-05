@@ -7,6 +7,7 @@ from ..utils.logging import get_logger
 from ..core.config import settings
 from ..enums import MessageType, IMServiceType
 from ..database import SessionLocal, bot_crud
+from .encryption import encryption_service
 
 logger = get_logger(__name__)
 
@@ -178,8 +179,22 @@ class LeanMessageManager:
                 "service": 1,  # 1 = leancloud service
             }
 
+            # Encrypt message content before sending
+            try:
+                encrypted_message = encryption_service.encrypt_message(structured_message)
+                logger.info(
+                    "message_encrypted_for_sending",
+                    encryption_type=encrypted_message.get("encryption"),
+                    enc_version=encrypted_message.get("enc_version"),
+                    has_encryption_field=("encryption" in encrypted_message),
+                )
+            except Exception as e:
+                logger.error("message_encryption_failed", error=str(e), exc_info=True)
+                # For debugging, let's see what happens if we don't fallback
+                raise e  # Temporarily raise the error to see what's wrong
+
             # Convert to JSON string for LeanCloud message field
-            return json.dumps(structured_message)
+            return json.dumps(encrypted_message)
 
         except Exception as e:
             logger.error("create_structured_message_failed", error=str(e), data=data, exc_info=True)
@@ -418,26 +433,140 @@ class LeanMessageManager:
             )
             raise
 
-    def _parse_leanmessage_content(self, content: str) -> tuple:
+    def _parse_leanmessage_content(self, content) -> tuple:
         """
         Parse LeanMessage message content and extract text and message type.
         Returns: (content_text, message_type_code, structured_data)
         """
         try:
-            # Try to parse as JSON (structured message format)
-            if content.startswith("{"):
-                try:
+            # Handle both string and dict input
+            if isinstance(content, str):
+                # Try to parse as JSON (structured message format)
+                if content.startswith("{"):
                     parsed = json.loads(content)
+                else:
+                    # Not JSON, reject
+                    raise ValueError("Message content must be in structured JSON format")
+            elif isinstance(content, dict):
+                # Already parsed dict (from LeanCloud data field)
+                parsed = content
+            else:
+                raise ValueError("Invalid content type")
 
-                    if isinstance(parsed, dict):
-                        # Check for new frontend format with numeric 'type' field
-                        if "type" in parsed:
-                            # New frontend format: {type: 2, from: 'u1001', to: 'u1002', content: '', ...}
-                            # Extract the actual content from the nested JSON structure
-                            content_text = parsed.get("content", "")
-                            frontend_message_type = parsed.get("type")
+            logger.debug(
+                "json_parsed_successfully",
+                parsed_keys=list(parsed.keys()) if isinstance(parsed, dict) else "not_dict",
+                has_encryption_after_parse=(
+                    ("encryption" in parsed) if isinstance(parsed, dict) else False
+                ),
+                encryption_value_after_parse=(
+                    parsed.get("encryption") if isinstance(parsed, dict) else None
+                ),
+            )
 
-                            # Frontend format detected
+            # Check if this is LeanCloud wrapper format
+            if isinstance(parsed, dict) and "_lctext" in parsed:
+                # Extract the actual message from _lctext
+                lctext_content = parsed.get("_lctext", "")
+                if lctext_content:
+                    try:
+                        # Parse the inner JSON
+                        parsed = json.loads(lctext_content)
+                        logger.debug(
+                            "lctext_parsed_successfully",
+                            parsed_keys=list(parsed.keys()) if isinstance(parsed, dict) else "not_dict",
+                            has_encryption_after_lctext_parse=(
+                                ("encryption" in parsed) if isinstance(parsed, dict) else False
+                            ),
+                            encryption_value_after_lctext_parse=(
+                                parsed.get("encryption") if isinstance(parsed, dict) else None
+                            ),
+                        )
+                    except json.JSONDecodeError:
+                        logger.error("invalid_lctext_not_json", lctext_content=lctext_content[:100])
+                        raise ValueError("_lctext must be valid JSON")
+                else:
+                    raise ValueError("_lctext must contain structured message format")
+
+            # Now we have the actual message content in parsed
+            if isinstance(parsed, dict):
+                # Check if message is encrypted and decrypt it
+                logger.debug(
+                    "checking_encryption_status",
+                    has_encryption=("encryption" in parsed),
+                    encryption_value=parsed.get("encryption"),
+                    has_enc_version=("enc_version" in parsed),
+                    enc_version_value=parsed.get("enc_version"),
+                )
+
+                if encryption_service.is_encrypted(parsed):
+                    logger.info("message_is_encrypted_attempting_decrypt")
+                    try:
+                        decrypted_parsed = encryption_service.decrypt_message(parsed)
+                        logger.info(
+                            "message_decrypted_on_receive",
+                            original_content_length=len(parsed.get("content", "")),
+                            decrypted_content_length=len(decrypted_parsed.get("content", "")),
+                        )
+                        parsed = decrypted_parsed
+                    except Exception as e:
+                        logger.error("message_decryption_failed", error=str(e), exc_info=True)
+                        # Continue with encrypted message if decryption fails
+                else:
+                    logger.debug("message_not_encrypted_skipping_decrypt")
+
+                # Check for new frontend format with numeric 'type' field
+                if "type" in parsed:
+                    # New frontend format: {type: 2, from: 'u1001', to: 'u1002', content: '', ...}
+                    # Extract the actual content from the (possibly decrypted) JSON structure
+                    content_text = parsed.get("content", "")
+                    frontend_message_type = parsed.get("type")
+
+                    logger.debug(
+                        "content_extracted_after_decrypt",
+                        content_text=content_text,
+                        content_length=len(content_text) if content_text else 0,
+                    )
+
+                    # Frontend format detected
+
+                    # Convert frontend numeric type to backend enum code
+                    if isinstance(frontend_message_type, int):
+                        message_type_enum = MessageType.from_code(frontend_message_type)
+                    else:
+                        message_type_enum = MessageType.from_name(str(frontend_message_type))
+
+                    if message_type_enum is None:
+                        logger.warning("unknown_message_type", type_value=frontend_message_type)
+                        message_type_code = MessageType.CHAT.code
+                    else:
+                        message_type_code = message_type_enum.code
+
+                    # Type conversion completed
+
+                    # For typing messages, return empty content
+                    if message_type_code in [MessageType.TYPING.code, MessageType.TYPING_END.code]:
+                        return "", message_type_code, parsed
+                    else:
+                        return content_text, message_type_code, parsed
+
+                # Old message_type string format is no longer supported
+
+                elif "_lctext" in parsed:
+                    # Extract text from LeanMessage native format and try to parse it further
+                    lctext_content = parsed["_lctext"]
+
+                    # Try to parse _lctext as JSON (it might contain our structured message)
+                    try:
+                        lctext_parsed = json.loads(lctext_content)
+
+                        # Check if _lctext contains our new frontend format
+                        if isinstance(lctext_parsed, dict) and "type" in lctext_parsed:
+                            # This is our structured message inside _lctext
+                            content_text = lctext_parsed.get("content", "")
+                            frontend_message_type = lctext_parsed.get("type")
+
+                            # Frontend format detected in _lctext
 
                             # Convert frontend numeric type to backend enum code
                             if isinstance(frontend_message_type, int):
@@ -446,87 +575,40 @@ class LeanMessageManager:
                                 message_type_enum = MessageType.from_name(str(frontend_message_type))
 
                             if message_type_enum is None:
-                                logger.warning("unknown_message_type", type_value=frontend_message_type)
-                                message_type_code = MessageType.CHAT.code
-                            else:
-                                message_type_code = message_type_enum.code
+                                logger.error(
+                                    "unknown_message_type_in_lctext",
+                                    type_value=frontend_message_type,
+                                )
+                                raise ValueError(
+                                    f"Unknown message type in _lctext: {frontend_message_type}"
+                                )
+                            message_type_code = message_type_enum.code
 
-                            # Type conversion completed
+                            # Type conversion from _lctext completed
 
                             # For typing messages, return empty content
-                            if message_type_code in [MessageType.TYPING.code, MessageType.TYPING_END.code]:
-                                return "", message_type_code, parsed
+                            if message_type_code in [
+                                MessageType.TYPING.code,
+                                MessageType.TYPING_END.code,
+                            ]:
+                                return "", message_type_code, lctext_parsed
                             else:
-                                return content_text, message_type_code, parsed
-
-                        # Old message_type string format is no longer supported
-
-                        elif "_lctext" in parsed:
-                            # Extract text from LeanMessage native format and try to parse it further
-                            lctext_content = parsed["_lctext"]
-
-                            # Try to parse _lctext as JSON (it might contain our structured message)
-                            try:
-                                lctext_parsed = json.loads(lctext_content)
-
-                                # Check if _lctext contains our new frontend format
-                                if isinstance(lctext_parsed, dict) and "type" in lctext_parsed:
-                                    # This is our structured message inside _lctext
-                                    content_text = lctext_parsed.get("content", "")
-                                    frontend_message_type = lctext_parsed.get("type")
-
-                                    # Frontend format detected in _lctext
-
-                                    # Convert frontend numeric type to backend enum code
-                                    if isinstance(frontend_message_type, int):
-                                        message_type_enum = MessageType.from_code(frontend_message_type)
-                                    else:
-                                        message_type_enum = MessageType.from_name(
-                                            str(frontend_message_type)
-                                        )
-
-                                    if message_type_enum is None:
-                                        logger.error(
-                                            "unknown_message_type_in_lctext",
-                                            type_value=frontend_message_type,
-                                        )
-                                        raise ValueError(
-                                            f"Unknown message type in _lctext: {frontend_message_type}"
-                                        )
-                                    message_type_code = message_type_enum.code
-
-                                    # Type conversion from _lctext completed
-
-                                    # For typing messages, return empty content
-                                    if message_type_code in [
-                                        MessageType.TYPING.code,
-                                        MessageType.TYPING_END.code,
-                                    ]:
-                                        return "", message_type_code, lctext_parsed
-                                    else:
-                                        return content_text, message_type_code, lctext_parsed
-                                else:
-                                    # _lctext doesn't contain structured format
-                                    logger.error(
-                                        "invalid_lctext_format", lctext_content=lctext_content[:100]
-                                    )
-                                    raise ValueError("_lctext must contain structured message format")
-                            except json.JSONDecodeError:
-                                # _lctext is not JSON - reject
-                                logger.error("invalid_lctext_not_json", lctext_content=lctext_content[:100])
-                                raise ValueError("_lctext must be valid JSON")
+                                return content_text, message_type_code, lctext_parsed
                         else:
-                            # No recognized structured format found
-                            logger.error("unrecognized_message_structure", parsed_keys=list(parsed.keys()))
-                            raise ValueError("Message must contain recognized structured format")
-                except json.JSONDecodeError:
-                    # If the outer JSON parsing fails, reject non-structured messages
-                    logger.error("invalid_message_format_not_json", content=content[:100])
-                    raise ValueError("Message content must be valid JSON structured format")
-
-            # Reject non-JSON messages - all messages must be structured
-            logger.error("invalid_message_format_not_structured", content=content[:100])
-            raise ValueError("Message content must be in structured JSON format")
+                            # _lctext doesn't contain structured format
+                            logger.error("invalid_lctext_format", lctext_content=lctext_content[:100])
+                            raise ValueError("_lctext must contain structured message format")
+                    except json.JSONDecodeError:
+                        # _lctext is not JSON - reject
+                        logger.error("invalid_lctext_not_json", lctext_content=lctext_content[:100])
+                        raise ValueError("_lctext must be valid JSON")
+                else:
+                    # No _lctext found, this might be direct message format
+                    pass
+            else:
+                # Not a dict, invalid format
+                logger.error("invalid_parsed_format", parsed_type=type(parsed))
+                raise ValueError("Parsed content must be a dictionary")
 
         except Exception as e:
             logger.error("content_parsing_failed", error=str(e), content=content[:100])

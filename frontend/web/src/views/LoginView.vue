@@ -139,25 +139,28 @@ const handleCodeLogin = async () => {
 <style scoped>
 .login-container {
   width: 100%;
-  min-height: 100vh;
+  height: 100vh; /* Fixed height to prevent scrolling */
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2rem;
+  padding: 1.5rem;
+  overflow: hidden; /* Prevent scrolling */
 }
 
 .login-form {
   width: 100%;
-  max-width: 400px;
-  padding: 2rem;
+  max-width: 320px; /* Smaller form */
+  padding: 1.5rem;
   background: var(--color-bg-overlay);
+  border-radius: var(--border-radius);
 }
 
 h1 {
   text-align: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   color: var(--color-text-primary);
   font-weight: 500;
+  font-size: 1rem; /* 与普通字体大小相近 */
 }
 
 .login-tabs {
@@ -170,11 +173,11 @@ h1 {
 
 .tab-btn {
   flex-grow: 1;
-  padding: 0.75rem;
+  padding: 0.5rem;
   border: none;
   background: var(--color-bg-primary);
   cursor: pointer;
-  font-size: 0.95rem;
+  font-size: 0.8125rem; /* Smaller font */
   color: var(--color-text-secondary);
   border-right: var(--border-width) solid var(--color-border);
 }
@@ -207,21 +210,31 @@ form {
 
 .form-group input {
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.625rem; /* 稍微减小输入框内边距 */
   border: var(--border-width) solid var(--color-border);
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   border-radius: var(--border-radius-sm);
+  font-size: 0.875rem; /* 统一字体大小 */
+  line-height: 1.4;
 }
 
 .code-group {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
 }
 
 .code-group input {
   flex-grow: 1;
-  margin-right: 0.5rem;
+}
+
+.code-group .btn {
+  padding: 0.625rem 0.75rem; /* 与输入框相同的垂直内边距 */
+  font-size: 0.875rem; /* 与输入框相同的字体大小 */
+  line-height: 1.4;
+  white-space: nowrap;
+  min-width: 100px; /* 确保按钮有足够宽度 */
 }
 
 button[type="submit"] {

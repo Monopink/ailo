@@ -1,10 +1,14 @@
 <template>
   <div class="chat-window-container" v-if="selectedChat">
-    <div class="chat-header">
+    <div class="chat-header hide-on-mobile">
       <h3 class="chat-title">{{ selectedChat.name }}</h3>
     </div>
     <div class="messages-area" ref="messagesContainer">
-      <MessageBubble v-for="message in selectedChat.messages" :key="message.id" :message="message" />
+      <template v-for="(item, index) in messagesWithTimeDividers" :key="item.id || `divider-${index}`">
+        <TimeDivider v-if="item.type === 'time-divider'" :timestamp="item.timestamp" />
+        <SystemMessage v-else-if="item.type === 'system'" :message="item.text" />
+        <MessageBubble v-else :message="item" />
+      </template>
       <!-- Typing indicator -->
       <div v-if="isTyping" class="typing-indicator">
         <div class="typing-bubble">
@@ -13,7 +17,6 @@
             <span></span>
             <span></span>
           </div>
-          <span class="typing-text">{{ selectedChat.name }} 正在输入...</span>
         </div>
       </div>
     </div>
@@ -41,6 +44,8 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '../stores/chat';
 import MessageBubble from './MessageBubble.vue';
+import SystemMessage from './SystemMessage.vue';
+import TimeDivider from './TimeDivider.vue';
 import { messageService } from '../services/messaging';
 import { useAuthStore } from '../stores/auth';
 import { MessageType } from '../services/messaging/types';
@@ -58,6 +63,44 @@ const selectedChat = computed(() => {
 
 const chats = computed(() => chatStore.chats);
 
+// Add time dividers between messages
+const messagesWithTimeDividers = computed(() => {
+  if (!selectedChat.value?.messages) return [];
+
+  const messages = selectedChat.value.messages;
+  const result = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const currentMessage = messages[i];
+    const previousMessage = messages[i - 1];
+
+    // Add time divider if needed
+    if (shouldShowTimeDivider(currentMessage, previousMessage)) {
+      result.push({
+        type: 'time-divider',
+        id: `time-${i}`,
+        timestamp: currentMessage.timestamp
+      });
+    }
+
+    result.push(currentMessage);
+  }
+
+  return result;
+});
+
+// Helper function to determine if we should show a time divider
+const shouldShowTimeDivider = (currentMessage, previousMessage) => {
+  if (!previousMessage) return true; // Always show for first message
+
+  const current = new Date(currentMessage.timestamp);
+  const previous = new Date(previousMessage.timestamp);
+
+  // Show divider if messages are more than 5 minutes apart
+  const timeDiff = current.getTime() - previous.getTime();
+  return timeDiff > 5 * 60 * 1000; // 5 minutes in milliseconds
+};
+
 const scrollToBottom = async () => {
   await nextTick();
   if (messagesContainer.value) {
@@ -65,9 +108,27 @@ const scrollToBottom = async () => {
   }
 };
 
+// Watch for message changes and typing indicator changes to scroll to bottom
 watch(() => selectedChat.value?.messages, () => {
   scrollToBottom();
 }, { deep: true, immediate: true });
+
+watch(() => isTyping.value, () => {
+  scrollToBottom();
+});
+
+// Clear typing state when switching chats
+watch(() => selectedChat.value?.id, (newChatId, oldChatId) => {
+  if (newChatId !== oldChatId) {
+    // Clear typing state for previous chat
+    isTyping.value = false;
+    isCurrentlyTyping.value = false;
+    if (typingTimeout.value) {
+      clearTimeout(typingTimeout.value);
+      typingTimeout.value = null;
+    }
+  }
+});
 
 // Handle input changes for typing indicator
 const isCurrentlyTyping = ref(false);
@@ -83,7 +144,6 @@ const handleInput = async () => {
       try {
         await messageService.sendTypingIndicator(selectedChat.value);
         isCurrentlyTyping.value = true;
-        console.log('📤 Sent typing indicator (started typing)');
       } catch (error) {
         console.error('Failed to send typing indicator:', error);
       }
@@ -94,7 +154,6 @@ const handleInput = async () => {
       try {
         await messageService.sendTypingEnd(selectedChat.value);
         isCurrentlyTyping.value = false;
-        console.log('📤 Sent typing_end (input cleared)');
       } catch (error) {
         console.error('Failed to send typing end:', error);
       }
@@ -177,23 +236,14 @@ const handleTypingMessage = (event) => {
 
 // Handle chat messages to hide typing indicator
 const handleChatMessageReceived = (event) => {
-  const { message, chatId } = event.detail
-
-  console.log('📨 [ChatWindow] Chat message event received:', {
-    chatId,
-    selectedChatId: selectedChat.value?.id,
-    messageFrom: message.from,
-    isTypingActive: isTyping.value
-  })
+  const { chatId } = event.detail
 
   // Only handle for the currently selected chat
   if (!selectedChat.value || selectedChat.value.id !== chatId) {
-    console.log('📨 [ChatWindow] Ignoring chat message - not current chat')
     return
   }
 
   // Hide typing indicator when receiving any chat message
-  console.log('📨 [ChatWindow] Chat message received, hiding typing indicator')
   isTyping.value = false
   if (typingTimeout.value) {
     clearTimeout(typingTimeout.value)
@@ -309,10 +359,34 @@ onUnmounted(() => {
   margin-bottom: 1rem;
 }
 
+/* Hide on mobile utility class */
+.hide-on-mobile {
+  display: block;
+}
+
 /* Responsive adjustments */
 @media (max-width: 767px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .chat-window-container {
+    height: 100vh;
+    max-height: 100vh;
+  }
+
   .message-input-area {
     padding: 0.75rem;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+  }
+
+  .messages-area {
+    padding: 1rem;
+    padding-bottom: 80px; /* Space for fixed input area */
   }
 
   .message-input {
@@ -324,39 +398,38 @@ onUnmounted(() => {
   .send-button {
     padding: 0.5rem 1rem;
   }
-
-  .messages-area {
-    padding: 1rem;
-  }
 }
 
-/* Typing indicator styles */
+/* Typing indicator styles - styled like message bubbles */
 .typing-indicator {
   display: flex;
-  align-items: center;
+  justify-content: flex-start;
   margin: 0.5rem 0;
-  padding: 0 1rem;
+  padding: 0;
 }
 
 .typing-bubble {
   display: flex;
   align-items: center;
+  justify-content: center;
   background-color: var(--color-bg-secondary);
-  border-radius: var(--border-radius-large);
-  padding: 0.75rem 1rem;
+  border-radius: 18px;
+  padding: 12px 16px;
+  min-width: 60px;
   max-width: 200px;
   border: var(--border-width) solid var(--color-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .typing-dots {
   display: flex;
-  gap: 0.25rem;
-  margin-right: 0.5rem;
+  gap: 4px;
+  align-items: center;
 }
 
 .typing-dots span {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   background-color: var(--color-text-secondary);
   border-radius: 50%;
   animation: typing-bounce 1.4s infinite ease-in-out;
@@ -368,12 +441,6 @@ onUnmounted(() => {
 
 .typing-dots span:nth-child(2) {
   animation-delay: -0.16s;
-}
-
-.typing-text {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  font-style: italic;
 }
 
 @keyframes typing-bounce {

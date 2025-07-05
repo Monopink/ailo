@@ -1,9 +1,9 @@
 <template>
   <div id="main-layout">
-    <header class="global-header" v-if="authStore.user">
+    <header class="global-header hide-on-mobile" v-if="authStore.user">
       <div class="header-content">
         <div class="welcome-message">
-          {{ authStore.user.phone }}
+          {{ authStore.user.nickname || authStore.user.username || authStore.user.phone }}
         </div>
         <div class="header-actions">
           <button @click="handleLogout" class="btn">登出</button>
@@ -50,17 +50,11 @@ onMounted(async () => {
 watch(() => authStore.user, async (newUser, oldUser) => {
   if (newUser && newUser.entity_id) {
     try {
-      console.log('User logged in, initializing message service...')
       await messageService.initialize(String(newUser.entity_id))
-
       await chatStore.fetchBots()
-      console.log('✅ Message service initialized and fetched bots')
-      console.log('Chat store chats:', chatStore.chats.length)
 
-      // Setup message listener using new message service
-      console.log('Setting up message listener...')
+      // Setup message listener
       messageService.onMessage((message, _conversation) => {
-        console.log('📨 Received message:', message)
 
         // Handle different message types
         if (message.type === 1) { // CHAT message
@@ -88,23 +82,17 @@ watch(() => authStore.user, async (newUser, oldUser) => {
             console.warn('📨 No chat found for message from:', senderEntityId)
           }
         }
-        // Note: typing messages (type 2, 3) will be handled by ChatWindow component
       })
 
       // Setup typing message listener
       messageService.onTyping((message, _conversation) => {
-        console.log('📨 Received typing message:', message)
-        // Typing messages will be handled by individual ChatWindow components
-        // We'll emit a global event that ChatWindow can listen to
+        // Emit global event for ChatWindow components to handle
         window.dispatchEvent(new CustomEvent('typing-message', {
           detail: { message, conversation: _conversation }
         }))
       })
-
-      console.log('✅ Message listener setup complete')
     } catch (error) {
       console.error('❌ Failed to connect to LeanMessage:', error)
-      console.error('Error details:', error.message, error.stack)
     }
   } else if (oldUser) {
     try {
@@ -147,6 +135,10 @@ watch(() => authStore.user, async (newUser, oldUser) => {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  height: 100%; /* 确保内容占满header高度 */
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+  padding: 0 1rem;
 }
 
 .header-actions {
@@ -166,6 +158,7 @@ main {
   justify-content: center;
   align-items: center;
   padding: 0;
+  overflow: hidden; /* 防止页面滚动 */
   /* Remove padding to allow fullscreen apps */
 }
 
@@ -173,19 +166,19 @@ main.with-header {
   height: calc(100vh - 50px);
 }
 
+/* Hide on mobile utility class */
+.hide-on-mobile {
+  display: block;
+}
+
 /* Responsive adjustments */
 @media (max-width: 767px) {
-  .global-header {
-    padding: 0 1rem;
-    height: 44px;
-  }
-
-  .header-actions {
-    gap: 0.5rem;
+  .hide-on-mobile {
+    display: none !important;
   }
 
   main.with-header {
-    height: calc(100vh - 44px);
+    height: 100vh; /* Full height on mobile since header is hidden */
   }
 }
 </style>

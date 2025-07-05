@@ -1,19 +1,9 @@
 <template>
-  <div class="home-container grid-bg">
+  <!-- Desktop Layout -->
+  <div v-if="!isMobile" class="home-container grid-bg">
     <div class="chat-container glass-panel">
-      <!-- Mobile chat list toggle button -->
-      <button class="mobile-toggle btn hide-on-desktop" @click="toggleChatList">
-        查看列表
-      </button>
-
-
-
-      <!-- Chat sidebar - hidden by default on mobile, toggled with the button -->
-      <div :class="{
-        'chat-sidebar': true,
-        'glass-panel': true,
-        'mobile-sidebar-visible': showMobileChatList
-      }">
+      <!-- Chat sidebar -->
+      <div class="chat-sidebar glass-panel">
         <ChatList />
       </div>
 
@@ -23,27 +13,92 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile Layout -->
+  <div v-else class="mobile-container">
+    <!-- Chat List View -->
+    <div v-if="!selectedChatId" class="mobile-chat-list">
+      <div class="mobile-header">
+        <h1>会话</h1>
+        <button class="logout-button" @click="handleLogout">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="16,17 21,12 16,7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <ChatList />
+    </div>
+
+    <!-- Chat Window View -->
+    <div v-else class="mobile-chat-window">
+      <div class="mobile-chat-header">
+        <button class="back-button" @click="goBackToList">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <h2>{{ selectedChat?.name || '聊天' }}</h2>
+      </div>
+      <ChatWindow />
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import ChatList from '../components/ChatList.vue';
 import ChatWindow from '../components/ChatWindow.vue';
+import { useChatStore } from '../stores/chat';
+import { useAuthStore } from '../stores/auth';
+import { useRouter } from 'vue-router';
 
-// State for mobile sidebar toggle
-const showMobileChatList = ref(false);
+const chatStore = useChatStore();
+const authStore = useAuthStore();
+const router = useRouter();
 
-// Function to toggle the chat list on mobile
-const toggleChatList = () => {
-  showMobileChatList.value = !showMobileChatList.value;
+// Mobile detection
+const isMobile = ref(false);
+
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 767;
+};
+
+onMounted(() => {
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile);
+});
+
+// Mobile navigation
+const selectedChatId = computed(() => chatStore.selectedChatId);
+const selectedChat = computed(() => {
+  return chatStore.chats.find(chat => chat.id === selectedChatId.value);
+});
+
+const goBackToList = () => {
+  chatStore.selectChat(null);
+};
+
+const handleLogout = () => {
+  authStore.logout();
+  router.push('/login');
 };
 </script>
 
 <style scoped>
+/* Desktop Layout */
 .home-container {
+  position: fixed; /* 固定定位防止滚动 */
+  top: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
-  padding: 20px;
+  height: 100vh;
+  padding: 16px; /* Smaller padding */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -58,31 +113,11 @@ const toggleChatList = () => {
   max-width: var(--chat-container-max-width);
   background-color: var(--color-bg-overlay);
   overflow: hidden;
-  border-radius: var(--border-radius);
-}
-
-.nav-links {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 100;
-  display: flex;
-  gap: 10px;
-}
-
-.nav-link {
-  padding: 5px 10px;
-  background-color: var(--color-primary);
-  color: white;
-  text-decoration: none;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: calc(var(--border-radius) + 10px); /* 外圆角 = 内圆角 + margin值 */
 }
 
 .chat-sidebar {
   flex: 0 0 280px;
-  /* Fixed width on desktop */
   margin: 10px;
   border-radius: var(--border-radius);
   background-color: var(--color-bg-secondary);
@@ -99,53 +134,102 @@ const toggleChatList = () => {
   overflow: hidden;
 }
 
-.mobile-toggle {
-  display: none;
-  /* Hidden by default on desktop */
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  z-index: 1000;
+/* Mobile Layout */
+.mobile-container {
+  width: 100%;
+  height: 100vh;
+  background-color: var(--color-bg-primary);
+  overflow: hidden; /* Prevent page scrolling */
 }
 
-/* Responsive adjustments */
-@media (max-width: 767px) {
-  .home-container {
-    padding: 0;
-    height: 100vh;
-  }
+.mobile-chat-list {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent page scrolling */
+}
 
-  .chat-container {
-    height: 100vh;
-    width: 100%;
-    max-width: 100%;
-    border-radius: 0;
-  }
+.mobile-header {
+  background-color: var(--color-bg-secondary);
+  border-bottom: var(--border-width) solid var(--color-border);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
 
-  .chat-sidebar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10;
-    margin: 0;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-  }
+.mobile-header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  flex: 1;
+  text-align: center;
+}
 
-  .mobile-sidebar-visible {
-    transform: translateX(0);
-  }
+.logout-button {
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
 
-  .mobile-toggle {
-    display: flex;
-    /* Show toggle on mobile */
-  }
+.logout-button:hover {
+  background-color: var(--color-bg-tertiary);
+}
 
-  .chat-main {
-    width: 100%;
-    margin: 0;
-  }
+.mobile-chat-window {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent page scrolling */
+}
+
+.mobile-chat-header {
+  background-color: var(--color-bg-secondary);
+  border-bottom: var(--border-width) solid var(--color-border);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.back-button:hover {
+  background-color: var(--color-bg-tertiary);
+}
+
+.mobile-chat-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  flex: 1;
 }
 </style>

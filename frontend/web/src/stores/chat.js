@@ -45,25 +45,22 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function fetchBots() {
-    console.log('🔧 [DEBUG] fetchBots called')
     const authStore = useAuthStore();
-    console.log('🔧 [DEBUG] authStore.token:', !!authStore.token)
     if (!authStore.token) return;
 
     try {
-      console.log('🔧 [DEBUG] Fetching bots...')
       const response = await getBots(authStore.token);
-      console.log('🔧 [DEBUG] getBots response:', response)
 
       // Merge with existing chat data from localStorage
       const existingChats = chats.value;
 
       // Transform the bot data to fit the chat structure
-      console.log('🔧 [DEBUG] Received bots data:', response.data)
-      const newChats = response.data.map(bot => {
-        console.log('🔧 [DEBUG] Processing bot:', bot)
-        // Find existing chat data
-        const existingChat = existingChats.find(c => c.id === bot.entity_id);
+      const botChats = response.data.map(bot => {
+        // Find existing chat data by entity_id or conversation_id
+        const existingChat = existingChats.find(c =>
+          c.entity_id === bot.entity_id ||
+          c.id === (bot.leancloud_conversation_id || bot.entity_id)
+        );
 
         return {
           id: bot.leancloud_conversation_id || bot.entity_id, // Use LeanMessage conversation ID if available
@@ -82,7 +79,22 @@ export const useChatStore = defineStore('chat', () => {
         };
       });
 
-      chats.value = newChats;
+      // Keep existing user chats (contact_type !== 2) and merge with new bot chats
+      const userChats = existingChats.filter(chat => chat.contact_type !== 2);
+
+      // Remove duplicates by creating a Map with unique IDs
+      const allChats = [...userChats, ...botChats];
+      const uniqueChatsMap = new Map();
+
+      allChats.forEach(chat => {
+        // Use entity_id as the primary key for deduplication
+        const key = chat.entity_id || chat.id;
+        if (!uniqueChatsMap.has(key)) {
+          uniqueChatsMap.set(key, chat);
+        }
+      });
+
+      chats.value = Array.from(uniqueChatsMap.values());
 
       if (chats.value.length > 0 && !selectedChatId.value) {
         selectedChatId.value = chats.value[0].id;

@@ -20,11 +20,13 @@ if (typeof window !== 'undefined') {
     document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light')
   })
 
-  // Debug environment variables
-  console.log('Environment variables:');
-  console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
-  console.log('VITE_LEANCLOUD_APP_ID:', import.meta.env.VITE_LEANCLOUD_APP_ID);
-  console.log('VITE_LEANCLOUD_APP_KEY:', import.meta.env.VITE_LEANCLOUD_APP_KEY ? '[HIDDEN]' : 'undefined');
+  // Only log environment variables in development
+  if (import.meta.env.DEV) {
+    console.log('Environment variables:');
+    console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+    console.log('VITE_LEANCLOUD_APP_ID:', import.meta.env.VITE_LEANCLOUD_APP_ID);
+    console.log('VITE_LEANCLOUD_APP_KEY:', import.meta.env.VITE_LEANCLOUD_APP_KEY ? '[HIDDEN]' : 'undefined');
+  }
 }
 
 const app = createApp(App)

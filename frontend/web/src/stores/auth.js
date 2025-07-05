@@ -33,6 +33,18 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return
     try {
       const { data } = await apiClient.get('/auth/me')
+
+      // Try to get social profile for nickname
+      try {
+        const profileResponse = await apiClient.get(`/api/contacts/profile/${data.entity_id}`)
+        if (profileResponse.data.status === 'success') {
+          data.nickname = profileResponse.data.data.nickname
+        }
+      } catch (profileError) {
+        // If social profile not found, use username as fallback
+        console.warn('Social profile not found, using username as nickname')
+      }
+
       setUser(data)
     } catch (error) {
       console.error('Failed to fetch user:', error)

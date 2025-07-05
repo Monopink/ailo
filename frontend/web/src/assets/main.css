@@ -14,22 +14,23 @@
   --color-user-text: #1a1a1a;
   --color-bot-message: #e9e9eb;
   --color-bot-text: #1a1a1a;
-  
-  /* UI Attributes */
-  --border-radius: 12px;
-  --border-radius-sm: 8px;
-  --box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --box-shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
-  --border-width: 1px;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', sans-serif;
-  --backdrop-blur: 15px;
-  --container-max-width: 1200px;
-  --chat-container-width: 90%;
-  --chat-container-height: 85vh;
-  --chat-container-max-width: 1100px;
-  --toast-width: 300px;
-  --toast-padding: 12px 16px;
-  --toast-border-radius: 10px;
+
+  /* UI Attributes - macOS style */
+  --border-radius: 10px;
+  --border-radius-sm: 6px;
+  --border-radius-large: 18px;
+  --box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --box-shadow-soft: 0 1px 4px rgba(0, 0, 0, 0.03);
+  --border-width: 0.5px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --backdrop-blur: 20px;
+  --container-max-width: 1000px;
+  --chat-container-width: 85%;
+  --chat-container-height: 75vh;
+  --chat-container-max-width: 900px;
+  --toast-width: 280px;
+  --toast-padding: 10px 14px;
+  --toast-border-radius: 8px;
 }
 
 /* Dark Mode Variables */
@@ -52,7 +53,9 @@
 }
 
 /* Global Reset & Base Styles */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   font-weight: normal;
@@ -63,8 +66,9 @@ body {
   color: var(--color-text-primary);
   background: var(--color-bg-primary);
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 14px;
+  /* macOS style smaller font */
+  line-height: 1.4;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -82,7 +86,12 @@ body {
 }
 
 /* Typography */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 500;
   line-height: 1.2;
 }
@@ -92,15 +101,17 @@ h1, h2, h3, h4, h5, h6 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 500;
+  font-weight: 400;
   text-align: center;
   white-space: nowrap;
   vertical-align: middle;
   user-select: none;
   border: var(--border-width) solid var(--color-border);
-  padding: 0.5rem 1rem;
-  font-size: 0.9375rem;
-  line-height: 1.5;
+  padding: 0.375rem 0.75rem;
+  /* Smaller padding */
+  font-size: 0.8125rem;
+  /* 13px - macOS style */
+  line-height: 1.3;
   border-radius: var(--border-radius-sm);
   transition: background-color 0.15s, opacity 0.15s;
   cursor: pointer;
@@ -138,7 +149,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .grid-bg {
-  background-image: 
+  background-image:
     linear-gradient(to right, var(--color-border-light) 1px, transparent 1px),
     linear-gradient(to bottom, var(--color-border-light) 1px, transparent 1px);
   background-size: 20px 20px;
@@ -146,7 +157,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Form Elements */
-input, textarea {
+input,
+textarea {
   border: var(--border-width) solid var(--color-border);
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
@@ -158,6 +170,7 @@ input, textarea {
 
 /* Media Queries for Responsiveness */
 @media (max-width: 767px) {
+
   /* Mobile Styles */
   .hide-on-mobile {
     display: none !important;
@@ -165,6 +178,7 @@ input, textarea {
 }
 
 @media (min-width: 768px) {
+
   /* Tablet & Desktop Styles */
   .hide-on-desktop {
     display: none !important;

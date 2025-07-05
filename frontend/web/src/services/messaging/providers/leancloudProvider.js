@@ -413,11 +413,9 @@ export class LeanCloudProvider {
           if (messageContent._lctext) {
             try {
               parsedMessage = JSON.parse(messageContent._lctext)
-              console.log('🔍 [LeanCloudProvider] Parsed structured message from _lctext:', parsedMessage)
             } catch (error) {
               console.error('❌ [LeanCloudProvider] Failed to parse _lctext:', {
                 error: error.message,
-                _lctext: messageContent._lctext,
                 from: message.from
               })
               return
@@ -425,13 +423,12 @@ export class LeanCloudProvider {
           } else {
             // Direct structured message object
             parsedMessage = messageContent
-            console.log('🔍 [LeanCloudProvider] Received structured message object:', parsedMessage)
           }
         } else if (typeof messageContent === 'string') {
           // Need to parse JSON string
           try {
             parsedMessage = JSON.parse(messageContent)
-            console.log('🔍 [LeanCloudProvider] Parsed structured message from string:', parsedMessage)
+
           } catch (error) {
             console.error('❌ [LeanCloudProvider] Failed to parse structured message:', {
               error: error.message,
@@ -450,16 +447,8 @@ export class LeanCloudProvider {
           return
         }
 
-        // Notify callbacks based on message type
-        console.log('🔍 [LeanCloudProvider] Message type check:', {
-          type: parsedMessage.type,
-          isTyping: parsedMessage.type === 2,
-          isTypingEnd: parsedMessage.type === 3,
-          willUseTypingCallback: parsedMessage.type === 2 || parsedMessage.type === 3
-        })
-
+        // Route message to appropriate callbacks based on type
         if (parsedMessage.type === 2 || parsedMessage.type === 3) { // TYPING or TYPING_END
-          console.log('🔍 [LeanCloudProvider] Sending to typing callbacks, count:', this.typingCallbacks.size)
           this.typingCallbacks.forEach(callback => {
             try {
               callback(parsedMessage, conversation)
@@ -468,7 +457,6 @@ export class LeanCloudProvider {
             }
           })
         } else {
-          console.log('🔍 [LeanCloudProvider] Sending to message callbacks, count:', this.messageCallbacks.size)
           this.messageCallbacks.forEach(callback => {
             try {
               callback(parsedMessage, conversation)

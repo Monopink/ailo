@@ -570,7 +570,7 @@ class RelationshipMixin:
         # Apply override_config if it exists
         override_config = getattr(self.bot, "override_config", None)
         if override_config and isinstance(override_config, dict):
-            self.logger.debug("applying_override_config", override_config=override_config)
+            self.logger.debug("applying_override_config")
             for ovr_key, ovr_value in override_config.items():
                 try:
                     # Use direct access to enforce that the override configuration is valid.

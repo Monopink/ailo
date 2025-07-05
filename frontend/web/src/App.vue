@@ -64,9 +64,9 @@ watch(() => authStore.user, async (newUser, oldUser) => {
 
         // Handle different message types
         if (message.type === 1) { // CHAT message
-          // Find the chat by sender entity_id
+          // Find the chat by sender - compatible with both bot and user messages
           const senderEntityId = message.from
-          const chat = chatStore.chats.find(c => c.entity_id === senderEntityId)
+          const chat = chatStore.chats.find(c => c.entity_id === senderEntityId || c.id === senderEntityId)
 
           if (chat) {
             const newMessage = {

@@ -1,6 +1,5 @@
 import json
 import requests
-from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import leancloud
 from ..event_bus import event_bus, EventTypes
@@ -103,10 +102,18 @@ class LeanMessageManager:
         from_entity = data.get("from_entity")
         to_entity = data.get("to_entity")
         content = data.get("content")
+        message_type = data.get("message_type")
 
-        if not all([from_entity, to_entity, content]):
-            logger.error("invalid_message_data", data=data)
+        # Validate required fields based on message type
+        if not all([from_entity, to_entity]):
+            logger.error("invalid_message_data_missing_entities", data=data)
             return
+
+        # For typing messages, content can be empty, but for other messages, content is required
+        if message_type not in [MessageType.TYPING.name, MessageType.TYPING_END.name]:
+            if not content:
+                logger.error("invalid_message_data_missing_content", data=data)
+                return
 
         try:
             # Get conversation_id from data, or look it up from bot entity_id
@@ -118,16 +125,66 @@ class LeanMessageManager:
                     logger.error("missing_conversation_id", data=data)
                     return
 
+            # Create structured message format for frontend
+            structured_message = self._create_structured_message(data)
+
             self._send_system_conversation_message(
                 conversation_id=conversation_id,
                 from_peer=from_entity,
                 to_client=to_entity,
-                message_content=content,
+                message_content=structured_message,
             )
-            logger.info("message_sent_successfully", from_entity=from_entity, to_entity=to_entity)
+            logger.info(
+                "message_sent_successfully",
+                from_entity=from_entity,
+                to_entity=to_entity,
+                message_type=message_type,
+            )
 
         except Exception as e:
             logger.error("leanmessage_send_message_failed", error=str(e), exc_info=True)
+
+    def _create_structured_message(self, data: Dict[str, Any]) -> str:
+        """
+        Create structured message format for frontend consumption.
+        This wraps the message data in the format expected by frontend.
+        """
+        try:
+            from_entity = data.get("from_entity")
+            to_entity = data.get("to_entity")
+            content = data.get("content", "")
+            message_type = data.get("message_type", MessageType.CHAT.name)
+            message_time = data.get("message_time")
+
+            # Convert message_type string to numeric code for frontend
+            message_type_enum = MessageType.from_name(message_type)
+            if message_type_enum is None:
+                logger.error("unknown_message_type_for_structured_message", message_type=message_type)
+                raise ValueError(f"Unknown message type: {message_type}")
+            message_type_code = message_type_enum.code
+
+            # Validate required timestamp
+            if not message_time:
+                logger.error("missing_message_time", data=data)
+                raise ValueError("message_time is required for structured messages")
+
+            # Create structured message matching frontend types.js format
+            structured_message = {
+                "type": message_type_code,  # Numeric type (1=chat, 2=typing, etc.)
+                "from": from_entity,
+                "to": to_entity,
+                "content": content,
+                "timestamp": message_time,
+                "service": 1,  # 1 = leancloud service
+            }
+
+            # Convert to JSON string for LeanCloud message field
+            return json.dumps(structured_message)
+
+        except Exception as e:
+            logger.error("create_structured_message_failed", error=str(e), data=data, exc_info=True)
+            # Don't fallback to plain content - structured messages are required
+            raise
 
     def _send_system_conversation_message(
         self, conversation_id: str, from_peer: str, to_client: str, message_content: str
@@ -251,21 +308,53 @@ class LeanMessageManager:
             )
             return None
 
+    def _extract_basic_fields(self, message_data: Dict[str, Any]) -> tuple:
+        """Extract and validate basic fields from LeanMessage webhook data."""
+        from_entity = message_data.get("from")
+        conv_info = message_data.get("conv", {})
+        conversation_id = conv_info.get("objectId")
+        message_content = message_data.get("data")
+        msg_id = message_data.get("msgId")
+        created_at = message_data.get("createdAt", {}).get("iso")
+
+        if not all([from_entity, conversation_id, message_content]):
+            raise ValueError("Missing required fields: from, conv.objectId, or data")
+
+        return from_entity, conversation_id, message_content, msg_id, created_at
+
+    def _extract_frontend_fields(self, structured_data: Optional[Dict[str, Any]]) -> tuple:
+        """Extract frontend fields (from, to) from structured data."""
+        frontend_from = None
+        frontend_to = None
+
+        if structured_data and isinstance(structured_data, dict):
+            # Check if structured_data contains frontend format directly
+            if "from" in structured_data and "to" in structured_data:
+                # Direct frontend format: {type: 2, from: "u1002", to: "b9002", ...}
+                frontend_from = structured_data.get("from")
+                frontend_to = structured_data.get("to")
+            elif "_lctext" in structured_data:
+                # LeanCloud format with _lctext, try to parse _lctext
+                try:
+                    lctext_data = json.loads(structured_data["_lctext"])
+                    if isinstance(lctext_data, dict):
+                        frontend_from = lctext_data.get("from")
+                        frontend_to = lctext_data.get("to")
+                except (json.JSONDecodeError, KeyError):
+                    # Log but don't fail - _lctext might contain plain text
+                    logger.debug("failed_to_parse_lctext_for_frontend_fields")
+
+        return frontend_from, frontend_to
+
     def validate_message_structure(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Validate and convert LeanMessage message to bot_message_service format according to enums.py
         """
         try:
             # Extract basic fields
-            from_entity = message_data.get("from")
-            conv_info = message_data.get("conv", {})
-            conversation_id = conv_info.get("objectId")
-            message_content = message_data.get("data")
-            msg_id = message_data.get("msgId")
-            created_at = message_data.get("createdAt", {}).get("iso")
-
-            if not all([from_entity, conversation_id, message_content]):
-                raise ValueError("Missing required fields: from, conv.objectId, or data")
+            from_entity, conversation_id, message_content, msg_id, created_at = self._extract_basic_fields(
+                message_data
+            )
 
             # Input validation logging removed for cleaner logs
 
@@ -281,29 +370,13 @@ class LeanMessageManager:
                 content_length=len(parsed_content) if parsed_content else 0,
             )
 
-            # If we have structured data from frontend, extract additional fields
-            frontend_from = None
-            frontend_to = None
-            if structured_data and isinstance(structured_data, dict):
-                # Check if structured_data contains frontend format directly
-                if "from" in structured_data and "to" in structured_data:
-                    # Direct frontend format: {type: 2, from: "u1002", to: "b9002", ...}
-                    frontend_from = structured_data.get("from")
-                    frontend_to = structured_data.get("to")
-                elif "_lctext" in structured_data:
-                    # LeanCloud format with _lctext, try to parse _lctext
-                    try:
-                        lctext_data = json.loads(structured_data["_lctext"])
-                        if isinstance(lctext_data, dict):
-                            frontend_from = lctext_data.get("from")
-                            frontend_to = lctext_data.get("to")
-                    except (json.JSONDecodeError, KeyError):
-                        pass
+            # Extract frontend fields from structured data
+            frontend_from, frontend_to = self._extract_frontend_fields(structured_data)
 
-                # Field extraction logging simplified
-                logger.debug(
-                    "fields_extracted", from_entity=frontend_from or from_entity, to_entity=frontend_to
-                )
+            # Field extraction logging simplified
+            logger.debug(
+                "fields_extracted", from_entity=frontend_from or from_entity, to_entity=frontend_to
+            )
 
             # Create message_metadata for non-standard fields
             message_metadata = {
@@ -320,6 +393,11 @@ class LeanMessageManager:
                 # Only add non-None values
                 message_metadata.update({k: v for k, v in frontend_fields.items() if v is not None})
 
+            # Validate required timestamp
+            if not created_at:
+                logger.error("missing_created_at_timestamp", message_data=message_data)
+                raise ValueError("createdAt timestamp is required")
+
             # Create structured message according to enums.py format
             structured_message = {
                 "from_entity": frontend_from or from_entity,  # Prefer frontend field
@@ -327,7 +405,7 @@ class LeanMessageManager:
                 "content": parsed_content,
                 "message_type": message_type,
                 "message_service": IMServiceType.LEANCLOUD.value,
-                "message_time": created_at or datetime.now(timezone.utc).isoformat(),
+                "message_time": created_at,
                 "message_metadata": message_metadata,
             }
 
@@ -381,34 +459,7 @@ class LeanMessageManager:
                             else:
                                 return content_text, message_type_code, parsed
 
-                        # Check for old frontend format with string 'message_type' field
-                        elif "message_type" in parsed:
-                            # Old frontend format: {message_type: "typing", content: "", ...}
-                            content_text = parsed.get("content", "")
-                            frontend_message_type = parsed.get("message_type", "chat")
-
-                            logger.info(
-                                "old_frontend_format_detected",
-                                message_type=frontend_message_type,
-                                content=content_text,
-                            )
-
-                            # Convert frontend string type to backend enum code
-                            message_type_enum = MessageType.from_name(frontend_message_type)
-                            if message_type_enum is None:
-                                logger.warning("unknown_message_type", message_type=frontend_message_type)
-                                message_type_code = MessageType.CHAT.code
-                            else:
-                                message_type_code = message_type_enum.code
-
-                            logger.info(
-                                "message_type_conversion",
-                                frontend_type=frontend_message_type,
-                                backend_code=message_type_code,
-                                enum_name=message_type_enum.name if message_type_enum else None,
-                            )
-
-                            return content_text, message_type_code, parsed
+                        # Old message_type string format is no longer supported
 
                         elif "_lctext" in parsed:
                             # Extract text from LeanMessage native format and try to parse it further
@@ -435,13 +486,14 @@ class LeanMessageManager:
                                         )
 
                                     if message_type_enum is None:
-                                        logger.warning(
+                                        logger.error(
                                             "unknown_message_type_in_lctext",
                                             type_value=frontend_message_type,
                                         )
-                                        message_type_code = MessageType.CHAT.code
-                                    else:
-                                        message_type_code = message_type_enum.code
+                                        raise ValueError(
+                                            f"Unknown message type in _lctext: {frontend_message_type}"
+                                        )
+                                    message_type_code = message_type_enum.code
 
                                     # Type conversion from _lctext completed
 
@@ -454,26 +506,31 @@ class LeanMessageManager:
                                     else:
                                         return content_text, message_type_code, lctext_parsed
                                 else:
-                                    # _lctext contains plain text or other format
-                                    return lctext_content, MessageType.CHAT.code, parsed
+                                    # _lctext doesn't contain structured format
+                                    logger.error(
+                                        "invalid_lctext_format", lctext_content=lctext_content[:100]
+                                    )
+                                    raise ValueError("_lctext must contain structured message format")
                             except json.JSONDecodeError:
-                                # _lctext is not JSON, treat as plain text
-                                return lctext_content, MessageType.CHAT.code, parsed
-                        elif "text" in parsed:
-                            return parsed["text"], MessageType.CHAT.code, parsed
+                                # _lctext is not JSON - reject
+                                logger.error("invalid_lctext_not_json", lctext_content=lctext_content[:100])
+                                raise ValueError("_lctext must be valid JSON")
                         else:
-                            # Return the whole object as string if no recognized format
-                            return str(parsed), MessageType.CHAT.code, parsed
+                            # No recognized structured format found
+                            logger.error("unrecognized_message_structure", parsed_keys=list(parsed.keys()))
+                            raise ValueError("Message must contain recognized structured format")
                 except json.JSONDecodeError:
-                    # If the outer JSON parsing fails, try to treat it as plain text
-                    return content, MessageType.CHAT.code, None
+                    # If the outer JSON parsing fails, reject non-structured messages
+                    logger.error("invalid_message_format_not_json", content=content[:100])
+                    raise ValueError("Message content must be valid JSON structured format")
 
-            # Return as plain text if not JSON
-            return content, MessageType.CHAT.code, None
+            # Reject non-JSON messages - all messages must be structured
+            logger.error("invalid_message_format_not_structured", content=content[:100])
+            raise ValueError("Message content must be in structured JSON format")
 
         except Exception as e:
             logger.error("content_parsing_failed", error=str(e), content=content[:100])
-            return content, MessageType.CHAT.code, None
+            raise
 
     async def process_webhook_message(self, message_data: Dict[str, Any]) -> None:
         """

@@ -406,19 +406,48 @@ export class LeanCloudProvider {
         // Get message content from the correct field
         const messageContent = message.content || message.text || ''
 
-        // Try to parse as structured message
+        // Handle structured message - could be object or JSON string
         let parsedMessage
-        try {
-          parsedMessage = JSON.parse(messageContent)
-          console.log('🔍 [LeanCloudProvider] Parsed structured message:', parsedMessage)
-        } catch {
-          // If not JSON, treat as plain text chat message
-          parsedMessage = createChatMessage(
-            message.from,
-            this.currentUserId,
-            messageContent
-          )
-          console.log('🔍 [LeanCloudProvider] Created chat message from plain text:', parsedMessage)
+        if (typeof messageContent === 'object' && messageContent !== null) {
+          // Check if it's a LeanCloud TextMessage with _lctext
+          if (messageContent._lctext) {
+            try {
+              parsedMessage = JSON.parse(messageContent._lctext)
+              console.log('🔍 [LeanCloudProvider] Parsed structured message from _lctext:', parsedMessage)
+            } catch (error) {
+              console.error('❌ [LeanCloudProvider] Failed to parse _lctext:', {
+                error: error.message,
+                _lctext: messageContent._lctext,
+                from: message.from
+              })
+              return
+            }
+          } else {
+            // Direct structured message object
+            parsedMessage = messageContent
+            console.log('🔍 [LeanCloudProvider] Received structured message object:', parsedMessage)
+          }
+        } else if (typeof messageContent === 'string') {
+          // Need to parse JSON string
+          try {
+            parsedMessage = JSON.parse(messageContent)
+            console.log('🔍 [LeanCloudProvider] Parsed structured message from string:', parsedMessage)
+          } catch (error) {
+            console.error('❌ [LeanCloudProvider] Failed to parse structured message:', {
+              error: error.message,
+              messageContent,
+              from: message.from
+            })
+            // Skip invalid messages that don't follow structured format
+            return
+          }
+        } else {
+          console.error('❌ [LeanCloudProvider] Invalid message content type:', {
+            type: typeof messageContent,
+            messageContent,
+            from: message.from
+          })
+          return
         }
 
         // Notify callbacks based on message type

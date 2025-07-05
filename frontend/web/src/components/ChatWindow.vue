@@ -139,7 +139,11 @@ const handleTypingMessage = (event) => {
   console.log('📨 [ChatWindow] Received typing message:', message)
 
   // Find the chat that corresponds to this message
-  const chat = chats.value.find(c => c.id === message.from)
+  // Try both ways to be compatible with bot and user messages:
+  // 1. For bot messages: message.from is entity_id, find by entity_id
+  // 2. For user messages: message.from might correspond to chat.id
+  const chat = chats.value.find(c => c.entity_id === message.from || c.id === message.from)
+
   if (!chat) {
     console.warn('📨 [ChatWindow] No chat found for typing message from:', message.from)
     return

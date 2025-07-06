@@ -24,6 +24,8 @@ export const useChatStore = defineStore('chat', () => {
 
   // Add message to chat and save to localStorage
   function addMessage(chatId, message) {
+    console.log('📝 [ChatStore] Adding message to chat:', chatId, message)
+
     const chat = chats.value.find(c => c.id === chatId);
     if (chat) {
       if (!chat.messages) {
@@ -31,15 +33,92 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       // Avoid duplicate messages
-      const existingMessage = chat.messages.find(m => m.id === message.id);
+      let existingMessage = null;
+
+      if (message.localId) {
+        // Sent message: check by localId (most reliable for sent messages)
+        existingMessage = chat.messages.find(m => m.localId === message.localId);
+      } else {
+        // Received message: use content + timestamp + sender for duplicate detection
+        // This is more reliable than id for received messages
+        const messageKey = `${message.text}_${message.sender}_${new Date(message.timestamp).getTime()}`;
+        existingMessage = chat.messages.find(m => {
+          const existingKey = `${m.text}_${m.sender}_${new Date(m.timestamp).getTime()}`;
+          return existingKey === messageKey;
+        });
+      }
+
+      console.log('📝 [ChatStore] Existing message check:', existingMessage ? 'DUPLICATE FOUND' : 'NEW MESSAGE')
+      console.log('📝 [ChatStore] Message details:', {
+        id: message.id,
+        localId: message.localId,
+        text: message.text,
+        sender: message.sender,
+        isReceived: !message.localId
+      })
+
       if (!existingMessage) {
-        chat.messages.push({
+        const newMessage = {
           ...message,
           timestamp: message.timestamp || new Date()
-        });
+        };
+
+        chat.messages.push(newMessage);
+        console.log('📝 [ChatStore] Message added to chat.messages, total count:', chat.messages.length)
 
         // Save to localStorage
         localStorageService.addMessage(chatId, message);
+        console.log('📝 [ChatStore] Message saved to localStorage')
+      } else {
+        console.log('📝 [ChatStore] Message skipped - duplicate detected')
+      }
+    }
+  }
+
+  // Update message status
+  function updateMessageStatus(chatId, localId, updatedMessage) {
+    const chat = chats.value.find(c => c.id === chatId);
+    if (chat && chat.messages) {
+      const messageIndex = chat.messages.findIndex(m => m.localId === localId);
+      if (messageIndex !== -1) {
+        // Update the message with new status information
+        chat.messages[messageIndex] = {
+          ...chat.messages[messageIndex],
+          ...updatedMessage,
+          timestamp: chat.messages[messageIndex].timestamp // Preserve original timestamp
+        };
+
+        // Save to localStorage
+        saveToStorage();
+
+        console.log('📊 Message status updated in store:', localId, updatedMessage.status);
+      }
+    }
+  }
+
+  // Move message to bottom (for retry functionality)
+  function moveMessageToBottom(chatId, localId, updatedMessage) {
+    const chat = chats.value.find(c => c.id === chatId);
+    if (chat && chat.messages) {
+      const messageIndex = chat.messages.findIndex(m => m.localId === localId);
+      if (messageIndex !== -1) {
+        // Remove the message from its current position
+        const [message] = chat.messages.splice(messageIndex, 1);
+
+        // Update the message with new information and timestamp
+        const updatedMsg = {
+          ...message,
+          ...updatedMessage,
+          timestamp: new Date() // New timestamp to place at bottom
+        };
+
+        // Add it to the end
+        chat.messages.push(updatedMsg);
+
+        // Save to localStorage
+        saveToStorage();
+
+        console.log('📊 Message moved to bottom:', localId);
       }
     }
   }
@@ -128,6 +207,8 @@ export const useChatStore = defineStore('chat', () => {
     fetchBots,
     selectChat,
     addMessage,
+    updateMessageStatus,
+    moveMessageToBottom,
     saveToStorage,
     clearChats,
   };

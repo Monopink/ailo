@@ -53,44 +53,8 @@ watch(() => authStore.user, async (newUser, oldUser) => {
       await messageService.initialize(String(newUser.entity_id))
       await chatStore.fetchBots()
 
-      // Setup message listener
-      messageService.onMessage((message, _conversation) => {
-
-        // Handle different message types
-        if (message.type === 1) { // CHAT message
-          // Find the chat by sender - compatible with both bot and user messages
-          const senderEntityId = message.from
-          const chat = chatStore.chats.find(c => c.entity_id === senderEntityId || c.id === senderEntityId)
-
-          if (chat) {
-            const newMessage = {
-              id: Date.now(), // Generate a simple ID
-              text: message.content, // Use 'text' field to match MessageBubble component
-              sender: message.from === String(newUser.entity_id) ? 'user' : 'bot',
-              timestamp: new Date(message.timestamp),
-              isFromUser: message.from === String(newUser.entity_id)
-            }
-
-            chatStore.addMessage(chat.id, newMessage)
-
-            // Hide typing indicator when receiving a chat message
-            // Use chat.id (which might be conversation_id) for event
-            window.dispatchEvent(new CustomEvent('chat-message-received', {
-              detail: { message, chatId: chat.id }
-            }))
-          } else {
-            console.warn('📨 No chat found for message from:', senderEntityId)
-          }
-        }
-      })
-
-      // Setup typing message listener
-      messageService.onTyping((message, _conversation) => {
-        // Emit global event for ChatWindow components to handle
-        window.dispatchEvent(new CustomEvent('typing-message', {
-          detail: { message, conversation: _conversation }
-        }))
-      })
+      // Message handling is now done automatically by messageService
+      // No need to set up manual listeners here
     } catch (error) {
       console.error('❌ Failed to connect to LeanMessage:', error)
     }

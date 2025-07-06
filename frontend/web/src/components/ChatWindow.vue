@@ -4,10 +4,11 @@
       <h3 class="chat-title">{{ selectedChat.name }}</h3>
     </div>
     <div class="messages-area" ref="messagesContainer">
-      <template v-for="(item, index) in messagesWithTimeDividers" :key="item.id || `divider-${index}`">
+      <template v-for="(item, index) in messagesWithTimeDividers" :key="item.id || item.localId || `divider-${index}`">
         <TimeDivider v-if="item.type === 'time-divider'" :timestamp="item.timestamp" />
         <SystemMessage v-else-if="item.type === 'system'" :message="item.text" />
-        <MessageBubble v-else :message="item" />
+        <MessageFailureNotice v-else-if="item.type === 'failure-notice'" :message="item.message" />
+        <MessageBubble v-else :message="item" @retry="handleRetry" />
       </template>
       <!-- Typing indicator -->
       <div v-if="isTyping" class="typing-indicator">
@@ -48,9 +49,10 @@ import { useChatStore } from '../stores/chat';
 import MessageBubble from './MessageBubble.vue';
 import SystemMessage from './SystemMessage.vue';
 import TimeDivider from './TimeDivider.vue';
+import MessageFailureNotice from './MessageFailureNotice.vue';
 import { messageService } from '../services/messaging';
 import { useAuthStore } from '../stores/auth';
-import { MessageType } from '../services/messaging/types';
+import { MessageType, MessageStatus } from '../services/messaging/types';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
@@ -65,7 +67,7 @@ const selectedChat = computed(() => {
 
 const chats = computed(() => chatStore.chats);
 
-// Add time dividers between messages
+// Add time dividers and failure notices between messages
 const messagesWithTimeDividers = computed(() => {
   if (!selectedChat.value?.messages) return [];
 
@@ -86,6 +88,15 @@ const messagesWithTimeDividers = computed(() => {
     }
 
     result.push(currentMessage);
+
+    // Add failure notice after failed messages
+    if (shouldShowFailureNotice(currentMessage)) {
+      result.push({
+        type: 'failure-notice',
+        id: `failure-${currentMessage.localId || currentMessage.id}`,
+        message: getFailureMessage(currentMessage)
+      });
+    }
   }
 
   return result;
@@ -101,6 +112,42 @@ const shouldShowTimeDivider = (currentMessage, previousMessage) => {
   // Show divider if messages are more than 5 minutes apart
   const timeDiff = current.getTime() - previous.getTime();
   return timeDiff > 5 * 60 * 1000; // 5 minutes in milliseconds
+};
+
+// Helper function to determine if we should show a failure notice
+const shouldShowFailureNotice = (message) => {
+  // Show notice for failed or blocked user messages
+  return message.sender === 'user' &&
+         (message.status === 3 || message.status === 4); // FAILED or BLOCKED
+};
+
+// Helper function to get failure message text
+const getFailureMessage = (message) => {
+  if (message.status === 4) { // BLOCKED
+    // For blocked messages, prioritize system message, then default
+    return message.systemMessage || '消息被系统屏蔽';
+  } else if (message.status === 3) { // FAILED
+    // For failed messages, prioritize system message, then map by failure reason
+    if (message.systemMessage) {
+      return message.systemMessage;
+    }
+
+    // Map failure reasons to user-friendly messages (never show provider errors)
+    if (message.failureReason === 6) { // NOT_CONTACTS
+      return '你和对方还不是好友';
+    } else if (message.failureReason === 3) { // BLOCKED_BY_USER
+      return '消息已被对方拒收';
+    } else if (message.failureReason === 5) { // RATE_LIMITED
+      return '发送过于频繁';
+    } else if (message.failureReason === 2) { // CONVERSATION_ERROR
+      return '连接失败，请检查网络后重试';
+    } else if (message.failureReason === 7) { // CONTENT_TOO_LONG
+      return '消息内容过长';
+    } else {
+      return '消息发送失败';
+    }
+  }
+  return '消息发送异常';
 };
 
 const scrollToBottom = async () => {
@@ -240,25 +287,50 @@ const sendMessage = async () => {
   // Reset typing state without sending typing_end (message sending implies typing stopped)
   isCurrentlyTyping.value = false;
 
+  // Send message using unified message service with status management
+  console.log('Sending message to:', selectedChat.value.entity_id);
+  const uiMessage = await messageService.sendChatMessage(selectedChat.value, content);
+
+  // Add UI message to local chat immediately (with pending status)
+  chatStore.addMessage(selectedChat.value.id, uiMessage);
+  await nextTick();
+  scrollToBottom();
+
+  // Note: No try-catch needed here as the message service handles all errors
+  // and updates the message status accordingly. The message will always be
+  // displayed in the UI, with appropriate status indicators.
+};
+
+// Handle message retry
+const handleRetry = async (localId) => {
   try {
-    // Send message using unified message service
-    console.log('Sending message to:', selectedChat.value.entity_id);
-    await messageService.sendChatMessage(selectedChat.value, content);
-
-    // Add message to local chat (it will also be received via onMessage)
-    const userMessage = {
-      id: Date.now(),
-      text: content,
-      sender: 'user',
-      timestamp: new Date(),
-      messageType: MessageType.CHAT.code
-    };
-
-    chatStore.addMessage(selectedChat.value.id, userMessage);
-    await nextTick();
-    scrollToBottom();
+    console.log('🔄 [ChatWindow] Retrying message with localId:', localId);
+    console.log('🔄 [ChatWindow] LocalId type:', typeof localId);
+    await messageService.retryMessage(localId);
   } catch (error) {
-    console.error("Failed to send message to system conversation:", error);
+    console.error('❌ [ChatWindow] Failed to retry message:', error);
+    // Error is handled by the status manager
+  }
+};
+
+// Handle message status changes
+const handleMessageStatusChange = (message) => {
+  console.log('📊 Message status changed:', message.localId, message.status);
+
+  // Find and update the message in the chat store
+  if (selectedChat.value) {
+    // If this is a retry (regardless of current status), move the message to the bottom
+    if (message.isRetry) {
+      console.log('🔄 Moving retry message to bottom:', message.localId);
+      chatStore.moveMessageToBottom(selectedChat.value.id, message.localId, message);
+
+      // Scroll to bottom to show the retried message
+      nextTick(() => {
+        scrollToBottom();
+      });
+    } else {
+      chatStore.updateMessageStatus(selectedChat.value.id, message.localId, message);
+    }
   }
 };
 
@@ -304,20 +376,68 @@ const handleTypingMessage = (event) => {
   }
 }
 
-// Handle chat messages to hide typing indicator
+// Handle incoming chat messages
 const handleChatMessageReceived = (event) => {
-  const { chatId } = event.detail
+  const { message, conversation } = event.detail
 
-  // Only handle for the currently selected chat
-  if (!selectedChat.value || selectedChat.value.id !== chatId) {
-    return
-  }
+  console.log('📨 [ChatWindow] Received message event:', message)
 
   // Hide typing indicator when receiving any chat message
   isTyping.value = false
   if (typingTimeout.value) {
     clearTimeout(typingTimeout.value)
     typingTimeout.value = null
+  }
+
+  console.log('🔍 [ChatWindow] Looking for chat with message.from:', message.from)
+  console.log('🔍 [ChatWindow] Current user entity_id:', authStore.user?.entity_id)
+  console.log('🔍 [ChatWindow] Available chats:', chats.value.map(c => ({ id: c.id, entity_id: c.entity_id, name: c.name })))
+
+  // Find the chat that corresponds to this conversation
+  const chat = chats.value.find(c => {
+    // For bot conversations, match by entity_id
+    if (message.from && message.from.startsWith('b')) {
+      return c.entity_id === message.from
+    }
+    // For user conversations, match by entity_id
+    return c.entity_id === message.from
+  })
+
+  console.log('🔍 [ChatWindow] Found chat:', chat ? { id: chat.id, entity_id: chat.entity_id, name: chat.name } : 'null')
+
+  if (chat) {
+    // Create a UI message object for display
+    const uiMessage = {
+      id: Date.now() + Math.random(), // Unique ID for received messages
+      localId: null, // Received messages don't have localId
+      text: message.content,
+      sender: message.from === authStore.user?.entity_id ? 'user' : 'bot',
+      timestamp: new Date(message.timestamp || Date.now()),
+      messageType: message.type,
+      status: null, // Received messages don't have status
+      isSystemMessage: message.type === MessageType.SYSTEM
+    }
+
+    // Add message to chat
+    chatStore.addMessage(chat.id, uiMessage)
+
+    console.log('🔍 [ChatWindow] Current selected chat:', selectedChat.value ? { id: selectedChat.value.id, entity_id: selectedChat.value.entity_id } : 'null')
+    console.log('🔍 [ChatWindow] Message added to chat:', chat.id)
+    console.log('🔍 [ChatWindow] Is this the selected chat?', selectedChat.value && selectedChat.value.id === chat.id)
+
+    // Scroll to bottom if this is the selected chat
+    if (selectedChat.value && selectedChat.value.id === chat.id) {
+      console.log('🔍 [ChatWindow] Scrolling to bottom for selected chat')
+      nextTick(() => {
+        scrollToBottom()
+      })
+    } else {
+      console.log('🔍 [ChatWindow] Not scrolling - message not for selected chat')
+    }
+
+    console.log('✅ [ChatWindow] Added received message to chat:', chat.id)
+  } else {
+    console.warn('⚠️ [ChatWindow] Could not find chat for received message:', message)
   }
 }
 
@@ -327,6 +447,10 @@ onMounted(() => {
   window.addEventListener('typing-message', handleTypingMessage)
   // Listen for chat messages to hide typing indicator
   window.addEventListener('chat-message-received', handleChatMessageReceived)
+
+  // Listen for message status changes
+  const statusManager = messageService.getStatusManager()
+  statusManager.onStatusChange(handleMessageStatusChange)
 })
 
 onUnmounted(() => {
@@ -334,6 +458,11 @@ onUnmounted(() => {
   // Remove event listeners
   window.removeEventListener('typing-message', handleTypingMessage)
   window.removeEventListener('chat-message-received', handleChatMessageReceived)
+
+  // Clean up status manager listeners
+  const statusManager = messageService.getStatusManager()
+  statusManager.offStatusChange(handleMessageStatusChange)
+
   // Clear typing timers
   if (typingTimer.value) {
     clearTimeout(typingTimer.value)
@@ -493,7 +622,7 @@ onUnmounted(() => {
   padding: 12px 16px;
   min-width: 60px;
   max-width: 200px;
-  border: var(--border-width) solid var(--color-border);
+  border: none; /* Remove border from typing indicator */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 

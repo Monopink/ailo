@@ -25,8 +25,8 @@ export class LeanCloudProvider {
     this.conversations = new Map() // Cache for conversations
     this.toast = useToast()
 
-    // Cconversation ID caching
-    this.ConversationId = null
+    // Conversation ID caching
+    this.unifiedConversationId = null
     this.conversationIdPromise = null
   }
 
@@ -230,7 +230,7 @@ export class LeanCloudProvider {
           return encryptedMessage
         } catch (retryError) {
           console.error('❌ Failed to send chat message after retry:', retryError)
-          throw new Error(`Failed to send message: ${retryError.message}. Please check if the backend is properly configured.`)
+          throw retryError // Throw original technical error without user-facing message
         }
       }
       console.error('❌ Failed to send chat message:', error)

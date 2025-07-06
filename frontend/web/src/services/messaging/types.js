@@ -36,17 +36,77 @@ export const EncryptionVersion = {
   V1: 1  // First version of encryption implementation
 }
 
+// Message status for UI state management (independent of transport layer)
+export const MessageStatus = {
+  PENDING: 1,     // Message is being sent
+  SENT: 2,        // Transport layer confirmed delivery
+  FAILED: 3,      // Transport layer failed to deliver
+  BLOCKED: 4,     // System determined message was blocked
+  DELIVERED: 5    // System confirmed successful delivery
+}
+
+// Message failure reasons
+export const MessageFailureReason = {
+  NETWORK_ERROR: 1,
+  CONVERSATION_ERROR: 2,
+  BLOCKED_BY_USER: 3,
+  SYSTEM_ERROR: 4,
+  RATE_LIMITED: 5,
+  NOT_CONTACTS: 6,           // You and the recipient are not contacts yet
+  CONTENT_TO_LOOGH: 7
+}
+
+/**
+ * Generate unique local message ID
+ */
+export function generateLocalMessageId() {
+  return `local_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+}
+
 /**
  * Create a standardized message object
  */
 export function createMessage(type, from, to, content = '', options = {}) {
   return {
+    id: options.id || generateLocalMessageId(), // Add id field
     type,
     from,
     to,
     content,
     timestamp: new Date().toISOString(),
     service: 1, // 1 = leancloud service
+    ...options
+  }
+}
+
+/**
+ * Create a UI message object with status management
+ */
+export function createUIMessage(type, from, to, content = '', options = {}) {
+  const localId = generateLocalMessageId()
+
+  return {
+    // UI-specific fields
+    id: localId, // Use localId as id for compatibility with chat store
+    localId,
+    status: MessageStatus.PENDING,
+    retryCount: 0,
+    errorMessage: null,
+    failureReason: null,
+
+    // Transport message fields
+    transportMessage: createMessage(type, from, to, content, options),
+
+    // Display fields
+    text: content,
+    sender: from === options.currentUserId ? 'user' : 'bot',
+    timestamp: new Date(),
+    messageType: type,
+
+    // System fields
+    isSystemMessage: type === MessageType.SYSTEM,
+    canRetry: true,
+
     ...options
   }
 }

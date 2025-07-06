@@ -32,6 +32,12 @@ const router = createRouter({
       name: 'system-chat-test',
       component: () => import('../views/SystemChatTest.vue'),
       meta: { requiresAuth: false }
+    },
+    {
+      path: '/message-status-test',
+      name: 'message-status-test',
+      component: () => import('../views/MessageStatusTest.vue'),
+      meta: { requiresAuth: false }
     }
   ]
 })

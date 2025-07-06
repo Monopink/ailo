@@ -98,8 +98,7 @@ async def create_with_rest_api() -> str:
         "name": "message_service",
         "sys": True,
         "attr": {
-            "description": "Auto-created unified system conversation for all bots",
-            "created_by": "bot_message_service",
+            "created_by": "says",
             "auto_generated": True,
             "version": "1.0",
         },

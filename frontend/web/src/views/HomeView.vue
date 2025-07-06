@@ -68,10 +68,18 @@ const checkMobile = () => {
 onMounted(() => {
   checkMobile();
   window.addEventListener('resize', checkMobile);
+
+  // Set global chat store reference for message service
+  window.__CHAT_STORE__ = chatStore;
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile);
+
+  // Clean up global reference
+  if (window.__CHAT_STORE__) {
+    delete window.__CHAT_STORE__;
+  }
 });
 
 // Mobile navigation

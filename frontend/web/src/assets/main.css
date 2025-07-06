@@ -15,6 +15,14 @@
   --color-bot-message: #e9e9eb;
   --color-bot-text: #1a1a1a;
 
+  /* Status colors */
+  --color-primary: #0066cc;
+  --color-primary-dark: #0052a3;
+  --color-error: #ff3b30;
+  --color-error-light: #ffebea;
+  --color-warning: #ff9500;
+  --color-warning-light: #fff4e6;
+
   /* UI Attributes - macOS style */
   --border-radius: 10px;
   --border-radius-sm: 6px;
@@ -49,6 +57,14 @@
     --color-user-text: #ffffff;
     --color-bot-message: #303030;
     --color-bot-text: #ffffff;
+
+    /* Status colors - dark mode */
+    --color-primary: #0a84ff;
+    --color-primary-dark: #0066cc;
+    --color-error: #ff453a;
+    --color-error-light: #2d1b1b;
+    --color-warning: #ff9f0a;
+    --color-warning-light: #2d2419;
   }
 }
 

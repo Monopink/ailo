@@ -56,7 +56,8 @@ Our unified message format for frontend-backend communication:
 
 ```javascript
 {
-  type: 1,                    // Message type: 1=chat, 2=typing, 3=system
+  id: "local_1751776984574_97j85pkjk",  // Message ID (local_id for frontend messages)
+  type: 1,                    // Message type: 1=chat, 2=typing, 3=typing_end, 9=system
   from: "u1002",             // Sender entity ID
   to: "b9002",               // Recipient entity ID
   content: "Hello World",    // Message content
@@ -69,11 +70,52 @@ Our unified message format for frontend-backend communication:
 
 - **1** - Chat message
 - **2** - Typing indicator
-- **3** - System message
+- **3** - Typing end indicator
+- **9** - System message
 
 ### Service Type Definitions
 
 - **1** - LeanCloud IM service
+
+## 2.1. System Message Format for Status Management
+
+System messages (type=9) are used to notify the frontend about message status changes and business-level failures:
+
+```javascript
+{
+  id: "system_" + Date.now(),
+  type: 9,                    // System message
+  from: "system",            // Always "system"
+  to: "u1002",               // Target user
+  content: {
+    action: "message_status", // Action type
+    target_message_id: "local_1751776984574_97j85pkjk", // Target message ID
+    status: "failed",         // New status: "failed", "blocked", "delivered"
+    reason: "not_contacts",    // Failure reason
+    message: "你和对方还不是好友"  // User-friendly message
+  },
+  timestamp: "2025-07-05T01:03:26.474Z",
+  service: 1
+}
+```
+
+### System Message Actions
+
+- **message_status** - Update message status and failure reason
+
+### System Message Status Values
+
+- **failed** - Message failed to send (business logic failure)
+- **blocked** - Message was blocked by system policy
+- **delivered** - Message was successfully delivered
+
+### System Message Reason Codes
+
+- **not_contacts** - Sender and recipient are not contacts
+- **user_blocked** - Recipient has blocked the sender
+- **content_blocked** - Message content was blocked by content filter
+- **rate_limited** - Too many messages sent in short time
+- **system_error** - Internal system error
 
 ## 3. Encrypted Message Format (Extended Version)
 
@@ -81,6 +123,7 @@ Extended format containing encryption metadata:
 
 ```javascript
 {
+  id: "local_1751776984574_97j85pkjk",  // Message ID
   type: 1,                    // Message type
   from: "u1002",             // Sender
   to: "b9002",               // Recipient
@@ -127,12 +170,15 @@ Extended format containing encryption metadata:
 - **leanmessage.py** - Handles LeanCloud and system format conversion
 - **encryption.py** - Handles message encryption/decryption
 
-## 5. Backward Compatibility
+## 5. Unencrypted Message Compatibility
 
 ### Unencrypted Messages
 
+For messages that don't require encryption, the format remains the same but without encryption fields:
+
 ```javascript
 {
+  id: "local_1751776984574_97j85pkjk",  // Message ID (required)
   type: 1,
   from: "u1002",
   to: "b9002",
@@ -146,28 +192,67 @@ Extended format containing encryption metadata:
 ### Detection Rules
 
 - If message contains `encryption` field → encrypted message
-- If message lacks `encryption` field → unencrypted message (backward compatible)
+- If message lacks `encryption` field → unencrypted message (plain text)
 
 ## 6. Implementation Notes
 
 1. **LeanCloud format is immutable** - Can only place our JSON string in the `_lctext` field
 2. **Numeric encoding preferred** - Use numbers instead of strings for encryption algorithms, versions, etc.
-3. **Backward compatibility** - Must support legacy unencrypted message formats
-4. **Error handling** - Fallback strategies for encryption/decryption failures
-5. **Performance considerations** - Base64 encoding overhead, future AES encryption overhead
+3. **Message ID required** - All messages must include the `id` field for proper tracking and status management
+4. **Unencrypted message support** - System supports both encrypted and plain text messages
+5. **Error handling** - Fallback strategies for encryption/decryption failures
+6. **Performance considerations** - Base64 encoding overhead, future AES encryption overhead
 
 ## 7. Test Cases
 
-### Basic Message
+### Basic Unencrypted Message
 
 ```javascript
-{type: 1, from: "u1001", to: "u1002", content: "test", timestamp: "2025-07-05T10:00:00.000Z", service: 1}
+{
+  id: "local_1751776984574_97j85pkjk",
+  type: 1,
+  from: "u1001",
+  to: "u1002",
+  content: "test",
+  timestamp: "2025-07-05T10:00:00.000Z",
+  service: 1
+}
 ```
 
 ### Encrypted Message
 
 ```javascript
-{type: 1, from: "u1001", to: "u1002", content: "dGVzdA==", timestamp: "2025-07-05T10:00:00.000Z", service: 1, encryption: 1, enc_version: 1}
+{
+  id: "local_1751776984574_97j85pkjk",
+  type: 1,
+  from: "u1001",
+  to: "u1002",
+  content: "dGVzdA==",
+  timestamp: "2025-07-05T10:00:00.000Z",
+  service: 1,
+  encryption: 1,
+  enc_version: 1
+}
+```
+
+### System Message
+
+```javascript
+{
+  id: "system_1751776984574",
+  type: 9,
+  from: "system",
+  to: "u1002",
+  content: {
+    action: "message_status",
+    target_message_id: "local_1751776984574_97j85pkjk",
+    status: "failed",
+    reason: "not_contacts",
+    message: "你和对方还不是好友"
+  },
+  timestamp: "2025-07-05T10:00:00.000Z",
+  service: 1
+}
 ```
 
 ### LeanCloud Wrapper
@@ -175,7 +260,7 @@ Extended format containing encryption metadata:
 ```javascript
 {
   data: {
-    _lctext: '{"type":1,"from":"u1001","to":"u1002","content":"dGVzdA==","timestamp":"2025-07-05T10:00:00.000Z","service":1,"encryption":1,"enc_version":1}',
+    _lctext: '{"id":"local_1751776984574_97j85pkjk","type":1,"from":"u1001","to":"u1002","content":"dGVzdA==","timestamp":"2025-07-05T10:00:00.000Z","service":1,"encryption":1,"enc_version":1}',
     _lctype: -1
   }
 }

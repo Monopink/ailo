@@ -1,12 +1,14 @@
 import json
 import requests
 from typing import Dict, Any, Optional
-import leancloud
+
+# import leancloud  # Commented out - using REST API only
 from ..event_bus import event_bus, EventTypes
 from ..utils.logging import get_logger
 from ..core.config import settings
+from .config_manager import get_unified_conversation_id
 from ..enums import MessageType, IMServiceType
-from ..database import SessionLocal, bot_crud
+
 from .encryption import encryption_service
 
 logger = get_logger(__name__)
@@ -19,51 +21,57 @@ class LeanMessageManager:
         self._server_id = "says_server"  # ID for the server in LeanMessage
         self._conversations = {}  # Cache for conversations
 
-    def init_sdk(self):
+    def init_rest_api(self):
         """
-        Initialize the LeanMessage SDK.
+        Initialize the LeanMessage REST API client.
+        No SDK required - using pure REST API.
         """
         if self._initialized:
             return
 
         app_id = settings.LEANCLOUD_APP_ID
-        app_key = settings.LEANCLOUD_APP_KEY
         master_key = settings.LEANCLOUD_MASTER_KEY
-        region = settings.LEANCLOUD_SERVER_URL  # Now this should be 'CN' or 'US'
+        base_url = settings.LEANCLOUD_BASE_URL
 
-        if not app_id or not app_key or not master_key:
+        if not app_id or not master_key or not base_url:
             logger.error("leanmessage_credentials_missing")
-            raise ValueError("LEANCLOUD_APP_ID, LEANCLOUD_APP_KEY and LEANCLOUD_MASTER_KEY must be set")
+            raise ValueError("LEANCLOUD_APP_ID, LEANCLOUD_MASTER_KEY and LEANCLOUD_BASE_URL must be set")
 
         try:
-            # Initialize LeanCloud SDK
-            # pylint: disable=no-member
-            leancloud.init(app_id, app_key=app_key, master_key=master_key)
-
-            # Handle region setting correctly
-            if region:
-                logger.info(f"Setting LeanMessage region to: {region}")
-
-                # Use the correct region code (CN or US)
-                if region.upper() == "CN":
-                    # pylint: disable=no-member
-                    leancloud.use_region("CN")
-                elif region.upper() == "US":
-                    # pylint: disable=no-member
-                    leancloud.use_region("US")
-                else:
-                    logger.warning(f"Unknown region: {region}, defaulting to CN")
-                    # pylint: disable=no-member
-                    leancloud.use_region("CN")
+            # Validate credentials by testing API access
+            self._validate_api_credentials()
 
             self._initialized = True
-            logger.info("leanmessage_sdk_initialized")
+            logger.info("leanmessage_rest_api_initialized")
 
             # Initialize server client for sending messages
             self._init_server_client()
         except Exception as e:
-            logger.error("leanmessage_sdk_init_failed", error=str(e), exc_info=True)
+            logger.error("leanmessage_rest_api_init_failed", error=str(e), exc_info=True)
             raise
+
+    def _validate_api_credentials(self):
+        """
+        Validate LeanCloud API credentials by making a test request.
+        """
+        try:
+            # Test API access by querying service conversations
+            url = f"{settings.LEANCLOUD_BASE_URL}/1.2/rtm/service-conversations"
+            headers = {
+                "X-LC-Id": settings.LEANCLOUD_APP_ID,
+                "X-LC-Key": f"{settings.LEANCLOUD_MASTER_KEY},master",
+                "Content-Type": "application/json",
+            }
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code in [200, 404]:  # 404 is OK if no conversations exist
+                logger.info("leancloud_api_credentials_validated")
+            else:
+                raise ValueError(f"API validation failed with status {response.status_code}")
+
+        except requests.RequestException as e:
+            logger.error("leancloud_api_validation_failed", error=str(e))
+            raise ValueError(f"Failed to validate LeanCloud API credentials: {str(e)}")
 
     def _init_server_client(self):
         """
@@ -117,14 +125,8 @@ class LeanMessageManager:
                 return
 
         try:
-            # Get conversation_id from data, or look it up from bot entity_id
-            conversation_id = data.get("conversation_id")
-            if not conversation_id:
-                # Look up conversation_id from bot entity_id
-                conversation_id = await self._get_conversation_id_from_bot(from_entity)
-                if not conversation_id:
-                    logger.error("missing_conversation_id", data=data)
-                    return
+            # Use unified system conversation ID for all bot messages
+            conversation_id = get_unified_conversation_id()
 
             # Create structured message format for frontend
             structured_message = self._create_structured_message(data)
@@ -249,72 +251,6 @@ class LeanMessageManager:
                 exc_info=True,
             )
             raise
-
-    async def get_bot_entity_from_conversation(self, conversation_id: str) -> Optional[str]:
-        """
-        Get bot entity_id from LeanMessage conversation ID by querying the database.
-        """
-        try:
-            if not conversation_id:
-                logger.error("get_bot_entity_error_empty_conversation_id")
-                return None
-
-            # Query the database to find the bot with this conversation_id from conversation_mappings
-            async with SessionLocal() as db:
-                bot_entity_id = await bot_crud.get_bot_by_conversation_id(db, conversation_id)
-
-            if bot_entity_id:
-                logger.info(
-                    "bot_found_for_conversation",
-                    conversation_id=conversation_id,
-                    bot_entity_id=bot_entity_id,
-                )
-                return bot_entity_id
-            else:
-                logger.warning(
-                    "no_bot_found_for_conversation",
-                    conversation_id=conversation_id,
-                    action="querying_database",
-                )
-                return None
-
-        except Exception as e:
-            logger.error(
-                "get_bot_entity_error", error=str(e), conversation_id=conversation_id, exc_info=True
-            )
-            return None
-
-    async def _get_conversation_id_from_bot(self, bot_entity_id: str) -> Optional[str]:
-        """
-        Get LeanMessage conversation ID from bot entity_id by querying the database.
-        """
-        try:
-            if not bot_entity_id:
-                logger.error("get_conversation_id_error_empty_bot_entity_id")
-                return None
-
-            # Query the database to find the conversation_id for this bot from conversation_mappings
-            async with SessionLocal() as db:
-                conversation_id = await bot_crud.get_conversation_id_by_bot(db, bot_entity_id)
-
-            if conversation_id:
-                logger.info(
-                    "conversation_found_for_bot",
-                    bot_entity_id=bot_entity_id,
-                    conversation_id=conversation_id,
-                )
-                return conversation_id
-            else:
-                logger.warning(
-                    "no_conversation_found_for_bot", bot_entity_id=bot_entity_id, action="querying_database"
-                )
-                return None
-
-        except Exception as e:
-            logger.error(
-                "get_conversation_id_error", error=str(e), bot_entity_id=bot_entity_id, exc_info=True
-            )
-            return None
 
     def _extract_basic_fields(self, message_data: Dict[str, Any]) -> tuple:
         """Extract and validate basic fields from LeanMessage webhook data."""
@@ -570,26 +506,30 @@ class LeanMessageManager:
                 logger.error("failed_to_validate_message_structure", message_data=message_data)
                 return
 
-            # Get bot entity_id from conversation_id in message_metadata
-            message_metadata = structured_message.get("message_metadata", {})
-            conversation_id = message_metadata.get("conversation_id")
-            if not conversation_id:
-                logger.error(
-                    "missing_conversation_id_in_metadata",
-                    metadata_keys=list(message_metadata.keys()) if message_metadata else None,
-                )
-                return
-
-            bot_entity_id = await self.get_bot_entity_from_conversation(conversation_id)
+            # In unified conversation architecture, bot entity_id is already in the message content
+            # Validate that we have the required to_entity field
+            bot_entity_id = structured_message.get("to_entity")
             if not bot_entity_id:
                 logger.error(
-                    "failed_to_get_bot_entity_id",
-                    conversation_id=conversation_id,
+                    "missing_to_entity_in_message",
                     structured_message=structured_message,
                 )
                 return
 
-            structured_message["to_entity"] = bot_entity_id
+            # Validate that the conversation_id matches our unified conversation
+            message_metadata = structured_message.get("message_metadata", {})
+            conversation_id = message_metadata.get("conversation_id")
+            if conversation_id:
+                try:
+                    expected_conversation_id = get_unified_conversation_id()
+                    if conversation_id != expected_conversation_id:
+                        logger.warning(
+                            "conversation_id_mismatch",
+                            received=conversation_id,
+                            expected=expected_conversation_id,
+                        )
+                except ValueError:
+                    logger.warning("unified_conversation_id_not_configured")
 
             # Log the complete structured message
             logger.info(
@@ -625,7 +565,7 @@ def setup_leanmessage_handlers():
     """
     Set up LeanMessage service and event handlers.
     """
-    leanmessage_service.init_sdk()
+    leanmessage_service.init_rest_api()
 
     # Subscribe to an event that triggers sending a message
     event_bus.subscribe(EventTypes.SEND_MESSAGE, leanmessage_service.handle_send_message)

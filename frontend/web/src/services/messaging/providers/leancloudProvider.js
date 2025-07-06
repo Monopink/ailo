@@ -24,6 +24,10 @@ export class LeanCloudProvider {
     this.client = null
     this.conversations = new Map() // Cache for conversations
     this.toast = useToast()
+
+    // Cconversation ID caching
+    this.ConversationId = null
+    this.conversationIdPromise = null
   }
 
   /**
@@ -35,6 +39,16 @@ export class LeanCloudProvider {
       await this._loginLeanCloud(userId)
       this.currentUserId = userId
       this._setupMessageHandlers()
+
+      // Preload unified conversation ID
+      try {
+        await this._getUnifiedConversationId()
+        console.log('✅ Conversation ID preloaded')
+      } catch (error) {
+        console.warn('⚠️ Failed to preload conversation ID:', error)
+        // Don't block initialization, retry when actually needed
+      }
+
       console.log('✅ LeanCloud provider initialized')
     } catch (error) {
       console.error('❌ Failed to initialize LeanCloud provider:', error)
@@ -187,9 +201,10 @@ export class LeanCloudProvider {
     const encryptedMessage = this.messageEncryption.encryptMessage(message)
 
     try {
-      if (options.contactType === ContactType.BOT && options.conversationId) {
-        // Bot: Use system conversation
-        await this._sendToSystemConversation(options.conversationId, encryptedMessage)
+      if (options.contactType === ContactType.BOT) {
+        // Bot: Use unified system conversation
+        const conversationId = await this._getUnifiedConversationId()
+        await this._sendToSystemConversation(conversationId, encryptedMessage)
       } else {
         // User: Use regular conversation
         await this._sendToUserConversation(targetId, encryptedMessage)
@@ -198,6 +213,26 @@ export class LeanCloudProvider {
       console.log('✅ Chat message sent:', encryptedMessage.type)
       return encryptedMessage
     } catch (error) {
+      // If conversation-related error, clear cache and retry once
+      if (error.message.includes('conversation') || error.message.includes('404') || error.message.includes('not configured')) {
+        console.warn('🔄 Conversation error detected, clearing cache and retrying...')
+        this.clearConversationIdCache()
+
+        // Retry once after clearing cache
+        try {
+          if (options.contactType === ContactType.BOT) {
+            const conversationId = await this._getUnifiedConversationId()
+            await this._sendToSystemConversation(conversationId, encryptedMessage)
+          } else {
+            await this._sendToUserConversation(targetId, encryptedMessage)
+          }
+          console.log('✅ Chat message sent after retry:', encryptedMessage.type)
+          return encryptedMessage
+        } catch (retryError) {
+          console.error('❌ Failed to send chat message after retry:', retryError)
+          throw new Error(`Failed to send message: ${retryError.message}. Please check if the backend is properly configured.`)
+        }
+      }
       console.error('❌ Failed to send chat message:', error)
       throw error
     }
@@ -478,5 +513,63 @@ export class LeanCloudProvider {
         console.error('Error processing received message:', error)
       }
     })
+  }
+
+  /**
+   * Get unified system conversation ID with caching
+   */
+  async _getUnifiedConversationId() {
+    // Return cached value if available
+    if (this.unifiedConversationId) {
+      return this.unifiedConversationId
+    }
+
+    // Prevent concurrent requests
+    if (this.conversationIdPromise) {
+      return await this.conversationIdPromise
+    }
+
+    // Fetch conversation ID from API
+    this.conversationIdPromise = this._fetchConversationId()
+
+    try {
+      this.unifiedConversationId = await this.conversationIdPromise
+      return this.unifiedConversationId
+    } catch (error) {
+      console.error('Failed to get unified conversation ID:', error)
+      throw error
+    } finally {
+      this.conversationIdPromise = null
+    }
+  }
+
+  /**
+   * Fetch conversation ID from backend API
+   */
+  async _fetchConversationId() {
+    const response = await fetch('/api/v1/system/conversation-id', {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Conversation not configured. Please run setup tools.')
+      }
+      throw new Error(`Failed to get conversation ID: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.conversation_id
+  }
+
+  /**
+   * Clear conversation ID cache (for error recovery)
+   */
+  clearConversationIdCache() {
+    this.unifiedConversationId = null
+    this.conversationIdPromise = null
+    console.log('🔄 Conversation ID cache cleared')
   }
 }

@@ -1,163 +1,176 @@
-# 消息格式规范文档
+# Message Format Specification
 
-## 概述
+## Overview
 
-本文档定义了系统中三种消息格式及其关系：
+This document defines three message formats and their relationships within the system:
 
-1. **LeanCloud 传输格式** - LeanCloud IM 服务的原生格式
-2. **系统消息格式** - 我们定义的统一消息格式
-3. **加密消息格式** - 包含加密元数据的扩展格式
+1. **LeanCloud Transport Format** - Native format for LeanCloud IM service
+2. **System Message Format** - Our unified message format definition
+3. **Encrypted Message Format** - Extended format with encryption metadata
 
-## 1. LeanCloud 传输格式
+## Architecture Design: Unified System Conversation
 
-LeanCloud IM 服务使用的原生消息格式，不可修改：
+### Design Principles
+
+All user-to-bot conversations use a **single unified system conversation**, differentiating between bots through the `entity_id` in message content. This design:
+
+- Reduces LeanCloud resource consumption
+- Simplifies conversation management
+- Eliminates the need for conversation mapping tables
+
+### Conversation Management
+
+- **User-to-User**: One dedicated conversation per user pair (unchanged)
+- **User-to-Bot**: All bots share a single unified system conversation
+- **Conversation ID Retrieval**: Frontend fetches via API `/api/v1/system/conversation-id`
+- **Caching Strategy**: Frontend memory cache with automatic cleanup and retry on errors
+
+## 1. LeanCloud Transport Format
+
+The native message format used by LeanCloud IM service, which cannot be modified:
 
 ```javascript
-// LeanCloud 发送消息时的格式
+// LeanCloud send message format
 {
   conversationId: "6864d79a9a6e605b27a4ebba",
-  message: "JSON字符串内容",  // 这里放我们的系统消息格式
+  message: "JSON string content",  // Our system message format goes here
   fromClientId: "u1002",
   toClientIds: ["b9002"]
 }
 
-// LeanCloud webhook 接收格式
+// LeanCloud webhook receive format
 {
   data: {
-    _lctext: "JSON字符串内容",  // 这里是我们的系统消息格式
+    _lctext: "JSON string content",  // Our system message format
     _lctype: -1
   },
   from: "u1002",
   conv: { objectId: "6864d79a9a6e605b27a4ebba" },
-  // ... 其他 LeanCloud 字段
+  // ... other LeanCloud fields
 }
 ```
 
-## 2. 系统消息格式（基础版本）
+## 2. System Message Format (Base Version)
 
-我们定义的统一消息格式，用于前后端通信：
+Our unified message format for frontend-backend communication:
 
 ```javascript
 {
-  type: 1,                    // 数字类型：1=聊天, 2=输入状态, 3=系统消息
-  from: "u1002",             // 发送者实体ID
-  to: "b9002",               // 接收者实体ID
-  content: "Hello World",    // 消息内容
-  timestamp: "2025-07-05T01:03:26.474Z",  // ISO时间戳
-  service: 1                 // 服务类型：1=LeanCloud
+  type: 1,                    // Message type: 1=chat, 2=typing, 3=system
+  from: "u1002",             // Sender entity ID
+  to: "b9002",               // Recipient entity ID
+  content: "Hello World",    // Message content
+  timestamp: "2025-07-05T01:03:26.474Z",  // ISO timestamp
+  service: 1                 // Service type: 1=LeanCloud
 }
 ```
 
-### 消息类型定义
+### Message Type Definitions
 
-- `1` - 聊天消息
-- `2` - 输入状态
-- `3` - 系统消息
+- **1** - Chat message
+- **2** - Typing indicator
+- **3** - System message
 
-### 服务类型定义
+### Service Type Definitions
 
-- `1` - LeanCloud IM 服务
+- **1** - LeanCloud IM service
 
-## 3. 加密消息格式（扩展版本）
+## 3. Encrypted Message Format (Extended Version)
 
-包含加密元数据的扩展格式：
+Extended format containing encryption metadata:
 
 ```javascript
 {
-  type: 1,                    // 消息类型
-  from: "u1002",             // 发送者
-  to: "b9002",               // 接收者
-  content: "SGVsbG8gV29ybGQ=", // 加密后的内容（Base64）
+  type: 1,                    // Message type
+  from: "u1002",             // Sender
+  to: "b9002",               // Recipient
+  content: "SGVsbG8gV29ybGQ=", // Encrypted content (Base64)
   timestamp: "2025-07-05T01:03:26.474Z",
-  service: 1,                // LeanCloud 服务
-  encryption: 1,             // 加密算法：1=Base64, 2=AES-256-GCM
-  enc_version: 1             // 加密版本号
+  service: 1,                // LeanCloud service
+  encryption: 1,             // Encryption algorithm: 1=Base64, 2=AES-256-GCM
+  enc_version: 1             // Encryption version
 }
 ```
 
-### 加密算法定义
+### Encryption Algorithm Definitions
 
-- `1` - Base64 编码（伪加密）
-- `2` - AES-256-GCM（真正加密，未来实现）
+- **1** - Base64 encoding (pseudo-encryption)
+- **2** - AES-256-GCM (true encryption, future implementation)
 
-### 加密版本定义
+### Encryption Version Definitions
 
-- `1` - 第一版加密实现
+- **1** - First encryption implementation
 
-## 4. 消息流转关系
+## 4. Message Flow Relationships
 
-### 发送流程
+### Send Flow
 
-```
-前端创建消息 → 加密处理 → 包装为LeanCloud格式 → 发送
-原始消息格式 → 加密消息格式 → LeanCloud传输格式
-```
+> Frontend creates message → Encryption processing → Wrap in LeanCloud format → Send
+> Original format → Encrypted format → LeanCloud transport format
 
-### 接收流程
+### Receive Flow
 
-```
-LeanCloud接收 → 解析系统格式 → 解密处理 → 业务处理
-LeanCloud格式 → 加密消息格式 → 原始消息格式
-```
+> LeanCloud receives → Parse system format → Decryption processing → Business processing
+> LeanCloud format → Encrypted format → Original format
 
-### 代码映射
+### Code Mapping
 
-#### 前端
+#### Frontend
 
-- `types.js` - 定义消息类型和格式
-- `messageService.js` - 处理消息加密和格式转换
-- `leancloudProvider.js` - 处理LeanCloud格式转换
+- **types.js** - Defines message types and formats
+- **messageService.js** - Handles message encryption and format conversion
+- **leancloudProvider.js** - Handles LeanCloud format conversion
 
-#### 后端
+#### Backend
 
-- `enums.py` - 定义消息类型枚举
-- `leanmessage.py` - 处理LeanCloud格式和系统格式转换
-- `encryption.py` - 处理消息加密解密
+- **enums.py** - Defines message type enums
+- **leanmessage.py** - Handles LeanCloud and system format conversion
+- **encryption.py** - Handles message encryption/decryption
 
-## 5. 向后兼容性
+## 5. Backward Compatibility
 
-### 未加密消息
+### Unencrypted Messages
 
 ```javascript
 {
   type: 1,
-  from: "u1002", 
+  from: "u1002",
   to: "b9002",
-  content: "Hello World",    // 明文内容
+  content: "Hello World",    // Plain text content
   timestamp: "2025-07-05T01:03:26.474Z",
   service: 1
-  // 没有 encryption 和 enc_version 字段
+  // No encryption or enc_version fields
 }
 ```
 
-### 检测规则
+### Detection Rules
 
-- 如果消息包含 `encryption` 字段，则为加密消息
-- 如果消息不包含 `encryption` 字段，则为未加密消息（向后兼容）
+- If message contains `encryption` field → encrypted message
+- If message lacks `encryption` field → unencrypted message (backward compatible)
 
-## 6. 实现注意事项
+## 6. Implementation Notes
 
-1. **LeanCloud格式不可修改** - 只能在 `_lctext` 字段中放置我们的JSON字符串
-2. **数字编码优先** - 加密算法、版本等使用数字而非字符串
-3. **向后兼容** - 必须支持未加密的旧消息格式
-4. **错误处理** - 加密/解密失败时的降级策略
-5. **性能考虑** - Base64编码开销，未来AES加密开销
+1. **LeanCloud format is immutable** - Can only place our JSON string in the `_lctext` field
+2. **Numeric encoding preferred** - Use numbers instead of strings for encryption algorithms, versions, etc.
+3. **Backward compatibility** - Must support legacy unencrypted message formats
+4. **Error handling** - Fallback strategies for encryption/decryption failures
+5. **Performance considerations** - Base64 encoding overhead, future AES encryption overhead
 
-## 7. 测试用例
+## 7. Test Cases
 
-### 基础消息
+### Basic Message
 
 ```javascript
 {type: 1, from: "u1001", to: "u1002", content: "test", timestamp: "2025-07-05T10:00:00.000Z", service: 1}
 ```
 
-### 加密消息
+### Encrypted Message
 
 ```javascript
 {type: 1, from: "u1001", to: "u1002", content: "dGVzdA==", timestamp: "2025-07-05T10:00:00.000Z", service: 1, encryption: 1, enc_version: 1}
 ```
 
-### LeanCloud包装
+### LeanCloud Wrapper
 
 ```javascript
 {

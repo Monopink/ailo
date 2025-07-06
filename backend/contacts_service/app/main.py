@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from .core.config import settings
-from .routers import contacts, admin
+from .routers import contacts
 import structlog
 
 # Configure logging
@@ -22,7 +22,6 @@ app = FastAPI(title=settings.PROJECT_NAME)
 
 # Include routers with API version prefix
 app.include_router(contacts.router, prefix="/api/v1")
-app.include_router(admin.router, prefix="/api/v1")
 
 
 @app.on_event("startup")

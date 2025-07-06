@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import apiClient from '../services/api'
+import axios from 'axios'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
@@ -36,7 +37,8 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Try to get social profile for nickname
       try {
-        const profileResponse = await apiClient.get(`/api/contacts/profile/${data.entity_id}`)
+        // Use axios directly with full path to avoid baseURL duplication
+        const profileResponse = await axios.get(`/api/contacts/profile/${data.entity_id}`)
         if (profileResponse.data.status === 'success') {
           data.nickname = profileResponse.data.data.nickname
         }

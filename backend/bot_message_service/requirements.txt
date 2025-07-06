@@ -1,9 +1,7 @@
 # backend/bot_message_service/requirements.txt
 # Cloud Services
-leancloud
-volcengine-python-sdk[ark]
-
-zhdate
+# leancloud==3.0.2  # Commented out - using REST API only
+volcengine-python-sdk[ark]==4.0.4
 
 # Web Framework
 fastapi==0.109.2
@@ -26,6 +24,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
 # Utilities
+PyYAML==6.0.1
 python-dotenv==1.0.0
 aiofiles==23.2.1
 tenacity==8.2.3
@@ -33,6 +32,7 @@ structlog==24.1.0
 aioredis==2.0.1
 
 # Time and Date handling
+zhdate==0.1
 pytz==2023.3
 python-dateutil==2.8.2
 

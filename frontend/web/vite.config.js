@@ -7,7 +7,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Allow external access
     proxy: {
-      // Proxy /api/v1 requests to accounts_service (Docker internal network)
+      // Proxy /api/v1/system requests to bot_message_service
+      '/api/v1/system': {
+        target: 'http://bot_message_service_container:8000',
+        changeOrigin: true,
+      },
+      // Proxy other /api/v1 requests to accounts_service (Docker internal network)
       '/api/v1': {
         target: 'http://accounts_service_container:8000',
         changeOrigin: true,

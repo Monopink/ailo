@@ -10,6 +10,7 @@ from .exceptions import AppException
 from .utils.logging import get_logger, bind_context, configure_logging
 from .core.config import settings
 from .services.leanmessage import setup_leanmessage_handlers
+from .api.v1.endpoints.system import router as system_router
 
 
 logger = get_logger(__name__)
@@ -26,6 +27,9 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# Include API routers
+app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
 
 
 async def app_exception_handler(request: Request, exc: AppException):
@@ -69,6 +73,13 @@ async def startup_event():
             active_connections = len(websocket.active_connections)
             logger.info("websocket_connections", count=active_connections)
         logger.info("websocket_manager_initialized")
+
+        # Ensure unified conversation exists
+        logger.info("ensuring_unified_conversation")
+        from .services.conversation_auto_setup import ensure_unified_conversation
+
+        await ensure_unified_conversation()
+        logger.info("unified_conversation_ready")
 
         # Initialize LeanMessage handlers
         logger.info("initializing_leanmessage_handlers")

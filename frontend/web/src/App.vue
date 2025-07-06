@@ -23,7 +23,7 @@ import { useAuthStore } from './stores/auth'
 import { useChatStore } from './stores/chat'
 import { useRouter } from 'vue-router'
 import { messageService } from './services/messaging'
-import { initVersionManagement } from './utils/version'
+
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
@@ -37,8 +37,7 @@ const handleLogout = () => {
 onMounted(async () => {
   console.log('App mounted - initializing...')
 
-  // Initialize version management and cache control
-  initVersionManagement()
+  // Version management is already initialized in main.js
 
   // LeanMessage initialization is now handled by messageService
 

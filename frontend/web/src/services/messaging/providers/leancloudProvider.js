@@ -2,7 +2,7 @@
  * LeanCloud message provider implementation
  */
 
-import { Realtime, TextMessage } from 'leancloud-realtime'
+import { Realtime, TextMessage, MessageQueryDirection } from 'leancloud-realtime'
 import { useToast } from 'vue-toastification'
 import {
   createChatMessage,
@@ -109,6 +109,12 @@ export class LeanCloudProvider {
         try {
           console.log(`Attempting to initialize LeanCloud (attempt ${retries + 1}/${maxRetries})...`)
           this.realtime = new Realtime(options)
+
+          // Verify initialization
+          if (!this.realtime) {
+            throw new Error('Realtime instance is null after initialization')
+          }
+
           console.log('✅ LeanCloud Realtime initialized successfully')
           return true
         } catch (error) {
@@ -130,12 +136,12 @@ export class LeanCloudProvider {
       }
 
       console.error('LeanCloud Realtime initialization failed after multiple attempts:', lastError)
-      this.toast.error('聊天服务初始化失败，请刷新页面重试')
+      this.toast.error('服务初始化失败，请刷新页面重试')
       throw lastError
 
     } catch (error) {
       console.error('❌ Failed to initialize LeanCloud:', error)
-      this.toast.error('聊天服务初始化失败')
+      this.toast.error('服务初始化失败')
       throw error
     }
   }
@@ -155,14 +161,17 @@ export class LeanCloudProvider {
       }
 
       console.log(`Logging in to LeanCloud with user ID: ${userId}`)
-      this.client = await this.realtime.createIMClient(userId.trim())
+      // Set device tag for multi-device login support
+      this.client = await this.realtime.createIMClient(userId.trim(), {
+        tag: 'Web' // Web client tagging, distinguished from Mobile, Pad, etc.
+      })
       this.currentUserId = userId.trim()
 
       console.log('✅ Successfully logged in to LeanCloud')
       return this.client
     } catch (error) {
       console.error('❌ Failed to login to LeanCloud:', error)
-      this.toast.error('Chat service login failed, please try again')
+      this.toast.error('连接服务失败，请重试')
       throw error
     }
   }
@@ -513,6 +522,144 @@ export class LeanCloudProvider {
         console.error('Error processing received message:', error)
       }
     })
+
+    // Handle unread messages count update (for offline messages)
+    this.client.on('unreadmessagescountupdate', (conversations) => {
+      console.log('📬 [LeanCloud] Received unread messages update for', conversations.length, 'conversations')
+
+      for (let conv of conversations) {
+        console.log(`📬 [LeanCloud] Conversation ${conv.id}: ${conv.unreadMessagesCount} unread messages`)
+
+        // If there are unread messages, fetch them
+        if (conv.unreadMessagesCount > 0) {
+          this._fetchOfflineMessages(conv)
+        }
+      }
+    })
+
+    // Handle login conflicts
+    this.client.on('conflict', () => {
+      console.warn('⚠️ [LeanCloud] Login conflict detected - user logged in on another device')
+
+      // Notify user about login conflict
+      this.toast.add({
+        severity: 'warn',
+        summary: '登录冲突',
+        detail: '您的账号在其他设备上登录，当前连接已断开',
+        life: 5000
+      })
+    })
+  }
+
+  /**
+   * Fetch offline messages for a conversation
+   */
+  async _fetchOfflineMessages(conversation) {
+    try {
+      console.log(`📬 [LeanCloud] Fetching ${conversation.unreadMessagesCount} offline messages for conversation ${conversation.id}`)
+
+      // Query messages from the conversation
+      const messages = await conversation.queryMessages({
+        limit: Math.min(conversation.unreadMessagesCount, 50), // Limit to prevent too many messages at once
+        direction: MessageQueryDirection.NEW_TO_OLD // Get newest messages first
+      })
+
+      console.log(`📬 [LeanCloud] Retrieved ${messages.length} offline messages`)
+
+      // Process messages in chronological order (oldest first)
+      // Filter out typing messages and other non-chat messages
+      const chatMessages = messages.filter(msg => {
+        try {
+          const content = msg.content || msg.text || ''
+          let parsedMessage
+
+          if (typeof content === 'object' && content !== null) {
+            if (content._lctext) {
+              parsedMessage = JSON.parse(content._lctext)
+            } else {
+              parsedMessage = content
+            }
+          } else if (typeof content === 'string') {
+            parsedMessage = JSON.parse(content)
+          } else {
+            return false
+          }
+
+          // Only include chat messages (type 1), exclude typing (type 2, 3) and system (type 9)
+          return parsedMessage.type === 1
+        } catch (error) {
+          console.warn('Failed to parse message for filtering:', error)
+          return false
+        }
+      })
+
+      console.log(`📬 [LeanCloud] Filtered ${chatMessages.length} chat messages from ${messages.length} total messages`)
+
+      for (const message of chatMessages.reverse()) {
+        this._handleOfflineMessage(message, conversation)
+      }
+
+      // Mark conversation as read to clear unread count
+      await conversation.read()
+      console.log(`✅ [LeanCloud] Marked conversation ${conversation.id} as read`)
+
+    } catch (error) {
+      console.error('❌ [LeanCloud] Failed to fetch offline messages:', error)
+    }
+  }
+
+  /**
+   * Handle a single offline message
+   */
+  _handleOfflineMessage(message, conversation) {
+    try {
+      // Get message content
+      const messageContent = message.content || message.text || ''
+
+      // Parse structured message
+      let parsedMessage
+      if (typeof messageContent === 'object' && messageContent !== null) {
+        if (messageContent._lctext) {
+          try {
+            parsedMessage = JSON.parse(messageContent._lctext)
+          } catch (error) {
+            console.error('❌ [LeanCloud] Failed to parse offline message _lctext:', error)
+            return
+          }
+        } else {
+          parsedMessage = messageContent
+        }
+      } else if (typeof messageContent === 'string') {
+        try {
+          parsedMessage = JSON.parse(messageContent)
+        } catch (error) {
+          console.error('❌ [LeanCloud] Failed to parse offline message JSON:', error)
+          return
+        }
+      } else {
+        console.error('❌ [LeanCloud] Invalid offline message content type:', typeof messageContent)
+        return
+      }
+
+
+
+      // Decrypt message
+      const decryptedMessage = this.messageEncryption.decryptMessage(parsedMessage)
+
+      // Forward to message callbacks
+      this.messageCallbacks.forEach(callback => {
+        try {
+          callback(decryptedMessage, conversation)
+        } catch (error) {
+          console.error('Error in offline message callback:', error)
+        }
+      })
+
+      console.log('📬 [LeanCloud] Processed offline message from:', parsedMessage.from)
+
+    } catch (error) {
+      console.error('❌ [LeanCloud] Error processing offline message:', error)
+    }
   }
 
   /**

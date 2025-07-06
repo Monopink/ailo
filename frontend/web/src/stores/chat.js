@@ -39,12 +39,14 @@ export const useChatStore = defineStore('chat', () => {
         // Sent message: check by localId (most reliable for sent messages)
         existingMessage = chat.messages.find(m => m.localId === message.localId);
       } else {
-        // Received message: use content + timestamp + sender for duplicate detection
-        // This is more reliable than id for received messages
-        const messageKey = `${message.text}_${message.sender}_${new Date(message.timestamp).getTime()}`;
+        // Received message: use content + sender for duplicate detection
+        // Don't use timestamp as offline messages may have different timestamps
+        const messageKey = `${message.text}_${message.sender}`;
         existingMessage = chat.messages.find(m => {
-          const existingKey = `${m.text}_${m.sender}_${new Date(m.timestamp).getTime()}`;
-          return existingKey === messageKey;
+          const existingKey = `${m.text}_${m.sender}`;
+          // Only consider it duplicate if the timestamps are very close (within 5 seconds)
+          const timeDiff = Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime());
+          return existingKey === messageKey && timeDiff < 5000;
         });
       }
 

@@ -150,6 +150,8 @@ const handleRetry = async () => {
   transform: scale(1.1);
 }
 
+
+
 /* Message bubble status states */
 .message-bubble.status-pending .message-content {
   opacity: 0.7;

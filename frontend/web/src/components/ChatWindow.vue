@@ -421,18 +421,11 @@ const handleChatMessageReceived = (event) => {
     // Add message to chat
     chatStore.addMessage(chat.id, uiMessage)
 
-    console.log('🔍 [ChatWindow] Current selected chat:', selectedChat.value ? { id: selectedChat.value.id, entity_id: selectedChat.value.entity_id } : 'null')
-    console.log('🔍 [ChatWindow] Message added to chat:', chat.id)
-    console.log('🔍 [ChatWindow] Is this the selected chat?', selectedChat.value && selectedChat.value.id === chat.id)
-
     // Scroll to bottom if this is the selected chat
     if (selectedChat.value && selectedChat.value.id === chat.id) {
-      console.log('🔍 [ChatWindow] Scrolling to bottom for selected chat')
       nextTick(() => {
         scrollToBottom()
       })
-    } else {
-      console.log('🔍 [ChatWindow] Not scrolling - message not for selected chat')
     }
 
     console.log('✅ [ChatWindow] Added received message to chat:', chat.id)

@@ -53,7 +53,7 @@ export const MessageFailureReason = {
   SYSTEM_ERROR: 4,
   RATE_LIMITED: 5,
   NOT_CONTACTS: 6,           // You and the recipient are not contacts yet
-  CONTENT_TO_LOOGH: 7
+  CONTENT_TOO_LONG: 7
 }
 
 /**

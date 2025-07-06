@@ -9,6 +9,7 @@ import router from './router'
 import { useAuthStore } from './stores/auth'
 import { generatePWAIcons } from './utils/generateIcons'
 
+
 // Initialize the PWA features when in browser environment
 if (typeof window !== 'undefined') {
   // Check for dark mode preference

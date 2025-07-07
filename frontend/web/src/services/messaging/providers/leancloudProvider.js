@@ -11,6 +11,7 @@ import {
   ContactType
 } from '../types'
 import { messageEncryption } from '../../encryption/messageEncryption'
+import { multiDeviceManager } from '../multiDeviceManager'
 
 export class LeanCloudProvider {
   constructor() {
@@ -161,10 +162,14 @@ export class LeanCloudProvider {
       }
 
       console.log(`Logging in to LeanCloud with user ID: ${userId}`)
-      // Set device tag for multi-device login support
-      this.client = await this.realtime.createIMClient(userId.trim(), {
-        tag: 'Web' // Web client tagging, distinguished from Mobile, Pad, etc.
-      })
+
+      // Get login options from multi-device manager
+      const loginOptions = multiDeviceManager.getLoginOptions(userId)
+
+      console.log('🔧 [LeanCloudProvider] Using login options:', loginOptions)
+
+      // Create IM client with multi-device support
+      this.client = await this.realtime.createIMClient(userId.trim(), loginOptions)
       this.currentUserId = userId.trim()
 
       console.log('✅ Successfully logged in to LeanCloud')
@@ -537,18 +542,22 @@ export class LeanCloudProvider {
       }
     })
 
-    // Handle login conflicts
-    this.client.on('conflict', () => {
+    // Handle login conflicts using multi-device manager
+    this.client.on('conflict', (conflictInfo) => {
       console.warn('⚠️ [LeanCloud] Login conflict detected - user logged in on another device')
 
-      // Notify user about login conflict
-      this.toast.add({
-        severity: 'warn',
-        summary: '登录冲突',
-        detail: '您的账号在其他设备上登录，当前连接已断开',
-        life: 5000
+      // Delegate to multi-device manager for handling
+      multiDeviceManager.handleLoginConflict({
+        source: 'leancloud',
+        userId: this.currentUserId,
+        deviceInfo: multiDeviceManager.getDeviceInfo(),
+        timestamp: new Date().toISOString(),
+        ...conflictInfo
       })
     })
+
+    // Handle network status changes for multi-device scenarios
+    this._setupNetworkHandlers()
   }
 
   /**
@@ -718,5 +727,63 @@ export class LeanCloudProvider {
     this.unifiedConversationId = null
     this.conversationIdPromise = null
     console.log('🔄 Conversation ID cache cleared')
+  }
+
+  /**
+   * Setup network status handlers for multi-device scenarios
+   */
+  _setupNetworkHandlers() {
+    if (!this.realtime) {
+      console.warn('⚠️ [LeanCloudProvider] No realtime instance for network handlers')
+      return
+    }
+
+    // Connection status events
+    this.realtime.on('disconnect', () => {
+      console.log('🔌 [LeanCloud] Disconnected from server')
+      this._emitNetworkEvent('disconnect')
+    })
+
+    this.realtime.on('offline', () => {
+      console.log('📴 [LeanCloud] Network offline')
+      this._emitNetworkEvent('offline')
+    })
+
+    this.realtime.on('online', () => {
+      console.log('📶 [LeanCloud] Network online')
+      this._emitNetworkEvent('online')
+    })
+
+    this.realtime.on('schedule', (attempt, delay) => {
+      console.log(`⏰ [LeanCloud] Scheduled reconnect attempt ${attempt + 1} in ${delay}ms`)
+      this._emitNetworkEvent('schedule', { attempt, delay })
+    })
+
+    this.realtime.on('retry', (attempt) => {
+      console.log(`🔄 [LeanCloud] Reconnect attempt ${attempt + 1}`)
+      this._emitNetworkEvent('retry', { attempt })
+    })
+
+    this.realtime.on('reconnect', () => {
+      console.log('✅ [LeanCloud] Reconnected to server')
+      this._emitNetworkEvent('reconnect')
+    })
+
+    console.log('✅ [LeanCloudProvider] Network handlers setup complete')
+  }
+
+  /**
+   * Emit network event for UI components
+   */
+  _emitNetworkEvent(type, data = {}) {
+    const event = new CustomEvent('messaging-network-status', {
+      detail: {
+        type,
+        data,
+        deviceInfo: multiDeviceManager.getDeviceInfo(),
+        timestamp: new Date().toISOString()
+      }
+    })
+    window.dispatchEvent(event)
   }
 }

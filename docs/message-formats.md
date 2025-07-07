@@ -113,7 +113,7 @@ System messages (type=9) are used to notify the frontend about message status ch
 
 - **not_contacts** - Sender and recipient are not contacts
 - **user_blocked** - Recipient has blocked the sender
-- **content_blocked** - Message content was blocked by content filter
+- **content_too_long** - Message content exceeds maximum length limit
 - **rate_limited** - Too many messages sent in short time
 - **system_error** - Internal system error
 

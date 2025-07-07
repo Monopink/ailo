@@ -56,6 +56,50 @@ export const MessageFailureReason = {
   CONTENT_TOO_LONG: 7
 }
 
+// Multi-device login device types (numeric values for client-facing code)
+export const DeviceType = {
+  WEB: 1,
+  MOBILE: 2,
+  PAD: 3,
+  DESKTOP: 4
+}
+
+// Device type labels for display
+export const DeviceTypeLabels = {
+  [DeviceType.WEB]: 'Web',
+  [DeviceType.MOBILE]: 'Mobile',
+  [DeviceType.PAD]: 'Pad',
+  [DeviceType.DESKTOP]: 'Desktop'
+}
+
+// Multi-device login strategies (numeric values for client-facing code)
+export const LoginStrategy = {
+  UNLIMITED: 1,     // No restrictions on multi-device login
+  SINGLE_DEVICE: 2, // Only one device allowed
+  LIMITED_MULTI: 3  // Limited multi-device (different device types)
+}
+
+// Login strategy labels for display
+export const LoginStrategyLabels = {
+  [LoginStrategy.UNLIMITED]: 'unlimited',
+  [LoginStrategy.SINGLE_DEVICE]: 'single',
+  [LoginStrategy.LIMITED_MULTI]: 'limited'
+}
+
+// Login conflict actions (numeric values for client-facing code)
+export const ConflictAction = {
+  FORCE_LOGOUT: 1,    // Force logout older device
+  REJECT_NEW: 2,      // Reject new login attempt
+  NOTIFY_ONLY: 3      // Just notify, allow both
+}
+
+// Conflict action labels for display
+export const ConflictActionLabels = {
+  [ConflictAction.FORCE_LOGOUT]: 'force_logout',
+  [ConflictAction.REJECT_NEW]: 'reject_new',
+  [ConflictAction.NOTIFY_ONLY]: 'notify_only'
+}
+
 /**
  * Generate unique local message ID
  */

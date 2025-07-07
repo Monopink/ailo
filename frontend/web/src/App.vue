@@ -14,20 +14,27 @@
     <main :class="{ 'with-header': authStore.user }">
       <router-view />
     </main>
+
+    <!-- Development test panel (development only) -->
+    <DevTestPanel v-if="isDevelopment" />
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, computed } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useChatStore } from './stores/chat'
 import { useRouter } from 'vue-router'
 import { messageService } from './services/messaging'
+import DevTestPanel from './components/DevTestPanel.vue'
 
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const router = useRouter()
+
+// Development mode check
+const isDevelopment = computed(() => import.meta.env.DEV)
 
 const handleLogout = () => {
   authStore.logout()

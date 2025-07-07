@@ -49,13 +49,9 @@ class PasswordReset(BaseModel):
 
 # Properties to return to client
 class User(UserBase):
-    id: int
     entity_id: str
     status: str
     role: str
-    nickname: Optional[str] = None
-    avatar_url: Optional[str] = None
-    bio: Optional[str] = None
     is_verified: bool
     subscription_type: str
 

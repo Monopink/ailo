@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     DB_NAME: str
 
+    # LeanCloud Health Check settings
+    LEANCLOUD_HEALTH_CHECK_INTERVAL: Optional[int] = None  # No default - must be configured
+    LEANCLOUD_HEALTH_CHECK_TIMEOUT: Optional[int] = None  # No default - must be configured
+    LEANCLOUD_RECOVERY_COOLDOWN_SECONDS: Optional[int] = None  # No default - must be configured
+
     @property
     def database_url(self) -> str:
         """

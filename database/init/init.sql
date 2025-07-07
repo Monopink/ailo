@@ -276,19 +276,19 @@ INSERT INTO users (
     timezone, language_preference, last_active_at, is_verified, verification_type, subscription_type, 
     notification_settings, privacy_settings
 ) VALUES
-('u1001', '张三', 'zhangsan@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '北京', '13800138001',
+('u1001', 'zhang3', 'zhangsan@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '北京', '13800138001',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'premium',
  '{"message_notifications": true, "system_notifications": true}',
  '{"profile_visibility": "public", "message_privacy": "friends"}'),
-('u1002', '李四', 'lisi@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '上海', '13800138002',
+('u1002', 'li4', 'lisi@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '上海', '13800138002',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'free',
  '{"message_notifications": true, "system_notifications": false}',
  '{"profile_visibility": "friends", "message_privacy": "private"}'),
-('u1003', '王五', 'wangwu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '广州', '13800138003',
+('u1003', 'wang5', 'wangwu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '广州', '13800138003',
  'Asia/Shanghai', 'zh-CN', NOW(), 0, 'none', 'free',
  '{"message_notifications": false, "system_notifications": true}',
  '{"profile_visibility": "private", "message_privacy": "friends"}'),
-('u1004', '赵六', 'zhaoliu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '深圳', '13800138004',
+('u1004', 'zhao6', 'zhaoliu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '深圳', '13800138004',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'vip',
  '{"message_notifications": true, "system_notifications": true}',
  '{"profile_visibility": "public", "message_privacy": "public"}');

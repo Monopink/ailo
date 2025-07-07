@@ -67,19 +67,32 @@ class MessageService {
    * Message will be shown immediately and status updated based on transport result
    */
   async sendChatMessage(contact, content) {
-    this._ensureInitialized()
-
-    // Create UI message for immediate display
+    // Create UI message for immediate display regardless of initialization status
     const uiMessage = createUIMessage(
       MessageType.CHAT,
-      this.currentUserId,
+      this.currentUserId || 'unknown',
       contact.entity_id,
       content,
-      { currentUserId: this.currentUserId }
+      { currentUserId: this.currentUserId || 'unknown' }
     )
 
     // Register message as pending
     messageStatusManager.registerPendingMessage(uiMessage)
+
+    // Check if service is initialized
+    if (!this.isInitialized || !this.provider) {
+      console.error('❌ Message service not initialized')
+
+      // Mark message as failed immediately
+      messageStatusManager.markTransportFailed(
+        uiMessage.localId,
+        new Error('Message service not initialized'),
+        MessageFailureReason.SYSTEM_ERROR
+      )
+
+      // Return UI message so it shows in chat with failed status
+      return uiMessage
+    }
 
     // Attempt to send via transport layer in background
     // Don't await - let it complete asynchronously while UI shows the message

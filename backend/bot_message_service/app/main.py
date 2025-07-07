@@ -76,7 +76,7 @@ async def startup_event():
 
         # Ensure unified conversation exists
         logger.info("ensuring_unified_conversation")
-        from .services.conversation_auto_setup import ensure_unified_conversation
+        from .services.leancloud.conversation_auto_setup import ensure_unified_conversation
 
         await ensure_unified_conversation()
         logger.info("unified_conversation_ready")
@@ -85,6 +85,13 @@ async def startup_event():
         logger.info("initializing_leanmessage_handlers")
         setup_leanmessage_handlers()
         logger.info("leanmessage_handlers_initialized")
+
+        # Start LeanCloud health monitoring
+        logger.info("starting_leancloud_health_monitoring")
+        from .services.leancloud import health_checker
+
+        await health_checker.start_health_monitoring()
+        logger.info("leancloud_health_monitoring_started")
 
         logger.info("application_startup_complete")
 
@@ -103,6 +110,13 @@ async def shutdown_event():
     Clean up resources on application shutdown
     """
     try:
+        # Stop LeanCloud health monitoring
+        logger.info("stopping_leancloud_health_monitoring")
+        from .services.leancloud import health_checker
+
+        await health_checker.stop_health_monitoring()
+        logger.info("leancloud_health_monitoring_stopped")
+
         # Stop event bus
         await event_bus.stop()
         logger.info("event_bus_stopped")
@@ -145,10 +159,18 @@ async def health_check():
     except Exception:
         database_status = "error"
 
+    # Get LeanCloud conversation health status and metrics
+    from .services.leancloud import health_checker
+    from .services.leancloud import conversation_metrics
+
+    leancloud_health = health_checker.get_current_health_status()
+    metrics_summary = conversation_metrics.get_metrics_summary()
+
     status = {
         "status": "healthy",
         "database": database_status,
         "event_bus": "running" if event_bus._running else "stopped",
+        "leancloud_conversation": {"health": leancloud_health, "metrics": metrics_summary},
     }
     logger.debug("health_check", **status)
     return status
@@ -159,7 +181,7 @@ async def leanmessage_webhook(request: Request):
     """
     LeanMessage webhook endpoint for receiving messages
     """
-    from .services.leanmessage_webhook import handle_leanmessage_webhook
+    from .services.leancloud.leanmessage_webhook import handle_leanmessage_webhook
 
     return await handle_leanmessage_webhook(request)
 

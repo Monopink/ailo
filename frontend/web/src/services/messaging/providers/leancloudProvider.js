@@ -12,6 +12,8 @@ import {
 } from '../types'
 import { messageEncryption } from '../../encryption/messageEncryption'
 import { multiDeviceManager } from '../multiDeviceManager'
+import { smartRetryStrategy } from '../smartRetryStrategy'
+import { conversationErrorReporter } from '../conversationErrorReporter'
 
 export class LeanCloudProvider {
   constructor() {
@@ -41,14 +43,8 @@ export class LeanCloudProvider {
       this.currentUserId = userId
       this._setupMessageHandlers()
 
-      // Preload unified conversation ID
-      try {
-        await this._getUnifiedConversationId()
-        console.log('✅ Conversation ID preloaded')
-      } catch (error) {
-        console.warn('⚠️ Failed to preload conversation ID:', error)
-        // Don't block initialization, retry when actually needed
-      }
+      // Preload unified conversation ID (non-blocking)
+      this._preloadConversationId()
 
       console.log('✅ LeanCloud provider initialized')
     } catch (error) {
@@ -214,42 +210,73 @@ export class LeanCloudProvider {
     // Encrypt message at provider level
     const encryptedMessage = this.messageEncryption.encryptMessage(message)
 
-    try {
-      if (options.contactType === ContactType.BOT) {
-        // Bot: Use unified system conversation
-        const conversationId = await this._getUnifiedConversationId()
-        await this._sendToSystemConversation(conversationId, encryptedMessage)
-      } else {
-        // User: Use regular conversation
-        await this._sendToUserConversation(targetId, encryptedMessage)
-      }
+    // Generate unique message ID for retry tracking
+    const messageId = `${targetId}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    let retryCount = 0
 
-      console.log('✅ Chat message sent:', encryptedMessage.type)
-      return encryptedMessage
-    } catch (error) {
-      // If conversation-related error, clear cache and retry once
-      if (error.message.includes('conversation') || error.message.includes('404') || error.message.includes('not configured')) {
-        console.warn('🔄 Conversation error detected, clearing cache and retrying...')
-        this.clearConversationIdCache()
+    const attemptSend = async () => {
+      try {
+        if (options.contactType === ContactType.BOT) {
+          // Bot: Use unified system conversation
+          const conversationId = await this._getUnifiedConversationId()
+          await this._sendToSystemConversation(conversationId, encryptedMessage)
 
-        // Retry once after clearing cache
-        try {
-          if (options.contactType === ContactType.BOT) {
+          // Update conversation health on success
+          smartRetryStrategy.updateConversationHealth(conversationId, true)
+        } else {
+          // User: Use regular conversation
+          await this._sendToUserConversation(targetId, encryptedMessage)
+        }
+
+        console.log('✅ Chat message sent:', encryptedMessage.type)
+        return encryptedMessage
+      } catch (error) {
+        console.error(`❌ Failed to send chat message (attempt ${retryCount + 1}):`, error)
+
+        // Update conversation health on error
+        if (options.contactType === ContactType.BOT) {
+          try {
             const conversationId = await this._getUnifiedConversationId()
-            await this._sendToSystemConversation(conversationId, encryptedMessage)
-          } else {
-            await this._sendToUserConversation(targetId, encryptedMessage)
+            smartRetryStrategy.updateConversationHealth(conversationId, false, {
+              error: error.message,
+              timestamp: Date.now()
+            })
+          } catch (e) {
+            // Ignore errors getting conversation ID for health update
           }
-          console.log('✅ Chat message sent after retry:', encryptedMessage.type)
-          return encryptedMessage
-        } catch (retryError) {
-          console.error('❌ Failed to send chat message after retry:', retryError)
-          throw retryError // Throw original technical error without user-facing message
+        }
+
+        // Check if we should retry using smart strategy
+        const retryDecision = smartRetryStrategy.shouldRetry(messageId, error, retryCount)
+
+        if (retryDecision.shouldRetry) {
+          console.log(`🔄 Smart retry decision: ${retryDecision.reason}`)
+
+          // Clear conversation cache for conversation-related errors
+          if (error.message.includes('conversation') || error.message.includes('404') || error.message.includes('not configured')) {
+            this.clearConversationIdCache()
+          }
+
+          retryCount++
+
+          // Execute retry with smart strategy
+          const conversationId = options.contactType === ContactType.BOT ?
+            await this._getUnifiedConversationId().catch(() => 'unknown') : targetId
+
+          return await smartRetryStrategy.executeRetry(
+            messageId,
+            attemptSend,
+            retryDecision,
+            conversationId
+          )
+        } else {
+          console.log(`❌ Not retrying: ${retryDecision.reason}`)
+          throw error
         }
       }
-      console.error('❌ Failed to send chat message:', error)
-      throw error
     }
+
+    return await attemptSend()
   }
 
   /**
@@ -718,6 +745,19 @@ export class LeanCloudProvider {
 
     const data = await response.json()
     return data.conversation_id
+  }
+
+  /**
+   * Preload conversation ID in background (non-blocking)
+   */
+  async _preloadConversationId() {
+    try {
+      await this._getUnifiedConversationId()
+      console.log('✅ Conversation ID preloaded')
+    } catch (error) {
+      console.warn('⚠️ Failed to preload conversation ID:', error)
+      // Don't block initialization, will retry when actually needed
+    }
   }
 
   /**

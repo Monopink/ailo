@@ -37,14 +37,20 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Try to get social profile for nickname
       try {
-        // Use axios directly with full path to avoid baseURL duplication
-        const profileResponse = await axios.get(`/api/contacts/profile/${data.entity_id}`)
+        // Use axios with manual token for contacts API (goes through Vite proxy)
+        const profileResponse = await axios.get(`/api/contacts/profile/${data.entity_id}`, {
+          headers: {
+            'Authorization': `Bearer ${token.value}`,
+            'Content-Type': 'application/json'
+          }
+        })
         if (profileResponse.data.status === 'success') {
           data.nickname = profileResponse.data.data.nickname
         }
       } catch (profileError) {
-        // If social profile not found, use username as fallback
-        console.warn('Social profile not found, using username as nickname')
+        // If social profile not found, leave nickname empty
+        console.warn('Social profile not found, nickname will be empty')
+        data.nickname = ''
       }
 
       setUser(data)

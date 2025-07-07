@@ -56,6 +56,15 @@ export const MessageFailureReason = {
   CONTENT_TOO_LONG: 7
 }
 
+// Conversation error types (numeric values for security)
+export const ConversationErrorType = {
+  CONNECTION_FAILED: 1,
+  CONVERSATION_NOT_FOUND: 2,
+  PERMISSION_DENIED: 3,
+  TIMEOUT: 4,
+  UNKNOWN: 5
+}
+
 // Multi-device login device types (numeric values for client-facing code)
 export const DeviceType = {
   WEB: 1,

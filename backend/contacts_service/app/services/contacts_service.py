@@ -54,7 +54,6 @@ class ContactsService:
 
                     contact_list.append(
                         {
-                            "id": contact.id,
                             "entity_id": contact.contact_entity_id,
                             "contact_type": contact.contact_type,
                             "nickname": profile.nickname,
@@ -108,7 +107,6 @@ class ContactsService:
 
                 contact, profile = contact_with_profile
                 return {
-                    "id": contact.id,
                     "entity_id": contact.contact_entity_id,
                     "contact_type": contact.contact_type,
                     "nickname": profile.nickname,

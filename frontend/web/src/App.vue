@@ -3,7 +3,7 @@
     <header class="global-header hide-on-mobile" v-if="authStore.user">
       <div class="header-content">
         <div class="welcome-message">
-          {{ authStore.user.nickname || authStore.user.username || authStore.user.phone }}
+          {{ authStore.user.nickname }}
         </div>
         <div class="header-actions">
           <button @click="handleLogout" class="btn">登出</button>

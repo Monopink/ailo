@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue'
 import localStorageService from '../services/localStorage';
-import { getBots } from '../services/api';
+import { getContacts } from '../services/api';
 import { useAuthStore } from './auth';
 
 // Load initial data from localStorage
@@ -125,51 +125,40 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function fetchBots() {
+  async function fetchContacts() {
     const authStore = useAuthStore();
     if (!authStore.token) return;
 
     try {
-      const response = await getBots(authStore.token);
+      const response = await getContacts(authStore.token);
 
       // Merge with existing chat data from localStorage
       const existingChats = chats.value;
 
-      // Transform the bot data to fit the chat structure
-      const botChats = response.data.map(bot => {
-        // Find existing chat data by entity_id or conversation_id
-        const existingChat = existingChats.find(c =>
-          c.entity_id === bot.entity_id ||
-          c.id === (bot.leancloud_conversation_id || bot.entity_id)
-        );
+      // Transform contact data to fit the chat structure
+      const contactChats = response.data.map(contact => {
+        // Find existing chat data by id
+        const existingChat = existingChats.find(c => c.id === contact.id);
 
         return {
-          id: bot.leancloud_conversation_id || bot.entity_id, // Use LeanMessage conversation ID if available
-          entity_id: bot.entity_id, // Keep entity_id for reference
-          name: bot.nickname, // Use nickname for display only
-          avatar: bot.avatar_url || bot.entity_id.charAt(0).toUpperCase(),
-          bio: bot.bio,
-          contact_type: bot.contact_type, // 1=user, 2=bot
-          gender: bot.gender,
-          relationship_type: bot.relationship_type,
-          relationship_level: bot.relationship_level,
-          friend_score: bot.friend_score,
-          romance_score: bot.romance_score,
-          leancloud_conversation_id: bot.leancloud_conversation_id, // Store separately for clarity
+          id: contact.id, // Contact ID from backend
+          name: contact.nickname, // Use nickname for display only
+          avatar: contact.avatar_url || contact.id.charAt(0).toUpperCase(),
+          contact_type: contact.contact_type, // numeric: 1=user, 2=AI
           messages: existingChat?.messages || [], // Preserve existing messages
         };
       });
 
-      // Keep existing user chats (contact_type !== 2) and merge with new bot chats
-      const userChats = existingChats.filter(chat => chat.contact_type !== 2);
+      // Keep existing chats and merge with fetched contacts
+      const existingUserChats = existingChats.filter(chat => chat.contact_type !== 2);
 
       // Remove duplicates by creating a Map with unique IDs
-      const allChats = [...userChats, ...botChats];
+      const allChats = [...existingUserChats, ...contactChats];
       const uniqueChatsMap = new Map();
 
       allChats.forEach(chat => {
-        // Use entity_id as the primary key for deduplication
-        const key = chat.entity_id || chat.id;
+        // Use id as the primary key for deduplication
+        const key = chat.id;
         if (!uniqueChatsMap.has(key)) {
           uniqueChatsMap.set(key, chat);
         }
@@ -186,7 +175,7 @@ export const useChatStore = defineStore('chat', () => {
       isLoaded.value = true;
 
     } catch (error) {
-      console.error("Failed to fetch bots:", error);
+      console.error("Failed to fetch contacts:", error);
       // Handle error, maybe show a toast
     }
   }
@@ -206,7 +195,7 @@ export const useChatStore = defineStore('chat', () => {
     chats,
     selectedChatId,
     isLoaded,
-    fetchBots,
+    fetchContacts,
     selectChat,
     addMessage,
     updateMessageStatus,

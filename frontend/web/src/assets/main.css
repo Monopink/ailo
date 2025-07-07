@@ -10,10 +10,10 @@
   --color-text-secondary: #494949;
   --color-accent: #0066cc;
   --color-accent-soft: #d9e7f8;
-  --color-user-message: #e1f0ff;
-  --color-user-text: #1a1a1a;
-  --color-bot-message: #e9e9eb;
-  --color-bot-text: #1a1a1a;
+  --color-sent-message: #e1f0ff;
+  --color-sent-text: #1a1a1a;
+  --color-received-message: #e9e9eb;
+  --color-received-text: #1a1a1a;
 
   /* Status colors */
   --color-primary: #0066cc;
@@ -53,10 +53,10 @@
     --color-text-secondary: #adadad;
     --color-accent: #0a84ff;
     --color-accent-soft: #1c3046;
-    --color-user-message: #1c3046;
-    --color-user-text: #ffffff;
-    --color-bot-message: #303030;
-    --color-bot-text: #ffffff;
+    --color-sent-message: #1c3046;
+    --color-sent-text: #ffffff;
+    --color-received-message: #303030;
+    --color-received-text: #ffffff;
 
     /* Status colors - dark mode */
     --color-primary: #0a84ff;

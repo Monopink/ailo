@@ -151,7 +151,7 @@ export default {
       }
       return version
     })
-    const currentUserId = computed(() => authStore.user?.entity_id || null)
+    const currentUserId = computed(() => authStore.user?.id || null)
 
     const toggleExpanded = () => {
       expanded.value = !expanded.value

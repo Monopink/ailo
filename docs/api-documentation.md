@@ -18,9 +18,11 @@
 #### 认证相关 (`/auth`)
 
 ##### POST `/api/v1/auth/send-code`
+
 发送短信验证码
 
 **请求体:**
+
 ```json
 {
   "phone": "13800138002"
@@ -28,6 +30,7 @@
 ```
 
 **响应:**
+
 ```json
 {
   "msg": "SMS code sent successfully."
@@ -35,9 +38,11 @@
 ```
 
 ##### POST `/api/v1/auth/register`
+
 用户注册
 
 **请求体:**
+
 ```json
 {
   "phone": "13800138002",
@@ -47,6 +52,7 @@
 ```
 
 **响应:**
+
 ```json
 {
   "entity_id": "u1001",
@@ -57,9 +63,11 @@
 ```
 
 ##### POST `/api/v1/auth/login/password`
+
 密码登录
 
 **请求体:**
+
 ```json
 {
   "phone": "13800138002",
@@ -68,6 +76,7 @@
 ```
 
 **响应:**
+
 ```json
 {
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
@@ -76,9 +85,11 @@
 ```
 
 ##### POST `/api/v1/auth/login/code`
+
 验证码登录
 
 **请求体:**
+
 ```json
 {
   "phone": "13800138002",
@@ -87,6 +98,7 @@
 ```
 
 **响应:**
+
 ```json
 {
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
@@ -97,29 +109,38 @@
 #### 用户相关 (`/users`)
 
 ##### GET `/api/v1/users/me`
+
 获取当前用户信息 (需要认证)
 
 **请求头:**
+
 ```
 Authorization: Bearer <token>
 ```
 
 **响应:**
+
 ```json
 {
-  "entity_id": "u1001",
+  "id": "u1001",
   "phone": "13800138002",
-  "created_at": "2024-01-01T00:00:00Z",
-  "updated_at": "2024-01-01T00:00:00Z"
+  "username": null,
+  "email": null,
+  "status": "active",
+  "role": "user",
+  "is_verified": true,
+  "subscription_type": "free"
 }
 ```
 
 #### 健康检查
 
 ##### GET `/health`
+
 服务健康检查
 
 **响应:**
+
 ```json
 {
   "status": "ok",
@@ -134,40 +155,43 @@ Authorization: Bearer <token>
 #### 联系人相关 (`/contacts`)
 
 ##### GET `/api/v1/contacts`
+
 获取用户联系人列表 (需要认证)
 
 **请求头:**
+
 ```
 Authorization: Bearer <token>
 ```
 
 **响应:**
+
 ```json
 {
   "status": "success",
   "data": [
     {
-      "entity_id": "b9001",
+      "id": "b9001",
       "contact_type": 2,
-      "nickname": "小爱",
-      "bio": "我是一个可爱的AI助手",
-      "gender": "female",
-      "conversation_id": "conv_123456",
-      "last_message_time": "2024-01-01T00:00:00Z"
+      "nickname": "小海",
+      "avatar_url": null
     }
   ]
 }
 ```
 
 ##### GET `/api/v1/contacts/{contact_entity_id}`
+
 获取特定联系人信息 (需要认证)
 
 **请求头:**
+
 ```
 Authorization: Bearer <token>
 ```
 
 **响应:**
+
 ```json
 {
   "status": "success",
@@ -184,14 +208,17 @@ Authorization: Bearer <token>
 ```
 
 ##### GET `/api/v1/contacts/profile/{entity_id}`
+
 获取社交档案信息 (需要认证)
 
 **请求头:**
+
 ```
 Authorization: Bearer <token>
 ```
 
 **响应:**
+
 ```json
 {
   "status": "success",
@@ -209,9 +236,11 @@ Authorization: Bearer <token>
 #### 健康检查
 
 ##### GET `/health`
+
 服务健康检查
 
 **响应:**
+
 ```json
 {
   "status": "ok"
@@ -225,9 +254,11 @@ Authorization: Bearer <token>
 #### 系统相关 (`/system`)
 
 ##### GET `/api/v1/system/conversation-id`
+
 获取统一系统对话ID
 
 **响应:**
+
 ```json
 {
   "conversation_id": "conv_unified_system_123456"
@@ -235,9 +266,11 @@ Authorization: Bearer <token>
 ```
 
 ##### POST `/api/v1/system/conversation-error-report`
+
 报告对话ID错误
 
 **请求体:**
+
 ```json
 {
   "error_type": 2,
@@ -250,6 +283,7 @@ Authorization: Bearer <token>
 ```
 
 **响应:**
+
 ```json
 {
   "status": "received",
@@ -261,9 +295,11 @@ Authorization: Bearer <token>
 #### Webhook端点
 
 ##### POST `/webhook/leanmessage`
+
 LeanCloud消息Webhook
 
 **请求体:** (由LeanCloud发送)
+
 ```json
 {
   "fromPeer": "user_entity_id",
@@ -277,9 +313,11 @@ LeanCloud消息Webhook
 #### 健康检查
 
 ##### GET `/health`
+
 服务健康检查
 
 **响应:**
+
 ```json
 {
   "status": "healthy",
@@ -289,9 +327,11 @@ LeanCloud消息Webhook
 ```
 
 ##### GET `/`
+
 根路径
 
 **响应:**
+
 ```json
 {
   "message": "Welcome to Says API",
@@ -313,13 +353,17 @@ LeanCloud消息Webhook
 ### 认证方式
 
 #### accounts_service
+
 使用配置好的apiClient，自动包含认证头：
+
 ```javascript
 const response = await apiClient.get('/auth/me')
 ```
 
 #### contacts_service  
+
 使用原始axios，手动添加认证头：
+
 ```javascript
 const response = await axios.get('/api/contacts/profile/u1002', {
   headers: {

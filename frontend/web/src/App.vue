@@ -54,10 +54,10 @@ onMounted(async () => {
 
 // Watch for user login/logout
 watch(() => authStore.user, async (newUser, oldUser) => {
-  if (newUser && newUser.entity_id) {
+  if (newUser && newUser.id) {
     try {
-      await messageService.initialize(String(newUser.entity_id))
-      await chatStore.fetchBots()
+      await messageService.initialize(String(newUser.id))
+      await chatStore.fetchContacts()
 
       // Message handling is now done automatically by messageService
       // No need to set up manual listeners here

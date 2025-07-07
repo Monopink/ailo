@@ -49,7 +49,7 @@ class PasswordReset(BaseModel):
 
 # Properties to return to client
 class User(UserBase):
-    entity_id: str
+    id: str  # entity_id mapped to id for frontend
     status: str
     role: str
     is_verified: bool

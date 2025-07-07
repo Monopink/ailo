@@ -46,7 +46,7 @@ async def request_sms_code(
     return {"msg": "SMS code sent successfully."}
 
 
-@router.post("/register", response_model=User, summary="手机号密码注册 (Register with Phone and Password)")
+@router.post("/register", summary="手机号密码注册 (Register with Phone and Password)")
 async def register_user(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -54,6 +54,7 @@ async def register_user(
 ):
     """
     Register a new user with phone, password, and verification code.
+    Returns user data with entity_id mapped to id for frontend.
     """
     if not verify_sms_code(phone=user_in.phone, code=user_in.code):
         raise HTTPException(status_code=400, detail="验证码错误或已过期，请重新获取。")
@@ -63,7 +64,16 @@ async def register_user(
         raise HTTPException(status_code=400, detail="该手机号码已被注册。")
 
     user = await crud.user.create_user(db=db, user_in=user_in)
-    return user
+    return {
+        "id": user.entity_id,  # entity_id mapped to id for frontend
+        "phone": user.phone,
+        "username": user.username,
+        "email": user.email,
+        "status": user.status,
+        "role": user.role,
+        "is_verified": user.is_verified,
+        "subscription_type": user.subscription_type,
+    }
 
 
 @router.post(
@@ -122,11 +132,21 @@ async def reset_user_password(
     return {"msg": "Password updated successfully."}
 
 
-@router.get("/me", response_model=User, summary="获取当前用户信息 (Get Current User)")
+@router.get("/me", summary="获取当前用户信息 (Get Current User)")
 async def read_users_me(
     current_user: user_model.User = Depends(deps.get_current_user),
 ):
     """
     Get current user's profile information.
+    Returns user data with entity_id mapped to id for frontend.
     """
-    return current_user
+    return {
+        "id": current_user.entity_id,  # entity_id mapped to id for frontend
+        "phone": current_user.phone,
+        "username": current_user.username,
+        "email": current_user.email,
+        "status": current_user.status,
+        "role": current_user.role,
+        "is_verified": current_user.is_verified,
+        "subscription_type": current_user.subscription_type,
+    }

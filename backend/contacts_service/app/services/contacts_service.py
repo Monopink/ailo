@@ -7,7 +7,6 @@ from sqlalchemy import select
 from ..database import AsyncSessionLocal
 from ..models.contact import Contact
 from ..models.social_profile import SocialProfile
-from ..models.conversation_mapping import ConversationMapping
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -24,49 +23,31 @@ class ContactsService:
             user_entity_id: User's entity ID
 
         Returns:
-            List of contact dictionaries with social profile data
+            List of contact dictionaries with simplified data for frontend
+            - id: contact entity_id (backend entity_id mapped to frontend id)
+            - contact_type: numeric contact type (1=user, 2=bot)
+            - nickname: display name
+            - avatar_url: profile picture URL (prepared for future use)
         """
         try:
             async with AsyncSessionLocal() as session:
-                # Get contacts with their social profiles and conversation mappings
+                # Get contacts with their social profiles (no conversation mappings needed)
                 result = await session.execute(
-                    select(Contact, SocialProfile, ConversationMapping)
+                    select(Contact, SocialProfile)
                     .join(SocialProfile, Contact.contact_entity_id == SocialProfile.entity_id)
-                    .outerjoin(
-                        ConversationMapping,
-                        (ConversationMapping.contact_entity_id == Contact.contact_entity_id)
-                        & (ConversationMapping.im_service_type == "leancloud"),  # Use string value
-                    )
                     .where(Contact.user_entity_id == user_entity_id)
                     .where(Contact.status == 1)  # 1=normal
                 )
                 contacts_with_data = result.all()
 
                 contact_list = []
-                for contact, profile, mapping in contacts_with_data:
-                    # Debug logging
-                    logger.info(
-                        "processing_contact",
-                        entity_id=contact.contact_entity_id,
-                        mapping_exists=mapping is not None,
-                        conversation_id=mapping.conversation_id if mapping else None,
-                    )
-
+                for contact, profile in contacts_with_data:
                     contact_list.append(
                         {
-                            "entity_id": contact.contact_entity_id,
-                            "contact_type": contact.contact_type,
+                            "id": contact.contact_entity_id,  # entity_id mapped to id for frontend
+                            "contact_type": contact.contact_type,  # numeric: 1=user, 2=bot
                             "nickname": profile.nickname,
-                            "bio": profile.bio,
-                            "avatar_url": profile.avatar_url,
-                            "location": profile.location,
-                            "last_message_time": contact.last_message_time,
-                            "unread_count": contact.unread_count,
-                            "is_pinned": contact.is_pinned,
-                            "remark": contact.remark,
-                            "status": contact.status,
-                            "leancloud_conversation_id": mapping.conversation_id if mapping else None,
-                            "debug_mapping_exists": mapping is not None,
+                            "avatar_url": profile.avatar_url,  # prepared for future avatar support
                         }
                     )
 
@@ -87,10 +68,16 @@ class ContactsService:
 
         Args:
             user_entity_id: User's entity ID
-            contact_entity_id: Contact's entity ID
+            contact_entity_id: Contact's entity ID (backend entity_id)
 
         Returns:
-            Contact dictionary with social profile or None if not found
+            Contact dictionary with detailed profile data or None if not found
+            - id: contact entity_id (backend entity_id mapped to frontend id)
+            - contact_type: numeric contact type (1=user, 2=bot)
+            - nickname: display name
+            - bio: profile description
+            - avatar_url: profile picture URL
+            - location: user location
         """
         try:
             async with AsyncSessionLocal() as session:
@@ -107,17 +94,12 @@ class ContactsService:
 
                 contact, profile = contact_with_profile
                 return {
-                    "entity_id": contact.contact_entity_id,
-                    "contact_type": contact.contact_type,
+                    "id": contact.contact_entity_id,  # entity_id mapped to id for frontend
+                    "contact_type": contact.contact_type,  # numeric: 1=user, 2=bot
                     "nickname": profile.nickname,
                     "bio": profile.bio,
                     "avatar_url": profile.avatar_url,
                     "location": profile.location,
-                    "last_message_time": contact.last_message_time,
-                    "unread_count": contact.unread_count,
-                    "is_pinned": contact.is_pinned,
-                    "remark": contact.remark,
-                    "status": contact.status,
                 }
 
         except Exception as e:
@@ -134,10 +116,17 @@ class ContactsService:
         Get social profile by entity ID
 
         Args:
-            entity_id: Entity ID
+            entity_id: Entity ID (backend entity_id)
 
         Returns:
             Social profile dictionary or None if not found
+            - id: profile entity_id (backend entity_id mapped to frontend id)
+            - entity_type: numeric entity type (1=user, 2=bot)
+            - nickname: display name
+            - avatar_url: profile picture URL
+            - bio: profile description
+            - birth_date: birth date
+            - location: user location
         """
         try:
             async with AsyncSessionLocal() as session:
@@ -150,8 +139,8 @@ class ContactsService:
                     return None
 
                 return {
-                    "entity_id": profile.entity_id,
-                    "entity_type": profile.entity_type,
+                    "id": profile.entity_id,  # entity_id mapped to id for frontend
+                    "entity_type": profile.entity_type,  # numeric: 1=user, 2=bot
                     "nickname": profile.nickname,
                     "avatar_url": profile.avatar_url,
                     "bio": profile.bio,

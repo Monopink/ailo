@@ -10,8 +10,8 @@
         <label>选择机器人:</label>
         <select v-model="selectedBot" @change="connectToBot">
           <option value="">请选择机器人</option>
-          <option v-for="bot in bots" :key="bot.entity_id" :value="bot">
-            {{ bot.entity_id }} ({{ bot.leancloud_conversation_id || '无对话ID' }})
+          <option v-for="bot in bots" :key="bot.id" :value="bot">
+            {{ bot.id }} ({{ bot.leancloud_conversation_id || '无对话ID' }})
           </option>
         </select>
       </div>
@@ -25,7 +25,7 @@
 
     <div class="chat-container" v-if="selectedBot">
       <div class="chat-header">
-        <h3>与 {{ selectedBot.entity_id }} 对话</h3>
+        <h3>与 {{ selectedBot.id }} 对话</h3>
         <p>对话ID: {{ selectedBot.leancloud_conversation_id }}</p>
       </div>
 
@@ -126,7 +126,7 @@ export default {
           // Filter system conversations and map to bot format
           const systemConversations = data.data.conversations.filter(conv => conv.sys)
           bots.value = systemConversations.map(conv => ({
-            entity_id: conv.name,
+            id: conv.name,
             leancloud_conversation_id: conv.objectId,
             nickname: conv.name,
             bio: conv.attr?.description || `AI Chat Bot - ${conv.name}`
@@ -146,7 +146,7 @@ export default {
       
       try {
         connectionStatus.value = 'connecting'
-        addDebugLog('INFO', `正在连接到机器人 ${selectedBot.value.entity_id}...`)
+        addDebugLog('INFO', `正在连接到机器人 ${selectedBot.value.id}...`)
         
         // Connect to LeanMessage with system conversation ID
         await connectToSystemConversation(selectedBot.value.leancloud_conversation_id)

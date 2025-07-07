@@ -71,7 +71,7 @@ class MessageService {
     const uiMessage = createUIMessage(
       MessageType.CHAT,
       this.currentUserId || 'unknown',
-      contact.entity_id,
+      contact.id,
       content,
       { currentUserId: this.currentUserId || 'unknown' }
     )
@@ -112,7 +112,7 @@ class MessageService {
     try {
       const options = this._buildMessageOptions(contact)
       const transportResult = await this.provider.sendChatMessage(
-        contact.entity_id,
+        contact.id,
         uiMessage.transportMessage.content,
         options
       )
@@ -150,7 +150,7 @@ class MessageService {
     this._ensureInitialized()
 
     const options = this._buildMessageOptions(contact)
-    return await this.provider.sendTypingIndicator(contact.entity_id, options)
+    return await this.provider.sendTypingIndicator(contact.id, options)
   }
 
   /**
@@ -160,7 +160,7 @@ class MessageService {
     this._ensureInitialized()
 
     const options = this._buildMessageOptions(contact)
-    return await this.provider.sendTypingEnd(contact.entity_id, options)
+    return await this.provider.sendTypingEnd(contact.id, options)
   }
 
   /**
@@ -339,7 +339,7 @@ class MessageService {
       contactType: contact.contact_type
     }
 
-    // For bots, include conversation ID
+    // For contact type 2, include conversation ID if available
     if (contact.contact_type === ContactType.BOT) {
       options.conversationId = contact.leancloud_conversation_id
     }
@@ -455,9 +455,8 @@ class MessageService {
     // For now, create a minimal contact object from message data
     // In a real implementation, you'd look this up from your contact store
     return {
-      entity_id: message.transportMessage.to,
+      id: message.transportMessage.to,  // id instead of entity_id
       contact_type: message.transportMessage.to.startsWith('b') ? ContactType.BOT : ContactType.USER,
-      leancloud_conversation_id: null // Would need to be looked up
     }
   }
 }

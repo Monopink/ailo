@@ -124,7 +124,7 @@ const sendTestMessage = async () => {
   try {
     // Create a mock contact for testing
     const mockContact = {
-      entity_id: 'test_bot_001',
+      id: 'test_bot_001',  // id instead of entity_id
       contact_type: 2, // BOT
       name: '测试机器人'
     }

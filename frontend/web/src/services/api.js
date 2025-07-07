@@ -84,7 +84,6 @@ export const getContacts = (token) => {
   });
 };
 
-// Keep getBots as an alias for backward compatibility
-export const getBots = getContacts;
+
 
 export default apiClient;

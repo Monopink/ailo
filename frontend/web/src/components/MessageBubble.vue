@@ -78,7 +78,7 @@ const handleRetry = async () => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* Add space for status indicator on user messages */
+/* Add space for status indicator on sent messages */
 .message-user .message-content {
   margin-left: 30px;
 }
@@ -89,8 +89,8 @@ const handleRetry = async () => {
 }
 
 .message-user .message-content {
-  background-color: var(--color-user-message);
-  color: var(--color-user-text);
+  background-color: var(--color-sent-message);
+  color: var(--color-sent-text);
   border-bottom-right-radius: 5px;
 }
 
@@ -99,8 +99,8 @@ const handleRetry = async () => {
 }
 
 .message-bot .message-content {
-  background-color: var(--color-bot-message);
-  color: var(--color-bot-text);
+  background-color: var(--color-received-message);
+  color: var(--color-received-text);
   border-bottom-left-radius: 5px;
 }
 

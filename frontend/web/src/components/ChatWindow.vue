@@ -390,20 +390,13 @@ const handleChatMessageReceived = (event) => {
   }
 
   console.log('🔍 [ChatWindow] Looking for chat with message.from:', message.from)
-  console.log('🔍 [ChatWindow] Current user entity_id:', authStore.user?.entity_id)
-  console.log('🔍 [ChatWindow] Available chats:', chats.value.map(c => ({ id: c.id, entity_id: c.entity_id, name: c.name })))
+  console.log('🔍 [ChatWindow] Current user id:', authStore.user?.id)
+  console.log('🔍 [ChatWindow] Available chats:', chats.value.map(c => ({ id: c.id, name: c.name })))
 
   // Find the chat that corresponds to this conversation
-  const chat = chats.value.find(c => {
-    // For bot conversations, match by entity_id
-    if (message.from && message.from.startsWith('b')) {
-      return c.entity_id === message.from
-    }
-    // For user conversations, match by entity_id
-    return c.entity_id === message.from
-  })
+  const chat = chats.value.find(c => c.id === message.from)
 
-  console.log('🔍 [ChatWindow] Found chat:', chat ? { id: chat.id, entity_id: chat.entity_id, name: chat.name } : 'null')
+  console.log('🔍 [ChatWindow] Found chat:', chat ? { id: chat.id, name: chat.name } : 'null')
 
   if (chat) {
     // Create a UI message object for display

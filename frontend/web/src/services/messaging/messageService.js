@@ -333,18 +333,12 @@ class MessageService {
 
   /**
    * Build message options based on contact info
+   * Only includes generic contact information, provider-specific logic handled by provider
    */
   _buildMessageOptions(contact) {
-    const options = {
+    return {
       contactType: contact.contact_type
     }
-
-    // For contact type 2, include conversation ID if available
-    if (contact.contact_type === ContactType.BOT) {
-      options.conversationId = contact.leancloud_conversation_id
-    }
-
-    return options
   }
 
   /**

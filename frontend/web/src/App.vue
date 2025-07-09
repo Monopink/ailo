@@ -2,9 +2,7 @@
   <div id="main-layout">
     <header class="global-header hide-on-mobile" v-if="authStore.user">
       <div class="header-content">
-        <div class="welcome-message">
-          {{ authStore.user.nickname }}
-        </div>
+        <UserProfileMenu @edit-profile="handleEditProfile" />
         <div class="header-actions">
           <button @click="handleLogout" class="btn">登出</button>
         </div>
@@ -15,14 +13,31 @@
       <router-view />
     </main>
 
+    <!-- Profile Setup Modal -->
+    <ProfileSetupModal
+      v-if="authStore.needsProfileSetup && authStore.user"
+      @close="handleProfileSetupClose"
+      @success="handleProfileSetupSuccess"
+    />
+
+    <!-- Profile Edit Modal -->
+    <ProfileEditModal
+      v-if="showEditModal"
+      @close="showEditModal = false"
+      @success="handleProfileEditSuccess"
+    />
+
     <!-- Development test panel (development only) -->
     <DevTestPanel v-if="isDevelopment" />
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch, computed } from 'vue'
+import { onMounted, watch, computed, ref } from 'vue'
 import { useAuthStore } from './stores/auth'
+import UserProfileMenu from './components/UserProfileMenu.vue'
+import ProfileSetupModal from './components/ProfileSetupModal.vue'
+import ProfileEditModal from './components/ProfileEditModal.vue'
 import { useChatStore } from './stores/chat'
 import { useRouter } from 'vue-router'
 import { messageService } from './services/messaging'
@@ -36,14 +51,32 @@ const router = useRouter()
 // Development mode check
 const isDevelopment = computed(() => import.meta.env.DEV)
 
+// Modal states
+const showEditModal = ref(false)
+
 const handleLogout = () => {
   authStore.logout()
   router.push('/login')
 }
 
-onMounted(async () => {
-  console.log('App mounted - initializing...')
+const handleEditProfile = () => {
+  showEditModal.value = true
+}
 
+const handleProfileSetupClose = () => {
+  // Profile setup is required, so we don't allow closing without completion
+  // This function is kept for consistency but doesn't do anything
+}
+
+const handleProfileSetupSuccess = () => {
+  // Profile setup completed successfully
+}
+
+const handleProfileEditSuccess = () => {
+  // Profile updated successfully
+}
+
+onMounted(async () => {
   // Version management is already initialized in main.js
 
   // LeanMessage initialization is now handled by messageService
@@ -59,6 +92,9 @@ watch(() => authStore.user, async (newUser, oldUser) => {
       await messageService.initialize(String(newUser.id))
       await chatStore.fetchContacts()
 
+      // Start periodic refresh of contacts
+      chatStore.startPeriodicRefresh()
+
       // Message handling is now done automatically by messageService
       // No need to set up manual listeners here
     } catch (error) {
@@ -67,6 +103,10 @@ watch(() => authStore.user, async (newUser, oldUser) => {
   } else if (oldUser) {
     try {
       console.log('User logged out, cleaning up message service...')
+
+      // Stop periodic refresh
+      chatStore.stopPeriodicRefresh()
+
       await messageService.cleanup()
       chatStore.chats = []
       chatStore.selectedChatId = null
@@ -151,4 +191,6 @@ main.with-header {
     height: 100vh; /* Full height on mobile since header is hidden */
   }
 }
+
+
 </style>

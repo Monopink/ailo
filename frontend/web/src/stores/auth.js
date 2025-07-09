@@ -9,6 +9,7 @@ const toast = useToast()
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(localStorage.getItem('token') || null)
+  const needsProfileSetup = ref(false)
 
   // Set the token in the API client's headers if it exists from the start
   if (token.value) {
@@ -35,7 +36,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await apiClient.get('/auth/me')
 
-      // Try to get social profile for nickname
+      // Try to get social profile for nickname and other profile data
       try {
         // Use axios with manual token for contacts API (goes through Vite proxy)
         const profileResponse = await axios.get(`/api/contacts/profile/${data.id}`, {
@@ -45,12 +46,25 @@ export const useAuthStore = defineStore('auth', () => {
           }
         })
         if (profileResponse.data.status === 'success') {
-          data.nickname = profileResponse.data.data.nickname
+          const profileData = profileResponse.data.data
+          data.nickname = profileData.nickname
+          data.gender = profileData.gender
+          data.bio = profileData.bio
+          data.birth_date = profileData.birth_date
+          data.location = profileData.location
+          data.avatar_url = profileData.avatar_url
+          needsProfileSetup.value = false
         }
       } catch (profileError) {
-        // If social profile not found, leave nickname empty
-        console.warn('Social profile not found, nickname will be empty')
+        // If social profile not found, user needs to set up profile
+        console.warn('Social profile not found, user needs to set up profile')
         data.nickname = ''
+        data.gender = null
+        data.bio = null
+        data.birth_date = null
+        data.location = null
+        data.avatar_url = null
+        needsProfileSetup.value = true
       }
 
       setUser(data)
@@ -107,5 +121,70 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, token, loginWithPassword, login, logout, checkAuth, setToken, setUser }
+  async function createProfile(profileData) {
+    try {
+      const response = await axios.post('/api/contacts/profile/me', profileData, {
+        headers: {
+          'Authorization': `Bearer ${token.value}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.data.status === 'success') {
+        // Update user data with new profile
+        const profileData = response.data.data
+        user.value.nickname = profileData.nickname
+        user.value.gender = profileData.gender
+        user.value.bio = profileData.bio
+        user.value.birth_date = profileData.birth_date
+        user.value.location = profileData.location
+        user.value.avatar_url = profileData.avatar_url
+        needsProfileSetup.value = false
+        return response.data
+      }
+    } catch (error) {
+      console.error('Failed to create profile:', error)
+      throw error
+    }
+  }
+
+  async function updateProfile(profileData) {
+    try {
+      const response = await axios.put('/api/contacts/profile/me', profileData, {
+        headers: {
+          'Authorization': `Bearer ${token.value}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.data.status === 'success') {
+        // Update user data with updated profile
+        const profileData = response.data.data
+        user.value.nickname = profileData.nickname
+        user.value.gender = profileData.gender
+        user.value.bio = profileData.bio
+        user.value.birth_date = profileData.birth_date
+        user.value.location = profileData.location
+        user.value.avatar_url = profileData.avatar_url
+        return response.data
+      }
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+      throw error
+    }
+  }
+
+  return {
+    user,
+    token,
+    needsProfileSetup,
+    loginWithPassword,
+    login,
+    logout,
+    checkAuth,
+    setToken,
+    setUser,
+    createProfile,
+    updateProfile
+  }
 }) 

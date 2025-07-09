@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue'
 import localStorageService from '../services/localStorage';
-import { getContacts } from '../services/api';
+import { getContacts, getContactChatInfo } from '../services/api';
 import { useAuthStore } from './auth';
 
 // Load initial data from localStorage
@@ -180,8 +180,71 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function selectChat(chatId) {
+  async function selectChat(chatId) {
     selectedChatId.value = chatId;
+
+    // Update specific contact's chat info when selected
+    await updateContactChatInfo(chatId);
+  }
+
+  // Cache mechanism to prevent repeated requests in a short period of time
+  // Time threshold setting: no repeated request 
+  // for the same contact's chat-info will be made within 5 minutes
+  const CHAT_INFO_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes, can be adjusted as needed
+  const chatInfoCache = new Map(); // Storage format: {contactId: {timestamp: number, promise: Promise}}
+
+  async function updateContactChatInfo(contactId) {
+    const authStore = useAuthStore();
+    if (!authStore.token) return;
+
+    // Check the cache to prevent repeated requests in a short period of time
+    const now = Date.now();
+    const cached = chatInfoCache.get(contactId);
+
+    if (cached && (now - cached.timestamp) < CHAT_INFO_CACHE_DURATION) {
+      console.log(`⚡ Using cached chat info for contact: ${contactId} (${Math.round((CHAT_INFO_CACHE_DURATION - (now - cached.timestamp)) / 1000)}s remaining)`);
+      return cached.promise;
+    }
+
+    // Creating a new Promise request
+    const requestPromise = (async () => {
+      try {
+        const response = await getContactChatInfo(contactId, authStore.token);
+        const chatInfo = response.data;
+
+        // Find and update the specific chat
+        const chatIndex = chats.value.findIndex(c => c.id === contactId);
+        if (chatIndex !== -1) {
+          // Update chat info while preserving messages
+          chats.value[chatIndex] = {
+            ...chats.value[chatIndex],
+            name: chatInfo.nickname,
+            avatar: chatInfo.avatar_url || chatInfo.id.charAt(0).toUpperCase(),
+            last_updated: chatInfo.last_updated
+          };
+
+          // Save updated chats to localStorage
+          saveToStorage();
+
+          console.log(`✅ Updated chat info for contact: ${contactId}`);
+        }
+
+        return chatInfo;
+      } catch (error) {
+        console.error(`Failed to update chat info for contact ${contactId}:`, error);
+        // When the request fails, remove it from the cache to allow retries
+        chatInfoCache.delete(contactId);
+        throw error;
+      }
+    })();
+
+    // Cache the request's Promise and timestamp
+    chatInfoCache.set(contactId, {
+      timestamp: now,
+      promise: requestPromise
+    });
+
+    return requestPromise;
   }
 
   // Clear all chat data
@@ -189,6 +252,49 @@ export const useChatStore = defineStore('chat', () => {
     chats.value = [];
     selectedChatId.value = null;
     localStorageService.clearAllData();
+
+    // Clear the chat-info request cache
+    chatInfoCache.clear();
+  }
+
+  // Setup periodic refresh of contacts (every 5 minutes)
+  // Enable or disable the feature to periodically refresh the contact list: Currently set to off.
+  // Purpose: To address the issue where user A's nickname may not be updated promptly 
+  //          in user B's conversation list after user A updates their profile information.
+  // Implementation: The fetchContacts() function is automatically called every 5 minutes 
+  //                 to refresh all contact information.
+  // In conjunction with the click-to-update mechanism (updateContactChatInfo), 
+  // this ensures that users can see the latest contact information in a timely manner.
+  // Note: The current setting is off. To enable it, set ENABLE_PERIODIC_REFRESH to true.
+  const ENABLE_PERIODIC_REFRESH = false;
+
+  let refreshInterval = null;
+
+  function startPeriodicRefresh() {
+    // 检查功能开关
+    if (!ENABLE_PERIODIC_REFRESH) {
+      console.log('⚠️ Periodic contacts refresh is disabled by feature flag');
+      return;
+    }
+
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+    }
+
+    refreshInterval = setInterval(() => {
+      console.log('🔄 Periodic contacts refresh...');
+      fetchContacts();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    console.log('✅ Started periodic contacts refresh (5 minutes interval)');
+  }
+
+  function stopPeriodicRefresh() {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+      console.log('⏹️ Stopped periodic contacts refresh');
+    }
   }
 
   return {
@@ -197,10 +303,13 @@ export const useChatStore = defineStore('chat', () => {
     isLoaded,
     fetchContacts,
     selectChat,
+    updateContactChatInfo,
     addMessage,
     updateMessageStatus,
     moveMessageToBottom,
     saveToStorage,
     clearChats,
+    startPeriodicRefresh,
+    stopPeriodicRefresh,
   };
 }); 

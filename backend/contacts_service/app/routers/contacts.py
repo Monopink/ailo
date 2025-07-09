@@ -5,6 +5,7 @@ Contact and social profile related API routes
 from fastapi import APIRouter, Depends, HTTPException
 from ..auth import get_current_user
 from ..services.contacts_service import contacts_service
+from ..schemas.social_profile import SocialProfileCreate, SocialProfileUpdate, SocialProfileResponse
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -55,6 +56,31 @@ async def get_contact(contact_entity_id: str, current_user: dict = Depends(get_c
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{contact_entity_id}/chat-info")
+async def get_contact_chat_info(contact_entity_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get specific contact's chat display information
+    """
+    try:
+        user_entity_id = current_user.get("entity_id")
+        if not user_entity_id:
+            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+
+        chat_info = await contacts_service.get_contact_chat_info(user_entity_id, contact_entity_id)
+        if not chat_info:
+            raise HTTPException(status_code=404, detail="Contact not found")
+
+        return {"status": "success", "data": chat_info}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "get_contact_chat_info_endpoint_error", error=str(e), contact_entity_id=contact_entity_id
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/profile/{entity_id}")
 async def get_social_profile(entity_id: str, current_user: dict = Depends(get_current_user)):
     """
@@ -71,4 +97,68 @@ async def get_social_profile(entity_id: str, current_user: dict = Depends(get_cu
         raise
     except Exception as e:
         logger.error("get_social_profile_endpoint_error", error=str(e), entity_id=entity_id)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/profile/me")
+async def create_or_update_my_profile(
+    profile_data: SocialProfileUpdate, current_user: dict = Depends(get_current_user)
+):
+    """
+    Create or update current user's social profile
+    """
+    try:
+        user_entity_id = current_user.get("entity_id")
+        if not user_entity_id:
+            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+
+        # Convert Pydantic model to dict, excluding None values
+        profile_dict = profile_data.dict(exclude_none=True)
+
+        if not profile_dict:
+            raise HTTPException(status_code=400, detail="No data provided for update")
+
+        updated_profile = await contacts_service.create_or_update_social_profile(
+            user_entity_id, profile_dict
+        )
+
+        return {"status": "success", "data": updated_profile}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("create_or_update_my_profile_endpoint_error", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/profile/me")
+async def create_my_profile(
+    profile_data: SocialProfileCreate, current_user: dict = Depends(get_current_user)
+):
+    """
+    Create current user's social profile (for first-time setup)
+    """
+    try:
+        user_entity_id = current_user.get("entity_id")
+        if not user_entity_id:
+            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+
+        # Check if profile already exists
+        existing_profile = await contacts_service.get_social_profile_by_entity_id(user_entity_id)
+        if existing_profile:
+            raise HTTPException(status_code=409, detail="Profile already exists, use PUT to update")
+
+        # Convert Pydantic model to dict
+        profile_dict = profile_data.dict()
+
+        created_profile = await contacts_service.create_or_update_social_profile(
+            user_entity_id, profile_dict
+        )
+
+        return {"status": "success", "data": created_profile}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("create_my_profile_endpoint_error", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))

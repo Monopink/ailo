@@ -84,6 +84,22 @@ export const getContacts = (token) => {
   });
 };
 
+export const getContactChatInfo = (contactId, token) => {
+  // Get specific contact's chat display information
+  return axios.get(`/api/contacts/${contactId}/chat-info`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }).then(response => {
+    if (response.data && response.data.status === 'success') {
+      return { data: response.data.data };
+    } else {
+      throw new Error(response.data?.message || 'Failed to get contact chat info');
+    }
+  });
+};
+
 
 
 export default apiClient;

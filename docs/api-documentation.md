@@ -223,15 +223,67 @@ Authorization: Bearer <token>
 {
   "status": "success",
   "data": {
-    "entity_id": "u1001",
+    "id": "u1001",
     "nickname": "用户昵称",
     "bio": "个人简介",
-    "gender": "male",
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z"
+    "avatar_url": null,
+    "birth_date": "1995-06-15",
+    "location": "北京市"
   }
 }
 ```
+
+##### GET `/api/v1/contacts/{contact_entity_id}/chat-info`
+
+获取联系人对话列表信息 (需要认证)
+
+**描述**: 获取指定联系人的对话列表显示信息（轻量级接口，用于对话列表显示和实时更新）
+
+**请求头:**
+
+```
+Authorization: Bearer <token>
+```
+
+**路径参数:**
+
+- `contact_entity_id`: 联系人实体ID
+
+**响应:**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "u1001",
+    "nickname": "用户昵称",
+    "avatar_url": "https://example.com/avatar.jpg",
+    "last_updated": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+**字段说明:**
+
+- `id`: 联系人ID (对应前端chat.id)
+- `nickname`: 显示昵称
+- `avatar_url`: 头像URL (预留字段，前端暂不显示)
+- `last_updated`: 资料最后更新时间 (ISO 8601格式)
+
+**使用场景:**
+
+此接口是为了解决用户资料更新后，其他用户的对话列表显示不及时更新的问题而设计的轻量级接口。
+
+**更新策略:**
+
+1. **点击时更新**: 用户点击特定联系人开始对话时，前端会调用此接口获取该联系人的最新显示信息
+2. **定期更新**: 前端具备5分钟定期刷新全部联系人的机制，但目前通过功能开关设置为关闭状态
+3. **按需启用**: 当系统需要更频繁的数据同步时，可以通过修改前端代码中的`ENABLE_PERIODIC_REFRESH`开关来启用定期更新功能
+
+**性能优化:**
+
+- 相比完整的联系人接口，此接口只返回对话列表必需的显示字段，减少网络传输
+- 支持单个联系人精准更新，避免不必要的全量数据获取
 
 #### 健康检查
 

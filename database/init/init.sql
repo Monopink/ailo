@@ -97,8 +97,8 @@ CREATE TABLE social_profiles (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     entity_id VARCHAR(36) NOT NULL UNIQUE,
-    entity_type INT NOT NULL DEFAULT 1 COMMENT 'Entity type: 1=user, 2=bot',
     nickname VARCHAR(50) NULL COMMENT 'Display name for IM',
+    gender ENUM('male', 'female', 'other') NULL COMMENT 'Gender',
     avatar_url VARCHAR(500) NULL COMMENT 'Profile picture URL',
     bio TEXT NULL COMMENT 'Bio/description',
     birth_date DATE NULL COMMENT 'Birth date',
@@ -517,16 +517,16 @@ FROM bots b WHERE b.entity_id = 'b9004';
 
 -- Insert sample social profiles data
 INSERT INTO social_profiles (
-    entity_id, entity_type, nickname, avatar_url, bio, birth_date, location
+    entity_id, nickname, gender, avatar_url, bio, birth_date, location
 ) VALUES
-('u1001', 1, '小张', NULL, '喜欢聊天交友', '1995-06-15', '北京市'),
-('u1002', 1, '小李', NULL, '热爱科技', '1992-03-20', '上海市'),
-('u1003', 1, '小王', NULL, '喜欢旅游', '1988-11-10', '广州市'),
-('u1004', 1, '小赵', NULL, '程序员一枚', '1990-08-25', '深圳市'),
-('b9001', 2, '小倩', NULL, '我是小倩，很高兴认识你！', NULL, NULL),
-('b9002', 2, '倩倩', NULL, '我是倩倩，很高兴认识你！', NULL, NULL),
-('b9003', 2, 'wind', NULL, '我是wind，很高兴认识你！', NULL, NULL),
-('b9004', 2, '赵敏', NULL, '我是赵敏，很高兴认识你！', NULL, NULL);
+('u1001', '小张', 'male', NULL, '喜欢聊天交友', '1995-06-15', '北京市'),
+('u1002', '小李', 'male', NULL, '热爱科技', '1992-03-20', '上海市'),
+('u1003', '小王', 'male', NULL, '喜欢旅游', '1988-11-10', '广州市'),
+('u1004', '小赵', 'male', NULL, '程序员一枚', '1990-08-25', '深圳市'),
+('b9001', '小倩', 'female', NULL, '我是小倩，很高兴认识你！', NULL, NULL),
+('b9002', '倩倩', 'female', NULL, '我是倩倩，很高兴认识你！', NULL, NULL),
+('b9003', 'wind', 'male', NULL, '我是wind，很高兴认识你！', NULL, NULL),
+('b9004', '赵敏', 'female', NULL, '我是赵敏，很高兴认识你！', NULL, NULL);
 
 -- Insert sample contacts (user-bot relationships)
 INSERT INTO contacts (user_entity_id, contact_entity_id, contact_type, status, last_message_time) VALUES

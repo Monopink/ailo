@@ -1,13 +1,21 @@
 import json
 import requests
+import threading
 from typing import Dict, Any, Optional
+from datetime import datetime
 
 # import leancloud  # Commented out - using REST API only
 from ..event_bus import event_bus, EventTypes
 from ..utils.logging import get_logger
 from ..core.config import settings
 from .config_manager import get_unified_conversation_id
-from ..enums import MessageType, IMServiceType
+from ..enums import (
+    MessageType,
+    IMServiceType,
+    SystemMessageAction,
+    SystemMessageStatus,
+    SystemMessageReason,
+)
 
 from .encryption import encryption_service
 
@@ -15,7 +23,23 @@ logger = get_logger(__name__)
 
 
 class LeanMessageManager:
+    """Thread-safe singleton LeanMessage manager"""
+
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
+        # Only initialize once
+        if hasattr(self, "_initialized"):
+            return
+
         self._initialized = False
         self._server_client = None  # Server's LeanMessage client
         self._server_id = "says_server"  # ID for the server in LeanMessage
@@ -252,6 +276,86 @@ class LeanMessageManager:
             )
             raise
 
+    async def send_system_message(
+        self,
+        from_bot: str,
+        to_user: str,
+        target_message_id_client: str,
+        status: SystemMessageStatus,
+        reason: SystemMessageReason,
+        message: Optional[str] = None,
+    ) -> None:
+        """
+        Send system message to notify user about message status changes
+
+        Args:
+            from_bot: Source bot entity ID (for chat window identification)
+            to_user: Target user entity ID
+            target_message_id_client: Client-side message ID that this system message refers to
+            status: System message status (FAILED, BLOCKED, DELIVERED)
+            reason: Failure reason (NOT_CONTACTS, USER_BLOCKED, etc.)
+            message: Optional custom message text (overrides frontend default)
+        """
+        try:
+            # Get unified conversation ID
+            conversation_id = get_unified_conversation_id()
+
+            # Create system message content following message-formats.md specification
+            system_content: Dict[str, Any] = {
+                "action": SystemMessageAction.MESSAGE_STATUS.value,  # 1
+                "target_message_id": target_message_id_client,
+                "status": status.value,  # 3, 4, 5
+                "reason": reason.value,  # Numeric reason code (1-7) matching frontend
+            }
+
+            # Add custom message if provided (overrides frontend default)
+            if message:
+                system_content["message"] = message
+
+            # Create system message following backend message format
+            system_message = {
+                "id": f"system_{int(datetime.now().timestamp() * 1000)}",
+                "type": MessageType.SYSTEM.code,  # Use numeric code (9)
+                "from": from_bot,  # Source bot entity ID for chat window identification
+                "to": to_user,
+                "content": system_content,
+                "timestamp": datetime.now().isoformat(),
+                "service": 1,  # LeanCloud service
+                "_internal_source": "bot_message_service",  # Internal validation
+                "_timestamp": datetime.now().timestamp(),  # Anti-replay timestamp
+            }
+
+            # Convert to JSON string for LeanCloud transport
+            message_json = json.dumps(system_message)
+
+            # Send through LeanCloud system conversation
+            self._send_system_conversation_message(
+                conversation_id=conversation_id,
+                from_peer="system",
+                to_client=to_user,
+                message_content=message_json,
+            )
+
+            logger.info(
+                "system_message_sent",
+                to_user=to_user,
+                target_message_id=target_message_id_client,
+                status=status.value,
+                reason=reason.value,
+            )
+
+        except Exception as e:
+            logger.error(
+                "send_system_message_failed",
+                to_user=to_user,
+                target_message_id=target_message_id_client,
+                status=status.value if status else None,
+                reason=reason.value if reason else None,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't re-raise to avoid blocking main message flow
+
     def _extract_basic_fields(self, message_data: Dict[str, Any]) -> tuple:
         """Extract and validate basic fields from LeanMessage webhook data."""
         from_entity = message_data.get("from")
@@ -310,6 +414,11 @@ class LeanMessageManager:
             # Extract frontend fields from structured data
             frontend_from, frontend_to = self._extract_frontend_fields(structured_data)
 
+            # Extract message_id_client from structured data (frontend message ID)
+            message_id_client = None
+            if structured_data and isinstance(structured_data, dict):
+                message_id_client = structured_data.get("id")  # Frontend uses 'id' field
+
             # Create message_metadata for non-standard fields
             message_metadata = {
                 "conversation_id": conversation_id,
@@ -338,6 +447,7 @@ class LeanMessageManager:
                 "message_type": message_type,
                 "message_service": IMServiceType.LEANCLOUD.value,
                 "message_time": created_at,
+                "message_id_client": message_id_client,  # Frontend message ID for tracking
                 "message_metadata": message_metadata,
             }
 

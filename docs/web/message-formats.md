@@ -85,37 +85,62 @@ System messages (type=9) are used to notify the frontend about message status ch
 {
   id: "system_" + Date.now(),
   type: 9,                    // System message
-  from: "system",            // Always "system"
+  from: "b1002",             // Source bot entity ID (for chat window identification)
   to: "u1002",               // Target user
   content: {
-    action: "message_status", // Action type
+    action: 1,                // Action type (numeric)
     target_message_id: "local_1751776984574_97j85pkjk", // Target message ID
-    status: "failed",         // New status: "failed", "blocked", "delivered"
-    reason: "not_contacts",    // Failure reason
-    message: "你和对方还不是好友"  // User-friendly message
+    status: 3,                // New status (numeric)
+    reason: 6                 // Failure reason (numeric)
+    message: "你和对方还不是好友"  // Optional: overrides frontend default message, optional: Default values will be displayed if the front-end is not provided
   },
   timestamp: "2025-07-05T01:03:26.474Z",
   service: 1
 }
 ```
 
-### System Message Actions
+### System Message Actions (Numeric)
 
-- **message_status** - Update message status and failure reason
+- **1** - MESSAGE_STATUS: Update message status and failure reason
 
-### System Message Status Values
+### System Message Status Values (Numeric)
 
-- **failed** - Message failed to send (business logic failure)
-- **blocked** - Message was blocked by system policy
-- **delivered** - Message was successfully delivered
+- **3** - FAILED: Message failed to send (business logic failure)
+- **4** - BLOCKED: Message was blocked by system policy
+- **5** - DELIVERED: Message was successfully delivered
 
-### System Message Reason Codes
+### System Message Reason Codes (Numeric)
 
-- **not_contacts** - Sender and recipient are not contacts
-- **user_blocked** - Recipient has blocked the sender
-- **content_too_long** - Message content exceeds maximum length limit
-- **rate_limited** - Too many messages sent in short time
-- **system_error** - Internal system error
+- **1** - NETWORK_ERROR: Network connection failed
+- **2** - CONVERSATION_ERROR: Conversation ID issues
+- **3** - BLOCKED_BY_USER: Recipient has blocked the sender
+- **4** - SYSTEM_ERROR: Internal system error
+- **5** - RATE_LIMITED: Too many messages sent in short time
+- **6** - NOT_CONTACTS: Sender and recipient are not contacts
+- **7** - CONTENT_TOO_LONG: Message content exceeds maximum length limit
+
+## 2.2. System Message Format for Display Only
+
+System messages without action field are displayed in the chat interface:
+
+```javascript
+{
+  id: "system_" + Date.now(),
+  type: 9,                    // System message
+  from: "b1002",             // Source bot entity ID (for chat window identification)
+  to: "u1002",               // Target user
+  content: {
+    message: "系统消息内容"      // Message text to display in chat
+  },
+  timestamp: "2025-07-05T01:03:26.474Z",
+  service: 1
+}
+```
+
+### System Message Display Rules
+
+- **With action field (action: 1)**: Processed for status updates, optionally displayed if message field is present
+- **Without action field**: Always displayed in chat interface as system message
 
 ## 3. Encrypted Message Format (Extended Version)
 
@@ -241,14 +266,13 @@ For messages that don't require encryption, the format remains the same but with
 {
   id: "system_1751776984574",
   type: 9,
-  from: "system",
+  from: "b1002",
   to: "u1002",
   content: {
-    action: "message_status",
+    action: 1,
     target_message_id: "local_1751776984574_97j85pkjk",
-    status: "failed",
-    reason: "not_contacts",
-    message: "你和对方还不是好友"
+    status: 3,
+    reason: 6
   },
   timestamp: "2025-07-05T10:00:00.000Z",
   service: 1

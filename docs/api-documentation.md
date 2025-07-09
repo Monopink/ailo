@@ -344,6 +344,55 @@ Authorization: Bearer <token>
 }
 ```
 
+#### 系统消息
+
+系统会自动发送系统消息来通知前端消息发送状态变化。系统消息通过LeanCloud统一对话发送给用户。
+
+##### 系统消息格式
+
+```json
+{
+  "id": "system_1752052373681",
+  "type": 9,
+  "from": "system",
+  "to": "u1002",
+  "content": {
+    "action": 1,
+    "target_message_id": "local_1751776984574_97j85pkjk",
+    "status": 3,
+    "reason": 6
+  },
+  "timestamp": "2025-07-09T09:12:53.681Z",
+  "service": 1
+}
+```
+
+##### 系统消息字段说明
+
+- **action**: 系统消息动作类型 (数字)
+  - `1`: MESSAGE_STATUS - 更新消息状态
+- **target_message_id**: 目标消息的客户端ID (对应前端发送消息的id字段)
+- **status**: 消息状态 (数字，对应前端MessageStatus枚举)
+  - `3`: FAILED - 消息发送失败
+  - `4`: BLOCKED - 消息被系统屏蔽
+  - `5`: DELIVERED - 消息成功送达
+- **reason**: 失败原因代码 (数字，对应前端MessageFailureReason枚举)
+  - `1`: NETWORK_ERROR - 网络连接失败
+  - `2`: CONVERSATION_ERROR - 对话ID问题
+  - `3`: BLOCKED_BY_USER - 被用户屏蔽
+  - `4`: SYSTEM_ERROR - 系统内部错误
+  - `5`: RATE_LIMITED - 发送频率过快
+  - `6`: NOT_CONTACTS - 发送方和接收方还不是好友
+  - `7`: CONTENT_TOO_LONG - 消息内容过长
+
+##### 系统消息触发场景
+
+1. **机器人不存在** → status: 3, reason: 6 (NOT_CONTACTS)
+2. **用户无权限访问机器人** → status: 3, reason: 6 (NOT_CONTACTS)
+3. **机器人状态非活跃** → status: 3, reason: 3 (BLOCKED_BY_USER)
+4. **数据库错误** → status: 3, reason: 4 (SYSTEM_ERROR)
+5. **其他系统错误** → status: 3, reason: 4 (SYSTEM_ERROR)
+
 #### Webhook端点
 
 ##### POST `/webhook/leanmessage`

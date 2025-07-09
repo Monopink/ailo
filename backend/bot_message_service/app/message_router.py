@@ -7,9 +7,10 @@ from .event_bus import event_bus, EventTypes
 
 from .message_models.base import BaseModel
 from .message_models.model_ailo import ModelAilo
-from .enums import MessageType, MessageTypeCategory, BotStatus
+from .enums import MessageType, MessageTypeCategory, BotStatus, SystemMessageStatus, SystemMessageReason
 from .exceptions import BotNotFoundError, AuthorizationError, DatabaseError
 from .utils.logging import get_logger
+import time
 
 logger = get_logger(__name__)
 
@@ -93,6 +94,90 @@ class MessageRouter:
 
         except Exception as e:
             logger.error("model_cleanup_error", bot_entity_id=model_key, error=str(e), exc_info=True)
+
+    def _validate_system_message_source(self, message: dict) -> bool:
+        """
+        Validate that system messages only come from authorized sources
+        Simple MVP-level validation with architecture preparation for future security
+        """
+        if message.get("type") == MessageType.SYSTEM.code:
+            # Check for internal source marker
+            internal_source = message.get("_internal_source")
+            if internal_source != "bot_message_service":
+                logger.warning(
+                    "unauthorized_system_message_attempt",
+                    message_type=message.get("type"),
+                    from_entity=message.get("from"),
+                    internal_source=internal_source,
+                )
+                return False
+
+            # Check timestamp for basic anti-replay (within 5 minutes)
+            msg_timestamp = message.get("_timestamp")
+            if msg_timestamp:
+                current_time = time.time()
+                if abs(current_time - msg_timestamp) > 300:  # 5 minutes
+                    logger.warning(
+                        "system_message_timestamp_invalid",
+                        message_timestamp=msg_timestamp,
+                        current_timestamp=current_time,
+                        age_seconds=abs(current_time - msg_timestamp),
+                    )
+                    return False
+        return True
+
+    async def _send_system_message(
+        self,
+        from_bot: str,
+        to_user: str,
+        target_message_id_client: str,
+        status: SystemMessageStatus,
+        reason: SystemMessageReason,
+        message: Optional[str] = None,
+    ) -> None:
+        """
+        Send system message to notify user about message status changes
+
+        Args:
+            from_bot: Source bot entity ID (for chat window identification)
+            to_user: Target user entity ID
+            target_message_id_client: Client-side message ID that this system message refers to
+            status: System message status (FAILED, BLOCKED, DELIVERED)
+            reason: Failure reason numeric code (NOT_CONTACTS, USER_BLOCKED, etc.)
+            message: Optional custom message text (overrides frontend default)
+        """
+        try:
+            # Import here to avoid circular imports
+            from .services.leanmessage import leanmessage_service
+
+            await leanmessage_service.send_system_message(
+                from_bot=from_bot,
+                to_user=to_user,
+                target_message_id_client=target_message_id_client,
+                status=status,
+                reason=reason,
+                message=message,
+            )
+
+            logger.info(
+                "system_message_sent_from_router",
+                to_user=to_user,
+                target_message_id=target_message_id_client,
+                status=status.value,
+                reason=reason.value,
+            )
+
+        except Exception as e:
+            logger.error(
+                "send_system_message_from_router_failed",
+                to_user=to_user,
+                target_message_id=target_message_id_client,
+                status=status.value if status else None,
+                reason=reason.value if reason else None,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't re-raise to avoid blocking main message flow
 
     async def _verify_user_permission(self, user_entity_id: str, bot: Any) -> bool:
         """Verify user permission"""
@@ -201,6 +286,9 @@ class MessageRouter:
             bot_entity_id = str(message["to_entity"])
             user_entity_id = str(message["from_entity"])
             message_service = message["message_service"]
+            message_id_client = message.get(
+                "message_id_client"
+            )  # Frontend message ID for system message tracking
 
             # First try to get active model instance
             status, instance = await self._get_active_model_instance(bot_entity_id, message_service)
@@ -238,6 +326,17 @@ class MessageRouter:
             bot = await self._get_and_validate_bot(bot_entity_id, user_entity_id)
             if not bot:
                 # This case now only happens if the bot is inactive
+                # Send system message to notify user that bot is not accepting messages
+                if message_id_client:
+                    asyncio.create_task(
+                        self._send_system_message(
+                            from_bot=bot_entity_id,
+                            to_user=user_entity_id,
+                            target_message_id_client=message_id_client,
+                            status=SystemMessageStatus.FAILED,
+                            reason=SystemMessageReason.USER_BLOCKED,
+                        )
+                    )
                 return
 
             # Create new model instance
@@ -252,8 +351,57 @@ class MessageRouter:
             # These exceptions are now caught here and logged.
             # The FastAPI handler will ensure a proper HTTP response is sent if this was an API-triggered event.
             logger.error("message_routing_exception", error=e.detail)
+
+            # Send system message to notify user about the failure
+            if message_id_client:
+                if isinstance(e, BotNotFoundError):
+                    # Bot not found - treat as not contacts
+                    asyncio.create_task(
+                        self._send_system_message(
+                            from_bot=bot_entity_id,
+                            to_user=user_entity_id,
+                            target_message_id_client=message_id_client,
+                            status=SystemMessageStatus.FAILED,
+                            reason=SystemMessageReason.NOT_CONTACTS,
+                        )
+                    )
+                elif isinstance(e, AuthorizationError):
+                    # User not authorized for this bot - treat as not contacts
+                    asyncio.create_task(
+                        self._send_system_message(
+                            from_bot=bot_entity_id,
+                            to_user=user_entity_id,
+                            target_message_id_client=message_id_client,
+                            status=SystemMessageStatus.FAILED,
+                            reason=SystemMessageReason.NOT_CONTACTS,
+                        )
+                    )
+                elif isinstance(e, DatabaseError):
+                    # Database error - treat as system error
+                    asyncio.create_task(
+                        self._send_system_message(
+                            from_bot=bot_entity_id,
+                            to_user=user_entity_id,
+                            target_message_id_client=message_id_client,
+                            status=SystemMessageStatus.FAILED,
+                            reason=SystemMessageReason.SYSTEM_ERROR,
+                        )
+                    )
+
         except Exception as e:
             logger.error("message_routing_error", error=str(e), exc_info=True)
+
+            # Send system message for unexpected errors
+            if message_id_client:
+                asyncio.create_task(
+                    self._send_system_message(
+                        from_bot=bot_entity_id,
+                        to_user=user_entity_id,
+                        target_message_id_client=message_id_client,
+                        status=SystemMessageStatus.FAILED,
+                        reason=SystemMessageReason.SYSTEM_ERROR,
+                    )
+                )
 
     async def handle_sent_message(self, message: dict) -> None:
         """Handle sent message"""

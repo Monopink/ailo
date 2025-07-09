@@ -148,7 +148,7 @@ export function createUIMessage(type, from, to, content = '', options = {}) {
     failureReason: null,
 
     // Transport message fields
-    transportMessage: createMessage(type, from, to, content, options),
+    transportMessage: createMessage(type, from, to, content, { ...options, id: localId }),
 
     // Display fields
     text: content,

@@ -272,3 +272,40 @@ class IMServiceType(enum.Enum):
     LEANCLOUD = "leancloud"
     WEBSOCKET = "websocket"
     CUSTOM = "custom"
+
+
+class SystemMessageAction(enum.Enum):
+    """System message action types
+
+    Used in system message content.action field
+    Numeric values for frontend compatibility
+    """
+
+    MESSAGE_STATUS = 1  # Update message status and failure reason
+
+
+class SystemMessageStatus(enum.Enum):
+    """System message status values
+
+    Used in system message content.status field
+    Numeric values match frontend MessageStatus enum exactly:
+    - FAILED = 3: Message failed to send (business logic failure)
+    - BLOCKED = 4: Message was blocked by system policy
+    - DELIVERED = 5: Message was successfully delivered
+    """
+
+    FAILED = 3  # Message failed to send (business logic failure)
+    BLOCKED = 4  # Message was blocked by system policy
+    DELIVERED = 5  # Message was successfully delivered
+
+
+class SystemMessageReason(enum.Enum):
+    """System message failure reason codes"""
+
+    NETWORK_ERROR = 1  # Network connection failed
+    CONVERSATION_ERROR = 2  # Conversation ID issues
+    USER_BLOCKED = 3  # Blocked by user
+    SYSTEM_ERROR = 4  # Internal system error
+    RATE_LIMITED = 5  # Too many messages sent
+    NOT_CONTACTS = 6  # You and the recipient are not contacts yet
+    CONTENT_TOO_LONG = 7  # Content exceeds maximum length

@@ -11,6 +11,7 @@
 前端显示必须遵循"无回退机制"原则，即当数据不可用时，不显示任何内容，而不是显示替代数据。
 
 #### ❌ 错误示例
+
 ```vue
 <template>
   <!-- 错误：使用回退机制隐藏了数据不可用的问题 -->
@@ -21,6 +22,7 @@
 ```
 
 #### ✅ 正确示例
+
 ```vue
 <template>
   <!-- 正确：只显示nickname，如果不可用则不显示 -->
@@ -81,12 +83,14 @@ async function fetchUser() {
 不同服务的API调用需要使用不同的方式：
 
 #### accounts_service API
+
 ```javascript
 // 使用配置好的apiClient（自动包含认证）
 const response = await apiClient.get('/auth/me')
 ```
 
 #### contacts_service API
+
 ```javascript
 // 使用原始axios并手动添加认证token
 const response = await axios.get('/api/contacts/profile/u1002', {

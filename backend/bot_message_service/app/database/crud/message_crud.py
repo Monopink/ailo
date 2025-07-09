@@ -41,7 +41,9 @@ class CRUDMessage(CRUDBase[MessageHistory]):
     async def save_message(self, db: AsyncSession, message: Dict[str, Any]) -> MessageHistory:
         """Save a message to the database with strict validation."""
         # Create contextualized logger for this operation
-        op_logger = bind_context(logger, operation="save_message", message_id=message.get("message_id"))
+        op_logger = bind_context(
+            logger, operation="save_message", message_id_client=message.get("message_id_client")
+        )
 
         # Strict validation - check required fields
         validation_errors = []
@@ -61,9 +63,9 @@ class CRUDMessage(CRUDBase[MessageHistory]):
             )
 
         # Additional field validation with detailed logging
-        message_id = message.get("message_id")
-        if not message_id:
-            op_logger.warning("missing_message_id", message_data=message)
+        message_id_client = message.get("message_id_client")
+        if not message_id_client:
+            op_logger.warning("missing_message_id_client", message_data=message)
 
         from_entity = message.get("from_entity")
         if not from_entity:
@@ -93,7 +95,7 @@ class CRUDMessage(CRUDBase[MessageHistory]):
         try:
             # Create message record - still save even with validation errors for data integrity
             message_record = MessageHistory(
-                message_id=message_id,
+                message_id_client=message_id_client,
                 from_entity=from_entity,
                 to_entity=to_entity,
                 content=content,
@@ -172,7 +174,7 @@ class CRUDMessage(CRUDBase[MessageHistory]):
         """Convert MessageHistory object to dictionary."""
         return {
             "id": message.id,
-            "message_id": message.message_id,
+            "message_id_client": message.message_id_client,
             "from_entity": message.from_entity,
             "to_entity": message.to_entity,
             "content": message.content,
@@ -223,10 +225,12 @@ class CRUDMessage(CRUDBase[MessageHistory]):
         )
         return result.scalars().all()
 
-    async def update_message_status(self, db: AsyncSession, message_id: str, status: str) -> bool:
-        """Update message status."""
+    async def update_message_status(self, db: AsyncSession, message_id_client: str, status: str) -> bool:
+        """Update message status by client message ID."""
         try:
-            result = await db.execute(select(MessageHistory).where(MessageHistory.message_id == message_id))
+            result = await db.execute(
+                select(MessageHistory).where(MessageHistory.message_id_client == message_id_client)
+            )
             message = result.scalar_one_or_none()
 
             if message:

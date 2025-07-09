@@ -111,10 +111,11 @@ class MessageService {
   async _sendViaProvider(uiMessage, contact) {
     try {
       const options = this._buildMessageOptions(contact)
+      // Pass the complete transport message to preserve the ID
       const transportResult = await this.provider.sendChatMessage(
         contact.id,
         uiMessage.transportMessage.content,
-        options
+        { ...options, messageId: uiMessage.transportMessage.id }
       )
 
       // Mark as sent by transport layer
@@ -250,8 +251,13 @@ class MessageService {
       // Process system message for status management
       messageStatusManager.processSystemMessage(message)
 
-      // Also emit as regular message for UI display
-      this._emitMessage(message, conversation)
+      // Check if this is a displayable system message (no action field or action != 1)
+      const hasAction = message.content && message.content.action === 1
+      if (!hasAction) {
+        // This is a displayable system message, emit it for UI display
+        this._emitMessage(message, conversation)
+      }
+      // Status update messages (action: 1) are not displayed in chat UI
     } else {
       // Regular message
       this._emitMessage(message, conversation)

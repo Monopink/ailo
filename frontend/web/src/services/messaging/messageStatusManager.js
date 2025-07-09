@@ -225,27 +225,31 @@ export class MessageStatusManager {
     if (systemMessage.content && typeof systemMessage.content === 'object') {
       const { action, target_message_id, status, reason, message } = systemMessage.content
 
-      if (action === 'message_status' && target_message_id) {
+      if (action === 1 && target_message_id) { // action: 1 = MESSAGE_STATUS
+        console.log('🔍 Looking for pending message with ID:', target_message_id)
+        console.log('📋 Current pending messages:', Array.from(this.pendingMessages.keys()))
+
         const targetMessage = this.pendingMessages.get(target_message_id)
+        console.log('🎯 Found target message:', targetMessage ? 'YES' : 'NO')
 
         if (targetMessage) {
           // Update message status based on system message
           switch (status) {
-            case 'failed':
+            case 3: // FAILED
               targetMessage.status = MessageStatus.FAILED
               targetMessage.systemMessage = message || null // Store system message separately
               targetMessage.failureReason = this._mapReasonToFailureReason(reason)
               targetMessage.canRetry = this._canRetryByReason(reason)
               break
 
-            case 'blocked':
+            case 4: // BLOCKED
               targetMessage.status = MessageStatus.BLOCKED
               targetMessage.systemMessage = message || null // Store system message separately
               targetMessage.failureReason = MessageFailureReason.BLOCKED_BY_USER
               targetMessage.canRetry = false
               break
 
-            case 'delivered':
+            case 5: // DELIVERED
               targetMessage.status = MessageStatus.DELIVERED
               targetMessage.systemMessage = null
               break
@@ -258,22 +262,7 @@ export class MessageStatusManager {
       }
     }
 
-    // Fallback: Handle legacy string-based system messages
-    if (systemMessage.content && systemMessage.content.includes('blocked')) {
-      // Parse local_id from system message content or metadata
-      const localId = this._extractLocalIdFromSystemMessage(systemMessage)
-      if (localId) {
-        this.markSystemBlocked(localId, systemMessage.content)
-      }
-    }
-
-    // Handle message delivery confirmation
-    if (systemMessage.content && systemMessage.content.includes('delivered')) {
-      const localId = this._extractLocalIdFromSystemMessage(systemMessage)
-      if (localId) {
-        this.markDelivered(localId)
-      }
-    }
+    // No fallback needed - all system messages should use structured format
 
     // Notify system message callbacks
     this.systemMessageCallbacks.forEach(callback => {
@@ -344,15 +333,19 @@ export class MessageStatusManager {
    */
   _mapReasonToFailureReason(reason) {
     switch (reason) {
-      case 'not_contacts':
-        return MessageFailureReason.NOT_CONTACTS
-      case 'user_blocked':
+      case 1:
+        return MessageFailureReason.NETWORK_ERROR
+      case 2:
+        return MessageFailureReason.CONVERSATION_ERROR
+      case 3:
         return MessageFailureReason.BLOCKED_BY_USER
-      case 'rate_limited':
-        return MessageFailureReason.RATE_LIMITED
-      case 'system_error':
+      case 4:
         return MessageFailureReason.SYSTEM_ERROR
-      case 'content_too_long':
+      case 5:
+        return MessageFailureReason.RATE_LIMITED
+      case 6:
+        return MessageFailureReason.NOT_CONTACTS
+      case 7:
         return MessageFailureReason.CONTENT_TOO_LONG
       default:
         return MessageFailureReason.SYSTEM_ERROR
@@ -364,16 +357,20 @@ export class MessageStatusManager {
    */
   _canRetryByReason(reason) {
     switch (reason) {
-      case 'not_contacts':
-        return false // Can't retry if not contacts
-      case 'user_blocked':
-        return false // Can't retry if blocked
-      case 'rate_limited':
-        return true  // Can retry after rate limit
-      case 'system_error':
-        return true  // Can retry system errors
-      case 'content_too_long':
-        return false // Can't retry if content too long
+      case 1: // NETWORK_ERROR
+        return true
+      case 2: // CONVERSATION_ERROR
+        return true
+      case 3: // BLOCKED_BY_USER
+        return false
+      case 4: // SYSTEM_ERROR
+        return true
+      case 5: // RATE_LIMITED
+        return true
+      case 6: // NOT_CONTACTS
+        return false
+      case 7: // CONTENT_TOO_LONG
+        return false
       default:
         return true
     }

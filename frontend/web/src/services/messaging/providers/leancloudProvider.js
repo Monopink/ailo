@@ -204,8 +204,13 @@ export class LeanCloudProvider {
       throw new Error('Provider not initialized')
     }
 
-    // Create message object
+    // Create message object with provided ID if available
     const message = createChatMessage(this.currentUserId, targetId, content)
+
+    // Use provided message ID if available, otherwise keep the generated one
+    if (options.messageId) {
+      message.id = options.messageId
+    }
 
     // Encrypt message at provider level
     const encryptedMessage = this.messageEncryption.encryptMessage(message)

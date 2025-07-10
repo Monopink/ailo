@@ -221,15 +221,15 @@ export class LeanCloudProvider {
 
     const attemptSend = async () => {
       try {
-        if (options.contactType === ContactType.BOT) {
-          // Bot: Use unified system conversation
+        if (options.contactType === ContactType.TYPE2) {
+          // TYPE2: Use unified system conversation
           const conversationId = await this._getUnifiedConversationId()
           await this._sendToSystemConversation(conversationId, encryptedMessage)
 
           // Update conversation health on success
           smartRetryStrategy.updateConversationHealth(conversationId, true)
         } else {
-          // User: Use regular conversation
+          // TYPE1: Use regular conversation
           await this._sendToUserConversation(targetId, encryptedMessage)
         }
 
@@ -239,7 +239,7 @@ export class LeanCloudProvider {
         console.error(`❌ Failed to send chat message (attempt ${retryCount + 1}):`, error)
 
         // Update conversation health on error
-        if (options.contactType === ContactType.BOT) {
+        if (options.contactType === ContactType.TYPE2) {
           try {
             const conversationId = await this._getUnifiedConversationId()
             smartRetryStrategy.updateConversationHealth(conversationId, false, {
@@ -265,7 +265,7 @@ export class LeanCloudProvider {
           retryCount++
 
           // Execute retry with smart strategy
-          const conversationId = options.contactType === ContactType.BOT ?
+          const conversationId = options.contactType === ContactType.TYPE2 ?
             await this._getUnifiedConversationId().catch(() => 'unknown') : targetId
 
           return await smartRetryStrategy.executeRetry(
@@ -295,11 +295,12 @@ export class LeanCloudProvider {
     const message = createTypingMessage(this.currentUserId, targetId)
 
     try {
-      if (options.contactType === ContactType.BOT && options.conversationId) {
-        // Bot: Use system conversation
-        await this._sendToSystemConversation(options.conversationId, message)
+      if (options.contactType === ContactType.TYPE2) {
+        // TYPE2: Use system conversation (all TYPE2 messages go through unified conversation)
+        const conversationId = await this._getUnifiedConversationId()
+        await this._sendToSystemConversation(conversationId, message)
       } else {
-        // User: Use regular conversation
+        // TYPE1: Use regular conversation
         await this._sendToUserConversation(targetId, message)
       }
 
@@ -322,11 +323,12 @@ export class LeanCloudProvider {
     const message = createTypingEndMessage(this.currentUserId, targetId)
 
     try {
-      if (options.contactType === ContactType.BOT && options.conversationId) {
-        // Bot: Use system conversation
-        await this._sendToSystemConversation(options.conversationId, message)
+      if (options.contactType === ContactType.TYPE2) {
+        // TYPE2: Use system conversation (all TYPE2 messages go through unified conversation)
+        const conversationId = await this._getUnifiedConversationId()
+        await this._sendToSystemConversation(conversationId, message)
       } else {
-        // User: Use regular conversation
+        // TYPE1: Use regular conversation
         await this._sendToUserConversation(targetId, message)
       }
 

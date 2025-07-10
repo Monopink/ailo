@@ -15,8 +15,37 @@ export const MessageType = {
 }
 
 export const ContactType = {
-  USER: 1,
-  BOT: 2
+  TYPE1: 1,  // User contacts
+  TYPE2: 2   // Bots contacts
+}
+
+// Message constraints
+export const MessageConstraints = {
+  MAX_LENGTH: 50,  // Maximum message length in characters
+  RATE_LIMIT: {
+    MESSAGE_COUNT_LIMIT: 7,      // Max messages in time window
+    TIME_WINDOW: 7000,           // 7 seconds time window
+    BLOCK_DURATION: 5000         // 5 seconds block duration
+  }
+}
+
+// Security functions
+export const MessageSecurity = {
+  /**
+   * Sanitize message content to prevent XSS
+   * @param {string} content - Raw message content
+   * @returns {string} - Sanitized content
+   */
+  sanitizeContent(content) {
+    if (typeof content !== 'string') return ''
+
+    // Remove HTML tags and trim whitespace
+    return content
+      .replace(/<[^>]*>/g, '')  // Remove HTML tags
+      .replace(/javascript:/gi, '')  // Remove javascript: protocol
+      .replace(/on\w+\s*=/gi, '')  // Remove event handlers
+      .trim()
+  }
 }
 
 // Service types
@@ -152,12 +181,11 @@ export function createUIMessage(type, from, to, content = '', options = {}) {
 
     // Display fields
     text: content,
-    sender: from === options.currentUserId ? 'user' : 'bot',
+    sender: from === options.currentUserId ? 'self' : 'other',
     timestamp: new Date(),
     messageType: type,
 
     // System fields
-    isSystemMessage: type === MessageType.SYSTEM,
     canRetry: true,
 
     ...options

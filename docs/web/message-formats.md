@@ -92,7 +92,7 @@ System messages (type=9) are used to notify the frontend about message status ch
     target_message_id: "local_1751776984574_97j85pkjk", // Target message ID
     status: 3,                // New status (numeric)
     reason: 6                 // Failure reason (numeric)
-    message: "你和对方还不是好友"  // Optional: overrides frontend default message, optional: Default values will be displayed if the front-end is not provided
+    message: "你不是对方的联系人"  // Optional: overrides frontend default message, optional: Default values will be displayed if the front-end is not provided
   },
   timestamp: "2025-07-05T01:03:26.474Z",
   service: 1
@@ -116,7 +116,8 @@ System messages (type=9) are used to notify the frontend about message status ch
 - **3** - BLOCKED_BY_USER: Recipient has blocked the sender
 - **4** - SYSTEM_ERROR: Internal system error
 - **5** - RATE_LIMITED: Too many messages sent in short time
-- **6** - NOT_CONTACTS: Sender and recipient are not contacts
+- **6** - NOT_CONTACTS: Sender not recipient's contact
+- **5** - RATE_LIMITED: Message sending rate limit exceeded
 - **7** - CONTENT_TOO_LONG: Message content exceeds maximum length limit
 
 ## 2.2. System Message Format for Display Only
@@ -141,6 +142,30 @@ System messages without action field are displayed in the chat interface:
 
 - **With action field (action: 1)**: Processed for status updates, optionally displayed if message field is present
 - **Without action field**: Always displayed in chat interface as system message
+
+## 2.3. Message Security and Rate Limiting
+
+### Content Security
+
+All message content is automatically sanitized to prevent XSS attacks:
+
+- HTML tags are removed
+- JavaScript protocols are filtered
+- Event handlers are stripped
+
+### Rate Limiting Rules
+
+To prevent spam and abuse, the following rate limits are enforced:
+
+- **Message Length**: Maximum 50 characters per message
+- **Same Message**: 10 second interval between identical messages
+- **Different Messages**: 1 second interval between any messages
+- **Spam Detection**: Maximum 3 identical messages in 20 seconds
+- **Temporary Block**: 30 seconds block when spam is detected
+
+### Rate Limit Error Messages
+
+- **RATE_LIMITED (5)**: Various rate limiting scenarios with user-friendly Chinese messages
 
 ## 3. Encrypted Message Format (Extended Version)
 

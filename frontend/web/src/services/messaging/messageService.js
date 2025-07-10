@@ -4,8 +4,9 @@
  */
 
 import { LeanCloudProvider } from './providers/leancloudProvider'
-import { ContactType, createUIMessage, MessageType, MessageFailureReason } from './types'
+import { ContactType, createUIMessage, MessageType, MessageFailureReason, MessageConstraints, MessageSecurity } from './types'
 import { messageStatusManager } from './messageStatusManager'
+import { messageRateLimiter } from './rateLimiter'
 
 class MessageService {
   constructor() {
@@ -53,6 +54,10 @@ class MessageService {
         await this.provider.cleanup()
         this.provider = null
       }
+
+      // Reset rate limiter
+      messageRateLimiter.reset()
+
       this.currentUserId = null
       this.isInitialized = false
       console.log('✅ Message service cleaned up')
@@ -67,12 +72,15 @@ class MessageService {
    * Message will be shown immediately and status updated based on transport result
    */
   async sendChatMessage(contact, content) {
+    // Sanitize content for security (defensive programming - should already be done in UI)
+    const sanitizedContent = MessageSecurity.sanitizeContent(content)
+
     // Create UI message for immediate display regardless of initialization status
     const uiMessage = createUIMessage(
       MessageType.CHAT,
       this.currentUserId || 'unknown',
       contact.id,
-      content,
+      sanitizedContent,
       { currentUserId: this.currentUserId || 'unknown' }
     )
 
@@ -120,6 +128,9 @@ class MessageService {
 
       // Mark as sent by transport layer
       messageStatusManager.markTransportSent(uiMessage.localId, transportResult)
+
+      // Record message for rate limiting
+      messageRateLimiter.recordMessage(uiMessage.transportMessage.content, contact.id)
 
       console.log('✅ Message sent via transport layer:', uiMessage.localId)
 
@@ -367,7 +378,7 @@ class MessageService {
       }
     }
 
-    if (!foundMessage || foundMessage.sender !== 'user') {
+    if (!foundMessage || foundMessage.sender !== 'self') {
       return null
     }
 
@@ -448,16 +459,29 @@ class MessageService {
 
   /**
    * Find contact from message (for retry functionality)
-   * This is a simplified implementation - in a real app you might need
-   * to store contact references or look them up from a contact store
+   * Look up contact information from chat store
    */
   _findContactFromMessage(message) {
-    // For now, create a minimal contact object from message data
-    // In a real implementation, you'd look this up from your contact store
-    return {
-      id: message.transportMessage.to,  // id instead of entity_id
-      contact_type: message.transportMessage.to.startsWith('b') ? ContactType.BOT : ContactType.USER,
+    // Get chat store instance
+    const chatStore = this._getChatStore()
+    if (!chatStore) {
+      console.error('❌ [MessageService] Chat store not available for contact lookup')
+      return null
     }
+
+    // Find the contact by ID in chat store
+    const targetId = message.transportMessage.to
+    const chat = chatStore.chats.find(c => c.id === targetId)
+
+    if (chat) {
+      return {
+        id: chat.id,
+        contact_type: chat.contact_type
+      }
+    }
+
+    console.error('❌ [MessageService] Contact not found in chat store:', targetId)
+    return null
   }
 }
 

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import localStorageService from '../services/localStorage';
 import { getContacts, getContactChatInfo } from '../services/api';
 import { useAuthStore } from './auth';
+import { ContactType } from '../services/messaging/types';
 
 // Load initial data from localStorage
 const loadInitialData = () => {
@@ -144,13 +145,13 @@ export const useChatStore = defineStore('chat', () => {
           id: contact.id, // Contact ID from backend
           name: contact.nickname, // Use nickname for display only
           avatar: contact.avatar_url || contact.id.charAt(0).toUpperCase(),
-          contact_type: contact.contact_type, // numeric: 1=user, 2=AI
+          contact_type: contact.contact_type, // numeric: 1=TYPE1, 2=TYPE2
           messages: existingChat?.messages || [], // Preserve existing messages
         };
       });
 
       // Keep existing chats and merge with fetched contacts
-      const existingUserChats = existingChats.filter(chat => chat.contact_type !== 2);
+      const existingUserChats = existingChats.filter(chat => chat.contact_type !== ContactType.TYPE2);
 
       // Remove duplicates by creating a Map with unique IDs
       const allChats = [...existingUserChats, ...contactChats];

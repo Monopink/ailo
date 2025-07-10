@@ -35,7 +35,7 @@ const retrying = ref(false)
 
 // Computed properties
 const showStatus = computed(() => {
-  return props.message.sender === 'user' && isFailedStatus.value
+  return props.message.sender === 'self' && isFailedStatus.value
 })
 
 const isFailedStatus = computed(() => {
@@ -79,26 +79,26 @@ const handleRetry = async () => {
 }
 
 /* Add space for status indicator on sent messages */
-.message-user .message-content {
+.message-self .message-content {
   margin-left: 30px;
 }
 
-.message-user {
+.message-self {
   align-self: flex-end;
   margin-left: auto;
 }
 
-.message-user .message-content {
+.message-self .message-content {
   background-color: var(--color-sent-message);
   color: var(--color-sent-text);
   border-bottom-right-radius: 5px;
 }
 
-.message-bot {
+.message-other {
   align-self: flex-start;
 }
 
-.message-bot .message-content {
+.message-other .message-content {
   background-color: var(--color-received-message);
   color: var(--color-received-text);
   border-bottom-left-radius: 5px;

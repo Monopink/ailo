@@ -38,17 +38,17 @@ app.use(Toast, {
   maxToasts: 5,
   newestOnTop: true,
   position: "top-center",
-  timeout: 5000,
-  closeOnClick: false,
-  pauseOnFocusLoss: true,
-  pauseOnHover: true,
+  timeout: 3000,
+  closeOnClick: true,
+  pauseOnFocusLoss: false,
+  pauseOnHover: false,
   draggable: false,
-  showCloseButtonOnHover: true,
+  showCloseButtonOnHover: false,
   hideProgressBar: false,
-  closeButton: "button",
-  icon: true,
+  closeButton: false,
+  icon: false,
   rtl: false,
-  toastClassName: "selectable-toast"
+  toastClassName: "custom-toast"
 })
 
 // Add global styles for selectable toast

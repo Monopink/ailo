@@ -116,7 +116,7 @@ export default {
     
     const loadBots = async () => {
       try {
-        addDebugLog('INFO', '正在加载机器人列表...')
+        addDebugLog('INFO', '正在加载联系人列表...')
         
         // Get bots from contacts_service
         const response = await fetch('http://localhost:8002/admin/list-conversations')
@@ -129,15 +129,15 @@ export default {
             id: conv.name,
             leancloud_conversation_id: conv.objectId,
             nickname: conv.name,
-            bio: conv.attr?.description || `AI Chat Bot - ${conv.name}`
+            bio: conv.attr?.description || `Chat Contact - ${conv.name}`
           }))
           
-          addDebugLog('SUCCESS', `加载了 ${bots.value.length} 个机器人`)
+          addDebugLog('SUCCESS', `加载了 ${bots.value.length} 个联系人`)
         } else {
-          addDebugLog('ERROR', `加载机器人失败: ${data.message}`)
+          addDebugLog('ERROR', `加载联系人失败: ${data.message}`)
         }
       } catch (error) {
-        addDebugLog('ERROR', `加载机器人错误: ${error.message}`)
+        addDebugLog('ERROR', `加载联系人错误: ${error.message}`)
       }
     }
     
@@ -146,7 +146,7 @@ export default {
       
       try {
         connectionStatus.value = 'connecting'
-        addDebugLog('INFO', `正在连接到机器人 ${selectedBot.value.id}...`)
+        addDebugLog('INFO', `正在连接到联系人 ${selectedBot.value.id}...`)
         
         // Connect to LeanMessage with system conversation ID
         await connectToSystemConversation(selectedBot.value.leancloud_conversation_id)

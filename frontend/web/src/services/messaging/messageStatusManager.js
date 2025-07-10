@@ -226,11 +226,7 @@ export class MessageStatusManager {
       const { action, target_message_id, status, reason, message } = systemMessage.content
 
       if (action === 1 && target_message_id) { // action: 1 = MESSAGE_STATUS
-        console.log('🔍 Looking for pending message with ID:', target_message_id)
-        console.log('📋 Current pending messages:', Array.from(this.pendingMessages.keys()))
-
         const targetMessage = this.pendingMessages.get(target_message_id)
-        console.log('🎯 Found target message:', targetMessage ? 'YES' : 'NO')
 
         if (targetMessage) {
           // Update message status based on system message

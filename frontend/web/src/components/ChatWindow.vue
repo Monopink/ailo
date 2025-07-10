@@ -6,7 +6,7 @@
     <div class="messages-area" ref="messagesContainer">
       <template v-for="(item, index) in messagesWithTimeDividers" :key="item.id || item.localId || `divider-${index}`">
         <TimeDivider v-if="item.type === 'time-divider'" :timestamp="item.timestamp" />
-        <SystemMessage v-else-if="item.type === 'system'" :message="item.text" />
+        <SystemMessage v-else-if="item.messageType === MessageType.SYSTEM" :message="item.text" />
         <MessageFailureNotice v-else-if="item.type === 'failure-notice'" :message="item.message" />
         <MessageBubble v-else :message="item" @retry="handleRetry" />
       </template>
@@ -29,6 +29,7 @@
         @input="handleInput"
         @compositionstart="handleCompositionStart"
         @compositionend="handleCompositionEnd"
+        :maxlength="MessageConstraints.MAX_LENGTH"
         placeholder="输入消息..."
         class="message-input"
       />
@@ -52,10 +53,13 @@ import TimeDivider from './TimeDivider.vue';
 import MessageFailureNotice from './MessageFailureNotice.vue';
 import { messageService } from '../services/messaging';
 import { useAuthStore } from '../stores/auth';
-import { MessageType, MessageStatus } from '../services/messaging/types';
+import { MessageType, MessageStatus, MessageConstraints, MessageSecurity } from '../services/messaging/types';
+import { messageRateLimiter } from '../services/messaging/rateLimiter';
+import { useToast } from 'vue-toastification';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
+const toast = useToast();
 const newMessage = ref('');
 const messagesContainer = ref(null);
 const isTyping = ref(false);
@@ -116,8 +120,8 @@ const shouldShowTimeDivider = (currentMessage, previousMessage) => {
 
 // Helper function to determine if we should show a failure notice
 const shouldShowFailureNotice = (message) => {
-  // Show notice for failed or blocked user messages
-  return message.sender === 'user' &&
+  // Show notice for failed or blocked self messages (messages sent by current user)
+  return message.sender === 'self' &&
          (message.status === 3 || message.status === 4); // FAILED or BLOCKED
 };
 
@@ -134,9 +138,9 @@ const getFailureMessage = (message) => {
 
     // Map failure reasons to user-friendly messages (never show provider errors)
     if (message.failureReason === 6) { // NOT_CONTACTS
-      return '你和对方还不是好友';
+      return '你还不是对方的联系人';
     } else if (message.failureReason === 3) { // BLOCKED_BY_USER
-      return '消息已被对方拒收';
+      return '消息被对方拒收';
     } else if (message.failureReason === 5) { // RATE_LIMITED
       return '发送过于频繁';
     } else if (message.failureReason === 2) { // CONVERSATION_ERROR
@@ -271,7 +275,26 @@ const handleInput = () => {
 const sendMessage = async () => {
   if (newMessage.value.trim() === '' || !selectedChat.value) return;
 
-  const content = newMessage.value;
+  const content = newMessage.value.trim();
+
+  // Sanitize content for validation
+  const sanitizedContent = MessageSecurity.sanitizeContent(content);
+
+  // Check message length
+  if (sanitizedContent.length > MessageConstraints.MAX_LENGTH) {
+    showToast(`消息长度不能超过 ${MessageConstraints.MAX_LENGTH} 个字符`);
+    return;
+  }
+
+  // Check rate limiting BEFORE sending
+  const rateLimitCheck = messageRateLimiter.canSendMessage(sanitizedContent, selectedChat.value.id);
+  if (!rateLimitCheck.canSend) {
+    const errorMessage = messageRateLimiter.getRateLimitMessage(rateLimitCheck.reason, rateLimitCheck.waitTime);
+    showToast(errorMessage);
+    return;
+  }
+
+  // Clear input only after validation passes
   newMessage.value = '';
 
   // Cancel any pending typing timers
@@ -288,7 +311,7 @@ const sendMessage = async () => {
   isCurrentlyTyping.value = false;
 
   // Send message using unified message service with status management
-  console.log('Sending message to:', selectedChat.value.entity_id);
+  console.log('Sending message to:', selectedChat.value.id);
   const uiMessage = await messageService.sendChatMessage(selectedChat.value, content);
 
   // Add UI message to local chat immediately (with pending status)
@@ -311,6 +334,11 @@ const handleRetry = async (localId) => {
     console.error('❌ [ChatWindow] Failed to retry message:', error);
     // Error is handled by the status manager
   }
+};
+
+// Show toast notification using vue-toastification
+const showToast = (message) => {
+  toast.error(message);
 };
 
 // Handle message status changes
@@ -340,9 +368,9 @@ const handleTypingMessage = (event) => {
   console.log('📨 [ChatWindow] Received typing message:', message)
 
   // Find the chat that corresponds to this message
-  // Try both ways to be compatible with bot and user messages:
-  // 1. For bot messages: message.from is entity_id, find by entity_id
-  // 2. For user messages: message.from might correspond to chat.id
+  // Try both ways to be compatible with TYPE2 and TYPE1 messages:
+  // 1. For TYPE2 messages: message.from is entity_id, find by entity_id
+  // 2. For TYPE1 messages: message.from might correspond to chat.id
   const chat = chats.value.find(c => c.entity_id === message.from || c.id === message.from)
 
   if (!chat) {
@@ -404,11 +432,10 @@ const handleChatMessageReceived = (event) => {
       id: Date.now() + Math.random(), // Unique ID for received messages
       localId: null, // Received messages don't have localId
       text: message.content,
-      sender: message.from === authStore.user?.entity_id ? 'user' : 'bot',
+      sender: message.from === authStore.user?.entity_id ? 'self' : 'other',
       timestamp: new Date(message.timestamp || Date.now()),
       messageType: message.type,
-      status: null, // Received messages don't have status
-      isSystemMessage: message.type === MessageType.SYSTEM
+      status: null // Received messages don't have status
     }
 
     // Add message to chat
@@ -644,4 +671,5 @@ onUnmounted(() => {
     opacity: 1;
   }
 }
+
 </style>

@@ -233,13 +233,14 @@ const handleOverlayClick = () => {
 }
 
 .btn-primary {
-  background-color: var(--color-accent);
+  background-color: var(--color-primary);
   color: white;
+  font-weight: 500;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0056b3;
-  opacity: 0.9;
+  background-color: var(--color-primary-hover);
+  color: white;
 }
 
 .btn:disabled {

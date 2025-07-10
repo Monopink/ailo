@@ -2,7 +2,7 @@
   <div id="main-layout">
     <header class="global-header hide-on-mobile" v-if="authStore.user">
       <div class="header-content">
-        <UserProfileMenu @edit-profile="handleEditProfile" />
+        <UserProfileMenu @edit-profile="handleEditProfile" @settings="handleSettings" />
         <div class="header-actions">
           <button @click="handleLogout" class="btn">登出</button>
         </div>
@@ -27,6 +27,12 @@
       @success="handleProfileEditSuccess"
     />
 
+    <!-- Settings Modal -->
+    <SettingsModal
+      v-if="showSettingsModal"
+      @close="showSettingsModal = false"
+    />
+
     <!-- Development test panel (development only) -->
     <DevTestPanel v-if="isDevelopment" />
   </div>
@@ -38,9 +44,11 @@ import { useAuthStore } from './stores/auth'
 import UserProfileMenu from './components/UserProfileMenu.vue'
 import ProfileSetupModal from './components/ProfileSetupModal.vue'
 import ProfileEditModal from './components/ProfileEditModal.vue'
+import SettingsModal from './components/SettingsModal.vue'
 import { useChatStore } from './stores/chat'
 import { useRouter } from 'vue-router'
 import { messageService } from './services/messaging'
+import { notificationService } from './services/notificationService'
 import DevTestPanel from './components/DevTestPanel.vue'
 
 
@@ -53,6 +61,7 @@ const isDevelopment = computed(() => import.meta.env.DEV)
 
 // Modal states
 const showEditModal = ref(false)
+const showSettingsModal = ref(false)
 
 const handleLogout = () => {
   authStore.logout()
@@ -61,6 +70,10 @@ const handleLogout = () => {
 
 const handleEditProfile = () => {
   showEditModal.value = true
+}
+
+const handleSettings = () => {
+  showSettingsModal.value = true
 }
 
 const handleProfileSetupClose = () => {
@@ -95,6 +108,9 @@ watch(() => authStore.user, async (newUser, oldUser) => {
       // Start periodic refresh of contacts
       chatStore.startPeriodicRefresh()
 
+      // Request notification permission on first login (if not asked before)
+      await requestNotificationPermissionIfNeeded()
+
       // Message handling is now done automatically by messageService
       // No need to set up manual listeners here
     } catch (error) {
@@ -116,6 +132,27 @@ watch(() => authStore.user, async (newUser, oldUser) => {
     }
   }
 })
+
+// Request notification permission on first login
+const requestNotificationPermissionIfNeeded = async () => {
+  const settings = notificationService.getNotificationSettings()
+
+  // Only request if supported, not asked before, and permission is default
+  if (settings.isSupported &&
+      !settings.hasAskedBefore &&
+      settings.permission === 'default') {
+
+    console.log('📢 Requesting notification permission on first login')
+    const permission = await notificationService.requestPermission()
+
+    if (permission === 'granted') {
+      notificationService.setNotificationEnabled(true)
+      console.log('📢 Notifications enabled on first login')
+    } else {
+      console.log('📢 Notification permission denied on first login')
+    }
+  }
+}
 </script>
 
 <style>

@@ -277,7 +277,7 @@ export default {
 .multi-device-settings h3 {
   margin-top: 0;
   color: #333;
-  border-bottom: 2px solid #007bff;
+  border-bottom: 2px solid #07c160;
   padding-bottom: 10px;
 }
 
@@ -395,11 +395,12 @@ export default {
 }
 
 .import-btn {
-  background: #007bff;
+  background: #07c160;
   color: white;
+  font-weight: 500;
 }
 
 .import-btn:hover {
-  background: #0056b3;
+  background: #06ad56;
 }
 </style>

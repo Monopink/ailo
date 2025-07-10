@@ -374,7 +374,7 @@ export default {
   overflow-y: auto;
   z-index: 9999;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  border: 2px solid #007bff;
+  border: 2px solid #07c160;
 }
 
 /* Hide on mobile devices */
@@ -396,11 +396,11 @@ export default {
 .panel-header h4 {
   margin: 0;
   font-size: 14px;
-  color: #007bff;
+  color: #07c160;
 }
 
 .toggle-btn {
-  background: #007bff;
+  background: #07c160;
   color: white;
   border: none;
   border-radius: 4px;

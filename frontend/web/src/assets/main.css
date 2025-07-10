@@ -8,20 +8,22 @@
   --color-border-light: rgba(218, 218, 218, 0.15);
   --color-text-primary: #111111;
   --color-text-secondary: #494949;
-  --color-accent: #0066cc;
-  --color-accent-soft: #d9e7f8;
-  --color-sent-message: #e1f0ff;
+  --color-accent: #07c160;
+  --color-accent-soft: #e8f5e8;
+  --color-sent-message: #95ec69;
   --color-sent-text: #1a1a1a;
   --color-received-message: #e9e9eb;
   --color-received-text: #1a1a1a;
 
   /* Status colors */
-  --color-primary: #0066cc;
-  --color-primary-dark: #0052a3;
+  --color-primary: #07c160;
+  --color-primary-hover: #06ad56;
+  --color-primary-dark: #059a4c;
   --color-error: #ff3b30;
   --color-error-light: #ffebea;
-  --color-warning: #ff9500;
-  --color-warning-light: #fff4e6;
+  --color-warning: #ffc107;
+  --color-warning-light: #fff8e1;
+  --color-focus: #07c160;
 
   /* UI Attributes - macOS style */
   --border-radius: 10px;
@@ -51,20 +53,22 @@
     --color-border-light: rgba(61, 61, 63, 0.15);
     --color-text-primary: #ffffff;
     --color-text-secondary: #adadad;
-    --color-accent: #0a84ff;
-    --color-accent-soft: #1c3046;
-    --color-sent-message: #1c3046;
+    --color-accent: #07c160;
+    --color-accent-soft: #1a3d1a;
+    --color-sent-message: #4caf50;
     --color-sent-text: #ffffff;
     --color-received-message: #303030;
     --color-received-text: #ffffff;
 
     /* Status colors - dark mode */
-    --color-primary: #0a84ff;
-    --color-primary-dark: #0066cc;
+    --color-primary: #07c160;
+    --color-primary-hover: #06ad56;
+    --color-primary-dark: #059a4c;
     --color-error: #ff453a;
     --color-error-light: #2d1b1b;
-    --color-warning: #ff9f0a;
+    --color-warning: #ffc107;
     --color-warning-light: #2d2419;
+    --color-focus: #07c160;
   }
 }
 
@@ -149,9 +153,16 @@ h6 {
 }
 
 .btn-primary {
-  color: #fff;
-  background-color: var(--color-accent);
-  border-color: var(--color-accent);
+  color: white;
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  font-weight: 500;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: white;
 }
 
 /* macOS style panels */
@@ -182,6 +193,14 @@ textarea {
   padding: 0.5rem 0.75rem;
   font-family: var(--font-sans);
   font-size: 0.9375rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.2);
 }
 
 /* Media Queries for Responsiveness */

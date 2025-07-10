@@ -230,7 +230,7 @@ h2 {
 }
 
 .test-btn, .clear-btn {
-  background: #007bff;
+  background: #07c160;
   color: white;
   border: none;
   padding: 12px 24px;
@@ -241,7 +241,7 @@ h2 {
 }
 
 .test-btn:hover, .clear-btn:hover {
-  background: #0056b3;
+  background: #06ad56;
 }
 
 .test-btn:disabled {

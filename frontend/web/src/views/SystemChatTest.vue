@@ -324,8 +324,8 @@ export default {
 }
 
 .message.sent .message-content {
-  background: #007bff;
-  color: white;
+  background: #95ec69;
+  color: #1a1a1a;
   margin-left: auto;
   max-width: 70%;
 }
@@ -364,11 +364,12 @@ export default {
 
 .input-area button {
   padding: 10px 20px;
-  background: #007bff;
-  color: white;
+  background: #fdd700;
+  color: #1a1a1a;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-weight: 500;
 }
 
 .input-area button:disabled {

@@ -198,12 +198,12 @@ const handleOverlayClick = (event) => {
 
 .btn-primary {
   background-color: var(--color-primary);
-  color: #1a1a1a;
+  color: white;
   font-weight: 500;
 }
 
 .btn-primary:hover {
   background-color: var(--color-primary-hover);
-  color: #1a1a1a;
+  color: white;
 }
 </style>

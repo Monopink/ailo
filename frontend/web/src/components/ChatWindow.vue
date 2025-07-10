@@ -56,6 +56,7 @@ import { useAuthStore } from '../stores/auth';
 import { MessageType, MessageStatus, MessageConstraints, MessageSecurity } from '../services/messaging/types';
 import { messageRateLimiter } from '../services/messaging/rateLimiter';
 import { useToast } from 'vue-toastification';
+import { notificationService } from '../services/notificationService';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
@@ -441,6 +442,11 @@ const handleChatMessageReceived = (event) => {
     // Add message to chat
     chatStore.addMessage(chat.id, uiMessage)
 
+    // Show browser notification for received messages (only for other users' messages)
+    if (uiMessage.sender === 'other' && message.type === MessageType.CHAT) {
+      showNotificationForMessage(uiMessage, chat)
+    }
+
     // Scroll to bottom if this is the selected chat
     if (selectedChat.value && selectedChat.value.id === chat.id) {
       nextTick(() => {
@@ -454,12 +460,38 @@ const handleChatMessageReceived = (event) => {
   }
 }
 
+// Show browser notification for received message
+const showNotificationForMessage = (message, chat) => {
+  // Don't show notification if the chat window is currently focused and visible
+  if (selectedChat.value && selectedChat.value.id === chat.id && document.hasFocus()) {
+    console.log('📢 [ChatWindow] Skipping notification - chat is currently active')
+    return
+  }
+
+  // Show notification
+  notificationService.showMessageNotification(message, chat.name)
+}
+
+// Handle notification click to navigate to chat
+const handleNotificationChatClick = (event) => {
+  const { chatId } = event.detail
+  console.log('📢 [ChatWindow] Notification clicked, navigating to chat:', chatId)
+
+  // Find and select the chat
+  const chat = chats.value.find(c => c.id === chatId || c.entity_id === chatId)
+  if (chat) {
+    chatStore.selectChat(chat.id)
+  }
+}
+
 onMounted(() => {
   console.log('🔧 [ChatWindow] Component mounted')
   // Listen for typing messages from global events
   window.addEventListener('typing-message', handleTypingMessage)
   // Listen for chat messages to hide typing indicator
   window.addEventListener('chat-message-received', handleChatMessageReceived)
+  // Listen for notification clicks
+  window.addEventListener('notification-chat-click', handleNotificationChatClick)
 
   // Listen for message status changes
   const statusManager = messageService.getStatusManager()
@@ -471,6 +503,7 @@ onUnmounted(() => {
   // Remove event listeners
   window.removeEventListener('typing-message', handleTypingMessage)
   window.removeEventListener('chat-message-received', handleChatMessageReceived)
+  window.removeEventListener('notification-chat-click', handleNotificationChatClick)
 
   // Clean up status manager listeners
   const statusManager = messageService.getStatusManager()

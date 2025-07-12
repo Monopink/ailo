@@ -8,6 +8,9 @@ import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
 import { generatePWAIcons } from './utils/generateIcons'
+import { initErrorHandler } from './utils/errorHandler.js'
+import { logger } from './utils/logger.js'
+import { UI_CONFIG } from './config/constants.js'
 
 
 // Initialize the PWA features when in browser environment
@@ -21,13 +24,12 @@ if (typeof window !== 'undefined') {
     document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light')
   })
 
-  // Only log environment variables in development
-  if (import.meta.env.DEV) {
-    console.log('Environment variables:');
-    console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
-    console.log('VITE_LEANCLOUD_APP_ID:', import.meta.env.VITE_LEANCLOUD_APP_ID);
-    console.log('VITE_LEANCLOUD_APP_KEY:', import.meta.env.VITE_LEANCLOUD_APP_KEY ? '[HIDDEN]' : 'undefined');
-  }
+  // Log environment variables in development using new logger
+  logger.debug('Environment variables', {
+    VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+    VITE_LEANCLOUD_APP_ID: import.meta.env.VITE_LEANCLOUD_APP_ID,
+    VITE_LEANCLOUD_APP_KEY: import.meta.env.VITE_LEANCLOUD_APP_KEY ? '[HIDDEN]' : 'undefined',
+  });
 }
 
 const app = createApp(App)
@@ -38,7 +40,7 @@ app.use(Toast, {
   maxToasts: 5,
   newestOnTop: true,
   position: "top-center",
-  timeout: 3000,
+  timeout: UI_CONFIG.TOAST_DURATION,
   closeOnClick: true,
   pauseOnFocusLoss: false,
   pauseOnHover: false,
@@ -50,6 +52,9 @@ app.use(Toast, {
   rtl: false,
   toastClassName: "custom-toast"
 })
+
+// Initialize error handler after toast is configured
+initErrorHandler();
 
 // Add global styles for selectable toast
 const style = document.createElement('style');

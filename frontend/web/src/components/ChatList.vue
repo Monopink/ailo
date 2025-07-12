@@ -92,7 +92,7 @@ const handleContactAdded = () => {
 }
 
 .list-header {
-  padding: 1rem 1.5rem;
+  padding: var(--spacing-lg) var(--spacing-2xl);
   border-bottom: var(--border-width) solid var(--color-border);
   background-color: var(--color-bg-secondary);
   position: sticky;
@@ -112,14 +112,14 @@ const handleContactAdded = () => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
 }
 
 .contact-limits {
   font-size: 0.85rem;
   color: var(--color-text-secondary);
   background-color: var(--color-bg-primary);
-  padding: 0.25rem 0.5rem;
+  padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: 12px;
   border: 1px solid var(--color-border);
 }
@@ -162,7 +162,7 @@ const handleContactAdded = () => {
 .chat-item {
   display: flex;
   align-items: center;
-  padding: 0.8rem 1rem;
+  padding: var(--spacing-md) var(--spacing-lg);
   cursor: pointer;
   border-bottom: var(--border-width) solid var(--color-border);
   transition: background-color 0.2s;
@@ -180,7 +180,7 @@ const handleContactAdded = () => {
 .chat-item-content {
   flex-grow: 1;
   overflow: hidden;
-  padding: 0 0.5rem;
+  padding: 0 var(--spacing-sm);
 }
 
 .chat-item-name {
@@ -205,11 +205,11 @@ const handleContactAdded = () => {
   height: 100%;
   color: var(--color-text-secondary);
   text-align: center;
-  padding: 1rem;
+  padding: var(--spacing-lg);
 }
 
 .emoji-large {
   font-size: 3rem;
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-lg);
 }
 </style> 

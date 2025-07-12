@@ -101,12 +101,12 @@ const handleLogout = () => {
 <style scoped>
 /* Desktop Layout */
 .home-container {
-  position: fixed; /* 固定定位防止滚动 */
+  position: fixed; /* Fixed positioning to prevent scrolling */
   top: 0;
   left: 0;
   width: 100%;
   height: 100vh;
-  padding: 16px; /* Smaller padding */
+  padding: var(--spacing-lg);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -121,12 +121,12 @@ const handleLogout = () => {
   max-width: var(--chat-container-max-width);
   background-color: var(--color-bg-overlay);
   overflow: hidden;
-  border-radius: calc(var(--border-radius) + 10px); /* 外圆角 = 内圆角 + margin值 */
+  border-radius: calc(var(--border-radius) + var(--spacing-sm)); /* Outer radius = inner radius + margin */
 }
 
 .chat-sidebar {
   flex: 0 0 280px;
-  margin: 10px;
+  margin: var(--spacing-sm);
   border-radius: var(--border-radius);
   background-color: var(--color-bg-secondary);
   overflow: hidden;
@@ -136,7 +136,7 @@ const handleLogout = () => {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  margin: 10px;
+  margin: var(--spacing-sm);
   margin-left: 0;
   border-radius: var(--border-radius);
   overflow: hidden;
@@ -161,7 +161,7 @@ const handleLogout = () => {
 .mobile-header {
   background-color: var(--color-bg-secondary);
   border-bottom: var(--border-width) solid var(--color-border);
-  padding: 1rem;
+  padding: var(--spacing-lg);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -184,7 +184,7 @@ const handleLogout = () => {
   border: none;
   color: var(--color-text-primary);
   cursor: pointer;
-  padding: 0.5rem;
+  padding: var(--spacing-sm);
   border-radius: var(--border-radius-sm);
   display: flex;
   align-items: center;
@@ -207,10 +207,10 @@ const handleLogout = () => {
 .mobile-chat-header {
   background-color: var(--color-bg-secondary);
   border-bottom: var(--border-width) solid var(--color-border);
-  padding: 1rem;
+  padding: var(--spacing-lg);
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-lg);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -221,7 +221,7 @@ const handleLogout = () => {
   border: none;
   color: var(--color-text-primary);
   cursor: pointer;
-  padding: 0.5rem;
+  padding: var(--spacing-sm);
   border-radius: var(--border-radius-sm);
   display: flex;
   align-items: center;

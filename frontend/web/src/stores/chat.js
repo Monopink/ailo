@@ -4,6 +4,9 @@ import localStorageService from '../services/localStorage';
 import { getContacts, getContactChatInfo, getContactLimits } from '../services/api';
 import { useAuthStore } from './auth';
 import { ContactType } from '../services/messaging/types';
+import { chatLogger } from '../utils/logger.js';
+import { handleError } from '../utils/errorHandler.js';
+import { CACHE_CONFIG, CONTACT_CONFIG } from '../config/constants.js';
 
 // Load initial data from localStorage
 const loadInitialData = () => {
@@ -20,7 +23,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // Contact limits information
   const contactLimits = ref({
-    contact_limit: 3,
+    contact_limit: CONTACT_CONFIG.DEFAULT_LIMIT,
     current_count: 0,
     can_add_more: true
   });
@@ -32,7 +35,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // Add message to chat and save to localStorage
   function addMessage(chatId, message) {
-    console.log('📝 [ChatStore] Adding message to chat:', chatId, message)
+    chatLogger.debug('Adding message to chat', { chatId, messageId: message.id || message.localId });
 
     const chat = chats.value.find(c => c.id === chatId);
     if (chat) {
@@ -58,14 +61,14 @@ export const useChatStore = defineStore('chat', () => {
         });
       }
 
-      console.log('📝 [ChatStore] Existing message check:', existingMessage ? 'DUPLICATE FOUND' : 'NEW MESSAGE')
-      console.log('📝 [ChatStore] Message details:', {
-        id: message.id,
-        localId: message.localId,
-        text: message.text,
+      const isDuplicate = !!existingMessage;
+      chatLogger.debug('Message duplicate check', {
+        isDuplicate,
+        messageId: message.id || message.localId,
+        text: message.text?.substring(0, 50) + '...',
         sender: message.sender,
         isReceived: !message.localId
-      })
+      });
 
       if (!existingMessage) {
         const newMessage = {
@@ -74,13 +77,18 @@ export const useChatStore = defineStore('chat', () => {
         };
 
         chat.messages.push(newMessage);
-        console.log('📝 [ChatStore] Message added to chat.messages, total count:', chat.messages.length)
+        chatLogger.debug('Message added to chat', {
+          chatId,
+          totalMessages: chat.messages.length
+        });
 
         // Save to localStorage
         localStorageService.addMessage(chatId, message);
-        console.log('📝 [ChatStore] Message saved to localStorage')
+        chatLogger.debug('Message saved to localStorage', { chatId });
       } else {
-        console.log('📝 [ChatStore] Message skipped - duplicate detected')
+        chatLogger.debug('Message skipped - duplicate detected', {
+          messageId: message.id || message.localId
+        });
       }
     }
   }
@@ -135,17 +143,23 @@ export const useChatStore = defineStore('chat', () => {
 
   async function fetchContacts() {
     const authStore = useAuthStore();
-    if (!authStore.token) return;
+    if (!authStore.token) {
+      chatLogger.warn('No auth token available for fetching contacts');
+      return;
+    }
 
     try {
+      chatLogger.debug('Fetching contacts and limits');
+
       // Fetch both contacts and contact limits
       const [contactsResponse, limitsResponse] = await Promise.all([
-        getContacts(authStore.token),
-        getContactLimits(authStore.token)
+        getContacts(),
+        getContactLimits()
       ]);
 
       // Update contact limits
       contactLimits.value = limitsResponse.data;
+      chatLogger.debug('Contact limits updated', contactLimits.value);
 
       const response = contactsResponse;
 
@@ -191,9 +205,18 @@ export const useChatStore = defineStore('chat', () => {
       saveToStorage();
       isLoaded.value = true;
 
+      chatLogger.info('Contacts fetched successfully', {
+        contactCount: chats.value.length,
+        selectedChatId: selectedChatId.value
+      });
+
     } catch (error) {
-      console.error("Failed to fetch contacts:", error);
-      // Handle error, maybe show a toast
+      chatLogger.error('Failed to fetch contacts', error);
+      handleError(error, {
+        operation: 'load_contacts',
+        context: 'fetchContacts',
+        showToast: true,
+      });
     }
   }
 
@@ -205,28 +228,29 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // Cache mechanism to prevent repeated requests in a short period of time
-  // Time threshold setting: no repeated request 
-  // for the same contact's chat-info will be made within 5 minutes
-  const CHAT_INFO_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes, can be adjusted as needed
   const chatInfoCache = new Map(); // Storage format: {contactId: {timestamp: number, promise: Promise}}
 
   async function updateContactChatInfo(contactId) {
     const authStore = useAuthStore();
-    if (!authStore.token) return;
+    if (!authStore.token) {
+      chatLogger.warn('No auth token available for chat info update');
+      return;
+    }
 
     // Check the cache to prevent repeated requests in a short period of time
     const now = Date.now();
     const cached = chatInfoCache.get(contactId);
 
-    if (cached && (now - cached.timestamp) < CHAT_INFO_CACHE_DURATION) {
-      console.log(`⚡ Using cached chat info for contact: ${contactId} (${Math.round((CHAT_INFO_CACHE_DURATION - (now - cached.timestamp)) / 1000)}s remaining)`);
+    if (cached && (now - cached.timestamp) < CACHE_CONFIG.CHAT_INFO_DURATION) {
+      const remainingTime = Math.round((CACHE_CONFIG.CHAT_INFO_DURATION - (now - cached.timestamp)) / 1000);
+      chatLogger.debug('Using cached chat info', { contactId, remainingTime });
       return cached.promise;
     }
 
     // Creating a new Promise request
     const requestPromise = (async () => {
       try {
-        const response = await getContactChatInfo(contactId, authStore.token);
+        const response = await getContactChatInfo(contactId);
         const chatInfo = response.data;
 
         // Find and update the specific chat
@@ -243,14 +267,24 @@ export const useChatStore = defineStore('chat', () => {
           // Save updated chats to localStorage
           saveToStorage();
 
-          console.log(`✅ Updated chat info for contact: ${contactId}`);
+          chatLogger.info('Chat info updated successfully', { contactId });
+        } else {
+          chatLogger.warn('Chat not found for contact info update', { contactId });
         }
 
         return chatInfo;
       } catch (error) {
-        console.error(`Failed to update chat info for contact ${contactId}:`, error);
+        chatLogger.error('Failed to update chat info', { contactId, error: error.message });
         // When the request fails, remove it from the cache to allow retries
         chatInfoCache.delete(contactId);
+
+        // Handle error with user notification
+        handleError(error, {
+          operation: 'load_chat',
+          context: 'updateContactChatInfo',
+          showToast: false, // Don't show toast for background updates
+        });
+
         throw error;
       }
     })();
@@ -288,9 +322,9 @@ export const useChatStore = defineStore('chat', () => {
   let refreshInterval = null;
 
   function startPeriodicRefresh() {
-    // 检查功能开关
+    // Check feature flag
     if (!ENABLE_PERIODIC_REFRESH) {
-      console.log('⚠️ Periodic contacts refresh is disabled by feature flag');
+      chatLogger.info('Periodic contacts refresh is disabled by feature flag');
       return;
     }
 
@@ -299,18 +333,18 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     refreshInterval = setInterval(() => {
-      console.log('🔄 Periodic contacts refresh...');
+      chatLogger.debug('Starting periodic contacts refresh');
       fetchContacts();
     }, 5 * 60 * 1000); // 5 minutes
 
-    console.log('✅ Started periodic contacts refresh (5 minutes interval)');
+    chatLogger.info('Started periodic contacts refresh', { interval: '5 minutes' });
   }
 
   function stopPeriodicRefresh() {
     if (refreshInterval) {
       clearInterval(refreshInterval);
       refreshInterval = null;
-      console.log('⏹️ Stopped periodic contacts refresh');
+      chatLogger.info('Stopped periodic contacts refresh');
     }
   }
 

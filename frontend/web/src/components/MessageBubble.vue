@@ -1,18 +1,30 @@
 <template>
-  <div class="message-bubble" :class="[
-    `message-${message.sender}`,
-    `status-${message.status || 'sent'}`,
-    { 'can-retry': canRetry }
-  ]">
+  <div
+    class="message-bubble"
+    :class="[
+      `message-${message.sender}`,
+      `status-${message.status || 'sent'}`,
+      { 'can-retry': canRetry }
+    ]"
+    role="article"
+    :aria-label="getMessageAriaLabel()">
     <div class="message-content">
       <p>{{ message.text }}</p>
 
       <!-- WeChat-style status indicators -->
       <div class="message-status" v-if="showStatus">
         <!-- Failed indicator - red exclamation mark like WeChat -->
-        <div v-if="isFailedStatus" class="status-indicator failed" @click="handleRetry">
-          <div class="error-icon">!</div>
-        </div>
+        <button
+          v-if="isFailedStatus"
+          class="status-indicator failed"
+          @click="handleRetry"
+          type="button"
+          :disabled="retrying"
+          :aria-label="retrying ? '正在重试发送消息' : '重试发送消息'"
+          :title="retrying ? '正在重试...' : '点击重试发送'">
+          <div class="error-icon" aria-hidden="true">!</div>
+          <span class="sr-only">{{ retrying ? '正在重试发送消息' : '消息发送失败，点击重试' }}</span>
+        </button>
       </div>
     </div>
   </div>
@@ -21,6 +33,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { MessageStatus } from '../services/messaging/types'
+import { uiLogger } from '../utils/logger.js'
+import { handleError } from '../utils/errorHandler.js'
 
 const props = defineProps({
   message: {
@@ -47,15 +61,45 @@ const canRetry = computed(() => {
   return isFailedStatus.value && props.message.canRetry !== false
 })
 
+// Accessibility helpers
+const getMessageAriaLabel = () => {
+  const senderText = props.message.sender === 'self' ? '我' : '对方'
+  const statusText = isFailedStatus.value ? '发送失败' : '已发送'
+  const timeText = props.message.timestamp ?
+    new Date(props.message.timestamp).toLocaleTimeString() : ''
+
+  return `${senderText}发送的消息：${props.message.text}。状态：${statusText}。${timeText}`
+}
+
 // Methods
 const handleRetry = async () => {
-  if (retrying.value || !canRetry.value) return
+  if (retrying.value || !canRetry.value) {
+    uiLogger.warn('Retry blocked', {
+      retrying: retrying.value,
+      canRetry: canRetry.value
+    })
+    return
+  }
 
   retrying.value = true
+  uiLogger.debug('Retrying message', {
+    localId: props.message.localId,
+    text: props.message.text?.substring(0, 50) + '...'
+  })
+
   try {
     await emit('retry', props.message.localId)
+    uiLogger.info('Message retry initiated', { localId: props.message.localId })
   } catch (error) {
-    console.error('Retry failed:', error)
+    uiLogger.error('Message retry failed', {
+      localId: props.message.localId,
+      error
+    })
+    handleError(error, {
+      operation: 'retry_message',
+      context: 'MessageBubble',
+      showToast: true,
+    })
   } finally {
     retrying.value = false
   }
@@ -123,13 +167,29 @@ const handleRetry = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  border-radius: 50%;
+  transition: background-color 0.2s, box-shadow 0.2s;
 }
-
-
 
 /* Failed status - red exclamation mark like WeChat */
 .status-indicator.failed {
   cursor: pointer;
+}
+
+.status-indicator.failed:hover:not(:disabled) {
+  background-color: rgba(255, 59, 48, 0.1);
+}
+
+.status-indicator.failed:focus {
+  outline: none;
+}
+
+.status-indicator.failed:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .error-icon {
@@ -169,6 +229,19 @@ const handleRetry = async () => {
 
 .message-bubble.can-retry {
   cursor: pointer;
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Responsive adjustments */

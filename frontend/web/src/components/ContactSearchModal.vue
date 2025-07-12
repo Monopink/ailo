@@ -1,25 +1,40 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click="handleOverlayClick">
+    <div
+      class="modal-overlay"
+      @click="handleOverlayClick"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>添加联系人</h3>
-          <button @click="$emit('close')" class="close-button">×</button>
+          <h3 id="modal-title">添加联系人</h3>
+          <button
+            @click="$emit('close')"
+            class="close-button"
+            type="button"
+            aria-label="关闭对话框">
+            ×
+          </button>
         </div>
 
         <div class="modal-body">
-          <div v-if="loading" class="loading-state">
-            <div class="loading-spinner"></div>
+          <div v-if="loading" class="loading-state" aria-live="polite">
+            <div class="loading-spinner" aria-hidden="true"></div>
             <p>搜索中...</p>
           </div>
 
           <div v-else-if="searchResults.length > 0" class="search-results">
-            <h4>你还能再添加{{ remainingContactsCount }}位联系人</h4>
-            <div class="contact-list">
+            <h4 id="search-results-heading">你还能再添加{{ remainingContactsCount }}位联系人</h4>
+            <div
+              class="contact-list"
+              role="list"
+              aria-labelledby="search-results-heading">
               <div
                 v-for="contact in searchResults"
                 :key="contact.id"
                 class="contact-item"
+                role="listitem"
               >
                 <ContactAvatar :nickname="contact.nickname" size="medium" />
                 <div class="contact-info">
@@ -27,9 +42,11 @@
                   <div class="contact-gender">{{ getGenderText(contact.gender) }}</div>
                 </div>
                 <button
-                  class="add-btn"
+                  class="btn btn-primary btn-sm"
                   @click="handleAddContact(contact)"
                   :disabled="addingContactId === contact.id"
+                  type="button"
+                  :aria-label="`添加联系人 ${contact.nickname || '未知'}`"
                 >
                   {{ addingContactId === contact.id ? '添加中...' : '添加' }}
                 </button>
@@ -52,12 +69,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useChatStore } from '../stores/chat';
 import { useToast } from 'vue-toastification';
 import { searchContacts, addContact } from '../services/api';
 import ContactAvatar from './ContactAvatar.vue';
+import { uiLogger } from '../utils/logger.js';
+import { handleError } from '../utils/errorHandler.js';
 
 const emit = defineEmits(['close', 'contact-added']);
 
@@ -93,21 +112,54 @@ const getGenderText = (gender) => {
 // Search for contacts on component mount
 onMounted(async () => {
   await performSearch();
+  // Focus management for accessibility
+  await nextTick();
+  const modalContent = document.querySelector('.modal-content');
+  if (modalContent) {
+    modalContent.focus();
+  }
+});
+
+// Keyboard event handling
+const handleKeyDown = (event) => {
+  if (event.key === 'Escape') {
+    emit('close');
+  }
+};
+
+// Add global keyboard listener
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+  uiLogger.debug('ContactSearchModal mounted');
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+  uiLogger.debug('ContactSearchModal unmounted');
 });
 
 const performSearch = async () => {
-  if (!authStore.token) return;
-  
+  if (!authStore.token) {
+    uiLogger.warn('No auth token available for contact search');
+    return;
+  }
+
   loading.value = true;
   searchCompleted.value = false;
-  
+
   try {
-    const response = await searchContacts('NewContacts', authStore.token);
+    uiLogger.debug('Searching for new contacts');
+    const response = await searchContacts('NewContacts');
     searchResults.value = response.data;
     searchCompleted.value = true;
+    uiLogger.info('Contact search completed', { resultCount: response.data.length });
   } catch (error) {
-    console.error('Search contacts failed:', error);
-    toast.error('搜索联系人失败');
+    uiLogger.error('Contact search failed', error);
+    handleError(error, {
+      operation: 'search_contacts',
+      context: 'ContactSearchModal',
+      showToast: true,
+    });
     searchResults.value = [];
     searchCompleted.value = true;
   } finally {
@@ -117,16 +169,21 @@ const performSearch = async () => {
 
 const handleAddContact = async (contact) => {
   if (!authStore.token || addingContactId.value) return;
-  
+
   addingContactId.value = contact.id;
-  
+  uiLogger.debug('Adding contact', { contactId: contact.id, nickname: contact.nickname });
+
   try {
-    await addContact(contact.id, authStore.token);
+    await addContact(contact.id);
+    uiLogger.info('Contact added successfully', { contactId: contact.id });
     emit('contact-added');
   } catch (error) {
-    console.error('Add contact failed:', error);
-    const errorMessage = error.response?.data?.detail || error.message || '添加联系人失败';
-    toast.error(errorMessage);
+    uiLogger.error('Add contact failed', { contactId: contact.id, error });
+    handleError(error, {
+      operation: 'add_contact',
+      context: 'ContactSearchModal',
+      showToast: true,
+    });
   } finally {
     addingContactId.value = null;
   }
@@ -134,6 +191,7 @@ const handleAddContact = async (contact) => {
 
 const handleOverlayClick = (event) => {
   if (event.target === event.currentTarget) {
+    uiLogger.debug('Modal closed by overlay click');
     emit('close');
   }
 };
@@ -161,13 +219,18 @@ const handleOverlayClick = (event) => {
   max-width: 500px;
   max-height: 80vh;
   overflow-y: auto;
+  outline: none;
+}
+
+.modal-content:focus {
+  outline: none;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  padding: var(--spacing-2xl);
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
@@ -189,7 +252,15 @@ const handleOverlayClick = (event) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.close-button:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+.close-button:focus {
+  outline: none;
 }
 
 .close-button:hover {
@@ -197,7 +268,7 @@ const handleOverlayClick = (event) => {
 }
 
 .modal-body {
-  padding: 1.5rem;
+  padding: var(--spacing-2xl);
   min-height: 200px;
 }
 
@@ -206,7 +277,7 @@ const handleOverlayClick = (event) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  padding: var(--spacing-3xl);
 }
 
 .loading-spinner {
@@ -216,7 +287,7 @@ const handleOverlayClick = (event) => {
   border-top: 3px solid var(--color-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-lg);
 }
 
 @keyframes spin {
@@ -225,7 +296,7 @@ const handleOverlayClick = (event) => {
 }
 
 .search-results h4 {
-  margin: 0 0 1rem 0;
+  margin: 0 0 var(--spacing-lg) 0;
   font-size: 1rem;
   font-weight: 500;
   color: var(--color-text-primary);
@@ -234,18 +305,18 @@ const handleOverlayClick = (event) => {
 .contact-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
 }
 
 .contact-item {
   display: flex;
   align-items: center;
-  padding: 1rem;
+  padding: var(--spacing-lg);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--border-radius);
   background-color: var(--color-bg-secondary);
   transition: border-color 0.2s;
-  gap: 1rem; /* Add gap between avatar and text */
+  gap: var(--spacing-lg);
 }
 
 .contact-item:hover {
@@ -261,7 +332,7 @@ const handleOverlayClick = (event) => {
 .contact-name {
   font-weight: 500;
   color: var(--color-text-primary);
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--spacing-xs);
 }
 
 .contact-gender {
@@ -269,64 +340,29 @@ const handleOverlayClick = (event) => {
   color: var(--color-text-secondary);
 }
 
-.add-btn {
-  padding: 0.5rem 1rem;
-  border: var(--border-width) solid var(--color-accent);
-  background-color: var(--color-accent);
-  color: white;
-  border-radius: var(--border-radius);
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.add-btn:hover:not(:disabled) {
-  background-color: var(--color-accent-dark);
-  border-color: var(--color-accent-dark);
-}
-
-.add-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* Removed .add-btn styles - now using unified .btn classes */
 
 .no-results {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  padding: var(--spacing-3xl);
   color: var(--color-text-secondary);
   text-align: center;
 }
 
 .emoji-large {
   font-size: 3rem;
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-lg);
 }
 
 .modal-footer {
-  padding: 1rem 1.5rem;
+  padding: var(--spacing-lg) var(--spacing-2xl);
   border-top: var(--border-width) solid var(--color-border);
   display: flex;
   justify-content: flex-end;
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border-radius: var(--border-radius);
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.btn-secondary {
-  border: var(--border-width) solid var(--color-border);
-  background-color: var(--color-bg-secondary);
-  color: var(--color-text-primary);
-}
-
-.btn-secondary:hover {
-  background-color: var(--color-bg-primary);
-}
+/* Removed duplicate .btn styles - now using unified .btn classes from main.css */
 </style>

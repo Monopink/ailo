@@ -1,22 +1,54 @@
 <template>
   <div class="user-profile-menu" ref="menuContainer">
-    <div class="nickname-display" @click="toggleMenu">
+    <button
+      class="nickname-display"
+      type="button"
+      :aria-expanded="showMenu"
+      aria-haspopup="true"
+      :aria-label="`用户菜单：${authStore.user?.nickname || '未知用户'}`"
+      @click="toggleMenu"
+      @keydown="handleKeyDown">
       {{ authStore.user?.nickname || '' }}
-    </div>
-    
-    <div v-if="showMenu" class="dropdown-menu" @click.stop>
+    </button>
+
+    <div
+      v-if="showMenu"
+      class="dropdown-menu"
+      role="menu"
+      :aria-labelledby="menuButtonId"
+      @click.stop
+      @keydown="handleMenuKeyDown">
       <button
         v-if="shouldShowNotificationButton"
         @click="handleNotificationToggle"
-        class="menu-item">
+        class="menu-item"
+        role="menuitem"
+        type="button"
+        :aria-describedby="notificationDescriptionId">
         启用通知
       </button>
-      <button @click="handleEditProfile" class="menu-item">
+      <button
+        @click="handleEditProfile"
+        class="menu-item"
+        role="menuitem"
+        type="button">
         编辑资料
       </button>
-      <button @click="handleSettings" class="menu-item">
+      <button
+        @click="handleSettings"
+        class="menu-item"
+        role="menuitem"
+        type="button">
         设置
       </button>
+    </div>
+
+    <!-- Screen reader description for notification button -->
+    <div
+      v-if="shouldShowNotificationButton"
+      :id="notificationDescriptionId"
+      class="sr-only">
+      点击启用浏览器通知功能
     </div>
   </div>
 </template>
@@ -25,12 +57,18 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { notificationService } from '../services/notificationService'
+import { uiLogger } from '../utils/logger.js'
+import { handleError } from '../utils/errorHandler.js'
 
 const emit = defineEmits(['edit-profile', 'settings'])
 
 const authStore = useAuthStore()
 const showMenu = ref(false)
 const menuContainer = ref(null)
+
+// Generate unique IDs for accessibility
+const menuButtonId = `user-menu-button-${Math.random().toString(36).substr(2, 9)}`
+const notificationDescriptionId = `notification-desc-${Math.random().toString(36).substr(2, 9)}`
 
 // Notification settings reactive data
 const notificationSettings = computed(() => notificationService.getNotificationSettings())
@@ -41,59 +79,155 @@ const shouldShowNotificationButton = computed(() => {
   return settings.isSupported && !settings.canShow
 })
 
+// Menu state management
 const toggleMenu = () => {
   showMenu.value = !showMenu.value
+  uiLogger.debug('User menu toggled', { isOpen: showMenu.value })
 }
 
-const handleEditProfile = () => {
+const closeMenu = () => {
   showMenu.value = false
+  uiLogger.debug('User menu closed')
+}
+
+// Menu item handlers
+const handleEditProfile = () => {
+  closeMenu()
   emit('edit-profile')
+  uiLogger.debug('Edit profile action triggered')
 }
 
 const handleSettings = () => {
-  showMenu.value = false
+  closeMenu()
   emit('settings')
+  uiLogger.debug('Settings action triggered')
 }
 
 const handleNotificationToggle = async () => {
-  showMenu.value = false
+  closeMenu()
 
-  const settings = notificationSettings.value
+  try {
+    const settings = notificationSettings.value
 
-  if (!settings.isSupported) {
-    alert('您的浏览器不支持通知功能')
-    return
+    if (!settings.isSupported) {
+      handleError(new Error('Browser does not support notifications'), {
+        operation: 'enable_notifications',
+        customMessage: '您的浏览器不支持通知功能',
+        showToast: true,
+      })
+      return
+    }
+
+    if (settings.permission === 'denied') {
+      handleError(new Error('Notification permission denied'), {
+        operation: 'enable_notifications',
+        customMessage: '通知权限已被拒绝，请在浏览器设置中手动开启通知权限',
+        showToast: true,
+      })
+      return
+    }
+
+    // Request permission (this function only shows when permission is needed)
+    const permission = await notificationService.requestPermission()
+    if (permission === 'granted') {
+      notificationService.setNotificationEnabled(true)
+      uiLogger.info('Notifications enabled successfully')
+    } else {
+      uiLogger.warn('Notification permission denied by user')
+    }
+  } catch (error) {
+    handleError(error, {
+      operation: 'enable_notifications',
+      context: 'UserProfileMenu',
+      showToast: true,
+    })
   }
+}
 
-  if (settings.permission === 'denied') {
-    alert('通知权限已被拒绝，请在浏览器设置中手动开启通知权限')
-    return
+// Keyboard navigation support
+const handleKeyDown = (event) => {
+  switch (event.key) {
+    case 'Enter':
+    case ' ': // Space key
+      event.preventDefault()
+      toggleMenu()
+      break
+    case 'Escape':
+      if (showMenu.value) {
+        event.preventDefault()
+        closeMenu()
+      }
+      break
+    case 'ArrowDown':
+      if (!showMenu.value) {
+        event.preventDefault()
+        toggleMenu()
+      }
+      break
   }
+}
 
-  // Request permission (this function only shows when permission is needed)
-  const permission = await notificationService.requestPermission()
-  if (permission === 'granted') {
-    notificationService.setNotificationEnabled(true)
-    console.log('📢 Notifications enabled')
-  } else {
-    console.log('📢 Notification permission denied')
+const handleMenuKeyDown = (event) => {
+  const menuItems = menuContainer.value?.querySelectorAll('.menu-item')
+  if (!menuItems) return
+
+  const currentIndex = Array.from(menuItems).findIndex(item => item === event.target)
+
+  switch (event.key) {
+    case 'Escape':
+      event.preventDefault()
+      closeMenu()
+      // Focus back to menu button
+      menuContainer.value?.querySelector('.nickname-display')?.focus()
+      break
+    case 'ArrowDown':
+      event.preventDefault()
+      const nextIndex = (currentIndex + 1) % menuItems.length
+      menuItems[nextIndex]?.focus()
+      break
+    case 'ArrowUp':
+      event.preventDefault()
+      const prevIndex = currentIndex <= 0 ? menuItems.length - 1 : currentIndex - 1
+      menuItems[prevIndex]?.focus()
+      break
+    case 'Home':
+      event.preventDefault()
+      menuItems[0]?.focus()
+      break
+    case 'End':
+      event.preventDefault()
+      menuItems[menuItems.length - 1]?.focus()
+      break
   }
 }
 
 
 
+// Click outside handler
 const handleClickOutside = (event) => {
   if (menuContainer.value && !menuContainer.value.contains(event.target)) {
-    showMenu.value = false
+    closeMenu()
   }
 }
 
+// Global escape key handler
+const handleGlobalKeyDown = (event) => {
+  if (event.key === 'Escape' && showMenu.value) {
+    closeMenu()
+  }
+}
+
+// Lifecycle hooks
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleGlobalKeyDown)
+  uiLogger.debug('UserProfileMenu mounted')
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleGlobalKeyDown)
+  uiLogger.debug('UserProfileMenu unmounted')
 })
 </script>
 
@@ -105,15 +239,23 @@ onUnmounted(() => {
 
 .nickname-display {
   cursor: pointer;
-  padding: 0.5rem;
+  padding: var(--spacing-sm);
+  border: none;
+  background: none;
   border-radius: var(--border-radius-sm);
   transition: background-color 0.2s;
   color: var(--color-text-primary);
   user-select: none;
+  font-size: inherit;
+  font-family: inherit;
 }
 
 .nickname-display:hover {
   background-color: var(--color-bg-secondary);
+}
+
+.nickname-display:focus {
+  outline: none;
 }
 
 .dropdown-menu {
@@ -126,24 +268,27 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 120px;
   z-index: 1000;
-  margin-top: 0.25rem;
+  margin-top: var(--spacing-xs);
 }
 
 .menu-item {
   display: block;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: var(--spacing-md) var(--spacing-lg);
   background: none;
   border: none;
   text-align: left;
   color: var(--color-text-primary);
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background-color 0.2s;
+  font-family: inherit;
+  transition: background-color 0.2s, box-shadow 0.2s;
 }
 
-.menu-item:hover {
+.menu-item:hover,
+.menu-item:focus {
   background-color: var(--color-bg-secondary);
+  outline: none;
 }
 
 .menu-item:first-child {
@@ -155,6 +300,19 @@ onUnmounted(() => {
 }
 
 
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .menu-item.notification-disabled {
   opacity: 0.6;

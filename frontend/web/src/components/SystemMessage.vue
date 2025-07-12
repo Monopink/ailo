@@ -1,19 +1,26 @@
 <template>
-  <div class="system-message">
-    <span class="system-text">{{ message }}</span>
+  <div
+    class="system-message"
+    role="status"
+    aria-live="polite"
+    :aria-label="`系统消息：${message}`">
+    <span class="system-text" aria-hidden="true">{{ message }}</span>
+    <span class="sr-only">系统消息：{{ message }}</span>
   </div>
 </template>
 
-<script>
-export default {
-  name: 'SystemMessage',
-  props: {
-    message: {
-      type: String,
-      required: true
-    }
+<script setup>
+import { uiLogger } from '../utils/logger.js'
+
+const props = defineProps({
+  message: {
+    type: String,
+    required: true
   }
-}
+})
+
+// Log system message for debugging
+uiLogger.debug('System message displayed', { message: props.message })
 </script>
 
 <style scoped>
@@ -33,6 +40,19 @@ export default {
   text-align: center;
   max-width: 80%;
   line-height: 1.4;
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Dark mode support */

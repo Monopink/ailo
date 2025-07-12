@@ -1,153 +1,167 @@
-import axios from 'axios';
+/**
+ * API service layer for application
+ * Provides unified interface for all backend API calls
+ */
 
-// Log API base URL
-console.log('API Base URL:', import.meta.env.VITE_API_BASE_URL);
+import { createApiClient, createServiceClient, apiGet, apiPost } from '../utils/apiHelpers.js';
+import { apiLogger } from '../utils/logger.js';
+import { API_CONFIG } from '../config/constants.js';
 
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  // Set request timeout
-  timeout: 10000,
-  // Allow cross-origin requests with credentials
-  withCredentials: true,
+// Log API configuration for debugging
+apiLogger.info('API service initialized', {
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT,
 });
 
-// Add request interceptor
-apiClient.interceptors.request.use(config => {
-  // Do something before request is sent
-  console.log('API Request:', {
-    url: config.url,
-    method: config.method,
-    baseURL: config.baseURL,
-    headers: config.headers,
-  });
+// Create default API client
+export const apiClient = createApiClient();
 
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Create specialized service clients
+const contactsService = createServiceClient('CONTACTS');
+const authService = createServiceClient('AUTH');
+
+/**
+ * Contact Management API
+ */
+
+/**
+ * Get user's contact list
+ */
+export async function getContacts() {
+  return contactsService.get('/api/v1/contacts', {
+    operation: 'load_contacts',
+  });
+}
+
+/**
+ * Get specific contact's chat display information
+ */
+export async function getContactChatInfo(contactId) {
+  if (!contactId) {
+    throw new Error('Contact ID is required');
   }
 
-  return config;
-}, error => {
-  // Do something with request error
-  console.error('API Request Error:', error);
-  return Promise.reject(error);
-});
-
-// Add response interceptor
-apiClient.interceptors.response.use(response => {
-  // Do something with response data
-  console.log('API Response:', {
-    status: response.status,
-    statusText: response.statusText,
-    data: response.data,
+  return contactsService.get(`/api/v1/contacts/${contactId}/chat-info`, {
+    operation: 'load_chat',
   });
-  return response;
-}, error => {
-  // Do something with response error
-  console.error('API Response Error:', error);
-  if (error.response) {
-    // Request was made and server responded with status code outside of 2xx range
-    console.error('Error Response Data:', error.response.data);
-    console.error('Error Response Status:', error.response.status);
-    console.error('Error Response Headers:', error.response.headers);
-  } else if (error.request) {
-    // Request was made but no response received
-    console.error('Error Request:', error.request);
-  } else {
-    // Something happened in setting up the request that triggered an error
-    console.error('Error Message:', error.message);
+}
+
+/**
+ * Get user's contact limits and usage information
+ */
+export async function getContactLimits() {
+  return contactsService.get('/api/v1/contacts/limits', {
+    operation: 'load_contacts',
+  });
+}
+
+/**
+ * Search available contacts
+ */
+export async function searchContacts(query) {
+  if (!query || query.trim().length === 0) {
+    throw new Error('Search query is required');
   }
-  return Promise.reject(error);
-});
 
-export const getContacts = (token) => {
-  // Call contacts_service through Vite proxy at /api/v1/contacts
-  return axios.get('/api/v1/contacts', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  }).then(response => {
-    // Debug: Log the full response
-    console.log('🔧 [DEBUG] Full API response:', response.data);
-
-    // Transform contacts_service response format to match expected format
-    if (response.data && response.data.status === 'success') {
-      console.log('🔧 [DEBUG] Contacts data:', response.data.data);
-      return { data: response.data.data }; // Extract the actual contact array
-    } else {
-      throw new Error(response.data?.message || 'Failed to get contacts');
-    }
+  const encodedQuery = encodeURIComponent(query.trim());
+  return contactsService.get(`/api/v1/contacts/search?query=${encodedQuery}`, {
+    operation: 'search_contacts',
   });
+}
+
+/**
+ * Add a new contact
+ */
+export async function addContact(contactId) {
+  if (!contactId) {
+    throw new Error('Contact ID is required');
+  }
+
+  return contactsService.post('/api/v1/contacts/add',
+    { contact_id: contactId },
+    { operation: 'add_contact' }
+  );
+}
+
+/**
+ * Authentication API
+ */
+
+/**
+ * Send SMS verification code
+ */
+export async function sendSmsCode(phone) {
+  if (!phone) {
+    throw new Error('Phone number is required');
+  }
+
+  return authService.post('/api/v1/auth/send-code',
+    { phone },
+    { operation: 'send_sms' }
+  );
+}
+
+/**
+ * User registration
+ */
+export async function register(phone, code, password) {
+  if (!phone || !code || !password) {
+    throw new Error('Phone, code, and password are required');
+  }
+
+  return authService.post('/api/v1/auth/register',
+    { phone, code, password },
+    { operation: 'register' }
+  );
+}
+
+/**
+ * User login
+ */
+export async function login(phone, password) {
+  if (!phone || !password) {
+    throw new Error('Phone and password are required');
+  }
+
+  return authService.post('/api/v1/auth/login',
+    { phone, password },
+    { operation: 'login' }
+  );
+}
+
+/**
+ * Get current user information
+ */
+export async function getCurrentUser() {
+  return authService.get('/api/v1/auth/me', {
+    operation: 'get_user_info',
+  });
+}
+
+/**
+ * Update user profile
+ */
+export async function updateProfile(profileData) {
+  if (!profileData) {
+    throw new Error('Profile data is required');
+  }
+
+  return authService.put('/api/v1/users/profile',
+    profileData,
+    { operation: 'update_profile' }
+  );
+}
+
+/**
+ * Legacy API functions for backward compatibility
+ * These maintain the old function signatures but use new implementation
+ */
+
+// Legacy getContacts with token parameter (for existing code)
+export const getContactsLegacy = (token) => {
+  apiLogger.warn('Using legacy getContacts function, consider updating to new API');
+  return getContacts();
 };
 
-export const getContactChatInfo = (contactId, token) => {
-  // Get specific contact's chat display information
-  return axios.get(`/api/v1/contacts/${contactId}/chat-info`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  }).then(response => {
-    if (response.data && response.data.status === 'success') {
-      return { data: response.data.data };
-    } else {
-      throw new Error(response.data?.message || 'Failed to get contact chat info');
-    }
-  });
-};
-
-export const getContactLimits = (token) => {
-  // Get user's contact limits and usage information
-  return axios.get('/api/v1/contacts/limits', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  }).then(response => {
-    if (response.data && response.data.status === 'success') {
-      return { data: response.data.data };
-    } else {
-      throw new Error(response.data?.message || 'Failed to get contact limits');
-    }
-  });
-};
-
-export const searchContacts = (query, token) => {
-  // Search available contacts
-  return axios.get(`/api/v1/contacts/search?query=${encodeURIComponent(query)}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  }).then(response => {
-    if (response.data && response.data.status === 'success') {
-      return { data: response.data.data };
-    } else {
-      throw new Error(response.data?.message || 'Failed to search contacts');
-    }
-  });
-};
-
-export const addContact = (contactId, token) => {
-  // Add a new contact
-  return axios.post('/api/v1/contacts/add', {
-    contact_id: contactId
-  }, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  }).then(response => {
-    if (response.data && response.data.status === 'success') {
-      return { data: response.data };
-    } else {
-      throw new Error(response.data?.message || 'Failed to add contact');
-    }
-  });
-};
-
+// Export default API client for direct access if needed
 export default apiClient;

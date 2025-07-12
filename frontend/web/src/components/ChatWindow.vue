@@ -3,7 +3,13 @@
     <div class="chat-header hide-on-mobile">
       <h3 class="chat-title">{{ selectedChat.name }}</h3>
     </div>
-    <div class="messages-area" ref="messagesContainer">
+    <div
+      class="messages-area"
+      ref="messagesContainer"
+      role="log"
+      aria-live="polite"
+      aria-label="聊天消息列表"
+      tabindex="0">
       <template v-for="(item, index) in messagesWithTimeDividers" :key="item.id || item.localId || `divider-${index}`">
         <TimeDivider v-if="item.type === 'time-divider'" :timestamp="item.timestamp" />
         <SystemMessage v-else-if="item.messageType === MessageType.SYSTEM" :message="item.text" />
@@ -11,7 +17,7 @@
         <MessageBubble v-else :message="item" @retry="handleRetry" />
       </template>
       <!-- Typing indicator -->
-      <div v-if="isTyping" class="typing-indicator">
+      <div v-if="isTyping" class="typing-indicator" aria-live="polite">
         <div class="typing-bubble">
           <div class="typing-dots">
             <span></span>
@@ -19,10 +25,13 @@
             <span></span>
           </div>
         </div>
+        <span class="sr-only">{{ selectedChat?.name }} 正在输入...</span>
       </div>
     </div>
-    <div class="message-input-area">
+    <div class="message-input-area" role="form" aria-label="发送消息">
+      <label for="message-input" class="sr-only">输入消息内容</label>
       <input
+        id="message-input"
         type="text"
         v-model="newMessage"
         @keyup.enter="sendMessage"
@@ -30,10 +39,23 @@
         @compositionstart="handleCompositionStart"
         @compositionend="handleCompositionEnd"
         :maxlength="MessageConstraints.MAX_LENGTH"
+        :aria-describedby="messageInputDescription"
         placeholder="输入消息..."
         class="message-input"
+        :disabled="!selectedChat"
+        aria-required="true"
       />
-      <button @click="sendMessage" class="btn send-button">发送</button>
+      <div :id="messageInputDescription" class="sr-only">
+        最多可输入 {{ MessageConstraints.MAX_LENGTH }} 个字符，按回车键发送消息
+      </div>
+      <button
+        @click="sendMessage"
+        class="btn send-button"
+        type="button"
+        :disabled="!newMessage.trim() || !selectedChat"
+        :aria-label="`发送消息给 ${selectedChat?.name || '联系人'}`">
+        发送
+      </button>
     </div>
   </div>
   <div v-else class="no-chat-selected">
@@ -53,10 +75,11 @@ import TimeDivider from './TimeDivider.vue';
 import MessageFailureNotice from './MessageFailureNotice.vue';
 import { messageService } from '../services/messaging';
 import { useAuthStore } from '../stores/auth';
-import { MessageType, MessageStatus, MessageConstraints, MessageSecurity } from '../services/messaging/types';
+import { MessageType, MessageConstraints, MessageSecurity } from '../services/messaging/types';
 import { messageRateLimiter } from '../services/messaging/rateLimiter';
 import { useToast } from 'vue-toastification';
 import { notificationService } from '../services/notificationService';
+import { MESSAGE_CONFIG } from '../config/constants.js';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
@@ -65,6 +88,14 @@ const newMessage = ref('');
 const messagesContainer = ref(null);
 const isTyping = ref(false);
 const typingTimeout = ref(null);
+
+// Helper function for showing toast messages
+const showToast = (message, type = 'error') => {
+  toast[type](message);
+};
+
+// Generate unique ID for accessibility
+const messageInputDescription = ref(`message-input-desc-${Math.random().toString(36).substring(2, 9)}`);
 
 const selectedChat = computed(() => {
   return chatStore.chats.find(chat => chat.id === chatStore.selectedChatId);
@@ -189,7 +220,8 @@ const isCurrentlyTyping = ref(false);
 const isComposing = ref(false);
 const typingTimer = ref(null);
 const typingEndTimer = ref(null);
-const TYPING_DELAY = 500; // 0.5 seconds delay
+// Use configured typing delay
+const TYPING_DELAY = MESSAGE_CONFIG.TYPING_DELAY;
 
 // Chinese input method event handlers
 const handleCompositionStart = () => {
@@ -222,10 +254,16 @@ const scheduleTypingStart = () => {
   typingTimer.value = setTimeout(async () => {
     if (!isCurrentlyTyping.value && selectedChat.value) {
       try {
-        await messageService.sendTypingIndicator(selectedChat.value);
-        isCurrentlyTyping.value = true;
+        // Check if message service is available and initialized
+        if (messageService && typeof messageService.sendTypingIndicator === 'function') {
+          await messageService.sendTypingIndicator(selectedChat.value);
+          isCurrentlyTyping.value = true;
+        } else {
+          console.warn('Message service not available for typing indicator');
+        }
       } catch (error) {
         console.error('Failed to send typing indicator:', error);
+        // Don't throw error, just log it as typing indicator is not critical
       }
     }
     typingTimer.value = null;
@@ -312,11 +350,38 @@ const sendMessage = async () => {
   isCurrentlyTyping.value = false;
 
   // Send message using unified message service with status management
-  console.log('Sending message to:', selectedChat.value.id);
-  const uiMessage = await messageService.sendChatMessage(selectedChat.value, content);
+  try {
+    console.log('Sending message to:', selectedChat.value.id);
 
-  // Add UI message to local chat immediately (with pending status)
-  chatStore.addMessage(selectedChat.value.id, uiMessage);
+    // Check if message service is available and initialized
+    if (!messageService || typeof messageService.sendChatMessage !== 'function') {
+      throw new Error('Message service not available');
+    }
+
+    const uiMessage = await messageService.sendChatMessage(selectedChat.value, content);
+
+    // Add UI message to local chat immediately (with pending status)
+    chatStore.addMessage(selectedChat.value.id, uiMessage);
+  } catch (error) {
+    console.error('Failed to send message:', error);
+
+    // Create a failed message for UI feedback
+    const failedMessage = {
+      id: `failed-${Date.now()}`,
+      localId: `local-${Date.now()}`,
+      text: content,
+      sender: 'self',
+      timestamp: new Date(),
+      status: 'failed',
+      canRetry: true
+    };
+
+    // Add failed message to chat
+    chatStore.addMessage(selectedChat.value.id, failedMessage);
+
+    // Show user-friendly error message
+    showToast('消息发送失败，请重试');
+  }
   await nextTick();
   scrollToBottom();
 
@@ -337,10 +402,7 @@ const handleRetry = async (localId) => {
   }
 };
 
-// Show toast notification using vue-toastification
-const showToast = (message) => {
-  toast.error(message);
-};
+
 
 // Handle message status changes
 const handleMessageStatusChange = (message) => {
@@ -388,10 +450,10 @@ const handleTypingMessage = (event) => {
     if (typingTimeout.value) {
       clearTimeout(typingTimeout.value)
     }
-    // Auto-hide typing indicator after 10 seconds
+    // Auto-hide typing indicator after configured duration
     typingTimeout.value = setTimeout(() => {
       isTyping.value = false
-    }, 10000)
+    }, MESSAGE_CONFIG.TYPING_AUTO_HIDE_DURATION)
   } else if (message.type === 3) { // TYPING_END
     // Hide typing indicator
     isTyping.value = false
@@ -404,7 +466,7 @@ const handleTypingMessage = (event) => {
 
 // Handle incoming chat messages
 const handleChatMessageReceived = async (event) => {
-  const { message, conversation } = event.detail
+  const { message } = event.detail
 
   console.log('📨 [ChatWindow] Received message event:', message)
 
@@ -594,6 +656,18 @@ onUnmounted(() => {
   margin-right: 0.75rem;
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.message-input:focus {
+  outline: none;
+  border-color: var(--color-border);
+}
+
+.message-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--color-bg-secondary);
 }
 
 .send-button {
@@ -601,7 +675,24 @@ onUnmounted(() => {
   background-color: var(--color-accent);
   color: white;
   border: none;
+  border-radius: var(--border-radius-sm);
   white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+
+.send-button:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.send-button:focus {
+  outline: none;
+}
+
+.send-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--color-border);
 }
 
 .no-chat-selected {
@@ -718,6 +809,24 @@ onUnmounted(() => {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus management for messages area */
+.messages-area:focus {
+  outline: none;
 }
 
 </style>

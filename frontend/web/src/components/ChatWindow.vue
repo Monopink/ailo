@@ -369,10 +369,7 @@ const handleTypingMessage = (event) => {
   console.log('📨 [ChatWindow] Received typing message:', message)
 
   // Find the chat that corresponds to this message
-  // Try both ways to be compatible with TYPE2 and TYPE1 messages:
-  // 1. For TYPE2 messages: message.from is entity_id, find by entity_id
-  // 2. For TYPE1 messages: message.from might correspond to chat.id
-  const chat = chats.value.find(c => c.entity_id === message.from || c.id === message.from)
+  const chat = chats.value.find(c => c.id === message.from)
 
   if (!chat) {
     console.warn('📨 [ChatWindow] No chat found for typing message from:', message.from)
@@ -406,7 +403,7 @@ const handleTypingMessage = (event) => {
 }
 
 // Handle incoming chat messages
-const handleChatMessageReceived = (event) => {
+const handleChatMessageReceived = async (event) => {
   const { message, conversation } = event.detail
 
   console.log('📨 [ChatWindow] Received message event:', message)
@@ -423,7 +420,25 @@ const handleChatMessageReceived = (event) => {
   console.log('🔍 [ChatWindow] Available chats:', chats.value.map(c => ({ id: c.id, name: c.name })))
 
   // Find the chat that corresponds to this conversation
-  const chat = chats.value.find(c => c.id === message.from)
+  let chat = chats.value.find(c => c.id === message.from)
+
+  // Debug: Check system message conditions
+  console.log('🔍 [ChatWindow] System message check:', {
+    chatFound: !!chat,
+    messageType: message.type,
+    messageAction: message.content?.action,
+    shouldRefresh: !chat && message.type === 9 && message.content?.action === 2
+  })
+
+  // If this is a system message about adding contact and we can't find the chat,
+  // refresh contacts and try again
+  if (!chat && message.type === 9 && message.content?.action === 2) {
+    console.log('🔄 [ChatWindow] System message for new contact, refreshing contacts...')
+    await chatStore.fetchContacts()
+    chat = chats.value.find(c => c.id === message.from)
+    console.log('🔄 [ChatWindow] After refresh, found chat:', chat ? { id: chat.id, name: chat.name } : 'null')
+    console.log('🔄 [ChatWindow] Available chats after refresh:', chats.value.map(c => ({ id: c.id, name: c.name })))
+  }
 
   console.log('🔍 [ChatWindow] Found chat:', chat ? { id: chat.id, name: chat.name } : 'null')
 
@@ -433,7 +448,7 @@ const handleChatMessageReceived = (event) => {
       id: Date.now() + Math.random(), // Unique ID for received messages
       localId: null, // Received messages don't have localId
       text: message.content,
-      sender: message.from === authStore.user?.entity_id ? 'self' : 'other',
+      sender: message.from === authStore.user?.id ? 'self' : 'other',
       timestamp: new Date(message.timestamp || Date.now()),
       messageType: message.type,
       status: null // Received messages don't have status
@@ -478,7 +493,7 @@ const handleNotificationChatClick = (event) => {
   console.log('📢 [ChatWindow] Notification clicked, navigating to chat:', chatId)
 
   // Find and select the chat
-  const chat = chats.value.find(c => c.id === chatId || c.entity_id === chatId)
+  const chat = chats.value.find(c => c.id === chatId)
   if (chat) {
     chatStore.selectChat(chat.id)
   }

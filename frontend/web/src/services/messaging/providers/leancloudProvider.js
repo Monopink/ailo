@@ -152,10 +152,14 @@ export class LeanCloudProvider {
         await this._initLeanCloud()
       }
 
-      if (!userId || typeof userId !== 'string') {
-        console.error('Invalid userId type:', typeof userId)
-        throw new Error('userId must be a string')
+      // Convert userId to string if it's not already
+      if (!userId) {
+        console.error('userId is required')
+        throw new Error('userId is required')
       }
+
+      // Ensure userId is a string
+      userId = String(userId)
 
       console.log(`Logging in to LeanCloud with user ID: ${userId}`)
 
@@ -203,6 +207,9 @@ export class LeanCloudProvider {
     if (!this.currentUserId) {
       throw new Error('Provider not initialized')
     }
+
+    // Ensure targetId is a string
+    targetId = String(targetId)
 
     // Create message object with provided ID if available
     const message = createChatMessage(this.currentUserId, targetId, content)
@@ -292,6 +299,9 @@ export class LeanCloudProvider {
       throw new Error('Provider not initialized')
     }
 
+    // Ensure targetId is a string
+    targetId = String(targetId)
+
     const message = createTypingMessage(this.currentUserId, targetId)
 
     try {
@@ -319,6 +329,9 @@ export class LeanCloudProvider {
     if (!this.currentUserId) {
       throw new Error('Provider not initialized')
     }
+
+    // Ensure targetId is a string
+    targetId = String(targetId)
 
     const message = createTypingEndMessage(this.currentUserId, targetId)
 
@@ -434,6 +447,9 @@ export class LeanCloudProvider {
       if (!this.client) {
         throw new Error('Not logged in to LeanCloud')
       }
+
+      // Ensure targetUserId is a string
+      targetUserId = String(targetUserId)
 
       // Check cache first
       const cacheKey = `user_${targetUserId}`

@@ -282,6 +282,7 @@ class SystemMessageAction(enum.Enum):
     """
 
     MESSAGE_STATUS = 1  # Update message status and failure reason
+    NEW_CONTACT = 2  # New contact added notification
 
 
 class SystemMessageStatus(enum.Enum):

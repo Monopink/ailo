@@ -12,7 +12,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
-    entity_id = Column(String(36), unique=True, nullable=False)
+    entity_id = Column(String(20), unique=True, nullable=False)
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)

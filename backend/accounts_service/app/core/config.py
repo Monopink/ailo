@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     DB_NAME: str
 
+    # User contact limits
+    DEFAULT_CONTACT_LIMIT: int = 1
+    DEFAULT_SEARCH_DISPLAY_LIMIT: int = 2
+
+    # Entity ID settings
+    ENTITY_ID_PREFIX: str = "qqid_"
+
     # This will be assembled from the variables above
     DATABASE_URL: str = ""
 

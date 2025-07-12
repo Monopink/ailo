@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     DB_NAME: str
 
+    # Internal service authentication
+    INTERNAL_SERVICE_KEY: str = "default_internal_key_change_me"
+
     # LeanCloud Health Check settings
     LEANCLOUD_HEALTH_CHECK_INTERVAL: Optional[int] = None  # No default - must be configured
     LEANCLOUD_HEALTH_CHECK_TIMEOUT: Optional[int] = None  # No default - must be configured

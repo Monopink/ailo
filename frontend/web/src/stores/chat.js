@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue'
 import localStorageService from '../services/localStorage';
-import { getContacts, getContactChatInfo } from '../services/api';
+import { getContacts, getContactChatInfo, getContactLimits } from '../services/api';
 import { useAuthStore } from './auth';
 import { ContactType } from '../services/messaging/types';
 
@@ -17,6 +17,13 @@ export const useChatStore = defineStore('chat', () => {
   const chats = ref(initialData.chats);
   const selectedChatId = ref(initialData.selectedChatId);
   const isLoaded = ref(false);
+
+  // Contact limits information
+  const contactLimits = ref({
+    contact_limit: 3,
+    current_count: 0,
+    can_add_more: true
+  });
 
   // Save chats to localStorage
   function saveToStorage() {
@@ -131,7 +138,16 @@ export const useChatStore = defineStore('chat', () => {
     if (!authStore.token) return;
 
     try {
-      const response = await getContacts(authStore.token);
+      // Fetch both contacts and contact limits
+      const [contactsResponse, limitsResponse] = await Promise.all([
+        getContacts(authStore.token),
+        getContactLimits(authStore.token)
+      ]);
+
+      // Update contact limits
+      contactLimits.value = limitsResponse.data;
+
+      const response = contactsResponse;
 
       // Merge with existing chat data from localStorage
       const existingChats = chats.value;
@@ -144,7 +160,7 @@ export const useChatStore = defineStore('chat', () => {
         return {
           id: contact.id, // Contact ID from backend
           name: contact.nickname, // Use nickname for display only
-          avatar: contact.avatar_url || contact.id.charAt(0).toUpperCase(),
+          avatar: contact.avatar_url || String(contact.id).charAt(0).toUpperCase(),
           contact_type: contact.contact_type, // numeric: 1=TYPE1, 2=TYPE2
           messages: existingChat?.messages || [], // Preserve existing messages
         };
@@ -220,7 +236,7 @@ export const useChatStore = defineStore('chat', () => {
           chats.value[chatIndex] = {
             ...chats.value[chatIndex],
             name: chatInfo.nickname,
-            avatar: chatInfo.avatar_url || chatInfo.id.charAt(0).toUpperCase(),
+            avatar: chatInfo.avatar_url || String(chatInfo.id).charAt(0).toUpperCase(),
             last_updated: chatInfo.last_updated
           };
 
@@ -302,6 +318,7 @@ export const useChatStore = defineStore('chat', () => {
     chats,
     selectedChatId,
     isLoaded,
+    contactLimits,
     fetchContacts,
     selectChat,
     updateContactChatInfo,

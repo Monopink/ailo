@@ -2,11 +2,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
-import uuid
 
 from app.models.user import User
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 async def get_user_by_email(db: AsyncSession, *, email: str) -> User | None:
@@ -49,8 +51,11 @@ async def create_user(db: AsyncSession, *, user_in: UserCreate) -> User:
     """
     Create a new user.
     """
-    # Generate a unique entity_id
-    entity_id = f"u{uuid.uuid4().hex[:12]}"
+    # Generate a unique numeric entity_id
+    from ..utils.id_generator import generate_unique_entity_id
+    from ..core.config import settings
+
+    entity_id = await generate_unique_entity_id(db)
 
     db_obj = User(
         entity_id=entity_id,
@@ -61,6 +66,9 @@ async def create_user(db: AsyncSession, *, user_in: UserCreate) -> User:
         email=None,
         status="active",
         role="user",
+        # Set contact limits from configuration
+        contact_limit=settings.DEFAULT_CONTACT_LIMIT,
+        search_display_limit=settings.DEFAULT_SEARCH_DISPLAY_LIMIT,
     )
     db.add(db_obj)
     try:
@@ -68,14 +76,16 @@ async def create_user(db: AsyncSession, *, user_in: UserCreate) -> User:
     except IntegrityError as e:
         await db.rollback()
         # Log the actual error for developers but don't send to frontend
-        print(f"Database error: {str(e)}")
+        logger.error("database_integrity_error", error=str(e), exc_info=True)
 
         # Check if it's a phone number uniqueness violation
         error_msg = str(e).lower()
         if "phone" in error_msg and ("unique" in error_msg or "duplicate" in error_msg):
+            logger.warning("phone_number_already_registered", phone=user_in.phone)
             raise HTTPException(status_code=409, detail="Phone number already registered")
         else:
             # Generic error for other database issues
+            logger.error("user_creation_failed", error_type="database_error")
             raise HTTPException(status_code=500, detail="System error during registration")
     await db.refresh(db_obj)
     return db_obj

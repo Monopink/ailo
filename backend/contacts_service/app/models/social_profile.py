@@ -3,9 +3,7 @@ Social Profile model for contacts_service
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, Text, Date, Enum, func
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from .base import Base
 
 
 class SocialProfile(Base):
@@ -14,7 +12,7 @@ class SocialProfile(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    entity_id = Column(String(36), unique=True, nullable=False)
+    entity_id = Column(String(20), unique=True, nullable=False)
     nickname = Column(String(50), comment="Display name for IM")
     gender = Column(Enum("male", "female", "other", name="gender"), comment="Gender")
     avatar_url = Column(String(500), comment="Profile picture URL")

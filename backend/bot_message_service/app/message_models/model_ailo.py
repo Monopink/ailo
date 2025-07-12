@@ -162,8 +162,9 @@ class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin
         try:
             # For mandatory attributes, direct access ensures that if the DB object is
             # missing a field (e.g., due to schema mismatch), it fails immediately.
-            self.context: Dict = bot.context
-            self.context_metadata: list = bot.context_metadata
+            # Initialize context and context_metadata with safe defaults if None
+            self.context: Dict = bot.context if bot.context is not None else {"messages": []}
+            self.context_metadata: list = bot.context_metadata if bot.context_metadata is not None else []
             self.friend_score: int = bot.friend_score
             self.romance_score: int = bot.romance_score
             self.friend_score_cap: int = bot.friend_score_cap

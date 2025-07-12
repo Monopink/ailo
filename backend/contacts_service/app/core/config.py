@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     LEANCLOUD_MASTER_KEY: str
     LEANCLOUD_BASE_URL: str
 
+    # User contact limits
+    DEFAULT_CONTACT_LIMIT: int = 1
+    DEFAULT_SEARCH_DISPLAY_LIMIT: int = 2
+    ADD_CONTACT_TIMEOUT: int = 300
+
+    # Entity ID settings
+    ENTITY_ID_PREFIX: str = "qqid_"
+
+    # Internal service authentication
+    INTERNAL_SERVICE_KEY: str = "default_internal_key_change_me"
+
     @property
     def database_url(self) -> str:
         """

@@ -23,4 +23,5 @@ async def read_current_user(
         "role": current_user.role,
         "is_verified": current_user.is_verified,
         "subscription_type": current_user.subscription_type,
+        "contact_limit": current_user.contact_limit,  # Contact limit for frontend display
     }

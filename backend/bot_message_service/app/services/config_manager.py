@@ -1,41 +1,40 @@
-import yaml
 import os
-from typing import Optional, Dict, Any
+from typing import Optional
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "unified_conversation_id.txt")
 
 
-def load_config() -> Dict[str, Any]:
-    """Load configuration from file."""
+def _read_conversation_id() -> str:
+    """Read conversation ID from file."""
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f) or {}
-            logger.debug("config_loaded", file=CONFIG_FILE, keys=list(config.keys()))
-            return config
+                conversation_id = f.read().strip()
+            logger.debug("conversation_id_loaded", file=CONFIG_FILE, conversation_id=conversation_id)
+            return conversation_id
         except Exception as e:
-            logger.error("config_load_failed", file=CONFIG_FILE, error=str(e))
-            return {}
+            logger.error("conversation_id_load_failed", file=CONFIG_FILE, error=str(e))
+            return ""
     else:
-        logger.info("config_file_not_found", file=CONFIG_FILE)
-        return {}
+        logger.info("conversation_id_file_not_found", file=CONFIG_FILE)
+        return ""
 
 
-def save_config(config: Dict[str, Any]) -> None:
-    """Save configuration to file."""
+def _write_conversation_id(conversation_id: str) -> None:
+    """Write conversation ID to file."""
     try:
         os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
 
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+            f.write(conversation_id)
 
-        logger.debug("config_saved", file=CONFIG_FILE)
+        logger.debug("conversation_id_saved", file=CONFIG_FILE, conversation_id=conversation_id)
 
     except Exception as e:
-        logger.error("config_save_failed", file=CONFIG_FILE, error=str(e), exc_info=True)
+        logger.error("conversation_id_save_failed", file=CONFIG_FILE, error=str(e), exc_info=True)
         raise
 
 
@@ -49,8 +48,7 @@ def get_unified_conversation_id() -> str:
     Raises:
         ValueError: If conversation ID is not configured and cannot be generated
     """
-    config = load_config()
-    conversation_id = config.get("leancloud", {}).get("unified_conversation_id")
+    conversation_id = _read_conversation_id()
 
     if not conversation_id:
         logger.warning("unified_conversation_id_not_found_attempting_regeneration")
@@ -67,25 +65,18 @@ def get_unified_conversation_id() -> str:
 
 
 def set_unified_conversation_id(conversation_id: str) -> None:
-    """Save unified conversation ID to config file."""
+    """Save unified conversation ID to file."""
     if not conversation_id:
         raise ValueError("conversation_id cannot be empty")
 
-    config = load_config()
-
-    if "leancloud" not in config:
-        config["leancloud"] = {}
-
-    config["leancloud"]["unified_conversation_id"] = conversation_id
-    save_config(config)
-
+    _write_conversation_id(conversation_id)
     logger.info("unified_conversation_id_saved", conversation_id=conversation_id)
 
 
 def is_conversation_configured() -> bool:
     """Check if unified conversation ID is configured."""
-    config = load_config()
-    return bool(config.get("leancloud", {}).get("unified_conversation_id"))
+    conversation_id = _read_conversation_id()
+    return bool(conversation_id)
 
 
 def regenerate_conversation_id() -> Optional[str]:

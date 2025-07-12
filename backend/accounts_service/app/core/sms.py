@@ -1,6 +1,9 @@
 import random
 import time
 from typing import Dict
+from ..utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Mock SMS code storage, in production this should be replaced with Redis or a database.
 # Format: { "phone_number": {"code": "123456", "timestamp": 1678886400} }
@@ -22,7 +25,7 @@ def send_sms_code(phone: str) -> str:
     """
     code = generate_sms_code()
     sms_code_storage[phone] = {"code": code, "timestamp": time.time()}
-    print(f"DEBUG: SMS code for {phone} is {code}")  # Mock sending
+    logger.info("sms_code_generated", phone=phone, code=code, note="Mock SMS sending")  # Mock sending
     return code
 
 

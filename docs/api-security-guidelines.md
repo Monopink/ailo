@@ -17,7 +17,7 @@ Database internal IDs (auto-increment primary keys) should never be exposed to c
 
 ### Solution
 
-All API responses use `entity_id` (UUID-based) instead of database `id` fields.
+All API responses use `entity_id` (numeric-based) instead of database `id` fields.
 
 #### Before (Insecure)
 
@@ -34,7 +34,7 @@ All API responses use `entity_id` (UUID-based) instead of database `id` fields.
 
 ```json
 {
-  "entity_id": "u1002",       // ✅ Only public identifier
+  "entity_id": 1002,          // ✅ Only public identifier (now numeric)
   "username": "li4",
   "email": "lisi@example.com",
   "status": "active",
@@ -52,7 +52,7 @@ All API responses use `entity_id` (UUID-based) instead of database `id` fields.
 # Properties to return to client
 class User(UserBase):
     # id: int  # ❌ Removed - database ID should not be exposed
-    entity_id: str
+    entity_id: int  # ✅ Changed to numeric type
     status: str
     role: str
     is_verified: bool

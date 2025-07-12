@@ -102,7 +102,7 @@ onMounted(async () => {
 watch(() => authStore.user, async (newUser, oldUser) => {
   if (newUser && newUser.id) {
     try {
-      await messageService.initialize(String(newUser.id))
+      await messageService.initialize(newUser.id)
       await chatStore.fetchContacts()
 
       // Start periodic refresh of contacts

@@ -123,17 +123,16 @@ self.addEventListener('message', (event) => {
           target: 'http://bot_message_service_container:8000',
           changeOrigin: true,
         },
+        // Proxy /api/v1/contacts requests to contacts_service
+        '/api/v1/contacts': {
+          target: 'http://contacts_service_container:8000',
+          changeOrigin: true,
+        },
         // Proxy other /api/v1 requests to accounts_service (Docker internal network)
         '/api/v1': {
           target: 'http://accounts_service_container:8000',
           changeOrigin: true,
           // Don't rewrite path since accounts_service now expects /api/v1 prefix
-        },
-        // Proxy /api/contacts requests to contacts_service
-        '/api/contacts': {
-          target: 'http://contacts_service_container:8000',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/contacts/, '/api/v1/contacts')
         },
       },
       // Add response headers to control caching

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, func, VARCHAR, Boolean, JSON, Enum
+from sqlalchemy import Column, Integer, String, DateTime, func, Boolean, JSON, Enum
 from ..db.base_class import Base
 
 
@@ -6,7 +6,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    entity_id = Column(VARCHAR(36), unique=True, nullable=False, index=True)
+    entity_id = Column(String(20), unique=True, nullable=False, index=True)
     username = Column(String(50), unique=True, nullable=True)
     email = Column(String(100), unique=True, nullable=True)
     phone = Column(String(20), unique=True, index=True, nullable=False)
@@ -29,3 +29,8 @@ class User(Base):
     # Settings (reserved for future use)
     notification_settings = Column(JSON, nullable=True)
     privacy_settings = Column(JSON, nullable=True)
+    # Contact management settings
+    contact_limit = Column(Integer, default=3, comment="Contact limit for user")
+    search_display_limit = Column(
+        Integer, default=2, comment="Number of contacts to display in search results"
+    )

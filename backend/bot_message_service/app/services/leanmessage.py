@@ -12,9 +12,6 @@ from .config_manager import get_unified_conversation_id
 from ..enums import (
     MessageType,
     IMServiceType,
-    SystemMessageAction,
-    SystemMessageStatus,
-    SystemMessageReason,
 )
 
 from .encryption import encryption_service
@@ -278,35 +275,26 @@ class LeanMessageManager:
 
     async def send_system_message(
         self,
-        from_bot: str,
+        from_entity: str,
         to_user: str,
-        target_message_id_client: str,
-        status: SystemMessageStatus,
-        reason: SystemMessageReason,
+        content: Dict[str, Any],
         message: Optional[str] = None,
     ) -> None:
         """
-        Send system message to notify user about message status changes
+        Send system message to user
 
         Args:
-            from_bot: Source bot entity ID (for chat window identification)
+            from_entity: Source entity ID (for chat window identification)
             to_user: Target user entity ID
-            target_message_id_client: Client-side message ID that this system message refers to
-            status: System message status (FAILED, BLOCKED, DELIVERED)
-            reason: Failure reason (NOT_CONTACTS, USER_BLOCKED, etc.)
+            content: System message content dictionary
             message: Optional custom message text (overrides frontend default)
         """
         try:
             # Get unified conversation ID
             conversation_id = get_unified_conversation_id()
 
-            # Create system message content following message-formats.md specification
-            system_content: Dict[str, Any] = {
-                "action": SystemMessageAction.MESSAGE_STATUS.value,  # 1
-                "target_message_id": target_message_id_client,
-                "status": status.value,  # 3, 4, 5
-                "reason": reason.value,  # Numeric reason code (1-7) matching frontend
-            }
+            # Use provided content directly
+            system_content = content.copy()
 
             # Add custom message if provided (overrides frontend default)
             if message:
@@ -316,13 +304,11 @@ class LeanMessageManager:
             system_message = {
                 "id": f"system_{int(datetime.now().timestamp() * 1000)}",
                 "type": MessageType.SYSTEM.code,  # Use numeric code (9)
-                "from": from_bot,  # Source bot entity ID for chat window identification
+                "from": from_entity,  # Source entity ID for chat window identification
                 "to": to_user,
                 "content": system_content,
                 "timestamp": datetime.now().isoformat(),
                 "service": 1,  # LeanCloud service
-                "_internal_source": "bot_message_service",  # Internal validation
-                "_timestamp": datetime.now().timestamp(),  # Anti-replay timestamp
             }
 
             # Convert to JSON string for LeanCloud transport
@@ -338,19 +324,17 @@ class LeanMessageManager:
 
             logger.info(
                 "system_message_sent",
+                from_entity=from_entity,
                 to_user=to_user,
-                target_message_id=target_message_id_client,
-                status=status.value,
-                reason=reason.value,
+                content=system_content,
             )
 
         except Exception as e:
             logger.error(
                 "send_system_message_failed",
+                from_entity=from_entity,
                 to_user=to_user,
-                target_message_id=target_message_id_client,
-                status=status.value if status else None,
-                reason=reason.value if reason else None,
+                content=content,
                 error=str(e),
                 exc_info=True,
             )

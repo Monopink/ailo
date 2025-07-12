@@ -1,21 +1,21 @@
 <template>
   <div class="user-profile-menu" ref="menuContainer">
     <div class="nickname-display" @click="toggleMenu">
-      {{ authStore.user?.nickname || '点击设置昵称' }}
+      {{ authStore.user?.nickname || '' }}
     </div>
     
     <div v-if="showMenu" class="dropdown-menu" @click.stop>
-      <button @click="handleEditProfile" class="menu-item">
-        编辑资料
-      </button>
-      <button @click="handleSettings" class="menu-item">
-        设置
-      </button>
       <button
         v-if="shouldShowNotificationButton"
         @click="handleNotificationToggle"
         class="menu-item">
         启用通知
+      </button>
+      <button @click="handleEditProfile" class="menu-item">
+        编辑资料
+      </button>
+      <button @click="handleSettings" class="menu-item">
+        设置
       </button>
     </div>
   </div>

@@ -7,7 +7,14 @@ from .event_bus import event_bus, EventTypes
 
 from .message_models.base import BaseModel
 from .message_models.model_ailo import ModelAilo
-from .enums import MessageType, MessageTypeCategory, BotStatus, SystemMessageStatus, SystemMessageReason
+from .enums import (
+    MessageType,
+    MessageTypeCategory,
+    BotStatus,
+    SystemMessageStatus,
+    SystemMessageReason,
+    SystemMessageAction,
+)
 from .exceptions import BotNotFoundError, AuthorizationError, DatabaseError
 from .utils.logging import get_logger
 import time
@@ -150,12 +157,18 @@ class MessageRouter:
             # Import here to avoid circular imports
             from .services.leanmessage import leanmessage_service
 
+            # Create content for message status system message
+            content = {
+                "action": SystemMessageAction.MESSAGE_STATUS.value,  # 1
+                "target_message_id": target_message_id_client,
+                "status": status.value,  # 3, 4, 5
+                "reason": reason.value,  # Numeric reason code (1-7) matching frontend
+            }
+
             await leanmessage_service.send_system_message(
-                from_bot=from_bot,
+                from_entity=from_bot,
                 to_user=to_user,
-                target_message_id_client=target_message_id_client,
-                status=status,
-                reason=reason,
+                content=content,
                 message=message,
             )
 

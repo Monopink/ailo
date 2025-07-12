@@ -223,7 +223,7 @@ export class MessageStatusManager {
 
     // Handle new structured system message format
     if (systemMessage.content && typeof systemMessage.content === 'object') {
-      const { action, target_message_id, status, reason, message } = systemMessage.content
+      const { action, target_message_id, status, reason, message, contact_id, contact_name } = systemMessage.content
 
       if (action === 1 && target_message_id) { // action: 1 = MESSAGE_STATUS
         const targetMessage = this.pendingMessages.get(target_message_id)
@@ -255,6 +255,17 @@ export class MessageStatusManager {
           console.log('✅ System message processed for:', target_message_id, 'status:', status)
           return
         }
+      } else if (action === 2) { // action: 2 = NEW_CONTACT
+        // Handle new contact notification
+        console.log('📨 New contact system message:', contact_name, contact_id)
+
+        // Trigger contact list refresh
+        this._handleNewContactNotification(contact_id, contact_name)
+
+        // Replace content with display message for chat interface
+        systemMessage.content = '对方已经添加你为联系人'
+
+        // Continue to notify callbacks for chat display
       }
     }
 
@@ -271,6 +282,22 @@ export class MessageStatusManager {
   }
 
   // Private methods
+
+  /**
+   * Handle new contact notification
+   */
+  _handleNewContactNotification(contactId, contactName) {
+    try {
+      // Import chat store to trigger contact list refresh
+      import('../../stores/chat.js').then(({ useChatStore }) => {
+        const chatStore = useChatStore()
+        chatStore.fetchContacts()
+        console.log('✅ Contact list refreshed after new contact notification')
+      })
+    } catch (error) {
+      console.error('Error handling new contact notification:', error)
+    }
+  }
 
   /**
    * Determine if message can be retried

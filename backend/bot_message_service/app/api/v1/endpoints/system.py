@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from typing import Dict, Any
 from pydantic import BaseModel, Field
 from ....services.config_manager import get_unified_conversation_id
@@ -159,3 +159,58 @@ async def report_conversation_error(error_report: ConversationErrorReport) -> Di
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail="Failed to process error report")
+
+
+@router.post("/send-message", summary="Send system message (Internal API)")
+async def send_system_message(
+    request_data: Dict[str, Any], x_internal_key: str = Header(None)
+) -> Dict[str, Any]:
+    """
+    Send system message to user (Internal API for service-to-service communication)
+
+    Args:
+        request_data: System message data containing from_entity, to_user, content
+        x_internal_key: Internal service authentication key
+
+    Returns:
+        dict: Success response
+    """
+    try:
+        # Verify internal service authentication
+        from ....core.config import settings
+
+        expected_key = getattr(settings, "INTERNAL_SERVICE_KEY", "default_internal_key_change_me")
+
+        if not x_internal_key or x_internal_key != expected_key:
+            raise HTTPException(
+                status_code=403, detail="Forbidden: Invalid or missing internal service key"
+            )
+
+        from ....services.leanmessage import leanmessage_service
+
+        from_entity = request_data.get("from_entity")
+        to_user = request_data.get("to_user")
+        content = request_data.get("content")
+        message = request_data.get("message")
+
+        if not all([from_entity, to_user, content]):
+            raise HTTPException(
+                status_code=400, detail="Missing required fields: from_entity, to_user, content"
+            )
+
+        # Type assertions for linter
+        assert isinstance(from_entity, str), "from_entity must be string"
+        assert isinstance(to_user, str), "to_user must be string"
+        assert isinstance(content, dict), "content must be dictionary"
+
+        await leanmessage_service.send_system_message(
+            from_entity=from_entity, to_user=to_user, content=content, message=message
+        )
+
+        return {"status": "success", "message": "System message sent successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("send_system_message_api_error", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to send system message: {str(e)}")

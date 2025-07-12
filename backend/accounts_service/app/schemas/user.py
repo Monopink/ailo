@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime, date
 
 
 # Token Schemas
@@ -49,7 +48,7 @@ class PasswordReset(BaseModel):
 
 # Properties to return to client
 class User(UserBase):
-    id: str  # entity_id mapped to id for frontend
+    id: int  # entity_id mapped to id for frontend (now numeric)
     status: str
     role: str
     is_verified: bool

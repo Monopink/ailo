@@ -3,9 +3,7 @@ Contact model for contacts_service
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, func
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from .base import Base
 
 
 class Contact(Base):
@@ -14,8 +12,8 @@ class Contact(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    user_entity_id = Column(String(36), nullable=False, comment="User ID")
-    contact_entity_id = Column(String(36), nullable=False, comment="Contact ID (user or bot)")
+    user_entity_id = Column(String(20), nullable=False, comment="User ID")
+    contact_entity_id = Column(String(20), nullable=False, comment="Contact ID (user or bot)")
     contact_type = Column(Integer, nullable=False, default=1, comment="Contact type: 1=user, 2=bot")
     status = Column(
         Integer,

@@ -64,8 +64,8 @@ apiClient.interceptors.response.use(response => {
 });
 
 export const getContacts = (token) => {
-  // Call contacts_service through Vite proxy at /api/contacts
-  return axios.get('/api/contacts', {
+  // Call contacts_service through Vite proxy at /api/v1/contacts
+  return axios.get('/api/v1/contacts', {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -86,7 +86,7 @@ export const getContacts = (token) => {
 
 export const getContactChatInfo = (contactId, token) => {
   // Get specific contact's chat display information
-  return axios.get(`/api/contacts/${contactId}/chat-info`, {
+  return axios.get(`/api/v1/contacts/${contactId}/chat-info`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -100,6 +100,54 @@ export const getContactChatInfo = (contactId, token) => {
   });
 };
 
+export const getContactLimits = (token) => {
+  // Get user's contact limits and usage information
+  return axios.get('/api/v1/contacts/limits', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }).then(response => {
+    if (response.data && response.data.status === 'success') {
+      return { data: response.data.data };
+    } else {
+      throw new Error(response.data?.message || 'Failed to get contact limits');
+    }
+  });
+};
 
+export const searchContacts = (query, token) => {
+  // Search available contacts
+  return axios.get(`/api/v1/contacts/search?query=${encodeURIComponent(query)}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }).then(response => {
+    if (response.data && response.data.status === 'success') {
+      return { data: response.data.data };
+    } else {
+      throw new Error(response.data?.message || 'Failed to search contacts');
+    }
+  });
+};
+
+export const addContact = (contactId, token) => {
+  // Add a new contact
+  return axios.post('/api/v1/contacts/add', {
+    contact_id: contactId
+  }, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }).then(response => {
+    if (response.data && response.data.status === 'success') {
+      return { data: response.data };
+    } else {
+      throw new Error(response.data?.message || 'Failed to add contact');
+    }
+  });
+};
 
 export default apiClient;

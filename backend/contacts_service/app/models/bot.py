@@ -3,9 +3,7 @@ Bot model for contacts_service
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean, func
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from .base import Base
 
 
 class Bot(Base):
@@ -14,9 +12,8 @@ class Bot(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    entity_id = Column(String(36), unique=True, nullable=False)
-    user_id = Column(Integer, index=True)
-    user_entity_id = Column(String(36))
+    entity_id = Column(String(20), unique=True, nullable=False)
+    user_entity_id = Column(String(20))
     model = Column(String(50), nullable=False)
     status = Column(String(20), default="active")
     gender = Column(String(10), nullable=False)

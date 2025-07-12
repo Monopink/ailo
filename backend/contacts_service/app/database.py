@@ -5,7 +5,7 @@ Database connection and session management for contacts_service
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from .core.config import settings
-from .models.bot import Base
+from .models.base import Base
 import structlog
 
 logger = structlog.get_logger(__name__)

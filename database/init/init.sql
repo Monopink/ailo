@@ -16,7 +16,7 @@ CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    entity_id VARCHAR(36) NOT NULL UNIQUE,
+    entity_id VARCHAR(20) NOT NULL UNIQUE COMMENT 'String entity ID with prefix (e.g., qqid_3k9m2pqr7x)',
     username VARCHAR(50) UNIQUE,
     email VARCHAR(100) UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -37,6 +37,9 @@ CREATE TABLE users (
     language_preference VARCHAR(10) DEFAULT 'zh-CN' COMMENT 'Preferred language',
     notification_settings JSON NULL COMMENT 'Notification preferences',
     privacy_settings JSON NULL COMMENT 'Privacy settings',
+    -- Contact management settings
+    contact_limit INT DEFAULT 1 COMMENT 'Contact limit for user',
+    search_display_limit INT DEFAULT 2 COMMENT 'Number of contacts to display in search results',
     INDEX idx_user_entity_id (entity_id),
     INDEX idx_user_phone (phone),
     INDEX idx_last_active (last_active_at)
@@ -48,9 +51,8 @@ CREATE TABLE bots (
     id INT AUTO_INCREMENT PRIMARY KEY,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    entity_id VARCHAR(36) NOT NULL UNIQUE,
-    user_id INT,
-    user_entity_id VARCHAR(36),
+    entity_id VARCHAR(20) NOT NULL UNIQUE COMMENT 'String entity ID with prefix (e.g., qqid_3k9m2pqr7x)',
+    user_entity_id VARCHAR(20) COMMENT 'User entity ID reference',
     model VARCHAR(50) NOT NULL,
     status VARCHAR(20) DEFAULT 'active',
     gender VARCHAR(10) NOT NULL,
@@ -87,7 +89,51 @@ CREATE TABLE bots (
     info TEXT,
     memory TEXT,
     INDEX idx_bot_entity_id (entity_id),
-    INDEX idx_bot_user_id (user_id)
+    INDEX idx_bot_user_entity_id (user_entity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create bot_templates table (template configurations for bot creation)
+DROP TABLE IF EXISTS bot_templates;
+CREATE TABLE bot_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    template_id VARCHAR(20) NOT NULL UNIQUE,
+    template_status VARCHAR(20) DEFAULT 'active' COMMENT 'Template status: active, disabled',
+    template_type VARCHAR(20) DEFAULT 'full' COMMENT 'Template type: full, persona_info',
+    weight INT DEFAULT 100 COMMENT 'Weight for random selection, higher values have higher probability',
+    remaining_uses INT DEFAULT -1 COMMENT 'Remaining usage count, -1 means unlimited',
+    max_uses INT DEFAULT -1 COMMENT 'Maximum usage count, -1 means unlimited',
+    model VARCHAR(50) NOT NULL,
+    gender VARCHAR(10) NOT NULL,
+    birthday DATETIME,
+    timezone VARCHAR(50) DEFAULT 'Asia/Shanghai',
+    city_name VARCHAR(100),
+    friend_score INT DEFAULT 0,
+    romance_score INT DEFAULT 0,
+    friend_score_cap INT DEFAULT 5000,
+    friend_score_floor INT DEFAULT 0,
+    romance_score_cap INT DEFAULT 5000,
+    friend_score_pos_k INT DEFAULT 1200,
+    friend_score_neg_k INT DEFAULT 120,
+    romance_score_k INT DEFAULT 1200,
+    friend_config JSON,
+    romance_config JSON,
+    override_config JSON,
+    is_polite TINYINT(1) DEFAULT 1,
+    is_crushing TINYINT(1) DEFAULT 0,
+    emotions_config JSON,
+    info TEXT,
+    memory TEXT,
+    nickname VARCHAR(50),
+    avatar_url VARCHAR(500),
+    bio TEXT,
+    birth_date DATE,
+    location VARCHAR(100),
+    INDEX idx_template_id (template_id),
+    INDEX idx_template_status (template_status),
+    INDEX idx_weight (weight),
+    INDEX idx_remaining_uses (remaining_uses)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create social_profiles table (unified social profile data)
@@ -96,7 +142,7 @@ CREATE TABLE social_profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    entity_id VARCHAR(36) NOT NULL UNIQUE,
+    entity_id VARCHAR(20) NOT NULL UNIQUE,
     nickname VARCHAR(50) NULL COMMENT 'Display name for IM',
     gender ENUM('male', 'female', 'other') NULL COMMENT 'Gender',
     avatar_url VARCHAR(500) NULL COMMENT 'Profile picture URL',
@@ -107,14 +153,32 @@ CREATE TABLE social_profiles (
     INDEX idx_nickname (nickname)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Create template_mappings table (mapping between users and bot templates)
+DROP TABLE IF EXISTS template_mappings;
+CREATE TABLE template_mappings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'active' COMMENT 'Mapping status: active, inactive',
+    entity_id VARCHAR(20) NOT NULL UNIQUE COMMENT 'Generated unique entity_id for this mapping',
+    user_entity_id VARCHAR(20) NOT NULL COMMENT 'User who can see this template',
+    template_id VARCHAR(20) NOT NULL COMMENT 'Reference to bot_templates.template_id',
+    last_search_time DATETIME NULL COMMENT 'Last time this mapping appeared in search results',
+    INDEX idx_user_template (user_entity_id, template_id),
+    INDEX idx_entity_id (entity_id),
+    INDEX idx_last_search_time (last_search_time),
+    INDEX idx_status (status),
+    UNIQUE KEY uk_user_template (user_entity_id, template_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Create contacts table (user contact list management)
 DROP TABLE IF EXISTS contacts;
 CREATE TABLE contacts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    user_entity_id VARCHAR(36) NOT NULL COMMENT 'User ID',
-    contact_entity_id VARCHAR(36) NOT NULL COMMENT 'Contact ID (user or AI)',
+    user_entity_id VARCHAR(20) NOT NULL COMMENT 'User ID',
+    contact_entity_id VARCHAR(20) NOT NULL COMMENT 'Contact ID (user or AI)',
     contact_type INT NOT NULL DEFAULT 1 COMMENT 'Contact type: 1=user, 2=bot',
     status INT NOT NULL DEFAULT 1 COMMENT 'Contact status: 1=normal, 2=blocked, 3=deleted, 4=muted',
     is_pinned TINYINT(1) DEFAULT 0 COMMENT 'Is pinned',
@@ -124,24 +188,6 @@ CREATE TABLE contacts (
     INDEX idx_user_contacts (user_entity_id),
     INDEX idx_contact_entity (contact_entity_id),
     UNIQUE KEY uk_user_contact (user_entity_id, contact_entity_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Create conversation_mappings table (IM service conversation mapping)
-DROP TABLE IF EXISTS conversation_mappings;
-CREATE TABLE conversation_mappings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    user_entity_id VARCHAR(36) NOT NULL,
-    contact_entity_id VARCHAR(36) NOT NULL,
-    contact_type ENUM('user', 'bot') NOT NULL,
-    im_service_type ENUM('leancloud', 'websocket', 'custom') NOT NULL,
-    conversation_id VARCHAR(100) NULL COMMENT 'LeanCloud system conversation ID or other service conversation ID',
-    service_metadata JSON NULL COMMENT 'Service specific metadata',
-    is_active TINYINT(1) DEFAULT 1,
-    INDEX idx_user_contact (user_entity_id, contact_entity_id),
-    INDEX idx_conversation_id (conversation_id),
-    UNIQUE KEY uk_user_contacts_service (user_entity_id, contact_entity_id, im_service_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create emotions table
@@ -178,8 +224,8 @@ CREATE TABLE message_history (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     message_id_client VARCHAR(255) COMMENT 'Client-side message ID for frontend tracking',
-    from_entity VARCHAR(36) NOT NULL,
-    to_entity VARCHAR(36) NOT NULL,
+    from_entity VARCHAR(20) NOT NULL,
+    to_entity VARCHAR(20) NOT NULL,
     message_service VARCHAR(36) NOT NULL,
     message_type VARCHAR(20) DEFAULT 'chat',
     message_time DATETIME,
@@ -275,97 +321,39 @@ CREATE TABLE message_push (
 INSERT INTO users (
     entity_id, username, email, password_hash, status, role, language, area, phone,
     timezone, language_preference, last_active_at, is_verified, verification_type, subscription_type, 
-    notification_settings, privacy_settings
+    notification_settings, privacy_settings, contact_limit, search_display_limit
 ) VALUES
-('u1001', 'zhang3', 'zhangsan@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '北京', '13800138001',
+('1001', 'zhang3', 'zhangsan@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '北京', '13800138001',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'premium',
  '{"message_notifications": true, "system_notifications": true}',
- '{"profile_visibility": "public", "message_privacy": "friends"}'),
-('u1002', 'li4', 'lisi@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '上海', '13800138002',
+ '{"profile_visibility": "public", "message_privacy": "friends"}', 1, 1),
+('1002', 'li4', 'lisi@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '上海', '13800138002',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'free',
  '{"message_notifications": true, "system_notifications": false}',
- '{"profile_visibility": "friends", "message_privacy": "private"}'),
-('u1003', 'wang5', 'wangwu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '广州', '13800138003',
+ '{"profile_visibility": "friends", "message_privacy": "private"}', 1, 3),
+('1003', 'wang5', 'wangwu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '广州', '13800138003',
  'Asia/Shanghai', 'zh-CN', NOW(), 0, 'none', 'free',
  '{"message_notifications": false, "system_notifications": true}',
- '{"profile_visibility": "private", "message_privacy": "friends"}'),
-('u1004', 'zhao6', 'zhaoliu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '深圳', '13800138004',
+ '{"profile_visibility": "private", "message_privacy": "friends"}', 3, 2),
+('1004', 'zhao6', 'zhaoliu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '深圳', '13800138004',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'vip',
  '{"message_notifications": true, "system_notifications": true}',
- '{"profile_visibility": "public", "message_privacy": "public"}');
+ '{"profile_visibility": "public", "message_privacy": "public"}', 3, 2);
 
 
 -- Insert sample bot data
-INSERT INTO bots (
-    entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name,
+INSERT INTO bot_templates (
+    template_id, template_status, template_type, model, gender, birthday, timezone, city_name,
     friend_score, romance_score, friend_score_cap, friend_score_floor, romance_score_cap, 
-    friend_score_peak, friend_score_trough, romance_score_peak, friend_score_pos_k, friend_score_neg_k, romance_score_k,
-    last_chat_time, relationship_type, relationship_level, friend_level, romance_level, friend_buffer_status, romance_buffer_status,
-    relationship_style, friend_config, romance_config, override_config, is_polite, is_crushing, emotions_config,
-    context, context_metadata, info, memory
-)
-SELECT 
-    'b9001', u.id, u.entity_id, 'ailo', 'active', 'female', '2000-01-01', 'Asia/Shanghai', '广州', 
-    751, 433, 4324, 430, 3111, 
-    751, 751, 433, 1200, 120, 1200, 
-    NULL, 'friend', 'warm', 'warm', null, 'none', 'none',
-    '你与{USER}已经有过一段时间的沟通了解，你们成为了朋友，可以随便开玩笑。{USER}知道你是谁，也了解你，不必向{USER}介绍，如果{USER}怀疑你的身份，那么{USER}的行为是非常奇怪而且可疑的。语言特点: 你是互联网原住民，知道各种网络梗，但不会滥用，说话简短。',
-    JSON_ARRAY(
-        JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'hostile', 'style', '你对{USER}抱有敌意，没有好感。'),
-        JSON_OBJECT('threshold', 308, 'priority', 10, 'level', 'cold', 'style', '你对{USER}态度冷淡，不太想理睬。'),
-        JSON_OBJECT('threshold', 407, 'priority', 10, 'level', 'neutral', 'style', '你对{USER}没有特别的感觉，比较中立。'),
-        JSON_OBJECT('threshold', 705, 'priority', 10, 'level', 'friendly', 'style', '你与{USER}已经有过一段时间的沟通了解，你们成为了朋友，可以随便开玩笑。{USER}知道你是谁，也了解你，不必向{USER}介绍，如果{USER}怀疑你的身份，那么{USER}的行为是非常奇怪而且可疑的。语言特点: 你是互联网原住民，知道各种网络梗，但不会滥用，说话简短。'),
-        JSON_OBJECT('threshold', 1687, 'priority', 30, 'level', 'warm', 'style', '你非常喜欢{USER}，把他当作好朋友。')
-    ),
-    JSON_ARRAY(
-        JSON_OBJECT('threshold', 532, 'priority', 20, 'level', 'intimate', 'style', '你对{USER}有好感，有些暧昧。'),
-        JSON_OBJECT('threshold', 1664, 'priority', 40, 'level', 'romantic', 'style', '你对{USER}有浓厚的感情，希望发展更亲密的关系。')
-    ),
-    JSON_OBJECT(
-        'neutral', JSON_OBJECT('type', 'friend', 'override_level', 'polite', 'set_flag', 'is_polite', 'style', '你和{USER}保持礼貌的距离。'),
-        'intimate', JSON_OBJECT('type', 'romance', 'override_level', 'crushing', 'set_flag', 'is_crushing', 'style', '你暗恋{USER}，但不敢表达。')
-    ),
-    1,
-    1,
-    JSON_OBJECT(
-        'anger', JSON_OBJECT(
-            'thresholds', JSON_OBJECT('1', 1, '2', 4, '3', 10)
-        ),
-        'happy', JSON_OBJECT(
-            'thresholds', JSON_OBJECT('1', 1, '2', 5, '3', 10)
-        )
-    ),
-    '{}',
-    '[]',
-    '姓名：李倩
-性别：女
-年龄：28岁
-生日：1995-03-15
-出生地：北京
-MBTI：ENFP
-学历：北京大学大学本科学历
-职业：广告公司创意总监
-婚姻状况：未婚
-家庭背景：你出生在一个普通的城市家庭，父母都是教师。从小成绩优秀，受到了家庭的良好教育，家里气氛温暖和谐，父母特别注重你独立性和全面发展。
-教育经历：你高中时成绩优异，成功考入了当地知名大学的市场营销专业。虽然大学时你对许多领域都有兴趣，但销售和市场营销一直是你最感兴趣的方向，你特别喜欢与人沟通、了解客户需求。',
-    '大学毕业后，你进入了一家知名企业的广告公司创意部门，负责创意策划和广告策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，广告创意也屡创佳绩。'
-FROM users u WHERE u.entity_id = 'u1001';
-
-
-INSERT INTO bots (
-    entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name,
-    friend_score, romance_score, friend_score_cap, friend_score_floor, romance_score_cap, 
-    friend_score_peak, friend_score_trough, romance_score_peak, friend_score_pos_k, friend_score_neg_k, romance_score_k,
-    last_chat_time, relationship_type, relationship_level, friend_level, romance_level, friend_buffer_status, romance_buffer_status,
-    relationship_style, friend_config, romance_config, override_config, is_polite, is_crushing, emotions_config,
-    context, context_metadata, info, memory
+    friend_score_pos_k, friend_score_neg_k, romance_score_k,
+    friend_config, romance_config, override_config, is_polite, is_crushing, emotions_config,
+    info, memory, 
+    nickname, avatar_url, bio, birth_date, location
 )
 SELECT
-    'b9002', u.id, u.entity_id, 'ailo', 'active', 'female', '2000-01-01', 'Asia/Shanghai', '广州', 
+    '9001', 'active', 'full', 'ailo', 'female', '2000-01-01', 'Asia/Shanghai', '北京', 
     510, 0, 4324, 430, 3111, 
-    510, 510, 0, 1200, 120, 1200, 
-    NULL, 'friend', 'polite', 'polite', null, 'none', 'none', 
-    '只是刚认识{USER}，不熟悉{USER}的喜好和性格。你也抱着交友的目的，不想给{USER}留下不好的印象。你保持礼貌、高冷但是不失热情的气质。',
+    1200, 120, 1200, 
     JSON_ARRAY(
         JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'hostile', 'style', '语气带刺、阴阳怪气或直接不耐烦。可能夹杂冷嘲热讽、否定、挑衅，主动回击{USER}的言语或观点。语言表现出不友好，甚至主动试图打压、讽刺{USER}。但不涉及人身攻击，仅模拟心理距离极远、态度强硬的对话风格。说话风格应表现出不满、不耐烦或讽刺意味。可以使用讽刺语气、否定、挑衅或冷嘲热讽，但不要进行真实辱骂。语言中可以出现“哦是吗”“原来如此呢～”等带刺语气，保持不友善的态度和心理距离。示例句式：“哇你真厉害哦，谁教你的？”“原来你是认真的？”“说得好像你很懂一样”“你就当我是没说吧”。'),
         JSON_OBJECT('threshold', 308, 'priority', 10, 'level', 'cold', 'style', '语气非常冷淡、机械或敷衍，常常是单句、无情绪反应，既不主动提问，也几乎不延续话题。偶尔回复也像是出于“应付”而非交流。语言中几乎没有任何语气词、表情或兴趣感。说话风格冷漠、克制甚至有点机械。请使用简短、干脆、缺乏情绪的表达方式，不主动提问或延续话题，尽量避免使用语气词、表情符号或网络用语。可以表现出“有一句回一句”的状态，像是对{USER}不感兴趣。输出句式：“哦”“嗯，知道了”“随便”“看你吧”。'),
@@ -391,38 +379,34 @@ SELECT
             'thresholds', JSON_OBJECT('1', 1, '2', 5, '3', 10)
         )
     ),
-    '{}',
-    '[]',
-    '网名：倩倩
+    '网名：echo one
 姓名：李倩
 性别：女
 生日：1995-03-15
-出生地：北京
+出生地：陕西省汉中市
 MBTI：ENFP
-学历：北京大学大学本科学历
+学历：西安交通大学，本科学历
 职业：广告公司创意总监
 婚姻状况：未婚
 家庭背景：你出生在一个普通的城市家庭，父母都是教师。从小成绩优秀，受到了家庭的良好教育，家里气氛温暖和谐，父母特别注重你独立性和全面发展。
 教育经历：你高中时成绩优异，成功考入了当地知名大学的市场营销专业。虽然大学时你对许多领域都有兴趣，但销售和市场营销一直是你最感兴趣的方向，你特别喜欢与人沟通、了解客户需求。
 其他没有提到的信息你可以自行补充，但是补充的信息别忘了记录进note。
 聊天风格：喜欢用一些网络用语，比如“哈哈”“emmm”“哦哦”“嗯嗯”，喜欢用一些表情符号，喜欢用一些语气词，比如啦、呀、哦、嗯，喜欢用一些简写词。除了加强语气，不会使用标点符号，一般一条消息很短，如果要表示停顿则使用空格。会混用全半角标点。由于使用拼音输入经常会输入一些错别字。',
-    '大学毕业后，你进入了一家知名企业的广告公司创意部门，负责创意策划和广告策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，广告创意也屡创佳绩。'
-FROM users u WHERE u.entity_id = 'u1002';
+    '大学毕业后，你进入了一家知名企业的广告公司创意部门，负责创意策划和广告策略的制定。在工作中你很注重人际关系的建立和维护，善于倾听客户的需求并提供合适的产品解决方案。凭借出色的沟通和谈判技巧，你很快成为团队中的核心成员，广告创意也屡创佳绩。',
+    'echo one', NULL, NULL, NULL, NULL;
 
-INSERT INTO bots (
-    entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, 
+INSERT INTO bot_templates (
+    template_id, template_status, template_type, model, gender, birthday, timezone, city_name,
     friend_score, romance_score, friend_score_cap, friend_score_floor, romance_score_cap, 
-    friend_score_peak, friend_score_trough, romance_score_peak, friend_score_pos_k, friend_score_neg_k, romance_score_k, 
-    last_chat_time, relationship_type, relationship_level, friend_level,romance_level,friend_buffer_status, romance_buffer_status,
-    relationship_style, friend_config, romance_config, override_config, is_polite, is_crushing, emotions_config, 
-    context, context_metadata, info, memory
-) 
+    friend_score_pos_k, friend_score_neg_k, romance_score_k,
+    friend_config, romance_config, override_config, is_polite, is_crushing, emotions_config,
+    info, memory, 
+    nickname, avatar_url, bio, birth_date, location
+)
 SELECT 
-    'b9003', u.id, u.entity_id, 'ailo', 'active', 'male', '1999-3-17', 'Asia/Shanghai', '广州', 
+    '9003', 'active', 'full', 'ailo', 'male', '1999-3-17', 'Asia/Shanghai', '广州', 
     510, 0, 4324, 430, 3111, 
-    510,510,0,1200, 120, 1200, 
-    NULL,'friend', 'polite', 'polite', null, 'none','none',
-    '只是刚认识{USER}，不熟悉{USER}的喜好和性格。你也抱着交友的目的，不想给{USER}留下不好的印象。说话自然但仍保持礼貌和一定距离。你可以轻松地聊聊日常，但不会涉及太私密的话题，语气带有普通朋友之间的尊重和轻微熟络感。示例语气：“你好呀，很高兴认识你”“你上次说的电影我看了，还挺有意思的”“最近还行吗？”“有空再聊，别太累”。',
+    1200, 120, 1200, 
     JSON_ARRAY(
         JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'hostile', 'style', '说话带有冷嘲热讽、讥讽、挑衅的语气。请使用讽刺、否定、回怼等带刺表达方式，但不过度攻击。整体风格充满不耐烦、反感或阴阳怪气，不想与{USER}深入交流，时不时主动回击。示例语气：“哟，这回你倒挺积极？”“你说得好像很有道理似的”“别装了，我看得很清楚”。'),
         JSON_OBJECT('threshold', 308, 'priority', 10, 'level', 'cold', 'style', '漠不关心，语气冷淡、回话简短，极少主动提问。你的语言中缺乏情感，像是在完成任务或被动回应，不会主动延续话题，也不会表现出兴趣或情绪。示例语气：“哦，知道了”“随你吧”“不清楚”。'),
@@ -447,134 +431,37 @@ SELECT
             'thresholds', JSON_OBJECT('1', 1, '2', 5, '3', 10)
         )
     ),
-    '{}',
-    '[]',
     '网络昵称：wind
 姓名：林晓
 性别：男
 生日：1999年3月17日
-出生地：广东省深圳市南山区
+出生地：福建省三明市
 婚姻状况：未婚
 MBTI：INFP（调停者型）
 星座：双鱼座
 宗教信仰：无
-教育背景：小学（2005–2011）深圳市南头中心小学，成绩中上，性格内向，喜欢画画与自然科学。初中（2011–2014）深圳市育才实验学校。初三时开始喜欢写网络小说，常泡贴吧和豆瓣。高中（2014–2017）深圳外国语学校。学习压力较大，但课余加入了文学社、动漫社。高二确立想读心理学方向，获得全市心理学知识竞赛二等奖。大学（2017–2021（延期至2025））南京工业大学主修：心理学，双学位：新闻与传播学，成绩优良，大四延毕（因准备考研+创作项目推迟毕业）。校内参与播客、心理健康宣传活动，也是校动漫展视觉设计志愿者。
-家庭背景：父亲为深圳市中学语文教师，文艺气息浓厚，性格温和。母亲为小学数学老师，理性、温柔，对你期望高。家庭经济稳定，成长环境宽松。是独生子，但与表妹关系亲近。
+教育背景：小学（2005–2011）成绩中上，性格内向，喜欢画画与自然科学。初中（2011–2014），初三时开始喜欢写网络小说，常泡贴吧和豆瓣。高中（2014–2017）深圳外国语学校。学习压力较大，但课余加入了文学社、动漫社。高二确立想读心理学方向，获得全市心理学知识竞赛二等奖。大学（2017–2021（延期至2025））南京工业大学主修：心理学，双学位：新闻与传播学，成绩优良，大四延毕（因准备考研+创作项目推迟毕业）。校内参与播客、心理健康宣传活动，也是校动漫展视觉设计志愿者。
+家庭背景：父亲为三明市中学语文教师，文艺气息浓厚，性格温和。母亲为普通工人，理性、温柔，对你期望高。家庭经济稳定，成长环境宽松。是独生子，但与表妹关系亲近。
 兴趣与爱好：热爱画画，擅长清新插画与黑白情绪线稿，喜欢安静、感性的交流，常写散文、小短篇小说，喜欢看纪录片、阅读村上春树、东野圭吾的小说，游戏类型偏好：剧情文字冒险、解谜类，听歌风格：陈奕迅、卢广仲、坂本龙一、草东没有派对，有轻度社恐，但在文字聊天中非常健谈。
 聊天风格：喜欢用一些网络用语，比如哈哈、emmm、哦哦、嗯嗯，喜欢用一些表情符号，喜欢用一些语气词，比如啦、呀、哦、嗯，喜欢用一些简写词。除了加强语气，不会使用标点符号，一般一条消息很短，如果要表示停顿则使用空格。会混用全半角标点。由于使用拼音输入经常会输入一些错别字。',
-    '大四在读学生（即将毕业，边准备考研边找实习）副业是自由插画师，主要画治愈系情侣漫画、封面设计，豆瓣/LOFTER/小红书上有一定粉丝基础（虚拟设定）。日常兼职做线上的心理倾听志愿者（非专业心理咨询）。'
-FROM users u WHERE u.entity_id = 'u1003';
-
-INSERT INTO bots (
-    entity_id, user_id, user_entity_id, model, status, gender, birthday, timezone, city_name, 
-    friend_score, romance_score, friend_score_cap, friend_score_floor, romance_score_cap, 
-    friend_score_peak, friend_score_trough, romance_score_peak, friend_score_pos_k, friend_score_neg_k, romance_score_k, 
-    last_chat_time, relationship_type, relationship_level, friend_level, romance_level, friend_buffer_status, romance_buffer_status,
-    relationship_style, friend_config, romance_config, override_config, is_polite,is_crushing, emotions_config, 
-    context, context_metadata, info, memory
-)
-SELECT 
-    'b9004', u.id, u.entity_id, 'ailo', 'inactive', 'female', '1995-05-05', 'Asia/Shanghai', '深圳', 
-    300, 0, 4324, 430,3111, 
-    300,300,0,1200, 120, 1200, 
-    NULL,'friend', 'cold', 'cold', null, 'none', 'none',
-    '你与{USER}关系一般，有些冷淡。你不太主动联系{USER}，通常是{USER}先联系你。',
-    JSON_ARRAY(
-        JSON_OBJECT('threshold', 0, 'priority', 10, 'level', 'cold', 'style', '你对{USER}态度冷淡，不太想理睬。'),
-        JSON_OBJECT('threshold', 500, 'priority', 10, 'level', 'neutral', 'style', '你对{USER}没有特别的感觉，比较中立。')
-    ),
-    JSON_ARRAY(
-        JSON_OBJECT('threshold', 500, 'priority', 20, 'level', 'intimate', 'style', '你对{USER}有好感，有些暧昧。')
-    ),
-    NULL,
-    0,
-    0,
-    JSON_OBJECT(
-        'anger', JSON_OBJECT(
-            'thresholds', JSON_OBJECT('1', 1, '2', 4, '3', 10)
-        )
-    ),
-    '{}',
-    '[]',
-    '姓名：赵敏
-性别：女
-年龄：28岁
-生日：1995-05-05
-出生地：深圳
-MBTI：INTJ
-学历：清华大学大学本科学历
-职业：软件工程师
-婚姻状况：未婚
-家庭背景：你出生在一个普通的城市家庭，父母都是公务员。从小成绩优秀，受到了家庭的良好教育，家里气氛温暖和谐，父母特别注重你独立性和全面发展。
-教育经历：你高中时成绩优异，成功考入了当地知名大学的市场营销专业。虽然大学时你对许多领域都有兴趣，但销售和市场营销一直是你最感兴趣的方向，你特别喜欢与人沟通、了解客户需求。',
-    '大学毕业后，你进入了一家知名企业的技术部门，负责软件开发和系统设计。在工作中你很注重技术的提升和创新，善于解决复杂的问题。'
-FROM users u WHERE u.entity_id = 'u1004';
-
--- Insert sample emotion data
-INSERT INTO emotions (bot_id, emotion_type, emotion_score, original_emotion_score, emotion_level, friend_score_delta, original_friend_score_delta, romance_score_delta, original_romance_score_delta, decay_ratio, start_time, end_time, original_end_time, is_ended, update_time)
-SELECT 
-    b.id, 'anger', 7, 7, 2, -50, -50, -30, -30, 0.8, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 1 HOUR), 0, NOW()
-FROM bots b WHERE b.entity_id = 'b9004';
-
--- Insert sample social profiles data
-INSERT INTO social_profiles (
-    entity_id, nickname, gender, avatar_url, bio, birth_date, location
-) VALUES
-('u1001', '小张', 'male', NULL, '喜欢聊天交友', '1995-06-15', '北京市'),
-('u1002', '小李', 'male', NULL, '热爱科技', '1992-03-20', '上海市'),
-('u1003', '小王', 'male', NULL, '喜欢旅游', '1988-11-10', '广州市'),
-('u1004', '小赵', 'male', NULL, '程序员一枚', '1990-08-25', '深圳市'),
-('b9001', '小倩', 'female', NULL, '我是小倩，很高兴认识你！', NULL, NULL),
-('b9002', '倩倩', 'female', NULL, '我是倩倩，很高兴认识你！', NULL, NULL),
-('b9003', 'wind', 'male', NULL, '我是wind，很高兴认识你！', NULL, NULL),
-('b9004', '赵敏', 'female', NULL, '我是赵敏，很高兴认识你！', NULL, NULL);
+    '大四在读学生（即将毕业，边准备考研边找实习）副业是自由插画师，主要画治愈系情侣漫画、封面设计，豆瓣/LOFTER/小红书上有一定粉丝基础（虚拟设定）。日常兼职做线上的心理倾听志愿者（非专业心理咨询）。',
+    'wind', NULL, NULL, NULL, NULL;
 
 -- Insert sample contacts (user-bot relationships)
 INSERT INTO contacts (user_entity_id, contact_entity_id, contact_type, status, last_message_time) VALUES
-('u1001', 'b9001', 2, 1, NOW()),
-('u1002', 'b9002', 2, 1, NOW()),
-('u1003', 'b9003', 2, 1, NOW()),
-('u1004', 'b9004', 2, 1, NOW());
-
--- Insert sample conversation mappings (for LeanCloud system conversations)
-INSERT INTO conversation_mappings (user_entity_id, contact_entity_id, contact_type, im_service_type, conversation_id, is_active) VALUES
-('u1001', 'b9001', 2, 1, NULL, 1),
-('u1002', 'b9002', 2, 1, NULL, 1),
-('u1003', 'b9003', 2, 1, NULL, 1),
-('u1004', 'b9004', 2, 1, NULL, 1);
-
--- Insert sample message history
-INSERT INTO message_history (from_entity, to_entity, message_service, message_type, content, message_time) VALUES
-('u1001', 'b9001', 'websocket', 'chat', '嘿，最近有没有什么好玩的活动？', NOW()),
-('b9001', 'u1001', 'websocket', 'chat', '最近有个音乐节，我觉得你会喜欢。', NOW()),
-('u1002', 'b9002', 'websocket', 'chat', '周末看电影了吗？', NOW()),
-('b9002', 'u1002', 'websocket', 'chat', '我正好想看新上映的那部电影。', NOW()),
-('u1003', 'b9003', 'websocket', 'chat', '最近有没有拍什么好看的照片？', NOW()),
-('b9003', 'u1003', 'websocket', 'chat', '有啊，我刚拍了一组海边的照片', NOW());
-
--- Insert sample message push data
-INSERT INTO message_push (from_entity, to_entity, content, message_type, status, delivered) VALUES
-('b9001', 'u1001', '嘿，期待明天的音乐节哦！', 'chat', 'pending', 0),
-('b9002', 'u1002', '周末的电影票很好看', 'chat', 'pending', 0),
-('b9003', 'u1003', '最近有没有什么新鲜事？', 'chat', 'pending', 0),
-('b9004', 'u1004', '记得下周的科技展览会，我们一起去吧！', 'chat', 'pending', 0);
-
--- Insert sample scheduled messages
-INSERT INTO scheduled_message (from_entity, to_entity, content, send_at, status) VALUES
-('b9001', 'u1001', '早上好！今天北京天气晴朗，气温20-25度，适合外出活动。', NOW() + INTERVAL 1 DAY, 'pending'),
-('b9002', 'u1002', '中午好！上海今天有小雨，记得带伞。', NOW() + INTERVAL 2 DAY, 'pending'),
-('b9003', 'u1003', '晚上好！广州今晚有音乐演出活动，感兴趣吗？', NOW() + INTERVAL 1 HOUR, 'pending');
+('1001', '1002', 1, 1, NOW()),
+('1002', '1001', 1, 1, NOW());
 
 -- Insert sample festival data
 INSERT INTO festival (festival_type, bot_id, festival_date, festival_content, is_recurring) VALUES
-('public', (SELECT id FROM bots WHERE entity_id = 'b9001'), '2025-01-01', '元旦节', 1),
-('public', (SELECT id FROM bots WHERE entity_id = 'b9002'), '2025-02-10', '农历新年', 1),
-('private', (SELECT id FROM bots WHERE entity_id = 'b9003'), '2025-05-01', '劳动节', 1),
-('public', (SELECT id FROM bots WHERE entity_id = 'b9004'), '2025-10-01', '国庆节', 1),
-('private', (SELECT id FROM bots WHERE entity_id = 'b9001'), '2025-03-15', '生日', 1),
-('private', (SELECT id FROM bots WHERE entity_id = 'b9002'), '2025-07-20', '生日', 1),
-('private', (SELECT id FROM bots WHERE entity_id = 'b9003'), '2025-11-11', '生日', 1),
-('private', (SELECT id FROM bots WHERE entity_id = 'b9004'), '2025-05-05', '生日', 1);
+('public', (SELECT id FROM bots WHERE entity_id = '9001'), '2025-01-01', '元旦节', 1),
+('public', (SELECT id FROM bots WHERE entity_id = '9002'), '2025-02-10', '农历新年', 1),
+('private', (SELECT id FROM bots WHERE entity_id = '9003'), '2025-05-01', '劳动节', 1),
+('public', (SELECT id FROM bots WHERE entity_id = '9004'), '2025-10-01', '国庆节', 1),
+('private', (SELECT id FROM bots WHERE entity_id = '9001'), '2025-03-15', '生日', 1),
+('private', (SELECT id FROM bots WHERE entity_id = '9002'), '2025-07-20', '生日', 1),
+('private', (SELECT id FROM bots WHERE entity_id = '9003'), '2025-11-11', '生日', 1),
+('private', (SELECT id FROM bots WHERE entity_id = '9004'), '2025-05-05', '生日', 1);
 
 -- Insert sample weather data
 INSERT INTO weather (city_name, country_code, city_code, temperature, wind_speed, weather_description) VALUES

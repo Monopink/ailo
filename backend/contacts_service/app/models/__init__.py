@@ -1,8 +1,8 @@
 # Models package
 
 from .bot import Bot
+from .bot_template import BotTemplate
 from .social_profile import SocialProfile
 from .contact import Contact
-from .conversation_mapping import ConversationMapping
 
-__all__ = ["Bot", "SocialProfile", "Contact", "ConversationMapping"]
+__all__ = ["Bot", "BotTemplate", "SocialProfile", "Contact"]

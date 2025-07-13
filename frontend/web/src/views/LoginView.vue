@@ -30,6 +30,7 @@
               @blur="showPhoneError = true"
               @input="showPhoneError = false"
               placeholder="请输入11位手机号"
+              autocomplete="username"
               required
             />
           </div>
@@ -50,6 +51,7 @@
               @blur="showPasswordError = true"
               @input="showPasswordError = false"
               placeholder="请输入密码"
+              autocomplete="current-password"
               required
             />
             <button
@@ -88,6 +90,7 @@
               @blur="showPhoneError = true"
               @input="showPhoneError = false"
               placeholder="请输入11位手机号"
+              autocomplete="username"
               required
             />
           </div>
@@ -109,6 +112,7 @@
               @input="showCodeError = false"
               placeholder="请输入验证码"
               maxlength="6"
+              autocomplete="one-time-code"
               required
             />
             <button type="button" @click="handleSendCode" :disabled="isSendingCode || !isValidPhone" class="btn btn-secondary send-code-btn">
@@ -126,9 +130,10 @@
         </button>
       </form>
 
-      <p class="switch-form">
-        还没有账户？ <router-link to="/register" class="text-accent">立即注册</router-link>
-      </p>
+      <div class="switch-form">
+        <p>还没有账户？ <router-link to="/register" class="text-accent">立即注册</router-link></p>
+        <p><router-link to="/forgot-password" class="text-accent">忘记密码？</router-link></p>
+      </div>
     </div>
   </div>
 </template>
@@ -137,7 +142,7 @@
 import { ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
-import apiClient from '../services/api';
+import { apiClient } from '../utils/apiHelpers';
 import { useAuthStore } from '../stores/auth';
 import { APP_CONFIG } from '../config/constants';
 
@@ -465,9 +470,13 @@ form {
 
 .switch-form {
   text-align: center;
-  margin-top: var(--spacing-4xl);
+  margin-top: var(--spacing-2xl);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.switch-form p {
+  margin: var(--spacing-sm) 0;
 }
 
 .switch-form a {

@@ -20,6 +20,11 @@ const router = createRouter({
       path: '/register',
       name: 'register',
       component: () => import('../views/RegisterView.vue')
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../views/ForgotPasswordView.vue')
     }
   ]
 })
@@ -31,7 +36,7 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'login' });
-  } else if ((to.name === 'login' || to.name === 'register') && isLoggedIn) {
+  } else if ((to.name === 'login' || to.name === 'register' || to.name === 'forgot-password') && isLoggedIn) {
     next({ name: 'home' });
   } else {
     next();

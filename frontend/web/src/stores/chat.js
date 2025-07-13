@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue'
 import localStorageService from '../services/localStorage';
-import { getContacts, getContactChatInfo, getContactLimits } from '../services/api';
+import { apiClient } from '../utils/apiHelpers';
 import { useAuthStore } from './auth';
 
 import { chatLogger } from '../utils/logger.js';
@@ -153,21 +153,22 @@ export const useChatStore = defineStore('chat', () => {
 
       // Fetch both contacts and contact limits
       const [contactsResponse, limitsResponse] = await Promise.all([
-        getContacts(),
-        getContactLimits()
+        apiClient.get('/contacts'),
+        apiClient.get('/contacts/limits')
       ]);
 
-      // Update contact limits
-      contactLimits.value = limitsResponse.data;
+      // Update contact limits (handle both direct data and wrapped format)
+      contactLimits.value = limitsResponse.data.data || limitsResponse.data;
       chatLogger.debug('Contact limits updated', contactLimits.value);
 
-      const response = contactsResponse;
+      // Extract contact data from response (handle both direct array and wrapped format)
+      const contactData = contactsResponse.data.data || contactsResponse.data;
 
       // Merge with existing chat data from localStorage
       const existingChats = chats.value;
 
       // Transform contact data to fit the chat structure
-      const contactChats = response.data.map(contact => {
+      const contactChats = contactData.map(contact => {
         // Find existing chat data by id
         const existingChat = existingChats.find(c => c.id === contact.id);
 
@@ -237,8 +238,8 @@ export const useChatStore = defineStore('chat', () => {
     // Creating a new Promise request
     const requestPromise = (async () => {
       try {
-        const response = await getContactChatInfo(contactId);
-        const chatInfo = response.data;
+        const response = await apiClient.get(`/contacts/${contactId}/chat-info`);
+        const chatInfo = response.data.data || response.data;
 
         // Find and update the specific chat
         const chatIndex = chats.value.findIndex(c => c.id === contactId);

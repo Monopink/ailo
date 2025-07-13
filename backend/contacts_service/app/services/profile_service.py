@@ -125,6 +125,9 @@ async def update_social_profile(
 
         await session.commit()
 
+        # Refresh the profile to ensure all attributes are loaded
+        await session.refresh(profile)
+
         logger.info("social_profile_updated", entity_id=entity_id, updated_fields=list(updates.keys()))
 
         return format_profile_for_display(profile)
@@ -215,6 +218,17 @@ def format_profile_for_display(profile: SocialProfile) -> Dict[str, Any]:
     Returns:
         Formatted profile dictionary
     """
+    # Access all attributes safely to avoid lazy loading issues
+    try:
+        created_at = profile.created_at.isoformat() if profile.created_at else None
+    except Exception:
+        created_at = None
+
+    try:
+        updated_at = profile.updated_at.isoformat() if profile.updated_at else None
+    except Exception:
+        updated_at = None
+
     return {
         "entity_id": profile.entity_id,
         "nickname": profile.nickname,
@@ -223,6 +237,6 @@ def format_profile_for_display(profile: SocialProfile) -> Dict[str, Any]:
         "bio": profile.bio,
         "birth_date": profile.birth_date.isoformat() if profile.birth_date else None,
         "location": profile.location,
-        "created_at": profile.created_at.isoformat() if profile.created_at else None,
-        "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
+        "created_at": created_at,
+        "updated_at": updated_at,
     }

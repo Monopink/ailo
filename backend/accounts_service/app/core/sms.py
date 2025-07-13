@@ -12,6 +12,9 @@ sms_code_storage: Dict[str, Dict] = {}
 # Code expiration time in seconds
 CODE_EXPIRATION_SECONDS = 300  # 5 minutes
 
+# Rate limiting: minimum interval between SMS sends for the same phone number
+SMS_SEND_INTERVAL_SECONDS = 60  # 1 minute
+
 
 def generate_sms_code() -> str:
     """Generates a 6-digit SMS verification code."""
@@ -22,9 +25,22 @@ def send_sms_code(phone: str) -> str:
     """
     Generates and "sends" an SMS verification code.
     In this mock implementation, we only generate the code, print it to the console, and store it.
+    Includes rate limiting to prevent spam.
     """
+    current_time = time.time()
+
+    # Check rate limiting
+    if phone in sms_code_storage:
+        last_sent_time = sms_code_storage[phone]["timestamp"]
+        time_since_last_send = current_time - last_sent_time
+
+        if time_since_last_send < SMS_SEND_INTERVAL_SECONDS:
+            remaining_time = int(SMS_SEND_INTERVAL_SECONDS - time_since_last_send)
+            logger.warning("sms_rate_limit_exceeded", phone=phone, remaining_seconds=remaining_time)
+            raise ValueError("验证码发送过于频繁")
+
     code = generate_sms_code()
-    sms_code_storage[phone] = {"code": code, "timestamp": time.time()}
+    sms_code_storage[phone] = {"code": code, "timestamp": current_time}
     logger.info("sms_code_generated", phone=phone, code=code, note="Mock SMS sending")  # Mock sending
     return code
 

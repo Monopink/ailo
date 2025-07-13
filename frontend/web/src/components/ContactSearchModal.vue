@@ -75,7 +75,7 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useChatStore } from '../stores/chat';
 import { useToast } from 'vue-toastification';
-import { searchContacts, addContact } from '../services/api';
+import { apiClient } from '../utils/apiHelpers';
 import ContactAvatar from './ContactAvatar.vue';
 import { uiLogger } from '../utils/logger.js';
 import { handleError } from '../utils/errorHandler.js';
@@ -149,10 +149,11 @@ const performSearch = async () => {
 
   try {
     uiLogger.debug('Searching for new contacts');
-    const response = await searchContacts('NewContacts');
-    searchResults.value = response.data;
+    const response = await apiClient.get('/contacts/search?query=NewContacts');
+    const searchData = response.data.data || response.data;
+    searchResults.value = searchData;
     searchCompleted.value = true;
-    uiLogger.info('Contact search completed', { resultCount: response.data.length });
+    uiLogger.info('Contact search completed', { resultCount: searchData.length });
   } catch (error) {
     uiLogger.error('Contact search failed', error);
     handleError(error, {
@@ -174,7 +175,7 @@ const handleAddContact = async (contact) => {
   uiLogger.debug('Adding contact', { contactId: contact.id, nickname: contact.nickname });
 
   try {
-    await addContact(contact.id);
+    await apiClient.post('/contacts/add', { contact_id: contact.id });
     uiLogger.info('Contact added successfully', { contactId: contact.id });
     emit('contact-added');
   } catch (error) {

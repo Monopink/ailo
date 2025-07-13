@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import apiClient from '../services/api'
+import { apiClient } from '../utils/apiHelpers'
 import axios from 'axios'
 import { useToast } from 'vue-toastification'
 

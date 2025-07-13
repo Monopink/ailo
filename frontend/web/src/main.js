@@ -7,18 +7,17 @@ import './assets/main.css' // Import our global CSS
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
-import { generatePWAIcons } from './utils/generateIcons'
 import { initErrorHandler } from './utils/errorHandler.js'
 import { logger } from './utils/logger.js'
-import { UI_CONFIG } from './config/constants.js'
+// UI_CONFIG removed - not needed for icon configuration
 
 
 // Initialize the PWA features when in browser environment
 if (typeof window !== 'undefined') {
-  // Set dynamic page title
+  // Set dynamic page title from environment variable
   const brandName = import.meta.env.VITE_BRAND_NAME
   if (brandName) {
-    document.title = `${brandName} - 网页版`
+    document.title = brandName
   }
 
   // Check for dark mode preference
@@ -74,11 +73,6 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
-
-// Make PWA icon generator available globally for development
-if (process.env.NODE_ENV === 'development') {
-  window.generatePWAIcons = generatePWAIcons
-}
 
 // Get the auth store instance
 const authStore = useAuthStore()

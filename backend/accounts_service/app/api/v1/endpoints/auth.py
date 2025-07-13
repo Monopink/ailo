@@ -42,8 +42,12 @@ async def request_sms_code(
         # We can send the code in either case.
         pass
 
-    send_sms_code(phone=phone)
-    return {"msg": "SMS code sent successfully."}
+    try:
+        send_sms_code(phone=phone)
+        return {"msg": "SMS code sent successfully."}
+    except ValueError as e:
+        # Handle rate limiting error
+        raise HTTPException(status_code=429, detail=str(e))
 
 
 @router.post("/register", summary="手机号密码注册 (Register with Phone and Password)")

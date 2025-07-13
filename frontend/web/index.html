@@ -1,20 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
   <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.ico">
+
+  <!-- Favicon Configuration -->
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32">
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>敲敲</title>
+  <title>%VITE_BRAND_NAME%</title>
 
   <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#f8c600">
-  <meta name="description" content="敲敲">
+  <meta name="theme-color" content="%VITE_PWA_THEME_COLOR%">
+  <meta name="description" content="%VITE_APP_DESCRIPTION%">
   <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+  <!-- Apple Touch Icons -->
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" sizes="180x180">
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png" sizes="192x192">
+
+  <!-- Apple PWA Configuration -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="敲敲">
+  <meta name="apple-mobile-web-app-title" content="%VITE_BRAND_NAME%">
+
+  <!-- Microsoft Tiles -->
+  <meta name="msapplication-TileColor" content="%VITE_PWA_BACKGROUND_COLOR%">
+  <meta name="msapplication-TileImage" content="/icons/icon-192x192.png">
 
 
 </head>

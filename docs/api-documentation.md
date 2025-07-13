@@ -106,6 +106,28 @@
 }
 ```
 
+##### POST `/api/v1/auth/reset-password`
+
+重置密码
+
+**请求体:**
+
+```json
+{
+  "phone": "13800138002",
+  "code": "123456",
+  "new_password": "newpassword123"
+}
+```
+
+**响应:**
+
+```json
+{
+  "msg": "Password updated successfully."
+}
+```
+
 #### 用户相关 (`/users`)
 
 ##### GET `/api/v1/users/me`
@@ -448,30 +470,36 @@ LeanCloud消息Webhook
 前端通过Vite代理将请求路由到不同的后端服务：
 
 - `/api/v1/system/*` → bot_message_service:8000
-- `/api/v1/*` → accounts_service:8000  
+- `/api/v1/*` → accounts_service:8000
 - `/api/contacts/*` → contacts_service:8000 (重写为 `/api/v1/contacts/*`)
 
-### 认证方式
+### 统一API调用方式
 
-#### accounts_service
-
-使用配置好的apiClient，自动包含认证头：
+前端已重构为使用统一的 `apiClient`，自动处理认证和日志记录：
 
 ```javascript
-const response = await apiClient.get('/auth/me')
+import { apiClient } from '../utils/apiHelpers';
+
+// 所有API调用都使用相同的模式
+const response = await apiClient.get('/auth/me');
+const response = await apiClient.post('/auth/login', { phone, password });
+const response = await apiClient.get('/contacts');
+const response = await apiClient.post('/contacts/add', { contact_id });
 ```
 
-#### contacts_service  
+### 错误处理
 
-使用原始axios，手动添加认证头：
+使用统一的错误处理，支持业务操作提示：
 
 ```javascript
-const response = await axios.get('/api/contacts/profile/u1002', {
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  }
-})
+import { handleApiError } from '../utils/errorHandler';
+
+try {
+  const response = await apiClient.post('/auth/login', data);
+} catch (error) {
+  // 自动显示后端返回的用户友好消息，或使用操作特定的消息
+  handleApiError(error, 'login');
+}
 ```
 
 ## 错误处理

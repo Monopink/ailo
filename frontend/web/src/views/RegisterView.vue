@@ -20,6 +20,7 @@
               @blur="showPhoneError = true"
               @input="showPhoneError = false"
               placeholder="请输入11位手机号"
+              autocomplete="username"
               required
             />
           </div>
@@ -41,6 +42,7 @@
               @input="showCodeError = false"
               placeholder="请输入验证码"
               maxlength="6"
+              autocomplete="one-time-code"
               required
             />
             <button type="button" @click="handleSendCode" :disabled="isSendingCode || !isValidPhone" class="btn btn-secondary send-code-btn">
@@ -64,6 +66,7 @@
               @blur="showPasswordError = true"
               @input="showPasswordError = false"
               placeholder="请输入至少8位密码"
+              autocomplete="new-password"
               required
             />
             <button
@@ -96,7 +99,7 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
-import apiClient from '../services/api';
+import { apiClient } from '../utils/apiHelpers';
 import { APP_CONFIG } from '../config/constants';
 
 const phone = ref('');

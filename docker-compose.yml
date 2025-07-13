@@ -128,12 +128,6 @@ services:
     build:
       context: ./frontend/web
       dockerfile: Dockerfile
-      args:
-        - VITE_LEANCLOUD_APP_ID=${VITE_LEANCLOUD_APP_ID}
-        - VITE_LEANCLOUD_APP_KEY=${VITE_LEANCLOUD_APP_KEY}
-        - VITE_LEANCLOUD_SERVER_URL=${VITE_LEANCLOUD_SERVER_URL}
-        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
-        - VITE_APP_VERSION=${VITE_APP_VERSION}
     ports:
       - "5173:5173" # Expose Vite's default port
     environment:
@@ -142,6 +136,8 @@ services:
       - VITE_LEANCLOUD_SERVER_URL=${VITE_LEANCLOUD_SERVER_URL}
       - VITE_API_BASE_URL=${VITE_API_BASE_URL}
       - VITE_APP_VERSION=${VITE_APP_VERSION}
+      - VITE_BRAND_NAME=${VITE_BRAND_NAME}
+      - VITE_MESSAGE_TYPING_AUTO_HIDE=${VITE_MESSAGE_TYPING_AUTO_HIDE}
     volumes:
       - ./frontend/web:/app # Mount local code for hot-reloading
       - /app/node_modules # Anonymous volume to prevent local node_modules from overwriting container's

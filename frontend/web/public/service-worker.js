@@ -1,5 +1,5 @@
 // Enhanced service worker for PWA capability
-const CACHE_VERSION = '1.0.2';
+const CACHE_VERSION = '0.0.2';
 const CACHE_NAME = `says-cache-v${CACHE_VERSION}`;
 const APP_SHELL_CACHE = `says-app-shell-v${CACHE_VERSION}`;
 

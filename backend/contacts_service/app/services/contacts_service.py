@@ -347,7 +347,7 @@ class ContactsService:
 
                 return {
                     "status": "success",
-                    "message": "联系人添加成功",
+                    "message": "申请已发送",
                     "contact": {"id": unique_entity_id, "nickname": template.nickname},
                 }
 

@@ -73,7 +73,7 @@ class NotificationService {
 
     try {
       const showContent = this.isNotificationShowContent()
-      const brandName = import.meta.env.VITE_BRAND_NAME || '敲敲'
+      const brandName = import.meta.env.VITE_BRAND_NAME || ''
 
       const title = showContent ? `来自 ${chatName} 的新消息` : `你有一条${brandName}新消息`
       const body = showContent ? message.text : ''

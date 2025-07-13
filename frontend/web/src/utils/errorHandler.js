@@ -25,7 +25,7 @@ const USER_MESSAGES = {
   [ERROR_TYPES.AUTHENTICATION]: '登录已过期，请重新登录',
   [ERROR_TYPES.VALIDATION]: '输入信息有误，请检查后重试',
   [ERROR_TYPES.PERMISSION]: '权限不足，无法执行此操作',
-  [ERROR_TYPES.NOT_FOUND]: '请求的资源不存在',
+  [ERROR_TYPES.NOT_FOUND]: '数据加载失败',
   [ERROR_TYPES.SERVER]: '服务器暂时无法响应，请稍后重试',
   [ERROR_TYPES.CLIENT]: '操作失败，请重试',
   [ERROR_TYPES.UNKNOWN]: '发生未知错误，请重试',
@@ -107,12 +107,12 @@ class ErrorHandler {
    */
   getUserMessage(errorType, operation = null) {
     let message = USER_MESSAGES[errorType] || USER_MESSAGES[ERROR_TYPES.UNKNOWN];
-    
+
     // Add operation-specific prefix if available
     if (operation && OPERATION_MESSAGES[operation]) {
       message = `${OPERATION_MESSAGES[operation]}：${message}`;
     }
-    
+
     return message;
   }
 

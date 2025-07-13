@@ -115,6 +115,7 @@ self.addEventListener('message', (event) => {
 
   return {
     plugins: [vue()],
+    envDir: resolve(__dirname, '../../'),
     server: {
       host: '0.0.0.0', // Allow external access
       proxy: {

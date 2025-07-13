@@ -1,14 +1,14 @@
 <template>
   <!-- Desktop Layout -->
-  <div v-if="!isMobile" class="home-container grid-bg">
-    <div class="chat-container glass-panel">
+  <div v-if="!isMobile" class="home-container">
+    <div class="chat-app glass-panel">
       <!-- Chat sidebar -->
-      <div class="chat-sidebar glass-panel">
-        <ChatList />
+      <div class="chat-sidebar">
+        <ChatList @edit-profile="handleEditProfile" @settings="handleSettings" />
       </div>
 
       <!-- Main chat area -->
-      <div class="chat-main glass-panel">
+      <div class="chat-main">
         <ChatWindow />
       </div>
     </div>
@@ -19,16 +19,9 @@
     <!-- Chat List View -->
     <div v-if="!selectedChatId" class="mobile-chat-list">
       <div class="mobile-header">
-        <h1>会话</h1>
-        <button class="logout-button" @click="handleLogout">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline points="16,17 21,12 16,7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
+        <h1>{{ APP_CONFIG.BRAND_NAME }}</h1>
       </div>
-      <ChatList />
+      <ChatList @edit-profile="handleEditProfile" @settings="handleSettings" />
     </div>
 
     <!-- Chat Window View -->
@@ -44,19 +37,42 @@
       <ChatWindow />
     </div>
   </div>
+
+  <!-- Profile Edit Modal -->
+  <ProfileEditModal
+    v-if="showEditModal"
+    @close="showEditModal = false"
+    @success="handleProfileEditSuccess"
+  />
+
+  <!-- Settings Modal -->
+  <SettingsModal
+    v-if="showSettingsModal"
+    @close="handleSettingsClose"
+  />
+
+
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import ChatList from '../components/ChatList.vue';
 import ChatWindow from '../components/ChatWindow.vue';
+import ProfileEditModal from '../components/ProfileEditModal.vue';
+import SettingsModal from '../components/SettingsModal.vue';
+
 import { useChatStore } from '../stores/chat';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
+import { APP_CONFIG } from '../config/constants';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const router = useRouter();
+
+// Modal states
+const showEditModal = ref(false);
+const showSettingsModal = ref(false);
 
 // Mobile detection
 const isMobile = ref(false);
@@ -65,12 +81,21 @@ const checkMobile = () => {
   isMobile.value = window.innerWidth <= 767;
 };
 
-onMounted(() => {
+onMounted(async () => {
   checkMobile();
   window.addEventListener('resize', checkMobile);
 
   // Set global chat store reference for message service
   window.__CHAT_STORE__ = chatStore;
+
+  // 如果聊天列表为空且用户已登录，尝试重新获取联系人
+  if (authStore.user && chatStore.chats.length === 0 && !chatStore.isLoaded) {
+    try {
+      await chatStore.fetchContacts();
+    } catch (error) {
+      console.error('Failed to fetch contacts on mount:', error);
+    }
+  }
 });
 
 onUnmounted(() => {
@@ -96,39 +121,53 @@ const handleLogout = () => {
   authStore.logout();
   router.push('/login');
 };
+
+const handleEditProfile = () => {
+  showEditModal.value = true;
+};
+
+const handleSettings = () => {
+  showSettingsModal.value = true;
+};
+
+const handleProfileEditSuccess = () => {
+  // Profile updated successfully
+};
+
+const handleSettingsClose = () => {
+  showSettingsModal.value = false;
+};
 </script>
 
 <style scoped>
-/* Desktop Layout */
+/* Desktop Layout - Unified App */
 .home-container {
-  position: fixed; /* Fixed positioning to prevent scrolling */
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100vh;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-xl);
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  background: var(--color-bg-app);
 }
 
-.chat-container {
+.chat-app {
   display: flex;
-  position: relative;
   height: var(--chat-container-height);
   width: var(--chat-container-width);
   max-width: var(--chat-container-max-width);
-  background-color: var(--color-bg-overlay);
   overflow: hidden;
-  border-radius: calc(var(--border-radius) + var(--spacing-sm)); /* Outer radius = inner radius + margin */
+  border: var(--border-width) solid var(--color-border-subtle);
 }
 
 .chat-sidebar {
   flex: 0 0 280px;
-  margin: var(--spacing-sm);
-  border-radius: var(--border-radius);
   background-color: var(--color-bg-secondary);
+  border-right: var(--border-width) solid var(--color-border);
   overflow: hidden;
 }
 
@@ -136,9 +175,7 @@ const handleLogout = () => {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  margin: var(--spacing-sm);
-  margin-left: 0;
-  border-radius: var(--border-radius);
+  background-color: var(--color-bg-primary);
   overflow: hidden;
 }
 
@@ -161,10 +198,10 @@ const handleLogout = () => {
 .mobile-header {
   background-color: var(--color-bg-secondary);
   border-bottom: var(--border-width) solid var(--color-border);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-xl);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -172,28 +209,9 @@ const handleLogout = () => {
 
 .mobile-header h1 {
   margin: 0;
-  font-size: 1.2rem;
-  font-weight: 500;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  flex: 1;
-  text-align: center;
-}
-
-.logout-button {
-  background: none;
-  border: none;
-  color: var(--color-text-primary);
-  cursor: pointer;
-  padding: var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-}
-
-.logout-button:hover {
-  background-color: var(--color-bg-tertiary);
 }
 
 .mobile-chat-window {

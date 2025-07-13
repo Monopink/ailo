@@ -1,7 +1,7 @@
 {
-  "name": "Says - AI Chat App",
-  "short_name": "Says",
-  "theme_color": "#007aff",
+  "name": "敲敲",
+  "short_name": "Chat",
+  "theme_color": "#f8c600",
   "background_color": "#ffffff",
   "display": "standalone",
   "orientation": "portrait",
@@ -49,4 +49,4 @@
       "type": "image/png"
     }
   ]
-} 
+}

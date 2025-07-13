@@ -9,11 +9,12 @@
       <div class="modal-body">
         <div class="settings-section">
           <h4>通知设置</h4>
-          
+
+          <!-- Notification content setting - always visible -->
           <div class="setting-item">
             <label class="setting-label">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 v-model="notificationShowContent"
                 @change="handleNotificationContentToggle"
                 class="setting-checkbox"
@@ -22,6 +23,13 @@
             </label>
             <p class="setting-description">
               关闭后，通知将只显示"你有一条{{ brandName }}新消息"，不显示具体消息内容
+            </p>
+          </div>
+
+          <!-- Notification status warning -->
+          <div class="notification-status" v-if="notificationPermission === 'denied'">
+            <p class="notification-warning">
+              浏览器通知已禁用，请在网页设置中调整
             </p>
           </div>
         </div>
@@ -41,10 +49,13 @@ import { notificationService } from '../services/notificationService'
 const emit = defineEmits(['close'])
 
 // Get brand name from environment variable
-const brandName = import.meta.env.VITE_BRAND_NAME || '敲敲'
+const brandName = import.meta.env.VITE_BRAND_NAME
 
 // Notification settings
 const notificationShowContent = ref(true)
+const notificationPermission = ref(Notification.permission)
+
+
 
 // Load current settings
 onMounted(() => {
@@ -82,26 +93,37 @@ const handleOverlayClick = (event) => {
 
 .modal-content {
   background: var(--color-bg-primary);
-  border-radius: var(--border-radius);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  border: var(--border-width) solid var(--color-border);
   width: 90%;
-  max-width: 500px;
+  max-width: 480px;
   max-height: 80vh;
   overflow-y: auto;
+}
+
+/* Mobile optimizations */
+@media (max-width: 767px) {
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+    margin: var(--spacing-lg);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
-  border-bottom: var(--border-width) solid var(--color-border);
+  padding: var(--spacing-3xl);
+  padding-bottom: var(--spacing-xl);
 }
 
 .modal-header h3 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 1.25rem;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .close-button {
@@ -125,7 +147,7 @@ const handleOverlayClick = (event) => {
 }
 
 .modal-body {
-  padding: 1.5rem;
+  padding: 0 var(--spacing-3xl) var(--spacing-xl);
 }
 
 .settings-section {
@@ -138,9 +160,24 @@ const handleOverlayClick = (event) => {
 
 .settings-section h4 {
   margin: 0 0 1rem 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-normal);
+}
+
+.notification-status {
+  margin-bottom: 1.5rem;
+}
+
+.notification-warning {
+  margin: 0;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  background-color: var(--color-warning-light);
   color: var(--color-text-primary);
-  font-size: 1rem;
-  font-weight: 600;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  border: var(--border-width) solid var(--color-warning);
 }
 
 .setting-item {
@@ -169,31 +206,32 @@ const handleOverlayClick = (event) => {
 
 .setting-text {
   color: var(--color-text-primary);
-  font-size: 0.95rem;
+  font-size: var(--font-size-base);
   line-height: 1.4;
 }
 
 .setting-description {
   margin: 0.5rem 0 0 2.25rem;
   color: var(--color-text-secondary);
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
 }
 
 .modal-footer {
-  padding: 1rem 1.5rem;
-  border-top: var(--border-width) solid var(--color-border);
+  padding: var(--spacing-xl) var(--spacing-3xl);
   display: flex;
   justify-content: flex-end;
 }
 
 .btn {
-  padding: 0.5rem 1rem;
+  padding: var(--spacing-lg) var(--spacing-xl);
   border: none;
-  border-radius: var(--border-radius-sm);
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  transition: all 0.15s ease;
+  height: var(--button-height-md);
 }
 
 .btn-primary {

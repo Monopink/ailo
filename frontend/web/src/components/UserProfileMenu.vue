@@ -5,7 +5,7 @@
       type="button"
       :aria-expanded="showMenu"
       aria-haspopup="true"
-      :aria-label="`用户菜单：${authStore.user?.nickname || '未知用户'}`"
+      :aria-label="`用户菜单：${authStore.user?.nickname || ''}`"
       @click="toggleMenu"
       @keydown="handleKeyDown">
       {{ authStore.user?.nickname || '' }}

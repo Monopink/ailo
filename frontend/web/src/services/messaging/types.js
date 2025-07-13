@@ -19,13 +19,13 @@ export const ContactType = {
   TYPE2: 2   // Bots contacts
 }
 
-// Message constraints
+// Message constraints - configurable via environment variables
 export const MessageConstraints = {
-  MAX_LENGTH: 50,  // Maximum message length in characters
+  MAX_LENGTH: parseInt(import.meta.env.VITE_MESSAGE_MAX_LENGTH) || 1000,  // Maximum message length in characters
   RATE_LIMIT: {
-    MESSAGE_COUNT_LIMIT: 7,      // Max messages in time window
-    TIME_WINDOW: 7000,           // 7 seconds time window
-    BLOCK_DURATION: 5000         // 5 seconds block duration
+    MESSAGE_COUNT_LIMIT: parseInt(import.meta.env.VITE_MESSAGE_RATE_LIMIT_COUNT) || 7,      // Max messages in time window
+    TIME_WINDOW: parseInt(import.meta.env.VITE_MESSAGE_RATE_LIMIT_WINDOW) || 7000,           // 7 seconds time window
+    BLOCK_DURATION: parseInt(import.meta.env.VITE_MESSAGE_RATE_LIMIT_BLOCK) || 5000         // 5 seconds block duration
   }
 }
 

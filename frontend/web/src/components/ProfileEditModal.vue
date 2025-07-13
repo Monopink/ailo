@@ -2,7 +2,7 @@
   <div class="modal-overlay" @click="handleOverlayClick">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h2>编辑个人资料</h2>
+        <h2>编辑资料</h2>
         <button @click="$emit('close')" class="close-btn">×</button>
       </div>
 
@@ -130,7 +130,15 @@ const handleSubmit = async () => {
     emit('success')
     emit('close')
   } catch (error) {
-    const errorMessage = error.response?.data?.detail || '更新失败，请稍后重试'
+    let errorMessage = '更新失败，请稍后重试'
+
+    if (error.response?.data?.detail && typeof error.response.data.detail === 'string') {
+      const detail = error.response.data.detail
+      if (!detail.includes('SQL') && !detail.includes('greenlet') && !detail.includes('sqlalchemy')) {
+        errorMessage = detail
+      }
+    }
+
     toast.error(errorMessage)
   } finally {
     isLoading.value = false
@@ -158,11 +166,12 @@ const handleOverlayClick = () => {
 
 .modal-content {
   background: var(--color-bg-primary);
-  border-radius: var(--border-radius);
-  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-3xl);
   width: 90%;
-  max-width: 350px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  box-shadow: var(--shadow-xl);
+  border: var(--border-width) solid var(--color-border);
   position: relative;
 }
 
@@ -176,8 +185,8 @@ const handleOverlayClick = () => {
 .modal-header h2 {
   color: var(--color-text-primary);
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 500;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .close-btn {
@@ -215,28 +224,51 @@ const handleOverlayClick = () => {
   color: var(--color-text-primary);
   font-weight: 500;
   margin-bottom: 0.4rem;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
 }
 
 .required {
   color: var(--color-error);
 }
 
-.form-input,
-.form-select {
-  padding: 0.6rem;
+.form-input {
+  width: 100%;
+  padding: var(--spacing-lg) var(--spacing-xl);
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-sm);
-  background-color: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);
-  font-size: 0.85rem;
-  transition: border-color 0.2s;
+  font-size: var(--font-size-base);
+  height: var(--input-height);
+  transition: all 0.15s ease;
+}
+
+.form-select {
+  width: 100%;
+  padding: 0 var(--spacing-xl);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  height: var(--input-height);
+  transition: all 0.15s ease;
+  /* Ensure proper text alignment and vertical centering */
+  line-height: var(--input-height);
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-lg) center;
+  background-size: 16px;
+  padding-right: calc(var(--spacing-xl) + 24px);
 }
 
 .form-input:focus,
 .form-select:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  background-color: var(--color-bg-primary);
 }
 
 .form-input.error,
@@ -246,7 +278,7 @@ const handleOverlayClick = () => {
 
 .error-message {
   color: var(--color-error);
-  font-size: 0.8rem;
+  font-size: var(--font-size-xs);
   margin-top: 0.25rem;
 }
 
@@ -258,13 +290,14 @@ const handleOverlayClick = () => {
 
 .btn {
   flex: 1;
-  padding: 0.6rem;
+  padding: var(--spacing-lg);
   border: none;
-  border-radius: var(--border-radius-sm);
-  font-size: 0.85rem;
-  font-weight: 500;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
+  height: var(--button-height-md);
 }
 
 .btn-primary {

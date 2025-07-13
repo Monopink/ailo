@@ -109,17 +109,20 @@ const handleRetry = async () => {
 <style scoped>
 .message-bubble {
   display: flex;
-  margin-bottom: 0.75rem;
-  max-width: 70%;
+  margin-bottom: var(--spacing-lg);
+  max-width: 75%;
 }
 
 .message-content {
-  padding: 0.75rem 1rem;
-  border-radius: 18px;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-radius: var(--radius-xl);
   position: relative;
-  min-width: 60px;
+  min-width: 80px;
   word-break: break-word;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+  box-shadow: var(--shadow-xs); /* Add subtle shadow like input indicators */
 }
 
 /* Add space for status indicator on sent messages */
@@ -135,7 +138,7 @@ const handleRetry = async () => {
 .message-self .message-content {
   background-color: var(--color-sent-message);
   color: var(--color-sent-text);
-  border-bottom-right-radius: 5px;
+  border-bottom-right-radius: var(--radius-md);
 }
 
 .message-other {
@@ -145,7 +148,7 @@ const handleRetry = async () => {
 .message-other .message-content {
   background-color: var(--color-received-message);
   color: var(--color-received-text);
-  border-bottom-left-radius: 5px;
+  border-bottom-left-radius: var(--radius-md);
 }
 
 .message-content p {
@@ -193,21 +196,21 @@ const handleRetry = async () => {
 }
 
 .error-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   background: var(--color-error);
   color: white;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  transition: transform 0.2s;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  transition: transform 0.15s ease;
 }
 
 .error-icon:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 
@@ -247,7 +250,7 @@ const handleRetry = async () => {
 /* Responsive adjustments */
 @media (max-width: 767px) {
   .message-bubble {
-    max-width: 80%;
+    max-width: 85%;
   }
 }
 </style> 

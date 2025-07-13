@@ -38,8 +38,10 @@
               >
                 <ContactAvatar :nickname="contact.nickname" size="medium" />
                 <div class="contact-info">
-                  <div class="contact-name">{{ contact.nickname || '未知' }}</div>
-                  <div class="contact-gender">{{ getGenderText(contact.gender) }}</div>
+                  <div class="contact-name">{{ contact.nickname || '' }}</div>
+                  <div class="contact-gender" v-if="getGenderEmoji(contact.gender)">
+                    <span class="gender-emoji">{{ getGenderEmoji(contact.gender) }}</span>
+                  </div>
                 </div>
                 <button
                   class="btn btn-primary btn-sm"
@@ -95,17 +97,15 @@ const remainingContactsCount = computed(() => {
   return Math.max(0, limits.contact_limit - limits.current_count);
 });
 
-// Convert gender to display text
-const getGenderText = (gender) => {
+// Convert gender to display emoji
+const getGenderEmoji = (gender) => {
   switch (gender) {
     case 'male':
-      return '男';
+      return '👨';
     case 'female':
-      return '女';
-    case 'other':
-      return '其他';
+      return '👩';
     default:
-      return '未知';
+      return ''; // Don't show anything for 'other' or unknown
   }
 };
 
@@ -213,10 +213,11 @@ const handleOverlayClick = (event) => {
 
 .modal-content {
   background: var(--color-bg-primary);
-  border-radius: var(--border-radius);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  border: var(--border-width) solid var(--color-border);
   width: 90%;
-  max-width: 500px;
+  max-width: 480px;
   max-height: 80vh;
   overflow-y: auto;
   outline: none;
@@ -230,14 +231,14 @@ const handleOverlayClick = (event) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-2xl);
-  border-bottom: var(--border-width) solid var(--color-border);
+  padding: var(--spacing-3xl);
+  padding-bottom: var(--spacing-xl);
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 1.2rem;
-  font-weight: 500;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .close-button {
@@ -297,9 +298,9 @@ const handleOverlayClick = (event) => {
 
 .search-results h4 {
   margin: 0 0 var(--spacing-lg) 0;
-  font-size: 1rem;
-  font-weight: 500;
-  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-secondary);
 }
 
 .contact-list {
@@ -311,16 +312,16 @@ const handleOverlayClick = (event) => {
 .contact-item {
   display: flex;
   align-items: center;
-  padding: var(--spacing-lg);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-md);
   background-color: var(--color-bg-secondary);
-  transition: border-color 0.2s;
-  gap: var(--spacing-lg);
+  transition: all 0.2s ease;
+  gap: var(--spacing-xl);
+  border: none;
 }
 
 .contact-item:hover {
-  border-color: var(--color-accent-soft);
+  background-color: var(--color-bg-tertiary);
 }
 
 
@@ -336,8 +337,12 @@ const handleOverlayClick = (event) => {
 }
 
 .contact-gender {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.gender-emoji {
+  font-size: 16px;
 }
 
 /* Removed .add-btn styles - now using unified .btn classes */

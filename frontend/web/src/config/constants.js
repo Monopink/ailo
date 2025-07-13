@@ -113,6 +113,15 @@ export const NOTIFICATION_CONFIG = {
   ENABLE_BY_DEFAULT: import.meta.env.VITE_NOTIFICATION_ENABLE_BY_DEFAULT === 'true',
 };
 
+// App Configuration
+export const APP_CONFIG = {
+  // Brand name
+  BRAND_NAME: import.meta.env.VITE_BRAND_NAME || '',
+
+  // App version
+  VERSION: import.meta.env.VITE_APP_VERSION,
+};
+
 // Validation helpers
 export const VALIDATION = {
   // Phone number pattern (Chinese mobile numbers)
@@ -129,6 +138,7 @@ export const VALIDATION = {
 
 // Export all configurations as a single object for convenience
 export const CONFIG = {
+  APP: APP_CONFIG,
   API: API_CONFIG,
   CACHE: CACHE_CONFIG,
   MESSAGE: MESSAGE_CONFIG,

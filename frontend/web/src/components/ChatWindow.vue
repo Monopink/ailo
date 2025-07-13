@@ -50,18 +50,19 @@
       </div>
       <button
         @click="sendMessage"
-        class="btn send-button"
+        class="btn btn-circle btn-primary send-button"
         type="button"
         :disabled="!newMessage.trim() || !selectedChat"
         :aria-label="`发送消息给 ${selectedChat?.name || '联系人'}`">
-        发送
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
     </div>
   </div>
   <div v-else class="no-chat-selected">
     <div class="empty-state">
-      <span class="emoji-large">💬</span>
-      <p>选择一个会话开始聊天</p>
+      <h1 class="brand-watermark">{{ brandName }}</h1>
     </div>
   </div>
 </template>
@@ -84,6 +85,9 @@ import { MESSAGE_CONFIG } from '../config/constants.js';
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const toast = useToast();
+
+// Get brand name from environment variable
+const brandName = import.meta.env.VITE_BRAND_NAME;
 const newMessage = ref('');
 const messagesContainer = ref(null);
 const isTyping = ref(false);
@@ -161,7 +165,7 @@ const shouldShowFailureNotice = (message) => {
 const getFailureMessage = (message) => {
   if (message.status === 4) { // BLOCKED
     // For blocked messages, prioritize system message, then default
-    return message.systemMessage || '消息被系统屏蔽';
+    return message.systemMessage || '消息发送失败';
   } else if (message.status === 3) { // FAILED
     // For failed messages, prioritize system message, then map by failure reason
     if (message.systemMessage) {
@@ -600,20 +604,20 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Modern Chat Window - Unified Design */
 .chat-window-container {
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 100%;
   position: relative;
+  background-color: var(--color-bg-primary);
 }
 
 .chat-header {
-  padding: 1rem 1.5rem;
+  padding: var(--spacing-xl) var(--spacing-2xl);
   border-bottom: var(--border-width) solid var(--color-border);
-  background-color: var(--color-bg-secondary);
-  border-top-left-radius: var(--border-radius);
-  border-top-right-radius: var(--border-radius);
+  background-color: var(--color-bg-primary);
   position: sticky;
   top: 0;
   z-index: 5;
@@ -621,28 +625,28 @@ onUnmounted(() => {
 
 .chat-title {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 500;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
 }
 
 .messages-area {
   flex-grow: 1;
-  padding: 1.5rem;
+  padding: var(--spacing-xl) var(--spacing-2xl);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   background-color: var(--color-bg-primary);
   height: calc(100% - 120px);
-  /* Subtract header and input height */
 }
 
 .message-input-area {
   display: flex;
-  padding: 1rem;
-  background-color: var(--color-bg-secondary);
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl) var(--spacing-2xl);
+  background-color: var(--color-bg-primary);
   border-top: var(--border-width) solid var(--color-border);
-  border-bottom-left-radius: var(--border-radius);
-  border-bottom-right-radius: var(--border-radius);
   position: sticky;
   bottom: 0;
   z-index: 5;
@@ -650,49 +654,53 @@ onUnmounted(() => {
 
 .message-input {
   flex-grow: 1;
-  padding: 0.75rem 1rem;
+  padding: var(--spacing-lg) var(--spacing-xl);
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-sm);
-  margin-right: 0.75rem;
-  background-color: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  font-size: var(--font-size-base);
+  transition: all 0.15s ease;
+  resize: none;
+  min-height: var(--input-height);
+  max-height: 120px;
 }
 
 .message-input:focus {
   outline: none;
-  border-color: var(--color-border);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  background-color: var(--color-bg-primary);
 }
 
 .message-input:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
-  background-color: var(--color-bg-secondary);
+  background-color: var(--color-bg-tertiary);
 }
 
+.message-input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+/* Send Button - Circular with Icon */
 .send-button {
-  padding: 0.75rem 1.25rem;
-  background-color: var(--color-accent);
-  color: white;
-  border: none;
-  border-radius: var(--border-radius-sm);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 0.2s, box-shadow 0.2s, opacity 0.2s;
-}
-
-.send-button:hover:not(:disabled) {
-  background-color: var(--color-primary-hover);
-}
-
-.send-button:focus {
-  outline: none;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
 .send-button:disabled {
-  opacity: 0.6;
+  opacity: 0.4;
   cursor: not-allowed;
-  background-color: var(--color-border);
+  transform: none;
+}
+
+.send-button svg {
+  transition: transform 0.15s ease;
+}
+
+.send-button:hover:not(:disabled) svg {
+  transform: translateX(1px);
 }
 
 .no-chat-selected {
@@ -711,9 +719,21 @@ onUnmounted(() => {
   text-align: center;
 }
 
-.emoji-large {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+/* Brand watermark - simple style */
+.brand-watermark {
+  font-size: 4rem;
+  font-weight: var(--font-weight-semibold);
+  color: rgba(0, 0, 0, 0.08);
+  margin: 0;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Dark mode adjustments for brand watermark */
+@media (prefers-color-scheme: dark) {
+  .brand-watermark {
+    color: rgba(255, 255, 255, 0.12);
+  }
 }
 
 /* Hide on mobile utility class */
@@ -742,7 +762,7 @@ onUnmounted(() => {
   }
 
   .messages-area {
-    padding: 1rem;
+    padding: var(--spacing-lg);
     padding-bottom: 80px; /* Space for fixed input area */
   }
 
@@ -753,7 +773,10 @@ onUnmounted(() => {
   }
 
   .send-button {
-    padding: 0.5rem 1rem;
+    width: var(--button-height-md);
+    height: var(--button-height-md);
+    padding: 0;
+    min-width: unset;
   }
 }
 

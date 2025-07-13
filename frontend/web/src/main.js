@@ -15,6 +15,12 @@ import { UI_CONFIG } from './config/constants.js'
 
 // Initialize the PWA features when in browser environment
 if (typeof window !== 'undefined') {
+  // Set dynamic page title
+  const brandName = import.meta.env.VITE_BRAND_NAME
+  if (brandName) {
+    document.title = `${brandName} - 网页版`
+  }
+
   // Check for dark mode preference
   const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
   document.documentElement.setAttribute('data-theme', prefersDarkMode ? 'dark' : 'light')
@@ -37,13 +43,13 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(Toast, {
   transition: "Vue-Toastification__fade",
-  maxToasts: 5,
+  maxToasts: 3,
   newestOnTop: true,
   position: "top-center",
-  timeout: UI_CONFIG.TOAST_DURATION,
+  timeout: 3000,
   closeOnClick: true,
   pauseOnFocusLoss: false,
-  pauseOnHover: false,
+  pauseOnHover: true,
   draggable: false,
   showCloseButtonOnHover: false,
   hideProgressBar: false,

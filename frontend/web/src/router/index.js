@@ -20,24 +20,6 @@ const router = createRouter({
       path: '/register',
       name: 'register',
       component: () => import('../views/RegisterView.vue')
-    },
-    {
-      path: '/leanmessage-test',
-      name: 'leanmessage-test',
-      component: () => import('../views/LeanMessageTest.vue'),
-      meta: { requiresAuth: false }
-    },
-    {
-      path: '/system-chat-test',
-      name: 'system-chat-test',
-      component: () => import('../views/SystemChatTest.vue'),
-      meta: { requiresAuth: false }
-    },
-    {
-      path: '/message-status-test',
-      name: 'message-status-test',
-      component: () => import('../views/MessageStatusTest.vue'),
-      meta: { requiresAuth: false }
     }
   ]
 })

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import localStorageService from '../services/localStorage';
 import { getContacts, getContactChatInfo, getContactLimits } from '../services/api';
 import { useAuthStore } from './auth';
-import { ContactType } from '../services/messaging/types';
+
 import { chatLogger } from '../utils/logger.js';
 import { handleError } from '../utils/errorHandler.js';
 import { CACHE_CONFIG, CONTACT_CONFIG } from '../config/constants.js';
@@ -180,22 +180,9 @@ export const useChatStore = defineStore('chat', () => {
         };
       });
 
-      // Keep existing chats and merge with fetched contacts
-      const existingUserChats = existingChats.filter(chat => chat.contact_type !== ContactType.TYPE2);
-
-      // Remove duplicates by creating a Map with unique IDs
-      const allChats = [...existingUserChats, ...contactChats];
-      const uniqueChatsMap = new Map();
-
-      allChats.forEach(chat => {
-        // Use id as the primary key for deduplication
-        const key = chat.id;
-        if (!uniqueChatsMap.has(key)) {
-          uniqueChatsMap.set(key, chat);
-        }
-      });
-
-      chats.value = Array.from(uniqueChatsMap.values());
+      // Only use contacts from the current API response to avoid showing other users' contacts
+      // Clear any existing chats to prevent cross-user data contamination
+      chats.value = contactChats;
 
       if (chats.value.length > 0 && !selectedChatId.value) {
         selectedChatId.value = chats.value[0].id;

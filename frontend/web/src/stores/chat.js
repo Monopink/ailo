@@ -8,18 +8,12 @@ import { chatLogger } from '../utils/logger.js';
 import { handleError } from '../utils/errorHandler.js';
 import { CACHE_CONFIG, CONTACT_CONFIG } from '../config/constants.js';
 
-// Load initial data from localStorage
-const loadInitialData = () => {
-  const data = localStorageService.loadChats();
-  return data ? { chats: data.chats, selectedChatId: null } : { chats: [], selectedChatId: null };
-};
-
 export const useChatStore = defineStore('chat', () => {
-  // Load initial data from localStorage
-  const initialData = loadInitialData();
-  const chats = ref(initialData.chats);
-  const selectedChatId = ref(initialData.selectedChatId);
+  // Initialize with empty state - data will be loaded when user context is set
+  const chats = ref([]);
+  const selectedChatId = ref(null);
   const isLoaded = ref(false);
+  const currentUserId = ref(null);
 
   // Contact limits information
   const contactLimits = ref({
@@ -28,9 +22,79 @@ export const useChatStore = defineStore('chat', () => {
     can_add_more: true
   });
 
+  /**
+   * Initialize chat store with user context
+   */
+  async function initializeWithUser(userId) {
+    if (!userId) {
+      throw new Error('User ID is required for chat store initialization')
+    }
+
+    currentUserId.value = userId
+
+    // Set user context in localStorage service
+    localStorageService.setCurrentUser(userId)
+
+    // Load user-specific chat data
+    await loadUserData()
+
+    chatLogger.info('Chat store initialized for user', { userId })
+  }
+
+  /**
+   * Load user-specific data from localStorage
+   */
+  async function loadUserData() {
+    if (!currentUserId.value) {
+      chatLogger.warn('Cannot load user data: no user context set')
+      return
+    }
+
+    try {
+      const data = localStorageService.loadChats()
+      if (data && data.chats) {
+        chats.value = data.chats
+        chatLogger.info('Loaded user chat data', {
+          userId: currentUserId.value,
+          chatCount: data.chats.length
+        })
+      } else {
+        chats.value = []
+        chatLogger.info('No existing chat data for user', { userId: currentUserId.value })
+      }
+    } catch (error) {
+      chatLogger.error('Failed to load user chat data', error)
+      chats.value = []
+    }
+  }
+
+  /**
+   * Clear user context and data
+   */
+  function clearUserContext() {
+    currentUserId.value = null
+    chats.value = []
+    selectedChatId.value = null
+    isLoaded.value = false
+
+    // Clear localStorage user context
+    localStorageService.clearCurrentUser()
+
+    chatLogger.info('Chat store user context cleared')
+  }
+
   // Save chats to localStorage
   function saveToStorage() {
-    localStorageService.saveChats(chats.value);
+    if (!currentUserId.value) {
+      chatLogger.warn('Cannot save to storage: no user context set')
+      return
+    }
+
+    try {
+      localStorageService.saveChats(chats.value)
+    } catch (error) {
+      chatLogger.error('Failed to save chats to storage', error)
+    }
   }
 
   // Add message to chat and save to localStorage
@@ -148,8 +212,13 @@ export const useChatStore = defineStore('chat', () => {
       return;
     }
 
+    if (!currentUserId.value) {
+      chatLogger.warn('No user context set for fetching contacts');
+      return;
+    }
+
     try {
-      chatLogger.debug('Fetching contacts and limits');
+      chatLogger.debug('Fetching contacts and limits', { userId: currentUserId.value });
 
       // Fetch both contacts and contact limits
       const [contactsResponse, limitsResponse] = await Promise.all([
@@ -286,14 +355,88 @@ export const useChatStore = defineStore('chat', () => {
     return requestPromise;
   }
 
-  // Clear all chat data
-  function clearChats() {
+  // Clear current user's chat data
+  function clearUserChats() {
+    if (!currentUserId.value) {
+      chatLogger.warn('Cannot clear chats: no user context set');
+      return;
+    }
+
     chats.value = [];
     selectedChatId.value = null;
-    localStorageService.clearAllData();
+
+    try {
+      localStorageService.clearUserData();
+      chatLogger.info('Cleared chat data for user', { userId: currentUserId.value });
+    } catch (error) {
+      chatLogger.error('Failed to clear user chat data', error);
+    }
 
     // Clear the chat-info request cache
     chatInfoCache.clear();
+  }
+
+  // Clear all chat messages (keep contacts, clear messages only)
+  function clearAllChatMessages() {
+    if (!currentUserId.value) {
+      chatLogger.warn('Cannot clear chat messages: no user context set');
+      return false;
+    }
+
+    try {
+      // Clear messages from all chats in memory
+      chats.value.forEach(chat => {
+        chat.messages = [];
+      });
+
+      // Clear messages in localStorage
+      const success = localStorageService.clearAllChatMessages();
+
+      if (success) {
+        chatLogger.info('Cleared all chat messages for user', { userId: currentUserId.value });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      chatLogger.error('Failed to clear all chat messages', error);
+      return false;
+    }
+  }
+
+  // Clear specific contact's chat messages
+  function clearContactChat(contactId) {
+    if (!currentUserId.value) {
+      chatLogger.warn('Cannot clear contact chat: no user context set');
+      return false;
+    }
+
+    try {
+      const chatIndex = chats.value.findIndex(c => c.id === contactId);
+      if (chatIndex !== -1) {
+        // Clear messages for this contact in memory
+        chats.value[chatIndex].messages = [];
+
+        // Clear messages in localStorage
+        const success = localStorageService.clearContactMessages(contactId);
+
+        if (success) {
+          chatLogger.info('Cleared chat messages for contact', {
+            userId: currentUserId.value,
+            contactId
+          });
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      chatLogger.error('Failed to clear contact chat messages', error);
+      return false;
+    }
+  }
+
+  // Legacy method for backward compatibility - now clears current user data only
+  function clearChats() {
+    clearUserChats();
   }
 
   // Setup periodic refresh of contacts (every 5 minutes)
@@ -341,6 +484,10 @@ export const useChatStore = defineStore('chat', () => {
     selectedChatId,
     isLoaded,
     contactLimits,
+    currentUserId,
+    initializeWithUser,
+    loadUserData,
+    clearUserContext,
     fetchContacts,
     selectChat,
     updateContactChatInfo,
@@ -349,6 +496,9 @@ export const useChatStore = defineStore('chat', () => {
     moveMessageToBottom,
     saveToStorage,
     clearChats,
+    clearUserChats,
+    clearAllChatMessages,
+    clearContactChat,
     startPeriodicRefresh,
     stopPeriodicRefresh,
   };

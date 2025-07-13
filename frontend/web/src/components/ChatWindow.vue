@@ -2,6 +2,11 @@
   <div class="chat-window-container" v-if="selectedChat">
     <div class="chat-header hide-on-mobile">
       <h3 class="chat-title">{{ selectedChat.name }}</h3>
+      <button class="clear-messages-button" @click="$emit('clear-messages')" title="清除聊天记录">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14zM10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
     <div
       class="messages-area"
@@ -82,6 +87,8 @@ import { useToast } from 'vue-toastification';
 import { notificationService } from '../services/notificationService';
 import { MESSAGE_CONFIG } from '../config/constants.js';
 
+const emit = defineEmits(['clear-messages'])
+
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const toast = useToast();
@@ -148,6 +155,16 @@ const shouldShowTimeDivider = (currentMessage, previousMessage) => {
 
   const current = new Date(currentMessage.timestamp);
   const previous = new Date(previousMessage.timestamp);
+
+  // Debug logging for time divider logic
+  console.log('Time divider check:', {
+    currentTimestamp: currentMessage.timestamp,
+    previousTimestamp: previousMessage.timestamp,
+    currentTime: current.toISOString(),
+    previousTime: previous.toISOString(),
+    timeDiff: current.getTime() - previous.getTime(),
+    shouldShow: (current.getTime() - previous.getTime()) > 5 * 60 * 1000
+  });
 
   // Show divider if messages are more than 5 minutes apart
   const timeDiff = current.getTime() - previous.getTime();
@@ -515,10 +532,17 @@ const handleChatMessageReceived = async (event) => {
       localId: null, // Received messages don't have localId
       text: message.content,
       sender: message.from === authStore.user?.id ? 'self' : 'other',
-      timestamp: new Date(message.timestamp || Date.now()),
+      timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
       messageType: message.type,
       status: null // Received messages don't have status
     }
+
+    // Debug logging for received message timestamp
+    console.log('Received message timestamp processing:', {
+      originalTimestamp: message.timestamp,
+      processedTimestamp: uiMessage.timestamp.toISOString(),
+      messageContent: message.content
+    });
 
     // Add message to chat
     chatStore.addMessage(chat.id, uiMessage)
@@ -621,13 +645,44 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.clear-messages-button {
+  width: var(--button-height-md);
+  height: var(--button-height-md);
+  background: var(--color-bg-secondary);
+  border: var(--border-width) solid var(--color-border);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-xs);
+}
+
+.clear-messages-button:hover {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-error);
+  box-shadow: var(--shadow-sm);
 }
 
 .chat-title {
   margin: 0;
+  padding: 0;
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+  flex: 1;
+  line-height: 1;
+  display: flex;
+  align-items: center;
 }
 
 .messages-area {
@@ -736,10 +791,7 @@ onUnmounted(() => {
   }
 }
 
-/* Hide on mobile utility class */
-.hide-on-mobile {
-  display: block;
-}
+/* Hide on mobile utility class - no default display needed */
 
 /* Responsive adjustments */
 @media (max-width: 767px) {

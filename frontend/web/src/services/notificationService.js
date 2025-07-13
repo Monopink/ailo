@@ -168,20 +168,31 @@ class NotificationService {
    * Load permission request status from localStorage
    */
   loadPermissionRequestStatus() {
-    const settings = localStorageService.loadUserSettings()
-    return settings?.notifications?.hasRequestedPermission || false
+    try {
+      const settings = localStorageService.loadUserSettings()
+      return settings?.notifications?.hasRequestedPermission || false
+    } catch (error) {
+      // If no user context is set, return false (not requested)
+      console.log('NotificationService: No user context for permission status, returning false')
+      return false
+    }
   }
 
   /**
    * Save permission request status to localStorage
    */
   savePermissionRequestStatus(hasRequested) {
-    const settings = localStorageService.loadUserSettings() || {}
-    if (!settings.notifications) {
-      settings.notifications = {}
+    try {
+      const settings = localStorageService.loadUserSettings() || {}
+      if (!settings.notifications) {
+        settings.notifications = {}
+      }
+      settings.notifications.hasRequestedPermission = hasRequested
+      localStorageService.saveUserSettings(settings)
+    } catch (error) {
+      // If no user context is set, silently ignore (user not logged in)
+      console.log('NotificationService: No user context for saving permission status, ignoring')
     }
-    settings.notifications.hasRequestedPermission = hasRequested
-    localStorageService.saveUserSettings(settings)
   }
 
   /**

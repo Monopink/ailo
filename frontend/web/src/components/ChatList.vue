@@ -1,7 +1,54 @@
 <template>
   <div class="chat-list-container">
-    <!-- User Header with Profile and Menu -->
-    <div class="user-header">
+    <!-- Top Section: Contact Limits and Add Button -->
+    <div class="contact-section">
+      <div class="contact-header">
+        <span class="contact-title">联系人</span>
+        <span class="contact-count">{{ chatStore.contactLimits.current_count }}/{{ chatStore.contactLimits.contact_limit }}</span>
+      </div>
+      <button
+        class="add-contact-btn btn-circle"
+        @click="handleAddContact"
+        :disabled="!chatStore.contactLimits.can_add_more"
+        :title="chatStore.contactLimits.can_add_more ? '添加联系人' : '联系人数量已达上限'"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Chat List -->
+    <ul class="chat-list" v-if="chatStore.chats.length > 0">
+      <li
+        v-for="chat in chatStore.chats"
+        :key="chat.id"
+        class="chat-item"
+        :class="{ active: chat.id === chatStore.selectedChatId }"
+        @click="chatStore.selectChat(chat.id)"
+      >
+        <ContactAvatar :nickname="chat.name" size="medium" />
+        <div class="chat-item-content">
+          <div class="chat-item-name">{{ chat.name }}</div>
+          <div class="chat-item-preview">
+            {{ chat.messages[chat.messages.length - 1]?.text || '暂无消息' }}
+          </div>
+        </div>
+      </li>
+    </ul>
+    <div v-else class="no-chats-placeholder">
+      <p>暂无会话</p>
+      <button
+        class="btn btn-secondary refresh-btn"
+        @click="handleRefreshContacts"
+        :disabled="isRefreshing"
+      >
+        {{ isRefreshing ? '刷新中...' : '刷新联系人' }}
+      </button>
+    </div>
+
+    <!-- Bottom Section: User Profile and Menu -->
+    <div class="user-footer">
       <div class="user-info">
         <ContactAvatar
           :nickname="authStore.user?.nickname || '?'"
@@ -12,11 +59,6 @@
         </div>
       </div>
 
-
-    </div>
-
-    <!-- Contact Limits Section -->
-    <div class="contact-section">
       <div class="dropdown-container" ref="dropdownContainer">
         <button
           class="menu-btn btn-circle"
@@ -50,6 +92,13 @@
             class="menu-item">
             设置
           </button>
+          <button
+            v-if="showDeveloperInfo"
+            role="menuitem"
+            @click="handleDeveloperInfo"
+            class="menu-item">
+            开发者信息
+          </button>
           <div class="menu-divider"></div>
           <button
             role="menuitem"
@@ -59,48 +108,6 @@
           </button>
         </div>
       </div>
-      <button
-        class="add-contact-btn btn-circle"
-        @click="handleAddContact"
-        :disabled="!chatStore.contactLimits.can_add_more"
-        :title="chatStore.contactLimits.can_add_more ? '添加联系人' : '联系人数量已达上限'"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M12 5v14M5 12h14"/>
-        </svg>
-      </button>
-      <div class="contact-limits">
-        联系人 {{ chatStore.contactLimits.current_count }}/{{ chatStore.contactLimits.contact_limit }}
-      </div>
-    </div>
-
-    <!-- Chat List -->
-    <ul class="chat-list" v-if="chatStore.chats.length > 0">
-      <li
-        v-for="chat in chatStore.chats"
-        :key="chat.id"
-        class="chat-item"
-        :class="{ active: chat.id === chatStore.selectedChatId }"
-        @click="chatStore.selectChat(chat.id)"
-      >
-        <ContactAvatar :nickname="chat.name" size="medium" />
-        <div class="chat-item-content">
-          <div class="chat-item-name">{{ chat.name }}</div>
-          <div class="chat-item-preview">
-            {{ chat.messages[chat.messages.length - 1]?.text || '暂无消息' }}
-          </div>
-        </div>
-      </li>
-    </ul>
-    <div v-else class="no-chats-placeholder">
-      <p>暂无会话</p>
-      <button
-        class="btn btn-secondary refresh-btn"
-        @click="handleRefreshContacts"
-        :disabled="isRefreshing"
-      >
-        {{ isRefreshing ? '刷新中...' : '刷新联系人' }}
-      </button>
     </div>
 
     <!-- Contact Search Modal -->
@@ -113,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '../stores/chat';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
@@ -133,7 +140,12 @@ const lastRefreshTime = ref(0);
 const REFRESH_COOLDOWN = 3000; // 3 seconds cooldown
 
 // Define emits
-const emit = defineEmits(['edit-profile', 'settings']);
+const emit = defineEmits(['edit-profile', 'settings', 'developer-info']);
+
+// Check if developer info should be shown
+const showDeveloperInfo = computed(() => {
+  return import.meta.env.VITE_DEV_SHOW_DEVELOPER_INFO === 'true' || import.meta.env.DEV
+});
 
 // Dropdown menu handlers
 const toggleDropdown = () => {
@@ -152,6 +164,11 @@ const handleEditProfile = () => {
 const handleSettings = () => {
   closeDropdown();
   emit('settings');
+};
+
+const handleDeveloperInfo = () => {
+  closeDropdown();
+  emit('developer-info');
 };
 
 const handleLogout = () => {
@@ -226,13 +243,15 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* User Header */
-.user-header {
-  padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-lg);
+/* User Footer */
+.user-footer {
+  padding: var(--spacing-lg) var(--spacing-xl);
   background-color: var(--color-bg-secondary);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-top: var(--border-width) solid var(--color-border);
+  margin-top: auto;
 }
 
 .user-info {
@@ -252,16 +271,9 @@ onUnmounted(() => {
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  margin-bottom: var(--spacing-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
 }
 
 .menu-btn {
@@ -278,22 +290,33 @@ onUnmounted(() => {
 
 /* Contact Section */
 .contact-section {
-  padding: var(--spacing-sm) var(--spacing-xl) var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
   display: flex;
   align-items: center;
   background-color: var(--color-bg-secondary);
   border-bottom: var(--border-width) solid var(--color-border);
-  gap: var(--spacing-lg);
-  justify-content: flex-start;
+  justify-content: space-between;
 }
 
-.contact-limits {
-  font-size: var(--font-size-sm);
+.contact-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.contact-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.contact-count {
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium);
   background-color: var(--color-bg-tertiary);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border-radius: var(--radius-lg);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: 12px;
   border: var(--border-width) solid var(--color-border);
 }
 
@@ -321,8 +344,8 @@ onUnmounted(() => {
 
 .dropdown-menu {
   position: absolute;
-  top: calc(100% + var(--spacing-sm));
-  left: 0;
+  bottom: calc(100% + var(--spacing-sm));
+  right: 0;
   min-width: 140px;
   z-index: 1000;
   padding: var(--spacing-sm);

@@ -4,12 +4,12 @@
     <div class="chat-app glass-panel">
       <!-- Chat sidebar -->
       <div class="chat-sidebar">
-        <ChatList @edit-profile="handleEditProfile" @settings="handleSettings" />
+        <ChatList @edit-profile="handleEditProfile" @settings="handleSettings" @developer-info="handleDeveloperInfo" />
       </div>
 
       <!-- Main chat area -->
       <div class="chat-main">
-        <ChatWindow />
+        <ChatWindow @clear-messages="showClearMessagesConfirm = true" />
       </div>
     </div>
   </div>
@@ -21,7 +21,7 @@
       <div class="mobile-header">
         <h1>{{ APP_CONFIG.BRAND_NAME }}</h1>
       </div>
-      <ChatList @edit-profile="handleEditProfile" @settings="handleSettings" />
+      <ChatList @edit-profile="handleEditProfile" @settings="handleSettings" @developer-info="handleDeveloperInfo" />
     </div>
 
     <!-- Chat Window View -->
@@ -33,6 +33,11 @@
           </svg>
         </button>
         <h2>{{ selectedChat?.name || '聊天' }}</h2>
+        <button class="clear-messages-button" @click="showClearMessagesConfirm = true" title="清除聊天记录">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14zM10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
       <ChatWindow />
     </div>
@@ -51,6 +56,36 @@
     @close="handleSettingsClose"
   />
 
+  <!-- Developer Info Modal -->
+  <DeveloperInfoModal
+    v-if="showDeveloperInfoModal"
+    :show="showDeveloperInfoModal"
+    @close="handleDeveloperInfoClose"
+  />
+
+  <!-- Clear Messages Confirmation Dialog -->
+  <div v-if="showClearMessagesConfirm" class="modal-overlay" @click="showClearMessagesConfirm = false">
+    <div class="modal-content confirm-dialog" @click.stop>
+      <div class="modal-header">
+        <h3>确认清除聊天记录</h3>
+      </div>
+
+      <div class="modal-body">
+        <p class="confirm-text">
+          确定要清除与 <strong>{{ selectedChat?.name }}</strong> 的所有聊天记录吗？
+        </p>
+      </div>
+
+      <div class="modal-footer">
+        <button @click="showClearMessagesConfirm = false" class="btn btn-secondary">
+          取消
+        </button>
+        <button @click="handleClearMessages" class="btn btn-danger" :disabled="isClearing">
+          {{ isClearing ? '清除中...' : '确定清除' }}
+        </button>
+      </div>
+    </div>
+  </div>
 
 </template>
 
@@ -60,19 +95,25 @@ import ChatList from '../components/ChatList.vue';
 import ChatWindow from '../components/ChatWindow.vue';
 import ProfileEditModal from '../components/ProfileEditModal.vue';
 import SettingsModal from '../components/SettingsModal.vue';
+import DeveloperInfoModal from '../components/DeveloperInfoModal.vue';
 
 import { useChatStore } from '../stores/chat';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
 import { APP_CONFIG } from '../config/constants';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const router = useRouter();
+const toast = useToast();
 
 // Modal states
 const showEditModal = ref(false);
 const showSettingsModal = ref(false);
+const showDeveloperInfoModal = ref(false);
+const showClearMessagesConfirm = ref(false);
+const isClearing = ref(false);
 
 // Mobile detection
 const isMobile = ref(false);
@@ -117,10 +158,7 @@ const goBackToList = () => {
   chatStore.selectChat(null);
 };
 
-const handleLogout = () => {
-  authStore.logout();
-  router.push('/login');
-};
+
 
 const handleEditProfile = () => {
   showEditModal.value = true;
@@ -136,6 +174,44 @@ const handleProfileEditSuccess = () => {
 
 const handleSettingsClose = () => {
   showSettingsModal.value = false;
+};
+
+const handleDeveloperInfo = () => {
+  showDeveloperInfoModal.value = true;
+};
+
+const handleDeveloperInfoClose = () => {
+  showDeveloperInfoModal.value = false;
+};
+
+// Handle clear messages
+const handleClearMessages = async () => {
+  if (isClearing.value || !selectedChatId.value) return;
+
+  isClearing.value = true;
+
+  try {
+    const success = chatStore.clearContactChat(selectedChatId.value);
+
+    if (success) {
+      toast.success('聊天记录已清除');
+      showClearMessagesConfirm.value = false;
+
+      // Go back to chat list on mobile, or clear selection on desktop
+      if (isMobile.value) {
+        goBackToList();
+      } else {
+        chatStore.selectChat(null);
+      }
+    } else {
+      toast.error('清除聊天记录失败');
+    }
+  } catch (error) {
+    console.error('Failed to clear messages:', error);
+    toast.error('清除聊天记录时发生错误');
+  } finally {
+    isClearing.value = false;
+  }
 };
 </script>
 
@@ -228,7 +304,7 @@ const handleSettingsClose = () => {
   padding: var(--spacing-lg);
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
+  justify-content: space-between;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -257,5 +333,122 @@ const handleSettingsClose = () => {
   font-weight: 500;
   color: var(--color-text-primary);
   flex: 1;
+  text-align: center;
+}
+
+.clear-messages-button {
+  width: var(--button-height-md);
+  height: var(--button-height-md);
+  background: var(--color-bg-secondary);
+  border: var(--border-width) solid var(--color-border);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-xs);
+}
+
+.clear-messages-button:hover {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-error);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  border: var(--border-width) solid var(--color-border);
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-3xl);
+  padding-bottom: var(--spacing-xl);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.modal-body {
+  padding: 0 var(--spacing-3xl) var(--spacing-xl);
+}
+
+.modal-footer {
+  padding: var(--spacing-xl) var(--spacing-3xl);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-lg);
+}
+
+.confirm-text {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+.btn {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  transition: all 0.15s ease;
+  height: var(--button-height-md);
+}
+
+.btn-secondary {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-bg-tertiary);
+}
+
+.btn-danger {
+  background-color: var(--color-error);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626; /* Darker red on hover */
+}
+
+.btn-danger:disabled {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
 }
 </style>

@@ -17,7 +17,7 @@ if (typeof window !== 'undefined') {
   // Set dynamic page title from environment variable
   const brandName = import.meta.env.VITE_BRAND_NAME
   if (brandName) {
-    document.title = brandName
+    document.title = `${brandName} - 网页版`
   }
 
   // Check for dark mode preference

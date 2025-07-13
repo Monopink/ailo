@@ -24,13 +24,12 @@
       @close="showSettingsModal = false"
     />
 
-    <!-- Development test panel (development only) -->
-    <DevTestPanel v-if="isDevelopment" />
+
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch, computed, ref } from 'vue'
+import { onMounted, watch, ref } from 'vue'
 import { useAuthStore } from './stores/auth'
 import ProfileSetupModal from './components/ProfileSetupModal.vue'
 import ProfileEditModal from './components/ProfileEditModal.vue'
@@ -38,27 +37,15 @@ import SettingsModal from './components/SettingsModal.vue'
 import { useChatStore } from './stores/chat'
 import { useRouter } from 'vue-router'
 import { messageService } from './services/messaging'
+import { messageStatusManager } from './services/messaging/messageStatusManager'
 import { notificationService } from './services/notificationService'
-import DevTestPanel from './components/DevTestPanel.vue'
-
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const router = useRouter()
 
-// Development mode check
-const isDevelopment = computed(() => import.meta.env.DEV)
-
 // Modal states
 const showEditModal = ref(false)
 const showSettingsModal = ref(false)
-
-const handleEditProfile = () => {
-  showEditModal.value = true
-}
-
-const handleSettings = () => {
-  showSettingsModal.value = true
-}
 
 const handleProfileSetupClose = () => {
   // Profile setup is required, so we don't allow closing without completion
@@ -86,7 +73,18 @@ onMounted(async () => {
 watch(() => authStore.user, async (newUser, oldUser) => {
   if (newUser && newUser.id) {
     try {
+      console.log('🔄 User logged in, initializing services...', newUser.id)
+
+      // Initialize chat store with user context
+      await chatStore.initializeWithUser(newUser.id)
+
+      // Initialize message status manager with user context
+      await messageStatusManager.initialize(newUser.id)
+
+      // Initialize message service
       await messageService.initialize(newUser.id)
+
+      // Fetch contacts after all services are initialized
       await chatStore.fetchContacts()
 
       // Start periodic refresh of contacts
@@ -95,24 +93,29 @@ watch(() => authStore.user, async (newUser, oldUser) => {
       // Request notification permission on first login (if not asked before)
       await requestNotificationPermissionIfNeeded()
 
-      // Message handling is now done automatically by messageService
-      // No need to set up manual listeners here
+      console.log('✅ All services initialized for user', newUser.id)
     } catch (error) {
-      console.error('❌ Failed to connect to LeanMessage:', error)
+      console.error('❌ Failed to initialize services for user:', error)
     }
   } else if (oldUser) {
     try {
-      console.log('User logged out, cleaning up message service...')
+      console.log('🔄 User logged out, cleaning up services...', oldUser.id)
 
       // Stop periodic refresh
       chatStore.stopPeriodicRefresh()
 
+      // Cleanup message service
       await messageService.cleanup()
-      chatStore.chats = []
-      chatStore.selectedChatId = null
-      console.log('✅ Message service cleaned up')
+
+      // Cleanup message status manager (saves state before clearing)
+      await messageStatusManager.cleanup()
+
+      // Clear chat store user context (preserves localStorage data)
+      chatStore.clearUserContext()
+
+      console.log('✅ All services cleaned up for user', oldUser.id)
     } catch (error) {
-      console.error('❌ Failed to cleanup message service:', error)
+      console.error('❌ Failed to cleanup services:', error)
     }
   }
 })

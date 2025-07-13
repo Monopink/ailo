@@ -1,17 +1,120 @@
 /**
- * Message Status Manager
- * 
+ * Message Status Manager with Persistence Support
+ *
  * Manages message states independently of transport layer (LeanCloud, etc.)
  * Handles business logic for message delivery status, retries, and system messages
+ * Supports persistence to localStorage for cross-session continuity
  */
 
 import { MessageStatus, MessageFailureReason } from './types.js'
+import localStorageService from '../localStorage.js'
 
 export class MessageStatusManager {
   constructor() {
     this.pendingMessages = new Map() // localId -> message
     this.statusCallbacks = new Set()
     this.systemMessageCallbacks = new Set()
+    this.persistenceEnabled = false
+    this.currentUserId = null
+  }
+
+  /**
+   * Initialize with user context and load persisted state
+   */
+  async initialize(userId) {
+    if (!userId) {
+      throw new Error('User ID is required for message status manager')
+    }
+
+    this.currentUserId = userId
+    this.persistenceEnabled = true
+
+    // Note: localStorage user context should already be set by chatStore
+    // We don't set it here to avoid conflicts
+
+    // Load persisted message status
+    await this.loadPersistedState()
+
+    console.log(`📊 MessageStatusManager initialized for user ${userId}`)
+  }
+
+  /**
+   * Cleanup and save state
+   */
+  async cleanup() {
+    if (this.persistenceEnabled) {
+      await this.savePersistedState()
+    }
+
+    this.pendingMessages.clear()
+    this.statusCallbacks.clear()
+    this.systemMessageCallbacks.clear()
+    this.persistenceEnabled = false
+    this.currentUserId = null
+
+    console.log('📊 MessageStatusManager cleaned up')
+  }
+
+  /**
+   * Load persisted message status from localStorage
+   */
+  async loadPersistedState() {
+    if (!this.persistenceEnabled) return
+
+    try {
+      const statusData = localStorageService.loadMessageStatus()
+      if (statusData && statusData.pendingMessages) {
+        // Convert plain object back to Map
+        Object.entries(statusData.pendingMessages).forEach(([localId, message]) => {
+          // Restore message with proper timestamp objects
+          const restoredMessage = {
+            ...message,
+            timestamp: new Date(message.timestamp)
+          }
+          this.pendingMessages.set(localId, restoredMessage)
+        })
+
+        console.log(`📊 Loaded ${this.pendingMessages.size} persisted messages`)
+      }
+    } catch (error) {
+      console.error('Failed to load persisted message status:', error)
+    }
+  }
+
+  /**
+   * Save current message status to localStorage
+   */
+  async savePersistedState() {
+    if (!this.persistenceEnabled) return
+
+    try {
+      // Convert Map to plain object for serialization
+      const pendingMessagesObj = {}
+      this.pendingMessages.forEach((message, localId) => {
+        pendingMessagesObj[localId] = {
+          ...message,
+          timestamp: message.timestamp.toISOString() // Serialize timestamp
+        }
+      })
+
+      localStorageService.saveMessageStatus(pendingMessagesObj)
+      console.log(`📊 Saved ${this.pendingMessages.size} messages to persistence`)
+    } catch (error) {
+      console.error('Failed to save message status to persistence:', error)
+    }
+  }
+
+  /**
+   * Auto-save state after status changes
+   */
+  _autoSave() {
+    if (this.persistenceEnabled) {
+      // Debounce saves to avoid excessive localStorage writes
+      clearTimeout(this._saveTimeout)
+      this._saveTimeout = setTimeout(() => {
+        this.savePersistedState()
+      }, 1000) // Save after 1 second of inactivity
+    }
   }
 
   /**
@@ -339,7 +442,7 @@ export class MessageStatusManager {
   }
 
   /**
-   * Notify status change callbacks
+   * Notify status change callbacks and trigger auto-save
    */
   _notifyStatusChange(message) {
     this.statusCallbacks.forEach(callback => {
@@ -349,6 +452,9 @@ export class MessageStatusManager {
         console.error('Error in status change callback:', error)
       }
     })
+
+    // Auto-save state after status changes
+    this._autoSave()
   }
 
   /**

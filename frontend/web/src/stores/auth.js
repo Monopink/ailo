@@ -2,9 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiClient } from '../utils/apiHelpers'
 import axios from 'axios'
-import { useToast } from 'vue-toastification'
-
-const toast = useToast()
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -81,17 +78,6 @@ export const useAuthStore = defineStore('auth', () => {
       setToken(access_token)
       await fetchUser()
     } catch (error) {
-      if (error.response) {
-        if (error.response.status === 401 || error.response.status === 400) {
-          toast.error("手机号或密码错误")
-        } else {
-          toast.error(`系统错误: ${error.response.status}`)
-        }
-      } else if (error.request) {
-        toast.error("网络错误，请检查您的连接")
-      } else {
-        toast.error("发生未知错误")
-      }
       throw error
     }
   }

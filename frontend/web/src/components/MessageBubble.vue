@@ -98,7 +98,7 @@ const handleRetry = async () => {
     handleError(error, {
       operation: 'retry_message',
       context: 'MessageBubble',
-      showToast: true,
+      showToast: false,
     })
   } finally {
     retrying.value = false

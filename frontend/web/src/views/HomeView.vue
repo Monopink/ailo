@@ -100,13 +100,11 @@ import DeveloperInfoModal from '../components/DeveloperInfoModal.vue';
 import { useChatStore } from '../stores/chat';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
 import { APP_CONFIG } from '../config/constants';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const router = useRouter();
-const toast = useToast();
 
 // Modal states
 const showEditModal = ref(false);
@@ -194,7 +192,6 @@ const handleClearMessages = async () => {
     const success = chatStore.clearContactChat(selectedChatId.value);
 
     if (success) {
-      toast.success('聊天记录已清除');
       showClearMessagesConfirm.value = false;
 
       // Go back to chat list on mobile, or clear selection on desktop
@@ -204,11 +201,10 @@ const handleClearMessages = async () => {
         chatStore.selectChat(null);
       }
     } else {
-      toast.error('清除聊天记录失败');
+      console.error('Failed to clear messages: operation returned false');
     }
   } catch (error) {
     console.error('Failed to clear messages:', error);
-    toast.error('清除聊天记录时发生错误');
   } finally {
     isClearing.value = false;
   }

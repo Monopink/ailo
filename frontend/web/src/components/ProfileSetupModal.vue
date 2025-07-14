@@ -43,6 +43,8 @@
           <span v-if="errors.gender" class="error-message">{{ errors.gender }}</span>
         </div>
 
+
+
         <div class="form-actions">
           <button
             type="submit"
@@ -60,12 +62,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useToast } from 'vue-toastification'
 
 const emit = defineEmits(['close', 'success'])
 
 const authStore = useAuthStore()
-const toast = useToast()
 
 const isLoading = ref(false)
 const formData = ref({
@@ -101,21 +101,20 @@ const handleSubmit = async () => {
   if (!validateForm()) {
     return
   }
-  
+
   isLoading.value = true
-  
+
   try {
     await authStore.createProfile({
       nickname: formData.value.nickname.trim(),
       gender: formData.value.gender
     })
-    
-    toast.success('个人资料设置成功！')
+
     emit('success')
     emit('close')
   } catch (error) {
-    const errorMessage = error.response?.data?.detail || '设置失败，请稍后重试'
-    toast.error(errorMessage)
+    // Silent failure - no error display to user
+    console.error('Profile setup failed:', error)
   } finally {
     isLoading.value = false
   }
@@ -143,34 +142,38 @@ const handleOverlayClick = () => {
 
 .modal-content {
   background: var(--color-bg-primary);
-  border-radius: var(--border-radius);
-  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  border: var(--border-width) solid var(--color-border);
+  padding: var(--spacing-3xl);
   width: 90%;
-  max-width: 350px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 
 .modal-header {
   text-align: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--spacing-3xl);
 }
 
 .modal-header h2 {
   color: var(--color-text-primary);
-  margin-bottom: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 500;
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .modal-subtitle {
   color: var(--color-text-secondary);
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
+  margin: 0;
 }
 
 .profile-form {
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: var(--spacing-2xl);
 }
 
 .form-group {
@@ -180,9 +183,9 @@ const handleOverlayClick = () => {
 
 .form-label {
   color: var(--color-text-primary);
-  font-weight: 500;
-  margin-bottom: 0.4rem;
-  font-size: 0.85rem;
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-size-sm);
 }
 
 .required {
@@ -191,19 +194,32 @@ const handleOverlayClick = () => {
 
 .form-input,
 .form-select {
-  padding: 0.6rem;
+  height: var(--input-height);
+  padding: 0 var(--spacing-xl);
   border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-sm);
+  border-radius: var(--radius-lg);
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
-  font-size: 0.85rem;
-  transition: border-color 0.2s;
+  font-size: var(--font-size-sm);
+  transition: border-color 0.2s ease;
+  line-height: 1.4;
+}
+
+/* Prevent text shifting in select dropdown */
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-xl) center;
+  background-size: 16px;
+  padding-right: calc(var(--spacing-xl) * 2 + 16px);
 }
 
 .form-input:focus,
 .form-select:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(66, 219, 90, 0.1);
 }
 
 .form-input.error,
@@ -213,38 +229,70 @@ const handleOverlayClick = () => {
 
 .error-message {
   color: var(--color-error);
-  font-size: 0.8rem;
-  margin-top: 0.25rem;
+  font-size: var(--font-size-xs);
+  margin-top: var(--spacing-sm);
+  min-height: 1.2em; /* Reserve space to prevent layout shift */
 }
 
 .form-actions {
-  margin-top: 1rem;
+  margin-top: var(--spacing-xl);
 }
 
 .btn {
   width: 100%;
-  padding: 0.6rem;
+  height: var(--button-height-lg);
+  padding: 0 var(--spacing-3xl);
   border: none;
-  border-radius: var(--border-radius-sm);
-  font-size: 0.85rem;
-  font-weight: 500;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary {
   background-color: var(--color-primary);
   color: white;
-  font-weight: 500;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
   background-color: var(--color-primary-hover);
   color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: var(--shadow-xs);
 }
 
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
+
+/* Mobile optimizations */
+@media (max-width: 767px) {
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+    margin: var(--spacing-lg);
+    padding: var(--spacing-2xl);
+  }
+
+  .modal-header {
+    margin-bottom: var(--spacing-2xl);
+  }
+
+  .profile-form {
+    gap: var(--spacing-xl);
+  }
+}
+
+
 </style>

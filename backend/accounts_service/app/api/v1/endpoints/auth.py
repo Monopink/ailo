@@ -33,7 +33,7 @@ async def request_sms_code(
     phone = phone_data.phone
     # Basic validation for Chinese phone numbers
     if not re.match(r"^1[3-9]\d{9}$", phone):
-        raise HTTPException(status_code=400, detail="请输入有效的11位手机号码。")
+        raise HTTPException(status_code=400, detail="请输入有效手机号码。")
 
     user = await crud.user.get_user_by_phone(db, phone=phone)
     if user:

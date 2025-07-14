@@ -15,6 +15,27 @@ import { multiDeviceManager } from '../multiDeviceManager'
 import { smartRetryStrategy } from '../smartRetryStrategy'
 import { conversationErrorReporter } from '../conversationErrorReporter'
 
+// Global Realtime instance singleton with persistence
+class RealtimeSingleton {
+  constructor() {
+    this.instance = null
+  }
+
+  getInstance() {
+    return this.instance
+  }
+
+  setInstance(instance) {
+    this.instance = instance
+  }
+
+  clearInstance() {
+    this.instance = null
+  }
+}
+
+const realtimeSingleton = new RealtimeSingleton()
+
 export class LeanCloudProvider {
   constructor() {
     this.currentUserId = null
@@ -34,10 +55,20 @@ export class LeanCloudProvider {
   }
 
   /**
+   * Static method to reset global Realtime instance (for testing/debugging)
+   */
+  static resetGlobalInstance() {
+    realtimeSingleton.clearInstance()
+    console.log('🔄 Global LeanCloud instance reset')
+  }
+
+  /**
    * Initialize the provider
    */
   async initialize(userId) {
     try {
+      console.log('🔄 Initializing LeanCloud provider...')
+
       await this._initLeanCloud()
       await this._loginLeanCloud(userId)
       this.currentUserId = userId
@@ -46,100 +77,105 @@ export class LeanCloudProvider {
       // Preload unified conversation ID (non-blocking)
       this._preloadConversationId()
 
-      console.log('✅ LeanCloud provider initialized')
+      console.log('✅ LeanCloud provider initialized successfully')
     } catch (error) {
       console.error('❌ Failed to initialize LeanCloud provider:', error)
+      this.toast.error('服务初始化失败，请刷新页面重试')
       throw error
     }
   }
 
   /**
-   * Initialize LeanCloud Realtime
+   * Initialize LeanCloud Realtime using singleton pattern
    */
   async _initLeanCloud() {
-    if (this.realtime) {
-      console.log('✅ LeanCloud already initialized')
-      return true
+    // Check if we already have a global instance
+    const existingInstance = realtimeSingleton.getInstance()
+    if (existingInstance) {
+      this.realtime = existingInstance
+      console.log('✅ Using existing global LeanCloud instance')
+      return
     }
 
-    const maxRetries = 3
-    let retries = 0
-    let lastError = null
+    // Check if this instance already has realtime
+    if (this.realtime) {
+      realtimeSingleton.setInstance(this.realtime)
+      console.log('✅ LeanCloud already initialized on this instance')
+      return
+    }
+
+    // Get configuration
+    const appId = import.meta.env.VITE_LEANCLOUD_APP_ID
+    const appKey = import.meta.env.VITE_LEANCLOUD_APP_KEY
+    const serverURL = import.meta.env.VITE_LEANCLOUD_SERVER_URL
+
+    if (!appId || !appKey) {
+      const error = new Error('LeanCloud appId and appKey are required')
+      console.error('LeanCloud initialization failed:', error)
+      this.toast.error('聊天服务初始化失败')
+      throw error
+    }
+
+    const options = {
+      appId,
+      appKey,
+      debug: true
+    }
+
+    // Configure server based on region
+    if (serverURL === 'CN') {
+      options.server = 'https://zcuk19lc.lc-cn-n1-shared.com'
+      console.log('Using LeanCloud region: CN')
+    } else if (serverURL === 'US') {
+      options.server = 'https://rtm-router.leancloud.app'
+      console.log('Using LeanCloud region: US')
+    } else if (serverURL) {
+      options.server = serverURL
+      console.log(`Using LeanCloud server URL: ${serverURL}`)
+    }
+
+    console.log('LeanCloud initialization options:', {
+      appId: options.appId,
+      appKey: options.appKey ? '******' : undefined,
+      server: options.server
+    })
 
     try {
-      const appId = import.meta.env.VITE_LEANCLOUD_APP_ID
-      const appKey = import.meta.env.VITE_LEANCLOUD_APP_KEY
-      const serverURL = import.meta.env.VITE_LEANCLOUD_SERVER_URL
+      console.log('Attempting to initialize LeanCloud...')
 
-      if (!appId || !appKey) {
-        const error = new Error('LeanCloud appId and appKey are required')
-        console.error('LeanCloud initialization failed:', error)
-        this.toast.error('聊天服务初始化失败：缺少必要的配置信息')
+      // Try to create new Realtime instance
+      const newRealtime = new Realtime(options)
+
+      // Verify initialization
+      if (!newRealtime) {
+        throw new Error('Realtime instance is null after initialization')
+      }
+
+      // Set both instance and global reference
+      this.realtime = newRealtime
+      realtimeSingleton.setInstance(newRealtime)
+
+      console.log('✅ LeanCloud Realtime initialized successfully')
+    } catch (error) {
+      if (error.message && error.message.includes('is already initialized')) {
+        console.log('⚠️ LeanCloud already initialized, trying to find existing instance...')
+
+        // If there's a global instance, use it
+        const existingInstance = realtimeSingleton.getInstance()
+        if (existingInstance) {
+          this.realtime = existingInstance
+          console.log('✅ Using existing global LeanCloud instance')
+          return
+        }
+
+        // If no global instance but error says already initialized,
+        // there might be a dangling instance somewhere
+        console.error('❌ LeanCloud says already initialized but no global instance found')
+        throw new Error('LeanCloud initialization conflict: already initialized but no accessible instance')
+      } else {
+        console.error('❌ LeanCloud initialization failed:', error)
         throw error
       }
-
-      const options = {
-        appId,
-        appKey,
-        debug: true
-      }
-
-      // Configure server based on region
-      if (serverURL === 'CN') {
-        options.server = 'https://zcuk19lc.lc-cn-n1-shared.com'
-        console.log('Using LeanCloud region: CN')
-      } else if (serverURL === 'US') {
-        options.server = 'https://rtm-router.leancloud.app'
-        console.log('Using LeanCloud region: US')
-      } else if (serverURL) {
-        options.server = serverURL
-        console.log(`Using LeanCloud server URL: ${serverURL}`)
-      }
-
-      console.log('LeanCloud initialization options:', {
-        appId: options.appId,
-        appKey: options.appKey ? '******' : undefined,
-        server: options.server
-      })
-
-      while (retries < maxRetries) {
-        try {
-          console.log(`Attempting to initialize LeanCloud (attempt ${retries + 1}/${maxRetries})...`)
-          this.realtime = new Realtime(options)
-
-          // Verify initialization
-          if (!this.realtime) {
-            throw new Error('Realtime instance is null after initialization')
-          }
-
-          console.log('✅ LeanCloud Realtime initialized successfully')
-          return true
-        } catch (error) {
-          if (error.message && error.message.includes('is already initialized')) {
-            console.log('✅ LeanCloud already initialized (detected from error)')
-            return true
-          }
-
-          lastError = error
-          console.error(`LeanCloud initialization attempt ${retries + 1} failed:`, error)
-          retries++
-
-          if (retries < maxRetries) {
-            const delay = retries * 1000
-            console.log(`Retrying in ${delay}ms...`)
-            await new Promise(resolve => setTimeout(resolve, delay))
-          }
-        }
-      }
-
-      console.error('LeanCloud Realtime initialization failed after multiple attempts:', lastError)
-      this.toast.error('服务初始化失败，请刷新页面重试')
-      throw lastError
-
-    } catch (error) {
-      console.error('❌ Failed to initialize LeanCloud:', error)
-      this.toast.error('服务初始化失败')
-      throw error
     }
   }
 
@@ -147,21 +183,28 @@ export class LeanCloudProvider {
    * Login to LeanCloud with user ID
    */
   async _loginLeanCloud(userId) {
+    // Convert userId to string if it's not already
+    if (!userId) {
+      console.error('userId is required')
+      throw new Error('userId is required')
+    }
+
+    // Ensure userId is a string
+    userId = String(userId)
+
     try {
       if (!this.realtime) {
         await this._initLeanCloud()
       }
 
-      // Convert userId to string if it's not already
-      if (!userId) {
-        console.error('userId is required')
-        throw new Error('userId is required')
+      // Double-check realtime instance is functional
+      if (!this.realtime || typeof this.realtime.createIMClient !== 'function') {
+        console.warn('⚠️ Realtime instance is not functional, reinitializing...')
+        this.realtime = null
+        await this._initLeanCloud()
       }
 
-      // Ensure userId is a string
-      userId = String(userId)
-
-      console.log(`Logging in to LeanCloud with user ID: ${userId}`)
+      console.log(`🔄 Logging in to LeanCloud with user ID: ${userId}`)
 
       // Get login options from multi-device manager
       const loginOptions = multiDeviceManager.getLoginOptions(userId)
@@ -175,14 +218,24 @@ export class LeanCloudProvider {
       console.log('✅ Successfully logged in to LeanCloud')
       return this.client
     } catch (error) {
-      console.error('❌ Failed to login to LeanCloud:', error)
-      this.toast.error('连接服务失败，请重试')
+      console.error('❌ LeanCloud login failed:', error)
+
+      // Close any partial client connection
+      if (this.client) {
+        try {
+          await this.client.close()
+        } catch (closeError) {
+          console.warn('⚠️ Error closing client after failed login:', closeError)
+        }
+        this.client = null
+      }
+
       throw error
     }
   }
 
   /**
-   * Cleanup the provider
+   * Cleanup the provider (but keep global realtime instance)
    */
   async cleanup() {
     try {
@@ -194,11 +247,17 @@ export class LeanCloudProvider {
       this.conversations.clear()
       this.messageCallbacks.clear()
       this.typingCallbacks.clear()
-      console.log('✅ LeanCloud provider cleaned up')
+
+      // Don't clear this.realtime or globalRealtimeInstance
+      // They should be reused across provider instances
+
+      console.log('✅ LeanCloud provider cleaned up (keeping global realtime instance)')
     } catch (error) {
       console.error('❌ Failed to cleanup LeanCloud provider:', error)
     }
   }
+
+
 
   /**
    * Send a chat message

@@ -29,14 +29,14 @@
               :class="{ 'error': showPhoneError && !isValidPhone }"
               @blur="showPhoneError = true"
               @input="showPhoneError = false"
-              placeholder="请输入11位手机号"
+              placeholder="请输入手机号"
               autocomplete="username"
               required
             />
           </div>
           <div class="error-message-container">
             <div v-if="showPhoneError && !isValidPhone" class="error-message">
-              请输入有效的11位手机号码
+              请输入有效手机号码
             </div>
           </div>
         </div>
@@ -47,9 +47,9 @@
               :type="showPassword ? 'text' : 'password'"
               id="password"
               v-model="password"
-              :class="{ 'error': showPasswordError && !password.trim() }"
+              :class="{ 'error': (showPasswordError && !password.trim()) || passwordLoginError }"
               @blur="showPasswordError = true"
-              @input="showPasswordError = false"
+              @input="showPasswordError = false; passwordLoginError = ''"
               placeholder="请输入密码"
               autocomplete="current-password"
               required
@@ -64,14 +64,15 @@
             </button>
           </div>
           <div class="error-message-container">
-            <div v-if="showPasswordError && !password.trim()" class="error-message">
-              请输入密码
+            <div v-if="(showPasswordError && !password.trim()) || passwordLoginError" class="error-message">
+              {{ passwordLoginError || '请输入密码' }}
             </div>
           </div>
         </div>
         <button type="submit" :disabled="isLoading || !isFormValid" class="btn btn-primary submit-btn">
           {{ isLoading ? '登录中...' : '登录' }}
         </button>
+
       </form>
 
       <!-- Code Login Form -->
@@ -86,17 +87,17 @@
               type="tel"
               id="phone-code"
               v-model="phone"
-              :class="{ 'error': showPhoneError && !isValidPhone }"
+              :class="{ 'error': (showPhoneError && !isValidPhone) || sendCodeError }"
               @blur="showPhoneError = true"
-              @input="showPhoneError = false"
-              placeholder="请输入11位手机号"
+              @input="showPhoneError = false; sendCodeError = ''"
+              placeholder="请输入手机号"
               autocomplete="username"
               required
             />
           </div>
           <div class="error-message-container">
-            <div v-if="showPhoneError && !isValidPhone" class="error-message">
-              请输入有效的11位手机号码
+            <div v-if="(showPhoneError && !isValidPhone) || sendCodeError" class="error-message">
+              {{ sendCodeError || '请输入有效手机号码' }}
             </div>
           </div>
         </div>
@@ -107,9 +108,9 @@
               type="text"
               id="code"
               v-model="code"
-              :class="{ 'error': showCodeError && !code.trim() }"
+              :class="{ 'error': (showCodeError && !code.trim()) || codeLoginError }"
               @blur="showCodeError = true"
-              @input="showCodeError = false"
+              @input="showCodeError = false; codeLoginError = ''"
               placeholder="请输入验证码"
               maxlength="6"
               autocomplete="one-time-code"
@@ -120,14 +121,15 @@
             </button>
           </div>
           <div class="error-message-container">
-            <div v-if="showCodeError && !code.trim()" class="error-message">
-              请输入验证码
+            <div v-if="(showCodeError && !code.trim()) || codeLoginError" class="error-message">
+              {{ codeLoginError || '请输入验证码' }}
             </div>
           </div>
         </div>
         <button type="submit" :disabled="isLoading || !isCodeFormValid" class="btn btn-primary submit-btn">
           {{ isLoading ? '登录中...' : '登录' }}
         </button>
+
       </form>
 
       <div class="switch-form">
@@ -141,14 +143,12 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
 import { apiClient } from '../utils/apiHelpers';
 import { useAuthStore } from '../stores/auth';
 import { APP_CONFIG } from '../config/constants';
 
 const router = useRouter();
 const authStore = useAuthStore();
-const toast = useToast();
 
 const loginMethod = ref('password'); // 'password' or 'code'
 const phone = ref('');
@@ -165,6 +165,11 @@ const countdown = ref(60);
 const showPhoneError = ref(false);
 const showPasswordError = ref(false);
 const showCodeError = ref(false);
+
+// Error message states
+const passwordLoginError = ref('');
+const codeLoginError = ref('');
+const sendCodeError = ref('');
 
 // Computed validation
 const isValidPhone = computed(() => {
@@ -187,18 +192,24 @@ watch(loginMethod, () => {
   showPhoneError.value = false;
   showPasswordError.value = false;
   showCodeError.value = false;
+  // Clear error messages
+  passwordLoginError.value = '';
+  codeLoginError.value = '';
+  sendCodeError.value = '';
 });
 
 const handleSendCode = async () => {
   if (!phone.value || !/^1[3-9]\d{9}$/.test(phone.value)) {
-    toast.error('请输入有效的11位手机号码。');
+    sendCodeError.value = '请输入有效手机号码';
     return;
   }
+
+  sendCodeError.value = ''; // Clear previous error
   isSendingCode.value = true;
   countdown.value = 60;
+
   try {
     await apiClient.post('/auth/send-code', { phone: phone.value });
-    toast.success('验证码已发送！');
     const interval = setInterval(() => {
       countdown.value--;
       if (countdown.value <= 0) {
@@ -207,28 +218,41 @@ const handleSendCode = async () => {
       }
     }, 1000);
   } catch (err) {
-    const errorMessage = err.response?.data?.detail || '发送验证码失败。';
-    toast.error(errorMessage);
+    const errorMessage = err.response?.data?.detail || '发送验证码失败';
+    sendCodeError.value = errorMessage;
     isSendingCode.value = false;
   }
 };
 
 const handlePasswordLogin = async () => {
+  passwordLoginError.value = ''; // Clear previous error
   isLoading.value = true;
+
   try {
     await authStore.loginWithPassword(phone.value, password.value);
     router.push('/');
   } catch (err) {
-    // Error is already handled by the auth store, which shows a toast.
-    // We just need to catch it to prevent unhandled promise rejection warnings.
-    console.error("Login failed:", err);
+    // Handle error display locally instead of relying on auth store toast
+    if (err.response) {
+      if (err.response.status === 401 || err.response.status === 400) {
+        passwordLoginError.value = '手机号或密码错误';
+      } else {
+        passwordLoginError.value = `系统错误: ${err.response.status}`;
+      }
+    } else if (err.request) {
+      passwordLoginError.value = '网络错误，请检查您的连接';
+    } else {
+      passwordLoginError.value = '发生未知错误';
+    }
   } finally {
     isLoading.value = false;
   }
 };
 
 const handleCodeLogin = async () => {
+  codeLoginError.value = ''; // Clear previous error
   isLoading.value = true;
+
   try {
     const response = await apiClient.post('/auth/login/code', {
       phone: phone.value,
@@ -237,8 +261,8 @@ const handleCodeLogin = async () => {
     await authStore.login(response.data.access_token);
     router.push('/');
   } catch (err) {
-    const errorMessage = err.response?.data?.detail || '验证码错误或已过期。';
-    toast.error(errorMessage);
+    const errorMessage = err.response?.data?.detail || '验证码错误或已过期';
+    codeLoginError.value = errorMessage;
   } finally {
     isLoading.value = false;
   }
@@ -319,7 +343,7 @@ form {
 }
 
 .form-group {
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
 }
 
 .form-group label {
@@ -366,6 +390,20 @@ form {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   line-height: 1.3;
+}
+
+/* Form error container for button-level errors */
+.form-error-container {
+  min-height: 20px; /* Reserve space to prevent layout shift */
+  margin-top: var(--spacing-md);
+}
+
+.form-error-message {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: center;
 }
 
 .phone-input-group {

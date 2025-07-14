@@ -2,7 +2,7 @@
  * Message rate limiter for preventing spam and abuse
  */
 
-import { MessageConstraints } from './types'
+import { MESSAGE_CONFIG } from '../../config/constants.js'
 
 class MessageRateLimiter {
   constructor() {
@@ -37,19 +37,19 @@ class MessageRateLimiter {
 
     // Clean old messages from history (keep only messages in time window)
     this.messageHistory = this.messageHistory.filter(
-      msg => now - msg.timestamp < MessageConstraints.RATE_LIMIT.TIME_WINDOW
+      msg => now - msg.timestamp < MESSAGE_CONFIG.RATE_LIMIT.TIME_WINDOW
     )
 
     // Check if user has sent too many messages in time window
-    if (this.messageHistory.length >= MessageConstraints.RATE_LIMIT.MESSAGE_COUNT_LIMIT) {
+    if (this.messageHistory.length >= MESSAGE_CONFIG.RATE_LIMIT.MESSAGE_COUNT_LIMIT) {
       // Block user for specified duration
       this.isBlocked = true
-      this.blockEndTime = now + MessageConstraints.RATE_LIMIT.BLOCK_DURATION
+      this.blockEndTime = now + MESSAGE_CONFIG.RATE_LIMIT.BLOCK_DURATION
 
       return {
         canSend: false,
         reason: 'too_many_messages',
-        waitTime: MessageConstraints.RATE_LIMIT.BLOCK_DURATION
+        waitTime: MESSAGE_CONFIG.RATE_LIMIT.BLOCK_DURATION
       }
     }
 

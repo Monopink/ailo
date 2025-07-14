@@ -34,35 +34,38 @@
       </div>
     </div>
     <div class="message-input-area" role="form" aria-label="发送消息">
-      <label for="message-input" class="sr-only">输入消息内容</label>
-      <input
-        id="message-input"
-        type="text"
-        v-model="newMessage"
-        @keyup.enter="sendMessage"
-        @input="handleInput"
-        @compositionstart="handleCompositionStart"
-        @compositionend="handleCompositionEnd"
-        :maxlength="MessageConstraints.MAX_LENGTH"
-        :aria-describedby="messageInputDescription"
-        placeholder="输入消息..."
-        class="message-input"
-        :disabled="!selectedChat"
-        aria-required="true"
-      />
-      <div :id="messageInputDescription" class="sr-only">
-        最多可输入 {{ MessageConstraints.MAX_LENGTH }} 个字符，按回车键发送消息
+      <div class="input-container">
+        <label for="message-input" class="sr-only">输入消息内容</label>
+        <input
+          id="message-input"
+          type="text"
+          v-model="newMessage"
+          @keyup.enter="sendMessage"
+          @input="handleInput"
+          @compositionstart="handleCompositionStart"
+          @compositionend="handleCompositionEnd"
+          :maxlength="MESSAGE_CONFIG.MAX_LENGTH"
+          :aria-describedby="messageInputDescription"
+          placeholder="输入消息..."
+          class="message-input"
+          :disabled="!selectedChat"
+          aria-required="true"
+        />
+        <button
+          @click="sendMessage"
+          class="btn btn-circle btn-primary send-button"
+          type="button"
+          :disabled="!newMessage.trim() || !selectedChat"
+          :aria-label="`发送消息给 ${selectedChat?.name || '联系人'}`">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
-      <button
-        @click="sendMessage"
-        class="btn btn-circle btn-primary send-button"
-        type="button"
-        :disabled="!newMessage.trim() || !selectedChat"
-        :aria-label="`发送消息给 ${selectedChat?.name || '联系人'}`">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
+
+      <div :id="messageInputDescription" class="sr-only">
+        按回车键发送消息
+      </div>
     </div>
   </div>
   <div v-else class="no-chat-selected">
@@ -81,9 +84,8 @@ import TimeDivider from './TimeDivider.vue';
 import MessageFailureNotice from './MessageFailureNotice.vue';
 import { messageService } from '../services/messaging';
 import { useAuthStore } from '../stores/auth';
-import { MessageType, MessageConstraints, MessageSecurity } from '../services/messaging/types';
+import { MessageType, MessageSecurity, MessageFailureReason } from '../services/messaging/types';
 import { messageRateLimiter } from '../services/messaging/rateLimiter';
-import { useToast } from 'vue-toastification';
 import { notificationService } from '../services/notificationService';
 import { MESSAGE_CONFIG } from '../config/constants.js';
 
@@ -91,7 +93,6 @@ const emit = defineEmits(['clear-messages'])
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
-const toast = useToast();
 
 // Get brand name from environment variable
 const brandName = import.meta.env.VITE_BRAND_NAME;
@@ -100,10 +101,7 @@ const messagesContainer = ref(null);
 const isTyping = ref(false);
 const typingTimeout = ref(null);
 
-// Helper function for showing toast messages
-const showToast = (message, type = 'error') => {
-  toast[type](message);
-};
+
 
 // Generate unique ID for accessibility
 const messageInputDescription = ref(`message-input-desc-${Math.random().toString(36).substring(2, 9)}`);
@@ -323,6 +321,11 @@ const handleInput = () => {
   if (!selectedChat.value) return;
   if (isComposing.value) return; // Skip during Chinese input composition
 
+  // Enforce length limit by truncating input
+  if (newMessage.value.length > MESSAGE_CONFIG.MAX_LENGTH) {
+    newMessage.value = newMessage.value.substring(0, MESSAGE_CONFIG.MAX_LENGTH);
+  }
+
   const hasContent = newMessage.value.trim().length > 0;
 
   if (hasContent) {
@@ -341,16 +344,29 @@ const sendMessage = async () => {
   const sanitizedContent = MessageSecurity.sanitizeContent(content);
 
   // Check message length
-  if (sanitizedContent.length > MessageConstraints.MAX_LENGTH) {
-    showToast(`消息长度不能超过 ${MessageConstraints.MAX_LENGTH} 个字符`);
+  if (sanitizedContent.length > MESSAGE_CONFIG.MAX_LENGTH) {
+    // Create a failed message for length limit using messageService
+    const failedMessage = messageService.createFailedMessage(
+      content,
+      MessageFailureReason.CONTENT_TOO_LONG,
+      false
+    );
+    chatStore.addMessage(selectedChat.value.id, failedMessage);
+    newMessage.value = ''; // Clear input
     return;
   }
 
   // Check rate limiting BEFORE sending
   const rateLimitCheck = messageRateLimiter.canSendMessage(sanitizedContent, selectedChat.value.id);
   if (!rateLimitCheck.canSend) {
-    const errorMessage = messageRateLimiter.getRateLimitMessage(rateLimitCheck.reason, rateLimitCheck.waitTime);
-    showToast(errorMessage);
+    // Create a failed message for rate limit using messageService
+    const failedMessage = messageService.createFailedMessage(
+      content,
+      MessageFailureReason.RATE_LIMITED,
+      false
+    );
+    chatStore.addMessage(selectedChat.value.id, failedMessage);
+    newMessage.value = ''; // Clear input
     return;
   }
 
@@ -386,22 +402,15 @@ const sendMessage = async () => {
   } catch (error) {
     console.error('Failed to send message:', error);
 
-    // Create a failed message for UI feedback
-    const failedMessage = {
-      id: `failed-${Date.now()}`,
-      localId: `local-${Date.now()}`,
-      text: content,
-      sender: 'self',
-      timestamp: new Date(),
-      status: 'failed',
-      canRetry: true
-    };
+    // Create a failed message for UI feedback using messageService
+    const failedMessage = messageService.createFailedMessage(
+      content,
+      MessageFailureReason.NETWORK_ERROR,
+      true
+    );
 
     // Add failed message to chat
     chatStore.addMessage(selectedChat.value.id, failedMessage);
-
-    // Show user-friendly error message
-    showToast('消息发送失败，请重试');
   }
   await nextTick();
   scrollToBottom();
@@ -696,16 +705,21 @@ onUnmounted(() => {
 }
 
 .message-input-area {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-xl) var(--spacing-2xl);
+  padding: calc(var(--spacing-xl) - var(--spacing-xs)) var(--spacing-2xl);
   background-color: var(--color-bg-primary);
   border-top: var(--border-width) solid var(--color-border);
   position: sticky;
   bottom: 0;
   z-index: 5;
 }
+
+.input-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+
 
 .message-input {
   flex-grow: 1;
@@ -733,6 +747,8 @@ onUnmounted(() => {
   cursor: not-allowed;
   background-color: var(--color-bg-tertiary);
 }
+
+
 
 .message-input::placeholder {
   color: var(--color-text-placeholder);

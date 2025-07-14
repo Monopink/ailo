@@ -43,6 +43,8 @@
           <span v-if="errors.gender" class="error-message">{{ errors.gender }}</span>
         </div>
 
+
+
         <div class="form-actions">
           <button
             type="button"
@@ -68,12 +70,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useToast } from 'vue-toastification'
 
 const emit = defineEmits(['close', 'success'])
 
 const authStore = useAuthStore()
-const toast = useToast()
 
 const isLoading = ref(false)
 const formData = ref({
@@ -117,29 +117,20 @@ const handleSubmit = async () => {
   if (!validateForm()) {
     return
   }
-  
+
   isLoading.value = true
-  
+
   try {
     await authStore.updateProfile({
       nickname: formData.value.nickname.trim(),
       gender: formData.value.gender
     })
-    
-    toast.success('个人资料更新成功！')
+
     emit('success')
     emit('close')
   } catch (error) {
-    let errorMessage = '更新失败，请稍后重试'
-
-    if (error.response?.data?.detail && typeof error.response.data.detail === 'string') {
-      const detail = error.response.data.detail
-      if (!detail.includes('SQL') && !detail.includes('greenlet') && !detail.includes('sqlalchemy')) {
-        errorMessage = detail
-      }
-    }
-
-    toast.error(errorMessage)
+    // Silent failure - no error display to user
+    console.error('Profile update failed:', error)
   } finally {
     isLoading.value = false
   }
@@ -325,4 +316,6 @@ const handleOverlayClick = () => {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+
 </style>

@@ -607,9 +607,7 @@ textarea {
 }
 
 .Vue-Toastification__progress-bar {
-  height: 2px !important;
-  background: var(--color-primary) !important;
-  opacity: 0.6 !important;
+  visibility: hidden;
 }
 
 .Vue-Toastification__icon {

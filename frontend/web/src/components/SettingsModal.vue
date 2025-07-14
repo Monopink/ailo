@@ -64,12 +64,12 @@
     <div v-if="showClearConfirm" class="modal-overlay" @click="showClearConfirm = false">
       <div class="modal-content confirm-dialog" @click.stop>
         <div class="modal-header">
-          <h3>确认清除聊天记录</h3>
+          <h3>清除聊天记录</h3>
         </div>
 
         <div class="modal-body">
           <p class="confirm-text">
-            此操作将删除所有聊天记录，但保留联系人列表。此操作不可撤销，确定要继续吗？
+            确定清除所有聊天记录吗？
           </p>
         </div>
 
@@ -90,11 +90,9 @@
 import { ref, onMounted } from 'vue'
 import { notificationService } from '../services/notificationService'
 import { useChatStore } from '../stores/chat'
-import { useToast } from 'vue-toastification'
 
 const emit = defineEmits(['close'])
 const chatStore = useChatStore()
-const toast = useToast()
 
 // Get brand name from environment variable
 const brandName = import.meta.env.VITE_BRAND_NAME
@@ -131,14 +129,12 @@ const handleClearChatMessages = async () => {
     const success = chatStore.clearAllChatMessages()
 
     if (success) {
-      toast.success('聊天记录已清除')
       showClearConfirm.value = false
     } else {
-      toast.error('清除聊天记录失败')
+      console.error('Failed to clear chat messages: operation returned false')
     }
   } catch (error) {
     console.error('Failed to clear chat messages:', error)
-    toast.error('清除聊天记录时发生错误')
   } finally {
     isClearing.value = false
   }
@@ -226,11 +222,11 @@ const handleOverlayClick = (event) => {
 }
 
 .settings-section {
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
 }
 
 .settings-section:last-child {
-  margin-bottom: 0;
+  margin-bottom: 2rem;
 }
 
 .settings-section h4 {

@@ -38,7 +38,7 @@
               >
                 <ContactAvatar :nickname="contact.nickname" size="medium" />
                 <div class="contact-info">
-                  <div class="contact-name">{{ contact.nickname || '' }}</div>
+                  <div class="contact-name">{{ contact.nickname || '未命名联系人' }}</div>
                   <div class="contact-gender" v-if="getGenderEmoji(contact.gender)">
                     <span class="gender-emoji">{{ getGenderEmoji(contact.gender) }}</span>
                   </div>
@@ -74,7 +74,6 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useChatStore } from '../stores/chat';
-import { useToast } from 'vue-toastification';
 import { apiClient } from '../utils/apiHelpers';
 import ContactAvatar from './ContactAvatar.vue';
 import { uiLogger } from '../utils/logger.js';
@@ -84,7 +83,6 @@ const emit = defineEmits(['close', 'contact-added']);
 
 const authStore = useAuthStore();
 const chatStore = useChatStore();
-const toast = useToast();
 
 const loading = ref(false);
 const searchCompleted = ref(false);
@@ -159,7 +157,7 @@ const performSearch = async () => {
     handleError(error, {
       operation: 'search_contacts',
       context: 'ContactSearchModal',
-      showToast: true,
+      showToast: false,
     });
     searchResults.value = [];
     searchCompleted.value = true;
@@ -335,6 +333,7 @@ const handleOverlayClick = (event) => {
   font-weight: 500;
   color: var(--color-text-primary);
   margin-bottom: var(--spacing-xs);
+  min-height: 1.2em; /* Ensure space is reserved even when empty */
 }
 
 .contact-gender {

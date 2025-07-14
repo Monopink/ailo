@@ -16,17 +16,17 @@
               type="tel"
               id="phone"
               v-model="phone"
-              :class="{ 'error': showPhoneError && !isValidPhone }"
+              :class="{ 'error': (showPhoneError && !isValidPhone) || sendCodeError }"
               @blur="showPhoneError = true"
-              @input="showPhoneError = false"
-              placeholder="请输入11位手机号"
+              @input="showPhoneError = false; sendCodeError = ''"
+              placeholder="请输入手机号"
               autocomplete="username"
               required
             />
           </div>
           <div class="error-message-container">
-            <div v-if="showPhoneError && !isValidPhone" class="error-message">
-              请输入有效的11位手机号码
+            <div v-if="(showPhoneError && !isValidPhone) || sendCodeError" class="error-message">
+              {{ sendCodeError || '请输入有效手机号码' }}
             </div>
           </div>
         </div>
@@ -37,9 +37,9 @@
               type="text"
               id="code"
               v-model="code"
-              :class="{ 'error': showCodeError && !code.trim() }"
+              :class="{ 'error': (showCodeError && !code.trim()) || registerError }"
               @blur="showCodeError = true"
-              @input="showCodeError = false"
+              @input="showCodeError = false; registerError = ''"
               placeholder="请输入验证码"
               maxlength="6"
               autocomplete="one-time-code"
@@ -50,8 +50,8 @@
             </button>
           </div>
           <div class="error-message-container">
-            <div v-if="showCodeError && !code.trim()" class="error-message">
-              请输入验证码
+            <div v-if="(showCodeError && !code.trim()) || registerError" class="error-message">
+              {{ registerError || '请输入验证码' }}
             </div>
           </div>
         </div>
@@ -87,6 +87,7 @@
         <button type="submit" :disabled="isLoading || !isFormValid" class="btn btn-primary submit-btn">
           {{ isLoading ? '注册中...' : '注册' }}
         </button>
+
       </form>
       <p class="switch-form">
         已有账户？ <router-link to="/login" class="text-accent">立即登录</router-link>
@@ -119,6 +120,10 @@ const showPhoneError = ref(false);
 const showCodeError = ref(false);
 const showPasswordError = ref(false);
 
+// Error message states
+const registerError = ref('');
+const sendCodeError = ref('');
+
 // Computed validation
 const isValidPhone = computed(() => {
   return /^1[3-9]\d{9}$/.test(phone.value);
@@ -134,21 +139,21 @@ const isFormValid = computed(() => {
 
 const handleSendCode = async () => {
   if (!phone.value) {
-    toast.error('请输入手机号码。');
+    sendCodeError.value = '请输入手机号码';
     return;
   }
   // Basic phone validation
   if (!/^1[3-9]\d{9}$/.test(phone.value)) {
-    toast.error('请输入有效的11位手机号码。');
+    sendCodeError.value = '请输入有效手机号码';
     return;
   }
 
+  sendCodeError.value = ''; // Clear previous error
   isSendingCode.value = true;
   countdown.value = 60;
 
   try {
     await apiClient.post('/auth/send-code', { phone: phone.value });
-    toast.success('验证码已发送！');
     // Start countdown
     const interval = setInterval(() => {
       countdown.value--;
@@ -159,14 +164,16 @@ const handleSendCode = async () => {
       }
     }, 1000);
   } catch (err) {
-    const errorMessage = err.response?.data?.detail || '发送验证码失败，请稍后重试。';
-    toast.error(errorMessage);
+    const errorMessage = err.response?.data?.detail || '发送验证码失败，请稍后重试';
+    sendCodeError.value = errorMessage;
     isSendingCode.value = false;
   }
 };
 
 const handleRegister = async () => {
+  registerError.value = ''; // Clear previous error
   isLoading.value = true;
+
   try {
     const response = await apiClient.post('/auth/register', {
       phone: phone.value,
@@ -179,8 +186,8 @@ const handleRegister = async () => {
       router.push('/login');
     }
   } catch (err) {
-    const errorMessage = err.response?.data?.detail || '注册失败，请检查您的输入。';
-    toast.error(errorMessage);
+    const errorMessage = err.response?.data?.detail || '注册失败，请检查您的输入';
+    registerError.value = errorMessage;
     console.error('Registration failed:', err);
   } finally {
     isLoading.value = false;
@@ -231,7 +238,7 @@ form {
 }
 
 .form-group {
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
 }
 
 .form-group label {
@@ -378,6 +385,20 @@ form {
 .send-code-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Form error container for button-level errors */
+.form-error-container {
+  min-height: 20px; /* Reserve space to prevent layout shift */
+  margin-top: var(--spacing-md);
+}
+
+.form-error-message {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: center;
 }
 
 .switch-form {

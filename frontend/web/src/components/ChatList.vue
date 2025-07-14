@@ -29,7 +29,7 @@
       >
         <ContactAvatar :nickname="chat.name" size="medium" />
         <div class="chat-item-content">
-          <div class="chat-item-name">{{ chat.name }}</div>
+          <div class="chat-item-name">{{ chat.name || '未命名联系人' }}</div>
           <div class="chat-item-preview">
             {{ chat.messages[chat.messages.length - 1]?.text || '暂无消息' }}
           </div>
@@ -55,7 +55,7 @@
           size="medium"
         />
         <div class="user-details">
-          <div class="user-name">{{ authStore.user?.nickname || '' }}</div>
+          <div class="user-name">{{ authStore.user?.nickname || '未设置昵称' }}</div>
         </div>
       </div>
 
@@ -124,14 +124,13 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '../stores/chat';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
-import { useToast } from 'vue-toastification';
+
 import ContactSearchModal from './ContactSearchModal.vue';
 import ContactAvatar from './ContactAvatar.vue';
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
 const router = useRouter();
-const toast = useToast();
 const showSearchModal = ref(false);
 const isDropdownOpen = ref(false);
 const dropdownContainer = ref(null);
@@ -179,10 +178,6 @@ const handleLogout = () => {
 
 // Contact management
 const handleAddContact = () => {
-  if (!chatStore.contactLimits.can_add_more) {
-    toast.error('联系人数量已达上限');
-    return;
-  }
   showSearchModal.value = true;
 };
 
@@ -193,7 +188,6 @@ const handleSearchModalClose = () => {
 const handleContactAdded = () => {
   chatStore.fetchContacts();
   showSearchModal.value = false;
-  toast.success('申请已发送');
 };
 
 // Refresh contacts list with frequency control
@@ -210,9 +204,8 @@ const handleRefreshContacts = async () => {
 
   try {
     await chatStore.fetchContacts();
-    toast.success('联系人列表已刷新');
   } catch (error) {
-    toast.error('刷新失败，请稍后重试');
+    console.error('Failed to refresh contacts:', error);
   } finally {
     isRefreshing.value = false;
   }
@@ -272,6 +265,7 @@ onUnmounted(() => {
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
+  min-height: 1.2em; /* Ensure space is reserved even when empty */
   text-overflow: ellipsis;
 }
 
@@ -289,7 +283,7 @@ onUnmounted(() => {
 
 /* Contact Section */
 .contact-section {
-  padding: var(--spacing-lg) var(--spacing-xl);
+  padding: var(--spacing-xl) var(--spacing-2xl);
   display: flex;
   align-items: center;
   background-color: var(--color-bg-secondary);
@@ -412,6 +406,7 @@ onUnmounted(() => {
   margin-bottom: var(--spacing-xs);
   font-size: var(--font-size-sm);
   white-space: nowrap;
+  min-height: 1.2em; /* Ensure space is reserved even when empty */
   overflow: hidden;
   text-overflow: ellipsis;
 }

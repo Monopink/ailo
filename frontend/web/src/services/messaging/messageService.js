@@ -4,7 +4,7 @@
  */
 
 import { LeanCloudProvider } from './providers/leancloudProvider'
-import { ContactType, createUIMessage, MessageType, MessageFailureReason, MessageConstraints, MessageSecurity } from './types'
+import { ContactType, createUIMessage, MessageType, MessageFailureReason, MessageSecurity, MessageStatus } from './types'
 import { messageStatusManager } from './messageStatusManager'
 import { messageRateLimiter } from './rateLimiter'
 
@@ -241,6 +241,35 @@ class MessageService {
 
       console.log('❌ Message retry failed:', message.localId, error.message)
       throw error
+    }
+  }
+
+  /**
+   * Create a failed message for immediate UI feedback
+   * This provides a unified way to create failed messages with consistent format
+   */
+  createFailedMessage(content, failureReason, canRetry = false) {
+    const localId = `failed-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+
+    return {
+      id: localId,
+      localId,
+      text: content,
+      sender: 'self',
+      timestamp: new Date(),
+      status: MessageStatus.FAILED,
+      failureReason,
+      canRetry,
+      // Add transport message structure for consistency
+      transportMessage: {
+        id: localId,
+        type: MessageType.CHAT,
+        from: this.currentUserId || 'unknown',
+        to: 'unknown',
+        content,
+        timestamp: new Date().toISOString(),
+        service: 1
+      }
     }
   }
 

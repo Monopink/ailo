@@ -39,7 +39,7 @@ export const CACHE_CONFIG = {
 // Message Configuration
 export const MESSAGE_CONFIG = {
   // Message constraints
-  MAX_LENGTH: parseInt(import.meta.env.VITE_MESSAGE_MAX_LENGTH) || 1000,
+  MAX_LENGTH: parseInt(import.meta.env.VITE_MESSAGE_MAX_LENGTH) || 99,
   MIN_LENGTH: parseInt(import.meta.env.VITE_MESSAGE_MIN_LENGTH) || 1,
 
   // Typing indicator configuration
@@ -50,6 +50,13 @@ export const MESSAGE_CONFIG = {
   // Message retry configuration
   RETRY_ATTEMPTS: parseInt(import.meta.env.VITE_MESSAGE_RETRY_ATTEMPTS) || 3,
   RETRY_DELAY: parseInt(import.meta.env.VITE_MESSAGE_RETRY_DELAY) || 2000,
+
+  // Rate limiting configuration
+  RATE_LIMIT: {
+    MESSAGE_COUNT_LIMIT: parseInt(import.meta.env.VITE_MESSAGE_RATE_LIMIT_COUNT) || 7,
+    TIME_WINDOW: parseInt(import.meta.env.VITE_MESSAGE_RATE_LIMIT_WINDOW) || 7000,
+    BLOCK_DURATION: parseInt(import.meta.env.VITE_MESSAGE_RATE_LIMIT_BLOCK) || 5000
+  }
 };
 
 // UI Configuration

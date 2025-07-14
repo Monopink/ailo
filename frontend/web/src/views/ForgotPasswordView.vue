@@ -17,17 +17,17 @@
               type="tel"
               id="phone"
               v-model="phone"
-              :class="{ 'error': showPhoneError && !isValidPhone }"
+              :class="{ 'error': (showPhoneError && !isValidPhone) || sendCodeError }"
               @blur="showPhoneError = true"
-              @input="showPhoneError = false"
-              placeholder="请输入11位手机号"
+              @input="showPhoneError = false; sendCodeError = ''"
+              placeholder="请输入手机号"
               autocomplete="username"
               required
             />
           </div>
           <div class="error-message-container">
-            <div v-if="showPhoneError && !isValidPhone" class="error-message">
-              请输入有效的11位手机号码
+            <div v-if="(showPhoneError && !isValidPhone) || sendCodeError" class="error-message">
+              {{ sendCodeError || '请输入有效手机号码' }}
             </div>
           </div>
         </div>
@@ -39,9 +39,9 @@
               type="text"
               id="code"
               v-model="code"
-              :class="{ 'error': showCodeError && !code.trim() }"
+              :class="{ 'error': (showCodeError && !code.trim()) || resetPasswordError }"
               @blur="showCodeError = true"
-              @input="showCodeError = false"
+              @input="showCodeError = false; resetPasswordError = ''"
               placeholder="请输入验证码"
               maxlength="6"
               autocomplete="one-time-code"
@@ -52,8 +52,8 @@
             </button>
           </div>
           <div class="error-message-container">
-            <div v-if="showCodeError && !code.trim()" class="error-message">
-              请输入验证码
+            <div v-if="(showCodeError && !code.trim()) || resetPasswordError" class="error-message">
+              {{ resetPasswordError || '请输入验证码' }}
             </div>
           </div>
         </div>
@@ -91,6 +91,7 @@
         <button type="submit" :disabled="isLoading || !isFormValid" class="btn btn-primary submit-btn">
           {{ isLoading ? '重置中...' : '重置密码' }}
         </button>
+
       </form>
 
       <p class="switch-form">
@@ -125,6 +126,10 @@ const showPhoneError = ref(false);
 const showCodeError = ref(false);
 const showPasswordError = ref(false);
 
+// Error message states
+const resetPasswordError = ref('');
+const sendCodeError = ref('');
+
 // Computed validation
 const isValidPhone = computed(() => {
   return /^1[3-9]\d{9}$/.test(phone.value);
@@ -140,14 +145,16 @@ const isFormValid = computed(() => {
 
 const handleSendCode = async () => {
   if (!phone.value || !/^1[3-9]\d{9}$/.test(phone.value)) {
-    toast.error('请输入有效的11位手机号码。');
+    sendCodeError.value = '请输入有效手机号码';
     return;
   }
+
+  sendCodeError.value = ''; // Clear previous error
   isSendingCode.value = true;
   countdown.value = 60;
+
   try {
     await apiClient.post('/auth/send-code', { phone: phone.value });
-    toast.success('验证码已发送！');
     const interval = setInterval(() => {
       countdown.value--;
       if (countdown.value <= 0) {
@@ -156,14 +163,16 @@ const handleSendCode = async () => {
       }
     }, 1000);
   } catch (err) {
-    const errorMessage = err.response?.data?.detail || '发送验证码失败。';
-    toast.error(errorMessage);
+    const errorMessage = err.response?.data?.detail || '发送验证码失败';
+    sendCodeError.value = errorMessage;
     isSendingCode.value = false;
   }
 };
 
 const handleResetPassword = async () => {
+  resetPasswordError.value = ''; // Clear previous error
   isLoading.value = true;
+
   try {
     await apiClient.post('/auth/reset-password', {
       phone: phone.value,
@@ -173,8 +182,8 @@ const handleResetPassword = async () => {
     toast.success('密码重置成功！请使用新密码登录。');
     router.push('/login');
   } catch (err) {
-    const errorMessage = err.response?.data?.detail || '密码重置失败，请检查验证码是否正确。';
-    toast.error(errorMessage);
+    const errorMessage = err.response?.data?.detail || '密码重置失败，请检查验证码是否正确';
+    resetPasswordError.value = errorMessage;
   } finally {
     isLoading.value = false;
   }
@@ -224,7 +233,7 @@ form {
 }
 
 .form-group {
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
 }
 
 .form-group label {
@@ -371,6 +380,20 @@ form {
 .send-code-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Form error container for button-level errors */
+.form-error-container {
+  min-height: 20px; /* Reserve space to prevent layout shift */
+  margin-top: var(--spacing-md);
+}
+
+.form-error-message {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-align: center;
 }
 
 .switch-form {

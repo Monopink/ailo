@@ -110,19 +110,21 @@ const handleNotificationToggle = async () => {
     const settings = notificationSettings.value
 
     if (!settings.isSupported) {
+      // Notification support status is already shown in settings, no toast needed
       handleError(new Error('Browser does not support notifications'), {
         operation: 'enable_notifications',
         customMessage: '您的浏览器不支持通知功能',
-        showToast: true,
+        showToast: false,
       })
       return
     }
 
     if (settings.permission === 'denied') {
+      // Permission status is already shown in settings, no toast needed
       handleError(new Error('Notification permission denied'), {
         operation: 'enable_notifications',
         customMessage: '通知权限已被拒绝，请在浏览器设置中手动开启通知权限',
-        showToast: true,
+        showToast: false,
       })
       return
     }

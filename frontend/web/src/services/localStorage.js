@@ -130,6 +130,13 @@ class LocalStorageService {
         return null
       }
 
+      // Initialize unread count for existing chats if not present
+      chatData.chats.forEach(chat => {
+        if (typeof chat.unreadCount !== 'number') {
+          chat.unreadCount = 0;
+        }
+      });
+
       console.log(`LocalStorage: Loaded ${chatData.chats.length} chats for user ${this.currentUserId}`)
       return {
         chats: chatData.chats,
@@ -180,10 +187,27 @@ class LocalStorageService {
     )
 
     if (!existingMessage) {
-      chat.messages.push({
+      const newMessage = {
         ...message,
         timestamp: message.timestamp || new Date().toISOString()
-      })
+      };
+
+      // Insert message at correct position based on timestamp
+      const messageTimestamp = new Date(newMessage.timestamp).getTime();
+      let insertIndex = chat.messages.length; // Default to end
+
+      // Find correct insertion position by comparing timestamps
+      for (let i = chat.messages.length - 1; i >= 0; i--) {
+        const existingTimestamp = new Date(chat.messages[i].timestamp).getTime();
+        if (messageTimestamp >= existingTimestamp) {
+          insertIndex = i + 1;
+          break;
+        }
+        insertIndex = i;
+      }
+
+      // Insert message at the correct position
+      chat.messages.splice(insertIndex, 0, newMessage);
 
       // Keep only last 1000 messages per chat to avoid storage bloat
       if (chat.messages.length > 1000) {

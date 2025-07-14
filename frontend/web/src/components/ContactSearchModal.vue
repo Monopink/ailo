@@ -38,7 +38,7 @@
               >
                 <ContactAvatar :nickname="contact.nickname" size="medium" />
                 <div class="contact-info">
-                  <div class="contact-name">{{ contact.nickname || '未命名联系人' }}</div>
+                  <div class="contact-name">{{ contact.nickname || '' }}</div>
                   <div class="contact-gender" v-if="getGenderEmoji(contact.gender)">
                     <span class="gender-emoji">{{ getGenderEmoji(contact.gender) }}</span>
                   </div>
@@ -99,9 +99,9 @@ const remainingContactsCount = computed(() => {
 const getGenderEmoji = (gender) => {
   switch (gender) {
     case 'male':
-      return '👨';
+      return '🙋🏻‍♂️';
     case 'female':
-      return '👩';
+      return '🙋🏻‍♀️';
     default:
       return ''; // Don't show anything for 'other' or unknown
   }

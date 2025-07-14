@@ -107,6 +107,11 @@ export const useChatStore = defineStore('chat', () => {
         chat.messages = [];
       }
 
+      // Initialize unread count if not exists
+      if (typeof chat.unreadCount !== 'number') {
+        chat.unreadCount = 0;
+      }
+
       // Avoid duplicate messages
       let existingMessage = null;
 
@@ -140,10 +145,35 @@ export const useChatStore = defineStore('chat', () => {
           timestamp: message.timestamp || new Date()
         };
 
-        chat.messages.push(newMessage);
+        // Insert message at correct position based on timestamp
+        const messageTimestamp = new Date(newMessage.timestamp).getTime();
+        let insertIndex = chat.messages.length; // Default to end
+
+        // Find correct insertion position by comparing timestamps
+        for (let i = chat.messages.length - 1; i >= 0; i--) {
+          const existingTimestamp = new Date(chat.messages[i].timestamp).getTime();
+          if (messageTimestamp >= existingTimestamp) {
+            insertIndex = i + 1;
+            break;
+          }
+          insertIndex = i;
+        }
+
+        // Insert message at the correct position
+        chat.messages.splice(insertIndex, 0, newMessage);
+
+        // Update unread count for received messages (not sent by current user)
+        if (message.sender === 'other' && chatId !== selectedChatId.value) {
+          chat.unreadCount = (chat.unreadCount || 0) + 1;
+          chatLogger.debug('Unread count updated', { chatId, unreadCount: chat.unreadCount });
+        }
+
         chatLogger.debug('Message added to chat', {
           chatId,
-          totalMessages: chat.messages.length
+          insertIndex,
+          totalMessages: chat.messages.length,
+          messageTimestamp: newMessage.timestamp,
+          unreadCount: chat.unreadCount
         });
 
         // Save to localStorage
@@ -220,6 +250,14 @@ export const useChatStore = defineStore('chat', () => {
     try {
       chatLogger.debug('Fetching contacts and limits', { userId: currentUserId.value });
 
+      // Clear failed chat info cache when fetching contacts
+      chatInfoCache.forEach((cached, contactId) => {
+        if (cached.failed) {
+          chatInfoCache.delete(contactId);
+          chatLogger.debug('Cleared failed cache for contact', { contactId });
+        }
+      });
+
       // Fetch both contacts and contact limits
       const [contactsResponse, limitsResponse] = await Promise.all([
         apiClient.get('/contacts'),
@@ -280,12 +318,25 @@ export const useChatStore = defineStore('chat', () => {
   async function selectChat(chatId) {
     selectedChatId.value = chatId;
 
-    // Update specific contact's chat info when selected
-    await updateContactChatInfo(chatId);
+    // Clear unread count for selected chat
+    const chat = chats.value.find(c => c.id === chatId);
+    if (chat && chat.unreadCount > 0) {
+      chat.unreadCount = 0;
+      saveToStorage(); // Save the updated unread count
+      chatLogger.debug('Unread count cleared for selected chat', { chatId });
+    }
+
+    // Only update chat info for contacts (not for non-contact conversations)
+    if (chat && chat.contact_type) {
+      await updateContactChatInfo(chatId);
+    } else {
+      chatLogger.debug('Skipping chat info update for non-contact conversation', { chatId });
+    }
   }
 
   // Cache mechanism to prevent repeated requests in a short period of time
-  const chatInfoCache = new Map(); // Storage format: {contactId: {timestamp: number, promise: Promise}}
+  // Storage format: {contactId: {timestamp: number, promise: Promise, failed: boolean}}
+  const chatInfoCache = new Map();
 
   async function updateContactChatInfo(contactId) {
     const authStore = useAuthStore();
@@ -298,10 +349,19 @@ export const useChatStore = defineStore('chat', () => {
     const now = Date.now();
     const cached = chatInfoCache.get(contactId);
 
-    if (cached && (now - cached.timestamp) < CACHE_CONFIG.CHAT_INFO_DURATION) {
-      const remainingTime = Math.round((CACHE_CONFIG.CHAT_INFO_DURATION - (now - cached.timestamp)) / 1000);
-      chatLogger.debug('Using cached chat info', { contactId, remainingTime });
-      return cached.promise;
+    if (cached) {
+      // If previous request failed, don't retry
+      if (cached.failed) {
+        chatLogger.debug('Skipping chat info update - previous request failed', { contactId });
+        return;
+      }
+
+      // If within cache duration, return cached promise
+      if ((now - cached.timestamp) < CACHE_CONFIG.CHAT_INFO_DURATION) {
+        const remainingTime = Math.round((CACHE_CONFIG.CHAT_INFO_DURATION - (now - cached.timestamp)) / 1000);
+        chatLogger.debug('Using cached chat info', { contactId, remainingTime });
+        return cached.promise;
+      }
     }
 
     // Creating a new Promise request
@@ -332,8 +392,14 @@ export const useChatStore = defineStore('chat', () => {
         return chatInfo;
       } catch (error) {
         chatLogger.error('Failed to update chat info', { contactId, error: error.message });
-        // When the request fails, remove it from the cache to allow retries
-        chatInfoCache.delete(contactId);
+
+        // Mark as failed in cache to prevent retries, but preserve previous data
+        const previousCached = chatInfoCache.get(contactId);
+        chatInfoCache.set(contactId, {
+          timestamp: now,
+          promise: previousCached?.promise || null, // Keep previous promise if exists
+          failed: true
+        });
 
         // Handle error with user notification
         handleError(error, {
@@ -342,14 +408,16 @@ export const useChatStore = defineStore('chat', () => {
           showToast: false, // Don't show toast for background updates
         });
 
-        throw error;
+        // Don't throw error to avoid breaking the UI, just log it
+        return null;
       }
     })();
 
     // Cache the request's Promise and timestamp
     chatInfoCache.set(contactId, {
       timestamp: now,
-      promise: requestPromise
+      promise: requestPromise,
+      failed: false
     });
 
     return requestPromise;

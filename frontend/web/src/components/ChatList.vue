@@ -29,10 +29,14 @@
       >
         <ContactAvatar :nickname="chat.name" size="medium" />
         <div class="chat-item-content">
-          <div class="chat-item-name">{{ chat.name || '未命名联系人' }}</div>
+          <div class="chat-item-name">{{ chat.name || '' }}</div>
           <div class="chat-item-preview">
             {{ chat.messages[chat.messages.length - 1]?.text || '暂无消息' }}
           </div>
+        </div>
+        <!-- Unread message badge -->
+        <div v-if="chat.unreadCount > 0" class="unread-badge">
+          {{ chat.unreadCount > 99 ? '99+' : chat.unreadCount }}
         </div>
       </li>
     </ul>
@@ -418,6 +422,23 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   color: var(--color-text-tertiary);
   line-height: 1.3;
+}
+
+/* Unread message badge */
+.unread-badge {
+  background-color: #ff4757;
+  color: white;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* Empty State */

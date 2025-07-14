@@ -272,7 +272,7 @@ const handleClearMessages = async () => {
 }
 
 .mobile-header {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--color-bg-tertiary);
   border-bottom: var(--border-width) solid var(--color-border);
   padding: var(--spacing-xl);
   display: flex;

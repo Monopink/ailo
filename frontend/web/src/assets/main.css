@@ -4,6 +4,7 @@
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #f8f9fa;
   --color-bg-tertiary: #f1f3f4;
+  --color-bg-quaternary: #e9ecef;
   --color-bg-app: #f5f5f7;
   --color-bg-overlay: rgba(255, 255, 255, 0.85);
   --color-bg-glass: rgba(255, 255, 255, 0.7);
@@ -116,6 +117,7 @@
     --color-bg-primary: #1c1c1e;
     --color-bg-secondary: #2c2c2e;
     --color-bg-tertiary: #3a3a3c;
+    --color-bg-quaternary: #48484a;
     --color-bg-app: #000000;
     --color-bg-overlay: rgba(28, 28, 30, 0.85);
     --color-bg-glass: rgba(44, 44, 46, 0.7);

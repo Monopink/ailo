@@ -27,15 +27,27 @@ logger = get_logger(__name__)
 
 
 class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin, BaseModel):
-    def __init__(self, bot: Any, message_service: str, cleanup_callback: Callable[[str], Awaitable[None]]):
+    def __init__(
+        self,
+        bot: Any,
+        message_service: str,
+        cleanup_callback: Callable[[str], Awaitable[None]],
+        send_message_callback: Callable[[Dict[str, Any]], Awaitable[None]],
+    ):
         """Initialize the Ailo model
         Args:
             bot: Bot instance from the database. This is treated as the initial, read-only state.
             message_service: Message service type
             cleanup_callback: Cleanup callback function
+            send_message_callback: Send message callback function
         """
         # Call parent class initialization method
-        super().__init__(message_service=message_service, bot=bot, cleanup_callback=cleanup_callback)
+        super().__init__(
+            message_service=message_service,
+            bot=bot,
+            cleanup_callback=cleanup_callback,
+            send_message_callback=send_message_callback,
+        )
 
         # Create a context-bound logger for this bot instance
         self.logger = bind_context(logger, bot_id=self.bot.id, entity_id=self.bot.entity_id)

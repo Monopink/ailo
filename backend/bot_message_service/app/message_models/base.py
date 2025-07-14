@@ -10,6 +10,7 @@ class BaseModel(ABC):
         bot: Any,
         message_service: str,
         cleanup_callback: Callable[[str], Awaitable[None]],
+        send_message_callback: Callable[[Dict[str, Any]], Awaitable[None]],
     ):
         """
         Initialize the model
@@ -17,10 +18,12 @@ class BaseModel(ABC):
             bot: Bot instance containing basic bot information
             message_service: Message service type
             cleanup_callback: Cleanup callback function that takes a string parameter (bot.entity_id) and returns an awaitable
+            send_message_callback: Send message callback function that takes a message dict and returns an awaitable
         """
         self.bot = bot
         self.message_service = message_service
         self.cleanup_callback = cleanup_callback
+        self.send_message_callback = send_message_callback
 
     @abstractmethod
     async def receive_message(self, message: Dict[str, Any]) -> None:

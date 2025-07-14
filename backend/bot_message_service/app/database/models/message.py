@@ -12,6 +12,7 @@ class MessageHistory(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+    message_id = Column(String(255))  # Backend-generated unique message ID
     message_id_client = Column(String(255))  # Client-side message ID for frontend tracking
     from_entity = Column(String(36), nullable=False)
     to_entity = Column(String(36), nullable=False)
@@ -28,6 +29,7 @@ class MessageHistory(Base):
             "id",
             "created_at",
             "updated_at",
+            "message_id",
             "message_id_client",
             "from_entity",
             "to_entity",
@@ -45,6 +47,7 @@ class MessageHistory(Base):
             "id": self.id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "message_id": self.message_id,
             "message_id_client": self.message_id_client,
             "from_entity": self.from_entity,
             "to_entity": self.to_entity,

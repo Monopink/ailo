@@ -43,19 +43,39 @@ AI chat/dating application with microservices architecture running in WSL2 Docke
 
 ## Message Flow Architecture
 
+### Message Reception Flow
+
+```text
+User Message → LeanCloud IM → Webhook → leanmessage.py
+                                            ↓
+                                       event_bus (RECEIVED_MESSAGE)
+                                            ↓
+                                    message_router.handle_received_message()
+                                            ↓
+                                    [Route to AI Model] + [Save to DB]
+                                            ↓
+                                      model_ailo.receive_message()
 ```
-User sends message → LeanCloud IM → Webhook → bot_message_service
-                                              ↓
-                                         event_bus
-                                              ↓
-                                      message_router
-                                              ↓
-                                        AI model processing
-                                              ↓
-                                         Response generation
-                                              ↓
-                                    LeanCloud API send
+
+### Message Sending Flow
+
+```text
+AI Model Response → message_router.handle_outgoing_message()
+                                    ↓
+                            [Generate message_id] + [Save to DB]
+                                    ↓
+                            event_bus (SEND_MESSAGE)
+                                    ↓
+                            leanmessage.handle_send_message()
+                                    ↓
+                            LeanCloud API → User
 ```
+
+### Dependency Injection Pattern
+
+- **AI Models**: Receive `send_message_callback` from message_router
+- **Decoupled Design**: Models don't directly import message_router
+- **Testable Architecture**: Easy to mock callbacks for unit testing
 
 ## Service Communication
 

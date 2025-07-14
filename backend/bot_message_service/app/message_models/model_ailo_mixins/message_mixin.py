@@ -3,7 +3,6 @@ from typing import Optional
 from datetime import datetime
 
 from ...enums import MessageType, TypingStatus
-from ...event_bus import event_bus, EventTypes
 from ..protocols import ModelAiloLike
 
 
@@ -34,7 +33,10 @@ class MessageMixin:
                 from_entity=self.bot.entity_id,
                 to_entity=self.bot.user_entity_id,
             )
-            await event_bus.publish(EventTypes.SEND_MESSAGE, message)
+
+            # Use injected callback function to send message
+            await self.send_message_callback(message)
+
         except Exception as e:
             self.logger.error("message_send_error", message_type=message_type, error=str(e), exc_info=True)
 

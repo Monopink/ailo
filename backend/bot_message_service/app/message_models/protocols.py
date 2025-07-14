@@ -17,6 +17,7 @@ class ModelAiloLike(Protocol):
     bot: Any
     message_service: str
     cleanup_callback: Callable[[str], Awaitable[None]]
+    send_message_callback: Callable[[Dict[str, Any]], Awaitable[None]]
     logger: Any
 
     # Core state attributes

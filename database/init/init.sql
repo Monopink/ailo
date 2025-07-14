@@ -223,6 +223,7 @@ CREATE TABLE message_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    message_id VARCHAR(255) COMMENT 'Backend-generated unique message ID',
     message_id_client VARCHAR(255) COMMENT 'Client-side message ID for frontend tracking',
     from_entity VARCHAR(20) NOT NULL,
     to_entity VARCHAR(20) NOT NULL,
@@ -235,6 +236,7 @@ CREATE TABLE message_history (
     INDEX idx_message_users (from_entity, to_entity),
     INDEX idx_message_history_status (status),
     INDEX idx_message_created_at (created_at),
+    INDEX idx_message_id (message_id),
     INDEX idx_message_id_client (message_id_client)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

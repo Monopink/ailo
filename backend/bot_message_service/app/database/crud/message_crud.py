@@ -95,6 +95,7 @@ class CRUDMessage(CRUDBase[MessageHistory]):
         try:
             # Create message record - still save even with validation errors for data integrity
             message_record = MessageHistory(
+                message_id=message.get("message_id"),  # Backend-generated message ID
                 message_id_client=message_id_client,
                 from_entity=from_entity,
                 to_entity=to_entity,

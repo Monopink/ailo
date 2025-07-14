@@ -1,6 +1,8 @@
 import asyncio
+import random
 from typing import Dict, Type, Optional, Any, Tuple
 from enum import Enum, auto
+from datetime import datetime
 
 from .database import SessionLocal, bot_crud, message_crud
 from .event_bus import event_bus, EventTypes
@@ -44,8 +46,7 @@ class MessageRouter:
 
         # Subscribe to message events
         event_bus.subscribe(EventTypes.RECEIVED_MESSAGE, self.handle_received_message)
-        event_bus.subscribe(EventTypes.SEND_MESSAGE, self.handle_sent_message)
-        logger.info("message_router_initialized", subscriptions=["received_message", "send_message"])
+        logger.info("message_router_initialized", subscriptions=["received_message"])
 
     def _validate_message(self, message: dict) -> bool:
         """Validate message format"""
@@ -101,6 +102,55 @@ class MessageRouter:
 
         except Exception as e:
             logger.error("model_cleanup_error", bot_entity_id=model_key, error=str(e), exc_info=True)
+
+    def generate_message_id(self) -> str:
+        """Generate unique message ID
+
+        Returns:
+            str: Unique message ID in format msg_{timestamp}_{random_string}
+        """
+        timestamp = int(datetime.now().timestamp() * 1000)  # milliseconds
+        # Use same character set as entity_id generation for consistency
+        chars = "23456789abcdefghjkmnpqrstuvwxyz"
+        random_part = "".join(random.choices(chars, k=8))
+        return f"msg_{timestamp}_{random_part}"
+
+    async def handle_outgoing_message(self, message: dict) -> None:
+        """Handle outgoing message processing
+
+        This method processes messages being sent from bots to users.
+        It generates message IDs, saves to database, and publishes to event bus.
+
+        Args:
+            message: Message dictionary containing message data
+        """
+        try:
+            # Validate required fields
+            if not self._validate_message(message):
+                logger.error("invalid_outgoing_message", message=message)
+                return
+
+            # Generate unique message ID if not present
+            if not message.get("message_id"):
+                message["message_id"] = self.generate_message_id()
+                logger.debug("generated_message_id", message_id=message["message_id"])
+
+            # Publish to event bus for delivery
+            await event_bus.publish(EventTypes.SEND_MESSAGE, message)
+
+            # Save message to database
+            await self.save_message(message)
+
+            logger.info(
+                "outgoing_message_processed",
+                message_id=message.get("message_id"),
+                from_entity=message.get("from_entity"),
+                to_entity=message.get("to_entity"),
+                message_type=message.get("message_type"),
+            )
+
+        except Exception as e:
+            logger.error("outgoing_message_error", error=str(e), message=message, exc_info=True)
 
     def _validate_system_message_source(self, message: dict) -> bool:
         """
@@ -249,11 +299,12 @@ class MessageRouter:
                     logger.error("unsupported_model", model_type=bot.model)
                     return None
 
-                # Create model instance with async cleanup function
+                # Create model instance with async cleanup function and send message callback
                 model = model_class(
                     bot=bot,
                     message_service=message_service,
                     cleanup_callback=self.cleanup_model_instance,
+                    send_message_callback=self.handle_outgoing_message,
                 )
                 model_instance = ModelInstance(model, message_service)
                 self.active_models[model_key] = model_instance
@@ -415,18 +466,6 @@ class MessageRouter:
                         reason=SystemMessageReason.SYSTEM_ERROR,
                     )
                 )
-
-    async def handle_sent_message(self, message: dict) -> None:
-        """Handle sent message"""
-        try:
-            # Validate required message fields
-            if not self._validate_message(message):
-                raise ValueError("Invalid sent message format")
-
-            await self.save_message(message)
-
-        except Exception as e:
-            logger.error("sent_message_error", error=str(e), exc_info=True)
 
     async def handle_received_message(self, message: dict) -> None:
         """Handle received message"""

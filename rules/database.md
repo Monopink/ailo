@@ -14,6 +14,7 @@
 - Fields: entity_id (string, unique), model, status, gender, emotion scores, etc.
 - Contains emotion system configuration (friend_score, romance_score)
 - Includes personality and behavior configuration (JSON fields)
+- user_profile_snapshot: JSON field storing user profile snapshots for change detection
 
 ### social_profiles
 

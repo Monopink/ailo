@@ -242,6 +242,16 @@ class ContextMixin:
             if self.unsent_message:
                 instant_context += f"\n[之前未发送消息]{self.unsent_message}"
 
+            # Add user profile information if available
+            if hasattr(self, "user_profile") and self.user_profile:
+                user_info = self._format_user_profile_for_context(self.user_profile)
+                if user_info:
+                    instant_context += f"\n用户资料：{user_info}"
+
+            # Add profile change information if available
+            if hasattr(self, "profile_changes") and self.profile_changes:
+                instant_context += f"\n{self.profile_changes}"
+
             self.logger.info("instant_context_created", context=instant_context)
             return instant_context
 

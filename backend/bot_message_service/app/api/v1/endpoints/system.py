@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Header
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 from ....services.config_manager import get_unified_conversation_id
 from ....utils.logging import get_logger
@@ -8,6 +8,28 @@ from ....services.leancloud import conversation_logger, conversation_metrics
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def verify_internal_service_key(x_internal_key: Optional[str] = Header(None)):
+    """
+    Verify internal service key for service-to-service communication
+
+    Args:
+        x_internal_key: Internal service key from header
+
+    Raises:
+        HTTPException: If key is invalid or missing
+    """
+    from ....core.config import settings
+
+    expected_key = getattr(settings, "INTERNAL_SERVICE_KEY", "default_internal_key_change_me")
+
+    if not x_internal_key or x_internal_key != expected_key:
+        logger.warning(
+            "invalid_internal_service_key_attempt",
+            provided_key=x_internal_key[:10] if x_internal_key else None,
+        )
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal service key")
 
 
 class ConversationErrorReport(BaseModel):
@@ -163,7 +185,7 @@ async def report_conversation_error(error_report: ConversationErrorReport) -> Di
 
 @router.post("/send-message", summary="Send system message (Internal API)")
 async def send_system_message(
-    request_data: Dict[str, Any], x_internal_key: str = Header(None)
+    request_data: Dict[str, Any], x_internal_key: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
     """
     Send system message to user (Internal API for service-to-service communication)
@@ -177,14 +199,7 @@ async def send_system_message(
     """
     try:
         # Verify internal service authentication
-        from ....core.config import settings
-
-        expected_key = getattr(settings, "INTERNAL_SERVICE_KEY", "default_internal_key_change_me")
-
-        if not x_internal_key or x_internal_key != expected_key:
-            raise HTTPException(
-                status_code=403, detail="Forbidden: Invalid or missing internal service key"
-            )
+        verify_internal_service_key(x_internal_key)
 
         from ....services.leanmessage import leanmessage_service
 

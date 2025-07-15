@@ -96,6 +96,10 @@ class ModelAiloLike(Protocol):
     need_extra_info: bool
     typing_speed: float
 
+    # Contact related attributes
+    user_profile: Optional[Dict[str, Any]]
+    profile_changes: str
+
     # === Method Signatures from Mixins ===
 
     # from message_mixin.py
@@ -187,3 +191,20 @@ class ModelAiloLike(Protocol):
     ) -> None: ...
 
     def _process_emotions_and_score(self, response_result: dict) -> None: ...  # noqa: E704
+
+    # from contact_mixin.py
+    def _initialize_user_profile(self) -> Coroutine[Any, Any, None]: ...  # noqa: E704
+
+    def _fetch_user_profile(  # noqa: E704
+        self, user_entity_id: str
+    ) -> Coroutine[Any, Any, Optional[Dict[str, Any]]]: ...
+
+    def _handle_profile_changes(  # noqa: E704
+        self, current_profile: Dict[str, Any]
+    ) -> Coroutine[Any, Any, None]: ...
+
+    def _detect_profile_changes(  # noqa: E704
+        self, old_profile: Dict[str, Any], new_profile: Dict[str, Any]
+    ) -> str: ...
+
+    def _format_user_profile_for_context(self, user_profile: Dict[str, Any]) -> str: ...  # noqa: E704

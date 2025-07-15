@@ -49,3 +49,4 @@ class Bot(Base):
     context_metadata = Column(JSON)
     info = Column(Text)
     memory = Column(Text)
+    user_profile_snapshot = Column(JSON)

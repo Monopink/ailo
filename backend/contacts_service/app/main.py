@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from .core.config import settings
-from .routers import contacts
+from .routers import contacts, internal
 from .middleware import RateLimitMiddleware
 from .utils.logging import get_logger, configure_logging
 
@@ -17,6 +17,7 @@ app.add_middleware(RateLimitMiddleware)
 
 # Include routers with API version prefix
 app.include_router(contacts.router, prefix="/api/v1")
+app.include_router(internal.router, prefix="/api/v1")
 
 
 @app.on_event("startup")

@@ -10,6 +10,7 @@ from .model_ailo_mixins.db_mixin import DBMixin
 from .model_ailo_mixins.llm_mixin import LLMMixin
 from .model_ailo_mixins.message_mixin import MessageMixin
 from .model_ailo_mixins.relationship_mixin import RelationshipMixin
+from .model_ailo_mixins.contact_mixin import ContactMixin
 from .base import BaseModel
 from ..utils.logging import get_logger, bind_context
 from ..llm_apis import model_ailo_advanced_llm as advanced_llm
@@ -26,7 +27,7 @@ from ..enums import (
 logger = get_logger(__name__)
 
 
-class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin, BaseModel):
+class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin, ContactMixin, BaseModel):
     def __init__(
         self,
         bot: Any,
@@ -258,6 +259,18 @@ class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin
         # Verify context and metadata consistency on initialization
         self._verify_and_repair_metadata()
 
+        # Initialize user profile related attributes
+        self.user_profile: Optional[Dict[str, Any]] = None
+        self.profile_changes: str = ""
+
+        # Fetch user profile if user_entity_id is available
+        # This is an async operation but we're in __init__, so we can't await directly
+        # We'll set up a task to fetch the profile asynchronously
+        if hasattr(self.bot, "user_entity_id") and self.bot.user_entity_id:
+            # Create a task to fetch user profile, but don't await it here
+            # The profile will be available for subsequent operations
+            asyncio.create_task(self._initialize_user_profile())
+
         self.logger.debug(
             "Initialized ModelAilo instance",
             emotions=self.emotions,
@@ -377,6 +390,17 @@ class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin
 
             if self.llm_task_result.get(TaskDefinition.get_response_key(TaskType.IS_ATTACK)):
                 self._process_attack_context()
+
+            # Check if bot should be blocked (is_block = true)
+            if self.llm_task_result.get(TaskDefinition.get_response_key(TaskType.IS_BLOCK)):
+                try:
+                    from ..database import SessionLocal, bot_crud
+
+                    async with SessionLocal() as db:
+                        await bot_crud.update_bot_data(db, self.bot.id, {"status": "inactive"})
+                        self.logger.info("bot_status_set_to_inactive_due_to_block")
+                except Exception as e:
+                    self.logger.error("failed_to_update_bot_status", error=str(e))
 
             # --- Early exit if nothing was sent ---
             # This check is crucial after the await, especially if the task was cancelled.

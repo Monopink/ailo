@@ -1,6 +1,6 @@
 import asyncio
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...enums import MessageType, TypingStatus
 from ..protocols import ModelAiloLike
@@ -24,7 +24,7 @@ class MessageMixin:
                 "content": str(content),
                 "message_type": message_type,
                 "message_service": self.message_service,
-                "message_time": datetime.now().isoformat(),
+                "message_time": datetime.now(timezone.utc).isoformat(),
             }
             self.logger.info(
                 "sending_message",

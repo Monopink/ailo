@@ -88,6 +88,7 @@ import { MessageType, MessageSecurity, MessageFailureReason } from '../services/
 import { messageRateLimiter } from '../services/messaging/rateLimiter';
 import { notificationService } from '../services/notificationService';
 import { MESSAGE_CONFIG } from '../config/constants.js';
+import { parseServerTimestamp, getClientTimestamp, debugTimestamp } from '../utils/timeUtils';
 
 const emit = defineEmits(['clear-messages'])
 
@@ -535,22 +536,38 @@ const handleChatMessageReceived = async (event) => {
   console.log('🔍 [ChatWindow] Found chat:', chat ? { id: chat.id, name: chat.name } : 'null')
 
   if (chat) {
+    // Determine message source (realtime vs offline)
+    const messageSource = message.source || 'realtime'
+
+    // Process timestamp based on message source
+    let messageTimestamp
+    if (messageSource === 'offline') {
+      // For offline messages, use server timestamp (converted to local time)
+      messageTimestamp = parseServerTimestamp(message.timestamp)
+    } else {
+      // For real-time messages, use client timestamp for better ordering
+      messageTimestamp = getClientTimestamp()
+    }
+
     // Create a UI message object for display
     const uiMessage = {
       id: Date.now() + Math.random(), // Unique ID for received messages
       localId: null, // Received messages don't have localId
       text: message.content,
       sender: message.from === authStore.user?.id ? 'self' : 'other',
-      timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
+      timestamp: messageTimestamp,
       messageType: message.type,
-      status: null // Received messages don't have status
+      status: null, // Received messages don't have status
+      source: messageSource // Track message source for debugging
     }
 
     // Debug logging for received message timestamp
+    debugTimestamp(message.timestamp, messageTimestamp, messageSource)
     console.log('Received message timestamp processing:', {
       originalTimestamp: message.timestamp,
       processedTimestamp: uiMessage.timestamp.toISOString(),
-      messageContent: message.content
+      messageContent: message.content,
+      source: messageSource
     });
 
     // Add message to chat

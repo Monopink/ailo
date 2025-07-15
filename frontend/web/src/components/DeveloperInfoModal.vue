@@ -79,7 +79,7 @@
               </div>
               <div class="info-item">
                 <span class="label">提供商:</span>
-                <span class="value">LeanCloud</span>
+                <span class="value">1</span>
               </div>
             </div>
           </div>

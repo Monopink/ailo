@@ -764,6 +764,9 @@ export class LeanCloudProvider {
       // Decrypt message
       const decryptedMessage = this.messageEncryption.decryptMessage(parsedMessage)
 
+      // Mark as offline message for proper timestamp handling
+      decryptedMessage.source = 'offline'
+
       // Forward to message callbacks
       this.messageCallbacks.forEach(callback => {
         try {

@@ -1,4 +1,5 @@
 // Local storage service for chat persistence with user-level isolation
+import { compareMessageTimestamps } from '../utils/timeUtils'
 
 const STORAGE_KEY_PREFIX = 'qiao'
 
@@ -193,13 +194,12 @@ class LocalStorageService {
       };
 
       // Insert message at correct position based on timestamp
-      const messageTimestamp = new Date(newMessage.timestamp).getTime();
       let insertIndex = chat.messages.length; // Default to end
 
       // Find correct insertion position by comparing timestamps
       for (let i = chat.messages.length - 1; i >= 0; i--) {
-        const existingTimestamp = new Date(chat.messages[i].timestamp).getTime();
-        if (messageTimestamp >= existingTimestamp) {
+        // Use compareMessageTimestamps for consistent sorting
+        if (compareMessageTimestamps(newMessage, chat.messages[i]) >= 0) {
           insertIndex = i + 1;
           break;
         }

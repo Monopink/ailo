@@ -2,7 +2,7 @@ import json
 import requests
 import threading
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 # import leancloud  # Commented out - using REST API only
 from ..event_bus import event_bus, EventTypes
@@ -307,7 +307,7 @@ class LeanMessageManager:
                 "from": from_entity,  # Source entity ID for chat window identification
                 "to": to_user,
                 "content": system_content,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "service": 1,  # LeanCloud service
             }
 

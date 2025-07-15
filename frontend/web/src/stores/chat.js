@@ -7,6 +7,7 @@ import { useAuthStore } from './auth';
 import { chatLogger } from '../utils/logger.js';
 import { handleError } from '../utils/errorHandler.js';
 import { CACHE_CONFIG, CONTACT_CONFIG } from '../config/constants.js';
+import { compareMessageTimestamps, areMessagesDuplicate } from '../utils/timeUtils';
 
 export const useChatStore = defineStore('chat', () => {
   // Initialize with empty state - data will be loaded when user context is set
@@ -125,8 +126,7 @@ export const useChatStore = defineStore('chat', () => {
         existingMessage = chat.messages.find(m => {
           const existingKey = `${m.text}_${m.sender}`;
           // Only consider it duplicate if the timestamps are very close (within 5 seconds)
-          const timeDiff = Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime());
-          return existingKey === messageKey && timeDiff < 5000;
+          return existingKey === messageKey && areTimestampsClose(m.timestamp, message.timestamp, 5000);
         });
       }
 
@@ -146,13 +146,12 @@ export const useChatStore = defineStore('chat', () => {
         };
 
         // Insert message at correct position based on timestamp
-        const messageTimestamp = new Date(newMessage.timestamp).getTime();
         let insertIndex = chat.messages.length; // Default to end
 
         // Find correct insertion position by comparing timestamps
         for (let i = chat.messages.length - 1; i >= 0; i--) {
-          const existingTimestamp = new Date(chat.messages[i].timestamp).getTime();
-          if (messageTimestamp >= existingTimestamp) {
+          // Use compareMessageTimestamps for consistent sorting
+          if (compareMessageTimestamps(newMessage, chat.messages[i]) >= 0) {
             insertIndex = i + 1;
             break;
           }

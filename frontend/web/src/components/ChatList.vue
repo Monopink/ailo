@@ -420,7 +420,7 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   line-height: 1.3;
 }
 

@@ -1,14 +1,17 @@
 {
-  "name": "%VITE_BRAND_NAME%",
-  "short_name": "%VITE_BRAND_NAME%",
-  "description": "%VITE_APP_DESCRIPTION%",
-  "theme_color": "%VITE_PWA_THEME_COLOR%",
-  "background_color": "%VITE_PWA_BACKGROUND_COLOR%",
+  "name": "敲敲(开发)",
+  "short_name": "敲敲",
+  "description": "敲敲 - 开发环境",
+  "theme_color": "#fdd700",
+  "background_color": "#ffffff",
   "display": "standalone",
   "orientation": "portrait",
   "scope": "/",
   "start_url": "/",
-  "categories": ["social", "communication"],
+  "categories": [
+    "social",
+    "communication"
+  ],
   "icons": [
     {
       "src": "icons/icon-192x192.png",

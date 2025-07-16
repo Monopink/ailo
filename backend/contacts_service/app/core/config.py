@@ -2,9 +2,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # This tells pydantic to load variables from the .env file
-    # The path is relative to where the app is run from, which is the service root
-    model_config = SettingsConfigDict(env_file="../../../.env", env_file_encoding="utf-8", extra="ignore")
+    # Configuration is now purely environment variable driven
+    # No env_file dependency - all variables must be provided via environment
+    model_config = SettingsConfigDict(extra="ignore")
 
     PROJECT_NAME: str = "Says Contacts Service"
 

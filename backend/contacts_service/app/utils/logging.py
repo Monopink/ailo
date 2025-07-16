@@ -1,6 +1,7 @@
 import structlog
 from typing import Dict, Any, Optional
 import logging
+import os
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
 from structlog.types import EventDict
 
@@ -23,11 +24,24 @@ def format_log_level(_, __, event_dict: EventDict) -> EventDict:
 
 def configure_logging():
     """
-    Configure structured logging for the application.
-    This setup ensures that logs are processed as JSON, which is ideal for
-    containerized environments and log aggregation tools like Dozzle.
+    Configure structured logging for the contacts service.
+    This setup ensures that logs are processed as JSON and saved to files.
     """
-    logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+    # Ensure logs directory exists
+    log_dir = "/app/logs"
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Configure file handler
+    log_file = os.path.join(log_dir, "contacts_service.log")
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
+
+    # Configure console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
+    # Configure root logger
+    logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[file_handler, console_handler])
 
     structlog.configure(
         processors=[
@@ -52,7 +66,7 @@ def configure_logging():
         cache_logger_on_first_use=True,
     )
     logger = get_logger(__name__)
-    logger.info("logging_configured_successfully")
+    logger.info("logging_configured_successfully", log_file=log_file)
 
 
 def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:

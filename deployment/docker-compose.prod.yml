@@ -1,0 +1,150 @@
+services:
+  # MySQL Database Service
+  mysql_db:
+    image: mysql:8.0
+    container_name: mysql_db_container
+    env_file:
+      - .env.prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      # Expose MySQL port for external access (Navicat, etc.)
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../backend/database/conf:/etc/mysql/conf.d:ro
+      - ../backend/database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - says-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER}", "-p${MYSQL_PASSWORD}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  # Accounts Service
+  accounts_service:
+    container_name: accounts_service_container
+    build:
+      context: ../backend/accounts_service
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.prod
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ../logs/accounts_service:/app/logs
+    networks:
+      - says-network
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    restart: always
+
+  # Contacts Service
+  contacts_service:
+    container_name: contacts_service_container
+    build:
+      context: ../backend/contacts_service
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.prod
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ../logs/contacts_service:/app/logs
+    networks:
+      - says-network
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    restart: always
+
+  # Bot Message Service
+  bot_message_service:
+    container_name: bot_message_service_container
+    build:
+      context: ../backend/bot_message_service
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.prod
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ../logs/bot_message_service:/app/logs
+    networks:
+      - says-network
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    restart: always
+
+  # Web Frontend (Production Build)
+  web:
+    container_name: web_container
+    build:
+      context: ../frontend/web
+      dockerfile: Dockerfile.prod
+      # No build args needed - uses .env.production file
+    networks:
+      - says-network
+    restart: always
+
+  # Nginx Reverse Proxy
+  nginx:
+    container_name: nginx_container
+    build:
+      context: ../nginx
+      dockerfile: Dockerfile
+    env_file:
+      - .env.prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+      - ../nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_webroot:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
+    networks:
+      - says-network
+    depends_on:
+      - web
+      - accounts_service
+      - contacts_service
+      - bot_message_service
+    restart: always
+
+  # Certbot for SSL certificates
+  certbot:
+    image: certbot/certbot
+    container_name: certbot_container
+    volumes:
+      - certbot_webroot:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+    command: certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}
+    depends_on:
+      - nginx
+
+# Define the network for services to communicate
+networks:
+  says-network:
+    driver: bridge
+
+# Define volumes for persistent storage
+volumes:
+  mysql_data:
+  certbot_webroot:
+  certbot_certs:

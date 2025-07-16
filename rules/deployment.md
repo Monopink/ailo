@@ -28,10 +28,10 @@ docker-compose -f docker-compose.stable.yml up -d
 ### Internal Container Ports
 
 - **accounts_service**: 8000 (internal) → 8001 (host)
-- **contacts_service**: 8000 (internal) → 8002 (host)  
+- **contacts_service**: 8000 (internal) → 8002 (host)
 - **bot_message_service**: 8000 (internal) → 8003 (host)
 - **frontend**: 5173 (internal) → 5173 (host)
-- **mysql**: 3306 (internal) → 3306 (host)
+- **mysql**: 3306 (internal) → 33061 (host)
 
 ### Development Tools
 
@@ -135,7 +135,7 @@ BOT_MESSAGE_SERVICE_PORT=8003
 
 ```bash
 curl http://localhost:8001/health  # accounts_service
-curl http://localhost:8002/health  # contacts_service  
+curl http://localhost:8002/health  # contacts_service
 curl http://localhost:8003/health  # bot_message_service
 ```
 

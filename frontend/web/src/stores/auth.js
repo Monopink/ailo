@@ -36,7 +36,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Try to get social profile for nickname and other profile data
       try {
         // Use axios with manual token for contacts API (goes through Vite proxy)
-        const profileResponse = await axios.get(`/api/v1/contacts/profile/${data.id}`, {
+        const profileResponse = await axios.get(`/contacts/profile/${data.id}`, {
           headers: {
             'Authorization': `Bearer ${token.value}`,
             'Content-Type': 'application/json'
@@ -109,7 +109,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function createProfile(profileData) {
     try {
-      const response = await axios.post('/api/v1/contacts/profile/me', profileData, {
+      const response = await axios.post('/contacts/profile/me', profileData, {
         headers: {
           'Authorization': `Bearer ${token.value}`,
           'Content-Type': 'application/json'
@@ -136,7 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function updateProfile(profileData) {
     try {
-      const response = await axios.put('/api/v1/contacts/profile/me', profileData, {
+      const response = await axios.put('/contacts/profile/me', profileData, {
         headers: {
           'Authorization': `Bearer ${token.value}`,
           'Content-Type': 'application/json'

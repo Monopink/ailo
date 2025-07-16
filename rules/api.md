@@ -105,9 +105,9 @@ try {
 
 ### Vite Proxy Routes
 
-- `/api/v1/system/*` → bot_message_service:8000
-- `/api/v1/contacts/*` → contacts_service:8000  
-- `/api/v1/*` → accounts_service:8000
+- `/api/v1/system/*` → bot_message_service_container:8000 (external port 8003)
+- `/api/v1/contacts/*` → contacts_service_container:8000 (external port 8002)
+- `/api/v1/*` → accounts_service_container:8000 (external port 8001)
 
 ### Production Routing
 

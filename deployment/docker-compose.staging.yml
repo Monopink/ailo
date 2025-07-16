@@ -1,0 +1,123 @@
+services:
+  # MySQL Database Service
+  mysql_db:
+    image: mysql:8.0
+    container_name: staging_mysql_db_container
+    env_file:
+      - .env.staging
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "33062:3306" # Different port to avoid conflicts
+    volumes:
+      - staging_mysql_data:/var/lib/mysql
+      - ../backend/database/conf:/etc/mysql/conf.d:ro
+      - ../backend/database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - staging-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER}", "-p${MYSQL_PASSWORD}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  # Accounts Service
+  accounts_service:
+    container_name: staging_accounts_service_container
+    build:
+      context: ../backend/accounts_service
+      dockerfile: Dockerfile
+    env_file:
+      - .env.staging
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8001:8000" # Different port for staging
+    volumes:
+      - ../logs/staging_accounts_service:/app/logs
+    networks:
+      - staging-network
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    restart: always
+
+  # Contacts Service
+  contacts_service:
+    container_name: staging_contacts_service_container
+    build:
+      context: ../backend/contacts_service
+      dockerfile: Dockerfile
+    env_file:
+      - .env.staging
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8002:8000" # Different port for staging
+    volumes:
+      - ../logs/staging_contacts_service:/app/logs
+    networks:
+      - staging-network
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    restart: always
+
+  # Bot Message Service
+  bot_message_service:
+    container_name: staging_bot_message_service_container
+    build:
+      context: ../backend/bot_message_service
+      dockerfile: Dockerfile
+    env_file:
+      - .env.staging
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8003:8000" # Different port for staging
+    volumes:
+      - ../logs/staging_bot_message_service:/app/logs
+    networks:
+      - staging-network
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    restart: always
+
+  # Web Frontend (Staging Build)
+  web:
+    container_name: staging_web_container
+    build:
+      context: ../frontend/web
+      dockerfile: Dockerfile
+    ports:
+      - "5174:5173" # Different port for staging
+    volumes:
+      - ../frontend/web:/app
+      - /app/node_modules
+    networks:
+      - staging-network
+    depends_on:
+      - accounts_service
+    restart: always
+
+# Define the network for services to communicate
+networks:
+  staging-network:
+    driver: bridge
+
+# Define volumes for persistent storage
+volumes:
+  staging_mysql_data:

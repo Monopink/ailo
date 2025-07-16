@@ -1,8 +1,12 @@
 from pydantic import model_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Configuration is now purely environment variable driven
+    # No env_file dependency - all variables must be provided via environment
+    model_config = SettingsConfigDict(extra="ignore")
+
     PROJECT_NAME: str = "SAYS Account Service"
 
     # JWT settings
@@ -12,7 +16,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
 
-    # Database settings from .env file
+    # Database settings - must be provided via environment variables
     DB_HOST: str
     DB_PORT: int
     DB_USER: str
@@ -37,12 +41,6 @@ class Settings(BaseSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
         return self
-
-    class Config:
-        # This tells pydantic-settings to load variables from a .env file
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
 
 
 # Create a single instance of the settings

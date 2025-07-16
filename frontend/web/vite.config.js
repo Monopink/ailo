@@ -115,7 +115,8 @@ self.addEventListener('message', (event) => {
 
   return {
     plugins: [vue()],
-    envDir: resolve(__dirname, '../../'),
+    // Use standard Vite environment variable handling
+    // Vite will automatically load .env.{mode} files from current directory
     server: {
       host: '0.0.0.0', // Allow external access
       proxy: {
@@ -128,6 +129,18 @@ self.addEventListener('message', (event) => {
         '/api/v1/contacts': {
           target: 'http://contacts_service_container:8000',
           changeOrigin: true,
+        },
+        // Proxy auth requests to accounts_service
+        '/auth': {
+          target: 'http://accounts_service_container:8000',
+          changeOrigin: true,
+          rewrite: (path) => `/api/v1${path}`,
+        },
+        // Proxy contacts requests to contacts_service
+        '/contacts': {
+          target: 'http://contacts_service_container:8000',
+          changeOrigin: true,
+          rewrite: (path) => `/api/v1${path}`,
         },
         // Proxy other /api/v1 requests to accounts_service (Docker internal network)
         '/api/v1': {

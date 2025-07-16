@@ -32,7 +32,7 @@
             <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <h2>{{ selectedChat?.name || '聊天' }}</h2>
+        <h2>{{ selectedChat?.name || '' }}</h2>
         <button class="clear-messages-button" @click="showClearMessagesConfirm = true" title="清除聊天记录">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14zM10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -158,6 +158,8 @@ const goBackToList = () => {
 
 
 
+
+
 const handleEditProfile = () => {
   showEditModal.value = true;
 };
@@ -253,10 +255,15 @@ const handleClearMessages = async () => {
 
 /* Mobile Layout */
 .mobile-container {
-  width: 100%;
+  width: 100vw;
   height: 100vh;
   background-color: var(--color-bg-primary);
   overflow: hidden; /* Prevent page scrolling */
+  position: fixed; /* Fix to viewport */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .mobile-chat-list {
@@ -265,6 +272,7 @@ const handleClearMessages = async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden; /* Prevent page scrolling */
+  padding-top: 60px; /* Space for fixed header */
 }
 
 .mobile-header {
@@ -274,9 +282,12 @@ const handleClearMessages = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: sticky;
+  position: fixed; /* Change from sticky to fixed */
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 10;
+  height: 60px; /* Slightly larger height for mobile */
 }
 
 .mobile-header h1 {
@@ -297,13 +308,16 @@ const handleClearMessages = async () => {
 .mobile-chat-header {
   background-color: var(--color-bg-secondary);
   border-bottom: var(--border-width) solid var(--color-border);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  position: sticky;
+  position: fixed; /* Change from sticky to fixed */
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 10;
+  height: 60px; /* Fixed height for header */
 }
 
 .back-button {
@@ -311,12 +325,20 @@ const handleClearMessages = async () => {
   border: none;
   color: var(--color-text-primary);
   cursor: pointer;
-  padding: var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg); /* Use proper radius variable */
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s;
+  min-width: 38px; /* Adjusted for mobile */
+  min-height: 38px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .back-button:hover {
@@ -345,7 +367,14 @@ const handleClearMessages = async () => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  flex-shrink: 0;
   box-shadow: var(--shadow-xs);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .clear-messages-button:hover {
@@ -447,4 +476,6 @@ const handleClearMessages = async () => {
   color: var(--color-text-secondary);
   cursor: not-allowed;
 }
+
+
 </style>

@@ -185,6 +185,39 @@ body {
   overflow-x: hidden;
 }
 
+/* Mobile-specific body styles */
+@media (max-width: 767px) {
+  body {
+    height: 100vh;
+    overflow: hidden;
+    /* Prevent page scrolling on mobile */
+    position: fixed;
+    /* Prevent bounce scrolling on iOS */
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    /* Prevent text size adjustment on orientation change */
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    /* Prevent tap highlight */
+    -webkit-tap-highlight-color: transparent;
+    /* Prevent selection */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Allow text selection in input areas */
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+}
+
 /* Modern Layout System */
 .container {
   width: 100%;
@@ -418,6 +451,143 @@ textarea {
   /* Mobile Styles */
   .hide-on-mobile {
     display: none !important;
+  }
+
+  /* Mobile input styles - prevent zoom on focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+    /* Prevent zoom on iOS */
+    -webkit-text-size-adjust: 100%;
+    -webkit-appearance: none;
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl) var(--spacing-2xl);
+    /* Larger padding for mobile */
+    height: 38px;
+    /* Adjusted height for mobile */
+  }
+
+  /* Mobile button styles */
+  .btn {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-size: var(--font-size-lg) !important;
+    /* Larger font for mobile */
+    padding: 0 var(--spacing-2xl);
+    /* Larger padding */
+    height: 38px;
+    /* Adjusted height for mobile */
+    min-width: 80px;
+    /* Larger minimum width */
+  }
+
+  /* Prevent double-tap zoom on buttons */
+  .btn-circle,
+  .menu-btn,
+  .add-contact-btn,
+  .clear-messages-button,
+  .back-button,
+  .send-button {
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+  }
+
+  /* Mobile font size adjustments */
+  body {
+    font-size: var(--font-size-lg) !important;
+    /* Base font size larger on mobile */
+  }
+
+  /* Adjust various text elements for mobile */
+  .chat-item-name {
+    font-size: var(--font-size-xl) !important;
+  }
+
+  .chat-item-preview {
+    font-size: var(--font-size-md) !important;
+  }
+
+  .user-name {
+    font-size: var(--font-size-xl) !important;
+  }
+
+  .contact-title {
+    font-size: var(--font-size-xl) !important;
+  }
+
+  .message-content {
+    font-size: var(--font-size-lg) !important;
+  }
+
+  /* Modal content adjustments */
+  .modal-header h3 {
+    font-size: var(--font-size-xl) !important;
+  }
+
+  .modal-body p,
+  .modal-body label,
+  .modal-body span {
+    font-size: var(--font-size-lg) !important;
+  }
+
+  /* Avatar size adjustments for mobile */
+  .contact-avatar {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: var(--font-size-lg) !important;
+  }
+
+  /* Dropdown menu adjustments for mobile */
+  .dropdown-menu {
+    min-width: 160px !important;
+  }
+
+  .menu-item {
+    font-size: var(--font-size-lg) !important;
+    padding: var(--spacing-lg) var(--spacing-xl) !important;
+    min-height: 38px !important;
+  }
+
+  /* Checkbox adjustments for mobile */
+  input[type="checkbox"] {
+    width: 20px !important;
+    height: 20px !important;
+    min-height: 20px !important;
+  }
+
+  /* Label adjustments for mobile */
+  label {
+    font-size: var(--font-size-lg) !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Ensure all button variants have consistent sizing */
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-yellow,
+  .btn-ghost {
+    height: 38px !important;
+    font-size: var(--font-size-lg) !important;
+    padding: 0 var(--spacing-2xl) !important;
+  }
+
+  /* Button size variants for mobile */
+  .btn-sm {
+    height: 32px !important;
+    font-size: var(--font-size-base) !important;
+    padding: 0 var(--spacing-lg) !important;
+  }
+
+  .btn-lg {
+    height: 44px !important;
+    font-size: var(--font-size-xl) !important;
+    padding: 0 var(--spacing-3xl) !important;
   }
 }
 

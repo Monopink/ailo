@@ -4,7 +4,8 @@
     :class="[
       `message-${message.sender}`,
       `status-${message.status || 'sent'}`,
-      { 'can-retry': canRetry }
+      { 'can-retry': canRetry },
+      { 'message-sending': message.status === 1 && message.sender === 'self' }
     ]"
     role="article"
     :aria-label="getMessageAriaLabel()">
@@ -113,11 +114,31 @@ const handleRetry = async () => {
   max-width: 75%;
 }
 
+/* Message sending animation - fly in from input area */
+.message-bubble.message-sending {
+  animation: message-fly-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes message-fly-in {
+  0% {
+    opacity: 0;
+    transform: translateY(50px) translateX(-20px) scale(0.8);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translateY(-5px) translateX(-5px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+  }
+}
+
 .message-content {
   padding: var(--spacing-lg) var(--spacing-xl);
   border-radius: var(--radius-xl);
   position: relative;
-  min-width: 80px;
+  min-width: fit-content; /* Use fit-content instead of fixed min-width */
   word-break: break-word;
   box-shadow: var(--shadow-sm);
   font-size: var(--font-size-base);

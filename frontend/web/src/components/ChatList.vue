@@ -468,18 +468,39 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .chat-list-container {
     background-color: var(--color-bg-primary);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent container scrolling */
   }
 
   .contact-section {
     background-color: var(--color-bg-primary);
+    flex-shrink: 0; /* Don't shrink */
+    padding: var(--spacing-2xl) var(--spacing-3xl); /* Larger padding for mobile */
   }
 
   .chat-list {
     background-color: var(--color-bg-primary);
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0; /* Allow flex item to shrink */
+  }
+
+  .user-footer {
+    background-color: var(--color-bg-primary);
+    flex-shrink: 0; /* Don't shrink */
+    border-top: var(--border-width) solid var(--color-border);
+    padding: var(--spacing-lg) var(--spacing-xl); /* Larger padding for mobile */
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
   }
 
   .chat-item {
     background-color: var(--color-bg-primary);
+    min-height: 60px; /* Larger touch target */
   }
 
   .chat-item:hover {
@@ -488,6 +509,22 @@ onUnmounted(() => {
 
   .no-chats-placeholder {
     background-color: var(--color-bg-primary);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Prevent double-tap zoom on mobile buttons */
+  .menu-btn,
+  .add-contact-btn {
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
   }
 }
 </style>

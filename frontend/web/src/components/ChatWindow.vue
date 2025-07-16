@@ -775,6 +775,8 @@ onUnmounted(() => {
 .send-button {
   flex-shrink: 0;
   transition: all 0.15s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .send-button:disabled {
@@ -785,10 +787,39 @@ onUnmounted(() => {
 
 .send-button svg {
   transition: transform 0.15s ease;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .send-button:hover:not(:disabled) svg {
   transform: translateX(1px);
+}
+
+.send-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* Send button click animation */
+.send-button:not(:disabled):active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  animation: button-ripple 0.3s ease-out;
+}
+
+@keyframes button-ripple {
+  to {
+    width: 40px;
+    height: 40px;
+    opacity: 0;
+  }
 }
 
 .no-chat-selected {
@@ -835,26 +866,44 @@ onUnmounted(() => {
   .chat-window-container {
     height: 100vh;
     max-height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
   }
 
   .message-input-area {
-    padding: 0.75rem;
+    padding: calc(var(--spacing-xl) - var(--spacing-xs)) var(--spacing-2xl);
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 10;
+    background-color: var(--color-bg-primary);
+    border-top: var(--border-width) solid var(--color-border);
   }
 
   .messages-area {
-    padding: var(--spacing-lg);
-    padding-bottom: 80px; /* Space for fixed input area */
+    padding: var(--spacing-xl);
+    padding-top: 60px; /* Space for fixed header */
+    padding-bottom: 100px; /* Increased space for fixed input area */
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    height: auto;
   }
 
   .message-input {
-    padding: 0.5rem;
-    font-size: 16px;
-    /* Prevent zoom on focus on iOS */
+    padding: var(--spacing-lg) var(--spacing-xl);
+    font-size: 16px; /* Prevent zoom on focus on iOS */
+    -webkit-text-size-adjust: 100%; /* Prevent text size adjustment */
+    height: var(--input-height); /* Use original height */
   }
 
   .send-button {

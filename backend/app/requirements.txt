@@ -1,6 +1,4 @@
-# backend/bot_message_service/requirements.txt
 # Cloud Services
-# leancloud==3.0.2  # Commented out - using REST API only
 volcengine-python-sdk[ark]==4.0.4
 
 # Web Framework
@@ -12,6 +10,7 @@ websockets==12.0
 sqlalchemy==2.0.23
 aiomysql==0.2.0
 alembic==1.12.1
+greenlet==3.0.3
 
 # API Client
 httpx==0.25.1
@@ -20,9 +19,12 @@ requests==2.31.0
 
 # Data Processing
 pydantic==2.6.4
+pydantic-settings==2.2.1
 python-multipart==0.0.7
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==3.2.0
+email-validator==2.1.0
 
 # Utilities
 python-dotenv==1.0.0
@@ -31,13 +33,15 @@ tenacity==8.2.3
 structlog==24.1.0
 aioredis==2.0.1
 
+# JWT and Authentication
+PyJWT==2.8.0
+
 # Time and Date handling
 zhdate==0.1
 pytz==2023.3
 python-dateutil==2.8.2
 
-# Add pydantic-settings for configuration management
-pydantic-settings==2.2.1
-
-# Additional dependencies
-greenlet==3.0.3
+# Development and Testing (optional)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.1  # For testing API endpoints

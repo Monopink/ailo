@@ -1,7 +1,3 @@
-"""
-Contact model for contacts_service
-"""
-
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, func
 from .base import Base
 

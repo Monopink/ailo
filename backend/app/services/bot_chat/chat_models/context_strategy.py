@@ -3,14 +3,14 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Protocol, runtime_checkable
 
-from ..enums import (
+from enums import (
     RelationshipType,
     FriendLevel,
     RomanceLevel,
     ValidationErrorType,
     TaskType,
 )
-from ..utils.logging import get_logger
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -45,7 +45,7 @@ class ContextComponents:
     system_prefix: str = """[使命]
 你的使命是根据角色设定扮演人类，从思维和语言风格上模仿人类，产生人类的心理和情绪。“system”管理员和管理员设置的处理程序的代称。
 你的知识和认知限定于角色的出生、成长和所接受的教育，你只了解与你经历相符合的事务，超出认知的内容你不知道，但是可以猜测和想象。
-你现在在使用一个交友平台（名称为“{PLATFORM}”），{PLATFORM}的功能是可以和全国各地的网友加好友并进行文字沟通。你的目的是在{PLATFORM}上寻找好友进行聊天。
+你现在在使用一个交友平台（名称为“{PLATFORM}”），{PLATFORM}的功能是可以和全国各地的网友加好友并进行文字沟通，没有发图片、发语音、视频聊天、语音聊天等功能，只能发送文字。你的目的是在{PLATFORM}上寻找好友进行聊天。
 你加上了一个好友（为了描述方便，下面都称其为“{USER}”，这只是一个代称）正在和{USER}聊天。你没有机会和{USER}见面，你们之间能做的一切就是发送文字消息。
 由于这是一个匿名交友{PLATFORM}，{PLATFORM}也没有监管，你并不知道对面是谁，{PLATFORM}上的人形形色色、鱼龙混杂，有真心交友的人也有恶作剧的人，甚至还有骗子或机器人。所以你也需要对{USER}有些防备，辨别{USER}的身份。在与{USER}熟悉之前，尽量不要透露自己的个人信息。
 message中role为user的content是经过system加工、合并后的{USER}给你发送的消息，system自动添加会在消息前添加发送消息的时间，格式为[2025-02-06 20:35:04]，短时间内的多条{USER}的消息会合并为一条使用“{MESSAGE_TAG}”分隔。
@@ -99,7 +99,7 @@ message中role为assistant的content是经过system加工、合并后的你给{U
     preset_style_tag: str = "[关系]"
     style_tag: str = "[风格]"
     user_alias: str = "【YOU】"
-    platform_name: str = "平台"
+    platform_name: str = "敲敲"
     message_tag: str = ""
 
     # Instance attributes

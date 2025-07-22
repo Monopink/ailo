@@ -1,16 +1,13 @@
-"""
-Base CRUD operations.
-"""
-
 from typing import Generic, TypeVar, Type, Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from ..base import Base
-from ...utils.logging import get_logger, bind_context
+from sqlalchemy.ext.declarative import DeclarativeMeta
+
+from utils.logging import get_logger, bind_context
 
 logger = get_logger(__name__)
 
-ModelType = TypeVar("ModelType", bound=Base)
+ModelType = TypeVar("ModelType", bound=DeclarativeMeta)
 
 
 class CRUDBase(Generic[ModelType]):

@@ -8,9 +8,9 @@ try:
 except ImportError:
     print("zhdate is not installed. Please install it using 'pip install zhdate'.")
     exit(1)
+from enums import TaskType
 
 from ..context_strategy import ContextComponents, create_context, TaskDefinition
-from ...enums import TaskType
 from ..protocols import ModelAiloLike
 
 

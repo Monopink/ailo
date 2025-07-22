@@ -5,7 +5,7 @@
 ### JWT Token 管理
 
 ```python
-# Token生成 (accounts_service)
+# Token生成 (backend)
 token_data = {
     "sub": user.entity_id,
     "exp": datetime.utcnow() + timedelta(hours=24)

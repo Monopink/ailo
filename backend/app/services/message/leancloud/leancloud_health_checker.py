@@ -12,10 +12,10 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 import requests
 
-from ...utils.logging import get_logger
-from ...core.config import settings
+from utils.logging import get_logger
+from core.config import settings
 from .conversation_logger import conversation_logger, conversation_metrics
-from ..config_manager import get_unified_conversation_id, is_conversation_configured
+from .config_manager import get_unified_conversation_id, is_conversation_configured
 
 logger = get_logger(__name__)
 

@@ -1,7 +1,8 @@
 import copy
 from typing import Dict, Any
 
-from ...database import SessionLocal, bot_crud
+from core.database import SessionLocal
+from crud.bot import bot_crud
 from ..protocols import ModelAiloLike
 
 

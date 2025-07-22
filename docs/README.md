@@ -4,9 +4,7 @@
 
 ### API接口文档 (`/api`)
 
-- **[accounts.md](api/accounts.md)** - 账号服务API接口
-- **[contacts.md](api/contacts.md)** - 联系人服务API接口  
-- **[messages.md](api/messages.md)** - 消息服务API接口
+- **[backend.md](api/backend.md)** - 后端API接口
 - **[formats.md](api/formats.md)** - 数据格式规范
 
 ### 数据库设计 (`/database`)
@@ -16,7 +14,7 @@
 
 ### 系统架构 (`/architecture`)
 
-- **[services.md](architecture/services.md)** - 微服务架构说明
+- **[services.md](architecture/services.md)** - 后端架构说明
 - **[message-flow.md](architecture/message-flow.md)** - 消息处理流程
 - **[security.md](architecture/security.md)** - 安全设计规范
 
@@ -30,10 +28,8 @@
 
 ### 服务端口
 
-- accounts_service: 8001
-- contacts_service: 8002
-- bot_message_service: 8003
-- frontend: 5173
+- backend (后端): 8000
+- web_frontend: 5173
 
 ### 主要技术栈
 
@@ -51,12 +47,12 @@
 
 ### 核心数据表
 
-- **users** - 用户账号信息 (accounts_service)
-- **bots** - AI机器人配置 (bot_message_service)
-- **social_profiles** - 统一社交档案 (contacts_service)
-- **contacts** - 联系人关系 (contacts_service)
-- **message_history** - 消息历史 (bot_message_service)
-- **emotions** - 情感状态 (bot_message_service)
+- **users** - 用户账号信息
+- **bots** - AI机器人配置
+- **social_profiles** - 统一社交档案
+- **contacts** - 联系人关系
+- **message_history** - 消息历史
+- **emotions** - 情感状态
 
 ### 消息类型枚举
 
@@ -74,7 +70,6 @@
 ### 服务设计
 
 - **单一职责**: 每个服务专注特定功能
-- **数据隔离**: 服务间无共享数据表
 - **事件驱动**: 使用事件总线解耦消息处理
 - **无向后兼容**: MVP阶段，快速迭代
 
@@ -101,8 +96,8 @@
 
 ## 消息处理流程
 
-```
-用户发送消息 → LeanCloud IM → Webhook → bot_message_service
+```text
+用户发送消息 → LeanCloud IM → Webhook → backend
                                               ↓
                                          event_bus
                                               ↓

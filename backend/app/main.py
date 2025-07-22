@@ -2,15 +2,15 @@ from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from .services import websocket
-from .event_bus import event_bus
-from .database import SessionLocal, init_database
-from .message_router import message_router
-from .exceptions import AppException
-from .utils.logging import get_logger, bind_context, configure_logging
-from .core.config import settings
-from .services.leanmessage import setup_leanmessage_handlers
-from .api.v1.endpoints.system import router as system_router
+from core.config import settings
+from core.database import SessionLocal, init_database
+from core.event_bus import event_bus
+from services.message import websocket
+from services.bot_chat.message_router import message_router
+from exceptions import AppException
+from utils.logging import get_logger, bind_context, configure_logging
+from services.message.leanmessage import setup_leanmessage_handlers
+from api.v1.api import api_router
 
 
 logger = get_logger(__name__)
@@ -28,8 +28,8 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Include API routers
-app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
+# Include API router
+app.include_router(api_router, prefix="/api/v1")
 
 
 async def app_exception_handler(request: Request, exc: AppException):
@@ -76,7 +76,7 @@ async def startup_event():
 
         # Ensure unified conversation exists
         logger.info("ensuring_unified_conversation")
-        from .services.leancloud.conversation_auto_setup import ensure_unified_conversation
+        from services.message.leancloud.conversation_auto_setup import ensure_unified_conversation
 
         await ensure_unified_conversation()
         logger.info("unified_conversation_ready")
@@ -88,7 +88,7 @@ async def startup_event():
 
         # Start LeanCloud health monitoring
         logger.info("starting_leancloud_health_monitoring")
-        from .services.leancloud import health_checker
+        from services.message.leancloud import health_checker
 
         await health_checker.start_health_monitoring()
         logger.info("leancloud_health_monitoring_started")
@@ -112,7 +112,7 @@ async def shutdown_event():
     try:
         # Stop LeanCloud health monitoring
         logger.info("stopping_leancloud_health_monitoring")
-        from .services.leancloud import health_checker
+        from services.message.leancloud import health_checker
 
         await health_checker.stop_health_monitoring()
         logger.info("leancloud_health_monitoring_stopped")
@@ -146,7 +146,7 @@ async def websocket_endpoint(ws: WebSocket, client_id: str):
         await websocket.disconnect(client_id)
 
 
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 async def health_check():
     """
     Health check endpoint
@@ -160,8 +160,8 @@ async def health_check():
         database_status = "error"
 
     # Get LeanCloud conversation health status and metrics
-    from .services.leancloud import health_checker
-    from .services.leancloud import conversation_metrics
+    from services.message.leancloud import health_checker
+    from services.message.leancloud import conversation_metrics
 
     leancloud_health = health_checker.get_current_health_status()
     metrics_summary = conversation_metrics.get_metrics_summary()
@@ -181,16 +181,6 @@ async def leanmessage_webhook(request: Request):
     """
     LeanMessage webhook endpoint for receiving messages
     """
-    from .services.leancloud.leanmessage_webhook import handle_leanmessage_webhook
+    from services.message.leancloud.leanmessage_webhook import handle_leanmessage_webhook
 
     return await handle_leanmessage_webhook(request)
-
-
-@app.get("/")
-async def root():
-    """
-    Root path response
-    """
-    response = {"message": "Welcome to Says API", "version": "1.0.0", "status": "running"}
-    logger.info("root_endpoint_accessed")
-    return response

@@ -2,8 +2,8 @@ import copy
 import json
 from typing import Dict, Any, Optional
 from volcenginesdkarkruntime import Ark
+from utils.logging import get_logger
 from .base import BaseLLM
-from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 

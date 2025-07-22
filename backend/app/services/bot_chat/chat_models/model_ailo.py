@@ -4,17 +4,8 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, Optional, Callable, Awaitable, List
 
-from .context_strategy import ContextStrategyProtocol, TaskDefinition
-from .model_ailo_mixins.context_mixin import ContextMixin
-from .model_ailo_mixins.db_mixin import DBMixin
-from .model_ailo_mixins.llm_mixin import LLMMixin
-from .model_ailo_mixins.message_mixin import MessageMixin
-from .model_ailo_mixins.relationship_mixin import RelationshipMixin
-from .model_ailo_mixins.contact_mixin import ContactMixin
-from .base import BaseModel
-from ..utils.logging import get_logger, bind_context
-from ..llm_apis import model_ailo_advanced_llm as advanced_llm
-from ..enums import (
+from utils.logging import get_logger, bind_context
+from enums import (
     MessageType,
     MessageTypeCategory,
     RelationshipType,
@@ -23,6 +14,16 @@ from ..enums import (
     TaskType,
     TypingStatus,
 )
+from .context_strategy import ContextStrategyProtocol, TaskDefinition
+from .model_ailo_mixins.context_mixin import ContextMixin
+from .model_ailo_mixins.db_mixin import DBMixin
+from .model_ailo_mixins.llm_mixin import LLMMixin
+from .model_ailo_mixins.message_mixin import MessageMixin
+from .model_ailo_mixins.relationship_mixin import RelationshipMixin
+from .model_ailo_mixins.contact_mixin import ContactMixin
+from .base import BaseModel
+from ..llms import model_ailo_advanced_llm as advanced_llm
+
 
 logger = get_logger(__name__)
 

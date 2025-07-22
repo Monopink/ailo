@@ -5,15 +5,12 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
 # import leancloud  # Commented out - using REST API only
-from ..event_bus import event_bus, EventTypes
-from ..utils.logging import get_logger
-from ..core.config import settings
-from .config_manager import get_unified_conversation_id
-from ..enums import (
-    MessageType,
-    IMServiceType,
-)
+from core.config import settings
+from enums import MessageType, IMServiceType
+from core.event_bus import event_bus, EventTypes
+from utils.logging import get_logger
 
+from .leancloud.config_manager import get_unified_conversation_id
 from .encryption import encryption_service
 
 logger = get_logger(__name__)
@@ -39,7 +36,7 @@ class LeanMessageManager:
 
         self._initialized = False
         self._server_client = None  # Server's LeanMessage client
-        self._server_id = "says_server"  # ID for the server in LeanMessage
+        self._server_id = "says"  # ID for the server in LeanMessage
         self._conversations = {}  # Cache for conversations
 
     def init_rest_api(self):
@@ -380,7 +377,7 @@ class LeanMessageManager:
 
     def validate_message_structure(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Validate and convert LeanMessage message to bot_message_service format according to enums.py
+        Validate and convert LeanMessage message to backend format according to enums.py
         """
         try:
             # Extract basic fields

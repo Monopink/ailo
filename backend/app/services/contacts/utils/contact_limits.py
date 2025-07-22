@@ -1,15 +1,10 @@
-"""
-User limits utility functions
-Handles user permission and limit checking logic
-"""
-
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from ...models.user import User
-from ...models.contact import Contact
-from ...core.config import settings
-from ...utils.logging import get_logger
+from models.user import User
+from models.contact import Contact
+from core.config import settings
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 

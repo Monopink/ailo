@@ -191,12 +191,6 @@ CREATE TABLE bot_templates (
 
 ## 设计原则
 
-### 服务数据隔离
-
-- **accounts_service**: users
-- **contacts_service**: social_profiles, contacts, conversation_mappings, template_mappings, bot_templates
-- **bot_message_service**: bots, message_history, emotions
-
 ### 无外键约束
 
 - 避免数据库层面的服务耦合

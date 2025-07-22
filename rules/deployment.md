@@ -27,10 +27,8 @@ docker-compose -f docker-compose.stable.yml up -d
 
 ### Internal Container Ports
 
-- **accounts_service**: 8000 (internal) → 8001 (host)
-- **contacts_service**: 8000 (internal) → 8002 (host)
-- **bot_message_service**: 8000 (internal) → 8003 (host)
-- **frontend**: 5173 (internal) → 5173 (host)
+- **backend**: 8000 (internal) → 8000 (host)
+- **web_frontend**: 5173 (internal) → 5173 (host)
 - **mysql**: 3306 (internal) → 33061 (host)
 
 ### Development Tools
@@ -58,13 +56,10 @@ LEANCLOUD_MASTER_KEY=
 LEANCLOUD_BASE_URL=
 
 # Services
-INTERNAL_SERVICE_KEY=
 NGROK_AUTHTOKEN=
 
 # Service Ports
-ACCOUNTS_SERVICE_PORT=8001
-CONTACTS_SERVICE_PORT=8002
-BOT_MESSAGE_SERVICE_PORT=8003
+BACKEND_PORT=8000
 ```
 
 ### Configuration Files
@@ -89,18 +84,18 @@ BOT_MESSAGE_SERVICE_PORT=8003
 
 ### Container Dependencies
 
-- **Database First**: MySQL starts before application services
-- **Service Order**: accounts → contacts → bot_message → frontend
+- **Database First**: MySQL starts before backend service
+- **Service Order**: mysql → backend → web_frontend
 - **Health Checks**: Services wait for dependencies
 
 ## Development Tools
 
 ### ngrok Configuration
 
-- **Purpose**: Expose bot_message_service webhook for LeanCloud
+- **Purpose**: Expose backend webhook for LeanCloud
 - **Authentication**: Requires NGROK_AUTHTOKEN
 - **Web Interface**: <http://localhost:4040>
-- **Target**: bot_message_service:8000
+- **Target**: backend:8000
 
 ### Log Management
 
@@ -134,16 +129,14 @@ BOT_MESSAGE_SERVICE_PORT=8003
 ### Health Check Endpoints
 
 ```bash
-curl http://localhost:8001/health  # accounts_service
-curl http://localhost:8002/health  # contacts_service
-curl http://localhost:8003/health  # bot_message_service
+curl http://localhost:8000/health  # backend
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Port Conflicts**: Check if ports 8001-8003, 5173, 3306 are available
+1. **Port Conflicts**: Check if ports 8000, 5173, 3306 are available
 2. **Database Connection**: Verify MySQL container is running
 3. **LeanCloud Config**: Check LEANCLOUD_* environment variables
 4. **ngrok Token**: Verify NGROK_AUTHTOKEN is valid
@@ -152,13 +145,13 @@ curl http://localhost:8003/health  # bot_message_service
 
 ```bash
 # Restart specific service
-docker-compose restart accounts_service
+docker-compose restart backend
 
 # Rebuild and restart
-docker-compose up -d --build accounts_service
+docker-compose up -d --build backend
 
 # View logs
-docker-compose logs -f accounts_service
+docker-compose logs -f backend
 ```
 
 ### Database Reset

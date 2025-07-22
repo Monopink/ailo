@@ -1,7 +1,6 @@
-import aiohttp
 from typing import Dict, Any, Optional
 
-from ...database import SessionLocal, bot_crud
+from core.database import SessionLocal
 from ..protocols import ModelAiloLike
 
 
@@ -25,7 +24,7 @@ class ContactMixin:
             self.logger.error("error_initializing_user_profile", error=str(e))
 
     async def _fetch_user_profile(self: ModelAiloLike, user_entity_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch user social profile from contacts_service
+        """Fetch user social profile from contacts service
 
         Args:
             user_entity_id: User entity ID
@@ -34,29 +33,35 @@ class ContactMixin:
             Optional[Dict[str, Any]]: User profile data or None if failed
         """
         try:
-            from ...core.config import settings
+            # Use internal service directly (unified architecture)
+            from services.contacts.profile import get_social_profile
+            from core.database import SessionLocal
 
-            url = f"http://contacts_service_container:8000/api/v1/internal/profile/{user_entity_id}"
-            headers = {"X-Internal-Key": settings.INTERNAL_SERVICE_KEY}
+            async with SessionLocal() as db:
+                current_profile = await get_social_profile(db, user_entity_id)
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=5) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        if result.get("status") == "success" and "data" in result:
-                            current_profile = result["data"]
-                            self.logger.info("user_profile_fetched", user_entity_id=user_entity_id)
+                if current_profile:
+                    self.logger.info("user_profile_fetched", user_entity_id=user_entity_id)
 
-                            # Check for profile changes and update snapshot
-                            await self._handle_profile_changes(current_profile)
+                    # Convert to dict format for compatibility
+                    profile_dict = {
+                        "entity_id": current_profile.entity_id,
+                        "nickname": current_profile.nickname,
+                        "bio": current_profile.bio,
+                        "gender": current_profile.gender,
+                        "birthday": (
+                            current_profile.birthday.isoformat() if current_profile.birthday else None
+                        ),
+                        "interests": current_profile.interests,
+                        "preferences": current_profile.preferences,
+                    }
 
-                            return current_profile
+                    # Check for profile changes and update snapshot
+                    await self._handle_profile_changes(profile_dict)
 
-                    self.logger.warning(
-                        "failed_to_fetch_user_profile",
-                        user_entity_id=user_entity_id,
-                        status=response.status,
-                    )
+                    return profile_dict
+                else:
+                    self.logger.warning("user_profile_not_found", user_entity_id=user_entity_id)
                     return None
 
         except Exception as e:
@@ -82,6 +87,8 @@ class ContactMixin:
                     self.logger.info("user_profile_changes_detected", changes=changes)
 
             # Update snapshot in database
+            from crud.bot import bot_crud
+
             async with SessionLocal() as db:
                 await bot_crud.update_bot_data(db, self.bot.id, {"user_profile_snapshot": current_profile})
                 self.logger.info("user_profile_snapshot_updated")

@@ -2,38 +2,27 @@
 
 ## Overview
 
-AI chat/dating application with microservices architecture running in WSL2 Docker containers. Uses LeanCloud IM service for messaging and integrates with LLM APIs for intelligent conversations.
+AI chat/dating application with service architecture running in WSL2 Docker containers. Uses LeanCloud IM service for messaging and integrates with LLM APIs for intelligent conversations.
 
-## Microservices
+## Service Architecture
 
-### accounts_service (Port 8001)
+### Backend (Port 8000)
 
-- **Responsibility**: User account management, authentication, SMS verification
+- **Responsibility**: Backend service handling all application functionality
 - **Key Features**:
   - User registration/login with SMS verification
-  - JWT token management
+  - JWT token management and authentication
   - Password reset functionality
-  - User profile basic information
-
-### contacts_service (Port 8002)
-
-- **Responsibility**: Contact management, bot information, LeanCloud system conversation management
-- **Key Features**:
   - User contact list management
-  - Bot information CRUD operations
-  - LeanCloud system conversation creation/management
   - Social profile management
   - Contact search and addition functionality
-
-### bot_message_service (Port 8003)
-
-- **Responsibility**: Message processing, AI response generation, message routing
-- **Key Features**:
   - LeanCloud webhook message reception
   - AI model invocation and response generation
   - Emotion system and relationship status management
   - Message history storage
   - Event-driven message routing
+  - Bot information CRUD operations
+  - LeanCloud system conversation management
 
 ### Frontend (Port 5173)
 
@@ -79,10 +68,9 @@ AI Model Response → message_router.handle_outgoing_message()
 
 ## Service Communication
 
-- **Internal Authentication**: Uses INTERNAL_SERVICE_KEY for service-to-service communication
-- **Event Bus**: Decouples message processing and sending logic
-- **Database Isolation**: Each service manages its own database tables
-- **API Gateway**: Frontend uses Vite proxy to route requests to different services
+- **Event Bus**: Decouples message processing and sending logic within the backend service
+- **Database Access**: Single backend service manages all database tables
+- **API Gateway**: Frontend uses Vite proxy to route requests to backend service
 
 ## Key Design Principles
 

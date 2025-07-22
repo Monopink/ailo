@@ -3,13 +3,13 @@ import random
 from typing import Dict, Type, Optional, Any, Tuple
 from enum import Enum, auto
 from datetime import datetime
+import time
 
-from .database import SessionLocal, bot_crud, message_crud
-from .event_bus import event_bus, EventTypes
-
-from .message_models.base import BaseModel
-from .message_models.model_ailo import ModelAilo
-from .enums import (
+from core.database import SessionLocal
+from crud.bot import bot_crud
+from crud.message import message_crud
+from core.events import event_bus, EventTypes
+from enums import (
     MessageType,
     MessageTypeCategory,
     BotStatus,
@@ -17,9 +17,11 @@ from .enums import (
     SystemMessageReason,
     SystemMessageAction,
 )
-from .exceptions import BotNotFoundError, AuthorizationError, DatabaseError
-from .utils.logging import get_logger
-import time
+from exceptions import BotNotFoundError, AuthorizationError, DatabaseError
+from utils.logging import get_logger
+
+from .chat_models.base import BaseModel
+from .chat_models.model_ailo import ModelAilo
 
 logger = get_logger(__name__)
 
@@ -160,7 +162,7 @@ class MessageRouter:
         if message.get("type") == MessageType.SYSTEM.code:
             # Check for internal source marker
             internal_source = message.get("_internal_source")
-            if internal_source != "bot_message_service":
+            if internal_source != "backend":
                 logger.warning(
                     "unauthorized_system_message_attempt",
                     message_type=message.get("type"),

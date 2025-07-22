@@ -1,14 +1,8 @@
-"""
-Encryption service for message content protection
-Currently supports Base64 encoding with future extensibility for real encryption
-"""
-
 import base64
-import json
 import logging
 from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
-from ..enums import EncryptionType, EncryptionVersion
+from enums import EncryptionType, EncryptionVersion
 
 logger = logging.getLogger(__name__)
 

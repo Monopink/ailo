@@ -5,8 +5,8 @@ ID generation utilities for creating unique string IDs
 import random
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from ..utils.logging import get_logger
-from ..core.config import settings
+from utils.logging import get_logger
+from core.config import settings
 
 logger = get_logger(__name__)
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Production deployment script for Says AI Chat App
+# Production deployment script
 # Usage: ./deploy.sh [start|stop|restart|logs|status|ssl|update]
 
 set -e
@@ -47,12 +47,12 @@ check_requirements() {
         log_error "Docker Compose is not installed"
         exit 1
     fi
-    
+
     if [ ! -f "$ENV_FILE" ]; then
         log_error "Environment file $ENV_FILE not found"
         exit 1
     fi
-    
+
     log_success "Requirements check passed"
 }
 
@@ -81,24 +81,24 @@ start_services() {
 
 setup_ssl() {
     log_info "Setting up SSL certificates..."
-    
+
     # Check if nginx is running
     if ! docker-compose -f $COMPOSE_FILE ps nginx | grep -q "Up"; then
         log_error "Nginx service is not running. Run './deploy.sh init' first"
         exit 1
     fi
-    
+
     # Request SSL certificate
     log_info "Requesting SSL certificate for $DOMAIN..."
     docker-compose -f $COMPOSE_FILE run --rm certbot
-    
+
     if [ $? -eq 0 ]; then
         log_success "SSL certificate obtained successfully"
-        
+
         # Restart nginx to load SSL configuration
         log_info "Restarting nginx with SSL configuration..."
         docker-compose -f $COMPOSE_FILE restart nginx
-        
+
         log_success "SSL setup completed"
     else
         log_error "Failed to obtain SSL certificate"
@@ -128,9 +128,9 @@ update_deployment() {
 
 check_services() {
     log_info "Checking service health..."
-    
-    services=("mysql_db" "accounts_service" "contacts_service" "bot_message_service" "web" "nginx")
-    
+
+    services=("mysql_db" "backend" "web_frontend" "nginx")
+
     for service in "${services[@]}"; do
         if docker-compose -f $COMPOSE_FILE ps $service | grep -q "Up"; then
             log_success "$service is running"

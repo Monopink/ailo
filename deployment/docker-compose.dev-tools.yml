@@ -3,11 +3,11 @@
 # Use together with docker-compose.yml for full development environment
 
 services:
-  # ngrok for exposing bot_message_service webhook to LeanCloud
+  # ngrok for exposing webhook to LeanCloud
   ngrok:
     container_name: ngrok_container
     build:
-      context: ../backend/dev_tools/ngrok
+      context: ../ngrok
       dockerfile: Dockerfile
     env_file:
       - .env
@@ -15,7 +15,7 @@ services:
       - "4040:4040"
     networks:
       - says-network
-    # Note: ngrok will wait for bot_message_service to be ready internally
+    # Note: ngrok will wait for backend to be ready internally
     restart: always
 
   # Dozzle for log viewing

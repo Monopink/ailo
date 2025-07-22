@@ -2,8 +2,8 @@ import asyncio
 import random
 import time
 from typing import Dict, Any, List, Optional
+from utils.logging import get_logger
 from .base import BaseLLM
-from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 

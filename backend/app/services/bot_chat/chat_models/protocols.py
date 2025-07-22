@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Callable, Coroutine, List, Protocol, Tup
 from datetime import datetime
 import asyncio
 
-from ..enums import MessageType
+from enums import MessageType
 from .context_strategy import ContextStrategyProtocol
 
 

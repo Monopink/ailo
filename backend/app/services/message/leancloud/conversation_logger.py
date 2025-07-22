@@ -7,7 +7,7 @@ health checks, and error tracking.
 
 import time
 from typing import Optional, Dict, Any
-from ...utils.logging import get_logger
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -20,7 +20,7 @@ class ConversationLogger:
     health checks, error tracking, and performance monitoring.
     """
 
-    def __init__(self, service_name: str = "bot_message_service"):
+    def __init__(self, service_name: str = "backend"):
         self.service_name = service_name
         self.logger = get_logger(f"{__name__}.{service_name}")
 

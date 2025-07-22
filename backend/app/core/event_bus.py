@@ -1,6 +1,6 @@
 from typing import Dict, List, Callable, Any
 import asyncio
-from .utils.logging import get_logger
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 

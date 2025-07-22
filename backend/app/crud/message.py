@@ -1,14 +1,11 @@
-"""
-CRUD operations for Message processing.
-"""
-
 from typing import Dict, Any, List, Union
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc
-from .base_crud import CRUDBase
-from ..models.message import MessageHistory
-from ...utils.logging import get_logger, bind_context
+
+from models.message import MessageHistory
+from utils.logging import get_logger, bind_context
+from .base import CRUDBase
 
 logger = get_logger(__name__)
 

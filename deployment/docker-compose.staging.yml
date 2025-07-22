@@ -30,11 +30,11 @@ services:
       start_period: 30s
     restart: always
 
-  # Accounts Service
-  accounts_service:
-    container_name: staging_accounts_service_container
+  # Backend Service
+  backend:
+    container_name: staging_backend
     build:
-      context: ../backend/accounts_service
+      context: ../backend/app
       dockerfile: Dockerfile
     env_file:
       - .env.staging
@@ -42,53 +42,10 @@ services:
       PYTHONDONTWRITEBYTECODE: 1
       PYTHONUNBUFFERED: 1
     ports:
-      - "8001:8000" # Different port for staging
+      - "8000:8000" # Different port for staging
     volumes:
-      - ../logs/staging_accounts_service:/app/logs
-    networks:
-      - staging-network
-    depends_on:
-      mysql_db:
-        condition: service_healthy
-    restart: always
-
-  # Contacts Service
-  contacts_service:
-    container_name: staging_contacts_service_container
-    build:
-      context: ../backend/contacts_service
-      dockerfile: Dockerfile
-    env_file:
-      - .env.staging
-    environment:
-      PYTHONDONTWRITEBYTECODE: 1
-      PYTHONUNBUFFERED: 1
-    ports:
-      - "8002:8000" # Different port for staging
-    volumes:
-      - ../logs/staging_contacts_service:/app/logs
-    networks:
-      - staging-network
-    depends_on:
-      mysql_db:
-        condition: service_healthy
-    restart: always
-
-  # Bot Message Service
-  bot_message_service:
-    container_name: staging_bot_message_service_container
-    build:
-      context: ../backend/bot_message_service
-      dockerfile: Dockerfile
-    env_file:
-      - .env.staging
-    environment:
-      PYTHONDONTWRITEBYTECODE: 1
-      PYTHONUNBUFFERED: 1
-    ports:
-      - "8003:8000" # Different port for staging
-    volumes:
-      - ../logs/staging_bot_message_service:/app/logs
+      - ../backend/app:/app
+      - ../logs:/app/logs
     networks:
       - staging-network
     depends_on:
@@ -97,8 +54,8 @@ services:
     restart: always
 
   # Web Frontend (Staging Build)
-  web:
-    container_name: staging_web_container
+  web_frontend:
+    container_name: staging_web_frontend
     build:
       context: ../frontend/web
       dockerfile: Dockerfile
@@ -110,7 +67,7 @@ services:
     networks:
       - staging-network
     depends_on:
-      - accounts_service
+      - backend
     restart: always
 
 # Define the network for services to communicate

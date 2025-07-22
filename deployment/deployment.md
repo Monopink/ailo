@@ -6,9 +6,7 @@
 
 ### 后端服务
 
-- `accounts_service` - 用户账户管理服务 (端口8001)
-- `contacts_service` - 联系人管理服务 (端口8002)
-- `bot_message_service` - 机器人消息服务 (端口8003)
+- `backend` - 后端服务 (端口8000)
 
 ### 前端应用
 
@@ -177,7 +175,7 @@ curl -I https://web4.qiaoqiaoai.cn
 
 # 查看特定服务日志
 ./deploy.sh logs nginx
-./deploy.sh logs accounts_service
+./deploy.sh logs backend
 
 # 更新部署（重新构建并重启）
 ./deploy.sh update
@@ -214,7 +212,7 @@ docker-compose -f docker-compose.prod.yml up -d --build
 docker-compose -f docker-compose.prod.yml logs -f nginx
 
 # 进入容器调试
-docker-compose -f docker-compose.prod.yml exec accounts_service bash
+docker-compose -f docker-compose.prod.yml exec backend bash
 
 # 清理未使用的镜像
 docker image prune -f
@@ -323,23 +321,19 @@ cp docker-compose.prod.yml docker-compose.prod.yml.backup
 
 **开发环境**：
 
-- accounts_service: 8001
-- contacts_service: 8002
-- bot_message_service: 8003
-- frontend: 5173
+- backend: 8000
+- web_frontend: 5173
 - MySQL: 33061
 
 ## 日志管理
 
 ### 日志位置
 
-所有服务的日志都统一存储在 `./logs/` 目录下：
+服务的日志都存储在 `./logs/` 目录下：
 
 ```
 logs/
-├── accounts_service/        # 账户服务日志
-├── contacts_service/        # 联系人服务日志
-├── bot_message_service/     # 消息服务日志
+├── backend/                 # 后端服务日志
 └── monitor.log             # 监控脚本日志
 ```
 
@@ -350,10 +344,10 @@ logs/
 ./deploy.sh logs
 
 # 查看特定服务日志
-./deploy.sh logs accounts_service
+./deploy.sh logs backend
 
 # 查看日志文件
-tail -f logs/accounts_service/accounts_service.log
+tail -f logs/backend/backend.log
 
 # 查看监控日志
 tail -f logs/monitor.log

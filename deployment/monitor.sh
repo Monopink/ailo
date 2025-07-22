@@ -135,7 +135,7 @@ run_health_check() {
     local failed=0
     
     # Check services
-    services=("mysql_db" "accounts_service" "contacts_service" "bot_message_service" "web" "nginx")
+    services=("mysql_db" "backend" "web_frontend" "nginx")
     for service in "${services[@]}"; do
         check_service_health "$service" || failed=$((failed + 1))
     done

@@ -115,7 +115,7 @@
 
 - All bot messages use single shared conversation ID
 - Prioritizes message delivery over ID freshness
-- System conversation setup managed by contacts_service
+- System conversation setup managed by backend
 
 ### Webhook Processing
 

@@ -5,7 +5,7 @@
 ### 整体流程
 
 ```
-用户发送消息 → LeanCloud IM → Webhook → bot_message_service
+用户发送消息 → LeanCloud IM → Webhook → backend
                                               ↓
                                          event_bus
                                               ↓
@@ -153,7 +153,7 @@ await self.send_system_message(
 
 - 所有机器人消息使用单一conversation_id
 - 优先保证消息送达，而非ID新鲜度
-- 系统对话由contacts_service管理
+- 系统对话由backend管理
 
 ### Webhook配置
 

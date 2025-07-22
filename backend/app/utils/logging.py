@@ -1,7 +1,7 @@
+import os
+import logging
 import structlog
 from typing import Dict, Any, Optional
-import logging
-import os
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
 from structlog.types import EventDict
 
@@ -24,7 +24,7 @@ def format_log_level(_, __, event_dict: EventDict) -> EventDict:
 
 def configure_logging():
     """
-    Configure structured logging for the bot message service.
+    Configure structured logging for the backend.
     This setup ensures that logs are processed as JSON and saved to files.
     """
     # Ensure logs directory exists
@@ -32,7 +32,7 @@ def configure_logging():
     os.makedirs(log_dir, exist_ok=True)
 
     # Configure file handler
-    log_file = os.path.join(log_dir, "bot_message_service.log")
+    log_file = os.path.join(log_dir, "backend.log")
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
 
@@ -66,7 +66,7 @@ def configure_logging():
         cache_logger_on_first_use=True,
     )
     logger = get_logger(__name__)
-    logger.info("logging_configured_successfully", log_file=log_file)
+    logger.info("logging_configured_successfully", log_file=log_file, service="backend")
 
 
 def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:

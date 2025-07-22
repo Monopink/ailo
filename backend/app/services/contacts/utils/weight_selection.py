@@ -5,16 +5,17 @@ Implements weighted random selection algorithms
 
 import random
 from typing import List, TypeVar, Protocol
-import structlog
+from utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 # Generic type for items that have weight
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class WeightedItem(Protocol):
     """Protocol for items that can be weighted"""
+
     weight: int
 
 
@@ -36,43 +37,40 @@ def weighted_random_selection(items: List[T], limit: int) -> List[T]:
         return items
 
     # Calculate total weight
-    total_weight = sum(getattr(item, 'weight', 100) for item in items)
-    
+    total_weight = sum(getattr(item, "weight", 100) for item in items)
+
     selected = []
     available_items = items.copy()
-    
+
     for _ in range(min(limit, len(available_items))):
         if not available_items:
             break
-            
+
         # Generate random number
         rand_num = random.uniform(0, total_weight)
-        
+
         # Find selected item
         current_weight = 0
         selected_item = None
-        
+
         for i, item in enumerate(available_items):
-            current_weight += getattr(item, 'weight', 100)
+            current_weight += getattr(item, "weight", 100)
             if rand_num <= current_weight:
                 selected_item = item
                 selected.append(item)
                 # Remove from available and adjust total weight
                 available_items.pop(i)
-                total_weight -= getattr(item, 'weight', 100)
+                total_weight -= getattr(item, "weight", 100)
                 break
-        
+
         # Fallback if no item selected (shouldn't happen)
         if selected_item is None and available_items:
             selected_item = available_items.pop(0)
             selected.append(selected_item)
-            total_weight -= getattr(selected_item, 'weight', 100)
+            total_weight -= getattr(selected_item, "weight", 100)
 
     logger.debug(
-        "weighted_selection_completed",
-        total_items=len(items),
-        selected_count=len(selected),
-        limit=limit
+        "weighted_selection_completed", total_items=len(items), selected_count=len(selected), limit=limit
     )
 
     return selected
@@ -111,7 +109,7 @@ def calculate_selection_probability(item_weight: int, total_weight: int) -> floa
     """
     if total_weight <= 0:
         return 0.0
-    
+
     return item_weight / total_weight
 
 
@@ -126,9 +124,9 @@ def validate_weights(items: List[T]) -> bool:
         True if all weights are valid, False otherwise
     """
     for item in items:
-        weight = getattr(item, 'weight', None)
+        weight = getattr(item, "weight", None)
         if weight is None or weight < 0:
             logger.warning("invalid_weight_detected", item=str(item), weight=weight)
             return False
-    
+
     return True

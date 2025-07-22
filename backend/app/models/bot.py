@@ -1,9 +1,5 @@
-"""
-Bot model for bot_message_service.
-"""
-
 from sqlalchemy import Column, Integer, String, DateTime, Text, JSON
-from ..base import Base
+from .base import Base
 
 
 class Bot(Base):

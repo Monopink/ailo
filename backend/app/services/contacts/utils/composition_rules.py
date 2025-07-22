@@ -4,9 +4,9 @@ Defines rules for component composition and validation
 """
 
 from typing import Dict, List, Any, Set
-import structlog
+from utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def get_personality_appearance_rules() -> Dict[str, List[str]]:
@@ -80,7 +80,9 @@ def validate_component_compatibility(components: List[Dict[str, Any]]) -> bool:
         skill_components = [c for c in components if c.get("type") == "skill"]
 
         # Validate personality-appearance compatibility
-        if not _validate_personality_appearance_compatibility(personality_components, appearance_components):
+        if not _validate_personality_appearance_compatibility(
+            personality_components, appearance_components
+        ):
             return False
 
         # Validate skill compatibility
@@ -127,7 +129,7 @@ def calculate_template_rarity(components: List[Dict[str, Any]]) -> int:
             components_count=len(components),
             base_rarity=total_rarity,
             combination_bonus=combination_bonus,
-            final_rarity=final_rarity
+            final_rarity=final_rarity,
         )
 
         return max(1, final_rarity)  # Minimum rarity of 1
@@ -138,29 +140,28 @@ def calculate_template_rarity(components: List[Dict[str, Any]]) -> int:
 
 
 def _validate_personality_appearance_compatibility(
-    personality_components: List[Dict[str, Any]], 
-    appearance_components: List[Dict[str, Any]]
+    personality_components: List[Dict[str, Any]], appearance_components: List[Dict[str, Any]]
 ) -> bool:
     """Validate personality-appearance compatibility"""
     if not personality_components or not appearance_components:
         return True  # No conflict if either is empty
 
     compatibility_rules = get_personality_appearance_rules()
-    
+
     for personality in personality_components:
         personality_type = personality.get("value")
         compatible_appearances = compatibility_rules.get(personality_type, [])
-        
+
         for appearance in appearance_components:
             appearance_type = appearance.get("value")
             if compatible_appearances and appearance_type not in compatible_appearances:
                 logger.warning(
                     "personality_appearance_incompatible",
                     personality=personality_type,
-                    appearance=appearance_type
+                    appearance=appearance_type,
                 )
                 return False
-    
+
     return True
 
 
@@ -176,11 +177,7 @@ def _validate_skill_compatibility(skill_components: List[Dict[str, Any]]) -> boo
         incompatible_skills = incompatibility_rules.get(skill, set())
         for other_skill in skill_values:
             if other_skill != skill and other_skill in incompatible_skills:
-                logger.warning(
-                    "skills_incompatible",
-                    skill1=skill,
-                    skill2=other_skill
-                )
+                logger.warning("skills_incompatible", skill1=skill, skill2=other_skill)
                 return False
 
     return True
@@ -189,7 +186,7 @@ def _validate_skill_compatibility(skill_components: List[Dict[str, Any]]) -> boo
 def _validate_component_limits(components: List[Dict[str, Any]]) -> bool:
     """Validate component count limits"""
     component_counts = {}
-    
+
     for component in components:
         component_type = component.get("type")
         component_counts[component_type] = component_counts.get(component_type, 0) + 1
@@ -197,18 +194,15 @@ def _validate_component_limits(components: List[Dict[str, Any]]) -> bool:
     # Define limits
     limits = {
         "personality": 1,  # Only one personality
-        "appearance": 3,   # Max 3 appearance components
-        "skill": 5,        # Max 5 skills
+        "appearance": 3,  # Max 3 appearance components
+        "skill": 5,  # Max 5 skills
     }
 
     for component_type, count in component_counts.items():
         limit = limits.get(component_type, 10)  # Default limit
         if count > limit:
             logger.warning(
-                "component_limit_exceeded",
-                component_type=component_type,
-                count=count,
-                limit=limit
+                "component_limit_exceeded", component_type=component_type, count=count, limit=limit
             )
             return False
 
@@ -220,11 +214,11 @@ def _calculate_combination_bonus(components: List[Dict[str, Any]]) -> int:
     # Simple implementation: bonus for having multiple rare components
     rare_count = sum(1 for c in components if c.get("rarity_type", "").startswith("rare"))
     legendary_count = sum(1 for c in components if c.get("rarity_type", "").startswith("legendary"))
-    
+
     bonus = rare_count * 2 + legendary_count * 5
-    
+
     # Extra bonus for full legendary set
     if legendary_count >= 3:
         bonus += 10
-    
+
     return bonus

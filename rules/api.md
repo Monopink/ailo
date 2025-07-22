@@ -2,23 +2,16 @@
 
 ## Service Endpoints
 
-### accounts_service (Port 8001)
+### backend (Port 8000)
 
 - **Base Path**: `/api/v1`
 - **Authentication**: JWT Bearer tokens
-- **Responsibilities**: User registration, login, SMS verification, basic user info
-
-### contacts_service (Port 8002)  
-
-- **Base Path**: `/api/v1/contacts`
-- **Authentication**: JWT Bearer tokens
-- **Responsibilities**: Contact management, bot info, social profiles, conversation mapping
-
-### bot_message_service (Port 8003)
-
-- **Base Path**: `/api/v1/system`
-- **Authentication**: Internal service key + JWT
-- **Responsibilities**: System conversation management, message status reporting
+- **Responsibilities**:
+  - User registration, login, SMS verification, basic user info
+  - Contact management, bot info, social profiles, conversation mapping
+  - System conversation management, message status reporting
+  - AI model invocation and response generation
+  - Message history storage and retrieval
 
 ## API Design Principles
 
@@ -105,14 +98,12 @@ try {
 
 ### Vite Proxy Routes
 
-- `/api/v1/system/*` → bot_message_service_container:8000 (external port 8003)
-- `/api/v1/contacts/*` → contacts_service_container:8000 (external port 8002)
-- `/api/v1/*` → accounts_service_container:8000 (external port 8001)
+- `/api/v1/*` → backend:8000
 
 ### Production Routing
 
-- API Gateway or load balancer handles service routing
-- No direct service exposure to frontend
+- Nginx reverse proxy handles routing to backend service
+- Single backend service handles all API endpoints
 
 ## Rate Limiting & Security
 

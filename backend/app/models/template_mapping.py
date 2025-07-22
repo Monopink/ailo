@@ -1,7 +1,3 @@
-"""
-Template Mapping Model - Maps users to bot templates with search tracking
-"""
-
 from sqlalchemy import Column, Integer, String, DateTime, Index
 from sqlalchemy.sql import func
 from .base import Base

@@ -2,7 +2,7 @@ import asyncio
 from typing import Optional
 from datetime import datetime, timezone
 
-from ...enums import MessageType, TypingStatus
+from enums import MessageType, TypingStatus
 from ..protocols import ModelAiloLike
 
 

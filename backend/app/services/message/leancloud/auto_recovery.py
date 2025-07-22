@@ -13,11 +13,11 @@ import time
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from ...utils.logging import get_logger
-from ...core.config import settings
+from utils.logging import get_logger
+from core.config import settings
 from .conversation_logger import conversation_logger, conversation_metrics
 from .conversation_auto_setup import create_system_conversation
-from ..config_manager import set_unified_conversation_id, get_unified_conversation_id
+from .config_manager import set_unified_conversation_id, get_unified_conversation_id
 
 logger = get_logger(__name__)
 

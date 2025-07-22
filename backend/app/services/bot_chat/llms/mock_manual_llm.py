@@ -1,7 +1,7 @@
-from typing import Dict, Any, Optional
 import json
 import asyncio
-from ..utils.logging import get_logger
+from typing import Dict, Any, Optional
+from utils.logging import get_logger
 
 from .base import BaseLLM
 

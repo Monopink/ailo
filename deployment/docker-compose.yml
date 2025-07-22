@@ -1,5 +1,4 @@
-# Core services Docker Compose configuration
-# This file contains only the essential business services
+# This file contains the consolidated monolithic backend service
 # Use docker-compose.dev-tools.yml for development tools (ngrok, dozzle)
 # Use docker-compose.prod.yml for production deployment
 # Use docker-compose.staging.yml for staging deployment
@@ -32,11 +31,11 @@ services:
       start_period: 30s
     restart: always
 
-  # Accounts Service
-  accounts_service:
-    container_name: accounts_service_container
+  # Backend Service
+  backend:
+    container_name: backend
     build:
-      context: ../backend/accounts_service
+      context: ../backend/app
       dockerfile: Dockerfile
     env_file:
       - .env
@@ -44,56 +43,10 @@ services:
       PYTHONDONTWRITEBYTECODE: 1
       PYTHONUNBUFFERED: 1
     ports:
-      - "8001:8000"
+      - "8000:8000"
     volumes:
-      - ../backend/accounts_service:/app
-      - ../logs/accounts_service:/app/logs
-    networks:
-      - says-network
-    depends_on:
-      mysql_db:
-        condition: service_healthy
-    restart: always
-
-  # Contacts Service
-  contacts_service:
-    container_name: contacts_service_container
-    build:
-      context: ../backend/contacts_service
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    environment:
-      PYTHONDONTWRITEBYTECODE: 1
-      PYTHONUNBUFFERED: 1
-    ports:
-      - "8002:8000"
-    volumes:
-      - ../backend/contacts_service:/app
-      - ../logs/contacts_service:/app/logs
-    networks:
-      - says-network
-    depends_on:
-      mysql_db:
-        condition: service_healthy
-    restart: always
-
-  # Bot Message Service
-  bot_message_service:
-    container_name: bot_message_service_container
-    build:
-      context: ../backend/bot_message_service
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    environment:
-      PYTHONDONTWRITEBYTECODE: 1
-      PYTHONUNBUFFERED: 1
-    ports:
-      - "8003:8000"
-    volumes:
-      - ../backend/bot_message_service:/app
-      - ../logs/bot_message_service:/app/logs
+      - ../backend/app:/app
+      - ../logs:/app/logs
     networks:
       - says-network
     depends_on:
@@ -102,8 +55,8 @@ services:
     restart: always
 
   # Web Frontend
-  web:
-    container_name: web_container
+  web_frontend:
+    container_name: web_frontend_container
     build:
       context: ../frontend/web
       dockerfile: Dockerfile
@@ -117,7 +70,7 @@ services:
     networks:
       - says-network
     depends_on:
-      - accounts_service
+      - backend
     restart: always
 
 networks:

@@ -1,5 +1,5 @@
 """
-LeanMessage webhook handlers for bot_message_service.
+LeanMessage webhook handlers for backend.
 Handles incoming webhook requests from LeanMessage system conversations.
 """
 
@@ -7,7 +7,7 @@ import json
 from typing import Dict, Any
 from fastapi import Request
 from ...services.leanmessage import leanmessage_service
-from ...utils.logging import get_logger
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 

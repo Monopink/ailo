@@ -1,10 +1,6 @@
-"""
-Emotion model for bot_message_service.
-"""
-
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime, DECIMAL
-from ..base import Base
+from .base import Base
 
 
 class Emotions(Base):

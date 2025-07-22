@@ -2,13 +2,11 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import crud, models
-from app.api import deps
-from app.core import security
-from app.core.sms import send_sms_code, verify_sms_code
-from app.models import user as user_model
-from app.schemas.user import (
-    User,
+from crud.user import user_crud
+from core import security
+from services.auth.sms import send_sms_code, verify_sms_code
+from models.user import User
+from schemas.user import (
     UserCreate,
     Token,
     PhoneSchema,
@@ -16,6 +14,10 @@ from app.schemas.user import (
     UserLoginCode,
     PasswordReset,
 )
+from utils.logging import get_logger
+from api.deps import get_db, get_current_user
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -23,7 +25,7 @@ router = APIRouter()
 @router.post("/send-code", summary="发送短信验证码 (Send SMS Code)")
 async def request_sms_code(
     *,
-    db: AsyncSession = Depends(deps.get_db),
+    db: AsyncSession = Depends(get_db),
     phone_data: PhoneSchema = Body(...),
 ):
     """
@@ -35,7 +37,7 @@ async def request_sms_code(
     if not re.match(r"^1[3-9]\d{9}$", phone):
         raise HTTPException(status_code=400, detail="请输入有效手机号码。")
 
-    user = await crud.user.get_user_by_phone(db, phone=phone)
+    user = await user_crud.get_user_by_phone(db, phone=phone)
     if user:
         # If it's a password reset or code login request, the user must exist.
         # If it's a registration request, a new user will be created.
@@ -53,7 +55,7 @@ async def request_sms_code(
 @router.post("/register", summary="手机号密码注册 (Register with Phone and Password)")
 async def register_user(
     *,
-    db: AsyncSession = Depends(deps.get_db),
+    db: AsyncSession = Depends(get_db),
     user_in: UserCreate,
 ):
     """
@@ -63,11 +65,11 @@ async def register_user(
     if not verify_sms_code(phone=user_in.phone, code=user_in.code):
         raise HTTPException(status_code=400, detail="验证码错误或已过期，请重新获取。")
 
-    user = await crud.user.get_user_by_phone(db, phone=user_in.phone)
+    user = await user_crud.get_user_by_phone(db, phone=user_in.phone)
     if user:
         raise HTTPException(status_code=400, detail="该手机号码已被注册。")
 
-    user = await crud.user.create_user(db=db, user_in=user_in)
+    user = await user_crud.create_user(db=db, user_in=user_in)
     return {
         "id": user.entity_id,  # entity_id mapped to id for frontend
         "phone": user.phone,
@@ -84,13 +86,13 @@ async def register_user(
     "/login/password", response_model=Token, summary="手机号密码登录 (Login with Phone and Password)"
 )
 async def login_with_password(
-    db: AsyncSession = Depends(deps.get_db),
+    db: AsyncSession = Depends(get_db),
     login_data: UserLoginPassword = Body(...),
 ):
     """
     OAuth2 compatible token login, get an access token for future requests.
     """
-    user = await crud.user.get_user_by_phone(db, phone=login_data.phone)
+    user = await user_crud.get_user_by_phone(db, phone=login_data.phone)
     if not user or not security.verify_password(login_data.password, user.password_hash):
         raise HTTPException(status_code=400, detail="手机号或密码不正确。")
 
@@ -100,7 +102,7 @@ async def login_with_password(
 
 @router.post("/login/code", response_model=Token, summary="手机号验证码登录 (Login with Phone and Code)")
 async def login_with_code(
-    db: AsyncSession = Depends(deps.get_db),
+    db: AsyncSession = Depends(get_db),
     login_data: UserLoginCode = Body(...),
 ):
     """
@@ -109,7 +111,7 @@ async def login_with_code(
     if not verify_sms_code(phone=login_data.phone, code=login_data.code):
         raise HTTPException(status_code=400, detail="验证码错误或已过期，请重新获取。")
 
-    user = await crud.user.get_user_by_phone(db, phone=login_data.phone)
+    user = await user_crud.get_user_by_phone(db, phone=login_data.phone)
     if not user:
         raise HTTPException(status_code=404, detail="该手机号尚未注册。")
 
@@ -117,9 +119,26 @@ async def login_with_code(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+@router.post("/refresh", response_model=Token, summary="刷新访问令牌 (Refresh Access Token)")
+async def refresh_access_token(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Refresh access token for MVP (simple strategy).
+    Creates a new token with extended expiry time.
+    """
+    # Create new token with same entity_id
+    access_token = security.create_access_token(
+        subject=current_user.entity_id, entity_id=current_user.entity_id
+    )
+
+    logger.info("token_refreshed", entity_id=current_user.entity_id)
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 @router.post("/reset-password", summary="密码重置 (Reset Password)")
 async def reset_user_password(
-    db: AsyncSession = Depends(deps.get_db),
+    db: AsyncSession = Depends(get_db),
     password_data: PasswordReset = Body(...),
 ):
     """
@@ -128,17 +147,17 @@ async def reset_user_password(
     if not verify_sms_code(phone=password_data.phone, code=password_data.code):
         raise HTTPException(status_code=400, detail="验证码错误或已过期，请重新获取。")
 
-    user = await crud.user.get_user_by_phone(db, phone=password_data.phone)
+    user = await user_crud.get_user_by_phone(db, phone=password_data.phone)
     if not user:
         raise HTTPException(status_code=404, detail="该手机号尚未注册。")
 
-    await crud.user.update_password(db=db, user=user, new_password=password_data.new_password)
+    await user_crud.update_password(db=db, user=user, new_password=password_data.new_password)
     return {"msg": "Password updated successfully."}
 
 
 @router.get("/me", summary="获取当前用户信息 (Get Current User)")
 async def read_users_me(
-    current_user: user_model.User = Depends(deps.get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get current user's profile information.

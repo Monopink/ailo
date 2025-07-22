@@ -2,13 +2,13 @@
 
 ## Core Tables
 
-### users (accounts_service)
+### users (backend)
 
 - User account information
 - Fields: entity_id (string, unique), phone, password_hash, status, role, etc.
 - No foreign key constraints - use code logic for relationships
 
-### bots (bot_message_service)
+### bots (backend)
 
 - AI bot information and configuration
 - Fields: entity_id (string, unique), model, status, gender, emotion scores, etc.
@@ -69,15 +69,13 @@
 
 ### Service Data Ownership
 
-- accounts_service: users table
-- bot_message_service: bots, message_history, emotions tables
-- contacts_service: contacts, social_profiles, conversation_mappings tables
+- backend: All tables (users, bots, message_history, emotions, contacts, social_profiles, conversation_mappings, etc.)
 
 ### Data Consistency
 
-- Each service manages its own data integrity
-- Cross-service data synchronization through API calls
-- No shared database access between services
+- Backend service manages all data integrity
+- Direct database access within the backend service
+- Consistent transaction management across all operations
 
 ## Key Constraints
 

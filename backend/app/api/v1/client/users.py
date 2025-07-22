@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends
 
-from app import models, schemas  # type: ignore
-from app.api import deps  # type: ignore
+from models.user import User
+from api.deps import get_current_user
 
 router = APIRouter()
 
 
 @router.get("/me")
 async def read_current_user(
-    current_user: models.User = Depends(deps.get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get current user information.

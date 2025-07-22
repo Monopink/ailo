@@ -3,11 +3,13 @@ Contacts Service - Core contact management functions
 Handles contact relationships and integrates with other services
 """
 
+import time
 from typing import List, Dict, Any, Optional
 from sqlalchemy import select, and_
-from ..database import AsyncSessionLocal
-from ..models.contact import Contact
-from .template_service import (
+from core.database import SessionLocal as AsyncSessionLocal
+from models.contact import Contact
+from utils.logging import get_logger
+from .template import (
     search_available_templates,
     get_template_mapping,
     get_template_by_id,
@@ -15,11 +17,8 @@ from .template_service import (
     decrease_template_usage,
     validate_search_timeout,
 )
-from .profile_service import get_social_profile
-from .utils.user_limits import get_user_contact_limits, check_contact_limit_reached
-import requests
-import time
-from ..utils.logging import get_logger
+from .profile import get_social_profile
+from .utils.contact_limits import get_user_contact_limits, check_contact_limit_reached
 
 logger = get_logger(__name__)
 
@@ -301,7 +300,7 @@ class ContactsService:
                         return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
 
                     # Generate unique entity_id for this user's bot instance
-                    from ..utils.id_generator import generate_unique_entity_id
+                    from utils.id_generator import generate_unique_entity_id
 
                     unique_entity_id = await generate_unique_entity_id(session)
 
@@ -394,50 +393,20 @@ class ContactsService:
                 system_message_data=system_message_data,
             )
 
-            # Send to bot message service with correct URL and authentication
-            bot_message_service_url = "http://bot_message_service_container:8000/api/v1/system/send-message"
+            # Send system message directly using internal service (unified architecture)
+            from ..message.leanmessage import leanmessage_service
 
-            # Get internal service key from settings
-            from ..core.config import settings
-
-            headers = {"Content-Type": "application/json", "X-Internal-Key": settings.INTERNAL_SERVICE_KEY}
-
-            response = requests.post(
-                bot_message_service_url,
-                json=system_message_data,
-                timeout=5,
-                headers=headers,
+            await leanmessage_service.send_system_message(
+                from_entity=system_message_data["from_entity"],
+                to_user=system_message_data["to_user"],
+                content=system_message_data["content"],
             )
 
             logger.info(
-                "system_message_response_received",
-                status_code=response.status_code,
-                response_text=response.text[:200] if response.text else None,  # Limit log size
-                url=bot_message_service_url,
-            )
-
-            if response.status_code == 200:
-                logger.info(
-                    "new_contact_system_message_sent",
-                    contact_entity_id=contact_entity_id,
-                    user_entity_id=user_entity_id,
-                    contact_name=contact_name,
-                )
-            else:
-                logger.warning(
-                    "new_contact_system_message_failed",
-                    contact_entity_id=contact_entity_id,
-                    user_entity_id=user_entity_id,
-                    status_code=response.status_code,
-                    response_text=response.text,
-                )
-
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                "new_contact_system_message_request_error",
-                error=str(e),
+                "new_contact_system_message_sent",
                 contact_entity_id=contact_entity_id,
                 user_entity_id=user_entity_id,
+                contact_name=contact_name,
             )
         except Exception as e:
             logger.error(
@@ -496,7 +465,7 @@ class ContactsService:
             Profile dictionary
         """
         try:
-            from .profile_service import create_or_update_social_profile
+            from .profile import create_or_update_social_profile
 
             async with AsyncSessionLocal() as session:
                 return await create_or_update_social_profile(session, entity_id, profile_data)

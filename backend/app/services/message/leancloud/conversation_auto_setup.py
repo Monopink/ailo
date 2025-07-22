@@ -5,8 +5,8 @@ LeanCloud Conversation Auto Setup
 import asyncio
 import requests
 from typing import Optional
-from ...core.config import settings
-from ...utils.logging import get_logger
+from core.config import settings
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -24,7 +24,7 @@ async def ensure_unified_conversation() -> str:
     Raises:
         RuntimeError: If conversation cannot be created
     """
-    from ..config_manager import (
+    from .config_manager import (
         is_conversation_configured,
         get_unified_conversation_id,
         set_unified_conversation_id,

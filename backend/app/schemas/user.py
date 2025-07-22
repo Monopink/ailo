@@ -48,11 +48,12 @@ class PasswordReset(BaseModel):
 
 # Properties to return to client
 class User(UserBase):
-    id: int  # entity_id mapped to id for frontend (now numeric)
+    id: str  # entity_id mapped to id for frontend
     status: str
     role: str
     is_verified: bool
     subscription_type: str
+    contact_limit: int  # Contact limit for frontend display
 
     class Config:
         from_attributes = True

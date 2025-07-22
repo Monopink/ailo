@@ -7,10 +7,10 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from ..models.social_profile import SocialProfile
-import structlog
+from models.social_profile import SocialProfile
+from utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 async def get_social_profile(session: AsyncSession, entity_id: str) -> Optional[Dict[str, Any]]:

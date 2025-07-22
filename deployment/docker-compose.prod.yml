@@ -31,11 +31,11 @@ services:
       start_period: 30s
     restart: always
 
-  # Accounts Service
-  accounts_service:
-    container_name: accounts_service_container
+  # Backend Service
+  backend:
+    container_name: backend
     build:
-      context: ../backend/accounts_service
+      context: ../backend/app
       dockerfile: Dockerfile.prod
     env_file:
       - .env.prod
@@ -43,47 +43,7 @@ services:
       PYTHONDONTWRITEBYTECODE: 1
       PYTHONUNBUFFERED: 1
     volumes:
-      - ../logs/accounts_service:/app/logs
-    networks:
-      - says-network
-    depends_on:
-      mysql_db:
-        condition: service_healthy
-    restart: always
-
-  # Contacts Service
-  contacts_service:
-    container_name: contacts_service_container
-    build:
-      context: ../backend/contacts_service
-      dockerfile: Dockerfile.prod
-    env_file:
-      - .env.prod
-    environment:
-      PYTHONDONTWRITEBYTECODE: 1
-      PYTHONUNBUFFERED: 1
-    volumes:
-      - ../logs/contacts_service:/app/logs
-    networks:
-      - says-network
-    depends_on:
-      mysql_db:
-        condition: service_healthy
-    restart: always
-
-  # Bot Message Service
-  bot_message_service:
-    container_name: bot_message_service_container
-    build:
-      context: ../backend/bot_message_service
-      dockerfile: Dockerfile.prod
-    env_file:
-      - .env.prod
-    environment:
-      PYTHONDONTWRITEBYTECODE: 1
-      PYTHONUNBUFFERED: 1
-    volumes:
-      - ../logs/bot_message_service:/app/logs
+      - ../logs:/app/logs
     networks:
       - says-network
     depends_on:
@@ -92,8 +52,8 @@ services:
     restart: always
 
   # Web Frontend (Production Build)
-  web:
-    container_name: web_container
+  web_frontend:
+    container_name: web_frontend_container
     build:
       context: ../frontend/web
       dockerfile: Dockerfile.prod
@@ -121,10 +81,8 @@ services:
     networks:
       - says-network
     depends_on:
-      - web
-      - accounts_service
-      - contacts_service
-      - bot_message_service
+      - web_frontend
+      - backend
     restart: always
 
   # Certbot for SSL certificates

@@ -3,25 +3,26 @@ Contact and social profile related API routes
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from ..auth import get_current_user
-from ..services.contacts_service import contacts_service
-from ..schemas.social_profile import SocialProfileCreate, SocialProfileUpdate
-import structlog
+from api.deps import get_current_user
+from services.contacts.contacts import contacts_service
+from schemas.social_profile import SocialProfileCreate, SocialProfileUpdate
+from models.user import User
+from utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
-router = APIRouter(prefix="/contacts", tags=["Contacts"])
+router = APIRouter()
 
 
 @router.get("")
-async def get_contacts(current_user: dict = Depends(get_current_user)):
+async def get_contacts(current_user: User = Depends(get_current_user)):
     """
     Get current user's contacts with their social profiles
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         contact_list = await contacts_service.get_user_contacts(user_entity_id)
         return {"status": "success", "data": contact_list}
@@ -34,14 +35,14 @@ async def get_contacts(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/search")
-async def search_contacts(query: str, current_user: dict = Depends(get_current_user)):
+async def search_contacts(query: str, current_user: User = Depends(get_current_user)):
     """
     Search available contacts from preset configuration
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         if not query:
             raise HTTPException(status_code=400, detail="Query parameter is required")
@@ -64,14 +65,14 @@ async def search_contacts(query: str, current_user: dict = Depends(get_current_u
 
 
 @router.get("/limits")
-async def get_contact_limits(current_user: dict = Depends(get_current_user)):
+async def get_contact_limits(current_user: User = Depends(get_current_user)):
     """
     Get current user's contact limits and usage information
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         limits_info = await contacts_service.get_user_contact_limits(user_entity_id)
         return {"status": "success", "data": limits_info}
@@ -86,14 +87,14 @@ async def get_contact_limits(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/{contact_entity_id}")
-async def get_contact(contact_entity_id: str, current_user: dict = Depends(get_current_user)):
+async def get_contact(contact_entity_id: str, current_user: User = Depends(get_current_user)):
     """
     Get a specific contact by entity ID
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         contact = await contacts_service.get_contact_by_entity_id(user_entity_id, contact_entity_id)
         if not contact:
@@ -109,14 +110,14 @@ async def get_contact(contact_entity_id: str, current_user: dict = Depends(get_c
 
 
 @router.get("/{contact_entity_id}/chat-info")
-async def get_contact_chat_info(contact_entity_id: str, current_user: dict = Depends(get_current_user)):
+async def get_contact_chat_info(contact_entity_id: str, current_user: User = Depends(get_current_user)):
     """
     Get specific contact's chat display information
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         chat_info = await contacts_service.get_contact_chat_info(user_entity_id, contact_entity_id)
         if not chat_info:
@@ -134,7 +135,7 @@ async def get_contact_chat_info(contact_entity_id: str, current_user: dict = Dep
 
 
 @router.get("/profile/{entity_id}")
-async def get_social_profile(entity_id: str, current_user: dict = Depends(get_current_user)):
+async def get_social_profile(entity_id: str, current_user: User = Depends(get_current_user)):
     """
     Get social profile by entity ID
     """
@@ -154,15 +155,15 @@ async def get_social_profile(entity_id: str, current_user: dict = Depends(get_cu
 
 @router.put("/profile/me")
 async def create_or_update_my_profile(
-    profile_data: SocialProfileUpdate, current_user: dict = Depends(get_current_user)
+    profile_data: SocialProfileUpdate, current_user: User = Depends(get_current_user)
 ):
     """
     Create or update current user's social profile
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         # Convert Pydantic model to dict, excluding None values
         profile_dict = profile_data.dict(exclude_none=True)
@@ -185,15 +186,15 @@ async def create_or_update_my_profile(
 
 @router.post("/profile/me")
 async def create_my_profile(
-    profile_data: SocialProfileCreate, current_user: dict = Depends(get_current_user)
+    profile_data: SocialProfileCreate, current_user: User = Depends(get_current_user)
 ):
     """
     Create current user's social profile (for first-time setup)
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         # Check if profile already exists
         existing_profile = await contacts_service.get_social_profile_by_entity_id(user_entity_id)
@@ -217,14 +218,14 @@ async def create_my_profile(
 
 
 @router.post("/add")
-async def add_contact(request_data: dict, current_user: dict = Depends(get_current_user)):
+async def add_contact(request_data: dict, current_user: User = Depends(get_current_user)):
     """
     Add a new contact for the current user
     """
     try:
-        user_entity_id = current_user.get("entity_id")
+        user_entity_id = current_user.entity_id
         if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found in token")
+            raise HTTPException(status_code=400, detail="User entity_id not found")
 
         contact_id = request_data.get("contact_id")  # Frontend sends contact_id (entity_id from mapping)
         if not contact_id:

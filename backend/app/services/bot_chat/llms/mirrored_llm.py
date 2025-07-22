@@ -4,8 +4,8 @@ import random
 import asyncio
 import re
 from typing import Dict, Any, Optional
+from utils.logging import get_logger
 from .base import BaseLLM
-from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 

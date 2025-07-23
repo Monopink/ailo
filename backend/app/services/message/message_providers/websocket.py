@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Dict, Any
 from fastapi import WebSocket
-from core.events import event_bus, EventTypes
+from core.event_bus import event_bus, EventTypes
 from enums import IMServiceType
 from utils.logging import get_logger
 

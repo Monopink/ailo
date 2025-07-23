@@ -17,7 +17,6 @@ class ModelAiloLike(Protocol):
     bot: Any
     message_service: str
     cleanup_callback: Callable[[str], Awaitable[None]]
-    send_message_callback: Callable[[Dict[str, Any]], Awaitable[None]]
     logger: Any
 
     # Core state attributes
@@ -104,7 +103,7 @@ class ModelAiloLike(Protocol):
 
     # from message_mixin.py
     def _send_message(  # noqa: E704
-        self, content: Optional[str] = "", message_type: str = MessageType.CHAT.name
+        self, content: Optional[str] = "", message_type: MessageType = MessageType.CHAT
     ) -> Coroutine[Any, Any, None]: ...  # noqa: E704
 
     def _send_message_queue(self, message_type_key: str) -> Coroutine[Any, Any, None]: ...  # noqa: E704

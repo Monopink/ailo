@@ -62,7 +62,7 @@ AI Model Response → model_router.handle_outgoing_message()
 
 ### Dependency Injection Pattern
 
-- **AI Models**: Receive `send_message_callback` from model_router
+- **AI Models**: Use `send_message()` and `send_system_message()` functions
 - **Decoupled Design**: Models don't directly import model_router
 - **Testable Architecture**: Easy to mock callbacks for unit testing
 

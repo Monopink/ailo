@@ -465,3 +465,148 @@ GET /health
 - `401`: 未认证或认证失败
 - `404`: 资源不存在
 - `500`: 服务器内部错误
+
+## 数据库访问模式
+
+### 统一数据库访问架构
+
+后端实现了基于依赖注入和分层架构原则的统一数据库访问模式。
+
+#### API层模式
+
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from api.deps import get_db, get_current_user
+
+@router.get("/contacts")
+async def get_contacts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """通过依赖注入获取用户联系人"""
+    contact_list = await get_user_contacts(db, current_user.entity_id)
+    return {"status": "success", "data": contact_list}
+```
+
+#### 服务层模式
+
+```python
+from sqlalchemy.ext.asyncio import AsyncSession
+
+async def get_user_contacts(session: AsyncSession, user_entity_id: str):
+    """接收注入session的服务函数"""
+    contacts_result = await session.execute(
+        select(Contact).where(Contact.user_entity_id == user_entity_id)
+    )
+    return [contact.to_dict() for contact in contacts_result.scalars().all()]
+```
+
+#### 核心原则
+
+- **API层**：使用FastAPI依赖注入（`Depends(get_db)`）
+- **服务层**：接收`AsyncSession`参数，从不创建自己的连接
+- **事务控制**：API层管理事务边界
+- **类型安全**：所有函数使用正确的`AsyncSession`类型注解
+
+## 消息发送API
+
+### 统一消息发送接口
+
+```python
+async def send_message(
+    from_entity: str,
+    to_entity: str,
+    message_type: str,
+    message_service: str,
+    content: Optional[Union[str, Dict[str, Any]]] = None,
+    message_id: Optional[str] = None,
+    **kwargs
+) -> None:
+```
+
+**参数说明**:
+
+- `from_entity`: 发送方实体ID
+- `to_entity`: 接收方实体ID
+- `message_type`: 消息类型代码（字符串）
+- `message_service`: 服务类型
+- `content`: 消息内容（聊天消息为字符串，系统消息为字典）
+- `message_id`: 可选的消息ID
+- `**kwargs`: 扩展字段
+
+### 系统消息发送接口
+
+```python
+async def send_system_message(
+    from_entity: str,
+    to_entity: str,
+    action: SystemMessageAction,
+    target_message_id: Optional[str] = None,
+    status: Optional[SystemMessageStatus] = None,
+    reason: Optional[SystemMessageReason] = None,
+    contact_id: Optional[str] = None,
+    custom_message: Optional[str] = None,
+) -> None:
+```
+
+**参数说明**:
+
+- `from_entity`: 源实体ID（用于聊天窗口识别）
+- `to_entity`: 目标实体ID
+- `action`: 系统消息动作类型
+- `target_message_id`: 客户端消息ID（用于MESSAGE_STATUS）
+- `status`: 系统消息状态（用于MESSAGE_STATUS）
+- `reason`: 失败原因代码（用于MESSAGE_STATUS）
+- `contact_id`: 联系人实体ID（用于NEW_CONTACT）
+- `custom_message`: 可选的自定义消息文本（会作为 `content.message` 字段发送给前端，用于覆盖默认错误消息）
+
+### 使用示例
+
+#### 发送聊天消息
+
+```python
+await send_message(
+    from_entity="qqid_b9001",
+    to_entity="qqid_u1001",
+    message_type="1",  # MessageType.CHAT.code
+    message_service="leancloud",
+    content="Hello, world!"
+)
+```
+
+#### 发送系统状态消息
+
+```python
+# 使用默认错误消息
+await send_system_message(
+    from_entity="qqid_b9001",
+    to_entity="qqid_u1001",
+    action=SystemMessageAction.MESSAGE_STATUS,
+    target_message_id="local_1751776984574_97j85pkjk",
+    status=SystemMessageStatus.FAILED,
+    reason=SystemMessageReason.NOT_CONTACTS
+)
+
+# 使用自定义错误消息
+await send_system_message(
+    from_entity="qqid_b9001",
+    to_entity="qqid_u1001",
+    action=SystemMessageAction.MESSAGE_STATUS,
+    target_message_id="local_1751776984574_97j85pkjk",
+    status=SystemMessageStatus.FAILED,
+    reason=SystemMessageReason.NOT_CONTACTS,
+    custom_message="您还不是该联系人的好友，无法发送消息"
+)
+```
+
+#### 发送新联系人通知
+
+```python
+await send_system_message(
+    from_entity="qqid_b9001",
+    to_entity="qqid_u1001",
+    action=SystemMessageAction.NEW_CONTACT,
+    contact_id="qqid_b9001"
+)
+```

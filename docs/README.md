@@ -35,7 +35,7 @@
 
 - **后端**: Python + FastAPI + SQLAlchemy + MySQL
 - **前端**: Vue 3 + Vite + Pinia + Vue Router
-- **消息**: LeanCloud IM + 事件总线
+- **消息**: LeanCloud IM + 统一消息处理中心 + 事件总线
 - **容器**: Docker + Docker Compose
 
 ### Entity ID 格式
@@ -70,6 +70,7 @@
 ### 服务设计
 
 - **单一职责**: 每个服务专注特定功能
+- **统一消息处理**: message.py作为消息处理中心，统一收发逻辑
 - **事件驱动**: 使用事件总线解耦消息处理
 - **无向后兼容**: MVP阶段，快速迭代
 
@@ -94,18 +95,39 @@
 - **JSON配置**: 灵活的配置字段设计
 - **应用层约束**: 通过代码逻辑管理数据关系
 
-## 消息处理流程
+## 消息处理架构
+
+### 统一消息处理中心
+
+**message.py** 作为系统的消息处理中心，负责：
+
+- 统一的消息接收处理（receive_message）
+- 统一的消息发送处理（send_message）
+- 基于MessageType枚举的自动消息分类
+- 消息验证、ID生成、数据库保存
+
+### 消息类型处理
+
+- **前端传输**: 使用数字类型（"1", "2", "9"）
+- **数据库存储**: 使用名称类型（"chat", "typing", "system"）
+- **自动转换**: message.py自动处理类型转换
+
+### 架构流程
+
+详细流程请参考：[消息处理流程文档](architecture/message-flow.md)
 
 ```text
-用户发送消息 → LeanCloud IM → Webhook → backend
+用户发送消息 → LeanCloud IM → Webhook → message.py 统一处理
                                               ↓
-                                         event_bus
+                                    验证+保存+路由
                                               ↓
-                                      model_router
+                                      model_router.route_message()
                                               ↓
                                         AI模型处理
                                               ↓
-                                         响应生成
+                                    message.send_message()
+                                              ↓
+                                    event_bus (SEND_MESSAGE)
                                               ↓
                                     LeanCloud API发送
 ```

@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime, timezone
 
 from enums import MessageType, TypingStatus
+from services.message.message import send_message
 from ..protocols import ModelAiloLike
 
 
@@ -15,30 +16,30 @@ class MessageMixin:
     """
 
     async def _send_message(
-        self: ModelAiloLike, content: Optional[str] = "", message_type: str = MessageType.CHAT.name
+        self: ModelAiloLike, content: Optional[str] = "", message_type: MessageType = MessageType.CHAT
     ) -> None:
         try:
-            message = {
-                "from_entity": str(self.bot.entity_id),
-                "to_entity": str(self.bot.user_entity_id),
-                "content": str(content),
-                "message_type": message_type,
-                "message_service": self.message_service,
-                "message_time": datetime.now(timezone.utc).isoformat(),
-            }
+            await send_message(
+                from_entity=str(self.bot.entity_id),
+                to_entity=str(self.bot.user_entity_id),
+                message_type=str(message_type.code),  # Use numeric code as string
+                message_service=self.message_service,
+                content=str(content),
+                message_time=datetime.now(timezone.utc).isoformat(),
+            )
+
             self.logger.info(
                 "sending_message",
-                message_type=message_type,
+                message_type=message_type.name,
                 has_content=bool(content),
                 from_entity=self.bot.entity_id,
                 to_entity=self.bot.user_entity_id,
             )
 
-            # Use injected callback function to send message
-            await self.send_message_callback(message)
-
         except Exception as e:
-            self.logger.error("message_send_error", message_type=message_type, error=str(e), exc_info=True)
+            self.logger.error(
+                "message_send_error", message_type=message_type.name, error=str(e), exc_info=True
+            )
 
     async def _send_message_queue(self: ModelAiloLike, message_type_key: str):
         """Helper function to send all messages from a specific queue."""
@@ -57,7 +58,7 @@ class MessageMixin:
             if content_to_process:
                 # Send typing indicator and wait for the duration of typing.
                 # This part is outside the lock to avoid holding it during sleep.
-                asyncio.create_task(self._send_message(message_type=MessageType.TYPING.name))
+                asyncio.create_task(self._send_message(message_type=MessageType.TYPING))
                 typing_secs = len(str(content_to_process)) * self.typing_speed
                 self.logger.info(
                     "typing_for_message",

@@ -7,13 +7,21 @@
 ```
 用户发送消息 → LeanCloud IM → Webhook → backend
                                               ↓
-                                         event_bus
+                                         event_bus (RECEIVED_MESSAGE)
                                               ↓
-                                      model_router
+                                         message.py (统一消息处理中心)
+                                              ↓
+                                      验证+保存+路由
+                                              ↓
+                                      model_router.route_message()
                                               ↓
                                         AI模型处理
                                               ↓
                                          响应生成
+                                              ↓
+                                    message.send_message()
+                                              ↓
+                                    event_bus (SEND_MESSAGE)
                                               ↓
                                     LeanCloud API发送
 ```
@@ -31,22 +39,45 @@ async def leanmessage_webhook(request: Request):
     # 转换为内部消息格式
 ```
 
-#### 2. 事件发布
+#### 2. 统一消息处理
 
 ```python
-# 发布到事件总线
-event_bus.publish("message_received", {
-    "from": "qqid_u1001",
-    "to": "qqid_b9001", 
-    "content": "用户消息内容",
-    "timestamp": "2024-01-01T00:00:00Z"
-})
+# message.py 作为统一消息处理中心
+async def receive_message(message: dict) -> None:
+    # 验证消息格式
+    # 保存到数据库（消息类型转换为名称存储）
+    # 路由到AI模型处理
+    await model_router.route_message(message)
+
+async def send_message(
+    from_entity: str,
+    to_entity: str,
+    message_type: str,
+    message_service: str,
+    content: Optional[Union[str, Dict[str, Any]]] = None,
+    message_id: Optional[str] = None,
+    **kwargs
+) -> None:
+    # 基于MessageType枚举自动处理不同类型消息
+    # 生成消息ID、验证、发布事件、保存数据库
+
+async def send_system_message(
+    from_entity: str,
+    to_entity: str,
+    action: SystemMessageAction,
+    target_message_id: Optional[str] = None,
+    status: Optional[SystemMessageStatus] = None,
+    reason: Optional[SystemMessageReason] = None,
+    contact_id: Optional[str] = None,
+    custom_message: Optional[str] = None,
+) -> None:
+    # 统一系统消息发送逻辑，支持不同类型的系统消息
 ```
 
 #### 3. 消息路由
 
 ```python
-# 消息路由器处理
+# model_router 专注于AI模型管理和路由
 class ModelRouter:
     async def route_message(self, message):
         # 验证联系人关系
@@ -70,12 +101,57 @@ class AIModel:
 #### 5. 响应发送
 
 ```python
-# 通过LeanCloud发送回复
-await leancloud_client.send_message(
-    conversation_id="conv_123456",
-    content="AI回复内容",
-    from_peer="qqid_b9001"
+# AI模型通过统一接口发送消息
+await send_message(
+    from_entity="qqid_b9001",
+    to_entity="qqid_u1001",
+    message_type="1",  # MessageType.CHAT.code
+    message_service="leancloud",
+    content="AI回复内容"
 )
+
+# 发送系统消息示例
+await send_system_message(
+    from_entity="qqid_abc123",
+    to_entity="qqid_abc456",
+    action=SystemMessageAction.MESSAGE_STATUS,
+    target_message_id="local_1751776984574_97j85pkjk",
+    status=SystemMessageStatus.FAILED,
+    reason=SystemMessageReason.NOT_CONTACTS
+)
+```
+
+## 统一消息处理架构
+
+### 核心设计原则
+
+1. **message.py 作为统一消息处理中心**
+   - 所有消息收发都经过message.py处理
+   - 基于MessageType枚举自动处理不同类型消息
+   - 统一的验证、保存、ID生成逻辑
+
+2. **model_router 专注于AI模型管理**
+   - 移除消息处理职责
+   - 专注于模型实例管理和消息路由
+   - 提供公共route_message()方法
+
+3. **事件驱动架构保持完整**
+   - 接收：RECEIVED_MESSAGE事件
+   - 发送：SEND_MESSAGE事件
+   - 保持系统解耦和扩展性
+
+### 消息类型处理
+
+```python
+# 前端发送数字类型
+message_type: "1"  # chat
+message_type: "2"  # typing
+message_type: "9"  # system
+
+# 数据库存储名称类型
+message_type: "chat"
+message_type: "typing"
+message_type: "system"
 ```
 
 ## 消息验证机制
@@ -103,9 +179,10 @@ async def validate_message(self, message):
 
 ```python
 # 发送系统消息通知失败
-await self.send_system_message(
-    from_bot=bot_id,
-    to_user=user_id,
+await send_system_message(
+    from_entity=bot_id,
+    to_entity=user_id,
+    action=SystemMessageAction.MESSAGE_STATUS,
     target_message_id=message_id_client,
     status=SystemMessageStatus.FAILED,
     reason=failure_reason
@@ -126,18 +203,28 @@ await self.send_system_message(
 {
   "id": "system_1752052373681",
   "type": 9,
-  "from": "system", 
-  "to": "qqid_u1002",
+  "from": "qqid_b9001",
+  "to": "qqid_u1001",
   "content": {
     "action": 1,
     "target_message_id": "local_1751776984574_97j85pkjk",
     "status": 3,
-    "reason": 6
+    "reason": 6,
+    "message": "您还不是该联系人的好友，无法发送消息"
   },
   "timestamp": "2025-07-09T09:12:53.681Z",
   "service": 1
 }
 ```
+
+**content 字段说明**:
+
+- `action`: 系统消息动作类型（1=MESSAGE_STATUS, 2=NEW_CONTACT）
+- `target_message_id`: 目标消息ID（仅用于MESSAGE_STATUS）
+- `status`: 消息状态（仅用于MESSAGE_STATUS）
+- `reason`: 失败原因代码（仅用于MESSAGE_STATUS）
+- `contact_id`: 联系人ID（仅用于NEW_CONTACT）
+- `message`: **可选的自定义消息文本**，包含在content中，用于覆盖前端默认的错误消息显示
 
 ### 触发场景
 
@@ -183,6 +270,10 @@ except LeanCloudError as e:
     
     # 发送系统消息通知前端
     await send_system_message(
+        from_entity=bot_id,
+        to_entity=user_id,
+        action=SystemMessageAction.MESSAGE_STATUS,
+        target_message_id=message_id_client,
         status=SystemMessageStatus.FAILED,
         reason=SystemMessageReason.NETWORK_ERROR
     )

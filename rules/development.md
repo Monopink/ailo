@@ -29,7 +29,8 @@
 - **Single Responsibility**: Each module/function has one clear purpose
 - **Decoupling**: Modules communicate through well-defined interfaces
 - **Event-driven**: Use event bus pattern for loose coupling
-- **Service Separation**: Strict boundaries between microservices
+- **Dependency Inversion**: High-level modules should not depend on low-level modules
+- **Layered Architecture**: Clear separation between API, Service, and Data layers
 
 ## Language-Specific Rules
 
@@ -40,6 +41,15 @@
 - **Pydantic Models**: Input validation with Pydantic, not raw dictionaries
 - **Descriptive Variables**: Use helper verbs (is_active, has_permission)
 - **File Naming**: Lowercase with underscores (services/websocket.py)
+
+### Database Access Patterns
+
+- **API Layer**: Use FastAPI dependency injection with `db: AsyncSession = Depends(get_db)`
+- **Service Layer**: Accept `session: AsyncSession` parameter, never create own connections
+- **Independent Tasks**: Use `async with SessionLocal() as session:` for background tasks
+- **Type Safety**: Always use `AsyncSession` type annotations in service functions
+- **Transaction Control**: API layer controls transaction boundaries
+- **No Direct SessionLocal**: Service layer must not import or use SessionLocal directly
 
 ### JavaScript/Vue.js
 

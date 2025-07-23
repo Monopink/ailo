@@ -39,7 +39,7 @@ User Message → LeanCloud IM → Webhook → leanmessage.py
                                             ↓
                                        event_bus (RECEIVED_MESSAGE)
                                             ↓
-                                    message_router.handle_received_message()
+                                    model_router.handle_received_message()
                                             ↓
                                     [Route to AI Model] + [Save to DB]
                                             ↓
@@ -49,7 +49,7 @@ User Message → LeanCloud IM → Webhook → leanmessage.py
 ### Message Sending Flow
 
 ```text
-AI Model Response → message_router.handle_outgoing_message()
+AI Model Response → model_router.handle_outgoing_message()
                                     ↓
                             [Generate message_id] + [Save to DB]
                                     ↓
@@ -62,8 +62,8 @@ AI Model Response → message_router.handle_outgoing_message()
 
 ### Dependency Injection Pattern
 
-- **AI Models**: Receive `send_message_callback` from message_router
-- **Decoupled Design**: Models don't directly import message_router
+- **AI Models**: Receive `send_message_callback` from model_router
+- **Decoupled Design**: Models don't directly import model_router
 - **Testable Architecture**: Easy to mock callbacks for unit testing
 
 ## Service Communication

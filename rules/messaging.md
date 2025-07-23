@@ -72,13 +72,13 @@
 ### ID Generation Strategy
 
 - **Received Messages**: Only have `message_id_client` from frontend
-- **Sent Messages**: Backend generates `message_id` in message_router
+- **Sent Messages**: Backend generates `message_id` in model_router
 - **Database Storage**: Both IDs stored in message_history table for tracking
 
 ### ID Generation Location
 
 - **Frontend IDs**: Generated in frontend messaging service
-- **Backend IDs**: Generated in `message_router.generate_message_id()`
+- **Backend IDs**: Generated in `model_router.generate_message_id()`
 - **Character Set**: Uses same charset as entity_id for consistency
 
 ## Message Types (Enums)

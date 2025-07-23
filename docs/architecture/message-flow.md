@@ -9,7 +9,7 @@
                                               ↓
                                          event_bus
                                               ↓
-                                      message_router
+                                      model_router
                                               ↓
                                         AI模型处理
                                               ↓
@@ -47,7 +47,7 @@ event_bus.publish("message_received", {
 
 ```python
 # 消息路由器处理
-class MessageRouter:
+class ModelRouter:
     async def route_message(self, message):
         # 验证联系人关系
         # 检查机器人状态

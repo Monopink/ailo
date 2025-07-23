@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 # import leancloud  # Commented out - using REST API only
 from core.config import settings
 from enums import MessageType, IMServiceType
-from core.event_bus import event_bus, EventTypes
+from core.events import event_bus, EventTypes
 from utils.logging import get_logger
 
 from .leancloud.config_manager import get_unified_conversation_id

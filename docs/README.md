@@ -101,7 +101,7 @@
                                               ↓
                                          event_bus
                                               ↓
-                                      message_router
+                                      model_router
                                               ↓
                                         AI模型处理
                                               ↓

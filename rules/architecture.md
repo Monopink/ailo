@@ -72,10 +72,32 @@ AI Model Response → model_router.handle_outgoing_message()
 - **Database Access**: Single backend service manages all database tables
 - **API Gateway**: Frontend uses Vite proxy to route requests to backend service
 
+## Data Access Architecture
+
+### Repository Layer (Complex Business Operations)
+
+- **ContactRepository**: Contact relationship management
+- **BotRepository**: Bot data and emotion management
+- **ProfileRepository**: User profile operations
+- **TemplateRepository**: Bot template management
+
+### CRUD Layer (Simple Data Operations)
+
+- **Message CRUD**: Basic message storage (optimized)
+- **User CRUD**: Basic user operations
+- **SystemConfig CRUD**: Configuration management
+
+### Usage Guidelines
+
+- **Repository**: Complex queries, business logic, data transformation
+- **CRUD**: Simple operations, single table access, basic validation
+
 ## Key Design Principles
 
 - **Service Decoupling**: Each service has single responsibility
 - **Event-driven**: Message processing uses event bus pattern
+- **Repository Pattern**: Complex data access through repository layer
+- **Dependency Injection**: AsyncSession passed from API to service layer
 - **No Backward Compatibility**: MVP development phase, no legacy support
 - **Fail-fast**: No default values or fallback mechanisms to hide errors
 - **Functional Programming**: Prefer functions over classes where possible

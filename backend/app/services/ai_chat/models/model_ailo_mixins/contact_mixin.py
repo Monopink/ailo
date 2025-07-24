@@ -33,33 +33,22 @@ class ContactMixin:
             Optional[Dict[str, Any]]: User profile data or None if failed
         """
         try:
-            # Use internal service directly (unified architecture)
-            from services.contacts.profile import get_social_profile
-            from core.database import SessionLocal
+            # Use repository layer directly (unified architecture)
+            from repositories.profile import ProfileRepository
 
             async with SessionLocal() as db:
-                current_profile = await get_social_profile(db, user_entity_id)
+                profile_repository = ProfileRepository()
+                current_profile = await profile_repository.get_social_profile_by_entity_id(
+                    db, user_entity_id
+                )
 
                 if current_profile:
                     self.logger.info("user_profile_fetched", user_entity_id=user_entity_id)
 
-                    # Convert to dict format for compatibility
-                    profile_dict = {
-                        "entity_id": current_profile.entity_id,
-                        "nickname": current_profile.nickname,
-                        "bio": current_profile.bio,
-                        "gender": current_profile.gender,
-                        "birthday": (
-                            current_profile.birthday.isoformat() if current_profile.birthday else None
-                        ),
-                        "interests": current_profile.interests,
-                        "preferences": current_profile.preferences,
-                    }
-
                     # Check for profile changes and update snapshot
-                    await self._handle_profile_changes(profile_dict)
+                    await self._handle_profile_changes(current_profile)
 
-                    return profile_dict
+                    return current_profile
                 else:
                     self.logger.warning("user_profile_not_found", user_entity_id=user_entity_id)
                     return None
@@ -87,10 +76,13 @@ class ContactMixin:
                     self.logger.info("user_profile_changes_detected", changes=changes)
 
             # Update snapshot in database
-            from crud.bot import bot_crud
+            from repositories.bot import BotRepository
 
             async with SessionLocal() as db:
-                await bot_crud.update_bot_data(db, self.bot.id, {"user_profile_snapshot": current_profile})
+                bot_repository = BotRepository()
+                await bot_repository.update_bot_data(
+                    db, self.bot.id, {"user_profile_snapshot": current_profile}
+                )
                 self.logger.info("user_profile_snapshot_updated")
 
         except Exception as e:

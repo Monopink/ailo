@@ -36,8 +36,8 @@ if DOUBAO_API_KEY and DOUBAO_MODEL_ID_ADVANCED:
 
 # Export default instance - fallback to mock if Doubao is not configured
 default_llm = llm_instances.get("doubao_standard", llm_instances["mock"])
-model_ailo_standard_llm = llm_instances["mock_manual"]
-model_ailo_advanced_llm = llm_instances["mock_manual"]
+model_ailo_standard_llm = llm_instances["mirrored"]
+model_ailo_advanced_llm = llm_instances["mirrored"]
 # model_ailo_advanced_llm = llm_instances["doubao_advanced"]
 
 __all__ = [

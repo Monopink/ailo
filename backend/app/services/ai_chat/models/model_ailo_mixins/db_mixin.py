@@ -2,7 +2,7 @@ import copy
 from typing import Dict, Any
 
 from core.database import SessionLocal
-from crud.bot import bot_crud
+from repositories.bot import BotRepository
 from ..protocols import ModelAiloLike
 
 
@@ -10,9 +10,10 @@ class DBMixin:
     async def _load_emotions(self: ModelAiloLike) -> None:
         """Load current emotion data from the database into the in-memory state."""
         try:
-            # Use new CRUD layer
+            # Use repository layer for database operations
             async with SessionLocal() as db:
-                self.emotions = await bot_crud.get_bot_emotions(db, self.bot.id)
+                bot_repository = BotRepository()
+                self.emotions = await bot_repository.get_bot_emotions(db, self.bot.id)
             self.logger.info("emotions_loaded", emotions=self.emotions)
             self.loaded_emotions = True
         except Exception as e:
@@ -68,17 +69,19 @@ class DBMixin:
             update_payload["memory"] = self.memory
             update_payload["context_metadata"] = self.context_metadata
 
-            # 2. Update bot data if needed
+            # 2. Update bot data and emotions using repository layer
             async with SessionLocal() as db:
+                bot_repository = BotRepository()
+
                 if update_payload:
                     self.logger.info("saving_bot_data", fields=list(update_payload.keys()))
-                    await bot_crud.update_bot_data(db, self.bot.id, update_payload)
+                    await bot_repository.update_bot_data(db, self.bot.id, update_payload)
                     self.logger.info("bot_data_saved")
 
                 # 3. Update emotions data separately if needed
                 if self.emotions:
                     self.logger.info("saving_emotions_data")
-                    await bot_crud.update_bot_emotions(db, self.bot.id, self.emotions)
+                    await bot_repository.update_bot_emotions(db, self.bot.id, self.emotions)
                     self.logger.info("emotions_data_saved")
 
             if not update_payload and not self.emotions:

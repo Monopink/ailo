@@ -7,13 +7,16 @@ from models.bot import Bot
 from enums import BotStatus
 from utils.logging import get_logger, bind_context
 import enum
-from .base import CRUDBase
+from .base import BaseRepository
 
 logger = get_logger(__name__)
 
 
-class CRUDBot(CRUDBase[Bot]):
-    """CRUD operations for Bot and related emotion data."""
+class BotRepository(BaseRepository[Bot]):
+    """Repository for bot-related data operations"""
+
+    def __init__(self):
+        super().__init__(Bot)
 
     def _convert_enum_to_str(self, value: Optional[enum.Enum]) -> Optional[str]:
         """Convert enum value to string."""
@@ -53,14 +56,14 @@ class CRUDBot(CRUDBase[Bot]):
             logger.warning("invalid_enum_value", value=value, enum_class=enum_class.__name__)
             return None
 
-    async def get_by_entity_id(self, db: AsyncSession, entity_id: str) -> Optional[Bot]:
+    async def get_by_entity_id(self, session: AsyncSession, entity_id: str) -> Optional[Bot]:
         """Get bot by entity_id."""
         try:
             # Create contextualized logger for this operation
             op_logger = bind_context(logger, operation="get_bot_by_entity_id", entity_id=entity_id)
             op_logger.info("fetching_bot_by_entity_id")
 
-            result = await db.execute(select(Bot).where(Bot.entity_id == entity_id))
+            result = await session.execute(select(Bot).where(Bot.entity_id == entity_id))
             bot = result.scalar_one_or_none()
 
             if bot:
@@ -79,11 +82,11 @@ class CRUDBot(CRUDBase[Bot]):
             raise Exception(f"Failed to get bot by entity_id: {str(e)}") from e
 
     async def get_bot_data(
-        self, db: AsyncSession, bot_id: int, related_user_id: Optional[int] = None
+        self, session: AsyncSession, bot_id: int, related_user_id: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
         """Get all relevant data for a bot."""
         try:
-            result = await db.execute(select(Bot).where(Bot.id == bot_id))
+            result = await session.execute(select(Bot).where(Bot.id == bot_id))
             bot = result.scalar_one_or_none()
 
             if bot and (bot.user_id is None or bot.user_id == related_user_id):
@@ -113,7 +116,7 @@ class CRUDBot(CRUDBase[Bot]):
             logger.error(f"Database error in get_bot_data: {str(e)}")
             raise Exception(f"Failed to get bot data: {str(e)}") from e
 
-    async def update_bot_data(self, db: AsyncSession, bot_id: int, bot_data: Dict[str, Any]) -> None:
+    async def update_bot_data(self, session: AsyncSession, bot_id: int, bot_data: Dict[str, Any]) -> None:
         """Update bot information based on a dictionary of changes with strict validation."""
         # Create contextualized logger for this operation
         op_logger = bind_context(logger, operation="update_bot_data", bot_id=bot_id)
@@ -149,7 +152,7 @@ class CRUDBot(CRUDBase[Bot]):
 
         try:
             stmt = select(Bot).where(Bot.id == bot_id)
-            result = await db.execute(stmt)
+            result = await session.execute(stmt)
             bot = result.scalar_one_or_none()
 
             if not bot:
@@ -180,7 +183,7 @@ class CRUDBot(CRUDBase[Bot]):
                     "some_fields_ignored", invalid_fields=invalid_fields, valid_fields=valid_fields
                 )
 
-            await db.commit()
+            await session.commit()
 
             op_logger.info(
                 "bot_update_completed",
@@ -193,7 +196,7 @@ class CRUDBot(CRUDBase[Bot]):
             # Re-raise ValueError as is (bot not found, invalid bot_id, etc.)
             raise
         except Exception as e:
-            await db.rollback()
+            await session.rollback()
             op_logger.error(
                 "bot_update_failed",
                 error=str(e),
@@ -204,7 +207,7 @@ class CRUDBot(CRUDBase[Bot]):
             raise
 
     # Emotion-related operations (strongly coupled with Bot)
-    async def get_bot_emotions(self, db: AsyncSession, bot_id: int) -> Dict[str, Dict[str, Any]]:
+    async def get_bot_emotions(self, session: AsyncSession, bot_id: int) -> Dict[str, Dict[str, Any]]:
         """Get the current active emotions for a bot
 
         Retrieves emotions that have not ended (is_ended=FALSE).
@@ -234,7 +237,7 @@ class CRUDBot(CRUDBase[Bot]):
             WHERE e.bot_id = :bot_id
             """
 
-            result = await db.execute(text(query), {"bot_id": bot_id, "now": now})
+            result = await session.execute(text(query), {"bot_id": bot_id, "now": now})
             emotions = result.fetchall()
 
             # Check for duplicate emotions with the same type and start_time
@@ -282,7 +285,7 @@ class CRUDBot(CRUDBase[Bot]):
             raise Exception(f"Failed to get current bot emotions: {str(e)}") from e
 
     async def update_bot_emotions(
-        self, db: AsyncSession, bot_id: int, emotions: Dict[str, Dict[str, Any]]
+        self, session: AsyncSession, bot_id: int, emotions: Dict[str, Dict[str, Any]]
     ) -> bool:
         """Batch update a bot's emotion data with strict validation
 
@@ -338,7 +341,6 @@ class CRUDBot(CRUDBase[Bot]):
         )
 
         try:
-
             for emotion_type, emotion_data in emotions.items():
                 # Skip invalid emotion types (already logged in validation)
                 if not emotion_type or not isinstance(emotion_type, str):
@@ -469,7 +471,7 @@ class CRUDBot(CRUDBase[Bot]):
                     AND start_time = :start_time
                     """
 
-                    result = await db.execute(
+                    result = await session.execute(
                         text(query),
                         {
                             "bot_id": bot_id,
@@ -498,7 +500,7 @@ class CRUDBot(CRUDBase[Bot]):
                         WHERE id = :id
                         """
 
-                        await db.execute(
+                        await session.execute(
                             text(update_query),
                             {
                                 "id": existing_emotion.id,
@@ -536,7 +538,7 @@ class CRUDBot(CRUDBase[Bot]):
                          :decay_ratio, :start_time, :end_time, :original_end_time, :is_ended, :update_time)
                         """
 
-                        await db.execute(
+                        await session.execute(
                             text(insert_query),
                             {
                                 "bot_id": bot_id,
@@ -558,14 +560,14 @@ class CRUDBot(CRUDBase[Bot]):
                         )
                         op_logger.info(f"Created new emotion: {emotion_type} for bot {bot_id}")
 
-            await db.commit()
+            await session.commit()
             return True
 
         except SQLAlchemyError as e:
             logger.error(f"Database error in update_bot_emotions: {str(e)}")
-            await db.rollback()
+            await session.rollback()
             raise Exception(f"Failed to update bot emotions: {str(e)}") from e
 
 
 # Create instance
-bot_crud = CRUDBot(Bot)
+bot_repository = BotRepository()

@@ -22,7 +22,7 @@ from .model_ailo_mixins.message_mixin import MessageMixin
 from .model_ailo_mixins.relationship_mixin import RelationshipMixin
 from .model_ailo_mixins.contact_mixin import ContactMixin
 from .base import BaseModel
-from ..llms import model_ailo_advanced_llm as advanced_llm
+from ..llm_providers import model_ailo_advanced_llm as advanced_llm
 
 
 logger = get_logger(__name__)
@@ -392,10 +392,12 @@ class ModelAilo(ContextMixin, DBMixin, LLMMixin, MessageMixin, RelationshipMixin
             # Check if bot should be blocked (is_block = true)
             if self.llm_task_result.get(TaskDefinition.get_response_key(TaskType.IS_BLOCK)):
                 try:
-                    from ..database import SessionLocal, bot_crud
+                    from core.database import SessionLocal
+                    from repositories.bot import BotRepository
 
                     async with SessionLocal() as db:
-                        await bot_crud.update_bot_data(db, self.bot.id, {"status": "inactive"})
+                        bot_repository = BotRepository()
+                        await bot_repository.update_bot_data(db, self.bot.id, {"status": "inactive"})
                         self.logger.info("bot_status_set_to_inactive_due_to_block")
                 except Exception as e:
                     self.logger.error("failed_to_update_bot_status", error=str(e))

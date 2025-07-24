@@ -1,6 +1,6 @@
 import random
 from typing import Optional, Union, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core.database import SessionLocal
 from core.event_bus import event_bus, EventTypes
@@ -44,6 +44,29 @@ def _validate_message(message: dict) -> bool:
         logger.warning("message_missing_fields", message=message)
         return False
     return True
+
+
+def _parse_message_time(message_time: Union[str, datetime, None]) -> datetime:
+    """Parse message_time from various formats to datetime object."""
+    if message_time is None:
+        return datetime.now(timezone.utc)
+
+    if isinstance(message_time, datetime):
+        return message_time
+
+    if isinstance(message_time, str):
+        try:
+            # Handle ISO format with 'Z' suffix
+            if message_time.endswith("Z"):
+                message_time = message_time[:-1] + "+00:00"
+
+            # Parse ISO format
+            return datetime.fromisoformat(message_time)
+        except ValueError:
+            # If parsing fails, return current time
+            return datetime.now(timezone.utc)
+
+    return datetime.now(timezone.utc)
 
 
 def generate_message_id() -> str:
@@ -93,6 +116,9 @@ async def save_message(message: dict, message_status: str = "sent") -> None:
         # Convert numeric message_type to name for consistent database storage
         if message_type:
             message_with_status["message_type"] = message_type.name
+
+        # Parse message time in service layer
+        message_with_status["message_time"] = _parse_message_time(message.get("message_time"))
 
         async with SessionLocal() as db:
             await message_crud.save_message(db, message_with_status)

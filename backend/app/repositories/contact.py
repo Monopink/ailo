@@ -1,196 +1,286 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, desc
-from sqlalchemy.exc import IntegrityError
+
 from models.contact import Contact
-from models.social_profile import SocialProfile
 from models.user import User
-from schemas.contact import ContactCreate, ContactUpdate
 from utils.logging import get_logger
+from .base import BaseRepository
 
 logger = get_logger(__name__)
 
 
-class ContactCRUD:
-    """CRUD operations for contact management"""
+class ContactRepository:
+    """Repository for contact relationship data operations"""
 
-    async def get_contact_by_id(self, db: AsyncSession, contact_id: int) -> Optional[Contact]:
-        """Get contact by ID"""
-        result = await db.execute(select(Contact).where(Contact.id == contact_id))
-        return result.scalar_one_or_none()
+    def __init__(self, profile_repo=None):
+        # Initialize base repository for Contact model
+        self.contact_repo = BaseRepository(Contact)
+        self.user_repo = BaseRepository(User)
+
+        # Dependency injection for ProfileRepository
+        if profile_repo is None:
+            from .profile import ProfileRepository
+
+            self.profile_repo = ProfileRepository()
+        else:
+            self.profile_repo = profile_repo
+
+    # Contact relationship operations
+    async def get_user_contacts_with_profiles(
+        self, session: AsyncSession, user_entity_id: str, status: int = 1
+    ) -> List[Dict[str, Any]]:
+        """
+        Get user contacts with their social profiles
+
+        Args:
+            session: Database session
+            user_entity_id: User's entity ID
+            status: Contact status (1=normal, 2=blocked, etc.)
+
+        Returns:
+            List of contact dictionaries with profile information
+        """
+        try:
+            # Get all contacts for the user
+            contacts_result = await session.execute(
+                select(Contact)
+                .where(
+                    and_(
+                        Contact.user_entity_id == user_entity_id,
+                        Contact.status == status,
+                    )
+                )
+                .order_by(desc(Contact.created_at))
+            )
+            contacts = contacts_result.scalars().all()
+
+            # Build contact list with profile information
+            contacts_data = []
+            for contact in contacts:
+                # Get social profile for display info using injected ProfileRepository
+                profile = await self.profile_repo.get_social_profile_by_entity_id(
+                    session, contact.contact_entity_id
+                )
+
+                contact_info = {
+                    "id": contact.contact_entity_id,  # Use entity_id as id for frontend
+                    "contact_type": contact.contact_type,
+                    "nickname": profile.get("nickname") if profile else None,
+                    "avatar_url": profile.get("avatar_url") if profile else None,
+                    "gender": profile.get("gender") if profile else None,
+                    "location": profile.get("location") if profile else None,
+                    "created_at": contact.created_at.isoformat() if contact.created_at else None,
+                }
+                contacts_data.append(contact_info)
+
+            logger.info("user_contacts_retrieved", user_entity_id=user_entity_id, count=len(contacts_data))
+            return contacts_data
+
+        except Exception as e:
+            logger.error(
+                "get_user_contacts_with_profiles_error", error=str(e), user_entity_id=user_entity_id
+            )
+            raise
 
     async def get_contact_by_entities(
-        self, db: AsyncSession, user_entity_id: str, contact_entity_id: str
+        self, session: AsyncSession, user_entity_id: str, contact_entity_id: str
     ) -> Optional[Contact]:
-        """Get contact relationship by user and contact entity IDs"""
-        result = await db.execute(
-            select(Contact).where(
-                and_(
-                    Contact.user_entity_id == user_entity_id, Contact.contact_entity_id == contact_entity_id
+        """
+        Get contact relationship by user and contact entity IDs
+
+        Args:
+            session: Database session
+            user_entity_id: User's entity ID
+            contact_entity_id: Contact's entity ID
+
+        Returns:
+            Contact instance or None if not found
+        """
+        try:
+            result = await session.execute(
+                select(Contact).where(
+                    and_(
+                        Contact.user_entity_id == user_entity_id,
+                        Contact.contact_entity_id == contact_entity_id,
+                        Contact.status == 1,  # normal status
+                    )
                 )
             )
-        )
-        return result.scalar_one_or_none()
+            return result.scalar_one_or_none()
 
-    async def get_user_contacts(
-        self, db: AsyncSession, user_entity_id: str, status: Optional[str] = "active"
-    ) -> List[Contact]:
-        """Get all contacts for a user"""
-        query = select(Contact).where(Contact.user_entity_id == user_entity_id)
-
-        if status:
-            # Map string status to integer (assuming: active=1, inactive=2, blocked=3, deleted=4)
-            status_map = {"active": 1, "inactive": 2, "blocked": 3, "deleted": 4}
-            status_int = status_map.get(status, 1)
-            query = query.where(Contact.status == status_int)
-
-        query = query.order_by(desc(Contact.created_at))
-        result = await db.execute(query)
-        return result.scalars().all()
-
-    async def get_user_contacts_with_profiles(
-        self, db: AsyncSession, user_entity_id: str, status: Optional[str] = "active"
-    ) -> List[Dict[str, Any]]:
-        """Get user contacts with their social profiles"""
-        contacts = await self.get_user_contacts(db, user_entity_id, status)
-
-        contact_list = []
-        for contact in contacts:
-            # Get social profile for the contact
-            profile_result = await db.execute(
-                select(SocialProfile).where(SocialProfile.entity_id == contact.contact_entity_id)
-            )
-            profile = profile_result.scalar_one_or_none()
-
-            contact_data = {
-                "id": contact.contact_entity_id,  # Map to frontend expected field
-                "contact_type": contact.contact_type,
-                "status": self._map_status_to_string(contact.status),
-                "added_at": contact.created_at,
-                "last_interaction": contact.updated_at,
-                "nickname": profile.nickname if profile else None,
-                "avatar_url": profile.avatar_url if profile else None,
-                "bio": profile.bio if profile else None,
-            }
-            contact_list.append(contact_data)
-
-        return contact_list
-
-    async def create_contact(
-        self, db: AsyncSession, user_entity_id: str, contact_data: ContactCreate
-    ) -> Contact:
-        """Create a new contact relationship"""
-        try:
-            # Check if contact already exists
-            existing = await self.get_contact_by_entities(
-                db, user_entity_id, contact_data.contact_entity_id
-            )
-            if existing:
-                raise ValueError("Contact relationship already exists")
-
-            db_contact = Contact(
+        except Exception as e:
+            logger.error(
+                "get_contact_by_entities_error",
+                error=str(e),
                 user_entity_id=user_entity_id,
-                contact_entity_id=contact_data.contact_entity_id,
-                contact_type=contact_data.contact_type.value,
-                status=1,  # active
+                contact_entity_id=contact_entity_id,
             )
+            raise
 
-            db.add(db_contact)
-            await db.commit()
-            await db.refresh(db_contact)
+    async def create_contact_relationship(
+        self, session: AsyncSession, user_entity_id: str, contact_entity_id: str, contact_type: int = 2
+    ) -> Contact:
+        """
+        Create a new contact relationship
+
+        Args:
+            session: Database session
+            user_entity_id: User's entity ID
+            contact_entity_id: Contact's entity ID
+            contact_type: Contact type (1=user, 2=bot)
+
+        Returns:
+            Created Contact instance
+        """
+        try:
+            new_contact = Contact(
+                user_entity_id=user_entity_id,
+                contact_entity_id=contact_entity_id,
+                contact_type=contact_type,
+                status=1,  # normal
+            )
+            session.add(new_contact)
+            # Note: Don't commit here, let the calling service handle transaction
 
             logger.info(
-                "contact_created",
+                "contact_relationship_created",
                 user_entity_id=user_entity_id,
-                contact_entity_id=contact_data.contact_entity_id,
-                contact_type=contact_data.contact_type.value,
+                contact_entity_id=contact_entity_id,
+                contact_type=contact_type,
             )
+            return new_contact
 
-            return db_contact
-
-        except IntegrityError as e:
-            await db.rollback()
-            logger.error("contact_creation_integrity_error", error=str(e))
-            raise ValueError("Failed to create contact due to database constraint")
         except Exception as e:
-            await db.rollback()
-            logger.error("contact_creation_error", error=str(e))
+            logger.error(
+                "create_contact_relationship_error",
+                error=str(e),
+                user_entity_id=user_entity_id,
+                contact_entity_id=contact_entity_id,
+            )
             raise
 
-    async def update_contact(
-        self, db: AsyncSession, contact_id: int, contact_update: ContactUpdate
-    ) -> Optional[Contact]:
-        """Update contact information"""
-        contact = await self.get_contact_by_id(db, contact_id)
-        if not contact:
-            return None
+    async def get_contact_with_profile(
+        self, session: AsyncSession, user_entity_id: str, contact_entity_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get contact relationship with social profile data
 
-        if contact_update.status:
-            # Map string status to integer
-            status_map = {"active": 1, "inactive": 2, "blocked": 3, "deleted": 4}
-            contact.status = status_map.get(contact_update.status.value, 1)
+        Args:
+            session: Database session
+            user_entity_id: User's entity ID
+            contact_entity_id: Contact's entity ID
 
+        Returns:
+            Combined contact and profile dictionary or None if not found
+        """
         try:
-            await db.commit()
-            await db.refresh(contact)
+            # Get contact relationship
+            contact = await self.get_contact_by_entities(session, user_entity_id, contact_entity_id)
+            if not contact:
+                return None
 
-            logger.info("contact_updated", contact_id=contact_id)
-            return contact
+            # Get social profile using injected ProfileRepository
+            profile = await self.profile_repo.get_social_profile_by_entity_id(session, contact_entity_id)
+
+            # Combine contact and profile data
+            return {
+                "contact_id": contact.id,
+                "entity_id": contact_entity_id,
+                "nickname": profile.get("nickname") if profile else None,
+                "avatar_url": profile.get("avatar_url") if profile else None,
+                "gender": profile.get("gender") if profile else None,
+                "bio": profile.get("bio") if profile else None,
+                "location": profile.get("location") if profile else None,
+                "created_at": contact.created_at.isoformat() if contact.created_at else None,
+            }
 
         except Exception as e:
-            await db.rollback()
-            logger.error("contact_update_error", error=str(e), contact_id=contact_id)
+            logger.error(
+                "get_contact_with_profile_error",
+                error=str(e),
+                user_entity_id=user_entity_id,
+                contact_entity_id=contact_entity_id,
+            )
             raise
 
-    async def delete_contact(self, db: AsyncSession, contact_id: int) -> bool:
-        """Soft delete a contact (set status to deleted)"""
-        contact = await self.get_contact_by_id(db, contact_id)
-        if not contact:
-            return False
+    async def get_contact_chat_info(
+        self, session: AsyncSession, user_entity_id: str, contact_entity_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get contact information for chat display
 
-        contact.status = 4  # deleted
+        Args:
+            session: Database session
+            user_entity_id: User's entity ID
+            contact_entity_id: Contact's entity ID
 
+        Returns:
+            Contact chat info dictionary or None if not found
+        """
         try:
-            await db.commit()
-            logger.info("contact_deleted", contact_id=contact_id)
-            return True
+            # Get contact relationship
+            contact = await self.get_contact_by_entities(session, user_entity_id, contact_entity_id)
+            if not contact:
+                return None
+
+            # Get social profile using injected ProfileRepository
+            profile = await self.profile_repo.get_social_profile_by_entity_id(session, contact_entity_id)
+
+            # Return chat-specific info
+            return {
+                "id": contact_entity_id,
+                "nickname": profile.get("nickname") if profile else "Unknown",
+                "avatar_url": profile.get("avatar_url") if profile else None,
+                "contact_type": contact.contact_type,
+            }
+
         except Exception as e:
-            await db.rollback()
-            logger.error("contact_deletion_error", error=str(e), contact_id=contact_id)
-            return False
-
-    async def get_contact_count(self, db: AsyncSession, user_entity_id: str) -> int:
-        """Get total number of active contacts for a user"""
-        result = await db.execute(
-            select(func.count(Contact.id)).where(
-                and_(Contact.user_entity_id == user_entity_id, Contact.status == 1)  # active
+            logger.error(
+                "get_contact_chat_info_error",
+                error=str(e),
+                user_entity_id=user_entity_id,
+                contact_entity_id=contact_entity_id,
             )
-        )
-        return result.scalar() or 0
+            raise
 
-    async def get_user_contact_limits(self, db: AsyncSession, user_entity_id: str) -> Dict[str, Any]:
-        """Get user's contact limits and current usage"""
-        # Get user info for limits
-        user_result = await db.execute(select(User).where(User.entity_id == user_entity_id))
-        user = user_result.scalar_one_or_none()
+    # User operations
+    async def get_user_contact_limits(self, session: AsyncSession, user_entity_id: str) -> Dict[str, Any]:
+        """
+        Get user's contact limits and current count
 
-        if not user:
-            raise ValueError(f"User not found: {user_entity_id}")
+        Args:
+            session: Database session
+            user_entity_id: User's entity ID
 
-        current_count = await self.get_contact_count(db, user_entity_id)
+        Returns:
+            Dictionary with contact limits and current count
+        """
+        try:
+            # Get user settings
+            user_result = await session.execute(select(User).where(User.entity_id == user_entity_id))
+            user = user_result.scalar_one_or_none()
 
-        return {
-            "current_count": current_count,
-            "limit": user.contact_limit,
-            "remaining": max(0, user.contact_limit - current_count),
-            "can_add_more": current_count < user.contact_limit,
-        }
+            if not user:
+                raise ValueError(f"User not found: {user_entity_id}")
 
-    def _map_status_to_string(self, status_int: int) -> str:
-        """Map integer status to string"""
-        status_map = {1: "active", 2: "inactive", 3: "blocked", 4: "deleted"}
-        return status_map.get(status_int, "unknown")
+            # Count current bot contacts
+            contact_count_result = await session.execute(
+                select(func.count(Contact.id)).where(
+                    Contact.user_entity_id == user_entity_id,
+                    Contact.contact_type == 2,  # bot contacts only
+                    Contact.status == 1,  # normal status only
+                )
+            )
+            current_count = contact_count_result.scalar() or 0
 
+            return {
+                "current_count": current_count,
+                "contact_limit": user.contact_limit,
+                "search_display_limit": user.search_display_limit,
+                "can_add_more": current_count < user.contact_limit,
+            }
 
-# Create global instance
-contact_crud = ContactCRUD()
+        except Exception as e:
+            logger.error("get_user_contact_limits_error", error=str(e), user_entity_id=user_entity_id)
+            raise

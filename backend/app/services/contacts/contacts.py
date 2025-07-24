@@ -5,22 +5,27 @@ Handles contact relationships and integrates with other services
 
 import time
 from typing import List, Dict, Any, Optional
-from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from models.contact import Contact
 from utils.logging import get_logger
+from repositories.contact import ContactRepository
+from repositories.bot_template import TemplateRepository
+from repositories.profile import ProfileRepository
 from .template import (
     search_available_templates,
     get_template_mapping,
     get_template_by_id,
     instantiate_template_to_contact,
-    decrease_template_usage,
     validate_search_timeout,
 )
-from .profile import get_social_profile
+
 from .utils.contact_limits import get_user_contact_limits, check_contact_limit_reached
 
 logger = get_logger(__name__)
+
+# Initialize repositories
+contact_repository = ContactRepository()
+template_repository = TemplateRepository()
+profile_repository = ProfileRepository()
 
 
 async def get_user_contacts(session: AsyncSession, user_entity_id: str) -> List[Dict[str, Any]]:
@@ -35,31 +40,8 @@ async def get_user_contacts(session: AsyncSession, user_entity_id: str) -> List[
         List of contact dictionaries
     """
     try:
-        # Get all contacts (both bot and user contacts)
-        contacts_result = await session.execute(
-            select(Contact).where(
-                and_(
-                    Contact.user_entity_id == user_entity_id,
-                    Contact.status == 1,  # normal status
-                )
-            )
-        )
-
-        contacts_data = []
-        for contact in contacts_result.scalars().all():
-            # Get social profile for display info
-            profile = await get_social_profile(session, contact.contact_entity_id)
-
-            contact_info = {
-                "id": contact.contact_entity_id,  # Use entity_id as id for frontend
-                "contact_type": contact.contact_type,  # Add contact_type field
-                "nickname": profile.get("nickname") if profile else None,
-                "avatar_url": profile.get("avatar_url") if profile else None,
-                "gender": profile.get("gender") if profile else None,
-                "location": profile.get("location") if profile else None,
-                "created_at": contact.created_at.isoformat() if contact.created_at else None,
-            }
-            contacts_data.append(contact_info)
+        # Use repository to get contacts with profiles
+        contacts_data = await contact_repository.get_user_contacts_with_profiles(session, user_entity_id)
 
         logger.info("user_contacts_retrieved", user_entity_id=user_entity_id, count=len(contacts_data))
         return contacts_data
@@ -84,34 +66,8 @@ async def get_contact_by_entity_id(
         Contact dictionary or None if not found
     """
     try:
-        # Check if contact exists for this user (support both user and bot contacts)
-        contact_result = await session.execute(
-            select(Contact).where(
-                and_(
-                    Contact.user_entity_id == user_entity_id,
-                    Contact.contact_entity_id == contact_entity_id,
-                    Contact.status == 1,  # normal status
-                )
-            )
-        )
-        contact = contact_result.scalar_one_or_none()
-
-        if not contact:
-            return None
-
-        # Get social profile
-        profile = await get_social_profile(session, contact_entity_id)
-
-        return {
-            "contact_id": contact.id,
-            "entity_id": contact_entity_id,
-            "nickname": profile.get("nickname") if profile else None,
-            "avatar_url": profile.get("avatar_url") if profile else None,
-            "gender": profile.get("gender") if profile else None,
-            "bio": profile.get("bio") if profile else None,
-            "location": profile.get("location") if profile else None,
-            "created_at": contact.created_at.isoformat() if contact.created_at else None,
-        }
+        # Get contact with profile using repository's combined method
+        return await contact_repository.get_contact_with_profile(session, user_entity_id, contact_entity_id)
 
     except Exception as e:
         logger.error(
@@ -138,30 +94,8 @@ async def get_contact_chat_info(
         Chat info dictionary or None if not found
     """
     try:
-        # Verify contact relationship exists (support both user and bot contacts)
-        contact_result = await session.execute(
-            select(Contact).where(
-                and_(
-                    Contact.user_entity_id == user_entity_id,
-                    Contact.contact_entity_id == contact_entity_id,
-                    Contact.status == 1,  # normal status
-                )
-            )
-        )
-        contact = contact_result.scalar_one_or_none()
-
-        if not contact:
-            return None
-
-        # Get social profile for chat display
-        profile = await get_social_profile(session, contact_entity_id)
-
-        return {
-            "id": contact_entity_id,  # Use entity_id as id for frontend
-            "nickname": profile.get("nickname") if profile else None,
-            "avatar_url": profile.get("avatar_url") if profile else None,
-            "contact_type": contact.contact_type,  # Use actual contact type
-        }
+        # Get contact chat info using repository's combined method
+        return await contact_repository.get_contact_chat_info(session, user_entity_id, contact_entity_id)
 
     except Exception as e:
         logger.error(
@@ -242,19 +176,12 @@ async def add_contact(session: AsyncSession, user_entity_id: str, contact_entity
                 )
                 return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
 
-            # Check if contact already exists
-            existing_contact = await session.execute(
-                select(Contact).where(
-                    and_(
-                        Contact.user_entity_id == user_entity_id,
-                        Contact.contact_entity_id == contact_entity_id,
-                        Contact.contact_type == 2,  # bot contact
-                        Contact.status == 1,  # normal status
-                    )
-                )
+            # Check if contact already exists using repository
+            existing_contact = await contact_repository.get_contact_by_entities(
+                session, user_entity_id, contact_entity_id
             )
 
-            if existing_contact.scalar_one_or_none():
+            if existing_contact:
                 logger.warning(
                     "add_contact_already_exists",
                     user_entity_id=user_entity_id,
@@ -306,17 +233,13 @@ async def add_contact(session: AsyncSession, user_entity_id: str, contact_entity
             # Instantiate template to create bot and profile
             await instantiate_template_to_contact(session, template, user_entity_id, unique_entity_id)
 
-            # Create contact record
-            new_contact = Contact(
-                user_entity_id=user_entity_id,
-                contact_entity_id=unique_entity_id,
-                contact_type=2,  # bot contact
-                status=1,  # normal
+            # Create contact record using repository
+            await contact_repository.create_contact_relationship(
+                session, user_entity_id, unique_entity_id, contact_type=2
             )
-            session.add(new_contact)
 
             # Decrease template remaining uses
-            decrease_template_usage(template)
+            await template_repository.decrease_template_usage(session, template)
 
             # Update template mapping status to inactive to prevent re-selection
             mapping.status = "inactive"

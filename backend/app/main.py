@@ -6,10 +6,10 @@ from core.config import settings
 from core.database import SessionLocal, init_database
 from core.event_bus import event_bus
 from services.message import websocket
-from services.bot_chat.message_router import message_router
+from services.ai_chat.model_router import model_router
 from exceptions import AppException
 from utils.logging import get_logger, bind_context, configure_logging
-from services.message.leanmessage import setup_leanmessage_handlers
+from services.message.providers.leanmessage import setup_leanmessage_handlers
 from api.v1.api import api_router
 
 
@@ -60,11 +60,11 @@ async def startup_event():
         await event_bus.start()
         logger.info("event_bus_started")
 
-        # Ensure message_router is created and subscribed to events
-        logger.info("initializing_message_router")
-        if not hasattr(app.state, "message_router"):
-            app.state.message_router = message_router
-        logger.info("message_router_initialized")
+        # Ensure model_router is created and subscribed to events
+        logger.info("initializing_model_router")
+        if not hasattr(app.state, "model_router"):
+            app.state.model_router = model_router
+        logger.info("model_router_initialized")
 
         # Initialize WebSocket manager
         logger.info("initializing_websocket_manager")
@@ -76,7 +76,7 @@ async def startup_event():
 
         # Ensure unified conversation exists
         logger.info("ensuring_unified_conversation")
-        from services.message.leancloud.conversation_auto_setup import ensure_unified_conversation
+        from services.message.providers.leancloud.conversation_auto_setup import ensure_unified_conversation
 
         await ensure_unified_conversation()
         logger.info("unified_conversation_ready")
@@ -88,7 +88,7 @@ async def startup_event():
 
         # Start LeanCloud health monitoring
         logger.info("starting_leancloud_health_monitoring")
-        from services.message.leancloud import health_checker
+        from services.message.providers.leancloud import health_checker
 
         await health_checker.start_health_monitoring()
         logger.info("leancloud_health_monitoring_started")

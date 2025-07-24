@@ -3,7 +3,7 @@ from typing import Dict, Type, Optional, Any, Tuple
 from enum import Enum, auto
 
 from core.database import SessionLocal
-from crud.bot import bot_crud
+from repositories.bot import BotRepository
 from enums import (
     MessageType,
     MessageTypeCategory,
@@ -16,8 +16,8 @@ from exceptions import BotNotFoundError, AuthorizationError, DatabaseError
 from utils.logging import get_logger
 from services.message.message import send_system_message
 
-from .chat_models.base import BaseModel
-from .chat_models.model_ailo import ModelAilo
+from .models.base import BaseModel
+from .models.model_ailo import ModelAilo
 
 logger = get_logger(__name__)
 
@@ -73,9 +73,10 @@ class ModelRouter:
         """
         try:
             logger.info("querying_bot", bot_entity_id=bot_entity_id)
-            # Use centralized session management
+            # Use repository layer with centralized session management
             async with SessionLocal() as db:
-                bot = await bot_crud.get_by_entity_id(db, bot_entity_id)
+                bot_repository = BotRepository()
+                bot = await bot_repository.get_by_entity_id(db, bot_entity_id)
             logger.info("bot_query_result", bot_entity_id=bot_entity_id, found=bot is not None)
             if not bot:
                 raise BotNotFoundError(entity_id=bot_entity_id)

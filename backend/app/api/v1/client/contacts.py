@@ -3,8 +3,17 @@ Contact and social profile related API routes
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from api.deps import get_current_user
-from services.contacts.contacts import contacts_service
+from sqlalchemy.ext.asyncio import AsyncSession
+from api.deps import get_current_user, get_db
+from services.contacts.contacts import (
+    get_user_contacts,
+    search_contacts,
+    get_contact_by_entity_id,
+    get_contact_chat_info,
+    add_contact,
+)
+from repositories.profile import ProfileRepository
+from services.contacts.utils.contact_limits import get_user_contact_limits
 from schemas.social_profile import SocialProfileCreate, SocialProfileUpdate
 from models.user import User
 from utils.logging import get_logger
@@ -13,9 +22,12 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+# Initialize repository
+profile_repository = ProfileRepository()
+
 
 @router.get("")
-async def get_contacts(current_user: User = Depends(get_current_user)):
+async def get_contacts(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Get current user's contacts with their social profiles
     """
@@ -24,7 +36,7 @@ async def get_contacts(current_user: User = Depends(get_current_user)):
         if not user_entity_id:
             raise HTTPException(status_code=400, detail="User entity_id not found")
 
-        contact_list = await contacts_service.get_user_contacts(user_entity_id)
+        contact_list = await get_user_contacts(db, user_entity_id)
         return {"status": "success", "data": contact_list}
 
     except HTTPException:
@@ -35,7 +47,9 @@ async def get_contacts(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/search")
-async def search_contacts(query: str, current_user: User = Depends(get_current_user)):
+async def search_contacts_endpoint(
+    query: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     """
     Search available contacts from preset configuration
     """
@@ -54,7 +68,7 @@ async def search_contacts(query: str, current_user: User = Depends(get_current_u
         if len(query) > 100:  # Reasonable limit for search queries
             raise HTTPException(status_code=400, detail="Query too long (max 100 characters)")
 
-        available_contacts = await contacts_service.search_contacts(user_entity_id, query)
+        available_contacts = await search_contacts(db, user_entity_id, query)
         return {"status": "success", "data": available_contacts}
 
     except HTTPException:
@@ -65,7 +79,9 @@ async def search_contacts(query: str, current_user: User = Depends(get_current_u
 
 
 @router.get("/limits")
-async def get_contact_limits(current_user: User = Depends(get_current_user)):
+async def get_contact_limits(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     """
     Get current user's contact limits and usage information
     """
@@ -74,7 +90,7 @@ async def get_contact_limits(current_user: User = Depends(get_current_user)):
         if not user_entity_id:
             raise HTTPException(status_code=400, detail="User entity_id not found")
 
-        limits_info = await contacts_service.get_user_contact_limits(user_entity_id)
+        limits_info = await get_user_contact_limits(db, user_entity_id)
         return {"status": "success", "data": limits_info}
 
     except ValueError as e:
@@ -87,7 +103,11 @@ async def get_contact_limits(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/{contact_entity_id}")
-async def get_contact(contact_entity_id: str, current_user: User = Depends(get_current_user)):
+async def get_contact(
+    contact_entity_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get a specific contact by entity ID
     """
@@ -96,7 +116,7 @@ async def get_contact(contact_entity_id: str, current_user: User = Depends(get_c
         if not user_entity_id:
             raise HTTPException(status_code=400, detail="User entity_id not found")
 
-        contact = await contacts_service.get_contact_by_entity_id(user_entity_id, contact_entity_id)
+        contact = await get_contact_by_entity_id(db, user_entity_id, contact_entity_id)
         if not contact:
             raise HTTPException(status_code=404, detail="Contact not found")
 
@@ -110,7 +130,11 @@ async def get_contact(contact_entity_id: str, current_user: User = Depends(get_c
 
 
 @router.get("/{contact_entity_id}/chat-info")
-async def get_contact_chat_info(contact_entity_id: str, current_user: User = Depends(get_current_user)):
+async def get_contact_chat_info_endpoint(
+    contact_entity_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get specific contact's chat display information
     """
@@ -119,7 +143,7 @@ async def get_contact_chat_info(contact_entity_id: str, current_user: User = Dep
         if not user_entity_id:
             raise HTTPException(status_code=400, detail="User entity_id not found")
 
-        chat_info = await contacts_service.get_contact_chat_info(user_entity_id, contact_entity_id)
+        chat_info = await get_contact_chat_info(db, user_entity_id, contact_entity_id)
         if not chat_info:
             raise HTTPException(status_code=404, detail="Contact not found")
 
@@ -135,12 +159,12 @@ async def get_contact_chat_info(contact_entity_id: str, current_user: User = Dep
 
 
 @router.get("/profile/{entity_id}")
-async def get_social_profile(entity_id: str, current_user: User = Depends(get_current_user)):
+async def get_social_profile_endpoint(entity_id: str, db: AsyncSession = Depends(get_db)):
     """
     Get social profile by entity ID
     """
     try:
-        profile = await contacts_service.get_social_profile_by_entity_id(entity_id)
+        profile = await profile_repository.get_social_profile_by_entity_id(db, entity_id)
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
 
@@ -155,7 +179,9 @@ async def get_social_profile(entity_id: str, current_user: User = Depends(get_cu
 
 @router.put("/profile/me")
 async def create_or_update_my_profile(
-    profile_data: SocialProfileUpdate, current_user: User = Depends(get_current_user)
+    profile_data: SocialProfileUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create or update current user's social profile
@@ -171,8 +197,8 @@ async def create_or_update_my_profile(
         if not profile_dict:
             raise HTTPException(status_code=400, detail="No data provided for update")
 
-        updated_profile = await contacts_service.create_or_update_social_profile(
-            user_entity_id, profile_dict
+        updated_profile = await profile_repository.create_or_update_social_profile(
+            db, user_entity_id, profile_dict
         )
 
         return {"status": "success", "data": updated_profile}
@@ -186,7 +212,9 @@ async def create_or_update_my_profile(
 
 @router.post("/profile/me")
 async def create_my_profile(
-    profile_data: SocialProfileCreate, current_user: User = Depends(get_current_user)
+    profile_data: SocialProfileCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create current user's social profile (for first-time setup)
@@ -197,15 +225,15 @@ async def create_my_profile(
             raise HTTPException(status_code=400, detail="User entity_id not found")
 
         # Check if profile already exists
-        existing_profile = await contacts_service.get_social_profile_by_entity_id(user_entity_id)
+        existing_profile = await profile_repository.get_social_profile_by_entity_id(db, user_entity_id)
         if existing_profile:
             raise HTTPException(status_code=409, detail="Profile already exists, use PUT to update")
 
         # Convert Pydantic model to dict
         profile_dict = profile_data.dict()
 
-        created_profile = await contacts_service.create_or_update_social_profile(
-            user_entity_id, profile_dict
+        created_profile = await profile_repository.create_or_update_social_profile(
+            db, user_entity_id, profile_dict
         )
 
         return {"status": "success", "data": created_profile}
@@ -218,7 +246,9 @@ async def create_my_profile(
 
 
 @router.post("/add")
-async def add_contact(request_data: dict, current_user: User = Depends(get_current_user)):
+async def add_contact_endpoint(
+    request_data: dict, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     """
     Add a new contact for the current user
     """
@@ -235,7 +265,7 @@ async def add_contact(request_data: dict, current_user: User = Depends(get_curre
         if not isinstance(contact_id, str) or not contact_id.strip():
             raise HTTPException(status_code=400, detail="contact_id must be a non-empty string")
 
-        result = await contacts_service.add_contact(user_entity_id, contact_id)
+        result = await add_contact(db, user_entity_id, contact_id)
 
         # Service layer now returns structured response, pass it through
         return result

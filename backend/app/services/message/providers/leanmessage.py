@@ -11,7 +11,7 @@ from core.event_bus import event_bus, EventTypes
 from utils.logging import get_logger
 
 from .leancloud.config_manager import get_unified_conversation_id
-from .encryption import encryption_service
+from ..encryption import encryption_service
 
 logger = get_logger(__name__)
 

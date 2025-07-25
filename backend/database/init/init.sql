@@ -10,7 +10,7 @@ DROP DATABASE IF EXISTS says_db;
 CREATE DATABASE IF NOT EXISTS says_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE says_db;
 
--- Create users table (accounts_service only)
+-- Create users table
 DROP TABLE IF EXISTS users;
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,7 +45,7 @@ CREATE TABLE users (
     INDEX idx_last_active (last_active_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Create bots table (bot_message_service only - AI logic and scoring system)
+-- Create bots table
 DROP TABLE IF EXISTS bots;
 CREATE TABLE bots (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -318,6 +318,19 @@ CREATE TABLE message_push (
     INDEX idx_message_push_users (from_entity, to_entity),
     INDEX idx_message_push_status (status),
     INDEX idx_message_push_created_at (created_at)
+);
+
+-- Create system_config table
+DROP TABLE IF EXISTS system_config;
+CREATE TABLE system_config (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    config_key VARCHAR(100) NOT NULL UNIQUE COMMENT 'Configuration key',
+    config_value TEXT NOT NULL COMMENT 'Configuration value',
+    description VARCHAR(255) COMMENT 'Description of this configuration',
+    INDEX idx_config_key (config_key),
+    INDEX idx_updated_at (updated_at)
 );
 
 -- Insert sample user data

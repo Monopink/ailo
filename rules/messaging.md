@@ -111,11 +111,34 @@
 
 ## LeanCloud Integration
 
+### Architecture (Post-Refactor)
+
+- **Simplified Design**: Reduced from 8 files to 4 core files
+- **Functional Programming**: Stateless operations where appropriate
+- **Standard CRUD**: Uses `system_config_crud` for database operations
+- **No Problem Reporting**: Removed complex error reporting mechanisms
+- **Explicit Error Handling**: No default values or fallback mechanisms
+
+### Core Components
+
+- **startup.py**: Startup validation and caching (functional)
+- **sender.py**: Message sending functions (functional)
+- **webhook.py**: Message receiving and webhook processing (functional)
+- **conversation_manager.py**: Conversation ID management (functional, uses system_config_crud)
+- **health_checker.py**: Health checking (class-based organization, stateless)
+
 ### Unified System Conversation
 
 - All bot messages use single shared conversation ID
 - Prioritizes message delivery over ID freshness
-- System conversation setup managed by backend
+- Conversation ID stored in `system_config` table with key `leancloud_conversation_id`
+- Automatic creation if not configured
+
+### API Endpoints
+
+- **`/leancloud-conversation-id`**: Get conversation ID (requires authentication)
+- **`/health/leancloud-message-service`**: Health check (no authentication required)
+- **`/webhook/leanmessage`**: Webhook processing
 
 ### Webhook Processing
 
@@ -131,8 +154,12 @@
 
 ## Encryption
 
-- Message content encrypted before LeanCloud transmission
-- Encryption handled by provider layer, not message service layer
+- Message content encrypted by message layer before transmission
+- Encryption handled by message service layer, not provider layer
+- Provider layer only handles transport of already-encrypted messages
+- Supports BASE64 and AES-256-GCM algorithms
+- Algorithm selection via environment variable: `ENCRYPTION_ALGORITHM`
+- AES-256 key stored in environment variable: `ENCRYPTION_KEY_AES256`
 - Structured message format maintained after encryption
 
 ## Error Handling

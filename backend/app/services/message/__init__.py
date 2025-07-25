@@ -1,7 +1,5 @@
-from .providers.websocket import websocket
-from .providers.leanmessage import leanmessage_service
+from .providers.dev_websocket import websocket
 
 __all__ = [
     "websocket",
-    "leanmessage_service",
 ]

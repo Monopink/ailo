@@ -33,7 +33,7 @@ services:
 
   # Backend Service
   backend:
-    container_name: backend
+    container_name: backend_container
     build:
       context: ../backend/app
       dockerfile: Dockerfile

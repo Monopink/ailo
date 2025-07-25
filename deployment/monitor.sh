@@ -32,15 +32,15 @@ log_error() {
 send_webhook() {
     local message="$1"
     local level="$2"
-    
+
     if [ -z "$WEBHOOK_URL" ]; then
         log_warning "Webhook URL not configured, skipping notification"
         return
     fi
-    
+
     # Generic webhook format (adapt for specific platforms)
     local payload="{\"text\":\"[Says Monitor] [$level] $message\"}"
-    
+
     curl -s -X POST "$WEBHOOK_URL" \
         -H "Content-Type: application/json" \
         -d "$payload" || log_error "Failed to send webhook notification"
@@ -49,28 +49,28 @@ send_webhook() {
 check_service_health() {
     local service="$1"
     local status=$(docker-compose -f $COMPOSE_FILE ps -q $service 2>/dev/null)
-    
+
     if [ -z "$status" ]; then
         log_error "Service $service is not running"
         send_webhook "Service $service is DOWN" "ERROR"
         return 1
     fi
-    
+
     local health=$(docker inspect --format='{{.State.Health.Status}}' $(docker-compose -f $COMPOSE_FILE ps -q $service) 2>/dev/null || echo "unknown")
-    
+
     if [ "$health" = "unhealthy" ]; then
         log_error "Service $service is unhealthy"
         send_webhook "Service $service is UNHEALTHY" "ERROR"
         return 1
     fi
-    
+
     log_info "Service $service is healthy"
     return 0
 }
 
 check_disk_space() {
     local usage=$(df / | awk 'NR==2 {print $5}' | sed 's/%//')
-    
+
     if [ "$usage" -gt 90 ]; then
         log_error "Disk usage is ${usage}% (critical)"
         send_webhook "Disk usage critical: ${usage}%" "ERROR"
@@ -80,14 +80,14 @@ check_disk_space() {
         send_webhook "Disk usage warning: ${usage}%" "WARNING"
         return 1
     fi
-    
+
     log_info "Disk usage is ${usage}% (normal)"
     return 0
 }
 
 check_memory_usage() {
     local usage=$(free | awk 'NR==2{printf "%.0f", $3*100/$2}')
-    
+
     if [ "$usage" -gt 90 ]; then
         log_error "Memory usage is ${usage}% (critical)"
         send_webhook "Memory usage critical: ${usage}%" "ERROR"
@@ -97,24 +97,24 @@ check_memory_usage() {
         send_webhook "Memory usage warning: ${usage}%" "WARNING"
         return 1
     fi
-    
+
     log_info "Memory usage is ${usage}% (normal)"
     return 0
 }
 
 check_ssl_certificate() {
     local domain=$(grep "DOMAIN=" ../backend/.env.prod | cut -d'=' -f2)
-    
+
     if [ -z "$domain" ]; then
         log_warning "Domain not found in environment file"
         return 1
     fi
-    
+
     local expiry=$(echo | openssl s_client -servername $domain -connect $domain:443 2>/dev/null | openssl x509 -noout -dates | grep notAfter | cut -d'=' -f2)
     local expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null || echo "0")
     local current_epoch=$(date +%s)
     local days_left=$(( (expiry_epoch - current_epoch) / 86400 ))
-    
+
     if [ "$days_left" -lt 7 ]; then
         log_error "SSL certificate expires in $days_left days"
         send_webhook "SSL certificate expires in $days_left days" "ERROR"
@@ -124,29 +124,66 @@ check_ssl_certificate() {
         send_webhook "SSL certificate expires in $days_left days" "WARNING"
         return 1
     fi
-    
+
     log_info "SSL certificate is valid for $days_left days"
+    return 0
+}
+
+check_leancloud_message_service() {
+    local backend_container=$(docker-compose -f $COMPOSE_FILE ps -q backend 2>/dev/null)
+
+    if [ -z "$backend_container" ]; then
+        log_error "Backend container not found"
+        return 1
+    fi
+
+    # Check LeanCloud message service health endpoint
+    local health_response=$(docker exec $backend_container curl -s -f http://localhost:8000/api/v1/client/health/leancloud-message-service 2>/dev/null || echo "")
+
+    if [ -z "$health_response" ]; then
+        log_error "LeanCloud message service health check failed - no response"
+        send_webhook "LeanCloud message service health check failed" "ERROR"
+        return 1
+    fi
+
+    # Parse JSON response to check service status
+    local service_status=$(echo "$health_response" | grep -o '"leancloud_message_service":"[^"]*"' | cut -d'"' -f4)
+
+    if [ "$service_status" != "healthy" ]; then
+        log_error "LeanCloud message service is $service_status"
+        send_webhook "LeanCloud message service is $service_status" "ERROR"
+        return 1
+    fi
+
+    log_info "LeanCloud message service is healthy"
     return 0
 }
 
 run_health_check() {
     log_info "Starting health check..."
-    
+
     local failed=0
-    
+
     # Check services
     services=("mysql_db" "backend" "web_frontend" "nginx")
     for service in "${services[@]}"; do
         check_service_health "$service" || failed=$((failed + 1))
     done
-    
+
+    # Check LeanCloud message service (only if backend is running)
+    if docker-compose -f $COMPOSE_FILE ps -q backend >/dev/null 2>&1; then
+        check_leancloud_message_service || failed=$((failed + 1))
+    else
+        log_warning "Backend service not running, skipping LeanCloud message service check"
+    fi
+
     # Check system resources
     check_disk_space || failed=$((failed + 1))
     check_memory_usage || failed=$((failed + 1))
-    
+
     # Check SSL certificate
     check_ssl_certificate || failed=$((failed + 1))
-    
+
     if [ "$failed" -eq 0 ]; then
         log_info "All health checks passed"
     else

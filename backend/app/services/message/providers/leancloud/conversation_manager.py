@@ -1,95 +1,119 @@
 """
-LeanCloud Conversation Auto Setup
+LeanCloud Conversation Manager
+
+Functional module for managing LeanCloud conversation IDs using standard CRUD operations.
+Integrates with system_config_crud for database persistence.
 """
 
-import asyncio
+import json
 import requests
-from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from crud.system_config import system_config_crud
 from core.config import settings
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
+# Configuration key for storing LeanCloud conversation ID
+LEANCLOUD_CONVERSATION_ID_KEY = "leancloud_conversation_id"
+LEANCLOUD_CONVERSATION_ID_DESCRIPTION = "LeanCloud system conversation ID for message service"
 
 
-async def ensure_unified_conversation() -> str:
+async def get_leancloud_conversation_id(db: AsyncSession) -> str:
     """
-    Ensure unified conversation exists, create if not found.
+    Get LeanCloud conversation ID from database.
+
+    Args:
+        db: Database session
 
     Returns:
         str: The conversation ID
 
     Raises:
-        RuntimeError: If conversation cannot be created
+        ValueError: If conversation ID is not configured
     """
-    from .config_manager import (
-        is_conversation_configured,
-        get_unified_conversation_id,
-        set_unified_conversation_id,
+    config_value = await system_config_crud.get_config_value(db, LEANCLOUD_CONVERSATION_ID_KEY)
+    if not config_value:
+        raise ValueError("LeanCloud conversation ID not configured")
+
+    logger.debug("leancloud_conversation_id_retrieved", conversation_id=config_value)
+    return config_value
+
+
+async def create_and_save_leancloud_conversation_id(db: AsyncSession) -> str:
+    """
+    Create new LeanCloud conversation ID and save to database.
+
+    Args:
+        db: Database session
+
+    Returns:
+        str: The newly created conversation ID
+
+    Raises:
+        RuntimeError: If LeanCloud API fails
+    """
+    conversation_id = await _create_leancloud_conversation_via_api()
+
+    await system_config_crud.set_config(
+        db, LEANCLOUD_CONVERSATION_ID_KEY, conversation_id, LEANCLOUD_CONVERSATION_ID_DESCRIPTION
     )
 
-    # Check if already configured
-    if is_conversation_configured():
-        conversation_id = get_unified_conversation_id()
-        logger.info("unified_conversation_found", conversation_id=conversation_id)
-        return conversation_id
-
-    # Log LeanCloud configuration status
-    logger.info(
-        "leancloud_config_check",
-        app_id=bool(settings.LEANCLOUD_APP_ID),
-        master_key=bool(settings.LEANCLOUD_MASTER_KEY),
-        base_url=settings.LEANCLOUD_BASE_URL,
-    )
-
-    # Auto-create
-    logger.info("unified_conversation_not_found_creating")
-    conversation_id = await create_system_conversation()
-
-    if conversation_id:
-        set_unified_conversation_id(conversation_id)
-        logger.info("unified_conversation_created_and_saved", conversation_id=conversation_id)
-        return conversation_id
-    else:
-        raise RuntimeError("Failed to create unified system conversation")
+    logger.info("leancloud_conversation_id_created_and_saved", conversation_id=conversation_id)
+    return conversation_id
 
 
-async def create_system_conversation() -> Optional[str]:
-    """Create system conversation with retry mechanism."""
-    for attempt in range(MAX_RETRIES):
-        try:
-            if attempt > 0:
-                logger.info("retrying_conversation_creation", attempt=attempt + 1)
-                await asyncio.sleep(RETRY_DELAY)
+async def validate_leancloud_conversation_exists(conversation_id: str) -> bool:
+    """
+    Validate if LeanCloud conversation exists on LeanCloud server.
 
-            conversation_id = await create_with_rest_api()
-            if conversation_id:
-                logger.info(
-                    "conversation_created_successfully",
-                    conversation_id=conversation_id,
-                    attempt=attempt + 1,
-                )
-                return conversation_id
+    Args:
+        conversation_id: The conversation ID to validate
 
-        except Exception as e:
-            logger.error(
-                "conversation_creation_attempt_failed", attempt=attempt + 1, error=str(e), exc_info=True
+    Returns:
+        bool: True if conversation exists, False otherwise
+    """
+    try:
+        url = f"{settings.LEANCLOUD_BASE_URL}/1.2/rtm/service-conversations"
+        headers = {
+            "X-LC-Id": settings.LEANCLOUD_APP_ID,
+            "X-LC-Key": f"{settings.LEANCLOUD_MASTER_KEY},master",
+        }
+        params = {"where": json.dumps({"objectId": conversation_id})}
+
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+            exists = len(data.get("results", [])) > 0
+            logger.debug(
+                "leancloud_conversation_validation_result", conversation_id=conversation_id, exists=exists
             )
+            return exists
+        else:
+            logger.warning(
+                "leancloud_conversation_validation_failed",
+                conversation_id=conversation_id,
+                status_code=response.status_code,
+            )
+            return False
 
-            if attempt == MAX_RETRIES - 1:
-                raise RuntimeError(
-                    f"Failed to create unified conversation after {MAX_RETRIES} attempts. "
-                    f"Please check LeanCloud credentials and network connectivity. "
-                    f"Last error: {str(e)}"
-                )
-
-    return None
+    except Exception as e:
+        logger.error("validate_leancloud_conversation_error", conversation_id=conversation_id, error=str(e))
+        return False
 
 
-async def create_with_rest_api() -> str:
-    """Create system conversation using LeanCloud REST API."""
+async def _create_leancloud_conversation_via_api() -> str:
+    """
+    Create LeanCloud service conversation via REST API.
+
+    Returns:
+        str: The created conversation ID (objectId)
+
+    Raises:
+        RuntimeError: If API call fails
+    """
     url = f"{settings.LEANCLOUD_BASE_URL}/1.2/rtm/service-conversations"
 
     headers = {
@@ -99,7 +123,7 @@ async def create_with_rest_api() -> str:
     }
 
     data = {
-        "name": "message_service",
+        "name": "leancloud_message_service",
         "sys": True,
         "attr": {
             "created_by": "says",
@@ -108,19 +132,16 @@ async def create_with_rest_api() -> str:
         },
     }
 
-    logger.debug("creating_system_conversation", url=url, data=data)
+    logger.debug("creating_leancloud_conversation", url=url, data=data)
 
     try:
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None, lambda: requests.post(url, headers=headers, json=data, timeout=30)
-        )
+        response = requests.post(url, headers=headers, json=data, timeout=30)
 
         if response.status_code == 201:
             conversation = response.json()
             conversation_id = conversation["objectId"]
             logger.info(
-                "system_conversation_created",
+                "leancloud_conversation_created",
                 conversation_id=conversation_id,
                 name=conversation.get("name"),
             )
@@ -135,8 +156,8 @@ async def create_with_rest_api() -> str:
             raise RuntimeError(error_msg)
 
     except requests.RequestException as e:
-        logger.error("network_error_creating_conversation", error=str(e))
-        raise RuntimeError(f"Network error creating conversation: {str(e)}")
+        logger.error("network_error_creating_leancloud_conversation", error=str(e))
+        raise RuntimeError(f"Network error creating LeanCloud conversation: {str(e)}")
     except Exception as e:
-        logger.error("unexpected_error_creating_conversation", error=str(e), exc_info=True)
-        raise RuntimeError(f"Unexpected error creating conversation: {str(e)}")
+        logger.error("unexpected_error_creating_leancloud_conversation", error=str(e))
+        raise RuntimeError(f"Unexpected error creating LeanCloud conversation: {str(e)}")

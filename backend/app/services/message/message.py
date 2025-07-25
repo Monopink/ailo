@@ -1,4 +1,6 @@
 import random
+import os
+import base64
 from typing import Optional, Union, Dict, Any
 from datetime import datetime, timezone
 
@@ -11,13 +13,128 @@ from enums import (
     SystemMessageStatus,
     SystemMessageReason,
     SystemMessageAction,
+    EncryptionType,
 )
 from utils.logging import get_logger
+from .encryption import encrypt, decrypt
 
 logger = get_logger(__name__)
 
+# Module-level encryption settings cache
+_encryption_algorithm = None
+_encryption_key = None
+
 # Initialize module
 logger.info("message_module_initialized")
+
+
+def _initialize_encryption():
+    """
+    Initialize encryption settings from environment variables.
+    Called once on first use and cached in module-level variables.
+    """
+    global _encryption_algorithm, _encryption_key
+
+    # Get algorithm from environment variable
+    algorithm_name = os.getenv("ENCRYPTION_ALGORITHM", "BASE64")
+    try:
+        _encryption_algorithm = EncryptionType[algorithm_name]
+    except KeyError:
+        logger.error("invalid_encryption_algorithm", algorithm=algorithm_name)
+        raise ValueError(f"Invalid encryption algorithm: {algorithm_name}")
+
+    # Load algorithm-specific key
+    if _encryption_algorithm == EncryptionType.AES_256_GCM:
+        key_b64 = os.getenv("ENCRYPTION_KEY_AES256")
+        if not key_b64:
+            raise ValueError("Missing ENCRYPTION_KEY_AES256 environment variable")
+
+        try:
+            _encryption_key = base64.b64decode(key_b64)
+            if len(_encryption_key) != 32:
+                raise ValueError("AES-256 key must be 32 bytes")
+        except Exception as e:
+            logger.error("invalid_aes_key", error=str(e))
+            raise ValueError(f"Invalid AES-256 key: {str(e)}")
+
+    elif _encryption_algorithm == EncryptionType.BASE64:
+        _encryption_key = b""  # BASE64 doesn't need a key
+    else:
+        raise ValueError(f"Unsupported encryption algorithm: {_encryption_algorithm}")
+
+    logger.info("encryption_initialized", algorithm=_encryption_algorithm.name)
+
+
+def _encrypt_content(content: str) -> tuple[str, dict]:
+    """
+    Encrypt message content using configured algorithm and key.
+
+    Args:
+        content: Plain text content to encrypt
+
+    Returns:
+        Tuple of (encrypted_content, metadata)
+
+    Raises:
+        ValueError: If encryption fails
+    """
+    global _encryption_algorithm, _encryption_key
+
+    # Initialize encryption settings on first use
+    if _encryption_algorithm is None:
+        _initialize_encryption()
+
+    # Type assertion: after initialization, these should not be None
+    assert _encryption_algorithm is not None
+    assert _encryption_key is not None
+
+    return encrypt(content, _encryption_algorithm, _encryption_key)
+
+
+def _decrypt_content(encrypted_content: str, metadata: dict) -> str:
+    """
+    Decrypt message content using metadata and configured key.
+
+    Args:
+        encrypted_content: Encrypted content string
+        metadata: Encryption metadata
+
+    Returns:
+        str: Decrypted plain text content
+
+    Raises:
+        ValueError: If decryption fails
+    """
+    global _encryption_algorithm, _encryption_key
+
+    # Initialize encryption settings on first use
+    if _encryption_algorithm is None:
+        _initialize_encryption()
+
+    # Type assertion: after initialization, these should not be None
+    assert _encryption_key is not None
+
+    return decrypt(encrypted_content, metadata, _encryption_key)
+
+
+def _is_message_encrypted(message: dict) -> bool:
+    """
+    Check if a message is encrypted by examining metadata.
+
+    Args:
+        message: Message dictionary to check
+
+    Returns:
+        bool: True if message is encrypted, False otherwise
+    """
+    return (
+        isinstance(message, dict)
+        and "encryption" in message
+        and isinstance(message["encryption"], int)
+        and message["encryption"] > 0  # 0 = NONE, >0 = encrypted
+        and "enc_version" in message
+        and isinstance(message["enc_version"], int)
+    )
 
 
 def _validate_message(message: dict) -> bool:
@@ -185,9 +302,29 @@ async def send_message(
             message["message_id"] = generate_message_id()
             logger.debug("message_id_generated", message_id=message["message_id"])
 
-        # Future extension point: message processing hooks
-        # This is where message signing, encryption, or other processing could be added
-        # await _process_message_hooks(message, message_type_obj)
+        # Encrypt message content before sending
+        if message.get("content"):
+            try:
+                encrypted_content, encryption_metadata = _encrypt_content(message["content"])
+                message["content"] = encrypted_content
+
+                # Add encryption metadata to message
+                message.update(encryption_metadata)
+
+                logger.debug(
+                    "message_content_encrypted",
+                    message_id=message.get("message_id"),
+                    algorithm=encryption_metadata.get("encryption"),
+                )
+
+            except Exception as e:
+                logger.error(
+                    "message_encryption_failed",
+                    message_id=message.get("message_id"),
+                    error=str(e),
+                    exc_info=True,
+                )
+                raise ValueError(f"Failed to encrypt message: {str(e)}")
 
         # Publish to event bus for delivery
         await event_bus.publish(EventTypes.SEND_MESSAGE, message)
@@ -299,6 +436,42 @@ async def receive_message(message: dict) -> None:
         if not _validate_message(message):
             logger.error("invalid_received_message", message=message)
             return
+
+        # Decrypt message content if encrypted
+        if message.get("content") and _is_message_encrypted(message):
+            try:
+                # Extract encryption metadata
+                encryption_metadata = {
+                    "encryption": message.get("encryption"),
+                    "enc_version": message.get("enc_version"),
+                    "iv": message.get("iv"),  # For AES-256-GCM
+                }
+
+                # Decrypt content
+                decrypted_content = _decrypt_content(message["content"], encryption_metadata)
+                message["content"] = decrypted_content
+
+                # Remove encryption metadata from message
+                message.pop("encryption", None)
+                message.pop("enc_version", None)
+                message.pop("iv", None)
+
+                logger.debug(
+                    "message_content_decrypted",
+                    message_id=message.get("message_id"),
+                    from_entity=message.get("from_entity"),
+                )
+
+            except Exception as e:
+                logger.error(
+                    "message_decryption_failed",
+                    message_id=message.get("message_id"),
+                    from_entity=message.get("from_entity"),
+                    error=str(e),
+                    exc_info=True,
+                )
+                # Don't raise - log error but continue processing
+                # This allows handling of unencrypted legacy messages
 
         # Save received message to database (preserves external_msg_id, status="sent")
         await save_message(message, message_status="sent")

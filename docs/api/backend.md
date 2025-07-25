@@ -282,13 +282,17 @@ Authorization: Bearer <token>
 }
 ```
 
-## 系统对话管理
+## LeanCloud消息服务管理
 
-### 获取统一系统对话ID
+### 获取LeanCloud系统对话ID
 
 ```
-GET /api/v1/system/conversation-id
+GET /api/v1/client/leancloud-conversation-id
 ```
+
+**说明**: 获取用于所有机器人对话的LeanCloud系统对话ID。如果不存在会自动创建。
+
+**认证**: 需要JWT认证
 
 **响应**:
 
@@ -298,34 +302,32 @@ GET /api/v1/system/conversation-id
 }
 ```
 
-### 报告对话错误
+### LeanCloud消息服务健康检查
 
 ```
-POST /api/v1/system/conversation-error-report
+GET /api/v1/client/health/leancloud-message-service
 ```
 
-**请求体**:
+**说明**: 检查LeanCloud消息服务的健康状态，用于监控。
 
-```json
-{
-  "error_type": 2,
-  "conversation_id": "conv_123456",
-  "error_message": "Conversation not found",
-  "timestamp": "2024-01-01T00:00:00Z",
-  "retry_count": 1,
-  "user_agent": "Mozilla/5.0..."
-}
-```
+**认证**: 不需要认证
 
 **响应**:
 
 ```json
 {
-  "status": "received",
-  "message": "Error report logged for investigation",
-  "report_id": "2024-01-01T00:00:00Z_2"
+  "leancloud_message_service": "healthy",
+  "leancloud_api": "healthy",
+  "leancloud_conversation_id": "healthy",
+  "details": {}
 }
 ```
+
+**状态值**:
+
+- `healthy`: 服务正常
+- `unhealthy`: 服务异常但可恢复
+- `error`: 服务错误
 
 ## Webhook接口
 
@@ -415,9 +417,11 @@ GET /health
   "status": "healthy",
   "database": "connected",
   "event_bus": "running",
-  "leancloud_conversation": {
-    "health": "healthy",
-    "metrics": {}
+  "leancloud_message_service": {
+    "leancloud_message_service": "healthy",
+    "leancloud_api": "healthy",
+    "leancloud_conversation_id": "healthy",
+    "details": {}
   }
 }
 ```

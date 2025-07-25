@@ -9,7 +9,7 @@ from services.message import websocket
 from services.ai_chat.model_router import model_router
 from exceptions import AppException
 from utils.logging import get_logger, bind_context, configure_logging
-from services.message.providers.leanmessage import setup_leanmessage_handlers
+from services.message.providers.leancloud import setup_leancloud_handlers
 from api.v1.api import api_router
 
 
@@ -74,24 +74,22 @@ async def startup_event():
             logger.info("websocket_connections", count=active_connections)
         logger.info("websocket_manager_initialized")
 
-        # Ensure unified conversation exists
-        logger.info("ensuring_unified_conversation")
-        from services.message.providers.leancloud.conversation_auto_setup import ensure_unified_conversation
+        # Perform LeanCloud message service startup check
+        logger.info("performing_leancloud_message_service_startup_check")
+        from services.message.providers.leancloud.startup import startup_leancloud_message_service_check
 
-        await ensure_unified_conversation()
-        logger.info("unified_conversation_ready")
+        startup_success = await startup_leancloud_message_service_check()
+        if not startup_success:
+            logger.error("leancloud_message_service_startup_check_failed")
+            # Application can choose whether to continue startup
+            # For MVP development, we continue but log the failure
+        else:
+            logger.info("leancloud_message_service_startup_check_passed")
 
-        # Initialize LeanMessage handlers
-        logger.info("initializing_leanmessage_handlers")
-        setup_leanmessage_handlers()
-        logger.info("leanmessage_handlers_initialized")
-
-        # Start LeanCloud health monitoring
-        logger.info("starting_leancloud_health_monitoring")
-        from services.message.providers.leancloud import health_checker
-
-        await health_checker.start_health_monitoring()
-        logger.info("leancloud_health_monitoring_started")
+        # Initialize LeanCloud handlers
+        logger.info("initializing_leancloud_handlers")
+        setup_leancloud_handlers()
+        logger.info("leancloud_handlers_initialized")
 
         logger.info("application_startup_complete")
 
@@ -110,13 +108,6 @@ async def shutdown_event():
     Clean up resources on application shutdown
     """
     try:
-        # Stop LeanCloud health monitoring
-        logger.info("stopping_leancloud_health_monitoring")
-        from services.message.leancloud import health_checker
-
-        await health_checker.stop_health_monitoring()
-        logger.info("leancloud_health_monitoring_stopped")
-
         # Stop event bus
         await event_bus.stop()
         logger.info("event_bus_stopped")
@@ -159,18 +150,20 @@ async def health_check():
     except Exception:
         database_status = "error"
 
-    # Get LeanCloud conversation health status and metrics
-    from services.message.leancloud import health_checker
-    from services.message.leancloud import conversation_metrics
+    # Get LeanCloud message service health status
+    try:
+        from services.message.providers.leancloud.health_checker import health_checker
 
-    leancloud_health = health_checker.get_current_health_status()
-    metrics_summary = conversation_metrics.get_metrics_summary()
+        leancloud_health = await health_checker.check_leancloud_message_service_health()
+    except Exception as e:
+        logger.error("health_check_leancloud_error", error=str(e))
+        leancloud_health = {"leancloud_message_service": "error", "details": {"error": str(e)}}
 
     status = {
         "status": "healthy",
         "database": database_status,
         "event_bus": "running" if event_bus._running else "stopped",
-        "leancloud_conversation": {"health": leancloud_health, "metrics": metrics_summary},
+        "leancloud_message_service": leancloud_health,
     }
     logger.debug("health_check", **status)
     return status
@@ -181,6 +174,6 @@ async def leanmessage_webhook(request: Request):
     """
     LeanMessage webhook endpoint for receiving messages
     """
-    from services.message.leancloud.leanmessage_webhook import handle_leanmessage_webhook
+    from services.message.providers.leancloud.webhook import handle_leancloud_message_webhook
 
-    return await handle_leanmessage_webhook(request)
+    return await handle_leancloud_message_webhook(request)

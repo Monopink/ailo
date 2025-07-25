@@ -1,252 +1,235 @@
+"""
+Message Encryption Module
+
+Pure encryption and decryption utilities.
+Provides algorithm-agnostic functions for encrypting and decrypting content.
+"""
+
 import base64
-import logging
-from typing import Dict, Any, Optional
-from abc import ABC, abstractmethod
+import secrets
+from typing import Dict, Any, Tuple
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 from enums import EncryptionType, EncryptionVersion
+from utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
-
-# Encryption configuration
-ENCRYPTION_CONFIG = {
-    "DEFAULT_ALGORITHM": "base64",
-    "VERSION": "1.0",
-    "SUPPORTED_ALGORITHMS": ["base64"],  # Future: add "aes-256-gcm"
-    "DEBUG_LOG_OPERATIONS": True,  # Set to True for debugging
-}
+logger = get_logger(__name__)
 
 
-class EncryptionInterface(ABC):
-    """Abstract interface for encryption algorithms"""
+def encrypt(content: str, algorithm: EncryptionType, key: bytes) -> Tuple[str, Dict[str, Any]]:
+    """
+    Encrypt content using specified algorithm and key.
 
-    @abstractmethod
-    def encrypt(self, content: str) -> str:
-        """Encrypt content and return encrypted string"""
-        pass
+    Args:
+        content: Plain text content to encrypt
+        algorithm: Encryption algorithm to use
+        key: Encryption key (algorithm-specific format)
 
-    @abstractmethod
-    def decrypt(self, encrypted_content: str) -> str:
-        """Decrypt content and return original string"""
-        pass
+    Returns:
+        Tuple of (encrypted_content, metadata)
 
+    Raises:
+        ValueError: If parameters are invalid or encryption fails
+    """
+    if not content or not isinstance(content, str):
+        raise ValueError("Content must be a non-empty string")
 
-class Base64Encryption(EncryptionInterface):
-    """Base64 encoding implementation (not real encryption)"""
+    if not isinstance(algorithm, EncryptionType):
+        raise ValueError("Algorithm must be an EncryptionType enum")
 
-    def encrypt(self, content: str) -> str:
-        """Encode content using Base64"""
-        if not content or not isinstance(content, str):
-            raise ValueError("Content must be a non-empty string")
+    if not isinstance(key, bytes):
+        raise ValueError("Key must be bytes")
 
-        try:
-            # Encode to bytes, then to base64
-            content_bytes = content.encode("utf-8")
-            encoded_bytes = base64.b64encode(content_bytes)
-            return encoded_bytes.decode("utf-8")
-        except Exception as e:
-            raise ValueError(f"Base64 encoding failed: {str(e)}")
+    try:
+        if algorithm == EncryptionType.BASE64:
+            return _encode_base64(content)
+        elif algorithm == EncryptionType.AES_256_GCM:
+            return _encrypt_aes_256_gcm(content, key)
+        else:
+            raise ValueError(f"Unsupported encryption algorithm: {algorithm}")
 
-    def decrypt(self, encrypted_content: str) -> str:
-        """Decode Base64 content"""
-        if not encrypted_content or not isinstance(encrypted_content, str):
-            raise ValueError("Encrypted content must be a non-empty string")
-
-        try:
-            # Decode from base64, then to string
-            encoded_bytes = encrypted_content.encode("utf-8")
-            content_bytes = base64.b64decode(encoded_bytes)
-            return content_bytes.decode("utf-8")
-        except Exception as e:
-            raise ValueError(f"Base64 decoding failed: {str(e)}")
+    except Exception as e:
+        logger.error("encryption_failed", algorithm=algorithm.name, error=str(e))
+        raise ValueError(f"Encryption failed: {str(e)}")
 
 
-class AESEncryption(EncryptionInterface):
-    """Future AES-256-GCM encryption implementation"""
+def decrypt(encrypted_content: str, metadata: Dict[str, Any], key: bytes) -> str:
+    """
+    Decrypt content using metadata and key.
 
-    def __init__(self, key: Optional[bytes] = None):
-        self.key = key
-        # TODO: Implement proper key management
+    Args:
+        encrypted_content: Encrypted content string
+        metadata: Encryption metadata containing algorithm and parameters
+        key: Decryption key (algorithm-specific format)
 
-    def encrypt(self, content: str) -> str:
-        """Future AES encryption implementation"""
-        # TODO: Implement AES-256-GCM encryption
-        raise NotImplementedError("AES encryption not yet implemented")
+    Returns:
+        str: Decrypted plain text content
 
-    def decrypt(self, encrypted_content: str) -> str:
-        """Future AES decryption implementation"""
-        # TODO: Implement AES-256-GCM decryption
-        raise NotImplementedError("AES decryption not yet implemented")
+    Raises:
+        ValueError: If parameters are invalid or decryption fails
+    """
+    if not encrypted_content or not isinstance(encrypted_content, str):
+        raise ValueError("Encrypted content must be a non-empty string")
+
+    if not isinstance(metadata, dict):
+        raise ValueError("Metadata must be a dictionary")
+
+    if not isinstance(key, bytes):
+        raise ValueError("Key must be bytes")
+
+    try:
+        # Extract algorithm from metadata
+        algorithm_value = metadata.get("encryption")
+        if algorithm_value is None:
+            raise ValueError("Missing encryption algorithm in metadata")
+
+        algorithm = EncryptionType(algorithm_value)
+
+        if algorithm == EncryptionType.BASE64:
+            return _decode_base64(encrypted_content)
+        elif algorithm == EncryptionType.AES_256_GCM:
+            return _decrypt_aes_256_gcm(encrypted_content, metadata, key)
+        else:
+            raise ValueError(f"Unsupported encryption algorithm: {algorithm}")
+
+    except Exception as e:
+        logger.error("decryption_failed", metadata=metadata, error=str(e))
+        raise ValueError(f"Decryption failed: {str(e)}")
 
 
-class EncryptionService:
-    """Main encryption service for handling message encryption/decryption"""
+def _encode_base64(content: str) -> Tuple[str, Dict[str, Any]]:
+    """
+    Encrypt content using Base64 encoding.
 
-    def __init__(self):
-        self.algorithms = {
-            "base64": Base64Encryption(),
-            # 'aes-256-gcm': AESEncryption(),  # Future implementation
-        }
-        self.default_algorithm = ENCRYPTION_CONFIG["DEFAULT_ALGORITHM"]
-        self.version = ENCRYPTION_CONFIG["VERSION"]
+    Args:
+        content: Plain text content
 
-    def encrypt_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Encrypt message content and add encryption metadata
+    Returns:
+        Tuple of (encrypted_content, metadata)
+    """
+    # Encode to bytes, then to base64
+    content_bytes = content.encode("utf-8")
+    encoded_bytes = base64.b64encode(content_bytes)
+    encrypted_content = encoded_bytes.decode("utf-8")
 
-        Args:
-            message_data: Original message dictionary
+    metadata = {
+        "encryption": EncryptionType.BASE64.value,
+        "enc_version": EncryptionVersion.V1.value,
+    }
 
-        Returns:
-            Encrypted message dictionary with encryption metadata
-        """
-        if not isinstance(message_data, dict):
-            raise ValueError("Message data must be a dictionary")
+    logger.debug(
+        "base64_encryption_completed", original_length=len(content), encrypted_length=len(encrypted_content)
+    )
 
-        # Create a copy to avoid mutating original
-        encrypted_message = message_data.copy()
+    return encrypted_content, metadata
 
-        # Get content to encrypt
-        content = encrypted_message.get("content", "")
-        if not content:
-            # No content to encrypt, return as-is
-            return encrypted_message
 
-        try:
-            # Get encryption algorithm
-            algorithm = self.default_algorithm
+def _decode_base64(encrypted_content: str) -> str:
+    """
+    Decrypt content using Base64 decoding.
 
-            if algorithm not in self.algorithms:
-                raise ValueError(f"Unsupported algorithm: {algorithm}")
+    Args:
+        encrypted_content: Base64 encrypted content
 
-            # Encrypt the content
-            encrypted_content = self.algorithms[algorithm].encrypt(content)
+    Returns:
+        str: Decrypted plain text content
+    """
+    # Decode from base64, then to string
+    encoded_bytes = encrypted_content.encode("utf-8")
+    content_bytes = base64.b64decode(encoded_bytes)
+    decrypted_content = content_bytes.decode("utf-8")
 
-            # Update message with encrypted content
-            encrypted_message["content"] = encrypted_content
+    logger.debug(
+        "base64_decryption_completed",
+        encrypted_length=len(encrypted_content),
+        decrypted_length=len(decrypted_content),
+    )
 
-            # Add encryption metadata using numeric codes
-            encrypted_message["encryption"] = EncryptionType.BASE64.value
-            encrypted_message["enc_version"] = EncryptionVersion.V1.value
+    return decrypted_content
 
-            # Log operation if debugging is enabled
-            if ENCRYPTION_CONFIG["DEBUG_LOG_OPERATIONS"]:
-                logger.info(
-                    f"Message encrypted: algorithm={algorithm}, "
-                    f"original_length={len(content)}, "
-                    f"encrypted_length={len(encrypted_content)}"
-                )
 
-            return encrypted_message
+def _encrypt_aes_256_gcm(content: str, key: bytes) -> Tuple[str, Dict[str, Any]]:
+    """
+    Encrypt content using AES-256-GCM.
 
-        except Exception as e:
-            logger.error(f"Failed to encrypt message: {str(e)}")
-            raise ValueError(f"Message encryption failed: {str(e)}")
+    Args:
+        content: Plain text content
+        key: 32-byte AES key
 
-    def decrypt_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Decrypt message content and remove encryption metadata
+    Returns:
+        Tuple of (encrypted_content, metadata)
+    """
+    if len(key) != 32:
+        raise ValueError("AES-256 key must be 32 bytes")
 
-        Args:
-            message_data: Encrypted message dictionary
+    # Generate random IV (12 bytes for GCM)
+    iv = secrets.token_bytes(12)
 
-        Returns:
-            Decrypted message dictionary without encryption metadata
-        """
-        if not isinstance(message_data, dict):
-            raise ValueError("Message data must be a dictionary")
+    # Create AESGCM cipher
+    aesgcm = AESGCM(key)
 
-        # Create a copy to avoid mutating original
-        decrypted_message = message_data.copy()
+    # Encrypt content
+    content_bytes = content.encode("utf-8")
+    encrypted_bytes = aesgcm.encrypt(iv, content_bytes, None)
 
-        # Check if message is encrypted (using new numeric format)
-        if not self.is_encrypted(message_data):
-            # Not encrypted, return as-is (backward compatibility)
-            return decrypted_message
+    # Encode encrypted content and IV to base64
+    encrypted_content = base64.b64encode(encrypted_bytes).decode("utf-8")
+    iv_b64 = base64.b64encode(iv).decode("utf-8")
 
-        try:
-            # Get encryption metadata (numeric format)
-            encryption_type = message_data.get("encryption", 0)
+    metadata = {
+        "encryption": EncryptionType.AES_256_GCM.value,
+        "enc_version": EncryptionVersion.V1.value,
+        "iv": iv_b64,
+    }
 
-            # Map numeric encryption type to algorithm name
-            algorithm_map = {
-                EncryptionType.BASE64.value: "base64",
-                EncryptionType.AES_256_GCM.value: "aes-256-gcm",
-            }
-            algorithm = algorithm_map.get(encryption_type, "base64")
+    logger.debug(
+        "aes_256_gcm_encryption_completed",
+        original_length=len(content),
+        encrypted_length=len(encrypted_content),
+    )
 
-            if algorithm not in self.algorithms:
-                raise ValueError(f"Unsupported algorithm: {algorithm}")
+    return encrypted_content, metadata
 
-            # Get encrypted content
-            encrypted_content = message_data.get("content", "")
 
-            # Decrypt the content
-            decrypted_content = self.algorithms[algorithm].decrypt(encrypted_content)
+def _decrypt_aes_256_gcm(encrypted_content: str, metadata: Dict[str, Any], key: bytes) -> str:
+    """
+    Decrypt content using AES-256-GCM.
 
-            # Update message with decrypted content
-            decrypted_message["content"] = decrypted_content
+    Args:
+        encrypted_content: Base64 encoded encrypted content
+        metadata: Encryption metadata containing IV
+        key: 32-byte AES key
 
-            # Remove encryption metadata
-            decrypted_message.pop("encryption", None)
-            decrypted_message.pop("enc_version", None)
+    Returns:
+        str: Decrypted plain text content
+    """
+    if len(key) != 32:
+        raise ValueError("AES-256 key must be 32 bytes")
 
-            # Log operation if debugging is enabled
-            if ENCRYPTION_CONFIG["DEBUG_LOG_OPERATIONS"]:
-                logger.info(
-                    f"Message decrypted: algorithm={algorithm}, "
-                    f"encrypted_length={len(encrypted_content)}, "
-                    f"decrypted_length={len(decrypted_content)}"
-                )
+    # Extract IV from metadata
+    iv_b64 = metadata.get("iv")
+    if not iv_b64:
+        raise ValueError("Missing IV in metadata")
 
-            return decrypted_message
+    try:
+        # Decode IV and encrypted content from base64
+        iv = base64.b64decode(iv_b64.encode("utf-8"))
+        encrypted_bytes = base64.b64decode(encrypted_content.encode("utf-8"))
 
-        except Exception as e:
-            logger.error(f"Failed to decrypt message: {str(e)}")
-            raise ValueError(f"Message decryption failed: {str(e)}")
+        # Create AESGCM cipher
+        aesgcm = AESGCM(key)
 
-    def is_encrypted(self, message_data: Dict[str, Any]) -> bool:
-        """
-        Check if a message is encrypted
+        # Decrypt content
+        decrypted_bytes = aesgcm.decrypt(iv, encrypted_bytes, None)
+        decrypted_content = decrypted_bytes.decode("utf-8")
 
-        Args:
-            message_data: Message dictionary to check
-
-        Returns:
-            True if message is encrypted, False otherwise
-        """
-        return (
-            isinstance(message_data, dict)
-            and "encryption" in message_data
-            and isinstance(message_data["encryption"], int)
-            and message_data["encryption"] > EncryptionType.NONE.value
-            and "enc_version" in message_data
-            and isinstance(message_data["enc_version"], int)
+        logger.debug(
+            "aes_256_gcm_decryption_completed",
+            encrypted_length=len(encrypted_content),
+            decrypted_length=len(decrypted_content),
         )
 
-    def get_encryption_metadata(self) -> Dict[str, str]:
-        """
-        Get current encryption metadata
+        return decrypted_content
 
-        Returns:
-            Dictionary with algorithm and version
-        """
-        return {"algorithm": self.default_algorithm, "version": self.version}
-
-    def set_algorithm(self, algorithm: str) -> None:
-        """
-        Set the default encryption algorithm
-
-        Args:
-            algorithm: Algorithm name to set as default
-        """
-        if algorithm not in ENCRYPTION_CONFIG["SUPPORTED_ALGORITHMS"]:
-            raise ValueError(f"Unsupported algorithm: {algorithm}")
-
-        if algorithm not in self.algorithms:
-            raise ValueError(f"Algorithm not implemented: {algorithm}")
-
-        self.default_algorithm = algorithm
-        logger.info(f"Default encryption algorithm set to: {algorithm}")
-
-
-# Global encryption service instance
-encryption_service = EncryptionService()
+    except Exception as e:
+        raise ValueError(f"AES-256-GCM decryption failed: {str(e)}")

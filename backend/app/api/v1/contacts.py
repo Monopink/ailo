@@ -47,7 +47,7 @@ async def get_contacts(db: AsyncSession = Depends(get_db), current_user: User = 
 
 
 @router.get("/search")
-async def search_contacts_endpoint(
+async def search_contacts_api(
     query: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """
@@ -130,7 +130,7 @@ async def get_contact(
 
 
 @router.get("/{contact_entity_id}/chat-info")
-async def get_contact_chat_info_endpoint(
+async def get_contact_chat_info_api(
     contact_entity_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -159,7 +159,7 @@ async def get_contact_chat_info_endpoint(
 
 
 @router.get("/profile/{entity_id}")
-async def get_social_profile_endpoint(entity_id: str, db: AsyncSession = Depends(get_db)):
+async def get_social_profile(entity_id: str, db: AsyncSession = Depends(get_db)):
     """
     Get social profile by entity ID
     """
@@ -246,7 +246,7 @@ async def create_my_profile(
 
 
 @router.post("/add")
-async def add_contact_endpoint(
+async def add_contact_api(
     request_data: dict, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """

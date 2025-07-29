@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union, Optional, Dict
-from jose import jwt, JWTError, ExpiredSignatureError
-from passlib.context import CryptContext
+import jwt
+from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+import secrets
+import string
 
 from utils.logging import get_logger
 from .config import settings
@@ -9,23 +13,58 @@ from .config import settings
 
 logger = get_logger(__name__)
 
-# Create a CryptContext instance, specifying the hashing algorithm
-# Using bcrypt is a good, secure choice.
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Create Argon2 password hasher with secure defaults
+ph = PasswordHasher(
+    time_cost=2,  # Number of iterations
+    memory_cost=65536,  # Memory usage in KB (64MB)
+    parallelism=1,  # Number of parallel threads
+    hash_len=32,  # Hash output length
+    salt_len=16,  # Salt length
+)
 
 
 def get_password_hash(password: str) -> str:
     """
-    Hashes a plain-text password using the configured context.
+    Hash a plain-text password using Argon2.
     """
-    return pwd_context.hash(password)
+    return ph.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Verifies a plain-text password against a hashed password.
+    Verify a plain-text password against an Argon2 hash.
+    Handles all possible Argon2 verification errors gracefully.
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        ph.verify(hashed_password, plain_password)
+        return True
+    except VerifyMismatchError:
+        # Password does not match the hash - normal case
+        return False
+    except (VerificationError, InvalidHashError) as e:
+        # Hash format invalid, parameter mismatch, or other verification errors
+        # Log for debugging but return False to trigger normal error message
+        logger.debug(
+            "password_verification_error",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            hash_prefix=hashed_password[:20] if hashed_password else "empty",
+        )
+        return False
+    except Exception as e:
+        # Catch any other unexpected errors
+        logger.warning(
+            "unexpected_password_verification_error", error_type=type(e).__name__, error_message=str(e)
+        )
+        return False
+
+
+def generate_password(length: int = 12) -> str:
+    """
+    Generate a cryptographically secure random password.
+    """
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def create_access_token(
@@ -63,7 +102,7 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     except ExpiredSignatureError:
         logger.debug("jwt_token_expired")
         return None
-    except JWTError:
+    except InvalidTokenError:
         logger.debug("jwt_token_invalid")
         return None
     except Exception as e:

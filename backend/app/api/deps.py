@@ -1,7 +1,8 @@
 from fastapi import HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
 from utils.logging import get_logger
 from core.config import settings
@@ -36,7 +37,7 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenData(**payload)
-    except (JWTError, ValidationError):
+    except (InvalidTokenError, ValidationError):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",

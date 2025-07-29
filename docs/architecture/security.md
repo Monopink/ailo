@@ -32,7 +32,7 @@ async def verify_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("sub")
         return user_id
-    except JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(401, "Invalid token")
 ```
 

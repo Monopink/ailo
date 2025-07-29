@@ -339,19 +339,19 @@ INSERT INTO users (
     timezone, language_preference, last_active_at, is_verified, verification_type, subscription_type, 
     notification_settings, privacy_settings, contact_limit, search_display_limit
 ) VALUES
-('1001', 'zhang3', 'zhangsan@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '北京', '13800138001',
+('1001', 'zhang3', 'zhangsan@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '北京', '13800138001',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'premium',
  '{"message_notifications": true, "system_notifications": true}',
  '{"profile_visibility": "public", "message_privacy": "friends"}', 1, 1),
-('1002', 'li4', 'lisi@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '上海', '13800138002',
+('1002', 'li4', 'lisi@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '上海', '13800138002',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'free',
  '{"message_notifications": true, "system_notifications": false}',
  '{"profile_visibility": "friends", "message_privacy": "private"}', 1, 3),
-('1003', 'wang5', 'wangwu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '广州', '13800138003',
+('1003', 'wang5', 'wangwu@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '广州', '13800138003',
  'Asia/Shanghai', 'zh-CN', NOW(), 0, 'none', 'free',
  '{"message_notifications": false, "system_notifications": true}',
  '{"profile_visibility": "private", "message_privacy": "friends"}', 3, 2),
-('1004', 'zhao6', 'zhaoliu@example.com', '$2b$12$RY.qy7XXegzCJV6WcXpufeR926HiWC7GhkBub8CpDLh2eGsnsoc2K', 'active', 'user', 'zh', '深圳', '13800138004',
+('1004', 'zhao6', 'zhaoliu@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '深圳', '13800138004',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'vip',
  '{"message_notifications": true, "system_notifications": true}',
  '{"profile_visibility": "public", "message_privacy": "public"}', 3, 2);
@@ -486,5 +486,110 @@ INSERT INTO weather (city_name, country_code, city_code, temperature, wind_speed
 ('广州', 'CN', '020', 26.8, 2.8, '局部小雨'),
 ('深圳', 'CN', '0755', 25.5, 3.5, '晴间多云');
 
+
+-- Create admin_users table (simplified admin user system)
+DROP TABLE IF EXISTS admin_users;
+CREATE TABLE admin_users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    username VARCHAR(50) NOT NULL UNIQUE COMMENT 'Admin username',
+    email VARCHAR(100) UNIQUE COMMENT 'Admin email',
+    password_hash VARCHAR(255) NOT NULL COMMENT 'Hashed password',
+    real_name VARCHAR(50) NULL COMMENT 'Real name',
+    phone VARCHAR(20) NULL COMMENT 'Phone number',
+    role ENUM('super_admin', 'admin', 'viewer') DEFAULT 'admin' COMMENT 'Admin role: super_admin, admin, viewer',
+    is_active TINYINT(1) DEFAULT 1 COMMENT 'Admin account status',
+    last_login DATETIME NULL COMMENT 'Last admin login time',
+    login_count INT DEFAULT 0 COMMENT 'Total login count',
+    avatar_url VARCHAR(500) NULL COMMENT 'Avatar URL',
+    position VARCHAR(100) NULL COMMENT 'Position/Title',
+    notes TEXT NULL COMMENT 'Admin notes',
+    created_by INT NULL COMMENT 'Created by admin user ID',
+    UNIQUE KEY uk_admin_username (username),
+    UNIQUE KEY uk_admin_email (email),
+    INDEX idx_admin_active (is_active),
+    INDEX idx_admin_role (role),
+    INDEX idx_admin_last_login (last_login),
+    INDEX idx_admin_phone (phone)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Insert default admin data
+
+-- Create default super admin user (simplified admin system)
+INSERT INTO admin_users (
+    username, email, password_hash, real_name, role, is_active, notes
+) VALUES (
+    'admin',
+    'admin@says.com',
+    '$argon2id$v=19$m=65536,t=3,p=4$4V0Hroav121NwBoQwX/cJQ$Xt11V/ywgK4hZgR8dusPqYAGOigMeT0l5wcSvhHKqXE',
+    'System Administrator',
+    'super_admin',
+    1,
+    'Default super admin account, password: admin123'
+);
+
+-- Create additional admin users for testing
+INSERT INTO admin_users (
+    username, email, password_hash, real_name, role, is_active, notes
+) VALUES (
+    'manager',
+    'manager@says.com',
+    '$argon2id$v=19$m=65536,t=3,p=4$4V0Hroav121NwBoQwX/cJQ$Xt11V/ywgK4hZgR8dusPqYAGOigMeT0l5wcSvhHKqXE',
+    'Admin Manager',
+    'admin',
+    1,
+    'Regular admin account, password: admin123'
+),
+(
+    'viewer',
+    'viewer@says.com',
+    '$argon2id$v=19$m=65536,t=3,p=4$4V0Hroav121NwBoQwX/cJQ$Xt11V/ywgK4hZgR8dusPqYAGOigMeT0l5wcSvhHKqXE',
+    'Viewer',
+    'viewer',
+    1,
+    'Read-only access account, password: admin123'
+);
+
+
+-- Create admin operation logs table
+DROP TABLE IF EXISTS admin_operation_logs;
+CREATE TABLE admin_operation_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    admin_user_id INT NOT NULL COMMENT 'Admin user ID who performed the operation',
+    operation_type ENUM('CREATE', 'UPDATE', 'DELETE', 'ENABLE', 'DISABLE') NOT NULL COMMENT 'Type of operation',
+    resource_type VARCHAR(50) NOT NULL COMMENT 'Type of resource (user, role, bot, etc.)',
+    resource_id VARCHAR(100) COMMENT 'ID of the affected resource',
+    resource_name VARCHAR(200) COMMENT 'Name of the affected resource',
+    operation_desc VARCHAR(500) NOT NULL COMMENT 'Description of the operation',
+    ip_address VARCHAR(45) COMMENT 'IP address of the admin user',
+    user_agent VARCHAR(500) COMMENT 'User agent string',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'When the operation was performed',
+    INDEX idx_admin_user_id (admin_user_id),
+    INDEX idx_operation_type (operation_type),
+    INDEX idx_resource_type (resource_type),
+    INDEX idx_created_at (created_at),
+    FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Admin operation logs';
+
+-- Create admin login logs table
+DROP TABLE IF EXISTS admin_login_logs;
+CREATE TABLE admin_login_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    admin_user_id INT COMMENT 'Admin user ID (NULL for failed logins with invalid username)',
+    username VARCHAR(50) NOT NULL COMMENT 'Username used for login attempt',
+    login_result ENUM('SUCCESS', 'FAILED') NOT NULL COMMENT 'Result of login attempt',
+    ip_address VARCHAR(45) COMMENT 'IP address of login attempt',
+    user_agent VARCHAR(500) COMMENT 'User agent string',
+    failure_reason VARCHAR(200) COMMENT 'Reason for login failure (if applicable)',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'When the login attempt occurred',
+    INDEX idx_admin_user_id (admin_user_id),
+    INDEX idx_login_result (login_result),
+    INDEX idx_created_at (created_at),
+    INDEX idx_username (username),
+    FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Admin login logs';
+
 -- Add debug statement for completion
-SELECT 'Database initialization completed' as '';
+SELECT 'Database initialization completed with admin module and operation logs' as '';

@@ -1,47 +1,34 @@
 # Cloud Services
-volcengine-python-sdk[ark]==4.0.4
+volcengine-python-sdk[ark]==4.0.7
+# leancloud==3.0.2  # Commented out - using REST API only
 
 # Web Framework
-fastapi==0.109.2
-uvicorn==0.27.1
-websockets==12.0
+fastapi==0.115.14
+uvicorn==0.35.0
+websockets==15.0.1
 
 # Database
-sqlalchemy==2.0.23
+sqlalchemy==2.0.41
 aiomysql==0.2.0
-alembic==1.12.1
-greenlet==3.0.3
 
 # API Client
-httpx==0.25.1
-aiohttp==3.9.1
+httpx==0.28.1  # For testing API endpoints
 requests==2.31.0
 
 # Data Processing
-pydantic==2.6.4
-pydantic-settings==2.2.1
-python-multipart==0.0.7
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==3.2.0
-email-validator==2.1.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+argon2-cffi==25.1.0
+email-validator==2.2.0
 
 # Utilities
-python-dotenv==1.0.0
-aiofiles==23.2.1
-tenacity==8.2.3
-structlog==24.1.0
-aioredis==2.0.1
+structlog==25.4.0
 
 # JWT and Authentication
-PyJWT==2.8.0
+PyJWT==2.10.1
 
 # Time and Date handling
 zhdate==0.1
-pytz==2023.3
-python-dateutil==2.8.2
 
 # Development and Testing (optional)
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.1  # For testing API endpoints
+pytest==8.4.1

@@ -73,6 +73,25 @@ services:
       - backend
     restart: always
 
+  # Admin Frontend
+  admin_frontend:
+    container_name: admin_frontend_container
+    build:
+      context: ../frontend/admin
+      dockerfile: Dockerfile
+    env_file:
+      - ../frontend/admin/.env.development
+    ports:
+      - "5174:5174"
+    volumes:
+      - ../frontend/admin:/app
+      - /app/node_modules
+    networks:
+      - says-network
+    depends_on:
+      - backend
+    restart: always
+
 networks:
   says-network:
     driver: bridge

@@ -11,6 +11,7 @@ from exceptions import AppException
 from utils.logging import get_logger, bind_context, configure_logging
 from services.message.providers.leancloud import setup_leancloud_handlers
 from api.v1.api import api_router
+from admin.main import admin_router
 
 
 logger = get_logger(__name__)
@@ -21,7 +22,12 @@ app = FastAPI(title=settings.PROJECT_NAME)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Specific origins for credentials
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",  # Frontend
+        "http://localhost:8000",  # Admin interface
+        "http://127.0.0.1:8000",  # Admin interface
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -30,6 +36,9 @@ app.add_middleware(
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
+
+# Include admin router
+app.include_router(admin_router, prefix="/admin")
 
 
 async def app_exception_handler(request: Request, exc: AppException):

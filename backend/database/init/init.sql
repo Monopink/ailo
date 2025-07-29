@@ -339,19 +339,19 @@ INSERT INTO users (
     timezone, language_preference, last_active_at, is_verified, verification_type, subscription_type, 
     notification_settings, privacy_settings, contact_limit, search_display_limit
 ) VALUES
-('1001', 'zhang3', 'zhangsan@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '北京', '13800138001',
+('1001', 'zhang3', 'zhangsan@example.com', '$2b$12$P.yWfrvXvigA7Qxwf0FmG.6ddVEpSc87LoUWDoZurpSm2dc6A0kQq', 'active', 'user', 'zh', '北京', '13800138001',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'premium',
  '{"message_notifications": true, "system_notifications": true}',
  '{"profile_visibility": "public", "message_privacy": "friends"}', 1, 1),
-('1002', 'li4', 'lisi@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '上海', '13800138002',
+('1002', 'li4', 'lisi@example.com', '$2b$12$P.yWfrvXvigA7Qxwf0FmG.6ddVEpSc87LoUWDoZurpSm2dc6A0kQq', 'active', 'user', 'zh', '上海', '13800138002',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'free',
  '{"message_notifications": true, "system_notifications": false}',
  '{"profile_visibility": "friends", "message_privacy": "private"}', 1, 3),
-('1003', 'wang5', 'wangwu@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '广州', '13800138003',
+('1003', 'wang5', 'wangwu@example.com', '$2b$12$P.yWfrvXvigA7Qxwf0FmG.6ddVEpSc87LoUWDoZurpSm2dc6A0kQq', 'active', 'user', 'zh', '广州', '13800138003',
  'Asia/Shanghai', 'zh-CN', NOW(), 0, 'none', 'free',
  '{"message_notifications": false, "system_notifications": true}',
  '{"profile_visibility": "private", "message_privacy": "friends"}', 3, 2),
-('1004', 'zhao6', 'zhaoliu@example.com', '$argon2id$v=19$m=65536,t=2,p=1$EtTHtGfKJ1p+WWIzrd4+7w$1RLMZU3tM+pihbV8SyN5s/5Ml1lVL16MYVZxy0FlbPs', 'active', 'user', 'zh', '深圳', '13800138004',
+('1004', 'zhao6', 'zhaoliu@example.com', '$2b$12$P.yWfrvXvigA7Qxwf0FmG.6ddVEpSc87LoUWDoZurpSm2dc6A0kQq', 'active', 'user', 'zh', '深圳', '13800138004',
  'Asia/Shanghai', 'zh-CN', NOW(), 1, 'phone', 'vip',
  '{"message_notifications": true, "system_notifications": true}',
  '{"profile_visibility": "public", "message_privacy": "public"}', 3, 2);
@@ -523,7 +523,7 @@ INSERT INTO admin_users (
 ) VALUES (
     'admin',
     'admin@says.com',
-    '$argon2id$v=19$m=65536,t=3,p=4$4V0Hroav121NwBoQwX/cJQ$Xt11V/ywgK4hZgR8dusPqYAGOigMeT0l5wcSvhHKqXE',
+    '$2b$12$i4kzuJnXuIQdxS3GgFXOh.JhvEjMntTakeqw4QKXah2zCpXpbwlJi',
     'System Administrator',
     'super_admin',
     1,
@@ -536,7 +536,7 @@ INSERT INTO admin_users (
 ) VALUES (
     'manager',
     'manager@says.com',
-    '$argon2id$v=19$m=65536,t=3,p=4$4V0Hroav121NwBoQwX/cJQ$Xt11V/ywgK4hZgR8dusPqYAGOigMeT0l5wcSvhHKqXE',
+    '$2b$12$i4kzuJnXuIQdxS3GgFXOh.JhvEjMntTakeqw4QKXah2zCpXpbwlJi',
     'Admin Manager',
     'admin',
     1,
@@ -545,7 +545,7 @@ INSERT INTO admin_users (
 (
     'viewer',
     'viewer@says.com',
-    '$argon2id$v=19$m=65536,t=3,p=4$4V0Hroav121NwBoQwX/cJQ$Xt11V/ywgK4hZgR8dusPqYAGOigMeT0l5wcSvhHKqXE',
+    '$2b$12$i4kzuJnXuIQdxS3GgFXOh.JhvEjMntTakeqw4QKXah2zCpXpbwlJi',
     'Viewer',
     'viewer',
     1,

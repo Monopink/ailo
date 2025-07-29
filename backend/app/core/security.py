@@ -2,8 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Union, Optional, Dict
 import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+import bcrypt
 import secrets
 import string
 
@@ -13,37 +12,29 @@ from .config import settings
 
 logger = get_logger(__name__)
 
-# Create Argon2 password hasher with secure defaults
-ph = PasswordHasher(
-    time_cost=2,  # Number of iterations
-    memory_cost=65536,  # Memory usage in KB (64MB)
-    parallelism=1,  # Number of parallel threads
-    hash_len=32,  # Hash output length
-    salt_len=16,  # Salt length
-)
+# bcrypt configuration - rounds=12 provides good security/performance balance
+BCRYPT_ROUNDS = 12
 
 
 def get_password_hash(password: str) -> str:
     """
-    Hash a plain-text password using Argon2.
+    Hash a plain-text password using bcrypt.
     """
-    return ph.hash(password)
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Verify a plain-text password against an Argon2 hash.
-    Handles all possible Argon2 verification errors gracefully.
+    Verify a plain-text password against a bcrypt hash.
+    Handles bcrypt verification errors gracefully.
     """
     try:
-        ph.verify(hashed_password, plain_password)
-        return True
-    except VerifyMismatchError:
-        # Password does not match the hash - normal case
-        return False
-    except (VerificationError, InvalidHashError) as e:
-        # Hash format invalid, parameter mismatch, or other verification errors
-        # Log for debugging but return False to trigger normal error message
+        # bcrypt.checkpw expects bytes for both password and hash
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except ValueError as e:
+        # Invalid hash format or other bcrypt-specific errors
         logger.debug(
             "password_verification_error",
             error_type=type(e).__name__,

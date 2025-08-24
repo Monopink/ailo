@@ -1,5 +1,6 @@
 import os
 import logging
+import logging.handlers
 import structlog
 from typing import Dict, Any, Optional
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
@@ -22,29 +23,45 @@ def format_log_level(_, __, event_dict: EventDict) -> EventDict:
     return event_dict
 
 
-def configure_logging():
+def configure_logging(
+    log_level: str = "INFO",
+    log_format: str = "json",
+    log_dir: str = "./logs",
+    service_name: str = "backend",
+):
     """
     Configure structured logging for the backend.
     This setup ensures that logs are processed as JSON and saved to files.
+
+    Args:
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_format: Log format (json, text)
+        log_dir: Directory to store log files
+        service_name: Name of the service for log identification
     """
     # Ensure logs directory exists
-    log_dir = "/app/logs"
     os.makedirs(log_dir, exist_ok=True)
 
-    # Configure file handler
-    log_file = os.path.join(log_dir, "backend.log")
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.DEBUG)
+    # Convert string log level to logging constant
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+
+    # Configure file handler with rotation
+    log_file = os.path.join(log_dir, f"{service_name}.log")
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"  # 10MB
+    )
+    file_handler.setLevel(numeric_level)
 
     # Configure console handler
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(numeric_level)
 
     # Configure root logger
-    logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[file_handler, console_handler])
+    logging.basicConfig(level=numeric_level, format="%(message)s", handlers=[file_handler, console_handler])
 
-    structlog.configure(
-        processors=[
+    # Choose processors based on format
+    if log_format.lower() == "json":
+        processors = [
             structlog.stdlib.add_log_level,
             format_log_level,
             structlog.stdlib.add_logger_name,
@@ -60,13 +77,31 @@ def configure_logging():
             structlog.dev.set_exc_info,
             structlog.processors.dict_tracebacks,
             structlog.processors.JSONRenderer(ensure_ascii=False),
-        ],
+        ]
+    else:
+        # Text format for development
+        processors = [
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer(colors=True),
+        ]
+
+    structlog.configure(
+        processors=processors,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
+
     logger = get_logger(__name__)
-    logger.info("logging_configured_successfully", log_file=log_file, service="backend")
+    logger.info(
+        "logging_configured_successfully",
+        log_file=log_file,
+        service=service_name,
+        level=log_level,
+        format=log_format,
+    )
 
 
 def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:
@@ -102,7 +137,7 @@ def log_with_context(
     level: str,
     event: str,
     context: Optional[Dict[str, Any]] = None,
-    **kwargs
+    **kwargs,
 ) -> None:
     """
     Log an event with context

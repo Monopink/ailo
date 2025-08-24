@@ -1,0 +1,333 @@
+"""
+Common enumeration definitions for database fields.
+
+All enum values correspond to the integer values defined in the database schema.
+These enums ensure type safety and consistency across the application.
+"""
+
+from enum import IntEnum
+
+
+# User Management Related Enums
+
+
+class UserStatus(IntEnum):
+    """User account status (users.status)"""
+
+    ACTIVE = 1  # Normal active user
+    INACTIVE = 2  # Inactive user
+    SUSPENDED = 3  # Suspended user
+
+
+class UserType(IntEnum):
+    """User type classification (users.user_type)"""
+
+    NORMAL = 1  # Regular user
+    OFFICIAL = 2  # Official account
+    ADMIN = 3  # Administrator
+
+
+class DeviceType(IntEnum):
+    """Device type for sessions and login records"""
+
+    IOS = 1  # iOS device
+    ANDROID = 2  # Android device
+    WEB = 3  # Web browser
+    MINI_PROGRAM = 4  # Mini program
+
+
+class LoginType(IntEnum):
+    """Login method (login_records.login_type)"""
+
+    PASSWORD = 1  # Password login
+    SMS = 2  # SMS verification code
+    WECHAT = 3  # WeChat login
+    APPLE = 4  # Apple ID login
+
+
+class LoginResult(IntEnum):
+    """Login attempt result (login_records.result)"""
+
+    SUCCESS = 1  # Login successful
+    FAIL = 2  # Login failed
+
+
+# Contact Management Related Enums
+
+
+class ContactType(IntEnum):
+    """Contact type classification (contacts.contact_type)"""
+
+    USER = 1  # User contact
+    AI = 2  # AI character
+    OFFICIAL = 3  # Official account
+
+
+class ContactRequestSource(IntEnum):
+    """Contact request source (contact_requests.source)"""
+
+    SEARCH = 1  # Added through search
+    ADMIN = 2  # Added by admin
+    SYSTEM = 3  # Added by system
+    INVITE = 4  # Added through invitation
+
+
+class ContactRequestStatus(IntEnum):
+    """Contact request status (contact_requests.status)"""
+
+    PENDING = 1  # Pending approval
+    ACCEPTED = 2  # Accepted
+    REJECTED = 3  # Rejected
+    EXPIRED = 4  # Expired
+
+
+# Message System Related Enums
+
+
+class MessageDirection(IntEnum):
+    """Message direction (message_history.direction)"""
+
+    INBOUND = 1  # Incoming message
+    OUTBOUND = 2  # Outgoing message
+
+
+class MessageParticipantType(IntEnum):
+    """Message sender/receiver type"""
+
+    USER = 1  # User
+    AI = 2  # AI character
+    ADMIN = 3  # Administrator
+    SYSTEM = 4  # System
+
+
+class ServiceProvider(IntEnum):
+    """Message service provider (message_history.service_provider)"""
+
+    LEANCLOUD = 1  # LeanCloud service
+    INTERNAL = 2  # Internal system
+
+
+class MessageType(IntEnum):
+    """Message type classification (message_history.message_type)"""
+
+    TEXT = 1  # Text message
+    TYPING = 2  # Typing indicator
+    TYPING_END = 3  # Typing end indicator
+    SYSTEM = 4  # System message
+    IMAGE = 5  # Image message
+    EMOJI = 6  # Emoji message
+
+
+class MessageStatus(IntEnum):
+    """Message delivery status (message_history.status)"""
+
+    SENT = 1  # Message sent
+    DELIVERED = 2  # Message delivered
+    READ = 3  # Message read
+    FAILED = 4  # Message failed
+
+
+# Media Files Related Enums
+
+
+class FileType(IntEnum):
+    """Media file type classification (media_files.file_type)"""
+
+    AVATAR = 1  # Avatar image
+    EMOJI = 2  # Emoji/emoticon
+    IMAGE = 3  # General image
+    DOCUMENT = 4  # Document file
+
+
+class FileStatus(IntEnum):
+    """Media file status (media_files.status)"""
+
+    ACTIVE = 1  # Active file
+    INACTIVE = 2  # Inactive file
+    DELETED = 3  # Deleted file
+
+
+class UploaderType(IntEnum):
+    """File uploader type (media_files.upload_by_type)"""
+
+    USER = 1  # Uploaded by user
+    ADMIN = 2  # Uploaded by admin
+    SYSTEM = 3  # Uploaded by system
+
+
+# Profile Management Related Enums
+
+
+class Gender(IntEnum):
+    """Gender classification (profiles.gender)"""
+
+    MALE = 1  # Male
+    FEMALE = 2  # Female
+    OTHER = 3  # Other
+    UNKNOWN = 4  # Unknown/not specified
+
+
+class ProfileOwnerType(IntEnum):
+    """Profile owner type (profiles.owner_type)"""
+
+    USER = 1  # User profile
+    AI = 2  # AI character profile
+    OFFICIAL = 3  # Official account profile
+
+
+class ProfileModifierType(IntEnum):
+    """Profile modifier type (user_profile_logs.modified_by_type)"""
+
+    USER = 1  # Modified by user
+    ADMIN = 2  # Modified by admin
+    SYSTEM = 3  # Modified by system
+
+
+# Emoticons Related Enums
+
+
+class EmoticonCategory(IntEnum):
+    """Emoticon category (emoticons.category)"""
+
+    SYSTEM = 1  # System emoticon
+    CUSTOM = 2  # Custom emoticon
+    PREMIUM = 3  # Premium emoticon
+
+
+class EmoticonCreatorType(IntEnum):
+    """Emoticon creator type (emoticons.created_by_type)"""
+
+    USER = 1  # Created by user
+    SYSTEM = 2  # Created by system
+    ADMIN = 3  # Created by admin
+
+
+# AI System Related Enums
+
+
+class AICharacterCreator(IntEnum):
+    """AI character creator type (ai_characters.created_by)"""
+
+    USER = 1  # Created by user
+    ADMIN = 2  # Created by admin
+    SYSTEM = 3  # Created by system
+
+
+class AIContextRole(IntEnum):
+    """AI context role type (ai_contexts.role)"""
+
+    USER = 1  # User message
+    AI = 2  # AI response
+    SYSTEM = 3  # System message
+
+
+class AIContextSourceType(IntEnum):
+    """AI context source type (ai_contexts.source_type)"""
+
+    ORIGINAL = 1  # Original message
+    MERGED = 2  # Merged message
+    SUMMARIZED = 3  # Summarized message
+
+
+class AIRequestStatus(IntEnum):
+    """AI request status (ai_request_logs.status)"""
+
+    SUCCESS = 1  # Request successful
+    FAILED = 2  # Request failed
+    TIMEOUT = 3  # Request timeout
+
+
+# Security Related Enums
+
+
+class ViolationType(IntEnum):
+    """Security violation type (user_security_logs.violation_type)"""
+
+    PROMPT_INJECTION = 1  # Prompt injection attack
+    ABUSE_CONTENT = 2  # Abusive content
+    SPAM = 3  # Spam message
+    HARASSMENT = 4  # Harassment behavior
+    OTHER = 5  # Other violation
+
+
+class SeverityLevel(IntEnum):
+    """Violation severity level (user_security_logs.severity_level)"""
+
+    LOW = 1  # Low severity
+    MEDIUM = 2  # Medium severity
+    HIGH = 3  # High severity
+    CRITICAL = 4  # Critical severity
+
+
+class AutoAction(IntEnum):
+    """Automatic action taken (user_security_logs.auto_action_taken)"""
+
+    NONE = 1  # No action
+    WARNING = 2  # Warning issued
+    RESTRICT = 3  # Account restricted
+    SUSPEND = 4  # Account suspended
+
+
+class ManualReviewStatus(IntEnum):
+    """Manual review status (user_security_logs.manual_review_status)"""
+
+    PENDING = 1  # Pending review
+    CONFIRMED = 2  # Violation confirmed
+    FALSE_POSITIVE = 3  # False positive
+    IGNORED = 4  # Ignored
+
+
+class RiskLevel(IntEnum):
+    """User risk level (user_security_stats.current_risk_level)"""
+
+    LOW = 1  # Low risk
+    MEDIUM = 2  # Medium risk
+    HIGH = 3  # High risk
+    BANNED = 4  # Banned user
+
+
+# System Configuration Related Enums
+
+
+class ConfigType(IntEnum):
+    """Configuration value type (system_config.config_type)"""
+
+    STRING = 1  # String value
+    NUMBER = 2  # Numeric value
+    BOOLEAN = 3  # Boolean value
+    JSON = 4  # JSON object
+
+
+# Admin System Related Enums
+
+
+class AdminRole(IntEnum):
+    """Administrator role (admin_users.role)"""
+
+    SUPER_ADMIN = 1  # Super administrator
+    ADMIN = 2  # Administrator
+    VIEWER = 3  # Viewer (read-only)
+
+
+class AdminStatus(IntEnum):
+    """Administrator status (admin_users.status)"""
+
+    ACTIVE = 1  # Active admin
+    INACTIVE = 2  # Inactive admin
+
+
+class AdminOperationType(IntEnum):
+    """Admin operation type (admin_operation_logs.operation_type)"""
+
+    CREATE = 1  # Create operation
+    UPDATE = 2  # Update operation
+    DELETE = 3  # Delete operation
+    ENABLE = 4  # Enable operation
+    DISABLE = 5  # Disable operation
+
+
+class AdminLoginResult(IntEnum):
+    """Admin login result (admin_login_logs.result)"""
+
+    SUCCESS = 1  # Login successful
+    FAIL = 2  # Login failed

@@ -9,7 +9,7 @@ websockets==15.0.1
 
 # Database
 sqlalchemy==2.0.41
-aiomysql==0.2.0
+asyncpg==0.30.0
 
 # API Client
 httpx==0.28.1  # For testing API endpoints
@@ -24,8 +24,15 @@ email-validator==2.2.0
 # Utilities
 structlog==25.4.0
 
+# Database Migration
+alembic==1.16.4
+
+# Cache and Session Store
+redis==6.4.0
+
 # JWT and Authentication
 PyJWT==2.10.1
+passlib[bcrypt]==1.7.4
 
 # Time and Date handling
 zhdate==0.1

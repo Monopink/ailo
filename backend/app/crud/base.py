@@ -1,17 +1,31 @@
-from typing import Generic, TypeVar, Type, Optional, List, Dict, Any
+"""
+Base CRUD operations.
+
+This module contains generic CRUD classes that provide common database operations
+for all models.
+"""
+
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+from pydantic import BaseModel
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.ext.declarative import DeclarativeMeta
 
-from utils.logging import get_logger
+from models.base import BaseModel as DBBaseModel
 
-logger = get_logger(__name__)
+# Type variables for generic CRUD operations
+ModelType = TypeVar("ModelType", bound=DBBaseModel)
+CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
+UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
-ModelType = TypeVar("ModelType", bound=DeclarativeMeta)
 
+class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """
+    Base CRUD class with default methods to Create, Read, Update, Delete (CRUD).
 
-class CRUDBase(Generic[ModelType]):
-    """Base class for CRUD operations."""
+    **Parameters**
+    * `model`: A SQLAlchemy model class
+    * `schema`: A Pydantic model (schema) class
+    """
 
     def __init__(self, model: Type[ModelType]):
         """
@@ -22,7 +36,7 @@ class CRUDBase(Generic[ModelType]):
         """
         self.model = model
 
-    async def get(self, db: AsyncSession, id: int) -> Optional[ModelType]:
+    async def get(self, db: AsyncSession, id: Any) -> Optional[ModelType]:
         """Get a single record by ID."""
         result = await db.execute(select(self.model).where(self.model.id == id))
         return result.scalar_one_or_none()
@@ -32,54 +46,113 @@ class CRUDBase(Generic[ModelType]):
         result = await db.execute(select(self.model).offset(skip).limit(limit))
         return result.scalars().all()
 
-    async def create(self, db: AsyncSession, *, obj_in: Dict[str, Any]) -> ModelType:
+    async def create(self, db: AsyncSession, *, obj_in: CreateSchemaType) -> ModelType:
         """Create a new record."""
-        if not obj_in:
-            raise ValueError("obj_in cannot be empty")
+        obj_in_data = obj_in.dict()
+        db_obj = self.model(**obj_in_data)
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
 
-        try:
-            # Filter valid fields for the model
-            valid_fields = {key: value for key, value in obj_in.items() if hasattr(self.model, key)}
-
-            db_obj = self.model(**valid_fields)
-            db.add(db_obj)
-            await db.commit()
-            await db.refresh(db_obj)
-            return db_obj
-
-        except Exception as e:
-            await db.rollback()
-            logger.error("record_creation_failed", model=self.model.__name__, error=str(e))
-            raise
-
-    async def update(self, db: AsyncSession, *, db_obj: ModelType, obj_in: Dict[str, Any]) -> ModelType:
+    async def update(
+        self, db: AsyncSession, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, Dict[str, Any]]
+    ) -> ModelType:
         """Update an existing record."""
-        if not obj_in:
-            raise ValueError("obj_in cannot be empty")
+        obj_data = db_obj.__dict__
+        if isinstance(obj_in, dict):
+            update_data = obj_in
+        else:
+            update_data = obj_in.dict(exclude_unset=True)
 
-        if not db_obj:
-            raise ValueError("db_obj cannot be None")
+        for field in obj_data:
+            if field in update_data:
+                setattr(db_obj, field, update_data[field])
 
-        try:
-            # Update only valid fields
-            for field, value in obj_in.items():
-                if hasattr(db_obj, field):
-                    setattr(db_obj, field, value)
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
 
-            db.add(db_obj)
-            await db.commit()
-            await db.refresh(db_obj)
-            return db_obj
-
-        except Exception as e:
-            await db.rollback()
-            logger.error("record_update_failed", model=self.model.__name__, error=str(e))
-            raise
-
-    async def remove(self, db: AsyncSession, *, id: int) -> Optional[ModelType]:
+    async def remove(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
         """Remove a record by ID."""
-        obj = await self.get(db, id)
+        obj = await self.get(db, id=id)
         if obj:
             await db.delete(obj)
             await db.commit()
         return obj
+
+    async def count(self, db: AsyncSession) -> int:
+        """Count total records."""
+        result = await db.execute(select(func.count(self.model.id)))
+        return result.scalar()
+
+    async def exists(self, db: AsyncSession, *, id: Any) -> bool:
+        """Check if a record exists by ID."""
+        result = await db.execute(select(func.count(self.model.id)).where(self.model.id == id))
+        return result.scalar() > 0
+
+
+class CRUDBaseWithQiaoId(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """
+    CRUD base class for models with qiao_id field.
+
+    Extends CRUDBase with qiao_id specific operations.
+    """
+
+    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[ModelType]:
+        """Get a single record by qiao_id."""
+        result = await db.execute(select(self.model).where(self.model.qiao_id == qiao_id))
+        return result.scalar_one_or_none()
+
+    async def exists_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> bool:
+        """Check if a record exists by qiao_id."""
+        result = await db.execute(select(func.count(self.model.id)).where(self.model.qiao_id == qiao_id))
+        return result.scalar() > 0
+
+    async def get_multi_by_qiao_ids(self, db: AsyncSession, *, qiao_ids: List[str]) -> List[ModelType]:
+        """Get multiple records by qiao_ids."""
+        result = await db.execute(select(self.model).where(self.model.qiao_id.in_(qiao_ids)))
+        return result.scalars().all()
+
+
+class CRUDBaseWithStatus(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """
+    CRUD base class for models with status field.
+
+    Extends CRUDBase with status-specific operations.
+    """
+
+    async def get_active(self, db: AsyncSession, id: Any) -> Optional[ModelType]:
+        """Get a single active record by ID."""
+        result = await db.execute(
+            select(self.model).where(self.model.id == id, self.model.status == 1)  # Assuming 1 = active
+        )
+        return result.scalar_one_or_none()
+
+    async def get_multi_active(
+        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
+    ) -> List[ModelType]:
+        """Get multiple active records with pagination."""
+        result = await db.execute(
+            select(self.model).where(self.model.status == 1).offset(skip).limit(limit)
+        )
+        return result.scalars().all()
+
+    async def update_status(self, db: AsyncSession, *, id: Any, status: int) -> Optional[ModelType]:
+        """Update record status."""
+        obj = await self.get(db, id=id)
+        if obj:
+            obj.status = status
+            db.add(obj)
+            await db.commit()
+            await db.refresh(obj)
+        return obj
+
+    async def soft_delete(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
+        """Soft delete a record by setting status to 0."""
+        return await self.update_status(db, id=id, status=0)
+
+    async def restore(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
+        """Restore a soft-deleted record by setting status to 1."""
+        return await self.update_status(db, id=id, status=1)

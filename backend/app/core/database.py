@@ -1,6 +1,5 @@
 """
-Unified database connection and session management.
-Combines database logic from all three services.
+Database connection and session management.
 """
 
 import asyncio
@@ -14,9 +13,22 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Create an async engine to connect to the database
-# echo=False for production to reduce log volume, can be overridden by DB_ECHO env var
-echo_sql = getattr(settings, "DB_ECHO", False)
-engine = create_async_engine(settings.database_url, echo=echo_sql, pool_pre_ping=True, pool_recycle=300)
+# echo=False for production to reduce log volume, can be overridden by POSTGRES_ECHO env var
+echo_sql = getattr(settings, "POSTGRES_ECHO", False)
+engine = create_async_engine(
+    settings.database_url,
+    echo=echo_sql,
+    pool_pre_ping=True,
+    pool_recycle=3600,  # Recycle connections every hour (PostgreSQL default)
+    pool_size=20,  # Increase pool size for better concurrency
+    max_overflow=30,  # Allow more overflow connections
+    # PostgreSQL-specific optimizations
+    connect_args={
+        "server_settings": {
+            "jit": "off",  # Disable JIT for better performance on small queries
+        }
+    },
+)
 
 # Create a sessionmaker to generate new Session objects
 SessionLocal = async_sessionmaker(
@@ -35,7 +47,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_database():
     """Initialize database connection with retry mechanism."""
-    max_retries = 100
+    max_retries = 10
     retry_count = 0
     base_delay = 1  # Initial delay 1 second
     max_delay = 30  # Maximum delay 30 seconds
@@ -44,21 +56,9 @@ async def init_database():
         try:
             logger.info("attempting_database_connection")
             async with SessionLocal() as session:
-                # Test connection
+                # Test basic connection
                 await session.execute(text("SELECT 1"))
                 logger.info("database_connection_test_successful")
-
-                # Check table schema (basic validation)
-                try:
-                    # Check if users table exists
-                    await session.execute(text("SELECT entity_id FROM users LIMIT 1"))
-                    logger.info("database_schema_validation_successful")
-                except SQLAlchemyError as schema_error:
-                    logger.warning(
-                        "database_schema_validation_failed",
-                        error=str(schema_error),
-                        message="This might be expected if the database is newly created or being updated",
-                    )
 
             logger.info("database_connection_initialized")
             break
@@ -77,3 +77,12 @@ async def init_database():
             error_msg = "Unexpected error during database initialization"
             logger.critical("unexpected_database_initialization_error", error=str(e), exc_info=True)
             raise Exception(error_msg) from e
+
+
+async def close_database():
+    """Close database connections."""
+    try:
+        await engine.dispose()
+        logger.info("database_connections_closed")
+    except Exception as e:
+        logger.error("database_close_error", error=str(e), exc_info=True)

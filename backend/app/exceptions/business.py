@@ -1,0 +1,264 @@
+"""
+Business logic exception classes.
+
+This module defines specific exceptions for business logic errors
+that occur during application operations.
+"""
+
+from typing import Any, Dict, Optional
+from fastapi import status
+from .base import BaseAppException, NotFoundError, ConflictError, ValidationError
+
+
+# User Management Exceptions
+
+
+class UserNotFoundError(NotFoundError):
+    """Exception raised when a user is not found."""
+
+    def __init__(
+        self,
+        user_id: Optional[str] = None,
+        message: str = "User not found",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(message=message, resource_type="user", resource_id=user_id, details=details)
+        self.error_code = "USER_NOT_FOUND"
+
+
+class UserAlreadyExistsError(ConflictError):
+    """Exception raised when trying to create a user that already exists."""
+
+    def __init__(
+        self,
+        field: str,
+        value: str,
+        message: str = "User already exists",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(message=message, conflicting_field=field, conflicting_value=value, details=details)
+        self.error_code = "USER_ALREADY_EXISTS"
+
+
+class InvalidCredentialsError(BaseAppException):
+    """Exception raised for invalid login credentials."""
+
+    def __init__(self, message: str = "Invalid credentials", details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="INVALID_CREDENTIALS",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            details=details,
+        )
+
+
+class AccountSuspendedError(BaseAppException):
+    """Exception raised when trying to access a suspended account."""
+
+    def __init__(
+        self,
+        user_id: Optional[str] = None,
+        message: str = "Account is suspended",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if user_id:
+            error_details["user_id"] = user_id
+
+        super().__init__(
+            message=message,
+            error_code="ACCOUNT_SUSPENDED",
+            status_code=status.HTTP_403_FORBIDDEN,
+            details=error_details,
+        )
+
+
+# Contact Management Exceptions
+
+
+class ContactNotFoundError(NotFoundError):
+    """Exception raised when a contact is not found."""
+
+    def __init__(
+        self,
+        contact_id: Optional[str] = None,
+        message: str = "Contact not found",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(message=message, resource_type="contact", resource_id=contact_id, details=details)
+        self.error_code = "CONTACT_NOT_FOUND"
+
+
+class ContactAlreadyExistsError(ConflictError):
+    """Exception raised when trying to add a contact that already exists."""
+
+    def __init__(
+        self,
+        user_id: str,
+        contact_id: str,
+        message: str = "Contact already exists",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        error_details.update({"user_id": user_id, "contact_id": contact_id})
+
+        super().__init__(message=message, details=error_details)
+        self.error_code = "CONTACT_ALREADY_EXISTS"
+
+
+class ContactLimitExceededError(BaseAppException):
+    """Exception raised when contact limit is exceeded."""
+
+    def __init__(
+        self,
+        current_count: int,
+        limit: int,
+        message: str = "Contact limit exceeded",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        error_details.update({"current_count": current_count, "limit": limit})
+
+        super().__init__(
+            message=message,
+            error_code="CONTACT_LIMIT_EXCEEDED",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=error_details,
+        )
+
+
+# Message System Exceptions
+
+
+class MessageDeliveryError(BaseAppException):
+    """Exception raised when message delivery fails."""
+
+    def __init__(
+        self,
+        message_id: Optional[str] = None,
+        reason: Optional[str] = None,
+        message: str = "Message delivery failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if message_id:
+            error_details["message_id"] = message_id
+        if reason:
+            error_details["reason"] = reason
+
+        super().__init__(
+            message=message,
+            error_code="MESSAGE_DELIVERY_ERROR",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            details=error_details,
+        )
+
+
+class MessageTooLongError(ValidationError):
+    """Exception raised when message exceeds length limit."""
+
+    def __init__(
+        self,
+        current_length: int,
+        max_length: int,
+        message: str = "Message too long",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        error_details.update({"current_length": current_length, "max_length": max_length})
+
+        super().__init__(message=message, field="content", details=error_details)
+        self.error_code = "MESSAGE_TOO_LONG"
+
+
+# AI System Exceptions
+
+
+class AIServiceError(BaseAppException):
+    """Exception raised for AI service errors."""
+
+    def __init__(
+        self,
+        ai_service: Optional[str] = None,
+        reason: Optional[str] = None,
+        message: str = "AI service error",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if ai_service:
+            error_details["ai_service"] = ai_service
+        if reason:
+            error_details["reason"] = reason
+
+        super().__init__(
+            message=message,
+            error_code="AI_SERVICE_ERROR",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            details=error_details,
+        )
+
+
+class AICharacterNotFoundError(NotFoundError):
+    """Exception raised when an AI character is not found."""
+
+    def __init__(
+        self,
+        character_id: Optional[str] = None,
+        message: str = "AI character not found",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message, resource_type="ai_character", resource_id=character_id, details=details
+        )
+        self.error_code = "AI_CHARACTER_NOT_FOUND"
+
+
+# Security Exceptions
+
+
+class SecurityViolationError(BaseAppException):
+    """Exception raised for security violations."""
+
+    def __init__(
+        self,
+        violation_type: Optional[str] = None,
+        severity: Optional[str] = None,
+        message: str = "Security violation detected",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if violation_type:
+            error_details["violation_type"] = violation_type
+        if severity:
+            error_details["severity"] = severity
+
+        super().__init__(
+            message=message,
+            error_code="SECURITY_VIOLATION",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=error_details,
+        )
+
+
+# System Exceptions
+
+
+class SnowflakeGeneratorError(BaseAppException):
+    """Exception raised for Snowflake ID generator errors."""
+
+    def __init__(
+        self,
+        reason: Optional[str] = None,
+        message: str = "Snowflake ID generation failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if reason:
+            error_details["reason"] = reason
+
+        super().__init__(
+            message=message,
+            error_code="SNOWFLAKE_GENERATOR_ERROR",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details=error_details,
+        )

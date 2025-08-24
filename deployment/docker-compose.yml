@@ -1,30 +1,49 @@
-# This file contains the consolidated monolithic backend service
-# Use docker-compose.dev-tools.yml for development tools (ngrok, dozzle)
-# Use docker-compose.prod.yml for production deployment
-# Use docker-compose.staging.yml for staging deployment
+version: '3.8'
 
 services:
-  # MySQL Database Service
-  mysql_db:
-    image: mysql:8.0
-    container_name: mysql_db_container
+  postgres_db:
+    image: postgres:16
+    container_name: postgres_db_container
     env_file:
       - .env
-    # MySQL environment variables are loaded from .env file
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # PostgreSQL performance optimizations
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     command:
-      - --default-authentication-plugin=caching_sha2_password
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
+      # PostgreSQL performance and configuration optimizations
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - default_statistics_target=100
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
     ports:
-      - "33061:3306" # Expose MySQL port for external access in dev
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ../backend/database/conf:/etc/mysql/conf.d:ro
+      - postgres_data:/var/lib/postgresql/data
       - ../backend/database/init:/docker-entrypoint-initdb.d:ro
     networks:
       - says-network
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER}", "-p${MYSQL_PASSWORD}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DATABASE}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,27 +69,8 @@ services:
     networks:
       - says-network
     depends_on:
-      mysql_db:
+      postgres_db:
         condition: service_healthy
-    restart: always
-
-  # Web Frontend
-  web_frontend:
-    container_name: web_frontend_container
-    build:
-      context: ../frontend/web
-      dockerfile: Dockerfile
-    env_file:
-      - ../frontend/web/.env.development
-    ports:
-      - "5173:5173"
-    volumes:
-      - ../frontend/web:/app
-      - /app/node_modules
-    networks:
-      - says-network
-    depends_on:
-      - backend
     restart: always
 
   # Admin Frontend
@@ -79,8 +79,6 @@ services:
     build:
       context: ../frontend/admin
       dockerfile: Dockerfile
-    env_file:
-      - ../frontend/admin/.env.development
     ports:
       - "5174:5174"
     volumes:
@@ -97,4 +95,4 @@ networks:
     driver: bridge
 
 volumes:
-  mysql_data:
+  postgres_data:

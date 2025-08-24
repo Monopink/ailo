@@ -1,26 +1,25 @@
-# Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Set work directory
 WORKDIR /app
 
-# Upgrade pip
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir --upgrade pip
 
-# Copy the requirements file into the container at /app
-COPY ./requirements.txt /app/requirements.txt
-
-# Install any needed packages specified in requirements.txt
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application's code into the container
-COPY . /app
+COPY . .
 
-# Command to run the application
-# Use reload for development to automatically apply code changes
+RUN mkdir -p logs static/uploads
+
+EXPOSE 8000
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

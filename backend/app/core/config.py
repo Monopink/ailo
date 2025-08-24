@@ -1,25 +1,42 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
-    # Configuration is now purely environment variable driven
-    # No env_file dependency - all variables must be provided via environment
-    model_config = SettingsConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    PROJECT_NAME: str = "Backend"
+    # Application settings
+    PROJECT_NAME: str
+    VERSION: str
+    DEBUG: bool
+    ENVIRONMENT: str
 
     # Database settings
-    DB_HOST: str
-    DB_PORT: int
-    DB_USER: str
-    DB_PASSWORD: str
-    DB_NAME: str
+    POSTGRES_HOST: str
+    POSTGRES_PORT: int
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DATABASE: str
+    POSTGRES_ECHO: bool
 
-    # JWT settings - must be provided via environment variables
-    SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    # Redis settings
+    REDIS_URL: str
+    REDIS_PASSWORD: Optional[str] = None
+
+    # Logging settings
+    LOG_LEVEL: str
+    LOG_FORMAT: str
+    LOG_DIR: str
+
+    # JWT settings
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int
+
+    # Security settings
+    BCRYPT_ROUNDS: int
+    CORS_ORIGINS: List[str]
+    ALLOWED_HOSTS: List[str]
 
     # LeanCloud settings
     LEANCLOUD_APP_ID: str
@@ -28,29 +45,28 @@ class Settings(BaseSettings):
     LEANCLOUD_SERVER_URL: Optional[str] = None
     LEANCLOUD_BASE_URL: str
 
-    # LeanCloud Health Check settings
-    LEANCLOUD_HEALTH_CHECK_INTERVAL: Optional[int] = None  # No default - must be configured
-    LEANCLOUD_HEALTH_CHECK_TIMEOUT: Optional[int] = None  # No default - must be configured
-    LEANCLOUD_RECOVERY_COOLDOWN_SECONDS: Optional[int] = None  # No default - must be configured
+    # Snowflake ID settings
+    SNOWFLAKE_DATACENTER_ID: int
+    SNOWFLAKE_MACHINE_ID: int
 
-    # User contact limits
-    DEFAULT_CONTACT_LIMIT: int = 1
-    DEFAULT_SEARCH_DISPLAY_LIMIT: int = 2
-    ADD_CONTACT_TIMEOUT: int = 300
-
-    # Entity ID settings
-    ENTITY_ID_PREFIX: str = "qqid_"
-
-    # Database logging settings
-    DB_ECHO: bool = False  # Set to True for SQL query logging in development
+    # Admin settings
+    ADMIN_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int
+    ADMIN_CORS_ORIGINS: List[str]
 
     @property
     def database_url(self) -> str:
-        """
-        Constructs the database URL from settings.
-        """
-        return f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        """Constructs the PostgreSQL database URL from settings."""
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DATABASE}"
+
+    @property
+    def is_development(self) -> bool:
+        """Check if running in development environment"""
+        return self.ENVIRONMENT.lower() in ("development", "dev")
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment"""
+        return self.ENVIRONMENT.lower() in ("production", "prod")
 
 
-# Create a single settings instance to be used across the application
 settings = Settings()

@@ -1,188 +1,147 @@
-from fastapi import FastAPI, WebSocket, Request
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from core.config import settings
-from core.database import SessionLocal, init_database
-from core.event_bus import event_bus
-from services.message import websocket
-from services.ai_chat.model_router import model_router
-from exceptions import AppException
-from utils.logging import get_logger, bind_context, configure_logging
-from services.message.providers.leancloud import setup_leancloud_handlers
-from api.v1.api import api_router
-from admin.main import admin_router
 
+from core.config import settings
+from core.database import SessionLocal, init_database, close_database
+from utils.logging import configure_logging, get_logger
+from api.v1 import v1_router
+
+configure_logging(
+    log_level=settings.LOG_LEVEL,
+    log_format=settings.LOG_FORMAT,
+    log_dir=settings.LOG_DIR,
+    service_name="backend",
+)
 
 logger = get_logger(__name__)
 
-# Create FastAPI application
-app = FastAPI(title=settings.PROJECT_NAME)
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",  # Frontend
-        "http://localhost:8000",  # Admin interface
-        "http://127.0.0.1:8000",  # Admin interface
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    logger.info("starting_application", app_name=settings.PROJECT_NAME, version=settings.VERSION)
 
-# Include API router
-app.include_router(api_router, prefix="/api/v1")
-
-# Include admin router
-app.include_router(admin_router, prefix="/admin")
-
-
-async def app_exception_handler(request: Request, exc: AppException):
-    logger.error("application_exception", status_code=exc.status_code, detail=exc.detail)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
-    )
-
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    Initialize application on startup
-    """
-    # Configure logging first to ensure all subsequent logs are structured.
-    configure_logging()
     try:
-        logger.info("starting_application")
-
         # Initialize database connection
         logger.info("initializing_database")
         await init_database()
         logger.info("database_initialized")
 
-        # Start event bus
-        logger.info("starting_event_bus")
-        await event_bus.start()
-        logger.info("event_bus_started")
-
-        # Ensure model_router is created and subscribed to events
-        logger.info("initializing_model_router")
-        if not hasattr(app.state, "model_router"):
-            app.state.model_router = model_router
-        logger.info("model_router_initialized")
-
-        # Initialize WebSocket manager
-        logger.info("initializing_websocket_manager")
-        if not hasattr(app.state, "websocket_manager"):
-            app.state.websocket_manager = websocket
-            active_connections = len(websocket.active_connections)
-            logger.info("websocket_connections", count=active_connections)
-        logger.info("websocket_manager_initialized")
-
-        # Perform LeanCloud message service startup check
-        logger.info("performing_leancloud_message_service_startup_check")
-        from services.message.providers.leancloud.startup import startup_leancloud_message_service_check
-
-        startup_success = await startup_leancloud_message_service_check()
-        if not startup_success:
-            logger.error("leancloud_message_service_startup_check_failed")
-            # Application can choose whether to continue startup
-            # For MVP development, we continue but log the failure
-        else:
-            logger.info("leancloud_message_service_startup_check_passed")
-
-        # Initialize LeanCloud handlers
-        logger.info("initializing_leancloud_handlers")
-        setup_leancloud_handlers()
-        logger.info("leancloud_handlers_initialized")
-
         logger.info("application_startup_complete")
+        yield
 
-        # Add the exception handler to the app
-        app.add_exception_handler(AppException, app_exception_handler)
     except Exception as e:
         logger.critical("application_startup_failed", error=str(e), exc_info=True)
-        import sys
+        raise
 
-        sys.exit(1)
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    Clean up resources on application shutdown
-    """
+    # Shutdown
+    logger.info("shutting_down_application")
     try:
-        # Stop event bus
-        await event_bus.stop()
-        logger.info("event_bus_stopped")
-
-        # Close all WebSocket connections
-        for client_id in list(websocket.active_connections.keys()):
-            await websocket.disconnect(client_id)
-        logger.info("websocket_connections_closed")
-
+        await close_database()
         logger.info("application_shutdown_complete")
     except Exception as e:
         logger.error("shutdown_error", error=str(e), exc_info=True)
 
 
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(ws: WebSocket, client_id: str):
-    """
-    WebSocket connection endpoint
-    """
-    ws_logger = bind_context(logger, client_id=client_id)
-    try:
-        ws_logger.info("websocket_connection_request")
-        await websocket.connect(ws, client_id)
-        await websocket.receive_message(ws, client_id)
-    except Exception as e:
-        ws_logger.error("websocket_error", error=str(e), exc_info=True)
-        await websocket.disconnect(client_id)
+# Create FastAPI application
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description="Hello World",
+    version=settings.VERSION,
+    lifespan=lifespan,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+)
 
 
+# Add middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=settings.ALLOWED_HOSTS,
+)
+
+# Static files (for media uploads)
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except RuntimeError:
+    # Directory doesn't exist yet, will be created when needed
+    logger.warning("static_directory_not_found", directory="static")
+
+
+# Exception handlers
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler"""
+    logger.error(
+        "unhandled_exception", path=request.url.path, method=request.method, error=str(exc), exc_info=True
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+# Health check endpoint
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """
-    Health check endpoint
-    """
+    """Health check endpoint"""
     # Test database connection
     try:
         async with SessionLocal() as db:
             await db.execute(text("SELECT 1"))
         database_status = "connected"
-    except Exception:
+    except Exception as e:
+        logger.error("health_check_database_error", error=str(e))
         database_status = "error"
 
-    # Get LeanCloud message service health status
-    try:
-        from services.message.providers.leancloud.health_checker import health_checker
-
-        leancloud_health = await health_checker.check_leancloud_message_service_health()
-    except Exception as e:
-        logger.error("health_check_leancloud_error", error=str(e))
-        leancloud_health = {"leancloud_message_service": "error", "details": {"error": str(e)}}
-
     status = {
-        "status": "healthy",
+        "status": "healthy" if database_status == "connected" else "unhealthy",
+        "app": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "environment": settings.ENVIRONMENT,
         "database": database_status,
-        "event_bus": "running" if event_bus._running else "stopped",
-        "leancloud_message_service": leancloud_health,
     }
+
     logger.debug("health_check", **status)
     return status
 
 
-@app.post("/webhook/leanmessage")
-async def leanmessage_webhook(request: Request):
-    """
-    LeanMessage webhook endpoint for receiving messages
-    """
-    from services.message.providers.leancloud.webhook import handle_leancloud_message_webhook
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "Hello World!",
+        "version": settings.VERSION,
+        "docs": "/docs" if settings.DEBUG else None,
+    }
 
-    return await handle_leancloud_message_webhook(request)
+
+# Include API routes
+app.include_router(v1_router, prefix="/api/v1")
+
+# TODO: Add webhook endpoint when message service implemented
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower(),
+    )

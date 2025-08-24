@@ -1,21 +1,105 @@
-from .user import User
-from .bot import Bot
-from .contact import Contact
-from .message import MessageHistory
-from .emotion import Emotions
-from .social_profile import SocialProfile
-from .bot_template import BotTemplate
-from .template_mapping import TemplateMapping
-from .system_config import SystemConfig
+"""
+SQLAlchemy models module.
 
+This module imports all database models to ensure they are registered
+with SQLAlchemy's metadata for table creation and migrations.
+"""
+
+# Import base classes first
+from .base import Base, BaseModel, SnowflakeModel, AutoIncrementModel, SnowflakeQiaoModel
+
+# Import all models to register them with SQLAlchemy
+from .user import User, UserSession, LoginRecord
+from .contact import Contact, ContactRequest
+from .message import MessageHistory, MessageDeliveryFailure, MediaFile, Emoticon
+from .profile import Profile, UserProfileLog
+from .ai import (
+    AIRelationship,
+    AIStyle,
+    AIRelationshipIndex,
+    AIPersonality,
+    AIPersonalityPlaceholder,
+    AIInfoTemplate,
+    AIProfileTemplate,
+    AICharacter,
+    AIContext,
+    AIRelationshipScore,
+    AIRelationshipCount,
+    AIRequestLog,
+)
+from .system import (
+    SystemConfig,
+    StatsUserDaily,
+    StatsUserWeekly,
+    StatsUserMonthly,
+    StatsRevenueDaily,
+    StatsRevenueWeekly,
+    StatsRevenueMonthly,
+    StatsMessageDaily,
+    StatsMessageWeekly,
+    StatsMessageMonthly,
+    StatsAIDaily,
+    StatsAIWeekly,
+    StatsAIMonthly,
+)
+from .admin import AdminUser, AdminOperationLog, AdminLoginLog
+from .security import UserSecurityLog, UserSecurityStats
+
+# Export all models for easy importing
 __all__ = [
+    # Base classes
+    "Base",
+    "BaseModel",
+    "SnowflakeModel",
+    "AutoIncrementModel",
+    "SnowflakeQiaoModel",
+    # User management
     "User",
-    "Bot",
+    "UserSession",
+    "LoginRecord",
+    # Contact management
     "Contact",
+    "ContactRequest",
+    # Message system
     "MessageHistory",
-    "Emotions",
-    "SocialProfile",
-    "BotTemplate",
-    "TemplateMapping",
+    "MessageDeliveryFailure",
+    "MediaFile",
+    "Emoticon",
+    # Profile management
+    "Profile",
+    "UserProfileLog",
+    # AI system
+    "AIRelationship",
+    "AIStyle",
+    "AIRelationshipIndex",
+    "AIPersonality",
+    "AIPersonalityPlaceholder",
+    "AIInfoTemplate",
+    "AIProfileTemplate",
+    "AICharacter",
+    "AIContext",
+    "AIRelationshipScore",
+    "AIRelationshipCount",
+    "AIRequestLog",
+    # System configuration and statistics
     "SystemConfig",
+    "StatsUserDaily",
+    "StatsUserWeekly",
+    "StatsUserMonthly",
+    "StatsRevenueDaily",
+    "StatsRevenueWeekly",
+    "StatsRevenueMonthly",
+    "StatsMessageDaily",
+    "StatsMessageWeekly",
+    "StatsMessageMonthly",
+    "StatsAIDaily",
+    "StatsAIWeekly",
+    "StatsAIMonthly",
+    # Admin management
+    "AdminUser",
+    "AdminOperationLog",
+    "AdminLoginLog",
+    # Security monitoring
+    "UserSecurityLog",
+    "UserSecurityStats",
 ]

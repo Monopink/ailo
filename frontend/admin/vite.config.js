@@ -14,7 +14,7 @@ export default defineConfig({
     port: 5174,
     open: false,
     proxy: {
-      '/admin/api': {
+      '/api': {
         target: 'http://backend_container:8000',
         changeOrigin: true,
         rewrite: (path) => path,

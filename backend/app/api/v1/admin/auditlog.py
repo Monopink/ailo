@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
 from core.database import get_db
-from admin.models import AdminOperationLog, AdminUser
-from admin.core.auth import GetAdminUser
-from admin.schemas.base import SuccessExtra
+from models.admin import AdminOperationLog, AdminUser
+from api.deps import get_current_admin_user
+from schemas.admin.base import SuccessExtra
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -23,7 +23,7 @@ async def get_operation_log_list(
     resource_type: Optional[str] = Query(None, description="Resource type"),
     start_time: Optional[datetime] = Query(None, description="Start time"),
     end_time: Optional[datetime] = Query(None, description="End time"),
-    current_admin: AdminUser = Depends(GetAdminUser),
+    current_admin: AdminUser = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """

@@ -16,6 +16,7 @@
               :maxlength="20"
               autofocus
               required
+              autocomplete="username"
             />
           </div>
 
@@ -27,6 +28,7 @@
               placeholder="Password"
               :maxlength="20"
               required
+              autocomplete="current-password"
               @keypress.enter="handleLogin"
             />
           </div>

@@ -1,6 +1,9 @@
 """
-Admin base API routes.
-Handles authentication and basic user operations.
+Admin authentication API routes.
+Handles admin login and user information operations.
+
+Note: The login endpoint is exposed via an obfuscated path (/abandoned) for security.
+This is a deliberate security measure to hide the admin login endpoint from potential attackers.
 """
 
 from datetime import datetime, timedelta
@@ -9,27 +12,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from core.database import get_db
-from core.security import verify_password, create_access_token
-from admin.models import AdminUser
-from admin.core.auth import GetAdminUser
-from admin.core.operation_log import create_login_log
-from admin.schemas.base import Success
-from admin.schemas.login import CredentialsSchema, JWTOut
-from admin.settings import admin_settings
+from core.security import verify_password, create_admin_access_token
+from models.admin import AdminUser
+from utils.admin_logs import create_login_log
+from schemas.admin.base import Success
+from schemas.admin.auth import CredentialsSchema, JWTOut
+from core.config import settings
 from utils.logging import get_logger
+from api.deps import get_current_admin_user
 
 logger = get_logger(__name__)
 
+# Router for admin authentication endpoints
+# This router will be mounted at /abandoned for security obfuscation
+auth_router = APIRouter()
+
+# Router for admin user operations
+# This router will be mounted at /admin for standard admin operations
 router = APIRouter()
 
 
-@router.get("/health", summary="Health check")
+@auth_router.get("/health", summary="Health check")
 async def health_check():
     """Simple health check endpoint"""
     return {"status": "ok", "message": ""}
 
 
-@router.post("/access_token", summary="Admin login to get access token")
+@auth_router.post("/access_token", summary="Admin login to get access token")
 async def login_access_token(
     credentials: CredentialsSchema, request: Request, db: AsyncSession = Depends(get_db)
 ):
@@ -37,14 +46,12 @@ async def login_access_token(
     Admin login endpoint.
     Authenticates admin user and returns JWT token.
     Records all login attempts for security auditing.
+
+    Note: This endpoint is accessed via /api/v1/abandoned/access_token for security.
     """
     try:
-        # Find admin user by username or email
-        result = await db.execute(
-            select(AdminUser).where(
-                (AdminUser.username == credentials.username) | (AdminUser.email == credentials.username)
-            )
-        )
+        # Find admin user by username
+        result = await db.execute(select(AdminUser).where(AdminUser.username == credentials.username))
         admin_user = result.scalar_one_or_none()
 
         if not admin_user:
@@ -52,8 +59,21 @@ async def login_access_token(
             await create_login_log(
                 db=db,
                 username=credentials.username,
-                login_result="FAILED",
-                failure_reason="Admin account not found",
+                result=2,  # 2 = fail
+                fail_reason="Admin account not found",
+                request=request,
+            )
+            raise HTTPException(status_code=401, detail="Login failed")
+
+        # Check if admin is active
+        if admin_user.status != 1:
+            # Record failed login attempt - account disabled
+            await create_login_log(
+                db=db,
+                username=credentials.username,
+                result=2,  # 2 = fail
+                fail_reason="Admin account disabled",
+                admin_user_id=admin_user.id,
                 request=request,
             )
             raise HTTPException(status_code=401, detail="Login failed")
@@ -64,22 +84,9 @@ async def login_access_token(
             await create_login_log(
                 db=db,
                 username=credentials.username,
-                login_result="FAILED",
+                result=2,  # 2 = fail
+                fail_reason="Wrong password",
                 admin_user_id=admin_user.id,
-                failure_reason="Invalid password",
-                request=request,
-            )
-            raise HTTPException(status_code=401, detail="Login failed")
-
-        # Check if admin user is active
-        if not admin_user.is_active:
-            # Record failed login attempt - account disabled
-            await create_login_log(
-                db=db,
-                username=credentials.username,
-                login_result="FAILED",
-                admin_user_id=admin_user.id,
-                failure_reason="Admin account disabled",
                 request=request,
             )
             raise HTTPException(status_code=401, detail="Login failed")
@@ -93,14 +100,16 @@ async def login_access_token(
         await create_login_log(
             db=db,
             username=credentials.username,
-            login_result="SUCCESS",
+            result=1,  # 1 = success
             admin_user_id=admin_user.id,
             request=request,
         )
 
         # Create JWT token using admin user ID
-        access_token_expires = timedelta(minutes=admin_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(subject=str(admin_user.id), expires_delta=access_token_expires)
+        access_token_expires = timedelta(minutes=settings.ADMIN_JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_admin_access_token(
+            subject=str(admin_user.id), expires_delta=access_token_expires
+        )
 
         data = JWTOut(access_token=access_token, username=admin_user.username, token_type="bearer")
 
@@ -110,20 +119,26 @@ async def login_access_token(
     except HTTPException:
         raise
     except Exception as e:
-        # Record system error login failure
+        logger.error("admin_login_error", error=str(e), username=credentials.username, exc_info=True)
+        # Record failed login attempt - system error
         await create_login_log(
             db=db,
             username=credentials.username,
-            login_result="FAILED",
-            failure_reason=f"System error: {str(e)}",
+            result=2,  # 2 = fail
+            fail_reason="System error",
             request=request,
         )
-        logger.error("admin_login_error", username=credentials.username, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Login failed")
 
 
+@router.get("/health", summary="Health check")
+async def admin_health_check():
+    """Simple health check endpoint for admin operations"""
+    return {"status": "ok", "message": ""}
+
+
 @router.get("/userinfo", summary="Get admin user info")
-async def get_userinfo(admin_user: AdminUser = Depends(GetAdminUser)):
+async def get_userinfo(admin_user: AdminUser = Depends(get_current_admin_user)):
     """
     Get current admin user information.
     """
@@ -131,16 +146,14 @@ async def get_userinfo(admin_user: AdminUser = Depends(GetAdminUser)):
         data = {
             "id": admin_user.id,
             "username": admin_user.username,
-            "alias": admin_user.real_name or admin_user.username,  # Use real_name as alias
-            "email": admin_user.email,
-            "phone": admin_user.phone,
+            "alias": admin_user.username,  # Use username as alias
             "role": admin_user.role,
             "role_display": admin_user.role_display,
-            "is_active": admin_user.is_active,
+            "is_active": admin_user.status == 1,  # Convert status to boolean
             "last_login": (
                 admin_user.last_login.strftime("%Y-%m-%d %H:%M:%S") if admin_user.last_login else None
             ),
-            "avatar": admin_user.avatar_url or "https://avatars.githubusercontent.com/u/54677442?v=4",
+            "avatar": "https://avatars.githubusercontent.com/u/54677442?v=4",  # Default avatar
         }
         return Success(data=data)
 

@@ -15,5 +15,9 @@ export function createAxios(options = {}) {
 }
 
 export const request = createAxios({
-  baseURL: '/admin/api/v1',
+  baseURL: '/api/v1/admin',
+})
+
+export const authRequest = createAxios({
+  baseURL: '/api/v1/abandoned',
 })

@@ -1,9 +1,9 @@
-import { request } from '@/utils'
+import { request, authRequest } from '@/utils'
 
 export default {
   // Authentication
-  login: (data) => request.post('/base/access_token', data, { noNeedToken: true }),
-  getUserInfo: () => request.get('/base/userinfo'),
+  login: (data) => authRequest.post('/access_token', data, { noNeedToken: true }),
+  getUserInfo: () => request.get('/userinfo'),
   getUserMenu: () => request.get('/base/usermenu'),
   getUserApi: () => request.get('/base/userapi'),
   // Profile

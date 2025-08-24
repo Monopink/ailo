@@ -6,7 +6,7 @@ Simplified logging system for admin activities.
 from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, func
 from sqlalchemy.orm import relationship
 
-from .base import AdminBaseModel
+from ..admin.models.base import AdminBaseModel
 
 
 class AdminOperationLog(AdminBaseModel):

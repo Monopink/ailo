@@ -5,11 +5,11 @@ This module contains SQLAlchemy models for AI configuration templates.
 """
 
 from typing import Any, Dict, Optional
-from sqlalchemy import Integer, String, Text, Index
+from sqlalchemy import Integer, String, Text, Index, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from models.base import AutoIncrementModel
+from models.base import AutoIncrementModel, SnowflakeQiaoModel
 
 
 class AIInfoTemplate(AutoIncrementModel):
@@ -21,29 +21,56 @@ class AIInfoTemplate(AutoIncrementModel):
 
     __tablename__ = "ai_info_templates"
 
-    name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Template name")
-
-    prompt: Mapped[str] = mapped_column(Text, nullable=False, comment="Core prompt template")
-
-    json_schema: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="JSON schema definition (JSONB for better performance)"
+    style_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Style ID, references ai_styles.id"
     )
 
-    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Reference count")
+    personality_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Personality ID, references ai_personalities.id"
+    )
+
+    memory: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Memory settings")
+
+    prompt_variables: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Prompt variables/placeholder overrides (JSONB for better performance)",
+    )
+
+    score_offset_algorithm: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, comment="Score offset algorithm"
+    )
+
+    score_offset_coefficient: Mapped[Optional[float]] = mapped_column(
+        nullable=True, comment="Score offset coefficient"
+    )
+
+    is_reusable: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Is reusable: 1=reusable, 0=single_use"
+    )
+
+    profile_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Associated profile template count"
+    )
+
+    profile_id: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Associated profile template ID (for single-use)"
+    )
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
+        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive"
     )
 
     # Indexes
     __table_args__ = (
-        Index("idx_ai_info_templates_name", "name"),
+        Index("idx_ai_info_templates_style_id", "style_id"),
+        Index("idx_ai_info_templates_personality_id", "personality_id"),
         Index("idx_ai_info_templates_status", "status"),
-        Index("idx_ai_info_templates_usage_count", "usage_count"),
+        Index("idx_ai_info_templates_is_reusable", "is_reusable"),
     )
 
 
-class AIProfileTemplate(AutoIncrementModel):
+class AIProfileTemplate(SnowflakeQiaoModel):
     """
     AI profile template model.
 
@@ -52,45 +79,37 @@ class AIProfileTemplate(AutoIncrementModel):
 
     __tablename__ = "ai_profile_templates"
 
-    name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Template name")
+    category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Category")
 
-    nickname_template: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True, comment="Nickname generation template"
+    info_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Associated info template ID, references ai_info_templates.id"
     )
 
-    bio_template: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True, comment="Bio generation template"
+    nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Nickname")
+
+    gender: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
 
-    avatar_template: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True, comment="Avatar generation template"
-    )
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="Avatar URL")
 
-    gender_template: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Gender assignment template"
-    )
+    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Bio/description")
 
-    age_template: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Age assignment template"
-    )
+    region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Region/location")
 
-    location_template: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True, comment="Location assignment template"
+    is_reusable: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Is reusable: 1=reusable, 0=single_use"
     )
-
-    json_schema: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="JSON schema definition (JSONB for better performance)"
-    )
-
-    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Reference count")
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
+        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive"
     )
 
     # Indexes
     __table_args__ = (
-        Index("idx_ai_profile_templates_name", "name"),
+        Index("idx_ai_profile_templates_category", "category"),
+        Index("idx_ai_profile_templates_info_id", "info_id"),
+        Index("idx_ai_profile_templates_nickname", "nickname"),
         Index("idx_ai_profile_templates_status", "status"),
-        Index("idx_ai_profile_templates_usage_count", "usage_count"),
+        Index("idx_ai_profile_templates_is_reusable", "is_reusable"),
     )

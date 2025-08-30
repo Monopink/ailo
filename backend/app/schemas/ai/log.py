@@ -38,6 +38,15 @@ class AIRequestLogCreate(BaseModel):
     response_time: Optional[int] = Field(None, description="Response time in milliseconds")
 
 
+class AIRequestLogUpdate(BaseModel):
+    """Schema for updating AI request log."""
+
+    response: Optional[Dict[str, Any]] = Field(None, description="Response content")
+    status: Optional[AIRequestStatus] = Field(None, description="Request status")
+    token_count: Optional[int] = Field(None, ge=0, description="Token consumption")
+    response_time: Optional[int] = Field(None, ge=0, description="Response time in milliseconds")
+
+
 class AIRequestLogResponse(AIRequestLogBase):
     """Schema for AI request log response data."""
 

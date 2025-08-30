@@ -6,7 +6,7 @@ that occur during application operations.
 """
 
 from typing import Any, Dict, Optional
-from fastapi import status
+from fastapi import status as http_status
 from .base import BaseAppException, NotFoundError, ConflictError, ValidationError
 
 
@@ -47,7 +47,7 @@ class InvalidCredentialsError(BaseAppException):
         super().__init__(
             message=message,
             error_code="INVALID_CREDENTIALS",
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=http_status.HTTP_401_UNAUTHORIZED,
             details=details,
         )
 
@@ -68,7 +68,7 @@ class AccountSuspendedError(BaseAppException):
         super().__init__(
             message=message,
             error_code="ACCOUNT_SUSPENDED",
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             details=error_details,
         )
 
@@ -122,7 +122,7 @@ class ContactLimitExceededError(BaseAppException):
         super().__init__(
             message=message,
             error_code="CONTACT_LIMIT_EXCEEDED",
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=http_status.HTTP_400_BAD_REQUEST,
             details=error_details,
         )
 
@@ -149,7 +149,7 @@ class MessageDeliveryError(BaseAppException):
         super().__init__(
             message=message,
             error_code="MESSAGE_DELIVERY_ERROR",
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
             details=error_details,
         )
 
@@ -193,7 +193,7 @@ class AIServiceError(BaseAppException):
         super().__init__(
             message=message,
             error_code="AI_SERVICE_ERROR",
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
             details=error_details,
         )
 
@@ -211,6 +211,99 @@ class AICharacterNotFoundError(NotFoundError):
             message=message, resource_type="ai_character", resource_id=character_id, details=details
         )
         self.error_code = "AI_CHARACTER_NOT_FOUND"
+
+
+class AICharacterInactiveError(BaseAppException):
+    """Exception raised when AI character is inactive or blocked."""
+
+    def __init__(
+        self,
+        character_id: Optional[str] = None,
+        status: Optional[int] = None,
+        message: str = "AI character is inactive",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if character_id:
+            error_details["character_id"] = character_id
+        if status:
+            error_details["status"] = status
+
+        super().__init__(
+            message=message,
+            error_code="AI_CHARACTER_INACTIVE",
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            details=error_details,
+        )
+
+
+class AIConversationError(AIServiceError):
+    """Exception raised for conversation processing errors."""
+
+    def __init__(
+        self,
+        conversation_step: Optional[str] = None,
+        reason: Optional[str] = None,
+        message: str = "Conversation processing failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if conversation_step:
+            error_details["conversation_step"] = conversation_step
+
+        super().__init__(
+            ai_service="conversation",
+            reason=reason,
+            message=message,
+            details=error_details,
+        )
+        self.error_code = "AI_CONVERSATION_ERROR"
+
+
+class AIRelationshipError(AIServiceError):
+    """Exception raised for relationship scoring errors."""
+
+    def __init__(
+        self,
+        operation: Optional[str] = None,
+        reason: Optional[str] = None,
+        message: str = "Relationship operation failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if operation:
+            error_details["operation"] = operation
+
+        super().__init__(
+            ai_service="relationship",
+            reason=reason,
+            message=message,
+            details=error_details,
+        )
+        self.error_code = "AI_RELATIONSHIP_ERROR"
+
+
+class AICharacterCreationError(AIServiceError):
+    """Exception raised for character creation errors."""
+
+    def __init__(
+        self,
+        template_id: Optional[str] = None,
+        reason: Optional[str] = None,
+        message: str = "Character creation failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if template_id:
+            error_details["template_id"] = template_id
+
+        super().__init__(
+            ai_service="character_creation",
+            reason=reason,
+            message=message,
+            details=error_details,
+        )
+        self.error_code = "AI_CHARACTER_CREATION_ERROR"
 
 
 # Security Exceptions
@@ -235,7 +328,7 @@ class SecurityViolationError(BaseAppException):
         super().__init__(
             message=message,
             error_code="SECURITY_VIOLATION",
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=http_status.HTTP_400_BAD_REQUEST,
             details=error_details,
         )
 
@@ -259,6 +352,6 @@ class SnowflakeGeneratorError(BaseAppException):
         super().__init__(
             message=message,
             error_code="SNOWFLAKE_GENERATOR_ERROR",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             details=error_details,
         )

@@ -5,8 +5,8 @@ This module contains Pydantic schemas for AI styles and relationships.
 """
 
 from datetime import datetime
-from typing import List
-from pydantic import BaseModel, Field, validator
+from typing import List, Optional
+from pydantic import BaseModel, Field, field_validator
 
 from schemas.common import BaseSchema
 
@@ -29,13 +29,27 @@ class AIStyleCreate(BaseModel):
     score_count: int = Field(..., ge=1, le=10, description="Number of scoring dimensions")
     score_name: List[str] = Field(..., min_items=1, max_items=10, description="Scoring dimension names")
 
-    @validator("score_name")
-    def validate_score_name_count(cls, v, values):
+    @field_validator("score_name")
+    @classmethod
+    def validate_score_name_count(cls, v, info):
         """Validate score_name count matches score_count."""
-        score_count = values.get("score_count")
-        if score_count and len(v) != score_count:
-            raise ValueError("score_name length must match score_count")
+        if info.data and "score_count" in info.data:
+            score_count = info.data["score_count"]
+            if len(v) != score_count:
+                raise ValueError("score_name length must match score_count")
         return v
+
+
+class AIStyleUpdate(BaseModel):
+    """Schema for updating an AI style."""
+
+    name: Optional[str] = Field(None, max_length=100, description="Style name")
+    score_count: Optional[int] = Field(None, ge=1, le=10, description="Number of scoring dimensions")
+    score_name: Optional[List[str]] = Field(
+        None, min_items=1, max_items=10, description="Scoring dimension names"
+    )
+    usage_count: Optional[int] = Field(None, ge=0, description="Reference count")
+    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
 class AIStyleResponse(AIStyleBase):
@@ -61,7 +75,15 @@ class AIRelationshipCreate(BaseModel):
     """Schema for creating an AI relationship."""
 
     name: str = Field(..., max_length=100, description="Relationship name")
-    description: str = Field(..., max_length=500, description="Relationship description")
+    prompt_fragment: Optional[str] = Field(None, description="Prompt fragment for this relationship")
+
+
+class AIRelationshipUpdate(BaseModel):
+    """Schema for updating an AI relationship."""
+
+    name: Optional[str] = Field(None, max_length=100, description="Relationship name")
+    prompt_fragment: Optional[str] = Field(None, description="Prompt fragment for this relationship")
+    status: Optional[int] = Field(None, description="Status")
 
 
 class AIRelationshipResponse(AIRelationshipBase):
@@ -95,12 +117,14 @@ class AIRelationshipIndexCreate(BaseModel):
     score_end: int = Field(..., ge=0, le=1000, description="Score range end")
     relationship_id: int = Field(..., description="Relationship ID")
 
-    @validator("score_end")
-    def validate_score_range(cls, v, values):
+    @field_validator("score_end")
+    @classmethod
+    def validate_score_range(cls, v, info):
         """Validate score_end is greater than score_start."""
-        score_start = values.get("score_start")
-        if score_start is not None and v <= score_start:
-            raise ValueError("score_end must be greater than score_start")
+        if info.data and "score_start" in info.data:
+            score_start = info.data["score_start"]
+            if v <= score_start:
+                raise ValueError("score_end must be greater than score_start")
         return v
 
 

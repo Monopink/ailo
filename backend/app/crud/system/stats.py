@@ -43,12 +43,12 @@ class CRUDStatsUser(CRUDBase[StatsUserDaily, dict, dict]):
             .where(and_(self.model.stat_date >= start_date, self.model.stat_date <= end_date))
             .order_by(desc(self.model.stat_date))
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsUserDaily]:
         """Get latest user statistics."""
         result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class CRUDStatsRevenue(CRUDBase[StatsRevenueDaily, dict, dict]):
@@ -68,12 +68,12 @@ class CRUDStatsRevenue(CRUDBase[StatsRevenueDaily, dict, dict]):
             .where(and_(self.model.stat_date >= start_date, self.model.stat_date <= end_date))
             .order_by(desc(self.model.stat_date))
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsRevenueDaily]:
         """Get latest revenue statistics."""
         result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class CRUDStatsMessage(CRUDBase[StatsMessageDaily, dict, dict]):
@@ -93,12 +93,12 @@ class CRUDStatsMessage(CRUDBase[StatsMessageDaily, dict, dict]):
             .where(and_(self.model.stat_date >= start_date, self.model.stat_date <= end_date))
             .order_by(desc(self.model.stat_date))
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsMessageDaily]:
         """Get latest message statistics."""
         result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class CRUDStatsAI(CRUDBase[StatsAIDaily, dict, dict]):
@@ -118,12 +118,12 @@ class CRUDStatsAI(CRUDBase[StatsAIDaily, dict, dict]):
             .where(and_(self.model.stat_date >= start_date, self.model.stat_date <= end_date))
             .order_by(desc(self.model.stat_date))
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsAIDaily]:
         """Get latest AI statistics."""
         result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 # Create instances

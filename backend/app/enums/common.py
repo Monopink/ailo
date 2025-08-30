@@ -25,6 +25,7 @@ class UserType(IntEnum):
     NORMAL = 1  # Regular user
     OFFICIAL = 2  # Official account
     ADMIN = 3  # Administrator
+    VIRTUAL = 4  # Virtual user (for AI testing)
 
 
 class DeviceType(IntEnum):

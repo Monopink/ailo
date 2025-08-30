@@ -28,6 +28,18 @@ class AIPersonalityCreate(BaseModel):
     name: str = Field(..., max_length=100, description="Personality name")
     prompt: str = Field(..., min_length=1, description="Personality prompt template")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
+    typing_speed: Optional[int] = Field(None, ge=1, description="Typing speed in characters per minute")
+
+
+class AIPersonalityUpdate(BaseModel):
+    """Schema for updating an AI personality."""
+
+    name: Optional[str] = Field(None, max_length=100, description="Personality name")
+    prompt: Optional[str] = Field(None, min_length=1, description="Personality prompt template")
+    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
+    typing_speed: Optional[int] = Field(None, ge=1, description="Typing speed in characters per minute")
+    usage_count: Optional[int] = Field(None, ge=0, description="Reference count")
+    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
 class AIPersonalityResponse(AIPersonalityBase):
@@ -47,10 +59,14 @@ class AIPersonalityPlaceholderBase(BaseSchema):
 
     personality_id: int = Field(..., description="Personality ID")
     placeholder_key: str = Field(..., max_length=100, description="Placeholder key name")
-    placeholder_type: int = Field(..., description="Placeholder type: 1=text, 2=number, 3=boolean, 4=list")
-    default_value: Optional[str] = Field(None, description="Default placeholder value")
+    display_name: Optional[str] = Field(None, max_length=200, description="Display name for UI")
     description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
+    example_value: Optional[str] = Field(None, description="Example placeholder value")
     is_required: bool = Field(False, description="Is required")
+    # Enhanced fields for better functionality
+    placeholder_type: int = Field(
+        1, ge=1, le=4, description="Placeholder type: 1=text, 2=number, 3=boolean, 4=list"
+    )
     validation_rules: Optional[Dict[str, Any]] = Field(None, description="Validation rules")
 
 
@@ -59,12 +75,26 @@ class AIPersonalityPlaceholderCreate(BaseModel):
 
     personality_id: int = Field(..., description="Personality ID")
     placeholder_key: str = Field(..., max_length=100, description="Placeholder key name")
-    placeholder_type: int = Field(
-        ..., ge=1, le=4, description="Placeholder type: 1=text, 2=number, 3=boolean, 4=list"
-    )
-    default_value: Optional[str] = Field(None, description="Default placeholder value")
+    display_name: Optional[str] = Field(None, max_length=200, description="Display name for UI")
     description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
+    example_value: Optional[str] = Field(None, description="Example placeholder value")
     is_required: bool = Field(False, description="Is required")
+    # Enhanced fields for better functionality
+    placeholder_type: int = Field(
+        1, ge=1, le=4, description="Placeholder type: 1=text, 2=number, 3=boolean, 4=list"
+    )
+    validation_rules: Optional[Dict[str, Any]] = Field(None, description="Validation rules")
+
+
+class AIPersonalityPlaceholderUpdate(BaseModel):
+    """Schema for updating an AI personality placeholder."""
+
+    display_name: Optional[str] = Field(None, max_length=200, description="Display name for UI")
+    description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
+    example_value: Optional[str] = Field(None, description="Example placeholder value")
+    is_required: Optional[bool] = Field(None, description="Is required")
+    # Enhanced fields for better functionality
+    placeholder_type: Optional[int] = Field(None, ge=1, le=4, description="Placeholder type")
     validation_rules: Optional[Dict[str, Any]] = Field(None, description="Validation rules")
 
 
@@ -89,9 +119,40 @@ class AIInfoTemplateBase(BaseSchema):
 class AIInfoTemplateCreate(BaseModel):
     """Schema for creating an AI info template."""
 
-    name: str = Field(..., max_length=100, description="Template name")
-    prompt: str = Field(..., min_length=1, description="Core prompt template")
-    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
+    style_id: int = Field(..., description="Style ID, references ai_styles.id")
+    personality_id: int = Field(..., description="Personality ID, references ai_personalities.id")
+    memory: Optional[str] = Field(None, description="Memory settings")
+    prompt_variables: Optional[Dict[str, Any]] = Field(
+        None, description="Prompt variables/placeholder overrides"
+    )
+    score_offset_algorithm: Optional[str] = Field(
+        None, max_length=100, description="Score offset algorithm"
+    )
+    score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
+    is_reusable: bool = Field(True, description="Is reusable: True=reusable, False=single_use")
+    profile_id: Optional[int] = Field(None, description="Associated profile template ID (for single-use)")
+    status: int = Field(1, ge=1, le=2, description="Status: 1=active, 2=inactive")
+
+
+class AIInfoTemplateUpdate(BaseModel):
+    """Schema for updating an AI info template."""
+
+    style_id: Optional[int] = Field(None, description="Style ID, references ai_styles.id")
+    personality_id: Optional[int] = Field(
+        None, description="Personality ID, references ai_personalities.id"
+    )
+    memory: Optional[str] = Field(None, description="Memory settings")
+    prompt_variables: Optional[Dict[str, Any]] = Field(
+        None, description="Prompt variables/placeholder overrides"
+    )
+    score_offset_algorithm: Optional[str] = Field(
+        None, max_length=100, description="Score offset algorithm"
+    )
+    score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
+    is_reusable: Optional[bool] = Field(None, description="Is reusable: True=reusable, False=single_use")
+    profile_count: Optional[int] = Field(None, ge=0, description="Associated profile template count")
+    profile_id: Optional[int] = Field(None, description="Associated profile template ID (for single-use)")
+    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
 class AIInfoTemplateResponse(AIInfoTemplateBase):
@@ -123,18 +184,35 @@ class AIProfileTemplateBase(BaseSchema):
 class AIProfileTemplateCreate(BaseModel):
     """Schema for creating an AI profile template."""
 
-    name: str = Field(..., max_length=100, description="Template name")
-    nickname_template: Optional[str] = Field(
-        None, max_length=200, description="Nickname generation template"
+    category: Optional[str] = Field(None, max_length=50, description="Category")
+    info_id: int = Field(..., description="Associated info template ID, references ai_info_templates.id")
+    nickname: Optional[str] = Field(None, max_length=100, description="Nickname")
+    gender: Optional[int] = Field(
+        None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
-    bio_template: Optional[str] = Field(None, description="Bio generation template")
-    avatar_template: Optional[str] = Field(None, description="Avatar generation template")
-    gender_template: Optional[str] = Field(None, max_length=100, description="Gender assignment template")
-    age_template: Optional[str] = Field(None, max_length=100, description="Age assignment template")
-    location_template: Optional[str] = Field(
-        None, max_length=200, description="Location assignment template"
+    avatar_url: Optional[str] = Field(None, max_length=500, description="Avatar URL")
+    bio: Optional[str] = Field(None, description="Bio/description")
+    region: Optional[str] = Field(None, max_length=100, description="Region/location")
+    is_reusable: bool = Field(True, description="Is reusable: True=reusable, False=single_use")
+    status: int = Field(1, ge=1, le=2, description="Status: 1=active, 2=inactive")
+
+
+class AIProfileTemplateUpdate(BaseModel):
+    """Schema for updating an AI profile template."""
+
+    category: Optional[str] = Field(None, max_length=50, description="Category")
+    info_id: Optional[int] = Field(
+        None, description="Associated info template ID, references ai_info_templates.id"
     )
-    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
+    nickname: Optional[str] = Field(None, max_length=100, description="Nickname")
+    gender: Optional[int] = Field(
+        None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
+    )
+    avatar_url: Optional[str] = Field(None, max_length=500, description="Avatar URL")
+    bio: Optional[str] = Field(None, description="Bio/description")
+    region: Optional[str] = Field(None, max_length=100, description="Region/location")
+    is_reusable: Optional[bool] = Field(None, description="Is reusable: True=reusable, False=single_use")
+    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
 class AIProfileTemplateResponse(AIProfileTemplateBase):

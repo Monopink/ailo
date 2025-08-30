@@ -64,7 +64,7 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         result = await db.execute(
             select(self.model).where(self.model.status == UserStatus.ACTIVE).offset(skip).limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def search_users(self, db: AsyncSession, *, query: str, limit: int = 20) -> List[User]:
         """Search users by username, phone, or email."""
@@ -82,7 +82,7 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
             )
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
@@ -111,7 +111,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
             query = query.where(self.model.is_active.is_(True))
 
         result = await db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_user_sessions_by_device(
         self, db: AsyncSession, *, user_id: int, device_type: DeviceType
@@ -126,7 +126,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
                 )
             )
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def deactivate_session(self, db: AsyncSession, *, token: str) -> Optional[UserSession]:
         """Deactivate a session."""
@@ -174,7 +174,7 @@ class CRUDLoginRecord(CRUDBase[LoginRecord, dict, dict]):
             .order_by(self.model.created_at.desc())
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_recent_failed_attempts(
         self, db: AsyncSession, *, identifier: str, minutes: int = 15
@@ -192,7 +192,7 @@ class CRUDLoginRecord(CRUDBase[LoginRecord, dict, dict]):
                 )
             )
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 # Create CRUD instances

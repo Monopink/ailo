@@ -44,6 +44,7 @@ from .system import (
 )
 from .admin import AdminUser, AdminOperationLog, AdminLoginLog
 from .security import UserSecurityLog, UserSecurityStats
+from .llm import LLMProvider, LLMConfig
 
 # Export all models for easy importing
 __all__ = [
@@ -102,4 +103,7 @@ __all__ = [
     # Security monitoring
     "UserSecurityLog",
     "UserSecurityStats",
+    # LLM management
+    "LLMProvider",
+    "LLMConfig",
 ]

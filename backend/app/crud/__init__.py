@@ -17,7 +17,15 @@ from .contact import contact, contact_request
 from .message import message, message_failure, media_file, emoticon
 
 # AI CRUD
-from .ai import ai_character, ai_context, ai_relationship_score, ai_request_log, ai_style, ai_personality
+from .ai import (
+    ai_character,
+    ai_personality,
+    ai_style,
+    ai_info_template,
+    ai_profile_template,
+    ai_context,
+    ai_request_log,
+)
 
 # Admin CRUD
 from .admin import admin_user, admin_operation_log, admin_login_log
@@ -49,13 +57,7 @@ __all__ = [
     "message_failure",
     "media_file",
     "emoticon",
-    # AI
-    "ai_character",
-    "ai_context",
-    "ai_relationship_score",
-    "ai_request_log",
-    "ai_style",
-    "ai_personality",
+    # AI - removed (using new data access layer)
     # Admin
     "admin_user",
     "admin_operation_log",

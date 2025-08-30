@@ -44,11 +44,11 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def get_multi(self, db: AsyncSession, *, skip: int = 0, limit: int = 100) -> List[ModelType]:
         """Get multiple records with pagination."""
         result = await db.execute(select(self.model).offset(skip).limit(limit))
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def create(self, db: AsyncSession, *, obj_in: CreateSchemaType) -> ModelType:
         """Create a new record."""
-        obj_in_data = obj_in.dict()
+        obj_in_data = obj_in.model_dump()
         db_obj = self.model(**obj_in_data)
         db.add(db_obj)
         await db.commit()
@@ -63,7 +63,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if isinstance(obj_in, dict):
             update_data = obj_in
         else:
-            update_data = obj_in.dict(exclude_unset=True)
+            update_data = obj_in.model_dump(exclude_unset=True)
 
         for field in obj_data:
             if field in update_data:
@@ -85,12 +85,14 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def count(self, db: AsyncSession) -> int:
         """Count total records."""
         result = await db.execute(select(func.count(self.model.id)))
-        return result.scalar()
+        count = result.scalar()
+        return count if count is not None else 0
 
     async def exists(self, db: AsyncSession, *, id: Any) -> bool:
         """Check if a record exists by ID."""
         result = await db.execute(select(func.count(self.model.id)).where(self.model.id == id))
-        return result.scalar() > 0
+        count = result.scalar()
+        return (count if count is not None else 0) > 0
 
 
 class CRUDBaseWithQiaoId(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]):
@@ -108,12 +110,13 @@ class CRUDBaseWithQiaoId(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]
     async def exists_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> bool:
         """Check if a record exists by qiao_id."""
         result = await db.execute(select(func.count(self.model.id)).where(self.model.qiao_id == qiao_id))
-        return result.scalar() > 0
+        count = result.scalar()
+        return (count if count is not None else 0) > 0
 
     async def get_multi_by_qiao_ids(self, db: AsyncSession, *, qiao_ids: List[str]) -> List[ModelType]:
         """Get multiple records by qiao_ids."""
         result = await db.execute(select(self.model).where(self.model.qiao_id.in_(qiao_ids)))
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class CRUDBaseWithStatus(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]):
@@ -137,7 +140,7 @@ class CRUDBaseWithStatus(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]
         result = await db.execute(
             select(self.model).where(self.model.status == 1).offset(skip).limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def update_status(self, db: AsyncSession, *, id: Any, status: int) -> Optional[ModelType]:
         """Update record status."""

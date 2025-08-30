@@ -51,7 +51,7 @@ class CRUDMessage(CRUDBase[MessageHistory, MessageSend, dict]):
         result = await db.execute(
             select(self.model).where(and_(*conditions)).order_by(desc(self.model.created_at)).limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_user_conversations(
         self, db: AsyncSession, *, user_qiao_id: str, limit: int = 50
@@ -87,7 +87,8 @@ class CRUDMessage(CRUDBase[MessageHistory, MessageSend, dict]):
             conditions.append(self.model.created_at > last_read_time)
 
         result = await db.execute(select(func.count(self.model.id)).where(and_(*conditions)))
-        return result.scalar()
+        count = result.scalar()
+        return count if count is not None else 0
 
     async def update_message_status(
         self, db: AsyncSession, *, msg_id_server: str, status: MessageStatus
@@ -133,7 +134,7 @@ class CRUDMessage(CRUDBase[MessageHistory, MessageSend, dict]):
             .order_by(desc(self.model.created_at))
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 # Create instance

@@ -63,7 +63,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_pinned_contacts(self, db: AsyncSession, *, user_qiao_id: str) -> List[Contact]:
         """Get user's pinned contacts."""
@@ -78,7 +78,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             )
             .order_by(self.model.updated_at.desc())
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def search_user_contacts(
         self, db: AsyncSession, *, user_qiao_id: str, query: str, limit: int = 20
@@ -97,7 +97,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             )
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def count_user_contacts(
         self, db: AsyncSession, *, user_qiao_id: str, contact_type: Optional[ContactType] = None
@@ -109,7 +109,8 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             conditions.append(self.model.contact_type == contact_type)
 
         result = await db.execute(select(func.count(self.model.id)).where(and_(*conditions)))
-        return result.scalar()
+        count = result.scalar()
+        return count if count is not None else 0
 
     async def is_contact_exists(self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str) -> bool:
         """Check if contact relationship exists."""
@@ -122,7 +123,8 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
                 )
             )
         )
-        return result.scalar() > 0
+        count = result.scalar()
+        return (count if count is not None else 0) > 0
 
     async def soft_delete_contact(
         self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
@@ -204,7 +206,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, dict]):
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_user_received_requests(
         self,
@@ -227,7 +229,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, dict]):
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def count_pending_requests(self, db: AsyncSession, *, to_qiao_id: str) -> int:
         """Count pending requests for a user."""
@@ -236,7 +238,8 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, dict]):
                 and_(self.model.to_qiao_id == to_qiao_id, self.model.status == ContactRequestStatus.PENDING)
             )
         )
-        return result.scalar()
+        count = result.scalar()
+        return count if count is not None else 0
 
     async def update_request_status(
         self, db: AsyncSession, *, request_id: int, status: ContactRequestStatus

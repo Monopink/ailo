@@ -529,8 +529,8 @@ CREATE INDEX IF NOT EXISTS idx_ai_contexts_position ON ai_contexts(position);
 CREATE INDEX IF NOT EXISTS idx_ai_contexts_source_message_ids_gin ON ai_contexts USING GIN(source_message_ids);
 CREATE INDEX IF NOT EXISTS idx_ai_contexts_metadata_gin ON ai_contexts USING GIN(metadata);
 
--- AI relationship score table - AI relationship scoring
-CREATE TABLE IF NOT EXISTS ai_relationship_score (
+-- AI relationship scores table - AI relationship scoring
+CREATE TABLE IF NOT EXISTS ai_relationship_scores (
     id BIGINT PRIMARY KEY,
     character_id BIGINT NOT NULL,
     score_order INTEGER NOT NULL,
@@ -544,10 +544,10 @@ CREATE TABLE IF NOT EXISTS ai_relationship_score (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for ai_relationship_score table
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_score_character_id ON ai_relationship_score(character_id);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_score_score_order ON ai_relationship_score(score_order);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_score_score ON ai_relationship_score(score);
+-- Create indexes for ai_relationship_scores table
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_character_id ON ai_relationship_scores(character_id);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_score_order ON ai_relationship_scores(score_order);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_score ON ai_relationship_scores(score);
 
 -- AI relationship counts table - Relationship usage statistics
 CREATE TABLE IF NOT EXISTS ai_relationship_counts (
@@ -899,7 +899,7 @@ CREATE TRIGGER update_ai_info_templates_updated_at BEFORE UPDATE ON ai_info_temp
 CREATE TRIGGER update_ai_profile_templates_updated_at BEFORE UPDATE ON ai_profile_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_characters_updated_at BEFORE UPDATE ON ai_characters FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_contexts_updated_at BEFORE UPDATE ON ai_contexts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_relationship_score_updated_at BEFORE UPDATE ON ai_relationship_score FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_relationship_scores_updated_at BEFORE UPDATE ON ai_relationship_scores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_relationship_counts_updated_at BEFORE UPDATE ON ai_relationship_counts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_message_delivery_failures_updated_at BEFORE UPDATE ON message_delivery_failures FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_security_logs_updated_at BEFORE UPDATE ON user_security_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -926,7 +926,20 @@ INSERT INTO system_config (config_key, config_value, config_type, description, i
 ('max_contacts_per_user', '100', 2, 'Maximum contacts per user', 1),
 ('session_timeout_minutes', '30', 2, 'Session timeout in minutes', 0),
 ('enable_registration', 'true', 3, 'Enable user registration', 1),
-('enable_sms_verification', 'true', 3, 'Enable SMS verification', 1)
+('enable_sms_verification', 'true', 3, 'Enable SMS verification', 1),
+-- LeanCloud configuration
+('leancloud_app_id', '', 1, 'LeanCloud application ID', 0),
+('leancloud_app_key', '', 1, 'LeanCloud application key', 0),
+('leancloud_server_url', '', 1, 'LeanCloud server URL (optional)', 0),
+('leancloud_base_url', 'https://api.leancloud.cn', 1, 'LeanCloud API base URL', 0),
+('leancloud_webhook_enabled', 'true', 3, 'Enable LeanCloud webhook processing', 0),
+('leancloud_message_timeout_seconds', '30', 2, 'LeanCloud message timeout in seconds', 0),
+('leancloud_retry_max_count', '3', 2, 'Maximum retry count for LeanCloud operations', 0),
+('leancloud_conversation_ttl_hours', '24', 2, 'LeanCloud conversation TTL in hours', 0),
+-- AI JSON Schema validation configuration
+('ai_json_schema_max_retries', '3', 2, 'JSON Schema validation failure max retry count', 0),
+('ai_json_schema_retry_delay', '2', 2, 'JSON Schema validation retry delay in seconds', 0),
+('ai_json_schema_validation_enabled', 'true', 3, 'Enable JSON Schema validation', 0)
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert basic AI styles

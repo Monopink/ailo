@@ -101,6 +101,16 @@ class AIContextCreate(BaseModel):
     token_count: Optional[int] = Field(None, description="Token count")
 
 
+class AIContextUpdate(BaseModel):
+    """Schema for updating AI context."""
+
+    role: Optional[AIContextRole] = Field(default=None, description="Role type")
+    content: Optional[str] = Field(default=None, description="Message content")
+    source_type: Optional[AIContextSourceType] = Field(default=None, description="Source type")
+    context_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Context metadata")
+    reply_status: Optional[int] = Field(default=None, description="Reply status")
+
+
 class AIContextResponse(AIContextBase):
     """Schema for AI context response data."""
 

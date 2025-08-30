@@ -47,14 +47,14 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_super_admins(self, db: AsyncSession) -> List[AdminUser]:
         """Get all super admin users."""
         result = await db.execute(
             select(self.model).where(and_(self.model.role == AdminRole.SUPER_ADMIN, self.model.status == 1))
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def count_by_role(self, db: AsyncSession, *, role: AdminRole) -> int:
         """Count admin users by role."""
@@ -95,7 +95,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
             .where(and_(self.model.username.ilike(f"%{query}%"), self.model.status == 1))
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate, dict]):
@@ -112,7 +112,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_by_resource_type(
         self, db: AsyncSession, *, resource_type: str, skip: int = 0, limit: int = 100
@@ -125,7 +125,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_by_operation_type(
         self, db: AsyncSession, *, operation_type: int, skip: int = 0, limit: int = 100
@@ -138,7 +138,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_resource_operations(
         self, db: AsyncSession, *, resource_type: str, resource_id: str, skip: int = 0, limit: int = 50
@@ -151,7 +151,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_recent_operations(
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
@@ -166,7 +166,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
             .order_by(desc(self.model.created_at))
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def count_admin_operations(
         self, db: AsyncSession, *, admin_user_id: int, hours: Optional[int] = None
@@ -198,7 +198,7 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_failed_login_attempts(
         self, db: AsyncSession, *, username: str, hours: int = 1
@@ -218,7 +218,7 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
             )
             .order_by(desc(self.model.created_at))
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_successful_logins(
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
@@ -233,7 +233,7 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
             .order_by(desc(self.model.created_at))
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def count_login_attempts(
         self, db: AsyncSession, *, username: str, hours: int = 24, result: Optional[int] = None

@@ -18,8 +18,8 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):
     """CRUD operations for MediaFile model."""
 
     async def get_by_file_id(self, db: AsyncSession, *, file_id: str) -> Optional[MediaFile]:
-        """Get media file by file ID."""
-        result = await db.execute(select(self.model).where(self.model.file_id == file_id))
+        """Get media file by file ID (qiao_id)."""
+        result = await db.execute(select(self.model).where(self.model.qiao_id == file_id))
         return result.scalar_one_or_none()
 
     async def get_user_files(
@@ -43,7 +43,7 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def update_file_status(
         self, db: AsyncSession, *, file_id: str, status: FileStatus

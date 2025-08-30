@@ -1,79 +1,80 @@
 """
-AI character CRUD operations.
+AI Character CRUD operations.
 
-This module contains CRUD operations for AI characters.
+This module provides both standard CRUD operations and complex queries
+for AI character management.
 """
 
 from typing import List, Optional
-from sqlalchemy import select, and_, func, desc
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.base import CRUDBaseWithQiaoId
+from crud.base import CRUDBase
 from models.ai import AICharacter
 from schemas.ai import AICharacterCreate, AICharacterUpdate
-from enums import AICharacterCreator
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
-class CRUDAICharacter(CRUDBaseWithQiaoId[AICharacter, AICharacterCreate, AICharacterUpdate]):
-    """CRUD operations for AICharacter model."""
+class CRUDAICharacter(CRUDBase[AICharacter, AICharacterCreate, AICharacterUpdate]):
+    """AI Character CRUD operations with complex queries."""
 
-    async def get_by_user(
+    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[AICharacter]:
+        """
+        Get character by qiao_id.
+
+        Args:
+            db: Database session
+            qiao_id: Character's qiao_id
+
+        Returns:
+            Character object or None if not found
+        """
+        try:
+            result = await db.execute(select(AICharacter).where(AICharacter.qiao_id == qiao_id))
+            return result.scalar_one_or_none()
+
+        except Exception as e:
+            logger.error("character_get_by_qiao_id_failed", error=str(e), qiao_id=qiao_id)
+            raise RuntimeError(f"Failed to get character by qiao_id: {str(e)}")
+
+    # Complex queries moved to services/ai/data layer for better separation of concerns
+
+    async def get_user_characters(
         self, db: AsyncSession, *, user_qiao_id: str, skip: int = 0, limit: int = 100
     ) -> List[AICharacter]:
-        """Get AI characters created by user."""
-        result = await db.execute(
-            select(self.model)
-            .where(self.model.user_qiao_id == user_qiao_id)
-            .order_by(desc(self.model.created_at))
-            .offset(skip)
-            .limit(limit)
-        )
-        return result.scalars().all()
+        """
+        Get characters created by a specific user.
 
-    async def get_by_category(
-        self, db: AsyncSession, *, category: str, skip: int = 0, limit: int = 100
-    ) -> List[AICharacter]:
-        """Get AI characters by category."""
-        result = await db.execute(
-            select(self.model)
-            .where(self.model.category == category)
-            .order_by(desc(self.model.created_at))
-            .offset(skip)
-            .limit(limit)
-        )
-        return result.scalars().all()
+        Args:
+            db: Database session
+            user_qiao_id: User's qiao_id
+            skip: Number of records to skip
+            limit: Maximum number of records to return
 
-    async def get_system_characters(
-        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> List[AICharacter]:
-        """Get system-created AI characters."""
-        result = await db.execute(
-            select(self.model)
-            .where(self.model.created_by == AICharacterCreator.SYSTEM)
-            .order_by(desc(self.model.created_at))
-            .offset(skip)
-            .limit(limit)
-        )
-        return result.scalars().all()
+        Returns:
+            List of characters
+        """
+        try:
+            result = await db.execute(
+                select(AICharacter)
+                .where(AICharacter.user_qiao_id == user_qiao_id)
+                .order_by(desc(AICharacter.created_at))
+                .offset(skip)
+                .limit(limit)
+            )
 
-    async def count_user_characters(self, db: AsyncSession, *, user_qiao_id: str) -> int:
-        """Count user's AI characters."""
-        result = await db.execute(
-            select(func.count(self.model.id)).where(self.model.user_qiao_id == user_qiao_id)
-        )
-        return result.scalar()
+            characters = result.scalars().all()
 
-    async def search_characters(
-        self, db: AsyncSession, *, query: str, category: Optional[str] = None, limit: int = 20
-    ) -> List[AICharacter]:
-        """Search AI characters."""
-        conditions = [self.model.qiao_id.ilike(f"%{query}%")]
-        if category:
-            conditions.append(self.model.category == category)
+            logger.debug("user_characters_retrieved", user_qiao_id=user_qiao_id, count=len(characters))
 
-        result = await db.execute(select(self.model).where(and_(*conditions)).limit(limit))
-        return result.scalars().all()
+            return characters
+
+        except Exception as e:
+            logger.error("user_characters_query_failed", error=str(e), user_qiao_id=user_qiao_id)
+            # Non-fatal error: return empty list
+            return []
 
 
-# Create instance
 ai_character = CRUDAICharacter(AICharacter)

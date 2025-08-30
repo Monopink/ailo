@@ -5,7 +5,7 @@ This module imports all AI-related SQLAlchemy models.
 """
 
 # Character and context models
-from .character import AICharacter, AIContext
+from .character import AICharacter, AIContext, AIContextArchive
 
 # Template models
 from .template import AIInfoTemplate, AIProfileTemplate
@@ -27,6 +27,7 @@ __all__ = [
     # Character and context
     "AICharacter",
     "AIContext",
+    "AIContextArchive",
     # Templates
     "AIInfoTemplate",
     "AIProfileTemplate",

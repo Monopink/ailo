@@ -1,41 +1,42 @@
 """
-AI system CRUD operations module.
+AI CRUD operations module.
 
-This module imports all AI-related CRUD operations.
+This module provides unified data access for all AI-related operations,
+supporting both standard CRUD operations and complex business queries.
 """
 
-# Character CRUD
-from .character import CRUDAICharacter, ai_character
+# AI Character CRUD
+from .character import ai_character
 
-# Context CRUD
-from .context import CRUDAIContext, ai_context
+# AI Personality CRUD
+from .personality import ai_personality, ai_personality_placeholder
 
-# Score CRUD
-from .score import CRUDAIRelationshipScore, ai_relationship_score
+# AI Style CRUD
+from .style import ai_style, ai_relationship, ai_relationship_index
 
-# Log CRUD
-from .log import CRUDAIRequestLog, ai_request_log
 
-# Style CRUD
-from .style import CRUDAIStyle, ai_style
+# AI Template CRUD
+from .template import ai_info_template, ai_profile_template
 
-# Personality CRUD
-from .personality import CRUDAIPersonality, ai_personality
+# AI Context CRUD
+from .context import ai_context
 
-# Export all AI CRUD classes and instances
+# AI Request Log CRUD
+from .request_log import ai_request_log
+
 __all__ = [
-    # Classes
-    "CRUDAICharacter",
-    "CRUDAIContext",
-    "CRUDAIRelationshipScore",
-    "CRUDAIRequestLog",
-    "CRUDAIStyle",
-    "CRUDAIPersonality",
-    # Instances
+    # Character management
     "ai_character",
-    "ai_context",
-    "ai_relationship_score",
-    "ai_request_log",
-    "ai_style",
+    # Personality and style
     "ai_personality",
+    "ai_personality_placeholder",
+    "ai_style",
+    "ai_relationship",
+    "ai_relationship_index",
+    # Template management
+    "ai_info_template",
+    "ai_profile_template",
+    # Context and logging
+    "ai_context",
+    "ai_request_log",
 ]

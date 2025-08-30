@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.schema import Index as PGIndex
 from sqlalchemy.orm import Mapped, mapped_column
 
-from enums import AICharacterCreator, AIContextRole, AIContextSourceType
+from enums import AICharacterCreator
 from models.base import SnowflakeModel, SnowflakeQiaoModel
 
 
@@ -41,10 +41,16 @@ class AICharacter(SnowflakeQiaoModel):
         Integer, nullable=False, comment="Personality ID, references ai_personalities.id"
     )
 
+    status: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive, 3=blocked"
+    )
+
     memory: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Character memory settings")
 
-    placeholder_overrides: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="Placeholder overrides (JSONB for better performance)"
+    prompt_variables: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
     score_offset_algorithm: Mapped[Optional[str]] = mapped_column(
@@ -66,11 +72,10 @@ class AICharacter(SnowflakeQiaoModel):
         Index("idx_ai_characters_category", "category"),
         Index("idx_ai_characters_style_id", "style_id"),
         Index("idx_ai_characters_personality_id", "personality_id"),
+        Index("idx_ai_characters_status", "status"),
         Index("idx_ai_characters_created_by", "created_by"),
         # PostgreSQL GIN index for JSONB field for better query performance
-        PGIndex(
-            "idx_ai_characters_placeholder_overrides_gin", "placeholder_overrides", postgresql_using="gin"
-        ),
+        PGIndex("idx_ai_characters_prompt_variables_gin", "prompt_variables", postgresql_using="gin"),
     )
 
 
@@ -119,6 +124,14 @@ class AIContext(SnowflakeModel):
 
     token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Token count")
 
+    is_attack: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Is attack message: 1=yes, 0=no"
+    )
+
+    reply_status: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Reply status: 1=pending, 2=processing, 3=done"
+    )
+
     # Indexes
     __table_args__ = (
         Index("idx_ai_contexts_character_id", "character_id"),
@@ -130,4 +143,72 @@ class AIContext(SnowflakeModel):
         # PostgreSQL GIN indexes for JSONB fields for better query performance
         PGIndex("idx_ai_contexts_source_message_ids_gin", "source_message_ids", postgresql_using="gin"),
         PGIndex("idx_ai_contexts_context_metadata_gin", "context_metadata", postgresql_using="gin"),
+    )
+
+
+class AIContextArchive(SnowflakeModel):
+    """
+    AI context archive model.
+
+    Archived AI conversation context and history.
+    """
+
+    __tablename__ = "ai_contexts_archive"
+
+    character_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Character ID, references ai_characters.id"
+    )
+
+    character_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Character external ID"
+    )
+
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="User ID, references users.id")
+
+    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
+
+    role: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Role type: 1=system, 2=user, 3=assistant"
+    )
+
+    content: Mapped[str] = mapped_column(Text, nullable=False, comment="Message content")
+
+    source_type: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Source type: 1=original, 2=merged, 3=summarized"
+    )
+
+    source_message_ids: Mapped[Optional[List[str]]] = mapped_column(
+        JSONB, nullable=True, comment="Source message ID list (JSONB for better performance)"
+    )
+
+    context_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True, comment="Context metadata (JSONB for better performance)"
+    )
+
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Position in conversation sequence"
+    )
+
+    token_count: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Token count for this context"
+    )
+
+    is_attack: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Is attack message: 1=yes, 0=no"
+    )
+
+    reply_status: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Reply status: 1=pending, 2=processing, 3=done"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_ai_contexts_archive_character_qiao_id", "character_qiao_id"),
+        Index("idx_ai_contexts_archive_user_qiao_id", "user_qiao_id"),
+        Index("idx_ai_contexts_archive_role", "role"),
+        # PostgreSQL GIN indexes for JSONB fields for better query performance
+        PGIndex(
+            "idx_ai_contexts_archive_source_message_ids_gin", "source_message_ids", postgresql_using="gin"
+        ),
+        PGIndex("idx_ai_contexts_archive_context_metadata_gin", "context_metadata", postgresql_using="gin"),
     )

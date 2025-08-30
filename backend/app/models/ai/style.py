@@ -4,8 +4,8 @@ AI style and relationship related models.
 This module contains SQLAlchemy models for AI styles and relationship configurations.
 """
 
-from typing import List
-from sqlalchemy import Integer, String, JSON, Index
+from typing import List, Optional
+from sqlalchemy import Integer, String, Text, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import AutoIncrementModel
@@ -56,8 +56,8 @@ class AIRelationship(AutoIncrementModel):
 
     name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Relationship name")
 
-    description: Mapped[str] = mapped_column(
-        String(500), nullable=False, comment="Relationship description"
+    prompt_fragment: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="Prompt fragment for this relationship type"
     )
 
     usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Usage count")
@@ -89,18 +89,32 @@ class AIRelationshipIndex(AutoIncrementModel):
 
     score_order: Mapped[int] = mapped_column(Integer, nullable=False, comment="Score dimension order")
 
-    score_start: Mapped[int] = mapped_column(Integer, nullable=False, comment="Score range start")
+    score_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Score name")
 
-    score_end: Mapped[int] = mapped_column(Integer, nullable=False, comment="Score range end")
+    start_position: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Start position, 0-1000 per mille"
+    )
+
+    end_position: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="End position, 0-1000 per mille"
+    )
 
     relationship_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Relationship ID, references ai_relationships.id"
+    )
+
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, comment="Priority level")
+
+    limit_count: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Maximum occurrence count, NULL means unlimited"
     )
 
     # Indexes
     __table_args__ = (
         Index("idx_ai_relationship_indexes_style_id", "style_id"),
         Index("idx_ai_relationship_indexes_score_order", "score_order"),
+        Index("idx_ai_relationship_indexes_score_name", "score_name"),
         Index("idx_ai_relationship_indexes_relationship_id", "relationship_id"),
-        Index("idx_ai_relationship_indexes_score_range", "score_start", "score_end"),
+        Index("idx_ai_relationship_indexes_position_range", "start_position", "end_position"),
+        Index("idx_ai_relationship_indexes_priority", "priority"),
     )

@@ -1,2 +1,10 @@
 *.log
 *.pyc
+references
+deployment/.env.prod
+deployment/.env.staging
+deployment/.env
+.augment/rules/rules.md
+.kiro
+backend/database/init/old_init.sql
+backend/database/init/init.sql

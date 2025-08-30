@@ -28,6 +28,10 @@ from .business import (
     MessageTooLongError,
     AIServiceError,
     AICharacterNotFoundError,
+    AICharacterInactiveError,
+    AICharacterCreationError,
+    AIConversationError,
+    AIRelationshipError,
     SecurityViolationError,
     SnowflakeGeneratorError,
 )
@@ -52,6 +56,10 @@ __all__ = [
     "MessageTooLongError",
     "AIServiceError",
     "AICharacterNotFoundError",
+    "AICharacterInactiveError",
+    "AICharacterCreationError",
+    "AIConversationError",
+    "AIRelationshipError",
     "SecurityViolationError",
     "SnowflakeGeneratorError",
 ]

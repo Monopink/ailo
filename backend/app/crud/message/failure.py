@@ -35,7 +35,7 @@ class CRUDMessageFailure(CRUDBase[MessageDeliveryFailure, dict, dict]):
             )
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def increment_retry_count(
         self, db: AsyncSession, *, msg_id_server: str, next_retry_at: datetime

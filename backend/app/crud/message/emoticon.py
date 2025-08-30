@@ -33,7 +33,7 @@ class CRUDEmoticon(CRUDBase[Emoticon, EmoticonCreate, dict]):
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_all_active(self, db: AsyncSession) -> List[Emoticon]:
         """Get all active emoticons."""
@@ -42,7 +42,7 @@ class CRUDEmoticon(CRUDBase[Emoticon, EmoticonCreate, dict]):
             .where(self.model.status == 1)
             .order_by(self.model.category, self.model.sort_order)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 # Create instance

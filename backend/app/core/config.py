@@ -38,12 +38,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str]
     ALLOWED_HOSTS: List[str]
 
-    # LeanCloud settings
-    LEANCLOUD_APP_ID: str
-    LEANCLOUD_APP_KEY: str
+    # LeanCloud settings (only sensitive master key in env)
     LEANCLOUD_MASTER_KEY: str
-    LEANCLOUD_SERVER_URL: Optional[str] = None
-    LEANCLOUD_BASE_URL: str
 
     # Snowflake ID settings
     SNOWFLAKE_DATACENTER_ID: int

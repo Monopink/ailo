@@ -13,6 +13,7 @@ from .character import (
     AICharacterListResponse,
     AIContextBase,
     AIContextCreate,
+    AIContextUpdate,
     AIContextResponse,
     BatchAICharacterDelete,
 )
@@ -29,6 +30,7 @@ from .chat import (
 from .style import (
     AIStyleBase,
     AIStyleCreate,
+    AIStyleUpdate,
     AIStyleResponse,
     AIRelationshipBase,
     AIRelationshipCreate,
@@ -42,15 +44,19 @@ from .style import (
 from .personality import (
     AIPersonalityBase,
     AIPersonalityCreate,
+    AIPersonalityUpdate,
     AIPersonalityResponse,
     AIPersonalityPlaceholderBase,
     AIPersonalityPlaceholderCreate,
+    AIPersonalityPlaceholderUpdate,
     AIPersonalityPlaceholderResponse,
     AIInfoTemplateBase,
     AIInfoTemplateCreate,
+    AIInfoTemplateUpdate,
     AIInfoTemplateResponse,
     AIProfileTemplateBase,
     AIProfileTemplateCreate,
+    AIProfileTemplateUpdate,
     AIProfileTemplateResponse,
 )
 
@@ -58,6 +64,7 @@ from .personality import (
 from .log import (
     AIRequestLogBase,
     AIRequestLogCreate,
+    AIRequestLogUpdate,
     AIRequestLogResponse,
     AICharacterStats,
     AIUserStats,
@@ -74,6 +81,7 @@ __all__ = [
     "AICharacterListResponse",
     "AIContextBase",
     "AIContextCreate",
+    "AIContextUpdate",
     "AIContextResponse",
     "BatchAICharacterDelete",
     # Chat
@@ -84,6 +92,7 @@ __all__ = [
     # Style
     "AIStyleBase",
     "AIStyleCreate",
+    "AIStyleUpdate",
     "AIStyleResponse",
     "AIRelationshipBase",
     "AIRelationshipCreate",
@@ -94,19 +103,24 @@ __all__ = [
     # Personality
     "AIPersonalityBase",
     "AIPersonalityCreate",
+    "AIPersonalityUpdate",
     "AIPersonalityResponse",
     "AIPersonalityPlaceholderBase",
     "AIPersonalityPlaceholderCreate",
+    "AIPersonalityPlaceholderUpdate",
     "AIPersonalityPlaceholderResponse",
     "AIInfoTemplateBase",
     "AIInfoTemplateCreate",
+    "AIInfoTemplateUpdate",
     "AIInfoTemplateResponse",
     "AIProfileTemplateBase",
     "AIProfileTemplateCreate",
+    "AIProfileTemplateUpdate",
     "AIProfileTemplateResponse",
     # Log
     "AIRequestLogBase",
     "AIRequestLogCreate",
+    "AIRequestLogUpdate",
     "AIRequestLogResponse",
     "AICharacterStats",
     "AIUserStats",

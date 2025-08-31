@@ -19,7 +19,6 @@ from .memory import process_memory_operations, archive_old_contexts
 from .data import (
     get_conversation_history,
     save_context_entry,
-    save_ai_response,
     update_context_status,
     mark_context_as_attack,
     update_character_status,
@@ -99,6 +98,7 @@ async def process_conversation(
             "reply_status": 1,  # pending
         }
 
+        # Save context entry - returns int (Snowflake ID) for internal use
         context_id = await save_context_entry(db, context_data)
         if not context_id:
             raise AIConversationError(
@@ -260,7 +260,7 @@ async def process_ai_response_updates(
     character_qiao_id: str,
     character_info: Dict[str, Any],
     ai_response: Dict[str, Any],
-    context_id: str,
+    context_id: int,  # Note: int type for internal Snowflake ID
 ) -> None:
     """
     Process AI response and update related data.
@@ -271,10 +271,10 @@ async def process_ai_response_updates(
         character_qiao_id: Character's qiao_id
         character_info: Character information
         ai_response: AI response dictionary
-        context_id: Context ID
+        context_id: Context ID (int - internal Snowflake ID)
     """
     try:
-        # Update context status to processing
+        # Update context status to processing - using int ID internally
         await update_context_status(db, context_id, 2)  # processing
 
         # Handle attack detection
@@ -294,7 +294,7 @@ async def process_ai_response_updates(
         if ai_response.get("should_block", False):
             await handle_character_blocking(db, character_qiao_id)
 
-        # Update context status to done
+        # Update context status to done - using int ID internally
         await update_context_status(db, context_id, 3)  # done
 
         logger.debug(
@@ -393,7 +393,7 @@ async def send_single_message(db: AsyncSession, from_qiao_id: str, to_qiao_id: s
 
 
 async def handle_attack_detection(
-    db: AsyncSession, user_qiao_id: str, character_qiao_id: str, context_id: str
+    db: AsyncSession, user_qiao_id: str, character_qiao_id: str, context_id: int
 ) -> None:
     """
     Handle detected prompt injection attack.
@@ -402,10 +402,10 @@ async def handle_attack_detection(
         db: Database session
         user_qiao_id: User's qiao_id
         character_qiao_id: Character's qiao_id
-        context_id: Context ID
+        context_id: Context ID (int - internal Snowflake ID)
     """
     try:
-        # Mark context as attack using data layer
+        # Mark context as attack using data layer - using int ID internally
         success = await mark_context_as_attack(db, context_id)
 
         if success:

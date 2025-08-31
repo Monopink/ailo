@@ -348,33 +348,86 @@ def _build_dynamic_response_schema(style: Any) -> Dict[str, Any]:
 
     Returns:
         JSON schema dictionary
+
+    Raises:
+        AIServiceError: If style configuration is invalid
     """
     try:
-        # Build score properties dynamically
+        # Validate style configuration - no default values allowed
+        if not style.score_name:
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="missing_score_names",
+                message=f"Style {style.id} has no score_name configured. "
+                f"This indicates a database configuration error.",
+            )
+
+        if not isinstance(style.score_name, list):
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="invalid_score_names_type",
+                message=f"Style {style.id} score_name must be a list, got {type(style.score_name)}. "
+                f"This indicates a database configuration error.",
+            )
+
+        if len(style.score_name) == 0:
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="empty_score_names",
+                message=f"Style {style.id} has empty score_name list. "
+                f"This indicates a database configuration error.",
+            )
+
+        # Build score properties dynamically from validated configuration
         score_properties = {}
         score_required = []
 
-        if style.score_name and isinstance(style.score_name, list):
-            for score_name in style.score_name:
-                score_properties[score_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
-                score_required.append(score_name)
-        else:
-            # Fallback to default scores
-            score_properties = {
-                "friend": {"type": "integer", "minimum": 0, "maximum": 1000},
-                "romance": {"type": "integer", "minimum": 0, "maximum": 1000},
-            }
-            score_required = ["friend", "romance"]
+        for score_name in style.score_name:
+            if not score_name or not isinstance(score_name, str):
+                raise AIServiceError(
+                    ai_service="schema_building",
+                    reason="invalid_score_name",
+                    message=f"Style {style.id} contains invalid score name: {score_name}. "
+                    f"All score names must be non-empty strings.",
+                )
+            score_properties[score_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
+            score_required.append(score_name)
+
+        logger.debug(
+            "dynamic_schema_built_successfully",
+            style_id=style.id,
+            score_names=style.score_name,
+            score_count=len(score_properties),
+        )
 
         return _get_base_response_schema(score_properties, score_required)
 
+    except AIServiceError:
+        # Re-raise AI service errors
+        raise
     except Exception as e:
-        logger.error("dynamic_schema_build_failed", error=str(e))
-        return _get_default_response_schema()
+        logger.error("dynamic_schema_build_failed", error=str(e), style_id=getattr(style, "id", "unknown"))
+        raise AIServiceError(
+            ai_service="schema_building",
+            reason="build_failed",
+            message=f"Failed to build dynamic schema: {str(e)}",
+        )
 
 
 def _get_default_response_schema() -> Dict[str, Any]:
-    """Get default JSON schema for AI responses."""
+    """
+    Get default JSON schema for AI responses.
+
+    Note: This function should only be used as a last resort fallback
+    when style configuration cannot be loaded. In normal operation,
+    all schemas should be built dynamically from style.score_name.
+    """
+    logger.warning(
+        "using_default_response_schema",
+        message="Using default schema instead of dynamic schema. This may indicate a configuration issue.",
+    )
+
+    # Use generic score names as absolute fallback
     score_properties = {
         "friend": {"type": "integer", "minimum": 0, "maximum": 1000},
         "romance": {"type": "integer", "minimum": 0, "maximum": 1000},

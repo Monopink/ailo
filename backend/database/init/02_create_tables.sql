@@ -364,7 +364,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_relationship_status ON ai_relationship(status)
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_usage_count ON ai_relationship(usage_count);
 
 -- AI relationship index table - Score to relationship mapping
-CREATE TABLE IF NOT EXISTS ai_relationship_indexs (
+CREATE TABLE IF NOT EXISTS ai_relationship_indexes (
     id SERIAL PRIMARY KEY,
     style_id INTEGER NOT NULL,
     score_order INTEGER NOT NULL,
@@ -378,10 +378,10 @@ CREATE TABLE IF NOT EXISTS ai_relationship_indexs (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for ai_relationship_indexs table
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexs_style_id ON ai_relationship_indexs(style_id);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexs_relationship_id ON ai_relationship_indexs(relationship_id);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexs_score_order ON ai_relationship_indexs(score_order);
+-- Create indexes for ai_relationship_indexes table
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_style_id ON ai_relationship_indexes(style_id);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_relationship_id ON ai_relationship_indexes(relationship_id);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_score_order ON ai_relationship_indexes(score_order);
 
 -- AI personalities table - Personality templates
 CREATE TABLE IF NOT EXISTS ai_personalities (
@@ -892,7 +892,7 @@ CREATE TRIGGER update_media_files_updated_at BEFORE UPDATE ON media_files FOR EA
 CREATE TRIGGER update_emoticons_updated_at BEFORE UPDATE ON emoticons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_styles_updated_at BEFORE UPDATE ON ai_styles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_relationship_updated_at BEFORE UPDATE ON ai_relationship FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_relationship_indexs_updated_at BEFORE UPDATE ON ai_relationship_indexs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_relationship_indexes_updated_at BEFORE UPDATE ON ai_relationship_indexes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personalities_updated_at BEFORE UPDATE ON ai_personalities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personality_placeholders_updated_at BEFORE UPDATE ON ai_personality_placeholders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_info_templates_updated_at BEFORE UPDATE ON ai_info_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

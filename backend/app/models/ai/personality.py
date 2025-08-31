@@ -89,10 +89,6 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
         Integer, nullable=False, default=0, comment="Is required: 1=required, 0=optional"
     )
 
-    validation_rules: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="Validation rules (JSONB for better performance)"
-    )
-
     # Indexes
     __table_args__ = (
         Index("idx_ai_personality_placeholders_personality_id", "personality_id"),

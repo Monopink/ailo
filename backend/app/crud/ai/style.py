@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.ai import AIStyle, AIRelationship, AIRelationshipIndex
-from schemas.ai import AIStyleCreate, AIStyleUpdate
+from schemas.ai import AIStyleCreate, AIStyleUpdate, AIRelationshipIndexUpdate
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -245,7 +245,7 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
             return []
 
 
-class CRUDAIRelationshipIndex(CRUDBase[AIRelationshipIndex, Any, Any]):
+class CRUDAIRelationshipIndex(CRUDBase[AIRelationshipIndex, Any, AIRelationshipIndexUpdate]):
     """AI Relationship Index CRUD operations."""
 
     async def get_by_style(self, db: AsyncSession, *, style_id: int) -> List[AIRelationshipIndex]:

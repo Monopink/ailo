@@ -16,9 +16,8 @@ from crud.ai import (
     ai_relationship,
     ai_relationship_index,
     ai_character,
-    ai_info_template,
-    ai_profile_template,
 )
+from schemas.ai import AIPersonalityCreate
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +34,7 @@ async def get_personality_templates(
         result = []
         for personality in personalities:
             # Get placeholders for this personality
-            placeholders = await ai_personality_placeholder.get_by_personality_id(
+            placeholders = await ai_personality_placeholder.get_by_personality(
                 db, personality_id=personality.id
             )
 
@@ -48,7 +47,7 @@ async def get_personality_templates(
                     "placeholders": [
                         {
                             "key": p.placeholder_key,
-                            "value": p.default_value,
+                            "value": p.example_value,
                             "description": p.description,
                         }
                         for p in placeholders
@@ -73,11 +72,12 @@ async def create_personality_template(
         # Create personality
         personality = await ai_personality.create(
             db,
-            obj_in={
-                "name": template_data["name"],
-                "prompt": template_data["prompt"],
-                "json_schema": template_data.get("json_schema"),
-            },
+            obj_in=AIPersonalityCreate(
+                name=template_data["name"],
+                prompt=template_data["prompt"],
+                json_schema=template_data.get("json_schema"),
+                typing_speed=template_data.get("typing_speed"),
+            ),
         )
 
         # Create placeholders
@@ -89,7 +89,7 @@ async def create_personality_template(
                     "personality_id": personality.id,
                     "placeholder_key": placeholder_data["key"],
                     "placeholder_type": placeholder_data.get("type", 1),
-                    "default_value": placeholder_data.get("value"),
+                    "example_value": placeholder_data.get("value"),
                     "description": placeholder_data.get("description"),
                 },
             )
@@ -115,7 +115,7 @@ async def get_personality_template(db: AsyncSession, personality_id: int) -> Opt
         if not personality:
             return None
 
-        placeholders = await ai_personality_placeholder.get_by_personality_id(
+        placeholders = await ai_personality_placeholder.get_by_personality(
             db, personality_id=personality_id
         )
 
@@ -127,7 +127,7 @@ async def get_personality_template(db: AsyncSession, personality_id: int) -> Opt
             "usage_count": personality.usage_count,
             "status": personality.status,
             "placeholders": [
-                {"key": p.placeholder_key, "value": p.default_value, "description": p.description}
+                {"key": p.placeholder_key, "value": p.example_value, "description": p.description}
                 for p in placeholders
             ],
             "created_at": personality.created_at,
@@ -148,7 +148,7 @@ async def get_style_templates(db: AsyncSession, skip: int = 0, limit: int = 100)
         result = []
         for style in styles:
             # Get relationship mappings for this style
-            mappings = await ai_relationship_index.get_by_style_id(db, style_id=style.id)
+            mappings = await ai_relationship_index.get_by_style(db, style_id=style.id)
 
             result.append(
                 {
@@ -162,8 +162,9 @@ async def get_style_templates(db: AsyncSession, skip: int = 0, limit: int = 100)
                         {
                             "relationship_id": m.relationship_id,
                             "score_order": m.score_order,
-                            "score_start": m.score_start,
-                            "score_end": m.score_end,
+                            "score_name": m.score_name,
+                            "start_position": m.start_position,
+                            "end_position": m.end_position,
                         }
                         for m in mappings
                     ],
@@ -209,7 +210,7 @@ async def get_style_template(db: AsyncSession, style_id: int) -> Optional[Dict[s
         if not style:
             return None
 
-        mappings = await ai_relationship_index.get_by_style_id(db, style_id=style_id)
+        mappings = await ai_relationship_index.get_by_style(db, style_id=style_id)
 
         return {
             "id": style.id,
@@ -222,8 +223,9 @@ async def get_style_template(db: AsyncSession, style_id: int) -> Optional[Dict[s
                 {
                     "relationship_id": m.relationship_id,
                     "score_order": m.score_order,
-                    "score_start": m.score_start,
-                    "score_end": m.score_end,
+                    "score_name": m.score_name,
+                    "start_position": m.start_position,
+                    "end_position": m.end_position,
                 }
                 for m in mappings
             ],
@@ -294,11 +296,14 @@ async def get_ai_characters(db: AsyncSession, skip: int = 0, limit: int = 100) -
             # Build character info from available fields
             char_info = {
                 "qiao_id": character.qiao_id,
-                "username": character.username,
-                "user_type": character.user_type,
+                "user_id": character.user_id,
+                "user_qiao_id": character.user_qiao_id,
                 "status": character.status,
-                "profile": character.profile,
                 "category": character.category,
+                "style_id": character.style_id,
+                "personality_id": character.personality_id,
+                "memory": character.memory,
+                "created_by": character.created_by,
                 "created_at": character.created_at.isoformat() if character.created_at else None,
                 "updated_at": character.updated_at.isoformat() if character.updated_at else None,
             }

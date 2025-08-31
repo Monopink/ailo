@@ -276,7 +276,7 @@ created_at
 updated_at
 ```
 
-## ai_relationship_indexs
+## ai_relationship_indexes
 
 AI关系索引表，定义风格评分与关系类型的映射关系。
 

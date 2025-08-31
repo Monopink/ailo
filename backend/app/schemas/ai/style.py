@@ -128,6 +128,30 @@ class AIRelationshipIndexCreate(BaseModel):
         return v
 
 
+class AIRelationshipIndexUpdate(BaseModel):
+    """Schema for updating an AI relationship index."""
+
+    score_order: Optional[int] = Field(None, description="Score dimension order")
+    score_name: Optional[str] = Field(None, max_length=100, description="Score name")
+    start_position: Optional[int] = Field(
+        None, ge=0, le=1000, description="Start position, 0-1000 per mille"
+    )
+    end_position: Optional[int] = Field(None, ge=0, le=1000, description="End position, 0-1000 per mille")
+    relationship_id: Optional[int] = Field(None, description="Relationship ID")
+    priority: Optional[int] = Field(None, description="Priority level")
+    limit_count: Optional[int] = Field(None, description="Maximum occurrence count, NULL means unlimited")
+
+    @field_validator("end_position")
+    @classmethod
+    def validate_score_range(cls, v, info):
+        """Validate end_position is greater than start_position."""
+        if v is not None and info.data and "start_position" in info.data:
+            start_position = info.data["start_position"]
+            if start_position is not None and v <= start_position:
+                raise ValueError("end_position must be greater than start_position")
+        return v
+
+
 class AIRelationshipIndexResponse(AIRelationshipIndexBase):
     """Schema for AI relationship index response data."""
 

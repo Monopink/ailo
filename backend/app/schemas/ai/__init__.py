@@ -37,6 +37,7 @@ from .style import (
     AIRelationshipResponse,
     AIRelationshipIndexBase,
     AIRelationshipIndexCreate,
+    AIRelationshipIndexUpdate,
     AIRelationshipIndexResponse,
 )
 
@@ -99,6 +100,7 @@ __all__ = [
     "AIRelationshipResponse",
     "AIRelationshipIndexBase",
     "AIRelationshipIndexCreate",
+    "AIRelationshipIndexUpdate",
     "AIRelationshipIndexResponse",
     # Personality
     "AIPersonalityBase",

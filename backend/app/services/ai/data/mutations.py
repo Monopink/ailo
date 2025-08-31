@@ -15,7 +15,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> Optional[str]:
+async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> Optional[int]:
     """
     Save a new context entry.
 
@@ -24,7 +24,7 @@ async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> 
         context_data: Context data dictionary
 
     Returns:
-        Context ID (string) if successful, None if failed
+        Context ID (int) if successful, None if failed
     """
     try:
         context = AIContext(
@@ -40,7 +40,7 @@ async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> 
         db.add(context)
         await db.flush()
 
-        context_id = str(context.id)
+        context_id = context.id
 
         logger.debug(
             "context_entry_saved",
@@ -56,7 +56,7 @@ async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> 
         return None
 
 
-async def update_context_status(db: AsyncSession, context_id: str, status: int) -> bool:
+async def update_context_status(db: AsyncSession, context_id: int, status: int) -> bool:
     """
     Update context reply status.
 
@@ -69,7 +69,7 @@ async def update_context_status(db: AsyncSession, context_id: str, status: int) 
         True if successful, False otherwise
     """
     try:
-        result = await db.execute(select(AIContext).where(AIContext.id == int(context_id)))
+        result = await db.execute(select(AIContext).where(AIContext.id == context_id))
         context = result.scalar_one_or_none()
 
         if not context:
@@ -170,7 +170,7 @@ async def save_ai_response(db: AsyncSession, response_data: Dict[str, Any]) -> b
         True if successful, False otherwise
     """
     try:
-        # Update context status to done
+        # Update context status to done - context_id is int internally
         if response_data.get("context_id"):
             await update_context_status(db, response_data["context_id"], 3)  # done
 
@@ -204,7 +204,7 @@ async def save_ai_response(db: AsyncSession, response_data: Dict[str, Any]) -> b
         return False
 
 
-async def mark_context_as_attack(db: AsyncSession, context_id: str) -> bool:
+async def mark_context_as_attack(db: AsyncSession, context_id: int) -> bool:
     """
     Mark context as containing attack/injection.
 
@@ -216,7 +216,7 @@ async def mark_context_as_attack(db: AsyncSession, context_id: str) -> bool:
         True if successful, False otherwise
     """
     try:
-        result = await db.execute(select(AIContext).where(AIContext.id == int(context_id)))
+        result = await db.execute(select(AIContext).where(AIContext.id == context_id))
         context = result.scalar_one_or_none()
 
         if context:

@@ -80,7 +80,7 @@ async def get_conversation_history(
         return []
 
 
-async def get_context_by_id(db: AsyncSession, context_id: str) -> Optional[Dict[str, Any]]:
+async def get_context_by_id(db: AsyncSession, context_id: int) -> Optional[Dict[str, Any]]:
     """
     Get context by ID.
 
@@ -92,7 +92,7 @@ async def get_context_by_id(db: AsyncSession, context_id: str) -> Optional[Dict[
         Context dictionary or None if not found
     """
     try:
-        result = await db.execute(select(AIContext).where(AIContext.id == int(context_id)))
+        result = await db.execute(select(AIContext).where(AIContext.id == context_id))
 
         context = result.scalar_one_or_none()
         if not context:

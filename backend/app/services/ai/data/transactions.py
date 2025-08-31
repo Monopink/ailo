@@ -108,7 +108,7 @@ async def process_conversation_transaction(db: AsyncSession, conversation_data: 
         True if successful, False otherwise
     """
     try:
-        # Save context entry
+        # Save context entry - returns int (Snowflake ID) for internal use
         context_id = await save_context_entry(db, conversation_data["context"])
 
         # Update relationship scores if provided
@@ -119,7 +119,7 @@ async def process_conversation_transaction(db: AsyncSession, conversation_data: 
                 conversation_data["scores"],
             )
 
-        # Save AI response
+        # Save AI response - context_id is int internally
         response_data = conversation_data.get("response", {})
         response_data["context_id"] = context_id
         await save_ai_response(db, response_data)

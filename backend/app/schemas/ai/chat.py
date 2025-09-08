@@ -5,7 +5,7 @@ This module contains Pydantic schemas for AI chat interactions and relationship 
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 from schemas.common import BaseSchema
@@ -41,11 +41,13 @@ class AIRelationshipScoreResponse(BaseSchema):
     """Schema for AI relationship score data."""
 
     character_qiao_id: str = Field(..., description="Character external ID")
-    score_order: int = Field(..., description="Score dimension order")
+    dimension_id: int = Field(..., description="Dimension ID")
+    dimension_name: str = Field(..., description="Dimension name")
     score: int = Field(..., description="Current score value")
-    score_start: int = Field(..., description="Starting score value")
-    score_end: int = Field(..., description="Ending score value")
-    score_position: int = Field(..., description="Per mille position (0-1000)")
+    position: int = Field(..., description="Per mille position (0-1000)")
+    relationship_id: Optional[int] = Field(None, description="Current relationship type ID")
+    relationship_display_name: Optional[str] = Field(None, description="Relationship display name")
+    relationship_counts: Optional[Dict[str, Any]] = Field(None, description="Relationship usage counts")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
 
@@ -53,4 +55,8 @@ class AIRelationshipScoreResponse(BaseSchema):
 class AIRelationshipScoreUpdate(BaseModel):
     """Schema for updating AI relationship score."""
 
-    score: int = Field(..., ge=0, le=1000, description="New score value")
+    score: Optional[int] = Field(None, ge=0, le=1000, description="New score value")
+    position: Optional[int] = Field(None, ge=0, le=1000, description="New position value")
+    relationship_id: Optional[int] = Field(None, description="New relationship type ID")
+    relationship_display_name: Optional[str] = Field(None, description="New relationship display name")
+    relationship_counts: Optional[Dict[str, Any]] = Field(None, description="Updated relationship counts")

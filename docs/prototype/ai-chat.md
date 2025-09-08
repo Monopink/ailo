@@ -43,7 +43,9 @@ flowchart TB
 
 除了角色在数据库ai_characters.prompt_variable存储占位符之外，还有预设的系统占位符，如果存在冲突，则系统占位符优先。
 
-{{relationship_prompt}} 关系提示词，通过ai_relationship_indexs表获取ai_relationship.prompt_fragment得到。
+{{relationship_prompt}} 关系提示词，通过ai_relationship_indexes表获取ai_relationship.prompt_fragment得到。
+
+{{score:dimension_name}} dimension_name值为ai_relationship_dimensions.name的值，通过position和偏移算法反向计算得出。
 
 {{self_profile}} 自身资料描述。来自profiles表。
 
@@ -97,18 +99,18 @@ JSON Schema 用于约束大模型输出内容。
     "score": {
       "type": "object",
       "properties": {
-        "friend": {
+        "foo": {
           "type": "integer",
           "minimum": 0,
           "maximum": 1000
         },
-        "romance": {
+        "bar": {
           "type": "integer",
           "minimum": 0,
           "maximum": 1000
         }
       },
-      "required": ["friend", "romance"],
+      "required": ["foo", "bar"],
       "additionalProperties": false
     },
     "followup_messages": {
@@ -178,8 +180,8 @@ JSON Schema 用于约束大模型输出内容。
     "你今天过得怎么样？"
   ],
   "score": {
-    "friend_score": 800,
-    "romance_score": 300
+    "foo": 800,
+    "bar": 300
   },
   "followup_messages": [
     "对了，你晚饭吃了吗？",
@@ -189,18 +191,18 @@ JSON Schema 用于约束大模型输出内容。
   "should_update_memory": true,
   "memory_operations": [
     {
-      "op": "add",
-      "position": "end",
+      "operation": "add",
+      "insert_position": "end",
       "content": "用户今天告诉我他很喜欢猫。"
     },
     {
-      "op": "replace",
-      "target": "用户正在准备去旅行",
+      "operation": "replace",
+      "target_text": "用户正在准备去旅行",
       "content": "用户已经到达泰国旅行中"
     },
     {
-      "op": "delete",
-      "target": "用户上个月的工作烦恼"
+      "operation": "delete",
+      "target_text": "用户上个月的工作烦恼"
     }
   ]
 }

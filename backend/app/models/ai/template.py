@@ -41,8 +41,8 @@ class AIInfoTemplate(AutoIncrementModel):
         String(100), nullable=True, comment="Score offset algorithm"
     )
 
-    score_offset_coefficient: Mapped[Optional[float]] = mapped_column(
-        nullable=True, comment="Score offset coefficient"
+    score_offset_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True, comment="Score offset parameters (JSONB)"
     )
 
     is_reusable: Mapped[int] = mapped_column(
@@ -58,7 +58,10 @@ class AIInfoTemplate(AutoIncrementModel):
     )
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive"
+        Integer,
+        nullable=False,
+        default=1,
+        comment="Status: 1=active, 2=inactive",
     )
 
     # Indexes
@@ -102,7 +105,10 @@ class AIProfileTemplate(SnowflakeQiaoModel):
     )
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive"
+        Integer,
+        nullable=False,
+        default=1,
+        comment="Status: 1=active, 2=inactive",
     )
 
     # Indexes

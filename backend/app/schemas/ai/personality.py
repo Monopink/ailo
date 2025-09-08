@@ -18,7 +18,9 @@ class AIPersonalityBase(BaseSchema):
     """Base AI personality schema."""
 
     name: str = Field(..., max_length=100, description="Personality name")
+    display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., description="Personality prompt template")
+    typing_speed: Optional[int] = Field(None, description="Typing speed in characters per minute")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
 
 
@@ -26,9 +28,10 @@ class AIPersonalityCreate(BaseModel):
     """Schema for creating an AI personality."""
 
     name: str = Field(..., max_length=100, description="Personality name")
+    display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., min_length=1, description="Personality prompt template")
+    typing_speed: Optional[int] = Field(None, description="Typing speed in characters per minute")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
-    typing_speed: Optional[int] = Field(None, ge=1, description="Typing speed in characters per minute")
 
 
 class AIPersonalityUpdate(BaseModel):
@@ -37,9 +40,10 @@ class AIPersonalityUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100, description="Personality name")
     prompt: Optional[str] = Field(None, min_length=1, description="Personality prompt template")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
-    typing_speed: Optional[int] = Field(None, ge=1, description="Typing speed in characters per minute")
     usage_count: Optional[int] = Field(None, ge=0, description="Reference count")
-    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
+    status: Optional[int] = Field(
+        None, ge=1, le=3, description="Status: 1=active, 2=inactive (follow enum design)"
+    )
 
 
 class AIPersonalityResponse(AIPersonalityBase):
@@ -152,7 +156,9 @@ class AIInfoTemplateUpdate(BaseModel):
     is_reusable: Optional[bool] = Field(None, description="Is reusable: True=reusable, False=single_use")
     profile_count: Optional[int] = Field(None, ge=0, description="Associated profile template count")
     profile_id: Optional[int] = Field(None, description="Associated profile template ID (for single-use)")
-    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
+    status: Optional[int] = Field(
+        None, ge=1, le=3, description="Status: 1=active, 2=inactive (follow enum design)"
+    )
 
 
 class AIInfoTemplateResponse(AIInfoTemplateBase):
@@ -212,7 +218,9 @@ class AIProfileTemplateUpdate(BaseModel):
     bio: Optional[str] = Field(None, description="Bio/description")
     region: Optional[str] = Field(None, max_length=100, description="Region/location")
     is_reusable: Optional[bool] = Field(None, description="Is reusable: True=reusable, False=single_use")
-    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
+    status: Optional[int] = Field(
+        None, ge=1, le=3, description="Status: 1=active, 2=inactive (follow enum design)"
+    )
 
 
 class AIProfileTemplateResponse(AIProfileTemplateBase):

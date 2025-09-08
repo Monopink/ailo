@@ -1,0 +1,98 @@
+/* Custom CSS for Starlette-Admin */
+
+/* Improve form field spacing */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+/* Better help text styling */
+.form-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+/* Enhanced enum field styling */
+.field-enum .form-select {
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 2.25rem 0.375rem 0.75rem;
+}
+
+.field-enum .form-select:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Relation field styling */
+.field-relation .select2-container {
+    width: 100% !important;
+}
+
+.field-relation .select2-selection {
+    border: 1px solid #ced4da !important;
+    border-radius: 0.375rem !important;
+    min-height: calc(1.5em + 0.75rem + 2px) !important;
+}
+
+.field-relation .select2-selection:focus-within {
+    border-color: #86b7fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Table improvements */
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+}
+
+/* Status badge styling */
+.badge-status-active {
+    background-color: #198754;
+    color: white;
+}
+
+.badge-status-inactive {
+    background-color: #6c757d;
+    color: white;
+}
+
+.badge-status-blocked {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Form validation styling */
+.is-invalid {
+    border-color: #dc3545;
+}
+
+.invalid-feedback {
+    display: block;
+    width: 100%;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: #dc3545;
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .nav-item.dropdown .dropdown-menu {
+        position: static !important;
+        float: none;
+        width: auto;
+        margin-top: 0;
+        background-color: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+}

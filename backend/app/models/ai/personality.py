@@ -23,20 +23,25 @@ class AIPersonality(AutoIncrementModel):
 
     name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Personality name")
 
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
+
     prompt: Mapped[str] = mapped_column(Text, nullable=False, comment="Personality prompt template")
 
     json_schema: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB, nullable=True, comment="JSON schema definition (JSONB for better performance)"
     )
 
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Reference count")
+
     typing_speed: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Typing speed in characters per minute"
     )
 
-    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Reference count")
-
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
+        Integer,
+        nullable=False,
+        default=1,
+        comment="Status: 1=active, 2=inactive",
     )
 
     # Indexes

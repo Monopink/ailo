@@ -17,6 +17,7 @@ from .ai import (
     AIRelationship,
     AIStyle,
     AIRelationshipIndex,
+    AIRelationshipDimension,
     AIPersonality,
     AIPersonalityPlaceholder,
     AIInfoTemplate,
@@ -24,7 +25,6 @@ from .ai import (
     AICharacter,
     AIContext,
     AIRelationshipScore,
-    AIRelationshipCount,
     AIRequestLog,
 )
 from .system import (
@@ -73,6 +73,7 @@ __all__ = [
     "AIRelationship",
     "AIStyle",
     "AIRelationshipIndex",
+    "AIRelationshipDimension",
     "AIPersonality",
     "AIPersonalityPlaceholder",
     "AIInfoTemplate",
@@ -80,7 +81,6 @@ __all__ = [
     "AICharacter",
     "AIContext",
     "AIRelationshipScore",
-    "AIRelationshipCount",
     "AIRequestLog",
     # System configuration and statistics
     "SystemConfig",

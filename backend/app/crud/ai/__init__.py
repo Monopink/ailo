@@ -12,7 +12,7 @@ from .character import ai_character
 from .personality import ai_personality, ai_personality_placeholder
 
 # AI Style CRUD
-from .style import ai_style, ai_relationship, ai_relationship_index
+from .style import ai_style, ai_relationship, ai_relationship_index, ai_relationship_dimension
 
 
 # AI Template CRUD
@@ -33,6 +33,7 @@ __all__ = [
     "ai_style",
     "ai_relationship",
     "ai_relationship_index",
+    "ai_relationship_dimension",
     # Template management
     "ai_info_template",
     "ai_profile_template",

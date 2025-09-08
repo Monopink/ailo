@@ -14,10 +14,10 @@ from .template import AIInfoTemplate, AIProfileTemplate
 from .personality import AIPersonality, AIPersonalityPlaceholder
 
 # Style and relationship models
-from .style import AIStyle, AIRelationship, AIRelationshipIndex
+from .style import AIStyle, AIRelationship, AIRelationshipIndex, AIRelationshipDimension
 
 # Score models
-from .score import AIRelationshipScore, AIRelationshipCount
+from .score import AIRelationshipScore
 
 # Log models
 from .log import AIRequestLog
@@ -38,9 +38,9 @@ __all__ = [
     "AIStyle",
     "AIRelationship",
     "AIRelationshipIndex",
+    "AIRelationshipDimension",
     # Score
     "AIRelationshipScore",
-    "AIRelationshipCount",
     # Log
     "AIRequestLog",
 ]

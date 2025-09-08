@@ -1,11 +1,20 @@
+# 数据库设计文档
+
 ## 设计原则
 
-- 不使用外键约束，通过代码逻辑维护数据一致性
-- 需要使用枚举的字段使用整型类型，在代码中使用枚举约束
-- 核心业务表使用Snowflake ID，配置/枚举/统计表使用自增ID
-- created_at、updated_at的值为自动设定或更新
-- 外部标识符统一使用`qiao_id`命名，关联字段使用`xxx_qiao_id`格式
-- 避免不必要的数据冗余，优先使用内部ID进行关联以提升性能
+1. 不使用外键约束：通过代码逻辑维护数据一致性，提高性能和灵活性
+2. 统一标识符命名：外部标识符统一使用`qiao_id`格式，内部使用Snowflake ID
+3. 枚举值使用整型：所有枚举字段使用TINYINT类型，在代码中定义枚举约束
+4. 核心业务表使用Snowflake ID：用户、消息、AI等核心表使用BIGINT类型的Snowflake ID
+5. 配置表使用自增ID：系统配置、统计等辅助表使用AUTO_INCREMENT
+6. 完善的索引设计：为高频查询字段添加合适的索引
+7. 时间字段自动管理：created_at和updated_at字段自动设置和更新
+8. ID类型使用规范：
+   - 内部使用int：后端数据层、服务层统一使用 `int` 类型处理Snowflake ID
+   - 外部使用string：API接口、前端交互使用字符串格式避免JavaScript精度问题
+   - 转换边界：在API层进行类型转换，保持数据层类型纯净
+
+## 详细表结构
 
 ## users
 
@@ -254,6 +263,7 @@ AI关系类型表，定义AI角色的关系类型。usage_count不为0不允许�
 ```txt
 id -- 自增ID
 name -- 关系名称
+display_name -- 显示名称
 prompt_fragment -- 提示词片段
 usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
@@ -268,10 +278,22 @@ AI风格表，定义AI角色的风格类型和评分维度。
 ```txt
 id -- 自增ID
 name -- 风格名称
-score_count -- 评分维度数量
-score_name -- 评分维度名称，JSON数组：['name1', 'name2']
 usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
+initial_relationship_id -- 初始关系类型ID，关联ai_relationship.id
+created_at
+updated_at
+```
+
+## ai_relationship_dimensions
+
+```txt
+id -- 自增ID
+style_id
+name -- 用于通过llm响应查询的名称
+display_name -- 用于显示的名称
+initial_position -- 起始位置，0-1000千分比
+status
 created_at
 updated_at
 ```
@@ -283,8 +305,8 @@ AI关系索引表，定义风格评分与关系类型的映射关系。
 ```txt
 id -- 自增ID
 style_id -- 关联ai_styles.id
-score_order -- 表示第几个分数
-score_name -- 分数名称
+dimension_id
+dimension_name -- 维度名称
 start_position -- 起始位置，0-1000千分比
 end_position -- 结束位置，0-1000千分比
 relationship_id -- 关联ai_relationship.id
@@ -382,7 +404,7 @@ personality_id -- 关联ai_personalities.id
 memory -- 角色记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
 score_offset_algorithm -- 分数偏移算法
-score_offset_coefficient -- 分数偏移系数
+score_offset_params -- 分数偏移参数
 created_by -- 创建者类型：1=user, 2=admin, 3=system
 created_at
 updated_at
@@ -390,31 +412,20 @@ updated_at
 
 ## ai_relationship_scores
 
-AI关系评分表，存储AI角色的关系评分数据。
+AI关系评分表，存储AI角色的关系评分数据和关系使用统计。
 
 ```txt
 id -- Snowflake ID
 character_id -- 关联ai_characters.id
-score_order -- 分数序号
-score -- 当前分数值
-score_start -- 分数起始值
-score_end -- 分数结束值
+dimension_id -- 关联ai_relationship_dimensions.id
+dimension_name -- 维度名称
+score -- 当前分数值，初始化时根据position和score_offset_algorithm反向计算得出
+position -- 千分比位置（0-1000）
+relationship_id -- 当前匹配的关系类型ID
+relationship_display_name -- 关系类型显示名称
 score_offset_algorithm -- 分数偏移算法
-score_offset_coefficient -- 分数偏移系数
-score_position -- 千分比位置
-created_at
-updated_at
-```
-
-## ai_relationship_counts
-
-AI关系计数表，统计AI角色各种关系类型的使用次数。
-
-```txt
-id -- Snowflake ID
-character_id -- 关联ai_characters.id
-relationship_id -- 关联ai_relationship.id
-count -- 使用次数
+score_offset_params -- 分数偏移参数，JSON格式
+relationship_counts -- 各关系类型使用次数统计，JSON格式：{"friend":5,"lover":2}
 created_at
 updated_at
 ```
@@ -663,3 +674,172 @@ priority -- 优先级，数字越小优先级越高，用于故障转移
 created_at
 updated_at
 ```
+
+## 核心架构设计
+
+### 用户管理模块
+
+#### users - 用户账户表
+
+- 主键：id (Snowflake ID)
+- 外部标识：qiao_id (qiao_+随机字符)
+- 登录方式：支持手机号、微信、Apple ID多种登录
+- 状态管理：账户状态、用户类型分级管理
+- 关键索引：qiao_id、phone、email、status等
+
+#### user_sessions - 用户会话表
+
+- 会话管理：支持多设备登录，每种设备类型限制一个活跃会话
+- 安全控制：记录设备信息、IP地址、用户代理
+- 过期机制：自动过期和活跃度跟踪
+
+#### contacts - 联系人关系表
+
+- 关系管理：用户与AI、用户与用户的联系关系
+- 对话标识：每个联系关系对应一个conv_id
+- 个性化设置：备注、标签、置顶、免打扰等功能
+- 软删除：支持删除标记和恢复
+
+### 消息系统模块
+
+#### message_history - 消息历史表
+
+- 消息方向：入站/出站消息区分
+- 多端支持：记录消息来源平台
+- 服务提供商：支持LeanCloud等第三方消息服务
+- 消息类型：文本、输入状态、系统消息、图片、表情等
+- 状态跟踪：发送、送达、已读、失败状态
+
+#### message_delivery_failures - 消息投递失败表
+
+- 重试机制：自动重试失败消息，支持指数退避
+- 失败分析：详细记录失败原因和错误信息
+- 清理机制：成功重发后自动删除记录
+
+### 资料管理模块
+
+#### profiles - 统一资料表
+
+- 多类型支持：用户、AI、官方账号统一管理
+- 头像管理：支持文件ID引用和URL冗余
+- 个性化信息：昵称、性别、简介、地区等
+
+#### media_files - 媒体文件表
+
+- 文件类型：头像、表情、图片、文档分类管理
+- 上传追踪：记录上传者信息和上传时间
+- 状态管理：活跃、非活跃、已删除状态
+
+### AI系统模块
+
+#### AI关系系统设计
+
+- ai_relationship：定义关系类型（陌生人、朋友、恋人等）
+- ai_styles：定义AI风格和初始关系类型
+- ai_relationship_dimensions：定义评分维度配置
+- ai_relationship_indexes：映射评分区间到关系类型
+- ai_personalities：AI人格模板和提示词
+- ai_personality_placeholders：人格模板占位符定义
+
+#### AI实例管理
+
+- ai_characters：具体的AI角色实例
+- ai_contexts：AI对话上下文管理
+- ai_relationship_scores：AI关系评分数据和统计
+- ai_request_logs：AI服务请求日志
+
+### 安全监控模块
+
+#### user_security_logs - 用户安全日志
+
+- 违规检测：提示词注入、滥用内容、垃圾信息等
+- 严重程度：低、中、高、严重四级分类
+- 自动处理：警告、限制、停用等自动措施
+- 人工审核：支持管理员人工审核和标记
+
+#### user_security_stats - 用户安全统计
+
+- 风险评估：基于违规历史的用户风险等级
+- 统计数据：违规次数、类型分布、处理历史
+- 动态调整：连续违规计数和风险等级自动调整
+
+### 系统管理模块
+
+#### system_config - 系统配置
+
+- 配置分类：字符串、数字、布尔值、JSON类型
+- 公开配置：区分公开和私有配置
+- 变更追踪：记录配置更新者和更新时间
+
+#### 统计报表系统
+
+- 多维度统计：用户、消息、AI、收入四个维度
+- 多时间粒度：日、周、月三种统计粒度
+- 自动生成：定时任务自动生成统计数据
+
+#### 管理员系统
+
+- 权限分级：超级管理员、管理员、查看者三级权限
+- 操作审计：完整记录管理员操作日志
+- 登录追踪：管理员登录历史和安全监控
+
+## 索引设计策略
+
+### 主要索引类型
+
+1. 唯一索引：外部标识符、用户名、邮箱等
+2. 复合索引：多字段组合查询优化
+3. 时间索引：按时间范围查询优化
+4. 状态索引：按状态筛选优化
+5. 外键索引：关联查询性能优化
+
+### 查询优化考虑
+
+- 聊天列表查询：按用户ID和时间排序
+- 消息历史查询：按对话ID和时间范围
+- 联系人搜索：按昵称和标签模糊匹配
+- 统计报表查询：按日期范围和维度聚合
+- 安全监控查询：按用户和违规类型筛选
+
+## 数据一致性保证
+
+### 应用层约束
+
+- 枚举值验证：在应用代码中定义和验证枚举值
+- 关联关系检查：在业务逻辑中维护数据关联一致性
+- 事务管理：关键操作使用数据库事务保证原子性
+
+### 数据清理策略
+
+- 过期会话清理：定期清理过期的用户会话
+- 失败消息清理：成功重试后删除失败记录
+- 日志归档：定期归档历史日志数据
+- 统计数据维护：定期更新和校验统计数据
+
+## 扩展性考虑
+
+### 水平扩展
+
+- Snowflake ID支持分布式环境
+- 无外键约束便于数据分片
+- 读写分离友好的索引设计
+
+### 功能扩展
+
+- 预留字段：JSON类型字段支持灵活扩展
+- 模块化设计：各功能模块相对独立
+- 版本兼容：向后兼容的数据结构设计
+
+## 安全性设计
+
+### 数据保护
+
+- 敏感信息加密：密码哈希、令牌加密
+- 访问控制：基于角色的权限管理
+- 审计日志：完整的操作审计追踪
+
+### 隐私保护
+
+- 数据脱敏：日志中不记录敏感信息
+- 用户控制：用户可控制个人信息可见性
+- 数据清理：支持用户数据删除和匿名化

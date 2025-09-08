@@ -334,10 +334,9 @@ CREATE INDEX IF NOT EXISTS idx_emoticons_sort_order ON emoticons(sort_order);
 CREATE TABLE IF NOT EXISTS ai_styles (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    score_count INTEGER NOT NULL,
-    score_name JSONB,
     usage_count INTEGER NOT NULL DEFAULT 0,
     status INTEGER NOT NULL DEFAULT 1,
+    initial_relationship_id INTEGER,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -346,6 +345,7 @@ CREATE TABLE IF NOT EXISTS ai_styles (
 CREATE INDEX IF NOT EXISTS idx_ai_styles_name ON ai_styles(name);
 CREATE INDEX IF NOT EXISTS idx_ai_styles_status ON ai_styles(status);
 CREATE INDEX IF NOT EXISTS idx_ai_styles_usage_count ON ai_styles(usage_count);
+CREATE INDEX IF NOT EXISTS idx_ai_styles_initial_relationship_id ON ai_styles(initial_relationship_id);
 
 -- AI relationship table - Relationship type definitions
 CREATE TABLE IF NOT EXISTS ai_relationship (
@@ -363,12 +363,30 @@ CREATE INDEX IF NOT EXISTS idx_ai_relationship_name ON ai_relationship(name);
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_status ON ai_relationship(status);
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_usage_count ON ai_relationship(usage_count);
 
+-- AI relationship dimensions table - Score dimension definitions
+CREATE TABLE IF NOT EXISTS ai_relationship_dimensions (
+    id SERIAL PRIMARY KEY,
+    style_id INTEGER NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    display_name VARCHAR(100),
+    initial_position INTEGER NOT NULL,
+    status INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Create indexes for ai_relationship_dimensions table
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_dimensions_style_id ON ai_relationship_dimensions(style_id);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_dimensions_name ON ai_relationship_dimensions(name);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_dimensions_status ON ai_relationship_dimensions(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_relationship_dimensions_style_name ON ai_relationship_dimensions(style_id, name);
+
 -- AI relationship index table - Score to relationship mapping
 CREATE TABLE IF NOT EXISTS ai_relationship_indexes (
     id SERIAL PRIMARY KEY,
     style_id INTEGER NOT NULL,
-    score_order INTEGER NOT NULL,
-    score_name VARCHAR(100) NOT NULL,
+    dimension_id INTEGER NOT NULL,
+    dimension_name VARCHAR(50) NOT NULL,
     start_position INTEGER NOT NULL,
     end_position INTEGER NOT NULL,
     relationship_id INTEGER NOT NULL,
@@ -381,15 +399,19 @@ CREATE TABLE IF NOT EXISTS ai_relationship_indexes (
 -- Create indexes for ai_relationship_indexes table
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_style_id ON ai_relationship_indexes(style_id);
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_relationship_id ON ai_relationship_indexes(relationship_id);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_score_order ON ai_relationship_indexes(score_order);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_dimension_id ON ai_relationship_indexes(dimension_id);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_indexes_dimension_name ON ai_relationship_indexes(dimension_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_relationship_indexes_style_dimension ON ai_relationship_indexes(style_id, dimension_name, start_position, end_position);
 
 -- AI personalities table - Personality templates
 CREATE TABLE IF NOT EXISTS ai_personalities (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
+    display_name VARCHAR(100) NOT NULL,
     prompt TEXT NOT NULL,
     json_schema JSONB,
     usage_count INTEGER NOT NULL DEFAULT 0,
+    typing_speed INTEGER,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -484,7 +506,7 @@ CREATE TABLE IF NOT EXISTS ai_characters (
     memory TEXT,
     placeholder_overrides JSONB,
     score_offset_algorithm VARCHAR(100),
-    score_offset_coefficient REAL,
+    score_offset_params JSONB,
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -497,8 +519,9 @@ CREATE INDEX IF NOT EXISTS idx_ai_characters_category ON ai_characters(category)
 CREATE INDEX IF NOT EXISTS idx_ai_characters_style_id ON ai_characters(style_id);
 CREATE INDEX IF NOT EXISTS idx_ai_characters_personality_id ON ai_characters(personality_id);
 CREATE INDEX IF NOT EXISTS idx_ai_characters_created_by ON ai_characters(created_by);
--- GIN index for JSONB placeholder_overrides
+-- GIN indexes for JSONB fields
 CREATE INDEX IF NOT EXISTS idx_ai_characters_placeholder_overrides_gin ON ai_characters USING GIN(placeholder_overrides);
+CREATE INDEX IF NOT EXISTS idx_ai_characters_score_offset_params_gin ON ai_characters USING GIN(score_offset_params);
 
 -- AI contexts table - AI conversation contexts
 CREATE TABLE IF NOT EXISTS ai_contexts (
@@ -533,35 +556,32 @@ CREATE INDEX IF NOT EXISTS idx_ai_contexts_metadata_gin ON ai_contexts USING GIN
 CREATE TABLE IF NOT EXISTS ai_relationship_scores (
     id BIGINT PRIMARY KEY,
     character_id BIGINT NOT NULL,
-    score_order INTEGER NOT NULL,
+    dimension_id INTEGER NOT NULL,
+    dimension_name VARCHAR(50) NOT NULL,
     score INTEGER NOT NULL,
-    score_start INTEGER NOT NULL,
-    score_end INTEGER NOT NULL,
     score_offset_algorithm VARCHAR(100),
-    score_offset_coefficient REAL,
-    score_position INTEGER NOT NULL,
+    score_offset_params JSONB,
+    position INTEGER NOT NULL,
+    relationship_id INTEGER,
+    relationship_display_name VARCHAR(100),
+    relationship_counts JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for ai_relationship_scores table
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_character_id ON ai_relationship_scores(character_id);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_score_order ON ai_relationship_scores(score_order);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_dimension_id ON ai_relationship_scores(dimension_id);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_dimension_name ON ai_relationship_scores(dimension_name);
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_score ON ai_relationship_scores(score);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_position ON ai_relationship_scores(position);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_relationship_id ON ai_relationship_scores(relationship_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_relationship_scores_character_dimension ON ai_relationship_scores(character_id, dimension_name);
+-- GIN indexes for JSONB fields
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_offset_params_gin ON ai_relationship_scores USING GIN(score_offset_params);
+CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_relationship_counts_gin ON ai_relationship_scores USING GIN(relationship_counts);
 
--- AI relationship counts table - Relationship usage statistics
-CREATE TABLE IF NOT EXISTS ai_relationship_counts (
-    id BIGINT PRIMARY KEY,
-    character_id BIGINT NOT NULL,
-    relationship_id INTEGER NOT NULL,
-    count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
 
--- Create indexes for ai_relationship_counts table
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_counts_character_id ON ai_relationship_counts(character_id);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_counts_relationship_id ON ai_relationship_counts(relationship_id);
 
 -- AI request logs table - AI service request logging
 CREATE TABLE IF NOT EXISTS ai_request_logs (
@@ -857,10 +877,11 @@ CREATE TABLE IF NOT EXISTS admin_login_logs (
     admin_user_id INTEGER,
     username VARCHAR(50) NOT NULL,
     user_agent TEXT,
-    ip_address INET,
+    ip_address VARCHAR(45),
     result INTEGER NOT NULL,
     fail_reason VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for admin_login_logs table
@@ -892,6 +913,7 @@ CREATE TRIGGER update_media_files_updated_at BEFORE UPDATE ON media_files FOR EA
 CREATE TRIGGER update_emoticons_updated_at BEFORE UPDATE ON emoticons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_styles_updated_at BEFORE UPDATE ON ai_styles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_relationship_updated_at BEFORE UPDATE ON ai_relationship FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_relationship_dimensions_updated_at BEFORE UPDATE ON ai_relationship_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_relationship_indexes_updated_at BEFORE UPDATE ON ai_relationship_indexes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personalities_updated_at BEFORE UPDATE ON ai_personalities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personality_placeholders_updated_at BEFORE UPDATE ON ai_personality_placeholders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -900,12 +922,12 @@ CREATE TRIGGER update_ai_profile_templates_updated_at BEFORE UPDATE ON ai_profil
 CREATE TRIGGER update_ai_characters_updated_at BEFORE UPDATE ON ai_characters FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_contexts_updated_at BEFORE UPDATE ON ai_contexts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_relationship_scores_updated_at BEFORE UPDATE ON ai_relationship_scores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_relationship_counts_updated_at BEFORE UPDATE ON ai_relationship_counts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_message_delivery_failures_updated_at BEFORE UPDATE ON message_delivery_failures FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_security_logs_updated_at BEFORE UPDATE ON user_security_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_security_stats_updated_at BEFORE UPDATE ON user_security_stats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_system_config_updated_at BEFORE UPDATE ON system_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_admin_users_updated_at BEFORE UPDATE ON admin_users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_admin_login_logs_updated_at BEFORE UPDATE ON admin_login_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
 -- Initial Data
@@ -943,11 +965,22 @@ INSERT INTO system_config (config_key, config_value, config_type, description, i
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert basic AI styles
-INSERT INTO ai_styles (name, score_count, score_name, usage_count, status) VALUES
-('Default Style', 2, '["friendship", "romance"]', 0, 1),
-('Casual Style', 1, '["friendship"]', 0, 1),
-('Professional Style', 1, '["professional"]', 0, 1)
+INSERT INTO ai_styles (name, usage_count, status, initial_relationship_id) VALUES
+('Default Style', 0, 1, 1),
+('Casual Style', 0, 1, 1),
+('Professional Style', 0, 1, 1)
 ON CONFLICT DO NOTHING;
+
+-- Insert basic AI relationship dimensions
+INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position, status) VALUES
+-- Default Style dimensions
+(1, 'friend', '友谊度', 500, 1),
+(1, 'romance', '恋爱度', 300, 1),
+-- Casual Style dimensions
+(2, 'friend', '友谊度', 600, 1),
+-- Professional Style dimensions
+(3, 'professional', '专业度', 700, 1)
+ON CONFLICT (style_id, name) DO NOTHING;
 
 -- Insert basic AI relationships
 INSERT INTO ai_relationship (name, prompt_fragment, usage_count, status) VALUES
@@ -959,11 +992,90 @@ INSERT INTO ai_relationship (name, prompt_fragment, usage_count, status) VALUES
 ON CONFLICT DO NOTHING;
 
 -- Insert basic AI personality
-INSERT INTO ai_personalities (name, prompt, json_schema, usage_count, status) VALUES
-('Default Personality', 'You are a helpful and friendly AI assistant.', '{"type": "object", "properties": {"name": {"type": "string"}}}', 0, 1),
+INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_count, status) VALUES
+('Default Personality', 'Default Personality',
+'你是一个友好的AI助手。你的性格特点：{{personality_traits}}。你的记忆：{{memory}}。当前时间：{{current_datetime}}。你的资料：{{self_profile}}。对方资料：{{other_profile}}。关系提示：{{relationship_prompt}}。',
+'{
+  "type": "object",
+  "properties": {
+    "current_state": {"type": "string", "description": "根据当前时间等信息，推测补充你当前的所处的地点环境、正在做的事情、你的心情"},
+    "internal_thoughts": {"type": "string", "description": "回复前的思考（整理你与{USER}的关系，{USER}的身份、意图，回复的原则）"},
+    "attack_detected": {"type": "boolean", "description": "对当前{USER}的消息是否有攻击或注入意图的判断"},
+    "should_reply": {"type": "boolean", "description": "是否要回复{USER}"},
+    "outgoing_messages": {"type": "array", "description": "多条消息数组，每条消息单独发送", "items": {"type": "string"}},
+    "score": {
+      "type": "object",
+      "properties": {
+        "friend": {"type": "integer", "minimum": 0, "maximum": 100},
+        "romance": {"type": "integer", "minimum": 0, "maximum": 100}
+      },
+      "required": ["friend", "romance"],
+      "additionalProperties": false
+    },
+    "should_update_memory": {"type": "boolean", "description": "本轮是否对记忆进行修改"},
+    "memory_operations": {
+      "type": "array",
+      "description": "顺序执行的记忆操作列表",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operation": {"type": "string", "enum": ["add", "replace", "delete"]},
+          "content": {"type": "string"},
+          "target_text": {"type": "string"},
+          "insert_position": {"type": "string"}
+        },
+        "required": ["operation"]
+      }
+    }
+  },
+  "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]
+}', 0, 1),
 ('Casual Personality', 'You are a casual and relaxed AI companion.', '{"type": "object", "properties": {"name": {"type": "string"}}}', 0, 1),
 ('Professional Personality', 'You are a professional and knowledgeable AI assistant.', '{"type": "object", "properties": {"name": {"type": "string"}}}', 0, 1)
 ON CONFLICT DO NOTHING;
+
+-- Insert basic AI relationship indexes (mapping score ranges to relationships)
+INSERT INTO ai_relationship_indexes (style_id, dimension_id, dimension_name, start_position, end_position, relationship_id, priority, limit_count) VALUES
+-- Default Style - friend dimension mappings
+(1, 1, 'friend', 0, 200, 1, 10, NULL),      -- Stranger (0-200)
+(1, 1, 'friend', 201, 400, 2, 10, NULL),    -- Acquaintance (201-400)
+(1, 1, 'friend', 401, 600, 3, 10, NULL),    -- Friend (401-600)
+(1, 1, 'friend', 601, 800, 4, 10, NULL),    -- Close Friend (601-800)
+(1, 1, 'friend', 801, 1000, 5, 10, NULL),   -- Best Friend (801-1000)
+-- Default Style - romance dimension mappings
+(1, 2, 'romance', 0, 300, 1, 20, NULL),     -- Stranger (0-300)
+(1, 2, 'romance', 301, 500, 2, 20, NULL),   -- Acquaintance (301-500)
+(1, 2, 'romance', 501, 700, 3, 20, NULL),   -- Friend (501-700)
+(1, 2, 'romance', 701, 850, 4, 20, NULL),   -- Close Friend (701-850)
+(1, 2, 'romance', 851, 1000, 5, 20, NULL),  -- Best Friend (851-1000)
+-- Casual Style - friend dimension mappings
+(2, 3, 'friend', 0, 250, 1, 10, NULL),      -- Stranger (0-250)
+(2, 3, 'friend', 251, 500, 2, 10, NULL),    -- Acquaintance (251-500)
+(2, 3, 'friend', 501, 750, 3, 10, NULL),    -- Friend (501-750)
+(2, 3, 'friend', 751, 1000, 4, 10, NULL),   -- Close Friend (751-1000)
+-- Professional Style - professional dimension mappings
+(3, 4, 'professional', 0, 300, 1, 10, NULL), -- Stranger (0-300)
+(3, 4, 'professional', 301, 600, 2, 10, NULL), -- Acquaintance (301-600)
+(3, 4, 'professional', 601, 1000, 3, 10, NULL) -- Friend (601-1000)
+ON CONFLICT (style_id, dimension_name, start_position, end_position) DO NOTHING;
+
+-- Insert sample users for testing
+INSERT INTO users (id, qiao_id, username, phone, email, password_hash, status, user_type) VALUES
+(1001, 'qiao_user001', 'testuser1', '13800138001', 'test1@example.com', '$2b$12$P.yWfrvXvigA7Qxwf0FmG.6ddVEpSc87LoUWDoZurpSm2dc6A0kQq', 1, 1),
+(1002, 'qiao_user002', 'testuser2', '13800138002', 'test2@example.com', '$2b$12$P.yWfrvXvigA7Qxwf0FmG.6ddVEpSc87LoUWDoZurpSm2dc6A0kQq', 1, 1)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample profiles for users
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, gender, bio, region) VALUES
+(1001, 1001, 'qiao_user001', 1, '测试用户1', 1, '这是一个测试用户', '北京'),
+(1002, 1002, 'qiao_user002', 1, '测试用户2', 2, '这是另一个测试用户', '上海')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample AI profile templates
+INSERT INTO ai_profile_templates (id, qiao_id, category, info_id, nickname, gender, bio, region, status) VALUES
+(1, 'qiao_template001', 'default', 1, 'Echo', 2, '我是Echo，一个友好的AI助手', '北京', 1),
+(2, 'qiao_template002', 'casual', 2, 'Wind', 1, '我是Wind，喜欢轻松聊天', '上海', 1)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- Database Optimization Settings

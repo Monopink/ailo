@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -10,7 +11,9 @@ from sqlalchemy import text
 from core.config import settings
 from core.database import SessionLocal, init_database, close_database
 from utils.logging import configure_logging, get_logger
+from utils.snowflake import init_snowflake
 from api.v1 import v1_router
+from admin import admin
 
 configure_logging(
     log_level=settings.LOG_LEVEL,
@@ -29,6 +32,11 @@ async def lifespan(app: FastAPI):
     logger.info("starting_application", app_name=settings.PROJECT_NAME, version=settings.VERSION)
 
     try:
+        # Initialize Snowflake ID generator
+        logger.info("initializing_snowflake_generator")
+        init_snowflake(datacenter_id=0, machine_id=0)
+        logger.info("snowflake_generator_initialized")
+
         # Initialize database connection
         logger.info("initializing_database")
         await init_database()
@@ -58,6 +66,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
+    redirect_slashes=False,  # Disable automatic slash redirects
 )
 
 
@@ -73,6 +82,13 @@ app.add_middleware(
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=settings.ALLOWED_HOSTS,
+)
+
+# Session middleware for admin authentication
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.ADMIN_SECRET_KEY,
+    max_age=86400,  # 24 hours
 )
 
 # Static files (for media uploads)
@@ -131,6 +147,14 @@ async def root():
 
 # Include API routes
 app.include_router(v1_router, prefix="/api/v1")
+
+# Mount admin interface
+logger.info("mounting_admin_interface", admin_title=admin.title, admin_base_url=admin.base_url)
+admin.mount_to(app)
+logger.info("admin_interface_mounted")
+
+# Debug: Print all routes
+logger.info("app_routes", routes=[str(route) for route in app.routes])
 
 # TODO: Add webhook endpoint when message service implemented
 

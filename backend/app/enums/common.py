@@ -206,6 +206,22 @@ class EmoticonCreatorType(IntEnum):
 # AI System Related Enums
 
 
+class AICharacterStatus(IntEnum):
+    """AI character status (ai_characters.status)"""
+
+    ACTIVE = 1  # Active character
+    INACTIVE = 2  # Inactive character
+    BLOCKED = 3  # Blocked character
+
+
+class AIContextReplyStatus(IntEnum):
+    """AI context reply status (ai_contexts.reply_status)"""
+
+    PENDING = 1  # Message pending for processing
+    PROCESSING = 2  # Message being processed
+    DONE = 3  # Message processing completed
+
+
 class AICharacterCreator(IntEnum):
     """AI character creator type (ai_characters.created_by)"""
 
@@ -217,9 +233,9 @@ class AICharacterCreator(IntEnum):
 class AIContextRole(IntEnum):
     """AI context role type (ai_contexts.role)"""
 
-    USER = 1  # User message
-    AI = 2  # AI response
-    SYSTEM = 3  # System message
+    SYSTEM = 1    # System message
+    USER = 2      # User message
+    ASSISTANT = 3 # Assistant response
 
 
 class AIContextSourceType(IntEnum):

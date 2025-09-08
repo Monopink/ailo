@@ -1,0 +1,222 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">
+                    <i class="fa fa-dashboard me-2"></i>Dashboard
+                </h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row row-deck row-cards">
+            <!-- Statistics Cards -->
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Users</div>
+                        </div>
+                        <div class="h1 mb-3">{{ stats.total_users }}</div>
+                        <div class="d-flex mb-2">
+                            <div class="flex-fill">
+                                <div class="progress progress-sm">
+                                    <div class="progress-bar bg-primary" style="width: 75%" role="progressbar"></div>
+                                </div>
+                            </div>
+                            <div class="ms-2">
+                                <span class="text-secondary">75%</span>
+                            </div>
+                        </div>
+                        <div class="text-muted">Growth vs last month</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">AI Characters</div>
+                        </div>
+                        <div class="h1 mb-3">{{ stats.total_ai_characters }}</div>
+                        <div class="d-flex mb-2">
+                            <div class="flex-fill">
+                                <div class="progress progress-sm">
+                                    <div class="progress-bar bg-success" style="width: 60%" role="progressbar"></div>
+                                </div>
+                            </div>
+                            <div class="ms-2">
+                                <span class="text-secondary">60%</span>
+                            </div>
+                        </div>
+                        <div class="text-muted">Active characters ratio</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Messages</div>
+                        </div>
+                        <div class="h1 mb-3">{{ stats.total_messages }}</div>
+                        <div class="d-flex mb-2">
+                            <div class="flex-fill">
+                                <div class="progress progress-sm">
+                                    <div class="progress-bar bg-info" style="width: 85%" role="progressbar"></div>
+                                </div>
+                            </div>
+                            <div class="ms-2">
+                                <span class="text-secondary">85%</span>
+                            </div>
+                        </div>
+                        <div class="text-muted">Today's messages ratio</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Active Sessions</div>
+                        </div>
+                        <div class="h1 mb-3">{{ stats.active_sessions }}</div>
+                        <div class="d-flex mb-2">
+                            <div class="flex-fill">
+                                <div class="progress progress-sm">
+                                    <div class="progress-bar bg-warning" style="width: 45%" role="progressbar"></div>
+                                </div>
+                            </div>
+                            <div class="ms-2">
+                                <span class="text-secondary">45%</span>
+                            </div>
+                        </div>
+                        <div class="text-muted">Online users ratio</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row row-deck row-cards mt-4">
+            <!-- Quick Actions -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <a href="/admin/chat-test" class="btn btn-primary w-100 mb-2">
+                                    <i class="fa fa-comment-dots me-2"></i>模拟对话
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="/admin/send-message" class="btn btn-success w-100 mb-2">
+                                    <i class="fa fa-paper-plane me-2"></i>发送消息
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="/admin/llm-test" class="btn btn-info w-100 mb-2">
+                                    <i class="fa fa-flask me-2"></i>大模型测试
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="/admin/system-config" class="btn btn-warning w-100 mb-2">
+                                    <i class="fa fa-cogs me-2"></i>系统配置
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row row-deck row-cards mt-4">
+            <!-- Recent Activity -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">最近操作</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="status-dot status-dot-animated bg-green d-block"></span>
+                                    </div>
+                                    <div class="col text-truncate">
+                                        <strong>系统启动</strong>
+                                        <div class="d-block text-muted text-truncate mt-n1">管理后台已成功启动</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <span class="text-muted">刚刚</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">系统状态</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="status-dot bg-green d-block"></span>
+                                    </div>
+                                    <div class="col text-truncate">
+                                        <strong>数据库</strong>
+                                        <div class="d-block text-muted text-truncate mt-n1">连接正常</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-group-item">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="status-dot bg-green d-block"></span>
+                                    </div>
+                                    <div class="col text-truncate">
+                                        <strong>Redis</strong>
+                                        <div class="d-block text-muted text-truncate mt-n1">连接正常</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-group-item">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="status-dot bg-green d-block"></span>
+                                    </div>
+                                    <div class="col text-truncate">
+                                        <strong>LeanCloud</strong>
+                                        <div class="d-block text-muted text-truncate mt-n1">服务正常</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

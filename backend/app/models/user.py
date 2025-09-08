@@ -109,7 +109,10 @@ class UserSession(SnowflakeModel):
     )
 
     is_active: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Session status: 1=active, 0=inactive"
+        Integer,
+        nullable=False,
+        default=1,
+        comment="Session status: 1=active, 2=inactive",
     )
 
     last_activity_at: Mapped[datetime] = mapped_column(

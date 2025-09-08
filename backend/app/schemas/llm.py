@@ -13,11 +13,13 @@ from .common import BaseSchema
 
 class LLMProviderBase(BaseSchema):
     """Base LLM provider schema."""
-    
-    name: str = Field(default=max_length=50, description="Provider identifier")
+
+    name: str = Field(max_length=50, description="Provider identifier")
     display_name: Optional[str] = Field(default=None, max_length=100, description="Display name for UI")
     base_url: Optional[str] = Field(default=None, max_length=500, description="API base URL")
-    api_key_env: Optional[str] = Field(default=None, max_length=100, description="Environment variable name for API key")
+    api_key_env: Optional[str] = Field(
+        default=None, max_length=100, description="Environment variable name for API key"
+    )
     default_model: Optional[str] = Field(default=None, max_length=100, description="Default model name")
     supports_streaming: bool = Field(default=True, description="Supports streaming output")
     supports_json_schema: bool = Field(default=False, description="Supports JSON schema")
@@ -26,11 +28,13 @@ class LLMProviderBase(BaseSchema):
 
 class LLMProviderCreate(BaseModel):
     """Schema for creating an LLM provider."""
-    
-    name: str = Field(default=max_length=50, description="Provider identifier")
+
+    name: str = Field(max_length=50, description="Provider identifier")
     display_name: Optional[str] = Field(default=None, max_length=100, description="Display name for UI")
     base_url: Optional[str] = Field(default=None, max_length=500, description="API base URL")
-    api_key_env: Optional[str] = Field(default=None, max_length=100, description="Environment variable name for API key")
+    api_key_env: Optional[str] = Field(
+        default=None, max_length=100, description="Environment variable name for API key"
+    )
     default_model: Optional[str] = Field(default=None, max_length=100, description="Default model name")
     supports_streaming: bool = Field(default=True, description="Supports streaming output")
     supports_json_schema: bool = Field(default=False, description="Supports JSON schema")
@@ -39,10 +43,12 @@ class LLMProviderCreate(BaseModel):
 
 class LLMProviderUpdate(BaseModel):
     """Schema for updating an LLM provider."""
-    
+
     display_name: Optional[str] = Field(default=None, max_length=100, description="Display name for UI")
     base_url: Optional[str] = Field(default=None, max_length=500, description="API base URL")
-    api_key_env: Optional[str] = Field(default=None, max_length=100, description="Environment variable name for API key")
+    api_key_env: Optional[str] = Field(
+        default=None, max_length=100, description="Environment variable name for API key"
+    )
     default_model: Optional[str] = Field(default=None, max_length=100, description="Default model name")
     supports_streaming: Optional[bool] = Field(default=None, description="Supports streaming output")
     supports_json_schema: Optional[bool] = Field(default=None, description="Supports JSON schema")
@@ -52,8 +58,8 @@ class LLMProviderUpdate(BaseModel):
 
 class LLMProviderResponse(LLMProviderBase):
     """Schema for LLM provider response data."""
-    
-    id: int = Field(default=description="Provider ID")
+
+    id: int = Field(description="Provider ID")
     status: int = Field(description="Status")
     created_at: datetime = Field(description="Creation time")
     updated_at: datetime = Field(description="Last update time")
@@ -61,7 +67,7 @@ class LLMProviderResponse(LLMProviderBase):
 
 class LLMConfigBase(BaseSchema):
     """Base LLM configuration schema."""
-    
+
     config_key: str = Field(max_length=100, description="Configuration key")
     model_name: Optional[str] = Field(default=None, max_length=100, description="Specific model name")
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Temperature parameter")
@@ -77,8 +83,8 @@ class LLMConfigBase(BaseSchema):
 
 class LLMConfigCreate(BaseModel):
     """Schema for creating an LLM configuration."""
-    
-    provider_id: int = Field(default=description="Provider ID")
+
+    provider_id: int = Field(description="Provider ID")
     config_key: str = Field(max_length=100, description="Configuration key")
     model_name: Optional[str] = Field(default=None, max_length=100, description="Specific model name")
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Temperature parameter")
@@ -94,7 +100,7 @@ class LLMConfigCreate(BaseModel):
 
 class LLMConfigUpdate(BaseModel):
     """Schema for updating an LLM configuration."""
-    
+
     model_name: Optional[str] = Field(default=None, max_length=100, description="Specific model name")
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0, description="Temperature parameter")
     max_tokens: Optional[int] = Field(default=None, gt=0, description="Maximum tokens")
@@ -109,7 +115,7 @@ class LLMConfigUpdate(BaseModel):
 
 class LLMConfigResponse(LLMConfigBase):
     """Schema for LLM configuration response data."""
-    
+
     id: int = Field(description="Configuration ID")
     provider_id: int = Field(description="Provider ID")
     created_at: datetime = Field(description="Creation time")
@@ -118,5 +124,5 @@ class LLMConfigResponse(LLMConfigBase):
 
 class LLMConfigWithProvider(LLMConfigResponse):
     """Schema for LLM configuration with provider information."""
-    
+
     provider: LLMProviderResponse = Field(description="Provider information")

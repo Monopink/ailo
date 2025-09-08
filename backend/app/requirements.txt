@@ -35,5 +35,9 @@ passlib[bcrypt]==1.7.4
 # Time and Date handling
 zhdate==0.1
 
+# Admin Interface
+starlette-admin==0.15.1
+itsdangerous==2.2.0
+
 # Development and Testing (optional)
 pytest==8.4.1

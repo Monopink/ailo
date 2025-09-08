@@ -92,7 +92,7 @@
 - 查看分数: 显示ai_relationship_score表数据
 - 查看上下文: 显示ai_contexts表数据，AI对话历史
 - 发送联系人申请: 管理员可以为无归属的AI角色向用户发送好友申请（2.0功能）
-- 新增角色: （2.0功能，暂时不开发）
+- 新增角色: 管理员可以创建新的AI角色（2.0功能）
 
 #### ai_personalities（AI人格管理）
 
@@ -105,7 +105,7 @@
 
 - 风格列表: 显示所有AI风格
 - 风格配置: 管理评分维度和评分名称
-- 关系管理: 专门页面管理ai_relationship_indexs，在分数轴上直观显示关系位置
+- 关系管理: 专门页面管理ai_relationship_indexes，在分数轴上直观显示关系位置
 - 使用统计: 显示usage_count统计
 
 #### ai_relationship（AI关系管理）

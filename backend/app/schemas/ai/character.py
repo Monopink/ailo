@@ -58,7 +58,7 @@ class AICharacterResponse(AICharacterBase):
     user_id: Optional[int] = Field(None, description="Owner user ID")
     user_qiao_id: Optional[str] = Field(None, description="Owner user external ID")
     score_offset_algorithm: Optional[str] = Field(None, description="Score offset algorithm")
-    score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
+    score_offset_params: Optional[Dict[str, Any]] = Field(None, description="Score offset parameters")
     created_by: AICharacterCreator = Field(..., description="Creator type")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")

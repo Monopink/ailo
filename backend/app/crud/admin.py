@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from crud.base import CRUDBaseWithStatus, CRUDBase
 from models.admin import AdminUser, AdminOperationLog, AdminLoginLog
 from schemas.admin import AdminUserCreate, AdminUserUpdate, AdminOperationLogCreate
-from enums import AdminRole
+from enums import AdminRole, AdminStatus
 
 
 class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpdate]):
@@ -34,7 +34,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
 
     async def is_active(self, user: AdminUser) -> bool:
         """Check if admin user is active."""
-        return user.status == 1
+        return user.status == AdminStatus.ACTIVE  # Use enum instead of hardcoded value
 
     async def get_by_role(
         self, db: AsyncSession, *, role: AdminRole, skip: int = 0, limit: int = 100
@@ -42,7 +42,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
         """Get admin users by role."""
         result = await db.execute(
             select(self.model)
-            .where(and_(self.model.role == role, self.model.status == 1))
+            .where(and_(self.model.role == role, self.model.status == AdminStatus.ACTIVE))  # Use enum
             .order_by(self.model.created_at)
             .offset(skip)
             .limit(limit)
@@ -52,7 +52,9 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
     async def get_super_admins(self, db: AsyncSession) -> List[AdminUser]:
         """Get all super admin users."""
         result = await db.execute(
-            select(self.model).where(and_(self.model.role == AdminRole.SUPER_ADMIN, self.model.status == 1))
+            select(self.model).where(
+                and_(self.model.role == AdminRole.SUPER_ADMIN, self.model.status == AdminStatus.ACTIVE)
+            )  # Use enum
         )
         return list(result.scalars().all())
 

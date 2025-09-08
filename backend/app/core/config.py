@@ -46,8 +46,7 @@ class Settings(BaseSettings):
     SNOWFLAKE_MACHINE_ID: int
 
     # Admin settings
-    ADMIN_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int
-    ADMIN_CORS_ORIGINS: List[str]
+    ADMIN_SECRET_KEY: str  # For session middleware
 
     @property
     def database_url(self) -> str:

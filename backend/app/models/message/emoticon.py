@@ -44,7 +44,10 @@ class Emoticon(AutoIncrementModel):
     created_by_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="Creator internal ID")
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
+        Integer,
+        nullable=False,
+        default=1,
+        comment="Status: 1=active, 2=inactive",
     )
 
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Sort order")

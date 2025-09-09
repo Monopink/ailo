@@ -44,7 +44,7 @@ async def create_character_with_relations(db: AsyncSession, character_data: Dict
             memory=character_data.get("memory"),
             prompt_variables=character_data.get("prompt_variables", {}),
             score_offset_algorithm=character_data.get("score_offset_algorithm"),
-            score_offset_coefficient=character_data.get("score_offset_coefficient"),
+            score_offset_params=character_data.get("score_offset_params"),
             created_by=character_data.get("created_by", 2),  # admin
         )
 
@@ -66,10 +66,15 @@ async def create_character_with_relations(db: AsyncSession, character_data: Dict
 
         # Create contact entry if user_qiao_id provided
         if character_data.get("user_qiao_id"):
-            from utils.snowflake import generate_snowflake_id
+            import secrets
+            import string
+
+            # Generate conv_id with random characters
+            random_chars = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+            conv_id = f"conv_{random_chars}"
 
             contact = Contact(
-                conv_id=f"conv_{generate_snowflake_id()}",
+                conv_id=conv_id,
                 user_qiao_id=character_data["user_qiao_id"],
                 contact_type=2,  # AI type
                 contact_qiao_id=character_data["qiao_id"],

@@ -68,7 +68,7 @@ class DashboardView(CustomView):
 
         # Count active sessions (sessions that are active)
         active_sessions_result = await db.execute(
-            select(func.count(UserSession.id)).where(UserSession.is_active == True)
+            select(func.count(UserSession.id)).where(UserSession.is_active == 1)
         )
         active_sessions = active_sessions_result.scalar() or 0
 

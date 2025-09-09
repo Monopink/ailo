@@ -166,9 +166,9 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
         info_template = template_data["info_template"]
 
         # Generate unique qiao_id for character
-        from utils.snowflake import generate_snowflake_id
+        from models.base import generate_qiao_id
 
-        character_qiao_id = f"qiao_{generate_snowflake_id()}"
+        character_qiao_id = generate_qiao_id()
 
         # Prepare character data
         character_data = {
@@ -181,7 +181,7 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
             "memory": info_template.memory,
             "prompt_variables": info_template.prompt_variables or {},
             "score_offset_algorithm": info_template.score_offset_algorithm,
-            "score_offset_coefficient": info_template.score_offset_coefficient,
+            "score_offset_params": info_template.score_offset_params,
             "created_by": 1,  # user
             # Profile data
             "nickname": profile_template.nickname,

@@ -57,8 +57,8 @@ class AICharacter(SnowflakeQiaoModel):
         String(100), nullable=True, comment="Score offset algorithm"
     )
 
-    score_offset_coefficient: Mapped[Optional[float]] = mapped_column(
-        nullable=True, comment="Score offset coefficient"
+    score_offset_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True, comment="Score offset parameters (JSONB for better performance)"
     )
 
     created_by: Mapped[int] = mapped_column(
@@ -74,8 +74,9 @@ class AICharacter(SnowflakeQiaoModel):
         Index("idx_ai_characters_personality_id", "personality_id"),
         Index("idx_ai_characters_status", "status"),
         Index("idx_ai_characters_created_by", "created_by"),
-        # PostgreSQL GIN index for JSONB field for better query performance
+        # PostgreSQL GIN indexes for JSONB fields for better query performance
         PGIndex("idx_ai_characters_prompt_variables_gin", "prompt_variables", postgresql_using="gin"),
+        PGIndex("idx_ai_characters_score_offset_params_gin", "score_offset_params", postgresql_using="gin"),
     )
 
 

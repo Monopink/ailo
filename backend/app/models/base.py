@@ -5,12 +5,21 @@ This module provides base classes with common fields and functionality
 that are shared across all database models.
 """
 
+import secrets
+import string
 from datetime import datetime
 from typing import Any, Dict, Optional
 from sqlalchemy import BigInteger, DateTime, Integer, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from utils.snowflake import generate_snowflake_id
+
+
+def generate_qiao_id() -> str:
+    """Generate qiao_id with proper prefix and random characters."""
+    # Generate 16 random characters (letters and digits)
+    random_chars = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+    return f"qiao_{random_chars}"
 
 
 class Base(DeclarativeBase):
@@ -55,7 +64,11 @@ class QiaoIDMixin:
     """Mixin for models that have external qiao_id identifiers."""
 
     qiao_id: Mapped[str] = mapped_column(
-        String(32), nullable=False, unique=True, comment="External identifier: qiao_+random"
+        String(32),
+        nullable=False,
+        unique=True,
+        default=generate_qiao_id,
+        comment="External identifier: qiao_+random",
     )
 
 

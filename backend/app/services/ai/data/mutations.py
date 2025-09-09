@@ -92,7 +92,7 @@ async def update_context_status(db: AsyncSession, context_id: int, status: int) 
 
 
 async def update_relationship_scores(
-    db: AsyncSession, character_id: int, new_scores: Dict[int, int]
+    db: AsyncSession, character_id: int, new_scores: Dict[str, int]
 ) -> bool:
     """
     Update relationship scores for a character.
@@ -100,7 +100,7 @@ async def update_relationship_scores(
     Args:
         db: Database session
         character_id: Character ID
-        new_scores: Dictionary of score updates {score_order: new_value}
+        new_scores: Dictionary of score updates {dimension_name: new_value}
 
     Returns:
         True if successful, False otherwise
@@ -110,32 +110,30 @@ async def update_relationship_scores(
         result = await db.execute(
             select(AIRelationshipScore).where(AIRelationshipScore.character_id == character_id)
         )
-        existing_scores = {score.score_order: score for score in result.scalars().all()}
+        existing_scores = {score.dimension_name: score for score in result.scalars().all()}
 
         updated_count = 0
-        for score_order, new_value in new_scores.items():
-            if score_order in existing_scores:
-                score_obj = existing_scores[score_order]
+        for dimension_name, new_value in new_scores.items():
+            if dimension_name in existing_scores:
+                score_obj = existing_scores[dimension_name]
                 old_value = score_obj.score
                 score_obj.score = new_value
 
-                # Calculate position (0-1000 scale)
-                score_range = score_obj.score_end - score_obj.score_start
-                if score_range > 0:
-                    position = int(((new_value - score_obj.score_start) / score_range) * 1000)
-                    score_obj.score_position = min(1000, max(0, position))
-                else:
-                    score_obj.score_position = 0
+                # Position calculation should be done based on score conversion algorithm
+                # For now, use a simple linear mapping (this should be improved later)
+                # Assuming score is 0-100 and position is 0-1000
+                position = min(1000, max(0, int(new_value * 10)))
+                score_obj.position = position
 
                 updated_count += 1
 
                 logger.debug(
                     "relationship_score_updated",
                     character_id=character_id,
-                    score_order=score_order,
+                    dimension_name=dimension_name,
                     old_value=old_value,
                     new_value=new_value,
-                    score_position=score_obj.score_position,
+                    position=score_obj.position,
                 )
 
         if updated_count > 0:

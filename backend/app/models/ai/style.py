@@ -4,9 +4,9 @@ AI style and relationship related models.
 This module contains SQLAlchemy models for AI styles and relationship configurations.
 """
 
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import Integer, String, Text, Index
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 
 from models.base import AutoIncrementModel
 
@@ -33,8 +33,19 @@ class AIStyle(AutoIncrementModel):
         comment="Status: 1=active, 2=inactive",
     )
 
-    initial_relationship_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Initial relationship type ID"
+    # Relationships
+    dimensions: Mapped[List["AIRelationshipDimension"]] = relationship(
+        "AIRelationshipDimension",
+        back_populates="style",
+        primaryjoin="AIStyle.id == foreign(AIRelationshipDimension.style_id)",
+        cascade="all, delete-orphan",
+    )
+
+    relationship_indexes: Mapped[List["AIRelationshipIndex"]] = relationship(
+        "AIRelationshipIndex",
+        back_populates="style",
+        primaryjoin="AIStyle.id == foreign(AIRelationshipIndex.style_id)",
+        cascade="all, delete-orphan",
     )
 
     # Indexes
@@ -49,7 +60,7 @@ class AIRelationshipDimension(AutoIncrementModel):
     """
     AI relationship dimension model.
 
-    Score dimension definitions for AI styles.
+    Position dimension definitions for AI styles.
     """
 
     __tablename__ = "ai_relationship_dimensions"
@@ -70,6 +81,20 @@ class AIRelationshipDimension(AutoIncrementModel):
 
     status: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
+    )
+
+    # Relationships
+    style: Mapped["AIStyle"] = relationship(
+        "AIStyle",
+        back_populates="dimensions",
+        primaryjoin="foreign(AIRelationshipDimension.style_id) == AIStyle.id",
+    )
+
+    relationship_indexes: Mapped[List["AIRelationshipIndex"]] = relationship(
+        "AIRelationshipIndex",
+        back_populates="dimension",
+        primaryjoin="AIRelationshipDimension.id == foreign(AIRelationshipIndex.dimension_id)",
+        cascade="all, delete-orphan",
     )
 
     # Indexes
@@ -104,6 +129,14 @@ class AIRelationship(AutoIncrementModel):
         Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
     )
 
+    # Relationships
+    relationship_indexes: Mapped[List["AIRelationshipIndex"]] = relationship(
+        "AIRelationshipIndex",
+        back_populates="relationship",
+        primaryjoin="AIRelationship.id == foreign(AIRelationshipIndex.relationship_id)",
+        cascade="all, delete-orphan",
+    )
+
     # Indexes
     __table_args__ = (
         Index("idx_ai_relationships_name", "name"),
@@ -116,7 +149,7 @@ class AIRelationshipIndex(AutoIncrementModel):
     """
     AI relationship index model.
 
-    Mapping from score ranges to relationship types.
+    Mapping from position ranges to relationship types.
     """
 
     __tablename__ = "ai_relationship_indexes"
@@ -126,7 +159,9 @@ class AIRelationshipIndex(AutoIncrementModel):
     )
 
     dimension_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Dimension ID, references ai_relationship_dimensions.id"
+        Integer,
+        nullable=False,
+        comment="Dimension ID, references ai_relationship_dimensions.id",
     )
 
     dimension_name: Mapped[str] = mapped_column(String(50), nullable=False, comment="Dimension name")
@@ -140,13 +175,34 @@ class AIRelationshipIndex(AutoIncrementModel):
     )
 
     relationship_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Relationship ID, references ai_relationships.id"
+        Integer,
+        nullable=False,
+        comment="Relationship ID, references ai_relationships.id",
     )
 
     priority: Mapped[int] = mapped_column(Integer, nullable=False, comment="Priority level")
 
     limit_count: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Maximum occurrence count, NULL means unlimited"
+    )
+
+    # Relationships
+    style: Mapped["AIStyle"] = relationship(
+        "AIStyle",
+        back_populates="relationship_indexes",
+        primaryjoin="foreign(AIRelationshipIndex.style_id) == AIStyle.id",
+    )
+
+    dimension: Mapped["AIRelationshipDimension"] = relationship(
+        "AIRelationshipDimension",
+        back_populates="relationship_indexes",
+        primaryjoin="foreign(AIRelationshipIndex.dimension_id) == AIRelationshipDimension.id",
+    )
+
+    relationship: Mapped["AIRelationship"] = relationship(
+        "AIRelationship",
+        back_populates="relationship_indexes",
+        primaryjoin="foreign(AIRelationshipIndex.relationship_id) == AIRelationship.id",
     )
 
     # Indexes

@@ -123,7 +123,7 @@ async def determine_relationship_type(
                     operation="get_default_relationship",
                     reason="no_default_mapping",
                     message=f"No default relationship mapping found for style {style_id}. "
-                    f"This indicates a configuration error in ai_relationship_indexs table.",
+                    f"This indicates a configuration error in ai_relationship_indexes table.",
                 )
 
         # Calculate score positions
@@ -157,7 +157,7 @@ async def determine_relationship_type(
                 operation="find_matching_relationship",
                 reason="no_matching_mapping",
                 message=f"No relationship mapping found for style {style_id} with scores {score_positions}. "
-                f"This indicates a configuration error in ai_relationship_indexs table.",
+                f"This indicates a configuration error in ai_relationship_indexes table.",
             )
 
     except Exception as e:
@@ -229,25 +229,16 @@ def _calculate_score_positions(scores: List[Dict[str, Any]]) -> Dict[int, int]:
         style: Style instance
 
     Returns:
-        Dictionary mapping score_order to position
+        Dictionary mapping dimension_name to position
     """
     try:
         positions = {}
 
         for score in scores:
-            score_order = score["score_order"]
-            current_score = score["score"]
-            score_start = score.get("score_start", 0)
-            score_end = score.get("score_end", 1000)
-
-            # Calculate position as percentile
-            if score_end > score_start:
-                position = int(((current_score - score_start) / (score_end - score_start)) * 1000)
-                position = max(0, min(1000, position))  # Clamp to 0-1000
-            else:
-                position = 500  # Default middle position
-
-            positions[score_order] = position
+            dimension_name = score["dimension_name"]
+            # Position is already calculated and stored in the database
+            position = score.get("position", 500)  # Default middle position if not found
+            positions[dimension_name] = position
 
         logger.debug("score_positions_calculated", positions=positions)
         return positions
@@ -275,18 +266,18 @@ def _find_matching_relationship(
         sorted_mappings = sorted(relationship_mappings, key=lambda x: x.get("priority", 999))
 
         for mapping in sorted_mappings:
-            score_order = mapping["score_order"]
+            dimension_name = mapping["dimension_name"]
             start_position = mapping["start_position"]
             end_position = mapping["end_position"]
 
-            if score_order in score_positions:
-                position = score_positions[score_order]
+            if dimension_name in score_positions:
+                position = score_positions[dimension_name]
 
                 # Check if position falls within range
                 if start_position <= position <= end_position:
                     logger.debug(
                         "relationship_mapping_matched",
-                        score_order=score_order,
+                        dimension_name=dimension_name,
                         position=position,
                         start_position=start_position,
                         end_position=end_position,

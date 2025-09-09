@@ -16,6 +16,7 @@ from models.ai import (
     AIStyle,
     AIRelationship,
     AIRelationshipIndex,
+    AIRelationshipDimension,
 )
 from models.profile import Profile
 from utils.logging import get_logger
@@ -55,11 +56,29 @@ async def get_character_with_relations(
 
         character, personality, style, profile = row
 
+        # Get dimensions for the style
+        dimensions_result = await db.execute(
+            select(AIRelationshipDimension)
+            .where(AIRelationshipDimension.style_id == style.id)
+            .where(AIRelationshipDimension.status == 1)
+            .order_by(AIRelationshipDimension.name)
+        )
+        dimensions = [
+            {
+                "id": dim.id,
+                "name": dim.name,
+                "display_name": dim.display_name,
+                "initial_position": dim.initial_position,
+            }
+            for dim in dimensions_result.scalars().all()
+        ]
+
         return {
             "character": character,
             "personality": personality,
             "style": style,
             "profile": profile,
+            "dimensions": dimensions,
             "character_id": character.id,
             "personality_id": personality.id,
             "style_id": style.id,
@@ -147,7 +166,7 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optio
             select(AIRelationshipIndex, AIRelationship)
             .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
             .where(AIRelationshipIndex.style_id == style_id)
-            .order_by(AIRelationshipIndex.score_start)
+            .order_by(AIRelationshipIndex.start_position)
         )
 
         relationships = []
@@ -156,9 +175,11 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optio
                 {
                     "index": index,
                     "relationship": relationship,
-                    "score_start": index.score_start,
-                    "score_end": index.score_end,
-                    "score_order": index.score_order,
+                    "dimension_id": index.dimension_id,
+                    "dimension_name": index.dimension_name,
+                    "start_position": index.start_position,
+                    "end_position": index.end_position,
+                    "priority": index.priority,
                 }
             )
 

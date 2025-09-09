@@ -214,6 +214,13 @@ class AICharacterStatus(IntEnum):
     BLOCKED = 3  # Blocked character
 
 
+class AIStyleStatus(IntEnum):
+    """AI style status (ai_styles.status)"""
+
+    ACTIVE = 1  # Active style
+    INACTIVE = 2  # Inactive style
+
+
 class AIContextReplyStatus(IntEnum):
     """AI context reply status (ai_contexts.reply_status)"""
 
@@ -233,9 +240,9 @@ class AICharacterCreator(IntEnum):
 class AIContextRole(IntEnum):
     """AI context role type (ai_contexts.role)"""
 
-    SYSTEM = 1    # System message
-    USER = 2      # User message
-    ASSISTANT = 3 # Assistant response
+    SYSTEM = 1  # System message
+    USER = 2  # User message
+    ASSISTANT = 3  # Assistant response
 
 
 class AIContextSourceType(IntEnum):
@@ -252,6 +259,13 @@ class AIRequestStatus(IntEnum):
     SUCCESS = 1  # Request successful
     FAILED = 2  # Request failed
     TIMEOUT = 3  # Request timeout
+
+
+class ScoreOffsetAlgorithm(IntEnum):
+    """Score offset algorithm type (ai_characters.score_offset_algorithm, etc.)"""
+
+    NONE = 1  # No algorithm - direct score mapping (直接映射)
+    V1 = 2  # Version 1 algorithm
 
 
 # Security Related Enums

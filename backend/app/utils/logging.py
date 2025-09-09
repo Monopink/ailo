@@ -74,8 +74,7 @@ def configure_logging(
                 }
             ),
             structlog.processors.StackInfoRenderer(),
-            structlog.dev.set_exc_info,
-            structlog.processors.dict_tracebacks,
+            structlog.processors.format_exc_info,
             structlog.processors.JSONRenderer(ensure_ascii=False),
         ]
     else:

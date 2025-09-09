@@ -30,7 +30,7 @@ async def get_character_relationship_scores(db: AsyncSession, character_id: int)
         result = await db.execute(
             select(AIRelationshipScore)
             .where(AIRelationshipScore.character_id == character_id)
-            .order_by(AIRelationshipScore.score_order)
+            .order_by(AIRelationshipScore.dimension_name)
         )
 
         scores = result.scalars().all()
@@ -42,13 +42,15 @@ async def get_character_relationship_scores(db: AsyncSession, character_id: int)
                 {
                     "id": score.id,
                     "character_id": score.character_id,
-                    "score_order": score.score_order,
+                    "dimension_id": score.dimension_id,
+                    "dimension_name": score.dimension_name,
                     "score": score.score,
-                    "score_start": score.score_start,
-                    "score_end": score.score_end,
-                    "score_position": score.score_position,
+                    "position": score.position,
+                    "relationship_id": score.relationship_id,
+                    "relationship_display_name": score.relationship_display_name,
+                    "relationship_counts": score.relationship_counts,
                     "score_offset_algorithm": score.score_offset_algorithm,
-                    "score_offset_coefficient": score.score_offset_coefficient,
+                    "score_offset_params": score.score_offset_params,
                     "created_at": score.created_at,
                     "updated_at": score.updated_at,
                 }
@@ -89,7 +91,7 @@ async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List
             select(AIRelationshipIndex, AIRelationship)
             .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
             .where(AIRelationshipIndex.style_id == style_id)
-            .order_by(AIRelationshipIndex.score_start)
+            .order_by(AIRelationshipIndex.start_position)
         )
 
         ranges = []
@@ -98,9 +100,11 @@ async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List
                 {
                     "relationship_id": relationship.id,
                     "relationship_name": relationship.name,
-                    "score_order": index.score_order,
-                    "score_start": index.score_start,
-                    "score_end": index.score_end,
+                    "dimension_id": index.dimension_id,
+                    "dimension_name": index.dimension_name,
+                    "start_position": index.start_position,
+                    "end_position": index.end_position,
+                    "priority": index.priority,
                     "prompt_fragment": getattr(relationship, "prompt_fragment", ""),
                 }
             )

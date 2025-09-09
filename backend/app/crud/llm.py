@@ -66,7 +66,7 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
         self, db: AsyncSession, provider_id: Optional[int] = None
     ) -> List[LLMConfig]:
         """Get all active configs, optionally filtered by provider."""
-        conditions = [self.model.is_active == True]
+        conditions = [self.model.is_active == 1]
         if provider_id:
             conditions.append(self.model.provider_id == provider_id)
 
@@ -78,7 +78,7 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
     async def get_primary_config(self, db: AsyncSession) -> Optional[LLMConfig]:
         """Get the primary (highest priority active) config."""
         result = await db.execute(
-            select(self.model).where(self.model.is_active == True).order_by(self.model.priority).limit(1)
+            select(self.model).where(self.model.is_active == 1).order_by(self.model.priority).limit(1)
         )
         return result.scalar_one_or_none()
 
@@ -104,7 +104,7 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
         """Get configs ordered by priority."""
         conditions = []
         if active_only:
-            conditions.append(self.model.is_active == True)
+            conditions.append(self.model.is_active == 1)
 
         query = select(self.model).order_by(self.model.priority, self.model.config_key)
         if conditions:

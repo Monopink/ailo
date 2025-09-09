@@ -256,7 +256,7 @@ change_reason -- 修改原因（例如用户提交、管理员修改）
 created_at
 ```
 
-## ai_relationship
+## ai_relationships
 
 AI关系类型表，定义AI角色的关系类型。usage_count不为0不允许修改status。
 
@@ -278,9 +278,9 @@ AI风格表，定义AI角色的风格类型和评分维度。
 ```txt
 id -- 自增ID
 name -- 风格名称
+display_name -- 用于显示的名称
 usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
-initial_relationship_id -- 初始关系类型ID，关联ai_relationship.id
 created_at
 updated_at
 ```
@@ -735,7 +735,7 @@ updated_at
 #### AI关系系统设计
 
 - ai_relationship：定义关系类型（陌生人、朋友、恋人等）
-- ai_styles：定义AI风格和初始关系类型
+- ai_styles：定义AI风格
 - ai_relationship_dimensions：定义评分维度配置
 - ai_relationship_indexes：映射评分区间到关系类型
 - ai_personalities：AI人格模板和提示词

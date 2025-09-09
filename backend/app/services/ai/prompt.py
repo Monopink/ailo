@@ -174,14 +174,22 @@ async def get_response_schema(db: AsyncSession, character_qiao_id: str) -> Dict[
             logger.warning("no_style_for_schema", character_qiao_id=character_qiao_id)
             return _get_default_response_schema()
 
-        # Build dynamic schema based on style
-        schema = _build_dynamic_response_schema(style)
+        # Get dimensions for the style
+        dimensions = character_data.get("dimensions", [])
+        if not dimensions:
+            logger.warning(
+                "no_dimensions_for_schema", character_qiao_id=character_qiao_id, style_id=style.id
+            )
+            return _get_default_response_schema()
+
+        # Build dynamic schema based on style and dimensions
+        schema = _build_dynamic_response_schema(style, dimensions)
 
         logger.debug(
             "response_schema_built",
             character_qiao_id=character_qiao_id,
             style_id=style.id,
-            score_count=style.score_count,
+            dimensions_count=len(dimensions),
         )
 
         return schema
@@ -339,12 +347,13 @@ def _get_current_datetime() -> str:
         return "时间获取失败"
 
 
-def _build_dynamic_response_schema(style: Any) -> Dict[str, Any]:
+def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Build dynamic JSON schema based on AI style.
+    Build dynamic JSON schema based on AI style and dimensions.
 
     Args:
         style: AI style instance
+        dimensions: List of dimension dictionaries
 
     Returns:
         JSON schema dictionary
@@ -353,45 +362,30 @@ def _build_dynamic_response_schema(style: Any) -> Dict[str, Any]:
         AIServiceError: If style configuration is invalid
     """
     try:
-        # Validate style configuration - no default values allowed
-        if not style.score_name:
+        # Validate dimensions - no default values allowed
+        if not dimensions or len(dimensions) == 0:
             raise AIServiceError(
                 ai_service="schema_building",
-                reason="missing_score_names",
-                message=f"Style {style.id} has no score_name configured. "
+                reason="empty_dimensions",
+                message=f"Style {style.id} has no active dimensions. "
                 f"This indicates a database configuration error.",
             )
 
-        if not isinstance(style.score_name, list):
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="invalid_score_names_type",
-                message=f"Style {style.id} score_name must be a list, got {type(style.score_name)}. "
-                f"This indicates a database configuration error.",
-            )
-
-        if len(style.score_name) == 0:
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="empty_score_names",
-                message=f"Style {style.id} has empty score_name list. "
-                f"This indicates a database configuration error.",
-            )
-
-        # Build score properties dynamically from validated configuration
+        # Build score properties dynamically from dimensions
         score_properties = {}
         score_required = []
 
-        for score_name in style.score_name:
-            if not score_name or not isinstance(score_name, str):
+        for dimension in dimensions:
+            dimension_name = dimension.get("name")
+            if not dimension_name or not isinstance(dimension_name, str):
                 raise AIServiceError(
                     ai_service="schema_building",
-                    reason="invalid_score_name",
-                    message=f"Style {style.id} contains invalid score name: {score_name}. "
-                    f"All score names must be non-empty strings.",
+                    reason="invalid_dimension_name",
+                    message=f"Style {style.id} contains invalid dimension name: {dimension_name}. "
+                    f"All dimension names must be non-empty strings.",
                 )
-            score_properties[score_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
-            score_required.append(score_name)
+            score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 100}
+            score_required.append(dimension_name)
 
         logger.debug(
             "dynamic_schema_built_successfully",

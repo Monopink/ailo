@@ -1,4 +1,72 @@
-wo# API接口设计文档
+# API接口设计文档
+
+## 管理后台架构原则
+
+### Starlette-Admin使用原则
+
+本项目采用**降低Starlette-Admin依赖**的架构设计，为未来迁移到独立前端做准备。
+
+#### 核心原则
+
+1. **Starlette-Admin仅作为临时前端**
+   - 主要用于数据展示和基础CRUD操作
+   - 不在CustomView中实现复杂业务逻辑
+   - 所有业务逻辑通过独立的Service层和API层实现
+
+2. **业务逻辑完全独立**
+   - Service层不依赖任何Web框架
+   - 可被任何前端（Starlette-Admin、独立前端、API客户端）调用
+   - 遵循单一职责原则和依赖倒置原则
+
+3. **API优先设计**
+   - 所有管理功能都提供对应的FastAPI endpoints
+   - CustomView通过调用内部API实现功能
+   - API设计考虑未来独立前端的需求
+
+#### 架构层次
+
+```
+┌─────────────────────────────────────┐
+│  Starlette-Admin CustomView         │  ← 临时前端，可随时替换
+│  (仅负责模板渲染和HTTP请求处理)        │
+├─────────────────────────────────────┤
+│  FastAPI Admin Endpoints            │  ← 未来独立前端的API接口
+│  (RESTful API，完整的管理功能)        │
+├─────────────────────────────────────┤
+│  Admin Service Layer                │  ← 核心业务逻辑，框架无关
+│  (纯业务逻辑，可复用)                 │
+├─────────────────────────────────────┤
+│  Data Access Layer                  │  ← 数据访问，统一接口
+│  (CRUD操作，数据库交互)               │
+└─────────────────────────────────────┘
+```
+
+#### 实施限制
+
+1. **CustomView职责限制**
+   - ❌ 不得直接执行数据库操作
+   - ❌ 不得包含复杂业务逻辑
+   - ❌ 不得直接调用外部服务
+   - ✅ 只负责HTTP请求解析和模板渲染
+   - ✅ 通过调用内部API获取数据
+
+2. **Service层要求**
+   - ✅ 必须是纯函数或类方法
+   - ✅ 不依赖Web框架特定对象
+   - ✅ 可被单元测试覆盖
+   - ✅ 错误处理完整
+
+3. **API设计要求**
+   - ✅ 遵循RESTful设计原则
+   - ✅ 统一的响应格式
+   - ✅ 完整的错误处理
+   - ✅ 支持独立前端调用
+
+#### 迁移策略
+
+1. **短期目标**：降低Starlette-Admin耦合度
+2. **中期目标**：完善Admin API，验证独立性
+3. **长期目标**：迁移到现代前后端分离架构
 
 ## 设计原则
 
@@ -521,347 +589,6 @@ LeanCloud消息Webhook的格式由LeanCloud官方规定，具体实现时参考L
 5. 记录到message_history表
 6. 返回响应给LeanCloud
 
-## 管理后台API
-
-### 认证方式
-
-管理后台使用独立的认证系统，基于admin_users表。
-
-#### 管理员登录
-
-```http
-POST /api/v1/admin/auth/login
-```
-
-**请求参数：**
-
-```json
-{
-  "username": "admin_user",
-  "password": "admin_password"
-}
-```
-
-**响应：**
-
-```json
-{
-  "success": true,
-  "data": {
-    "admin": {
-      "id": 123,
-      "username": "admin_user",
-      "role": 1
-    },
-    "token": "admin_jwt_token",
-    "expires_at": 1710001111
-  }
-}
-```
-
-### 1. 用户管理
-
-#### 1.1 获取用户列表
-
-```http
-GET /api/v1/admin/users
-```
-
-**请求参数：**
-
-```
-?status=1&search=keyword&cursor=cursor_value&limit=20
-```
-
-**响应：**
-
-```json
-{
-  "success": true,
-  "data": {
-    "items": [
-      {
-        "id": 123,
-        "qiao_id": "qiao_abc123",
-        "username": "qiao_abc123",
-        "phone": "13800138000",
-        "status": 1,
-        "user_type": 1,
-        "last_login": 1710001111,
-        "profile": {
-          "nickname": "用户昵称",
-          "gender": 1,
-          "avatar_url": "avatar_url"
-        },
-        "created_at": 1710001111,
-        "updated_at": 1710001111
-      }
-    ],
-    "pagination": {
-      "cursor": "next_cursor",
-      "has_more": true,
-      "total": 1000
-    }
-  }
-}
-```
-
-#### 1.2 获取用户详情
-
-```http
-GET /api/v1/admin/users/{user_id}
-```
-
-#### 1.3 更新用户状态
-
-```http
-PUT /api/v1/admin/users/{user_id}/status
-```
-
-**请求参数：**
-
-```json
-{
-  "status": 2,
-  "reason": "违规操作"
-}
-```
-
-### 2. AI管理
-
-#### 2.1 获取AI角色列表
-
-```http
-GET /api/v1/admin/ai/characters
-```
-
-#### 2.2 获取AI人格列表
-
-```http
-GET /api/v1/admin/ai/personalities
-```
-
-#### 2.3 创建AI人格
-
-```http
-POST /api/v1/admin/ai/personalities
-```
-
-**请求参数：**
-
-```json
-{
-  "name": "人格名称",
-  "prompt": "人格提示词模板",
-  "json_schema": {},
-  "placeholders": [
-    {
-      "placeholder_key": "name",
-      "display_name": "姓名",
-      "description": "AI角色的姓名",
-      "example_value": "小助手",
-      "is_required": 1
-    }
-  ]
-}
-```
-
-### 3. 消息管理
-
-#### 3.1 获取消息历史
-
-```http
-GET /api/v1/admin/messages
-```
-
-**请求参数：**
-
-```
-?conversation_id=conv_123&from_type=1&start_time=1710001111&end_time=1710002222&cursor=cursor_value&limit=50
-```
-
-#### 3.2 获取投递失败消息
-
-```http
-GET /api/v1/admin/messages/failures
-```
-
-#### 3.3 重试失败消息
-
-```http
-POST /api/v1/admin/messages/failures/{failure_id}/retry
-```
-
-### 4. 安全监控
-
-#### 4.1 获取违规记录
-
-```http
-GET /api/v1/admin/security/violations
-```
-
-**请求参数：**
-
-```
-?user_id=123&violation_type=1&severity_level=3&status=1&cursor=cursor_value&limit=20
-```
-
-**响应：**
-
-```json
-{
-  "success": true,
-  "data": {
-    "items": [
-      {
-        "id": 456,
-        "user_qiao_id": "qiao_abc123",
-        "violation_type": 1,
-        "severity_level": 3,
-        "original_message": "用户原始消息",
-        "ai_detection_result": {
-          "confidence": 0.95,
-          "reason": "检测到提示词注入"
-        },
-        "auto_action_taken": 2,
-        "manual_review_status": 1,
-        "created_at": 1710001111
-      }
-    ],
-    "pagination": {
-      "cursor": "next_cursor",
-      "has_more": true
-    }
-  }
-}
-```
-
-#### 4.2 人工审核违规记录
-
-```http
-PUT /api/v1/admin/security/violations/{violation_id}/review
-```
-
-**请求参数：**
-
-```json
-{
-  "manual_review_status": 2,
-  "review_notes": "确认为误报"
-}
-```
-
-### 5. 统计数据
-
-#### 5.1 获取仪表盘数据
-
-```http
-GET /api/v1/admin/dashboard/stats
-```
-
-**响应：**
-
-```json
-{
-  "success": true,
-  "data": {
-    "user_stats": {
-      "total_users": 10000,
-      "new_users_today": 50,
-      "active_users_today": 1200,
-      "active_users_week": 5000,
-      "active_users_month": 8000
-    },
-    "message_stats": {
-      "total_messages": 500000,
-      "messages_today": 2000,
-      "avg_messages_per_user": 50
-    },
-    "ai_stats": {
-      "total_ai_requests": 100000,
-      "ai_requests_today": 800,
-      "active_ai_templates": 25
-    },
-    "security_stats": {
-      "violations_today": 5,
-      "high_risk_users": 3,
-      "pending_reviews": 10
-    }
-  }
-}
-```
-
-#### 5.2 获取用户统计趋势
-
-```http
-GET /api/v1/admin/stats/users
-```
-
-**请求参数：**
-
-```
-?period=daily&start_date=2024-01-01&end_date=2024-01-31
-```
-
-**响应：**
-
-```json
-{
-  "success": true,
-  "data": {
-    "items": [
-      {
-        "stat_date": "2024-01-01",
-        "total_users": 9950,
-        "new_users": 45,
-        "active_users": 1180
-      }
-    ]
-  }
-}
-```
-
-### 6. 系统管理
-
-#### 6.1 获取系统配置
-
-```http
-GET /api/v1/admin/system/config
-```
-
-#### 6.2 更新系统配置
-
-```http
-PUT /api/v1/admin/system/config/{config_key}
-```
-
-**请求参数：**
-
-```json
-{
-  "config_value": "new_value",
-  "description": "配置描述"
-}
-```
-
-#### 6.3 获取管理员列表（仅super_admin）
-
-```http
-GET /api/v1/admin/system/admins
-```
-
-#### 6.4 获取操作日志
-
-```http
-GET /api/v1/admin/system/operation-logs
-```
-
-**请求参数：**
-
-```
-?admin_user_id=123&operation_type=1&start_time=1710001111&end_time=1710002222&cursor=cursor_value&limit=50
-```
-
 ## 错误码定义
 
 ### 通用错误码
@@ -901,6 +628,393 @@ GET /api/v1/admin/system/operation-logs
 - 基于admin_users表的角色权限控制
 - super_admin > admin > viewer 三级权限
 
+## 管理后台API设计
+
+### 架构原则重申
+
+管理后台遵循**API优先设计**和**混合编程范式**，明确区分功能职责：
+
+#### ✅ **使用Starlette ModelView的功能**
+
+- **基础数据CRUD**: 用户、AI配置、LLM配置、系统配置等
+- **简单查询和编辑**: 直接操作数据表的功能
+- **标准管理界面**: 列表、创建、编辑、删除操作
+
+#### 🚀 **使用专门API的功能**
+
+- **复杂业务逻辑**: AI对话测试、分数计算、提示词合成
+- **外部服务调用**: LLM服务测试、第三方API调用
+- **数据聚合分析**: 仪表板统计、性能监控
+- **批量操作**: 需要事务处理的复杂操作
+
+#### 🏗️ **编程范式选择原则**
+
+**函数式编程适用场景**:
+
+- ✅ **纯计算逻辑**: 分数算法、数据转换、格式化
+- ✅ **无状态操作**: 参数验证、配置解析
+- ✅ **工具函数**: 响应格式化、错误处理工具
+
+**类式编程适用场景**:
+
+- ✅ **复杂业务流程**: AI对话测试（11步流程管理）
+- ✅ **状态管理**: 测试会话、请求日志、事务状态
+- ✅ **资源管理**: 数据库连接、LLM客户端、外部服务
+- ✅ **依赖注入**: 便于测试和模块解耦
+
+#### 📁 **Service层架构设计**
+
+```
+backend/app/services/admin/
+├── managers/                    # 业务流程管理器（类式）
+│   ├── ai_test_manager.py      # AI测试流程管理
+│   ├── llm_test_manager.py     # LLM测试流程管理
+│   └── dashboard_manager.py    # 仪表板数据管理
+├── utils/                      # 工具函数（函数式）
+│   ├── response_formatter.py   # API响应格式化
+│   ├── validation_utils.py     # 参数验证工具
+│   └── calculation_utils.py    # 纯计算函数
+└── legacy/                     # 兼容现有函数式接口
+    └── ai_service.py           # 保持向后兼容
+```
+
+### 认证方式
+
+管理后台API使用Session-based认证，与Starlette-Admin共享认证状态。
+
+**请求头：**
+
+```
+Cookie: session=admin_session_value
+```
+
+### 通用响应格式
+
+#### 成功响应
+
+```json
+{
+  "success": true,
+  "data": {
+    // 具体数据
+  },
+  "message": "操作成功"
+}
+```
+
+#### 错误响应
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "错误信息",
+    "details": {}
+  }
+}
+```
+
+### 1. 仪表板API
+
+#### 1.1 获取仪表板统计数据
+
+```
+GET /admin-api/dashboard/stats
+```
+
+**功能**: 实时系统统计数据聚合
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "total_users": 1250,
+    "total_ai_characters": 45,
+    "total_messages": 15680,
+    "active_sessions": 23,
+    "today_new_users": 12,
+    "today_messages": 456,
+    "system_status": "healthy"
+  }
+}
+```
+
+### 2. AI测试管理API
+
+#### 2.1 AI角色对话测试
+
+```http
+POST /admin-api/ai/test-chat
+```
+
+**功能**: 完整的AI对话流程测试，包含11步对话处理流程
+
+**请求参数：**
+
+```json
+{
+  "character_qiao_id": "qiao_ai001",
+  "user_qiao_id": "qiao_test001",
+  "llm_config_key": "doubao_primary",
+  "test_message": "你好，今天天气怎么样？",
+  "enable_thinking": true,
+  "test_session_id": "optional_session_id"
+}
+```
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "test_session_id": "test_uuid_123",
+    "request_id": "req_snowflake_id",
+    "conversation_result": {
+      "ai_response": "今天天气很不错呢！阳光明媚，很适合出去走走。",
+      "thinking_process": "用户询问天气，我应该给出积极正面的回应...",
+      "score_updates": {
+        "friend": 520,
+        "romance": 180
+      },
+      "memory_operations": [],
+      "should_reply": true,
+      "attack_detected": false
+    },
+    "performance": {
+      "response_time_ms": 1250,
+      "token_usage": {
+        "prompt_tokens": 156,
+        "completion_tokens": 45,
+        "total_tokens": 201
+      }
+    },
+    "config_used": {
+      "config_key": "doubao_primary",
+      "provider_name": "doubao",
+      "model": "doubao-pro-4k"
+    }
+  }
+}
+```
+
+#### 2.2 分数算法测试
+
+```http
+POST /admin-api/ai/test-algorithm
+```
+
+**功能**: 测试分数偏移算法，支持单次和批量测试
+
+**请求参数：**
+
+```json
+{
+  "algorithm": 2,
+  "score": 600,
+  "initial_position": 500,
+  "params": {
+    "strength": 0.7
+  },
+  "batch_test": {
+    "enabled": false,
+    "score_range": [0, 1000],
+    "step": 50
+  }
+}
+```
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "single_result": {
+      "new_score": 567.8,
+      "offset": 67.8,
+      "algorithm_name": "V1 Non-linear Offset"
+    },
+    "calculation_details": {
+      "direction": 100,
+      "normalized_direction": 0.2,
+      "curve_factor": 1.7,
+      "curved_offset": 67.8
+    },
+    "batch_results": null
+  }
+}
+```
+
+#### 2.3 提示词预览测试
+
+```http
+POST /admin-api/ai/test-prompt
+```
+
+**功能**: 提示词合成和预览，用于调试提示词模板
+
+**请求参数：**
+
+```json
+{
+  "character_qiao_id": "qiao_ai001",
+  "user_qiao_id": "qiao_test001",
+  "relationship_override": {
+    "relationship_id": 1,
+    "scores": {"friend": 600, "romance": 200}
+  },
+  "context_length": 10,
+  "include_thinking": true
+}
+```
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "prompt_preview": {
+      "system_prompt": "你是一个AI角色...",
+      "user_context": "最近的对话历史...",
+      "thinking_prompt": "请分析用户的意图...",
+      "full_prompt": "完整的合成提示词"
+    },
+    "placeholder_info": {
+      "total_placeholders": 15,
+      "replaced_count": 15,
+      "missing_placeholders": []
+    },
+    "character_info": {
+      "qiao_id": "qiao_ai001",
+      "name": "小萌",
+      "current_relationship": "普通朋友"
+    }
+  }
+}
+```
+
+### 3. LLM测试管理API
+
+#### 3.1 LLM配置测试
+
+```http
+POST /admin-api/llm/test
+```
+
+**功能**: 测试LLM配置和性能，支持多配置并行测试
+
+**请求参数：**
+
+```json
+{
+  "config_keys": ["doubao_primary"],
+  "test_cases": [
+    {
+      "name": "基础对话测试",
+      "prompt": "请介绍一下人工智能的发展历史",
+      "temperature": 0.7,
+      "max_tokens": 500,
+      "expected_type": "string"
+    },
+    {
+      "name": "结构化输出测试",
+      "prompt": "分析这段文字的情感",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "response": {"type": "string"},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "required": ["response", "confidence"]
+      },
+      "expected_type": "json"
+    }
+  ],
+  "performance_test": {
+    "enabled": false,
+    "concurrent_requests": 3,
+    "iterations": 10
+  }
+}
+```
+
+**响应：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "test_results": [
+      {
+        "config_key": "doubao_primary",
+        "test_cases": [
+          {
+            "name": "基础对话测试",
+            "success": true,
+            "response": "人工智能的发展可以追溯到20世纪50年代...",
+            "response_time_ms": 890,
+            "token_usage": {
+              "prompt_tokens": 25,
+              "completion_tokens": 120,
+              "total_tokens": 145
+            }
+          }
+        ],
+        "performance_metrics": {
+          "avg_response_time": 890,
+          "success_rate": 1.0,
+          "total_tokens": 145
+        }
+      }
+    ],
+    "test_metadata": {
+      "timestamp": 1710001111,
+      "test_id": "test_uuid_456"
+    }
+  }
+}
+```
+
+### 4. 后续开发功能 (暂不实施)
+
+以下功能作为后续开发方向，当前阶段不进行详细设计和实施：
+
+#### 4.1 系统监控API (TODO)
+
+- **性能监控**: `/admin-api/system/performance` - 系统性能指标
+- **健康检查**: `/admin-api/system/health` - 服务可用性检查
+- **日志分析**: `/admin-api/system/logs` - 系统日志聚合分析
+
+#### 4.2 批量操作API (TODO)
+
+- **批量AI测试**: `/admin-api/batch/ai-test` - 多角色并行测试
+- **批量配置更新**: `/admin-api/batch/config-update` - 批量配置管理
+- **数据导入导出**: `/admin-api/batch/data-export` - 数据批量处理
+
+#### 4.3 高级分析API (TODO)
+
+- **对话质量分析**: `/admin-api/analytics/conversation-quality` - AI对话质量评估
+- **用户行为分析**: `/admin-api/analytics/user-behavior` - 用户使用模式分析
+- **性能趋势分析**: `/admin-api/analytics/performance-trends` - 系统性能趋势
+
+**注意**: 这些功能将在核心功能稳定后逐步实施，当前专注于AI测试和LLM测试的核心功能。
+
+### 管理后台专用错误码
+
+- `ADMIN_UNAUTHORIZED`: 管理员未登录
+- `ADMIN_FORBIDDEN`: 管理员权限不足
+- `AI_CHARACTER_NOT_FOUND`: AI角色不存在
+- `LLM_CONFIG_NOT_FOUND`: LLM配置不存在
+- `TEST_USER_NOT_FOUND`: 测试用户不存在
+- `ALGORITHM_VALIDATION_FAILED`: 算法参数验证失败
+- `LLM_REQUEST_FAILED`: LLM请求失败
+- `CONFIG_UPDATE_FAILED`: 配置更新失败
+
 ## 安全考虑
 
 1. **API限流**：防止恶意请求
@@ -909,3 +1023,5 @@ GET /api/v1/admin/system/operation-logs
 4. **XSS防护**：输出内容转义
 5. **CSRF防护**：使用CSRF Token
 6. **敏感信息脱敏**：日志中不记录敏感信息
+7. **管理后台访问控制**：基于角色的权限管理
+8. **操作日志记录**：记录所有管理操作

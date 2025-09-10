@@ -13,6 +13,7 @@ from core.database import SessionLocal, init_database, close_database
 from utils.logging import configure_logging, get_logger
 from utils.snowflake import init_snowflake
 from api.v1 import v1_router
+from api.admin import admin_api_router
 from admin import admin
 
 configure_logging(
@@ -147,11 +148,38 @@ async def root():
 
 # Include API routes
 app.include_router(v1_router, prefix="/api/v1")
+app.include_router(admin_api_router, prefix="/admin-api")
 
 # Mount admin interface
 logger.info("mounting_admin_interface", admin_title=admin.title, admin_base_url=admin.base_url)
+
+# Debug: Print admin models before mounting
+logger.info("admin_models_before_mount", models=[model.identity for model in admin._models])
+logger.info(
+    "admin_models_detailed",
+    models=[(model.identity, type(model).__name__, model.model) for model in admin._models],
+)
+
 admin.mount_to(app)
 logger.info("admin_interface_mounted")
+
+# Debug: Print admin models after mounting
+logger.info("admin_models_after_mount", models=[model.identity for model in admin._models])
+
+
+# Add debug middleware to log API requests
+@app.middleware("http")
+async def debug_api_requests(request: Request, call_next):
+    if "/api/" in str(request.url):
+        logger.info(
+            "api_request_debug",
+            url=str(request.url),
+            path=request.url.path,
+            path_params=dict(request.path_params),
+        )
+    response = await call_next(request)
+    return response
+
 
 # Debug: Print all routes
 logger.info("app_routes", routes=[str(route) for route in app.routes])

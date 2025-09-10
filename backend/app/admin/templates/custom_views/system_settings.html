@@ -1,0 +1,189 @@
+{% extends "layout.html" %}
+
+{% block title %}系统设置{% endblock %}
+
+{% block header %}
+<div class="row g-2 align-items-center">
+    <div class="col">
+        <h2 class="page-title">
+            <i class="fa fa-cogs me-2"></i>系统设置
+        </h2>
+        <div class="text-muted mt-1">管理系统配置参数</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="col-12">
+    {% if success %}
+    <div class="alert alert-success alert-dismissible" role="alert">
+        <i class="fa fa-check-circle me-2"></i>{{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible" role="alert">
+        <i class="fa fa-exclamation-triangle me-2"></i>{{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <form method="post">
+        <div class="row">
+            {% for group_key, group in config_groups.items() %}
+            {% if group.configs %}
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">{{ group.title }}</h3>
+                        <div class="card-subtitle">{{ group.description }}</div>
+                    </div>
+                    <div class="card-body">
+                        {% for config_key, config_value in group.configs.items() %}
+                        <div class="mb-3">
+                            <label class="form-label" for="config_{{ config_key }}">
+                                {{ config_key | replace('_', ' ') | title }}
+                            </label>
+
+                            {% if config_key.startswith('enable_') or config_key.endswith('_enabled') %}
+                            <!-- Boolean field -->
+                            <select class="form-select" name="config_{{ config_key }}" id="config_{{ config_key }}">
+                                <option value="true" {% if config_value %}selected{% endif %}>启用</option>
+                                <option value="false" {% if not config_value %}selected{% endif %}>禁用</option>
+                            </select>
+                            {% elif config_key in ['cors_origins', 'allowed_hosts'] %}
+                            <!-- JSON array field -->
+                            <textarea class="form-control" name="config_{{ config_key }}" id="config_{{ config_key }}"
+                                rows="3"
+                                placeholder='["http://localhost:5174", "http://127.0.0.1:5174"]'>{{ config_value | tojson if config_value is iterable and config_value is not string else config_value }}</textarea>
+                            <div class="form-text">JSON数组格式或逗号分隔的值</div>
+                            {% elif config_key.endswith('_timeout') or config_key.endswith('_seconds') or
+                            config_key.endswith('_minutes') or config_key.endswith('_hours') or
+                            config_key.endswith('_limit') or config_key.endswith('_rounds') or
+                            config_key.endswith('_count') %}
+                            <!-- Integer field -->
+                            <input type="number" class="form-control" name="config_{{ config_key }}"
+                                id="config_{{ config_key }}" value="{{ config_value or '' }}" min="0">
+                            {% elif config_key == 'log_level' %}
+                            <!-- Log level dropdown -->
+                            <select class="form-select" name="config_{{ config_key }}" id="config_{{ config_key }}">
+                                <option value="DEBUG" {% if config_value=='DEBUG' %}selected{% endif %}>DEBUG</option>
+                                <option value="INFO" {% if config_value=='INFO' %}selected{% endif %}>INFO</option>
+                                <option value="WARNING" {% if config_value=='WARNING' %}selected{% endif %}>WARNING
+                                </option>
+                                <option value="ERROR" {% if config_value=='ERROR' %}selected{% endif %}>ERROR</option>
+                                <option value="CRITICAL" {% if config_value=='CRITICAL' %}selected{% endif %}>CRITICAL
+                                </option>
+                            </select>
+                            {% elif config_key == 'log_format' %}
+                            <!-- Log format dropdown -->
+                            <select class="form-select" name="config_{{ config_key }}" id="config_{{ config_key }}">
+                                <option value="json" {% if config_value=='json' %}selected{% endif %}>JSON</option>
+                                <option value="text" {% if config_value=='text' %}selected{% endif %}>Text</option>
+                            </select>
+                            {% else %}
+                            <!-- String field -->
+                            <input type="text" class="form-control" name="config_{{ config_key }}"
+                                id="config_{{ config_key }}" value="{{ config_value or '' }}">
+                            {% endif %}
+
+                            <!-- Field descriptions -->
+                            {% if config_key == 'default_contact_limit' %}
+                            <div class="form-text">每个用户的默认联系人数量限制</div>
+                            {% elif config_key == 'default_search_display_limit' %}
+                            <div class="form-text">搜索结果的默认显示数量</div>
+                            {% elif config_key == 'add_contact_timeout' %}
+                            <div class="form-text">添加联系人操作的超时时间（秒）</div>
+                            {% elif config_key == 'leancloud_app_id' %}
+                            <div class="form-text">LeanCloud应用ID</div>
+                            {% elif config_key == 'leancloud_app_key' %}
+                            <div class="form-text">LeanCloud应用Key</div>
+                            {% elif config_key == 'leancloud_base_url' %}
+                            <div class="form-text">LeanCloud API基础URL</div>
+                            {% elif config_key == 'cors_origins' %}
+                            <div class="form-text">允许跨域访问的来源地址</div>
+                            {% elif config_key == 'allowed_hosts' %}
+                            <div class="form-text">允许访问的主机名列表</div>
+                            {% elif config_key == 'jwt_access_token_expire_minutes' %}
+                            <div class="form-text">JWT访问令牌的过期时间（分钟）</div>
+                            {% elif config_key == 'bcrypt_rounds' %}
+                            <div class="form-text">密码加密的BCrypt轮数</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="history.back()">
+                                <i class="fa fa-arrow-left me-2"></i>返回
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-outline-primary me-2" onclick="location.reload()">
+                                    <i class="fa fa-refresh me-2"></i>重新加载
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-save me-2"></i>保存设置
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">配置说明</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4>业务配置</h4>
+                            <ul class="list-unstyled">
+                                <li>• <strong>联系人限制:</strong> 控制用户可添加的联系人数量</li>
+                                <li>• <strong>搜索显示限制:</strong> 搜索结果的分页大小</li>
+                                <li>• <strong>添加联系人超时:</strong> 防止频繁添加联系人的时间限制</li>
+                            </ul>
+
+
+                        </div>
+                        <div class="col-md-6">
+                            <h4>系统配置</h4>
+                            <ul class="list-unstyled">
+                                <li>• <strong>日志级别:</strong> 控制系统日志的详细程度</li>
+                                <li>• <strong>JWT过期时间:</strong> 用户登录令牌的有效期</li>
+                                <li>• <strong>密码加密轮数:</strong> 影响密码安全性和性能</li>
+                            </ul>
+
+                            <h4>网络配置</h4>
+                            <ul class="list-unstyled">
+                                <li>• <strong>CORS来源:</strong> 允许跨域请求的前端地址</li>
+                                <li>• <strong>允许的主机:</strong> 可以访问API的主机名</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="fa fa-info-circle me-2"></i>
+                        <strong>注意:</strong> 某些配置更改可能需要重启服务才能生效。建议在维护窗口期间进行重要配置的修改。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

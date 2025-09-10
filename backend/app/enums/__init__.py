@@ -43,6 +43,10 @@ __all__ = [
     "AIContextSourceType",
     "AIRequestStatus",
     "ScoreOffsetAlgorithm",
+    "LLMRequestStatus",
+    "PlaceholderType",
+    "RequiredStatus",
+    "ReusableStatus",
     # Security
     "ViolationType",
     "SeverityLevel",

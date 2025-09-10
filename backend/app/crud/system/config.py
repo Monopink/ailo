@@ -139,4 +139,4 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
 
 
 # Create instance
-system_config = CRUDSystemConfig(SystemConfig)
+system_configs = CRUDSystemConfig(SystemConfig)

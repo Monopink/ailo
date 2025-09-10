@@ -11,6 +11,7 @@ from .character_queries import (
     get_personality_with_placeholders,
     get_style_with_relationships,
     get_character_id_by_qiao_id,
+    get_all_characters,
 )
 
 # Relationship scoring query functions
@@ -21,6 +22,7 @@ from .relationship_queries import (
 
 # Context and conversation query functions
 from .context_queries import (
+    get_conversation_contexts,
     get_conversation_history,
     get_context_by_id,
     get_contexts_for_archiving,
@@ -64,10 +66,12 @@ __all__ = [
     "get_personality_with_placeholders",
     "get_style_with_relationships",
     "get_character_id_by_qiao_id",
+    "get_all_characters",
     # Relationship queries
     "get_character_relationship_scores",
     "get_relationship_score_ranges",
     # Conversation queries
+    "get_conversation_contexts",
     "get_conversation_history",
     "get_context_by_id",
     "get_contexts_for_archiving",

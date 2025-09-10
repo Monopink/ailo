@@ -32,7 +32,7 @@ from .admin import admin_user, admin_operation_log, admin_login_log
 
 # System CRUD
 from .system import (
-    system_config,
+    system_configs,
     stats_user_daily,
     stats_revenue_daily,
     stats_message_daily,
@@ -63,7 +63,7 @@ __all__ = [
     "admin_operation_log",
     "admin_login_log",
     # System
-    "system_config",
+    "system_configs",
     "stats_user_daily",
     "stats_revenue_daily",
     "stats_message_daily",

@@ -5,7 +5,7 @@ This module provides character-related read/query functions with clear
 separation of concerns and pure function design.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
@@ -221,3 +221,49 @@ async def get_character_id_by_qiao_id(db: AsyncSession, character_qiao_id: str) 
     except Exception as e:
         logger.error("character_id_query_failed", error=str(e), character_qiao_id=character_qiao_id)
         return None
+
+
+async def get_all_characters(db: AsyncSession) -> List[Dict[str, Any]]:
+    """
+    Get all active characters for admin interface.
+
+    Args:
+        db: Database session
+
+    Returns:
+        List of character dictionaries with basic information
+    """
+    try:
+        result = await db.execute(
+            select(AICharacter, Profile)
+            .outerjoin(Profile, AICharacter.qiao_id == Profile.owner_qiao_id)
+            .where(AICharacter.status == 1)  # active characters only
+            .order_by(AICharacter.created_at.desc())
+        )
+
+        characters = []
+        for character, profile in result.all():
+            characters.append(
+                {
+                    "id": character.id,
+                    "qiao_id": character.qiao_id,
+                    "name": (profile.nickname if profile else None) or f"Character {character.qiao_id}",
+                    "category": character.category,
+                    "user_qiao_id": character.user_qiao_id,
+                    "created_at": character.created_at.isoformat() if character.created_at else None,
+                }
+            )
+
+        logger.debug(
+            "all_characters_retrieved",
+            count=len(characters),
+        )
+
+        return characters
+
+    except Exception as e:
+        logger.error(
+            "all_characters_retrieval_failed",
+            error=str(e),
+        )
+        return []

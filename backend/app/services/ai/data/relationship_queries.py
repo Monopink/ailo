@@ -8,8 +8,9 @@ with clear separation of concerns and pure function design.
 from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
-from models.ai import AIRelationshipScore
+from models.ai import AIRelationshipScore, AIRelationshipDimension
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -27,17 +28,19 @@ async def get_character_relationship_scores(db: AsyncSession, character_id: int)
         List of score dictionaries
     """
     try:
+        # Join with AIRelationshipDimension to get initial_position
         result = await db.execute(
-            select(AIRelationshipScore)
+            select(AIRelationshipScore, AIRelationshipDimension.initial_position)
+            .join(AIRelationshipDimension, AIRelationshipScore.dimension_id == AIRelationshipDimension.id)
             .where(AIRelationshipScore.character_id == character_id)
             .order_by(AIRelationshipScore.dimension_name)
         )
 
-        scores = result.scalars().all()
+        score_data = result.all()
 
         # Convert to dictionaries
         score_list = []
-        for score in scores:
+        for score, initial_position in score_data:
             score_list.append(
                 {
                     "id": score.id,
@@ -46,6 +49,7 @@ async def get_character_relationship_scores(db: AsyncSession, character_id: int)
                     "dimension_name": score.dimension_name,
                     "score": score.score,
                     "position": score.position,
+                    "initial_position": initial_position,  # Add initial_position from dimension
                     "relationship_id": score.relationship_id,
                     "relationship_display_name": score.relationship_display_name,
                     "relationship_counts": score.relationship_counts,

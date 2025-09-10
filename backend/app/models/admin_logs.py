@@ -4,6 +4,7 @@ Simplified logging system for admin activities.
 """
 
 from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, func
+from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import relationship
 
 from ..admin.models.base import AdminBaseModel
@@ -39,7 +40,7 @@ class AdminOperationLog(AdminBaseModel):
     resource_id = Column(String(100), comment="ID of the affected resource")
     resource_name = Column(String(200), comment="Name of the affected resource")
     operation_desc = Column(String(500), nullable=False, comment="Description of the operation")
-    ip_address = Column(String(45), comment="IP address of the admin user")
+    ip_address = Column(INET, comment="IP address of the admin user")
     user_agent = Column(String(500), comment="User agent string")
 
     # Relationship to admin user
@@ -67,7 +68,7 @@ class AdminLoginLog(AdminBaseModel):
     login_result = Column(
         Enum("SUCCESS", "FAILED"), nullable=False, index=True, comment="Result of login attempt"
     )
-    ip_address = Column(String(45), comment="IP address of login attempt")
+    ip_address = Column(INET, comment="IP address of login attempt")
     user_agent = Column(String(500), comment="User agent string")
     failure_reason = Column(String(200), comment="Reason for login failure (if applicable)")
 

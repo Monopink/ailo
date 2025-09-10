@@ -121,8 +121,8 @@ async def update_relationship_scores(
 
                 # Position calculation should be done based on score conversion algorithm
                 # For now, use a simple linear mapping (this should be improved later)
-                # Assuming score is 0-100 and position is 0-1000
-                position = min(1000, max(0, int(new_value * 10)))
+                # Both score and position use 0-1000 range
+                position = min(1000, max(0, int(new_value)))
                 score_obj.position = position
 
                 updated_count += 1

@@ -5,17 +5,19 @@ This module contains SQLAlchemy models for AI service request logging.
 """
 
 from typing import Optional
-from sqlalchemy import BigInteger, Integer, Text, Index
+from datetime import datetime
+from sqlalchemy import BigInteger, Integer, Text, Index, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from models.base import SnowflakeModel
+from models.base import Base, SnowflakeIDMixin
 
 
-class AIRequestLog(SnowflakeModel):
+class AIRequestLog(Base, SnowflakeIDMixin):
     """
     AI request log model.
 
     AI service request logging.
+    AI request logs are immutable - no updated_at field needed.
     """
 
     __tablename__ = "ai_request_logs"
@@ -46,6 +48,10 @@ class AIRequestLog(SnowflakeModel):
 
     response_time: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Response time in milliseconds"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=func.now(), comment="Request log creation timestamp"
     )
 
     # Indexes

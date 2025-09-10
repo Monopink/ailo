@@ -49,6 +49,8 @@ class AIPersonality(AutoIncrementModel):
         Index("idx_ai_personalities_name", "name"),
         Index("idx_ai_personalities_status", "status"),
         Index("idx_ai_personalities_usage_count", "usage_count"),
+        # PostgreSQL GIN index for JSONB field for better query performance
+        Index("idx_ai_personalities_json_schema_gin", "json_schema", postgresql_using="gin"),
     )
 
 
@@ -101,4 +103,10 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
         Index("idx_ai_personality_placeholders_placeholder_type", "placeholder_type"),
         Index("idx_ai_personality_placeholders_is_required", "is_required"),
         Index("idx_ai_personality_placeholders_display_name", "display_name"),
+        # PostgreSQL GIN index for JSONB field for better query performance
+        Index(
+            "idx_ai_personality_placeholders_validation_rules_gin",
+            "validation_rules",
+            postgresql_using="gin",
+        ),
     )

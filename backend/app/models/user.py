@@ -6,12 +6,12 @@ This module contains SQLAlchemy models for user accounts, sessions, and login re
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, func
+from sqlalchemy.dialects.postgresql import JSONB, INET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import UserStatus, UserType, DeviceType, LoginType, LoginResult
-from models.base import SnowflakeQiaoModel, SnowflakeModel, StatusMixin
+from models.base import SnowflakeQiaoModel, SnowflakeModel, StatusMixin, Base, SnowflakeIDMixin
 
 
 class User(SnowflakeQiaoModel, StatusMixin):
@@ -100,7 +100,7 @@ class UserSession(SnowflakeModel):
         JSONB, nullable=True, comment="Platform information (JSONB for better performance)"
     )
 
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True, comment="Login IP address")
+    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="Login IP address")
 
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent string")
 
@@ -108,7 +108,7 @@ class UserSession(SnowflakeModel):
         DateTime, nullable=False, comment="Session expiration time"
     )
 
-    is_active: Mapped[int] = mapped_column(
+    status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=1,
@@ -126,16 +126,17 @@ class UserSession(SnowflakeModel):
         Index("idx_user_sessions_user_qiao_id", "user_qiao_id"),
         Index("idx_user_sessions_device_type", "device_type"),
         Index("idx_user_sessions_expires_at", "expires_at"),
-        Index("idx_user_sessions_is_active", "is_active"),
-        Index("idx_user_sessions_last_activity", "last_activity_at"),
+        Index("idx_user_sessions_status", "status"),
+        Index("idx_user_sessions_last_activity_at", "last_activity_at"),
     )
 
 
-class LoginRecord(SnowflakeModel):
+class LoginRecord(Base, SnowflakeIDMixin):
     """
     Login record model.
 
     Tracks all login attempts for security and analytics purposes.
+    Login records are immutable - no updated_at field needed.
     """
 
     __tablename__ = "login_records"
@@ -160,7 +161,7 @@ class LoginRecord(SnowflakeModel):
         String(128), nullable=True, comment="Device identifier"
     )
 
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True, comment="Login IP address")
+    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="Login IP address")
 
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent string")
 
@@ -170,6 +171,10 @@ class LoginRecord(SnowflakeModel):
 
     session_token: Mapped[Optional[str]] = mapped_column(
         String(128), nullable=True, comment="Associated session token"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=func.now(), comment="Login record creation timestamp"
     )
 
     # Indexes

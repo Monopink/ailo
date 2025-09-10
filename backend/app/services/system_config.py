@@ -1,0 +1,254 @@
+"""
+System configuration management service.
+
+This module provides centralized management for system configuration
+stored in the database, with caching and type conversion support.
+"""
+
+import json
+from typing import Any, Dict, List, Optional, Union
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models.system import SystemConfig
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Configuration cache
+_config_cache: Dict[str, Any] = {}
+_cache_loaded = False
+
+
+class SystemConfigService:
+    """System configuration service with caching support."""
+
+    @staticmethod
+    async def get_config(db: AsyncSession, key: str, default: Any = None) -> Any:
+        """
+        Get configuration value by key.
+
+        Args:
+            db: Database session
+            key: Configuration key
+            default: Default value if key not found
+
+        Returns:
+            Configuration value with proper type conversion
+        """
+        global _config_cache, _cache_loaded
+
+        # Load cache if not loaded
+        if not _cache_loaded:
+            await SystemConfigService._load_cache(db)
+
+        # Return from cache
+        if key in _config_cache:
+            return _config_cache[key]
+
+        # Return default if not found
+        logger.warning("system_configs_not_found", key=key, default=default)
+        return default
+
+    @staticmethod
+    async def set_config(db: AsyncSession, key: str, value: Any, description: str = None) -> bool:
+        """
+        Set configuration value.
+
+        Args:
+            db: Database session
+            key: Configuration key
+            value: Configuration value
+            description: Optional description
+
+        Returns:
+            True if successful
+        """
+        try:
+            # Get existing config
+            result = await db.execute(select(SystemConfig).where(SystemConfig.config_key == key))
+            config = result.scalar_one_or_none()
+
+            # Convert value to string and determine type
+            str_value, config_type = SystemConfigService._convert_to_db_format(value)
+
+            if config:
+                # Update existing
+                config.config_value = str_value
+                config.config_type = config_type
+                if description:
+                    config.description = description
+            else:
+                # Create new
+                config = SystemConfig(
+                    config_key=key,
+                    config_value=str_value,
+                    config_type=config_type,
+                    description=description or f"Configuration for {key}",
+                    is_public=0,
+                )
+                db.add(config)
+
+            await db.commit()
+
+            # Update cache
+            _config_cache[key] = value
+
+            logger.info("system_configs_updated", key=key, value_type=type(value).__name__)
+            return True
+
+        except Exception as e:
+            logger.error("system_configs_update_error", key=key, error=str(e), exc_info=True)
+            await db.rollback()
+            return False
+
+    @staticmethod
+    async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:
+        """
+        Get all configuration values.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Dictionary of all configuration values
+        """
+        global _config_cache, _cache_loaded
+
+        if not _cache_loaded:
+            await SystemConfigService._load_cache(db)
+
+        return _config_cache.copy()
+
+    @staticmethod
+    async def get_configs_by_group(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+        """
+        Get configurations grouped by category for admin interface.
+
+        Returns:
+            Grouped configuration dictionary
+        """
+        all_configs = await SystemConfigService.get_all_configs(db)
+
+        # Define configuration groups
+        groups = {
+            "business": {"title": "业务配置", "description": "用户和联系人相关的业务配置", "configs": {}},
+            "leancloud": {"title": "LeanCloud配置", "description": "LeanCloud服务配置", "configs": {}},
+            "system": {"title": "系统配置", "description": "系统运行相关配置", "configs": {}},
+            "network": {"title": "网络配置", "description": "CORS和网络访问配置", "configs": {}},
+            "other": {"title": "其他配置", "description": "其他系统配置", "configs": {}},
+        }
+
+        # Group configurations
+        for key, value in all_configs.items():
+            if key.startswith(("default_", "add_contact_", "max_", "session_", "enable_")):
+                groups["business"]["configs"][key] = value
+            elif key.startswith("leancloud_"):
+                groups["leancloud"]["configs"][key] = value
+            elif key in ["log_level", "log_format", "jwt_access_token_expire_minutes", "bcrypt_rounds"]:
+                groups["system"]["configs"][key] = value
+            elif key in ["cors_origins", "allowed_hosts"]:
+                groups["network"]["configs"][key] = value
+            else:
+                groups["other"]["configs"][key] = value
+
+        return groups
+
+    @staticmethod
+    async def reload_cache(db: AsyncSession) -> None:
+        """Reload configuration cache from database."""
+        global _cache_loaded
+        _cache_loaded = False
+        await SystemConfigService._load_cache(db)
+
+    @staticmethod
+    async def _load_cache(db: AsyncSession) -> None:
+        """Load all configurations into cache."""
+        global _config_cache, _cache_loaded
+
+        try:
+            result = await db.execute(select(SystemConfig))
+            configs = result.scalars().all()
+
+            _config_cache.clear()
+            for config in configs:
+                value = SystemConfigService._convert_from_db_format(config.config_value, config.config_type)
+                _config_cache[config.config_key] = value
+
+            _cache_loaded = True
+            logger.info("system_configs_cache_loaded", count=len(_config_cache))
+
+        except Exception as e:
+            logger.error("system_configs_cache_load_error", error=str(e), exc_info=True)
+            _cache_loaded = False
+
+    @staticmethod
+    def _convert_to_db_format(value: Any) -> tuple[str, int]:
+        """
+        Convert Python value to database format.
+
+        Returns:
+            Tuple of (string_value, config_type)
+            config_type: 1=string, 2=integer, 3=boolean, 4=json
+        """
+        if isinstance(value, bool):
+            return str(value).lower(), 3
+        elif isinstance(value, int):
+            return str(value), 2
+        elif isinstance(value, (list, dict)):
+            return json.dumps(value), 4
+        else:
+            return str(value), 1
+
+    @staticmethod
+    def _convert_from_db_format(value: str, config_type: int) -> Any:
+        """
+        Convert database value to Python type.
+
+        Args:
+            value: String value from database
+            config_type: 1=string, 2=integer, 3=boolean, 4=json
+
+        Returns:
+            Converted Python value
+        """
+        if value is None:
+            return None
+
+        try:
+            if config_type == 1:  # string
+                return value
+            elif config_type == 2:  # integer
+                return int(value)
+            elif config_type == 3:  # boolean
+                return value.lower() in ("true", "1", "yes", "on")
+            elif config_type == 4:  # json
+                return json.loads(value)
+            else:
+                return value
+        except (ValueError, json.JSONDecodeError) as e:
+            logger.warning(
+                "system_configs_conversion_error", value=value, config_type=config_type, error=str(e)
+            )
+            return value
+
+
+# Convenience functions
+async def get_config(db: AsyncSession, key: str, default: Any = None) -> Any:
+    """Get configuration value."""
+    return await SystemConfigService.get_config(db, key, default)
+
+
+async def set_config(db: AsyncSession, key: str, value: Any, description: str = None) -> bool:
+    """Set configuration value."""
+    return await SystemConfigService.set_config(db, key, value, description)
+
+
+async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:
+    """Get all configuration values."""
+    return await SystemConfigService.get_all_configs(db)
+
+
+async def get_configs_by_group(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+    """Get configurations grouped by category."""
+    return await SystemConfigService.get_configs_by_group(db)

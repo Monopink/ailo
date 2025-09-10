@@ -7,7 +7,6 @@ This module contains SQLAlchemy models for AI characters and conversation contex
 from typing import Any, Dict, List, Optional
 from sqlalchemy import BigInteger, Integer, String, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.schema import Index as PGIndex
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import AICharacterCreator
@@ -61,6 +60,12 @@ class AICharacter(SnowflakeQiaoModel):
         JSONB, nullable=True, comment="Score offset parameters (JSONB for better performance)"
     )
 
+    request_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="AI character request parameters configuration (can override default LLM settings)",
+    )
+
     created_by: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Creator type: 1=system, 2=user"
     )
@@ -75,8 +80,9 @@ class AICharacter(SnowflakeQiaoModel):
         Index("idx_ai_characters_status", "status"),
         Index("idx_ai_characters_created_by", "created_by"),
         # PostgreSQL GIN indexes for JSONB fields for better query performance
-        PGIndex("idx_ai_characters_prompt_variables_gin", "prompt_variables", postgresql_using="gin"),
-        PGIndex("idx_ai_characters_score_offset_params_gin", "score_offset_params", postgresql_using="gin"),
+        Index("idx_ai_characters_prompt_variables_gin", "prompt_variables", postgresql_using="gin"),
+        Index("idx_ai_characters_score_offset_params_gin", "score_offset_params", postgresql_using="gin"),
+        Index("idx_ai_characters_request_params_gin", "request_params", postgresql_using="gin"),
     )
 
 
@@ -141,9 +147,11 @@ class AIContext(SnowflakeModel):
         Index("idx_ai_contexts_user_qiao_id", "user_qiao_id"),
         Index("idx_ai_contexts_role", "role"),
         Index("idx_ai_contexts_position", "position"),
+        Index("idx_ai_contexts_is_attack", "is_attack"),
+        Index("idx_ai_contexts_reply_status", "reply_status"),
         # PostgreSQL GIN indexes for JSONB fields for better query performance
-        PGIndex("idx_ai_contexts_source_message_ids_gin", "source_message_ids", postgresql_using="gin"),
-        PGIndex("idx_ai_contexts_context_metadata_gin", "context_metadata", postgresql_using="gin"),
+        Index("idx_ai_contexts_source_message_ids_gin", "source_message_ids", postgresql_using="gin"),
+        Index("idx_ai_contexts_context_metadata_gin", "context_metadata", postgresql_using="gin"),
     )
 
 
@@ -208,8 +216,8 @@ class AIContextArchive(SnowflakeModel):
         Index("idx_ai_contexts_archive_user_qiao_id", "user_qiao_id"),
         Index("idx_ai_contexts_archive_role", "role"),
         # PostgreSQL GIN indexes for JSONB fields for better query performance
-        PGIndex(
+        Index(
             "idx_ai_contexts_archive_source_message_ids_gin", "source_message_ids", postgresql_using="gin"
         ),
-        PGIndex("idx_ai_contexts_archive_context_metadata_gin", "context_metadata", postgresql_using="gin"),
+        Index("idx_ai_contexts_archive_context_metadata_gin", "context_metadata", postgresql_using="gin"),
     )

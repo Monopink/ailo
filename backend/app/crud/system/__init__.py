@@ -5,7 +5,7 @@ This module imports all system-related CRUD operations.
 """
 
 # Configuration CRUD
-from .config import CRUDSystemConfig, system_config
+from .config import CRUDSystemConfig, system_configs
 
 # Statistics CRUD
 from .stats import (
@@ -28,7 +28,7 @@ __all__ = [
     "CRUDStatsMessage",
     "CRUDStatsAI",
     # Instances
-    "system_config",
+    "system_configs",
     "stats_user_daily",
     "stats_revenue_daily",
     "stats_message_daily",

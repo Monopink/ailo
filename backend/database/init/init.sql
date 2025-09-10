@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     ip_address INET,
     user_agent TEXT,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1,
+    status INTEGER NOT NULL DEFAULT 1,
     last_activity_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_user_qiao_id ON user_sessions(user_
 CREATE INDEX IF NOT EXISTS idx_user_sessions_session_token ON user_sessions(session_token);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_device_type ON user_sessions(device_type);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expires_at ON user_sessions(expires_at);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_is_active ON user_sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_status ON user_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_last_activity_at ON user_sessions(last_activity_at);
 -- GIN index for JSONB platform_info
 CREATE INDEX IF NOT EXISTS idx_user_sessions_platform_info_gin ON user_sessions USING GIN(platform_info);
@@ -147,6 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_contacts_is_pinned ON contacts(is_pinned);
 CREATE INDEX IF NOT EXISTS idx_contacts_is_muted ON contacts(is_muted);
 CREATE INDEX IF NOT EXISTS idx_contacts_is_blocked ON contacts(is_blocked);
 CREATE INDEX IF NOT EXISTS idx_contacts_is_deleted ON contacts(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_contacts_created_at ON contacts(created_at);
 -- GIN index for JSONB tags
 CREATE INDEX IF NOT EXISTS idx_contacts_tags_gin ON contacts USING GIN(tags);
 
@@ -191,7 +192,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     bio TEXT,
     region VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE(owner_qiao_id, owner_type)
 );
 
 -- Create indexes for profiles table
@@ -451,7 +453,7 @@ CREATE TABLE IF NOT EXISTS ai_personality_placeholders (
     id SERIAL PRIMARY KEY,
     personality_id INTEGER,
     placeholder_key VARCHAR(100) NOT NULL,
-    placeholder_type VARCHAR(50) NOT NULL,
+    placeholder_type INTEGER NOT NULL DEFAULT 1,
     display_name VARCHAR(100) NOT NULL,
     description VARCHAR(500),
     example_value TEXT,
@@ -532,6 +534,7 @@ CREATE TABLE IF NOT EXISTS ai_characters (
     prompt_variables JSONB,
     score_offset_algorithm VARCHAR(100),
     score_offset_params JSONB,
+    request_params JSONB,
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -548,6 +551,10 @@ CREATE INDEX IF NOT EXISTS idx_ai_characters_created_by ON ai_characters(created
 -- GIN indexes for JSONB fields
 CREATE INDEX IF NOT EXISTS idx_ai_characters_prompt_variables_gin ON ai_characters USING GIN(prompt_variables);
 CREATE INDEX IF NOT EXISTS idx_ai_characters_score_offset_params_gin ON ai_characters USING GIN(score_offset_params);
+CREATE INDEX IF NOT EXISTS idx_ai_characters_request_params_gin ON ai_characters USING GIN(request_params);
+
+-- Add comment for new field
+COMMENT ON COLUMN ai_characters.request_params IS 'AI character request parameters configuration (JSON format) - can override default LLM settings';
 
 -- AI contexts table - AI conversation contexts
 CREATE TABLE IF NOT EXISTS ai_contexts (
@@ -730,7 +737,7 @@ CREATE INDEX IF NOT EXISTS idx_user_security_stats_violation_by_type_gin ON user
 -- ============================================================================
 
 -- System config table - System-wide configuration parameters
-CREATE TABLE IF NOT EXISTS system_config (
+CREATE TABLE IF NOT EXISTS system_configs (
     id SERIAL PRIMARY KEY,
     config_key VARCHAR(100) NOT NULL UNIQUE,
     config_value TEXT,
@@ -742,10 +749,10 @@ CREATE TABLE IF NOT EXISTS system_config (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for system_config table
-CREATE INDEX IF NOT EXISTS idx_system_config_config_key ON system_config(config_key);
-CREATE INDEX IF NOT EXISTS idx_system_config_config_type ON system_config(config_type);
-CREATE INDEX IF NOT EXISTS idx_system_config_is_public ON system_config(is_public);
+-- Create indexes for system_configs table
+CREATE INDEX IF NOT EXISTS idx_system_configs_config_key ON system_configs(config_key);
+CREATE INDEX IF NOT EXISTS idx_system_configs_config_type ON system_configs(config_type);
+CREATE INDEX IF NOT EXISTS idx_system_configs_is_public ON system_configs(is_public);
 
 -- ============================================================================
 -- Statistics Tables
@@ -955,14 +962,12 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     supports_streaming INTEGER NOT NULL DEFAULT 0,
     supports_json_schema INTEGER NOT NULL DEFAULT 0,
     supports_thinking INTEGER NOT NULL DEFAULT 0,
-    status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for llm_providers table
 CREATE INDEX IF NOT EXISTS idx_llm_providers_name ON llm_providers(name);
-CREATE INDEX IF NOT EXISTS idx_llm_providers_status ON llm_providers(status);
 
 -- LLM configs table - LLM runtime configuration
 CREATE TABLE IF NOT EXISTS llm_configs (
@@ -977,8 +982,9 @@ CREATE TABLE IF NOT EXISTS llm_configs (
     enable_streaming INTEGER NOT NULL DEFAULT 0,
     enable_thinking INTEGER NOT NULL DEFAULT 0,
     json_schema_mode VARCHAR(20),
-    is_active INTEGER NOT NULL DEFAULT 0,
+    status INTEGER NOT NULL DEFAULT 1,
     priority INTEGER NOT NULL DEFAULT 1,
+    extra_params JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -986,8 +992,42 @@ CREATE TABLE IF NOT EXISTS llm_configs (
 -- Create indexes for llm_configs table
 CREATE INDEX IF NOT EXISTS idx_llm_configs_provider_id ON llm_configs(provider_id);
 CREATE INDEX IF NOT EXISTS idx_llm_configs_config_key ON llm_configs(config_key);
-CREATE INDEX IF NOT EXISTS idx_llm_configs_is_active ON llm_configs(is_active);
+CREATE INDEX IF NOT EXISTS idx_llm_configs_status ON llm_configs(status);
 CREATE INDEX IF NOT EXISTS idx_llm_configs_priority ON llm_configs(priority);
+-- GIN index for JSONB field
+CREATE INDEX IF NOT EXISTS idx_llm_configs_extra_params_gin ON llm_configs USING GIN(extra_params);
+
+-- LLM request logs table - for testing and monitoring
+CREATE TABLE IF NOT EXISTS llm_request_logs (
+    id SERIAL PRIMARY KEY,
+    request_id VARCHAR(50) NOT NULL UNIQUE,
+    test_session_id VARCHAR(50),
+    character_qiao_id VARCHAR(50),
+    user_qiao_id VARCHAR(50),
+    provider_name VARCHAR(50),
+    config_key VARCHAR(50),
+    model_name VARCHAR(100),
+    request_type VARCHAR(20) NOT NULL DEFAULT 'real',
+    request_data JSONB,
+    response_data JSONB,
+    response_time_ms INTEGER,
+    token_usage JSONB,
+    status INTEGER NOT NULL DEFAULT 1,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Create indexes for llm_request_logs table
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_request_id ON llm_request_logs(request_id);
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_test_session_id ON llm_request_logs(test_session_id);
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_character_qiao_id ON llm_request_logs(character_qiao_id);
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_user_qiao_id ON llm_request_logs(user_qiao_id);
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_status ON llm_request_logs(status);
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_created_at ON llm_request_logs(created_at);
+-- GIN indexes for JSONB fields
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_request_data_gin ON llm_request_logs USING GIN(request_data);
+CREATE INDEX IF NOT EXISTS idx_llm_request_logs_response_data_gin ON llm_request_logs USING GIN(response_data);
 
 -- ============================================================================
 -- Database Functions and Triggers
@@ -1025,10 +1065,11 @@ CREATE TRIGGER update_ai_contexts_archive_updated_at BEFORE UPDATE ON ai_context
 CREATE TRIGGER update_ai_relationship_scores_updated_at BEFORE UPDATE ON ai_relationship_scores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_security_logs_updated_at BEFORE UPDATE ON user_security_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_security_stats_updated_at BEFORE UPDATE ON user_security_stats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_system_config_updated_at BEFORE UPDATE ON system_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_system_configs_updated_at BEFORE UPDATE ON system_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_admin_users_updated_at BEFORE UPDATE ON admin_users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_llm_providers_updated_at BEFORE UPDATE ON llm_providers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_llm_configs_updated_at BEFORE UPDATE ON llm_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Note: llm_request_logs doesn't need updated_at trigger as it's append-only
 
 -- ============================================================================
 -- Initial Data
@@ -1042,9 +1083,7 @@ INSERT INTO admin_users (username, password_hash, role, status) VALUES
 ON CONFLICT (username) DO NOTHING;
 
 -- Insert default system configuration
-INSERT INTO system_config (config_key, config_value, config_type, description, is_public) VALUES
-('app_name', 'AI Chat Application', 1, 'Application name', 1),
-('app_version', '1.0.0', 1, 'Application version', 1),
+INSERT INTO system_configs (config_key, config_value, config_type, description, is_public) VALUES
 ('max_message_length', '2000', 2, 'Maximum message length in characters', 0),
 ('session_timeout_hours', '24', 2, 'User session timeout in hours', 0),
 ('max_ai_requests_per_hour', '100', 2, 'Maximum AI requests per user per hour', 0),
@@ -1052,7 +1091,27 @@ INSERT INTO system_config (config_key, config_value, config_type, description, i
 ('enable_ai_character_creation', 'true', 3, 'Enable AI character creation by users', 0),
 ('ai_response_timeout_seconds', '30', 2, 'AI response timeout in seconds', 0),
 ('ai_max_context_messages', '20', 2, 'Maximum context messages for AI', 0),
-('ai_json_schema_validation_enabled', 'true', 3, 'Enable JSON Schema validation', 0)
+('ai_json_schema_validation_enabled', 'true', 3, 'Enable JSON Schema validation', 0),
+
+-- Business configuration (migrated from .env)
+('default_contact_limit', '50', 2, 'Default contact limit per user', 0),
+('default_search_display_limit', '20', 2, 'Default search display limit', 0),
+('add_contact_timeout', '300', 2, 'Add contact timeout in seconds', 0),
+
+
+
+-- LeanCloud configuration (non-sensitive parts)
+('leancloud_app_id', 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz', 1, 'LeanCloud App ID', 0),
+('leancloud_app_key', 'v8GM18oGSxzQTKpgQvdIfy2I', 1, 'LeanCloud App Key', 0),
+('leancloud_base_url', 'https://zcuk19lc.lc-cn-n1-shared.com', 1, 'LeanCloud Base URL', 0),
+
+-- System configuration
+('cors_origins', '["http://localhost:5174","http://127.0.0.1:5174"]', 1, 'CORS allowed origins (JSON array)', 0),
+('allowed_hosts', '["localhost","127.0.0.1","*"]', 1, 'Allowed hosts (JSON array)', 0),
+('log_level', 'INFO', 1, 'System logging level', 0),
+('log_format', 'json', 1, 'Log output format', 0),
+('jwt_access_token_expire_minutes', '30', 2, 'JWT token expiration time in minutes', 0),
+('bcrypt_rounds', '12', 2, 'BCrypt password hashing rounds', 0)
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert basic AI relationship types
@@ -1115,22 +1174,230 @@ INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_cou
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert basic LLM providers
-INSERT INTO llm_providers (name, display_name, base_url, api_key_env, default_model, supports_streaming, supports_json_schema, supports_thinking, status) VALUES
-('doubao', 'Doubao (ByteDance)', 'https://ark.cn-beijing.volces.com/api/v3', 'ARK_API_KEY', 'ep-20241201105607-8zqkx', 1, 1, 0, 1),
-('openai', 'OpenAI', 'https://api.openai.com/v1', 'OPENAI_API_KEY', 'gpt-4o-mini', 1, 1, 0, 1),
-('claude', 'Claude (Anthropic)', 'https://api.anthropic.com', 'ANTHROPIC_API_KEY', 'claude-3-haiku-20240307', 1, 1, 1, 1)
+INSERT INTO llm_providers (name, display_name, base_url, api_key_env, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
+('doubao', 'Doubao (ByteDance)', 'https://ark.cn-beijing.volces.com/api/v3', 'ARK_API_KEY', 'ep-20241201105607-8zqkx', 1, 1, 1)
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert basic LLM configs
-INSERT INTO llm_configs (provider_id, config_key, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, is_active, priority) VALUES
-(1, 'primary', 'ep-20241201105607-8zqkx', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
-(2, 'backup', 'gpt-4o-mini', 0.7, 4000, 30, 3, 1, 0, 'strict', 0, 2),
-(3, 'test', 'claude-3-haiku-20240307', 0.7, 4000, 30, 3, 1, 1, 'auto', 0, 3)
+INSERT INTO llm_configs (provider_id, config_key, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
+(1, 'primary', 'ep-20241201105607-8zqkx', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1)
 ON CONFLICT (config_key) DO NOTHING;
+
+-- Insert test users for AI character testing (user_type=3)
+INSERT INTO users (id, qiao_id, username, phone, status, user_type) VALUES
+(223788765171154945, 'qqid_test_user_001', 'test_user_001', '+86-13800000001', 1, 3),
+(223788765171154946, 'qqid_test_user_002', 'test_user_002', '+86-13800000002', 1, 3),
+(223788765171154947, 'qqid_test_user_003', 'test_user_003', '+86-13800000003', 1, 3),
+(223788765171154948, 'qqid_test_user_004', 'test_user_004', '+86-13800000004', 1, 3),
+(223788765171154949, 'qqid_test_user_005', 'test_user_005', '+86-13800000005', 1, 3)
+ON CONFLICT (qiao_id) DO NOTHING;
+
+-- Insert profiles for test users
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
+(223788765171154950, 223788765171154945, 'qqid_test_user_001', 1, '小雨', '喜欢看书和旅行的文艺青年，最近在学习摄影', 2, NULL),
+(223788765171154951, 223788765171154946, 'qqid_test_user_002', 1, '阿杰', '热爱运动的阳光男孩，篮球和游泳都很在行', 1, NULL),
+(223788765171154952, 223788765171154947, 'qqid_test_user_003', 1, '晓晓', '甜品师，喜欢烘焙和美食，梦想开一家自己的咖啡店', 2, NULL),
+(223788765171154953, 223788765171154948, 'qqid_test_user_004', 1, '大熊', '程序员，业余时间喜欢打游戏和看动漫', 1, NULL),
+(223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL)
+ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
+
+-- Insert AI character for testing
+INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, created_by) VALUES
+(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'companion', 1, 1, 1, '{}', '{}', '1', '{}', 1)
+ON CONFLICT (qiao_id) DO NOTHING;
+
+-- Insert profile for existing AI character
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
+(223788765171154955, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, NULL)
+ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
+
+-- Insert additional AI personalities for testing
+INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_count, status) VALUES
+('sweet_girlfriend', '甜美女友',
+'你是一个温柔甜美的女孩，性格开朗活泼，喜欢和用户聊天。
+
+基本设定：
+- 年龄：22岁
+- 性格：温柔、体贴、有点小任性
+- 爱好：看电影、听音乐、美食
+- 说话风格：温柔甜美，偶尔撒娇
+
+当前状态：{{current_state}}
+关系状态：{{relationship_prompt}}
+你的资料：{{self_profile}}
+对方资料：{{other_profile}}
+当前时间：{{current_datetime}}
+记忆：{{memory}}
+
+友谊度分数：{{score:friendship}}
+浪漫度分数：{{score:romance}}
+
+请根据当前的关系状态和分数，以及对话历史，自然地回复用户的消息。',
+'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "romance": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "romance"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "array", "items": {"type": "object"}}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
+0, 1),
+
+('friendly_buddy', '友好伙伴',
+'你是一个友好开朗的伙伴，喜欢和朋友聊天交流。
+
+基本设定：
+- 年龄：25岁
+- 性格：开朗、幽默、可靠
+- 爱好：运动、游戏、旅行
+- 说话风格：轻松幽默，像好朋友一样
+
+当前状态：{{current_state}}
+关系状态：{{relationship_prompt}}
+你的资料：{{self_profile}}
+对方资料：{{other_profile}}
+当前时间：{{current_datetime}}
+记忆：{{memory}}
+
+友谊度分数：{{score:friendship}}
+信任度分数：{{score:trust}}
+
+请根据当前的关系状态和分数，以及对话历史，自然地回复用户的消息。',
+'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "trust": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "trust"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "array", "items": {"type": "object"}}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
+0, 1)
+ON CONFLICT (name) DO NOTHING;
+
+-- Insert additional AI relationships
+INSERT INTO ai_relationships (name, display_name, prompt_fragment, usage_count, status) VALUES
+('stranger', '陌生人', '你们刚刚认识，保持礼貌和距离感', 0, 1),
+('acquaintance', '熟人', '你们有一些了解，可以进行日常交流', 0, 1),
+('friend', '朋友', '你们是好朋友，可以分享日常生活和想法', 0, 1),
+('close_friend', '密友', '你们关系很亲密，可以谈论私人话题', 0, 1),
+('romantic_interest', '暧昧', '你们之间有一些浪漫的氛围', 0, 1),
+('lover', '恋人', '你们是恋人关系，充满爱意和亲密', 0, 1)
+ON CONFLICT (name) DO NOTHING;
+
+-- Insert additional AI relationship dimensions for romantic_companion style
+INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position, status) VALUES
+(1, 'friendship', '友谊度', 300, 1),
+(1, 'romance', '浪漫度', 200, 1)
+ON CONFLICT (style_id, name) DO NOTHING;
+
+-- Insert additional AI relationship dimensions for friendly_companion style
+INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position, status) VALUES
+(2, 'friendship', '友谊度', 400, 1),
+(2, 'trust', '信任度', 300, 1)
+ON CONFLICT (style_id, name) DO NOTHING;
+
+-- Insert sample admin operation logs
+INSERT INTO admin_operation_logs (id, admin_user_id, operation_type, resource_type, resource_id, operation_desc, ip_address) VALUES
+(1001, 1, 1, 1, '223788765171154945', 'Created user test_user_001 with admin privileges', '127.0.0.1'),
+(1002, 1, 2, 2, '223788765171154944', 'Updated AI character status from inactive to active', '127.0.0.1')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample admin login logs
+INSERT INTO admin_login_logs (id, admin_user_id, username, ip_address, user_agent, result) VALUES
+(1003, 1, 'admin', '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 1),
+(1004, 2, 'manager', '192.168.1.100', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 1)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample contacts
+INSERT INTO contacts (id, conv_id, user_id, user_qiao_id, contact_type, contact_id, contact_qiao_id, alias, tags, is_pinned, is_muted, is_blocked) VALUES
+(223788765171154964, 'conv_001', 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', '小乔', '{"tags": ["ai", "companion"]}', 0, 0, 0),
+(223788765171154965, 'conv_002', 223788765171154946, 'qqid_test_user_002', 1, 223788765171154945, 'qqid_test_user_001', '小雨', '{"tags": ["friend", "photography"]}', 1, 0, 0)
+ON CONFLICT (conv_id) DO NOTHING;
+
+-- Insert sample contact requests
+INSERT INTO contact_requests (id, from_qiao_id, from_type, from_id, to_qiao_id, to_type, to_id, message, source, status) VALUES
+(223788765171154966, 'qqid_test_user_003', 1, 223788765171154947, 'qiao_DLdfyH5GoGBv8q6l', 2, 223788765171154944, '你好，我想和你聊天', 1, 1),
+(223788765171154967, 'qqid_test_user_004', 1, 223788765171154948, 'qqid_test_user_001', 1, 223788765171154945, '看到你的摄影作品很棒，想认识一下', 1, 2)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample message history
+INSERT INTO message_history (id, msg_id_server, conversation_id, direction, from_type, from_id, from_qiao_id, to_type, to_id, to_qiao_id, message_type, content, service_provider, status) VALUES
+(223788765171154968, 'msg_001', 'conv_001', 2, 1, 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, '你好，小乔！', 2, 1),
+(223788765171154969, 'msg_002', 'conv_001', 1, 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 223788765171154945, 'qqid_test_user_001', 1, '你好！很高兴认识你～', 2, 1)
+ON CONFLICT (msg_id_server) DO NOTHING;
+
+-- Insert sample message delivery failures
+INSERT INTO message_delivery_failures (id, msg_id_server, from_type, from_id, from_qiao_id, to_type, to_id, to_qiao_id, service_provider, message_type, content, fail_reason_code, fail_detail, retry_count, max_retry_count, next_retry_at) VALUES
+(1007, 'msg_003', 1, 223788765171154946, 'qqid_test_user_002', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, 1, '你好，小乔！', 'NETWORK_TIMEOUT', 'Connection timeout after 30 seconds', 2, 3, NOW() + INTERVAL '5 minutes'),
+(1008, 'msg_004', 1, 223788765171154947, 'qqid_test_user_003', 1, 223788765171154945, 'qqid_test_user_001', 2, 1, '你好！', 'USER_OFFLINE', 'Target user is offline', 1, 3, NOW() + INTERVAL '10 minutes');
+
+-- Insert sample media files
+INSERT INTO media_files (id, file_id, file_path, file_url, file_type, original_name, file_size, mime_type, upload_by_type, upload_by_id, upload_by_qiao_id) VALUES
+(1005, 'media_001', '/uploads/avatars/avatar_001.jpg', 'https://example.com/uploads/avatars/avatar_001.jpg', 1, 'avatar.jpg', 102400, 'image/jpeg', 1, 223788765171154945, 'qqid_test_user_001'),
+(1006, 'media_002', '/uploads/backgrounds/bg_001.png', 'https://example.com/uploads/backgrounds/bg_001.png', 1, 'background.png', 256000, 'image/png', 1, 223788765171154946, 'qqid_test_user_002')
+ON CONFLICT (file_id) DO NOTHING;
+
+-- Insert sample emoticons
+INSERT INTO emoticons (id, code, category, file_id, url, description, created_by_type, created_by_id, status, sort_order) VALUES
+(1007, 'smile', 1, NULL, 'https://example.com/emoticons/smile.png', 'Smiling face emoji', 1, 1, 1, 1),
+(1008, 'heart', 1, NULL, 'https://example.com/emoticons/heart.png', 'Red heart emoji', 1, 1, 1, 2)
+ON CONFLICT (code) DO NOTHING;
+
+-- Insert sample user security logs
+INSERT INTO user_security_logs (id, user_id, user_qiao_id, character_id, character_qiao_id, violation_type, severity_level, original_message, confidence_score, auto_action_taken, manual_review_status) VALUES
+(223788765171154976, 223788765171154945, 'qqid_test_user_001', 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 2, '请帮我生成一些不当内容', 85, 1, 1),
+(223788765171154977, 223788765171154946, 'qqid_test_user_002', NULL, NULL, 3, 1, '重复发送相同消息多次', 70, 2, 1)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample user security stats
+INSERT INTO user_security_stats (id, user_id, user_qiao_id, total_violations, violation_by_type, last_violation_at, current_risk_level, consecutive_violations, warning_count, restriction_count, suspension_count, last_action_at) VALUES
+(1009, 223788765171154945, 'qqid_test_user_001', 1, '{"prompt_injection": 1}', NOW() - INTERVAL '1 hour', 2, 1, 1, 0, 0, NOW() - INTERVAL '1 hour'),
+(1010, 223788765171154946, 'qqid_test_user_002', 1, '{"spam": 1}', NOW() - INTERVAL '30 minutes', 1, 1, 1, 0, 0, NOW() - INTERVAL '30 minutes');
+
+-- Insert sample user sessions
+INSERT INTO user_sessions (id, user_id, user_qiao_id, session_token, device_type, device_id, platform_info, ip_address, user_agent, expires_at, status) VALUES
+(223788765171154980, 223788765171154945, 'qqid_test_user_001', 'sess_abc123def456', 3, 'web_device_001', '{"browser": "Chrome", "os": "Windows 10"}', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', NOW() + INTERVAL '24 hours', 1),
+(223788765171154981, 223788765171154946, 'qqid_test_user_002', 'sess_def456ghi789', 1, 'ios_device_001', '{"device": "iPhone 13", "os": "iOS 15.0"}', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', NOW() + INTERVAL '24 hours', 1)
+ON CONFLICT (session_token) DO NOTHING;
+
+-- Insert sample login records
+INSERT INTO login_records (id, user_id, user_qiao_id, login_time, login_type, platform, device_id, ip_address, user_agent, result, fail_reason) VALUES
+(223788765171154982, 223788765171154945, 'qqid_test_user_001', NOW() - INTERVAL '2 hours', 2, 3, 'web_device_001', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 1, NULL),
+(223788765171154983, 223788765171154946, 'qqid_test_user_002', NOW() - INTERVAL '1 hour', 2, 1, 'ios_device_001', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', 1, NULL),
+(223788765171154984, NULL, NULL, NOW() - INTERVAL '30 minutes', 1, 3, 'web_device_002', '192.168.1.30', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 2, 'Invalid password')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample AI contexts
+INSERT INTO ai_contexts (id, character_id, character_qiao_id, user_id, user_qiao_id, role, content, source_type, context_metadata, position, token_count, is_attack, reply_status) VALUES
+(223788765171154985, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154945, 'qqid_test_user_001', 2, '你好，小乔！', 1, '{"conversation_id": "conv_001", "topic": "greeting"}', 1, 15, 0, 3),
+(223788765171154986, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154946, 'qqid_test_user_002', 2, '你喜欢什么音乐？', 1, '{"conversation_id": "conv_002", "topic": "music"}', 2, 18, 0, 3)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample AI relationship scores
+INSERT INTO ai_relationship_scores (id, character_id, dimension_id, dimension_name, score, position, relationship_id, relationship_display_name, relationship_counts) VALUES
+(223788765171154987, 223788765171154944, 1, 'friendship', 450, 450, 1, '朋友', '{"total_interactions": 5, "positive_interactions": 4}'),
+(223788765171154988, 223788765171154944, 2, 'trust', 320, 320, 1, '朋友', '{"total_interactions": 3, "positive_interactions": 2}')
+ON CONFLICT (character_id, dimension_name) DO NOTHING;
+
+-- Insert sample AI request logs
+INSERT INTO ai_request_logs (id, character_id, user_id, style_id, personality_id, request, response, status, token_count, response_time) VALUES
+(1009, 223788765171154944, 223788765171154945, 1, 1, '{"message": "你好，小乔！", "context": "greeting"}', '{"reply": "你好！很高兴认识你～", "emotion": "happy"}', 1, 45, 1250),
+(1010, 223788765171154944, 223788765171154946, 1, 1, '{"message": "你喜欢什么音乐？", "context": "music_discussion"}', '{"reply": "我喜欢轻音乐和民谣，你呢？", "emotion": "curious"}', 1, 38, 980)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample AI personality placeholders
+INSERT INTO ai_personality_placeholders (id, personality_id, placeholder_key, display_name, description, example_value, placeholder_type, is_required) VALUES
+(1011, 1, 'personality_traits', '性格特征', 'AI角色的基本性格特征', '友善、耐心、幽默', 1, 1),
+(1012, 2, 'personality_traits', '性格特征', '甜美女友角色的性格特征', '甜美、活泼、温柔', 1, 1);
+
+-- Insert sample AI info templates
+INSERT INTO ai_info_templates (id, style_id, personality_id, memory, prompt_variables, score_offset_algorithm, score_offset_params, is_reusable, profile_count, status) VALUES
+(1013, 1, 1, '基础问候模板', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', NULL, NULL, 1, 2, 1),
+(1014, 1, 2, '兴趣分享模板', '{"hobbies": "音乐、电影"}', NULL, NULL, 1, 1, 1)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample AI profile templates
+INSERT INTO ai_profile_templates (id, qiao_id, category, info_id, nickname, gender, avatar_url, bio, region, is_reusable, status) VALUES
+(1015, 'profile_001', 'companion', 1013, '小乔', 2, 'https://example.com/avatar1.jpg', '我是一个友善的AI伴侣，喜欢和大家聊天', '北京', 1, 1),
+(1016, 'profile_002', 'friend', 1014, '小雨', 2, 'https://example.com/avatar2.jpg', '我是一个活泼的女孩，喜欢音乐和电影', '上海', 1, 1)
+ON CONFLICT (qiao_id) DO NOTHING;
+
+-- Insert sample LLM request logs
+INSERT INTO llm_request_logs (id, request_id, test_session_id, character_qiao_id, user_qiao_id, provider_name, config_key, model_name, request_type, request_data, response_data, response_time_ms, token_usage, status, error_message, completed_at) VALUES
+(1017, 'req_001', 'session_001', 'qiao_DLdfyH5GoGBv8q6l', 'qqid_test_user_001', 'doubao', 'primary', 'ep-20241201105607-8zqkx', 'real', '{"messages": [{"role": "user", "content": "你好"}], "temperature": 0.7}', '{"choices": [{"message": {"content": "你好！很高兴见到你！"}}], "usage": {"total_tokens": 25}}', 1150, '{"total_tokens": 25, "prompt_tokens": 10, "completion_tokens": 15}', 2, NULL, NOW() - INTERVAL '1 hour'),
+(1018, 'req_002', 'session_001', 'qiao_DLdfyH5GoGBv8q6l', 'qqid_test_user_002', 'doubao', 'primary', 'ep-20241201105607-8zqkx', 'real', '{"messages": [{"role": "user", "content": "今天天气怎么样？"}], "temperature": 0.7}', '{"choices": [{"message": {"content": "我无法获取实时天气信息，建议你查看天气应用。"}}], "usage": {"total_tokens": 32}}', 980, '{"total_tokens": 32, "prompt_tokens": 15, "completion_tokens": 17}', 2, NULL, NOW() - INTERVAL '30 minutes')
+ON CONFLICT (request_id) DO NOTHING;
 
 -- Success message
 DO $$
 BEGIN
     RAISE NOTICE 'Complete database initialization finished successfully!';
     RAISE NOTICE 'All tables, indexes, triggers, and initial data have been created.';
+    RAISE NOTICE 'Additional test data for AI system has been inserted.';
 END $$;

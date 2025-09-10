@@ -3,6 +3,8 @@ AI-related model views for Starlette-Admin.
 Creates ModelView instances for AI system models.
 """
 
+from typing import Any, Dict
+from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import EnumField, IntegerField, StringField, TextAreaField
 from starlette_admin.actions import link_row_action
@@ -19,15 +21,13 @@ from enums import (
     AICharacterCreator,
     AICharacterStatus,
     AIStyleStatus,
+    AIRequestStatus,
     ScoreOffsetAlgorithm,
     Gender,
+    PlaceholderType,
+    RequiredStatus,
+    ReusableStatus,
 )
-
-# Define common choices
-COMMON_STATUS_CHOICES = [(1, "Active"), (2, "Inactive")]
-PLACEHOLDER_TYPE_CHOICES = [(1, "Text"), (2, "Number"), (3, "Boolean"), (4, "List")]
-REQUIRED_CHOICES = [(0, "Optional"), (1, "Required")]
-REUSABLE_CHOICES = [(0, "Single Use"), (1, "Reusable")]
 
 
 class AIPersonalityView(ModelView):
@@ -37,7 +37,7 @@ class AIPersonalityView(ModelView):
     exclude_fields_from_edit = ["id", "usage_count", "created_at", "updated_at"]
     exclude_fields_from_list = ["json_schema", "prompt"]
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
         return False
 
     fields_default_sort = [("created_at", True)]
@@ -45,6 +45,7 @@ class AIPersonalityView(ModelView):
     sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal personality ID"),
         StringField(
             "name",
             label="Personality Name",
@@ -84,7 +85,7 @@ class AIPersonalityPlaceholderView(ModelView):
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
     exclude_fields_from_list = ["validation_rules", "example_value"]
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
         return False
 
     fields_default_sort = [("personality_id", False), ("placeholder_key", False)]
@@ -99,6 +100,7 @@ class AIPersonalityPlaceholderView(ModelView):
     ]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal placeholder ID"),
         IntegerField(
             "personality_id",
             label="Personality ID",
@@ -122,13 +124,13 @@ class AIPersonalityPlaceholderView(ModelView):
         ),
         EnumField(
             "placeholder_type",
-            choices=PLACEHOLDER_TYPE_CHOICES,
+            enum=PlaceholderType,
             label="Placeholder Type",
             help_text="Data type for validation",
         ),
         EnumField(
             "is_required",
-            choices=REQUIRED_CHOICES,
+            enum=RequiredStatus,
             label="Required",
             help_text="Whether this placeholder must be filled",
         ),
@@ -142,10 +144,10 @@ class AICharacterView(ModelView):
     exclude_fields_from_edit = ["id", "qiao_id", "created_by", "created_at", "updated_at"]
     exclude_fields_from_list = ["prompt_variables", "memory"]
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
         return False
 
-    async def create(self, request, data):
+    async def create(self, request: Request, data: Dict[str, Any]) -> Any:
         """Override create to automatically set created_by field and generate IDs."""
         # Set created_by to 2 (Admin) for admin panel creations
         data["created_by"] = 2
@@ -164,7 +166,7 @@ class AICharacterView(ModelView):
 
         return await super().create(request, data)
 
-    async def edit(self, request, pk, data):
+    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
         """Override edit to handle data processing."""
         return await super().edit(request, pk, data)
 
@@ -173,6 +175,8 @@ class AICharacterView(ModelView):
     sortable_fields = ["id", "qiao_id", "category", "status", "created_by", "created_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal character ID"),
+        StringField("qiao_id", label="Character ID", help_text="Unique character identifier"),
         StringField("category", label="Category", help_text="Character category classification"),
         IntegerField(
             "user_id",
@@ -203,11 +207,10 @@ class AICharacterView(ModelView):
             help_text="Character-specific memory and background information",
         ),
         "prompt_variables",
-        EnumField(
+        StringField(
             "score_offset_algorithm",
-            enum=ScoreOffsetAlgorithm,
             label="Score Offset Algorithm",
-            help_text="Algorithm for relationship score calculation",
+            help_text="Algorithm for relationship score calculation (1=NONE, 2=V1)",
         ),
         "score_offset_params",
         EnumField(
@@ -225,9 +228,9 @@ class AICharacterView(ModelView):
         text="Chat Test",
         icon_class="fas fa-comment-dots",
     )
-    def chat_test_row_action(self, request, pk):
-        """Custom row action to test chat with this AI character."""
-        return f"/admin/ai-character-chat-test?character_ids={pk}"
+    def chat_test_row_action(self, request: Request, pk: Any) -> str:
+        """Link to AI character chat test page."""
+        return f"/qiao-dash/ai-character-chat-test?character_id={pk}"
 
 
 class AIStyleView(ModelView):
@@ -244,6 +247,7 @@ class AIStyleView(ModelView):
     sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal style ID"),
         StringField("name", label="Style Name", help_text="Unique identifier for the style", required=True),
         StringField(
             "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
@@ -256,6 +260,17 @@ class AIStyleView(ModelView):
             required=True,
         ),
     ]
+
+    row_actions = ["view", "edit", "relationship_management"]
+
+    @link_row_action(
+        name="relationship_management",
+        text="Relationship Management",
+        icon_class="fas fa-chart-line",
+    )
+    def relationship_management_row_action(self, request: Request, pk: Any) -> str:
+        """Link to AI style relationship management page."""
+        return f"/qiao-dash/ai-score-algorithm-test?style_id={pk}"
 
 
 class AIRelationshipView(ModelView):
@@ -273,6 +288,7 @@ class AIRelationshipView(ModelView):
     sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal relationship ID"),
         StringField(
             "name",
             label="Relationship Name",
@@ -312,6 +328,7 @@ class AIRelationshipDimensionView(ModelView):
     sortable_fields = ["id", "style_id", "name", "display_name", "initial_position", "status", "created_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal dimension ID"),
         IntegerField(
             "style_id",
             label="AI Style ID",
@@ -366,6 +383,7 @@ class AIRelationshipIndexView(ModelView):
     ]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal relationship index ID"),
         IntegerField(
             "style_id",
             label="AI Style ID",
@@ -427,6 +445,7 @@ class AIInfoTemplateView(ModelView):
     sortable_fields = ["id", "style_id", "personality_id", "status", "is_reusable", "created_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal info template ID"),
         IntegerField(
             "style_id",
             label="AI Style ID",
@@ -452,7 +471,7 @@ class AIInfoTemplateView(ModelView):
         "score_offset_params",
         EnumField(
             "is_reusable",
-            choices=REUSABLE_CHOICES,
+            enum=ReusableStatus,
             label="Reusable",
             help_text="Whether this template can be used multiple times",
         ),
@@ -491,7 +510,8 @@ class AIProfileTemplateView(ModelView):
     ]
 
     fields = [
-        StringField("qiao_id", label="External ID", help_text="External identifier for this template"),
+        StringField("id", label="ID", help_text="Internal profile template ID"),
+        StringField("qiao_id", label="Qiao ID", help_text="External external identifier for this template"),
         StringField("category", label="Category", help_text="Profile template category"),
         IntegerField(
             "info_id",
@@ -505,7 +525,7 @@ class AIProfileTemplateView(ModelView):
         StringField("region", label="Region", help_text="Character location/region"),
         EnumField(
             "is_reusable",
-            choices=REUSABLE_CHOICES,
+            enum=ReusableStatus,
             label="Reusable",
             help_text="Whether this template can be used multiple times",
         ),
@@ -549,8 +569,11 @@ class AIRequestLogView(ModelView):
     ]
     exclude_fields_from_list = ["request", "response"]
 
-    can_create = False
-    can_edit = False
+    def can_create(self, request):
+        return False
+
+    def can_edit(self, request):
+        return False
 
     def can_delete(self, request):
         return False
@@ -568,11 +591,12 @@ class AIRequestLogView(ModelView):
     ]
 
     fields = [
-        IntegerField("character_id", label="AI Character ID"),
-        IntegerField("user_id", label="User ID"),
+        StringField("id", label="ID", help_text="Internal request log ID"),
+        StringField("character_id", label="AI Character ID", help_text="AI character snowflake ID"),
+        StringField("user_id", label="User ID", help_text="User snowflake ID"),
         IntegerField("style_id", label="AI Style ID"),
         IntegerField("personality_id", label="AI Personality ID"),
-        EnumField("status", choices=[(1, "Success"), (2, "Failed"), (3, "Timeout")], label="Status"),
+        EnumField("status", enum=AIRequestStatus, label="Status"),
         IntegerField("token_count", label="Token Count"),
         IntegerField("response_time", label="Response Time (ms)"),
         "created_at",

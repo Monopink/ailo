@@ -268,6 +268,37 @@ class ScoreOffsetAlgorithm(IntEnum):
     V1 = 2  # Version 1 algorithm
 
 
+class LLMRequestStatus(IntEnum):
+    """LLM request status (llm_request_logs.status)"""
+
+    PENDING = 1  # Request pending
+    SUCCESS = 2  # Request successful
+    ERROR = 3  # Request failed with error
+
+
+class PlaceholderType(IntEnum):
+    """AI personality placeholder type (ai_personality_placeholders.placeholder_type)"""
+
+    TEXT = 1  # Text placeholder
+    NUMBER = 2  # Number placeholder
+    BOOLEAN = 3  # Boolean placeholder
+    LIST = 4  # List placeholder
+
+
+class RequiredStatus(IntEnum):
+    """Required status for placeholders and fields"""
+
+    OPTIONAL = 0  # Optional field
+    REQUIRED = 1  # Required field
+
+
+class ReusableStatus(IntEnum):
+    """Reusable status for templates"""
+
+    SINGLE_USE = 0  # Single use only
+    REUSABLE = 1  # Can be reused
+
+
 # Security Related Enums
 
 
@@ -321,7 +352,7 @@ class RiskLevel(IntEnum):
 
 
 class ConfigType(IntEnum):
-    """Configuration value type (system_config.config_type)"""
+    """Configuration value type (system_configs.config_type)"""
 
     STRING = 1  # String value
     NUMBER = 2  # Numeric value

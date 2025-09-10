@@ -3,6 +3,7 @@
 ## 用户管理相关枚举
 
 ### 用户状态 (users.status)
+
 ```python
 class UserStatus:
     ACTIVE = 1      # 正常活跃
@@ -11,6 +12,7 @@ class UserStatus:
 ```
 
 ### 用户类型 (users.user_type)
+
 ```python
 class UserType:
     NORMAL = 1      # 普通用户
@@ -19,6 +21,7 @@ class UserType:
 ```
 
 ### 设备类型 (user_sessions.device_type, login_records.platform)
+
 ```python
 class DeviceType:
     IOS = 1             # iOS设备
@@ -28,6 +31,7 @@ class DeviceType:
 ```
 
 ### 登录方式 (login_records.login_type)
+
 ```python
 class LoginType:
     PASSWORD = 1    # 密码登录
@@ -37,6 +41,7 @@ class LoginType:
 ```
 
 ### 登录结果 (login_records.result)
+
 ```python
 class LoginResult:
     SUCCESS = 1     # 登录成功
@@ -46,6 +51,7 @@ class LoginResult:
 ## 联系人管理相关枚举
 
 ### 联系人类型 (contacts.contact_type)
+
 ```python
 class ContactType:
     USER = 1        # 用户
@@ -54,6 +60,7 @@ class ContactType:
 ```
 
 ### 联系人申请来源 (contact_requests.source)
+
 ```python
 class ContactRequestSource:
     SEARCH = 1      # 搜索添加
@@ -63,6 +70,7 @@ class ContactRequestSource:
 ```
 
 ### 联系人申请状态 (contact_requests.status)
+
 ```python
 class ContactRequestStatus:
     PENDING = 1     # 待处理
@@ -74,6 +82,7 @@ class ContactRequestStatus:
 ## 消息系统相关枚举
 
 ### 消息方向 (message_history.direction)
+
 ```python
 class MessageDirection:
     INBOUND = 1     # 入站消息
@@ -81,6 +90,7 @@ class MessageDirection:
 ```
 
 ### 发送方/接收方类型 (message_history.from_type, message_history.to_type)
+
 ```python
 class MessageParticipantType:
     USER = 1        # 用户
@@ -90,6 +100,7 @@ class MessageParticipantType:
 ```
 
 ### 服务提供商 (message_history.service_provider)
+
 ```python
 class ServiceProvider:
     LEANCLOUD = 1   # LeanCloud
@@ -97,6 +108,7 @@ class ServiceProvider:
 ```
 
 ### 消息类型 (message_history.message_type)
+
 ```python
 class MessageType:
     TEXT = 1            # 文本消息
@@ -108,6 +120,7 @@ class MessageType:
 ```
 
 ### 消息状态 (message_history.status)
+
 ```python
 class MessageStatus:
     SENT = 1        # 已发送
@@ -119,6 +132,7 @@ class MessageStatus:
 ## 媒体文件相关枚举
 
 ### 文件类型 (media_files.file_type)
+
 ```python
 class FileType:
     AVATAR = 1      # 头像
@@ -128,6 +142,7 @@ class FileType:
 ```
 
 ### 文件状态 (media_files.status)
+
 ```python
 class FileStatus:
     ACTIVE = 1      # 活跃
@@ -136,6 +151,7 @@ class FileStatus:
 ```
 
 ### 上传者类型 (media_files.upload_by_type)
+
 ```python
 class UploaderType:
     USER = 1        # 用户上传
@@ -146,6 +162,7 @@ class UploaderType:
 ## 资料管理相关枚举
 
 ### 性别 (profiles.gender)
+
 ```python
 class Gender:
     MALE = 1        # 男性
@@ -155,6 +172,7 @@ class Gender:
 ```
 
 ### 资料所有者类型 (profiles.owner_type)
+
 ```python
 class ProfileOwnerType:
     USER = 1        # 用户
@@ -163,6 +181,7 @@ class ProfileOwnerType:
 ```
 
 ### 资料修改者类型 (user_profile_logs.modified_by_type)
+
 ```python
 class ProfileModifierType:
     USER = 1        # 用户自己
@@ -173,6 +192,7 @@ class ProfileModifierType:
 ## 表情管理相关枚举
 
 ### 表情分类 (emoticons.category)
+
 ```python
 class EmoticonCategory:
     SYSTEM = 1      # 系统表情
@@ -181,6 +201,7 @@ class EmoticonCategory:
 ```
 
 ### 表情创建者类型 (emoticons.created_by_type)
+
 ```python
 class EmoticonCreatorType:
     USER = 1        # 用户创建
@@ -191,6 +212,7 @@ class EmoticonCreatorType:
 ## AI系统相关枚举
 
 ### AI角色创建者 (ai_characters.created_by)
+
 ```python
 class AICharacterCreator:
     USER = 1        # 用户创建
@@ -199,6 +221,7 @@ class AICharacterCreator:
 ```
 
 ### AI上下文角色 (ai_contexts.role)
+
 ```python
 class AIContextRole:
     USER = 1        # 用户消息
@@ -207,6 +230,7 @@ class AIContextRole:
 ```
 
 ### AI上下文来源类型 (ai_contexts.source_type)
+
 ```python
 class AIContextSourceType:
     ORIGINAL = 1    # 原始消息
@@ -215,6 +239,7 @@ class AIContextSourceType:
 ```
 
 ### AI请求状态 (ai_request_logs.status)
+
 ```python
 class AIRequestStatus:
     SUCCESS = 1     # 成功
@@ -225,6 +250,7 @@ class AIRequestStatus:
 ## 安全监控相关枚举
 
 ### 违规类型 (user_security_logs.violation_type)
+
 ```python
 class ViolationType:
     PROMPT_INJECTION = 1    # 提示词注入
@@ -235,6 +261,7 @@ class ViolationType:
 ```
 
 ### 严重程度 (user_security_logs.severity_level)
+
 ```python
 class SeverityLevel:
     LOW = 1         # 低
@@ -244,6 +271,7 @@ class SeverityLevel:
 ```
 
 ### 自动处理动作 (user_security_logs.auto_action_taken)
+
 ```python
 class AutoAction:
     NONE = 1        # 无动作
@@ -253,6 +281,7 @@ class AutoAction:
 ```
 
 ### 人工审核状态 (user_security_logs.manual_review_status)
+
 ```python
 class ManualReviewStatus:
     PENDING = 1         # 待审核
@@ -262,6 +291,7 @@ class ManualReviewStatus:
 ```
 
 ### 用户风险等级 (user_security_stats.current_risk_level)
+
 ```python
 class RiskLevel:
     LOW = 1         # 低风险
@@ -272,7 +302,8 @@ class RiskLevel:
 
 ## 系统配置相关枚举
 
-### 配置值类型 (system_config.config_type)
+### 配置值类型 (system_configs.config_type)
+
 ```python
 class ConfigType:
     STRING = 1      # 字符串
@@ -284,6 +315,7 @@ class ConfigType:
 ## 管理员系统相关枚举
 
 ### 管理员角色 (admin_users.role)
+
 ```python
 class AdminRole:
     SUPER_ADMIN = 1 # 超级管理员
@@ -292,6 +324,7 @@ class AdminRole:
 ```
 
 ### 管理员状态 (admin_users.status)
+
 ```python
 class AdminStatus:
     ACTIVE = 1      # 活跃
@@ -299,6 +332,7 @@ class AdminStatus:
 ```
 
 ### 管理员操作类型 (admin_operation_logs.operation_type)
+
 ```python
 class AdminOperationType:
     CREATE = 1      # 创建
@@ -309,6 +343,7 @@ class AdminOperationType:
 ```
 
 ### 管理员登录结果 (admin_login_logs.result)
+
 ```python
 class AdminLoginResult:
     SUCCESS = 1     # 成功

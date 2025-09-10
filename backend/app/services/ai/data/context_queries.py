@@ -16,6 +16,69 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+async def get_conversation_contexts(
+    db: AsyncSession, character_qiao_id: str, user_qiao_id: str, limit: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Get conversation contexts for prompt building.
+
+    Args:
+        db: Database session
+        character_qiao_id: Character's qiao_id
+        user_qiao_id: User's qiao_id
+        limit: Maximum number of contexts to return
+
+    Returns:
+        List of context dictionaries with role and content
+    """
+    try:
+        result = await db.execute(
+            select(AIContext)
+            .where(
+                and_(
+                    AIContext.user_qiao_id == user_qiao_id,
+                    AIContext.character_qiao_id == character_qiao_id,
+                    AIContext.reply_status == 3,  # done
+                )
+            )
+            .order_by(desc(AIContext.created_at))
+            .limit(limit)
+        )
+
+        contexts = result.scalars().all()
+
+        # Convert to dictionaries and reverse order (oldest first for conversation flow)
+        context_list = []
+        for context in reversed(contexts):
+            context_list.append(
+                {
+                    "id": context.id,
+                    "role": context.role,
+                    "content": context.content,
+                    "position": context.position,
+                    "created_at": context.created_at,
+                }
+            )
+
+        logger.debug(
+            "conversation_contexts_retrieved",
+            character_qiao_id=character_qiao_id,
+            user_qiao_id=user_qiao_id,
+            contexts_count=len(context_list),
+        )
+
+        return context_list
+
+    except Exception as e:
+        logger.error(
+            "conversation_contexts_query_failed",
+            error=str(e),
+            character_qiao_id=character_qiao_id,
+            user_qiao_id=user_qiao_id,
+        )
+        return []
+
+
 async def get_conversation_history(
     db: AsyncSession, user_qiao_id: str, character_qiao_id: str, limit: int = 20
 ) -> List[Dict[str, Any]]:

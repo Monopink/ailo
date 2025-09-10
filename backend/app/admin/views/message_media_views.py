@@ -31,13 +31,18 @@ from enums import (
 class MessageHistoryView(ModelView):
     """Enhanced Message History view - read-only for monitoring."""
 
-    can_create = False
-    can_edit = False
+    def can_create(self, request):
+        return False
+
+    def can_edit(self, request):
+        return False
 
     def can_delete(self, request):
         return False
 
-    exclude_fields_from_list = ["content", "message_metadata"]
+    exclude_fields_from_list = ["content", "message_metadata", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["conversation_id", "from_qiao_id", "to_qiao_id"]
     sortable_fields = ["id", "direction", "platform", "message_type", "status", "created_at"]
@@ -58,11 +63,11 @@ class MessageHistoryView(ModelView):
         StringField("msg_id_client", label="Client Message ID", help_text="Client-generated message ID"),
         "client_sent_time",
         EnumField("from_type", enum=MessageParticipantType, label="From Type", help_text="Sender type"),
-        IntegerField("from_id", label="From ID", help_text="Sender internal ID"),
-        StringField("from_qiao_id", label="From External ID", help_text="Sender external ID"),
+        StringField("from_id", label="From ID", help_text="Sender snowflake ID"),
+        StringField("from_qiao_id", label="From Qiao ID", help_text="Sender external ID"),
         EnumField("to_type", enum=MessageParticipantType, label="To Type", help_text="Receiver type"),
-        IntegerField("to_id", label="To ID", help_text="Receiver internal ID"),
-        StringField("to_qiao_id", label="To External ID", help_text="Receiver external ID"),
+        StringField("to_id", label="To ID", help_text="Receiver snowflake ID"),
+        StringField("to_qiao_id", label="To Qiao ID", help_text="Receiver external ID"),
         EnumField(
             "service_provider",
             enum=ServiceProvider,
@@ -100,8 +105,8 @@ class MediaFileView(ModelView):
         EnumField(
             "upload_by_type", enum=UploaderType, label="Uploaded By Type", help_text="Type of uploader"
         ),
-        IntegerField("upload_by_id", label="Uploader ID", help_text="Internal ID of uploader"),
-        StringField("upload_by_qiao_id", label="Uploader External ID", help_text="External ID of uploader"),
+        StringField("upload_by_id", label="Uploader ID", help_text="Uploader snowflake ID"),
+        StringField("upload_by_qiao_id", label="Uploader Qiao ID", help_text="External ID of uploader"),
         EnumField("status", enum=FileStatus, label="Status", help_text="File status"),
     ]
 
@@ -131,7 +136,7 @@ class EmoticonView(ModelView):
             label="Created By Type",
             help_text="Type of creator",
         ),
-        IntegerField("created_by_id", label="Creator ID", help_text="ID of creator"),
+        StringField("created_by_id", label="Creator ID", help_text="Creator snowflake ID"),
         EnumField(
             "status", choices=[(1, "Active"), (2, "Inactive")], label="Status", help_text="Emoticon status"
         ),
@@ -178,7 +183,7 @@ media_file_view = MediaFileView(
 )
 emoticon_view = EmoticonView(Emoticon, name="Emoticons", icon="fa fa-smile", identity="emoticon")
 system_config_view = SystemConfigView(
-    SystemConfig, name="System Config", icon="fa fa-cog", identity="system_config"
+    SystemConfig, name="System Config", icon="fa fa-cog", identity="system_configs"
 )
 
 # Export all message and media views

@@ -4,7 +4,7 @@ Creates ModelView instances for user management and admin system models.
 """
 
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, HasOne, StringField, TextAreaField
+from starlette_admin import EnumField, HasOne, IntegerField, StringField, TextAreaField
 
 # Import user and admin models
 from models.admin import AdminUser, AdminOperationLog, AdminLoginLog
@@ -13,16 +13,7 @@ from models.profile import Profile
 from models.contact import Contact
 
 # Import enums
-from enums import (
-    UserStatus,
-    UserType,
-    AdminRole,
-    AdminStatus,
-    Gender,
-    ProfileOwnerType,
-    ContactType,
-    AICharacterCreator,
-)
+from enums import UserStatus, UserType, AdminRole, AdminStatus, Gender, ProfileOwnerType, ContactType
 
 
 class AdminUserView(ModelView):
@@ -60,8 +51,11 @@ class AdminUserView(ModelView):
 class AdminOperationLogView(ModelView):
     """Enhanced Admin Operation Log view - read-only for monitoring."""
 
-    can_create = False
-    can_edit = False
+    def can_create(self, request):
+        return False
+
+    def can_edit(self, request):
+        return False
 
     def can_delete(self, request):
         return False
@@ -74,8 +68,11 @@ class AdminOperationLogView(ModelView):
 class AdminLoginLogView(ModelView):
     """Enhanced Admin Login Log view - read-only for monitoring."""
 
-    can_create = False
-    can_edit = False
+    def can_create(self, request):
+        return False
+
+    def can_edit(self, request):
+        return False
 
     def can_delete(self, request):
         return False
@@ -101,7 +98,8 @@ class UserView(ModelView):
     sortable_fields = ["id", "username", "qiao_id", "status", "user_type", "created_at", "last_login"]
 
     fields = [
-        "qiao_id",
+        StringField("id", label="ID", help_text="Internal user ID"),
+        StringField("qiao_id", label="Qiao ID", help_text="External user identifier"),
         StringField("username", label="Username", help_text="Display name for the user"),
         StringField("phone", label="Phone Number", help_text="Phone number for login"),
         StringField("email", label="Email Address", help_text="Email address for notifications"),
@@ -127,20 +125,16 @@ class ProfileView(ModelView):
     sortable_fields = ["id", "owner_type", "nickname", "gender", "created_at"]
 
     fields = [
-        "owner_id",
-        StringField(
-            "owner_qiao_id", label="Owner External ID", help_text="External ID of the profile owner"
-        ),
+        StringField("id", label="ID", help_text="Internal profile ID"),
+        StringField("owner_id", label="Owner ID", help_text="Internal owner ID"),
+        StringField("owner_qiao_id", label="Owner Qiao ID", help_text="External ID of the profile owner"),
         EnumField(
             "owner_type", enum=ProfileOwnerType, label="Owner Type", help_text="Type of profile owner"
         ),
         StringField("nickname", label="Nickname", help_text="Display nickname"),
         EnumField("gender", enum=Gender, label="Gender", help_text="Gender information"),
-        HasOne(
-            "avatar_file_id",
-            identity="media_file",
-            label="Avatar File",
-            help_text="Select avatar file from media library",
+        StringField(
+            "avatar_file_id", label="Avatar File ID", help_text="Avatar file ID from media library"
         ),
         StringField("avatar_url", label="Avatar URL", help_text="Profile avatar image URL"),
         TextAreaField(
@@ -166,17 +160,13 @@ class ContactView(ModelView):
     sortable_fields = ["id", "contact_type", "alias", "is_pinned", "is_muted", "is_blocked", "created_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal contact ID"),
         StringField("conv_id", label="Conversation ID", help_text="Unique conversation identifier"),
-        HasOne(
-            "user_id",
-            identity="user",
-            label="Owner User",
-            help_text="Select the user who owns this contact",
-        ),
-        StringField("user_qiao_id", label="User External ID", help_text="Owner user external ID"),
+        StringField("user_id", label="Owner User ID", help_text="User snowflake ID who owns this contact"),
+        StringField("user_qiao_id", label="User Qiao ID", help_text="Owner user external ID"),
         EnumField("contact_type", enum=ContactType, label="Contact Type", help_text="Type of contact"),
-        "contact_id",
-        StringField("contact_qiao_id", label="Contact External ID", help_text="Contact external ID"),
+        StringField("contact_id", label="Contact id", help_text="Contact snowflake ID"),
+        StringField("contact_qiao_id", label="Contact Qiao ID", help_text="Contact external ID"),
         StringField("alias", label="Alias", help_text="Custom name for this contact"),
         StringField("avatar_alias_url", label="Custom Avatar", help_text="Custom avatar URL"),
         "tags",

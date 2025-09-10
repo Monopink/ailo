@@ -5,8 +5,9 @@ This module contains SQLAlchemy models for LLM provider management.
 """
 
 from typing import Optional
-from sqlalchemy import Integer, String, Boolean, DECIMAL, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Integer, String, DECIMAL, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import AutoIncrementModel
 
@@ -41,24 +42,20 @@ class LLMProvider(AutoIncrementModel):
         String(100), nullable=True, comment="Default model name"
     )
 
-    supports_streaming: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, comment="Supports streaming output"
+    supports_streaming: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Supports streaming output: 1=yes, 0=no"
     )
 
-    supports_json_schema: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, comment="Supports JSON schema"
+    supports_json_schema: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Supports JSON schema: 1=yes, 0=no"
     )
 
-    supports_thinking: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, comment="Supports thinking mode"
+    supports_thinking: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Supports thinking mode: 1=yes, 0=no"
     )
 
-    status: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=1,
-        comment="Status: 1=active, 2=inactive",
-    )
+    # Relationship to configs
+    configs: Mapped[list["LLMConfig"]] = relationship("LLMConfig", back_populates="provider")
 
 
 class LLMConfig(AutoIncrementModel):
@@ -71,8 +68,14 @@ class LLMConfig(AutoIncrementModel):
     __tablename__ = "llm_configs"
 
     provider_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Provider ID, references llm_providers.id"
+        Integer,
+        ForeignKey("llm_providers.id"),
+        nullable=False,
+        comment="Provider ID, references llm_providers.id",
     )
+
+    # Relationship to provider
+    provider: Mapped["LLMProvider"] = relationship("LLMProvider", back_populates="configs")
 
     config_key: Mapped[str] = mapped_column(
         String(100), nullable=False, unique=True, comment="Configuration key (primary, backup, test, etc.)"
@@ -98,22 +101,26 @@ class LLMConfig(AutoIncrementModel):
         Integer, nullable=False, default=3, comment="Maximum retry attempts"
     )
 
-    enable_streaming: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, comment="Enable streaming output"
+    enable_streaming: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Enable streaming output: 1=yes, 0=no"
     )
 
-    enable_thinking: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, comment="Enable thinking mode"
+    enable_thinking: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Enable thinking mode: 1=yes, 0=no"
     )
 
     json_schema_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, default="auto", comment="JSON schema mode: auto, strict, disabled"
     )
 
-    is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, comment="Is configuration active"
+    status: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive"
     )
 
     priority: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, comment="Priority for failover (lower number = higher priority)"
+    )
+
+    extra_params: Mapped[Optional[dict]] = mapped_column(
+        JSONB, nullable=True, comment="Additional configuration parameters in JSON format"
     )

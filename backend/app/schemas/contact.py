@@ -5,7 +5,7 @@ This module contains Pydantic schemas for contact relationships and requests.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 
 from enums import ContactType, ContactRequestSource, ContactRequestStatus
@@ -22,7 +22,7 @@ class ContactBase(BaseSchema):
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
     alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
     avatar_alias_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
-    tags: Optional[List[str]] = Field(None, description="Contact tags")
+    tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, description="Contact remark/notes")
 
 
@@ -33,7 +33,7 @@ class ContactCreate(BaseModel):
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
     alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
     avatar_alias_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
-    tags: Optional[List[str]] = Field(None, description="Contact tags")
+    tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, description="Contact remark/notes")
 
 
@@ -42,7 +42,7 @@ class ContactUpdate(BaseModel):
 
     alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
     avatar_alias_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
-    tags: Optional[List[str]] = Field(None, description="Contact tags")
+    tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, description="Contact remark/notes")
     is_pinned: Optional[bool] = Field(None, description="Is pinned")
     is_muted: Optional[bool] = Field(None, description="Is muted")

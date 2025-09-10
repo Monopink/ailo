@@ -6,20 +6,20 @@ This module contains SQLAlchemy models for message history and delivery failures
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index
+from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.schema import Index as PGIndex
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import MessageDirection, MessageParticipantType, ServiceProvider, MessageType, MessageStatus
-from models.base import SnowflakeModel
+from models.base import Base, SnowflakeIDMixin, SnowflakeModel
 
 
-class MessageHistory(SnowflakeModel):
+class MessageHistory(Base, SnowflakeIDMixin):
     """
     Message history model.
 
     Complete message history and metadata.
+    Message history is immutable - no updated_at field needed.
     """
 
     __tablename__ = "message_history"
@@ -84,18 +84,29 @@ class MessageHistory(SnowflakeModel):
         JSONB, nullable=True, comment="Message metadata (JSONB for better performance)"
     )
 
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=func.now(), comment="Message creation timestamp"
+    )
+
     # Indexes
     __table_args__ = (
+        Index("idx_message_history_direction", "direction"),
+        Index("idx_message_history_platform", "platform"),
+        Index("idx_message_history_conversation_id", "conversation_id"),
         Index("idx_message_history_msg_id_server", "msg_id_server"),
         Index("idx_message_history_msg_id_client", "msg_id_client"),
-        Index("idx_message_history_conversation_id", "conversation_id"),
+        Index("idx_message_history_from_type", "from_type"),
+        Index("idx_message_history_from_id", "from_id"),
         Index("idx_message_history_from_qiao_id", "from_qiao_id"),
+        Index("idx_message_history_to_type", "to_type"),
+        Index("idx_message_history_to_id", "to_id"),
         Index("idx_message_history_to_qiao_id", "to_qiao_id"),
+        Index("idx_message_history_service_provider", "service_provider"),
         Index("idx_message_history_message_type", "message_type"),
         Index("idx_message_history_status", "status"),
         Index("idx_message_history_created_at", "created_at"),
         # PostgreSQL GIN index for JSONB field for better query performance
-        PGIndex("idx_message_history_metadata_gin", "message_metadata", postgresql_using="gin"),
+        Index("idx_message_history_metadata_gin", "message_metadata", postgresql_using="gin"),
     )
 
 

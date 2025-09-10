@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+
+{% block title %}AI Score Algorithm Test{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-chart-line"></i>
+                        AI Score Algorithm Test
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if selected_style_id %}
+                    <div class="alert alert-info">
+                        <strong>Testing Style ID:</strong> {{ selected_style_id }}
+                    </div>
+                    {% endif %}
+
+                    <!-- Algorithm Test Form -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h4 class="card-title">Algorithm Test</h4>
+                        </div>
+                        <div class="card-body">
+                            <form id="algorithmTestForm" method="post">
+                                <input type="hidden" name="action" value="test_algorithm">
+
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="form-group">
+                                            <label for="algorithm">Algorithm</label>
+                                            <select class="form-control" id="algorithm" name="algorithm" required>
+                                                {% for algo_id, algo_info in algorithm_info.items() %}
+                                                <option value="{{ algo_id }}">
+                                                    {{ algo_info.name }} (v{{ algo_info.version }})
+                                                </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-group">
+                                            <label for="score">Score (0-1000)</label>
+                                            <input type="number" class="form-control" id="score" name="score" min="0"
+                                                max="1000" value="600" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-group">
+                                            <label for="initial_position">Initial Position (0-1000)</label>
+                                            <input type="number" class="form-control" id="initial_position"
+                                                name="initial_position" min="0" max="1000" value="500" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-group">
+                                            <label for="strength">Strength (0.1-1.0)</label>
+                                            <input type="number" class="form-control" id="strength" name="strength"
+                                                min="0.1" max="1.0" step="0.1" value="0.5" required>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-calculator"></i>
+                                        Test Algorithm
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" onclick="clearAlgorithmResults()">
+                                        <i class="fas fa-eraser"></i>
+                                        Clear Results
+                                    </button>
+                                </div>
+                            </form>
+
+                            {% if test_result %}
+                            <div class="card mt-3">
+                                <div class="card-header">Algorithm Test Result</div>
+                                <div class="card-body">
+                                    {% if test_result.success %}
+                                    <div class="alert alert-success">
+                                        <h5><i class="fas fa-check-circle"></i> Test Successful</h5>
+                                        <p><strong>New Score:</strong> {{ test_result.data.single_result.new_score }}
+                                        </p>
+                                        <p><strong>Offset:</strong> {{ test_result.data.single_result.offset }}</p>
+                                        <p><strong>Algorithm:</strong> {{ test_result.data.algorithm_info.name }} v{{
+                                            test_result.data.algorithm_info.version }}</p>
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-danger">
+                                        <h5><i class="fas fa-exclamation-triangle"></i> Test Failed</h5>
+                                        <p>{{ test_result.message }}</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Algorithm Information -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Algorithm Information</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <h5><i class="fas fa-info-circle"></i> Score Offset Algorithm V1</h5>
+                                <p><strong>Purpose:</strong> Non-linear offset based on
+                                    ai_relationship_dimensions.initial_position</p>
+                                <p><strong>Input Range:</strong> Score (0-1000), Initial Position (0-1000)</p>
+                                <p><strong>Parameters:</strong> Strength (0.1-1.0) - Controls non-linear degree</p>
+                                <p><strong>Output:</strong> Final position (0-1000) after offset calculation</p>
+                            </div>
+
+                            {% for algo_id, algo_info in algorithm_info.items() %}
+                            <div class="card mb-2">
+                                <div class="card-body">
+                                    <h6>{{ algo_info.name }} (Version {{ algo_info.version }})</h6>
+                                    <p class="text-muted">{{ algo_info.description }}</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Relationship Indexes Display -->
+                    {% if selected_style_id %}
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h4 class="card-title">Relationship Indexes for Style {{ selected_style_id }}</h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="relationshipIndexes">
+                                <div class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="sr-only">Loading...</span>
+                                    </div>
+                                    <p class="mt-2">Loading relationship indexes...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Load relationship indexes if style_id is provided
+    {% if selected_style_id %}
+    document.addEventListener('DOMContentLoaded', function () {
+        loadRelationshipIndexes('{{ selected_style_id }}');
+    });
+
+    async function loadRelationshipIndexes(styleId) {
+        try {
+            const response = await fetch(`/qiao-dash/api/ai_relationship_index?style_id=${styleId}&limit=100`);
+            const data = await response.json();
+
+            const container = document.getElementById('relationshipIndexes');
+
+            if (data.items && data.items.length > 0) {
+                let html = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Dimension</th><th>Range</th><th>Relationship ID</th><th>Priority</th></tr></thead><tbody>';
+                data.items.forEach(item => {
+                    html += `<tr><td>${item.dimension_name}</td><td>${item.start_position}-${item.end_position}</td><td>${item.relationship_id}</td><td>${item.priority}</td></tr>`;
+                });
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '<div class="alert alert-warning">No relationship indexes found for this style.</div>';
+            }
+        } catch (error) {
+            document.getElementById('relationshipIndexes').innerHTML = '<div class="alert alert-danger">Failed to load relationship indexes: ' + error.message + '</div>';
+        }
+    }
+    {% endif %}
+
+    function clearAlgorithmResults() {
+        // This would be handled by server-side logic
+        window.location.href = window.location.pathname + (window.location.search || '');
+    }
+</script>
+{% endblock %}

@@ -256,6 +256,14 @@ async def _build_placeholder_values(
         else:
             placeholder_values["memory"] = ""
 
+        # {{score:dimension_name}} - dynamic score placeholders
+        character_qiao_id = (
+            character_info.get("character", {}).qiao_id if character_info.get("character") else None
+        )
+        if character_qiao_id:
+            score_placeholders = await _build_score_placeholders(db, character_qiao_id)
+            placeholder_values.update(score_placeholders)
+
         logger.debug(
             "placeholder_values_built",
             user_qiao_id=user_qiao_id,
@@ -274,6 +282,55 @@ async def _build_placeholder_values(
             "current_datetime": _get_current_datetime(),
             "memory": "",
         }
+
+
+async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) -> Dict[str, str]:
+    """
+    Build score-related placeholders for a character.
+
+    Args:
+        db: Database session
+        character_qiao_id: Character's qiao_id
+
+    Returns:
+        Dictionary of score placeholders in format {"score:dimension_name": "value"}
+    """
+    try:
+        from .relationship import get_relationship_scores
+
+        # Get current scores for the character
+        scores = await get_relationship_scores(db, character_qiao_id)
+        if not scores:
+            logger.debug(
+                "no_scores_found_for_placeholders",
+                character_qiao_id=character_qiao_id,
+            )
+            return {}
+
+        # Build score placeholders dictionary
+        score_placeholders = {}
+        for score in scores:
+            dimension_name = score["dimension_name"]
+            score_value = score["score"]
+            placeholder_key = f"score:{dimension_name}"
+            score_placeholders[placeholder_key] = str(score_value)
+
+        logger.debug(
+            "score_placeholders_built",
+            character_qiao_id=character_qiao_id,
+            placeholders_count=len(score_placeholders),
+        )
+
+        return score_placeholders
+
+    except Exception as e:
+        logger.error(
+            "score_placeholders_build_failed",
+            error=str(e),
+            character_qiao_id=character_qiao_id,
+        )
+        # Return empty dict to avoid complete failure
+        return {}
 
 
 def _format_profile(profile: Any) -> str:
@@ -384,7 +441,7 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
                     message=f"Style {style.id} contains invalid dimension name: {dimension_name}. "
                     f"All dimension names must be non-empty strings.",
                 )
-            score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 100}
+            score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
             score_required.append(dimension_name)
 
         logger.debug(
@@ -513,3 +570,254 @@ def _get_base_response_schema(
         ],
         "additionalProperties": True,
     }
+
+
+async def build_conversation_context(
+    db: AsyncSession, character_qiao_id: str, user_qiao_id: str, max_context_length: int = 10
+) -> List[Dict[str, str]]:
+    """
+    Build conversation context from AI contexts table.
+
+    Args:
+        db: Database session
+        character_qiao_id: Character's qiao_id
+        user_qiao_id: User's qiao_id
+        max_context_length: Maximum number of context entries to include
+
+    Returns:
+        List of message dictionaries with 'role' and 'content' keys
+
+    Raises:
+        AIServiceError: If context building fails
+    """
+    try:
+        from .data import get_conversation_contexts
+
+        # Get conversation contexts
+        contexts = await get_conversation_contexts(db, character_qiao_id, user_qiao_id, max_context_length)
+
+        if not contexts:
+            logger.debug(
+                "no_conversation_contexts_found",
+                character_qiao_id=character_qiao_id,
+                user_qiao_id=user_qiao_id,
+            )
+            return []
+
+        # Convert contexts to message format
+        messages = []
+        for context in contexts:
+            role = _map_context_role_to_message_role(context.get("role", 1))
+            content = context.get("content", "")
+
+            if content.strip():  # Only include non-empty content
+                messages.append({"role": role, "content": content})
+
+        logger.debug(
+            "conversation_context_built",
+            character_qiao_id=character_qiao_id,
+            user_qiao_id=user_qiao_id,
+            contexts_count=len(contexts),
+            messages_count=len(messages),
+        )
+
+        return messages
+
+    except Exception as e:
+        logger.error(
+            "conversation_context_build_failed",
+            error=str(e),
+            character_qiao_id=character_qiao_id,
+            user_qiao_id=user_qiao_id,
+        )
+        raise AIServiceError(
+            ai_service="context_building",
+            reason="build_failed",
+            message=f"Failed to build conversation context: {str(e)}",
+        )
+
+
+def _map_context_role_to_message_role(role: int) -> str:
+    """
+    Map context role enum to message role string.
+
+    Args:
+        role: Role enum value (1=user, 2=ai, 3=system)
+
+    Returns:
+        Message role string
+    """
+    role_mapping = {
+        1: "user",  # user
+        2: "assistant",  # ai
+        3: "system",  # system
+    }
+    return role_mapping.get(role, "user")
+
+
+async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, template: str) -> str:
+    """
+    Format score-related placeholders in template.
+
+    Handles placeholders like {{score:dimension_name}} by replacing them
+    with current score values.
+
+    Args:
+        db: Database session
+        character_qiao_id: Character's qiao_id
+        template: Template string with score placeholders
+
+    Returns:
+        Template with score placeholders replaced
+
+    Raises:
+        AIServiceError: If score formatting fails
+    """
+    try:
+        from .relationship import get_relationship_scores
+        import re
+
+        # Find all score placeholders in format {{score:dimension_name}}
+        score_pattern = r"\{\{score:([^}]+)\}\}"
+        score_matches = re.findall(score_pattern, template)
+
+        if not score_matches:
+            # No score placeholders found
+            return template
+
+        # Get current scores for the character
+        scores = await get_relationship_scores(db, character_qiao_id)
+        if not scores:
+            logger.warning(
+                "no_scores_found_for_placeholder_formatting",
+                character_qiao_id=character_qiao_id,
+            )
+            # Replace all score placeholders with empty string
+            result = re.sub(score_pattern, "", template)
+            return result
+
+        # Build score lookup dictionary
+        score_lookup = {score["dimension_name"]: score["score"] for score in scores}
+
+        # Replace each score placeholder
+        result = template
+        replaced_count = 0
+
+        for dimension_name in score_matches:
+            placeholder = f"{{{{score:{dimension_name}}}}}"
+            score_value = score_lookup.get(dimension_name)
+
+            if score_value is not None:
+                result = result.replace(placeholder, str(score_value))
+                replaced_count += 1
+            else:
+                # Dimension not found, replace with empty string
+                result = result.replace(placeholder, "")
+                logger.warning(
+                    "score_dimension_not_found_for_placeholder",
+                    character_qiao_id=character_qiao_id,
+                    dimension_name=dimension_name,
+                )
+
+        logger.debug(
+            "score_placeholders_formatted",
+            character_qiao_id=character_qiao_id,
+            placeholders_found=len(score_matches),
+            placeholders_replaced=replaced_count,
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            "score_placeholder_formatting_failed",
+            error=str(e),
+            character_qiao_id=character_qiao_id,
+        )
+        raise AIServiceError(
+            ai_service="placeholder_formatting",
+            reason="formatting_failed",
+            message=f"Failed to format score placeholders: {str(e)}",
+        )
+
+
+def validate_prompt_completeness(
+    prompt: str, required_placeholders: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Validate prompt completeness by checking for unresolved placeholders.
+
+    Args:
+        prompt: The prompt string to validate
+        required_placeholders: List of required placeholder names (optional)
+
+    Returns:
+        Dictionary containing validation results:
+        - is_valid: bool - Whether the prompt is valid
+        - missing_placeholders: List[str] - List of missing required placeholders
+        - unresolved_placeholders: List[str] - List of unresolved placeholders
+        - warnings: List[str] - List of validation warnings
+    """
+    try:
+        import re
+
+        validation_result = {
+            "is_valid": True,
+            "missing_placeholders": [],
+            "unresolved_placeholders": [],
+            "warnings": [],
+        }
+
+        # Find all unresolved placeholders (still in {{}} format)
+        placeholder_pattern = r"\{\{([^}]+)\}\}"
+        unresolved_matches = re.findall(placeholder_pattern, prompt)
+
+        if unresolved_matches:
+            validation_result["unresolved_placeholders"] = unresolved_matches
+            validation_result["is_valid"] = False
+            validation_result["warnings"].append(
+                f"Found {len(unresolved_matches)} unresolved placeholders: {', '.join(unresolved_matches)}"
+            )
+
+        # Check for required placeholders if specified
+        if required_placeholders:
+            for required_placeholder in required_placeholders:
+                placeholder_pattern = f"{{{{{required_placeholder}}}}}"
+                if placeholder_pattern in prompt:
+                    validation_result["missing_placeholders"].append(required_placeholder)
+                    validation_result["is_valid"] = False
+
+        # Check for empty or very short prompts
+        if not prompt or len(prompt.strip()) < 10:
+            validation_result["is_valid"] = False
+            validation_result["warnings"].append("Prompt is empty or too short")
+
+        # Check for common issues
+        if "{{" in prompt and "}}" in prompt:
+            # Additional check for malformed placeholders
+            malformed_pattern = r"\{\{[^}]*\{\{|\}\}[^{]*\}\}"
+            malformed_matches = re.findall(malformed_pattern, prompt)
+            if malformed_matches:
+                validation_result["warnings"].append(
+                    f"Found potentially malformed placeholders: {', '.join(malformed_matches)}"
+                )
+
+        logger.debug(
+            "prompt_validation_completed",
+            prompt_length=len(prompt),
+            is_valid=validation_result["is_valid"],
+            unresolved_count=len(validation_result["unresolved_placeholders"]),
+            missing_count=len(validation_result["missing_placeholders"]),
+            warnings_count=len(validation_result["warnings"]),
+        )
+
+        return validation_result
+
+    except Exception as e:
+        logger.error("prompt_validation_failed", error=str(e))
+        return {
+            "is_valid": False,
+            "missing_placeholders": [],
+            "unresolved_placeholders": [],
+            "warnings": [f"Validation failed: {str(e)}"],
+        }

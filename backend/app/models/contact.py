@@ -7,6 +7,7 @@ This module contains SQLAlchemy models for contact relationships and requests.
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import ContactType, ContactRequestSource, ContactRequestStatus
@@ -50,7 +51,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         String(500), nullable=True, comment="Custom avatar URL for this contact"
     )
 
-    tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Contact tags (JSON)")
+    tags: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, comment="Contact tags (JSONB)")
 
     remark: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Contact remark/notes")
 
@@ -75,8 +76,12 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         Index("idx_contacts_contact_id", "contact_id"),
         Index("idx_contacts_contact_qiao_id", "contact_qiao_id"),
         Index("idx_contacts_is_pinned", "is_pinned"),
+        Index("idx_contacts_is_muted", "is_muted"),
+        Index("idx_contacts_is_blocked", "is_blocked"),
         Index("idx_contacts_is_deleted", "is_deleted"),
         Index("idx_contacts_created_at", "created_at"),
+        # PostgreSQL GIN index for JSONB field for better query performance
+        Index("idx_contacts_tags_gin", "tags", postgresql_using="gin"),
     )
 
 

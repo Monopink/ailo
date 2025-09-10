@@ -8,13 +8,14 @@ coordinating all AI service components with clear error handling.
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .character import get_character_info
+from .data import get_character_with_relations
 from .relationship import (
-    get_relationship_scores,
     determine_relationship_type,
-    update_character_relationship_scores,
+    calculate_new_scores,
+    update_relationship_positions,
 )
-from .prompt import build_system_prompt, get_response_schema
+from .prompt import build_system_prompt, get_response_schema, build_conversation_context
+from .context_manager import default_context_manager
 from .memory import process_memory_operations, archive_old_contexts
 from .data import (
     get_conversation_history,
@@ -107,26 +108,46 @@ async def process_conversation(
                 message="Failed to save conversation context",
             )
 
-        # Step 3: Find corresponding ai_character
-        character_info = await get_character_info(db, character_qiao_id)
+        # Step 3: Find corresponding ai_character with relations
+        character_info = await get_character_with_relations(db, character_qiao_id)
+        if not character_info:
+            raise AIConversationError(
+                conversation_step="character_lookup",
+                reason="character_not_found",
+                message=f"Character not found: {character_qiao_id}",
+            )
 
-        # Step 4: Find corresponding relationship_score
+        # Step 4: Get relationship scores
+        from .relationship import get_relationship_scores
+
         relationship_scores = await get_relationship_scores(db, character_qiao_id)
 
-        # Step 5: Find relationship based on ai_style
+        # Step 5: Determine relationship type
         relationship_type = await determine_relationship_type(db, character_info, relationship_scores)
 
         # Step 6: Apply relationship prompt and placeholders to personality template
         system_prompt = await build_system_prompt(db, character_info, relationship_type, user_qiao_id)
 
-        # Step 7: Get context and merge with system prompt
-        conversation_context = await build_full_context(db, user_qiao_id, character_qiao_id, system_prompt)
+        # Step 7: Get conversation context and prepare messages
+        conversation_history = await build_conversation_context(
+            db, character_qiao_id, user_qiao_id, max_context_length=10
+        )
+
+        # Prepare messages for LLM
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.extend(conversation_history)
+        messages.append({"role": "user", "content": message_content})
+
+        # Get JSON schema for response validation
+        json_schema = await get_response_schema(db, character_qiao_id)
 
         # Step 8: Request LLM with validation
         llm_result = await chat_completion_with_validation(
             db=db,
-            messages=conversation_context["messages"],
-            json_schema=conversation_context["json_schema"],
+            messages=messages,
+            json_schema=json_schema,
             enable_thinking=True,
         )
 
@@ -223,8 +244,9 @@ async def build_full_context(
             elif context["role"] == 2:  # ai
                 messages.append({"role": "assistant", "content": context["content"]})
 
-        # Get JSON schema
-        json_schema = await get_response_schema(db, character_qiao_id)
+        # Get JSON schema - need character info for this
+        # For now, use None and let the LLM service handle it
+        json_schema = None
 
         logger.debug(
             "full_context_built",
@@ -283,8 +305,13 @@ async def process_ai_response_updates(
 
         # Update relationship scores
         if ai_response.get("score"):
+            # Calculate new scores using the new system
+            new_scores = await calculate_new_scores(db, character_info, ai_response["score"])
+
+            # Update relationship positions
             character_id = character_info["character_id"]
-            await update_character_relationship_scores(db, character_id, ai_response["score"])
+            if character_id and new_scores:
+                await update_relationship_positions(db, character_id, new_scores)
 
         # Process memory operations
         if ai_response.get("should_update_memory", False) and ai_response.get("memory_operations"):

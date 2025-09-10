@@ -96,9 +96,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
     async def get_active_session(self, db: AsyncSession, *, token: str) -> Optional[UserSession]:
         """Get active session by token."""
         result = await db.execute(
-            select(self.model).where(
-                and_(self.model.session_token == token, self.model.is_active.is_(True))
-            )
+            select(self.model).where(and_(self.model.session_token == token, self.model.status == 1))
         )
         return result.scalar_one_or_none()
 
@@ -108,7 +106,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
         """Get user's sessions."""
         query = select(self.model).where(self.model.user_id == user_id)
         if active_only:
-            query = query.where(self.model.is_active.is_(True))
+            query = query.where(self.model.status == 1)
 
         result = await db.execute(query)
         return list(result.scalars().all())
@@ -122,7 +120,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
                 and_(
                     self.model.user_id == user_id,
                     self.model.device_type == device_type,
-                    self.model.is_active.is_(True),
+                    self.model.status == 1,
                 )
             )
         )
@@ -132,7 +130,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
         """Deactivate a session."""
         session = await self.get_by_token(db, token=token)
         if session:
-            session.is_active = False
+            session.status = 2
             db.add(session)
             await db.commit()
             await db.refresh(session)
@@ -142,9 +140,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
         self, db: AsyncSession, *, user_id: int, exclude_token: Optional[str] = None
     ) -> int:
         """Deactivate all user sessions except the excluded one."""
-        query = select(self.model).where(
-            and_(self.model.user_id == user_id, self.model.is_active.is_(True))
-        )
+        query = select(self.model).where(and_(self.model.user_id == user_id, self.model.status == 1))
         if exclude_token:
             query = query.where(self.model.session_token != exclude_token)
 
@@ -153,7 +149,7 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
 
         count = 0
         for session in sessions:
-            session.is_active = False
+            session.status = 2
             db.add(session)
             count += 1
 

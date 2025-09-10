@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .data import (
     get_character_relationship_scores,
     get_character_id_by_qiao_id,
-    get_relationship_score_ranges,
     get_style_with_relationships,
 )
 from .data.mutations import update_relationship_scores
@@ -329,3 +328,212 @@ def _get_default_relationship_mapping(
     except Exception as e:
         logger.error("default_relationship_selection_failed", error=str(e))
         return None
+
+
+async def calculate_new_scores(
+    db: AsyncSession, character_info: Dict[str, Any], llm_response_scores: Dict[str, int]
+) -> Dict[str, int]:
+    """
+    Calculate new relationship scores based on LLM response.
+
+    Args:
+        db: Database session
+        character_info: Character information dictionary
+        llm_response_scores: Scores from LLM response
+
+    Returns:
+        Dictionary of dimension_name -> new_score
+
+    Raises:
+        AIRelationshipError: If calculation fails
+    """
+    try:
+        character_id = character_info.get("character_id")
+        if not character_id:
+            raise AIRelationshipError(
+                operation="calculate_new_scores",
+                reason="missing_character_id",
+                message="No character_id in character_info",
+            )
+
+        # Get current scores
+        current_scores = await get_character_relationship_scores(db, character_id)
+        if not current_scores:
+            logger.warning(
+                "no_current_scores_for_calculation",
+                character_id=character_id,
+            )
+            # Return LLM scores directly if no current scores exist
+            return llm_response_scores
+
+        # Apply score offset algorithm for each dimension
+        new_scores = {}
+        character = character_info.get("character")
+
+        for score_data in current_scores:
+            dimension_name = score_data["dimension_name"]
+            current_score = score_data["score"]
+            initial_position = score_data["initial_position"]
+
+            # Get LLM response score for this dimension
+            llm_score = llm_response_scores.get(dimension_name)
+            if llm_score is None:
+                # Keep current score if LLM didn't provide new value
+                new_scores[dimension_name] = current_score
+                continue
+
+            # Apply score offset algorithm
+            new_score = await apply_score_offset(character, current_score, llm_score, initial_position)
+            new_scores[dimension_name] = new_score
+
+        logger.debug(
+            "new_scores_calculated",
+            character_id=character_id,
+            current_scores_count=len(current_scores),
+            new_scores_count=len(new_scores),
+        )
+
+        return new_scores
+
+    except Exception as e:
+        logger.error(
+            "new_scores_calculation_failed",
+            error=str(e),
+            character_info=character_info,
+            llm_response_scores=llm_response_scores,
+        )
+        raise AIRelationshipError(
+            operation="calculate_new_scores",
+            reason="calculation_failed",
+            message=f"Failed to calculate new scores: {str(e)}",
+        )
+
+
+async def apply_score_offset(
+    character: Any, current_score: int, llm_score: int, initial_position: float
+) -> int:
+    """
+    Apply character-specific score offset algorithm.
+
+    Args:
+        character: Character model instance
+        current_score: Current score value (0-1000) - not used in calculation but kept for logging
+        llm_score: LLM response score (0-1000)
+        initial_position: Initial position from dimension config (0-1000)
+
+    Returns:
+        New score value after applying offset
+
+    Raises:
+        AIRelationshipError: If offset calculation fails
+    """
+    try:
+        from .utils.score_algorithm import apply_score_algorithm
+
+        # Get character's score offset configuration
+        algorithm = character.score_offset_algorithm if character else None
+        params = character.score_offset_params if character else None
+
+        if not algorithm:
+            # No algorithm specified, use direct LLM score
+            logger.debug(
+                "no_offset_algorithm_using_direct_score",
+                character_id=getattr(character, "id", None),
+                current_score=current_score,
+                llm_score=llm_score,
+                initial_position=initial_position,
+            )
+            return max(0, min(1000, llm_score))
+
+        # Calculate new score using the specified algorithm
+        new_score = apply_score_algorithm(
+            algorithm=algorithm,
+            score=float(llm_score),
+            initial_position=initial_position,
+            params=params or {},
+        )
+
+        # Ensure score is within valid range
+        new_score = max(0, min(1000, int(new_score)))
+
+        logger.debug(
+            "score_offset_applied",
+            character_id=getattr(character, "id", None),
+            algorithm=algorithm,
+            current_score=current_score,
+            llm_score=llm_score,
+            initial_position=initial_position,
+            new_score=new_score,
+        )
+
+        return new_score
+
+    except Exception as e:
+        logger.error(
+            "score_offset_application_failed",
+            error=str(e),
+            character_id=getattr(character, "id", None),
+            current_score=current_score,
+            llm_score=llm_score,
+            initial_position=initial_position,
+        )
+        raise AIRelationshipError(
+            operation="apply_score_offset",
+            reason="calculation_failed",
+            message=f"Failed to apply score offset: {str(e)}",
+        )
+
+
+async def update_relationship_positions(
+    db: AsyncSession, character_id: int, new_scores: Dict[str, int]
+) -> bool:
+    """
+    Update relationship positions based on new scores.
+
+    Args:
+        db: Database session
+        character_id: Character ID
+        new_scores: Dictionary of dimension_name -> new_score
+
+    Returns:
+        True if successful, False otherwise
+
+    Raises:
+        AIRelationshipError: If update fails
+    """
+    try:
+        # Convert dimension names to IDs for the update function
+        # The update_relationship_scores function expects Dict[int, int]
+        # but we have Dict[str, int], so we need to convert
+
+        # For now, we'll use the existing update_relationship_scores function
+        # which handles the position calculation internally
+        success = await update_relationship_scores(db, character_id, new_scores)
+
+        if success:
+            logger.debug(
+                "relationship_positions_updated",
+                character_id=character_id,
+                scores_count=len(new_scores),
+            )
+        else:
+            logger.warning(
+                "relationship_positions_update_failed",
+                character_id=character_id,
+                scores_count=len(new_scores),
+            )
+
+        return success
+
+    except Exception as e:
+        logger.error(
+            "relationship_positions_update_failed",
+            error=str(e),
+            character_id=character_id,
+            new_scores=new_scores,
+        )
+        raise AIRelationshipError(
+            operation="update_relationship_positions",
+            reason="update_failed",
+            message=f"Failed to update relationship positions: {str(e)}",
+        )

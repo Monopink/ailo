@@ -77,7 +77,7 @@ class LLMConfigBase(BaseSchema):
     enable_streaming: bool = Field(default=False, description="Enable streaming output")
     enable_thinking: bool = Field(default=False, description="Enable thinking mode")
     json_schema_mode: str = Field(default="auto", description="JSON schema mode")
-    is_active: bool = Field(default=True, description="Is configuration active")
+    status: int = Field(default=1, description="Status: 1=active, 2=inactive")
     priority: int = Field(default=0, ge=0, description="Priority for failover")
 
 
@@ -94,7 +94,7 @@ class LLMConfigCreate(BaseModel):
     enable_streaming: bool = Field(default=False, description="Enable streaming output")
     enable_thinking: bool = Field(default=False, description="Enable thinking mode")
     json_schema_mode: str = Field(default="auto", description="JSON schema mode")
-    is_active: bool = Field(default=True, description="Is configuration active")
+    status: int = Field(default=1, description="Status: 1=active, 2=inactive")
     priority: int = Field(default=0, ge=0, description="Priority for failover")
 
 
@@ -109,7 +109,7 @@ class LLMConfigUpdate(BaseModel):
     enable_streaming: Optional[bool] = Field(default=None, description="Enable streaming output")
     enable_thinking: Optional[bool] = Field(default=None, description="Enable thinking mode")
     json_schema_mode: Optional[str] = Field(default=None, description="JSON schema mode")
-    is_active: Optional[bool] = Field(default=None, description="Is configuration active")
+    status: Optional[int] = Field(default=None, description="Status: 1=active, 2=inactive")
     priority: Optional[int] = Field(default=None, ge=0, description="Priority for failover")
 
 

@@ -11,19 +11,28 @@ from crud.llm import llm_config, llm_provider
 from models.llm import LLMConfig, LLMProvider
 
 
-async def get_llm_config(db: AsyncSession, config_key: str) -> Optional[Tuple[LLMConfig, LLMProvider]]:
+async def get_llm_config(
+    db: AsyncSession, config_key: str = None, config_id: int = None
+) -> Optional[Tuple[LLMConfig, LLMProvider]]:
     """
-    Get LLM configuration and provider by config key.
+    Get LLM configuration and provider by config key or ID.
 
     Args:
         db: Database session
         config_key: Configuration key (e.g., 'primary', 'backup')
+        config_id: Configuration ID
 
     Returns:
         Tuple of (config, provider) or None if not found
     """
-    config = await llm_config.get_by_config_key(db, config_key=config_key)
-    if not config or not config.is_active:
+    if config_key:
+        config = await llm_config.get_by_config_key(db, config_key=config_key)
+    elif config_id:
+        config = await llm_config.get(db, id=config_id)
+    else:
+        return None
+
+    if not config or config.status != 1:
         return None
 
     provider = await llm_provider.get(db, id=config.provider_id)

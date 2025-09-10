@@ -30,7 +30,7 @@ password_hash -- 密码哈希值
 wechat_openid -- 微信授权登录标识
 apple_id -- Apple授权登录标识
 status -- 账户状态：1=active, 2=inactive, 3=suspended
-user_type -- 用户类型：1=normal, 2=official, 3=admin
+user_type -- 用户类型：1=normal, 2=official, 3=virtual
 last_login -- 最后登录时间
 created_at
 updated_at
@@ -430,6 +430,47 @@ created_at
 updated_at
 ```
 
+## llm_providers
+
+LLM提供商配置表，管理不同的大模型提供商信息。
+
+```txt
+id -- 自增ID
+name -- 提供商标识，如doubao、openai、claude等，唯一
+display_name -- 显示名称
+base_url -- API基础URL
+api_key_env -- 环境变量名，如ARK_API_KEY
+default_model -- 默认模型名称
+supports_streaming -- 是否支持流式输出：1=yes, 0=no
+supports_json_schema -- 是否支持JSON Schema：1=yes, 0=no
+supports_thinking -- 是否支持思考模式：1=yes, 0=no
+created_at
+updated_at
+```
+
+## llm_configs
+
+LLM运行时配置表，管理具体的模型配置参数。
+
+```txt
+id -- 自增ID
+provider_id -- 关联llm_providers.id
+config_key -- 配置标识，如primary、backup、test等，唯一
+model_name -- 具体模型名称，可选
+temperature -- 温度参数，0.0-2.0
+max_tokens -- 最大token数
+timeout_seconds -- 超时时间（秒）
+max_retries -- 最大重试次数
+enable_streaming -- 是否启用流式输出：1=yes, 0=no
+enable_thinking -- 是否启用思考模式：1=yes, 0=no
+json_schema_mode -- JSON Schema模式：auto、strict、disabled
+status -- 状态：1=active, 2=inactive
+priority -- 优先级，数字越小优先级越高，用于故障转移
+extra_params -- 其他的参数
+created_at
+updated_at
+```
+
 ## ai_request_logs
 
 AI请求日志表，记录所有AI请求和响应。
@@ -512,7 +553,7 @@ created_at
 updated_at
 ```
 
-## system_config
+## system_configs
 
 系统配置表，存储系统级配置参数。
 
@@ -634,47 +675,6 @@ fail_reason -- 失败原因
 created_at
 ```
 
-## llm_providers
-
-LLM提供商配置表，管理不同的大模型提供商信息。
-
-```txt
-id -- 自增ID
-name -- 提供商标识，如doubao、openai、claude等，唯一
-display_name -- 显示名称
-base_url -- API基础URL
-api_key_env -- 环境变量名，如ARK_API_KEY
-default_model -- 默认模型名称
-supports_streaming -- 是否支持流式输出：1=yes, 0=no
-supports_json_schema -- 是否支持JSON Schema：1=yes, 0=no
-supports_thinking -- 是否支持思考模式：1=yes, 0=no
-status -- 状态：1=active, 0=inactive
-created_at
-updated_at
-```
-
-## llm_configs
-
-LLM运行时配置表，管理具体的模型配置参数。
-
-```txt
-id -- 自增ID
-provider_id -- 关联llm_providers.id
-config_key -- 配置标识，如primary、backup、test等，唯一
-model_name -- 具体模型名称，可选
-temperature -- 温度参数，0.0-2.0
-max_tokens -- 最大token数
-timeout_seconds -- 超时时间（秒）
-max_retries -- 最大重试次数
-enable_streaming -- 是否启用流式输出：1=yes, 0=no
-enable_thinking -- 是否启用思考模式：1=yes, 0=no
-json_schema_mode -- JSON Schema模式：auto、strict、disabled
-is_active -- 是否激活：1=yes, 0=no
-priority -- 优先级，数字越小优先级越高，用于故障转移
-created_at
-updated_at
-```
-
 ## 核心架构设计
 
 ### 用户管理模块
@@ -765,7 +765,7 @@ updated_at
 
 ### 系统管理模块
 
-#### system_config - 系统配置
+#### system_configs - 系统配置
 
 - 配置分类：字符串、数字、布尔值、JSON类型
 - 公开配置：区分公开和私有配置

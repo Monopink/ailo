@@ -37,7 +37,7 @@ class CustomAuthProvider(AuthProvider):
             try:
                 # Find admin user
                 admin_user = await admin_user_crud.get_by_username(db, username=username)
-                
+
                 if not admin_user:
                     # Log failed login attempt
                     await create_login_log(
@@ -88,14 +88,16 @@ class CustomAuthProvider(AuthProvider):
                 )
 
                 # Store user info in session
-                request.session.update({
-                    "admin_user": {
-                        "id": admin_user.id,
-                        "username": admin_user.username,
-                        "role": admin_user.role,
-                        "role_display": admin_user.role_display,
+                request.session.update(
+                    {
+                        "admin_user": {
+                            "id": admin_user.id,
+                            "username": admin_user.username,
+                            "role": admin_user.role,
+                            "role_display": admin_user.role_display,
+                        }
                     }
-                })
+                )
 
                 logger.info("admin_login_success", username=username, user_id=admin_user.id)
                 return response
@@ -121,7 +123,7 @@ class CustomAuthProvider(AuthProvider):
             return None
 
         return AdminConfig(
-            app_title="Qiao Panel",
+            app_title="Qiao Dashboard",
             logo_url=None,
         )
 
@@ -145,7 +147,7 @@ class CustomAuthProvider(AuthProvider):
         admin_user_data = request.session.get("admin_user")
         if admin_user_data:
             logger.info("admin_logout", username=admin_user_data["username"])
-        
+
         request.session.clear()
         return response
 

@@ -59,11 +59,72 @@ flowchart TB
 
 构造时从contexts获取，并标记对应数据reply_status为processing。
 
-对于is_attack=1的消息，合并时忽略内容，并且用攻击内容替代文本替代。攻击内容替代文本使用system_config中的配置项。
+对于is_attack=1的消息，合并时忽略内容，并且用攻击内容替代文本替代。攻击内容替代文本使用system_configs中的配置项。
 
 回复消息后将ai_contexts中reply_status为processing的数据更新为done。
 
 回复消息后移动ai_contexts中时间超过x或条数超过y条以外的数据到ai_contexts_archive表。x和y使用sysytem_config控制。
+
+### 分数偏移算法 V1
+
+基于ai_relationship_dimensions.initial_position作为原点进行简化的非线性偏移。
+
+Python实现示例：
+
+```python
+import math
+
+def simple_nonlinear_offset(score, initial_position, params):
+    """
+    非线性偏移算法
+    :param score: LLM输出分数 (0-1000)
+    :param initial_position: 初始位置 (0-1000)
+    :param params: dict，参数配置
+    :return: 偏移后 position (0-1000)
+    """
+
+    # 获取偏移强度参数
+    strength = params.get("strength", 0.5)  # 0-1之间，控制非线性程度
+
+    # 计算方向和距离
+    direction = score - initial_position
+
+    if direction == 0:
+        return initial_position
+
+    # 归一化方向到[-1, 1]范围
+    max_distance = 500.0  # 最大可能距离
+    normalized_direction = direction / max_distance
+
+    # 应用非线性曲线 (指数函数)
+    # strength > 0: 增强偏移效果
+    # strength = 0: 线性偏移
+    curve_factor = 1 + strength
+    curved_offset = math.copysign(
+        abs(normalized_direction) ** curve_factor,
+        normalized_direction
+    ) * max_distance
+
+    # 计算最终位置
+    final_position = initial_position + curved_offset
+
+    # 确保结果在有效范围内
+    return max(0.0, min(1000.0, final_position))
+```
+
+ai_characters.score_offset_params示例
+
+```json
+{
+  "strength": 0.5
+}
+```
+
+strength: 非线性强度控制
+
+- 0.0: 线性偏移
+- 0.5: 中等非线性效果 (推荐)
+- 1.0: 强非线性效果
 
 ## JSON Schema
 
@@ -214,7 +275,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ### `current_state`
 
-后续开发，目前忽略。
+后续开发，目前不做处理。
 
 ### `internal_thoughts`
 

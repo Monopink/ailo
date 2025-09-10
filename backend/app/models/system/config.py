@@ -18,7 +18,7 @@ class SystemConfig(AutoIncrementModel):
     System-wide configuration parameters.
     """
 
-    __tablename__ = "system_config"
+    __tablename__ = "system_configs"
 
     config_key: Mapped[str] = mapped_column(
         String(100), nullable=False, unique=True, comment="Configuration key"
@@ -44,7 +44,7 @@ class SystemConfig(AutoIncrementModel):
 
     # Indexes
     __table_args__ = (
-        Index("idx_system_config_config_key", "config_key"),
-        Index("idx_system_config_is_public", "is_public"),
-        Index("idx_system_config_updated_at", "updated_at"),
+        Index("idx_system_configs_config_key", "config_key"),
+        Index("idx_system_configs_is_public", "is_public"),
+        Index("idx_system_configs_updated_at", "updated_at"),
     )

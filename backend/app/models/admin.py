@@ -6,11 +6,12 @@ This module contains SQLAlchemy models for admin users and operation logs.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import DateTime, Integer, String, Index, Text
+from sqlalchemy import DateTime, Integer, String, Index, Text, func
+from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import AdminRole, AdminStatus
-from models.base import AutoIncrementModel, StatusMixin
+from models.base import AutoIncrementModel, StatusMixin, Base, AutoIncrementIDMixin
 
 
 class AdminUser(AutoIncrementModel, StatusMixin):
@@ -144,7 +145,7 @@ class AdminOperationLog(AutoIncrementModel):
         String(500), nullable=False, comment="Operation description"
     )
 
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True, comment="IP address")
+    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="IP address")
 
     user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="User agent")
 
@@ -157,26 +158,32 @@ class AdminOperationLog(AutoIncrementModel):
     )
 
 
-class AdminLoginLog(AutoIncrementModel):
+class AdminLoginLog(Base, AutoIncrementIDMixin):
     """
     Admin login log model.
 
     Admin login tracking.
+    Note: Only has created_at, no updated_at to match database schema.
     """
 
     __tablename__ = "admin_login_logs"
+
+    # Only created_at timestamp, no updated_at
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=func.now(), comment="Record creation timestamp"
+    )
 
     admin_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Admin user ID")
 
     username: Mapped[str] = mapped_column(String(50), nullable=False, comment="Login username")
 
-    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="User agent")
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent")
 
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True, comment="IP address")
+    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="IP address")
 
     result: Mapped[int] = mapped_column(Integer, nullable=False, comment="Result: 1=success, 2=fail")
 
-    fail_reason: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Failure reason")
+    fail_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Failure reason")
 
     # Indexes
     __table_args__ = (

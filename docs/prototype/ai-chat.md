@@ -31,9 +31,19 @@ flowchart TB
     n12 --> n13["回复消息"]
 ```
 
-合并短时间消息流程 (buffer)
+## 合并短时间消息流程 (buffer)
 
 收到消息后等待x秒，如果再次收到消息则合并，并循环等待，直到x秒后没有收到则存入ai_contexts表，并开始处理消息。
+
+## 分数计算和关系选择（包括初始化）
+
+1. 输入分数，输入分数的数量和名称需要符合ai_style对应的dimension配置（如果是实际页面，输入来自LLM输出，测试则来自表单输入，如果是初始化则来自ai_relationship_dimensions.initial_position）
+2. 将每个dimension的分数映射到0-1000的区间
+3. 对每个dimension分数应用偏移算法计算position
+4. 在ai_relationship_indexes表找出每个dimension对应position对应的relationship（在start_position和end_position之间，包含两端）
+5. 根据ai_relationship_indexes.limit_count和ai_relationship_scores.relationship_counts对达到次数限制的relationship去除。
+6. 在去重后所有的relationship候选中选择优先级最高的relationship，特殊规则：如果其中有当前关系则当前关系优先级最高（换句话说如果候选中有当前关系则关系不变，如果是初始化计算则没有当前关系），如果存在优先级相同则记录日志并选择第一个。
+7. 选中的关系更新为当前关系，写入ai_relationship_scores等相关表
 
 ## 请求上下文构造
 
@@ -67,64 +77,119 @@ flowchart TB
 
 ### 分数偏移算法 V1
 
-基于ai_relationship_dimensions.initial_position作为原点进行简化的非线性偏移。
+基于ai_relationship_dimensions.initial_position作为原点进行精细化的独立双向偏移。类似于Photoshop的曲线调整，算法本身保证不会超出[0, 1000]范围。
 
 Python实现示例：
 
 ```python
-import math
-
-def simple_nonlinear_offset(score, initial_position, params):
+def calculate_v1_offset(score, initial_position, params):
     """
-    非线性偏移算法
-    :param score: LLM输出分数 (0-1000)
+    V1独立双向偏移算法
+    :param score: 映射后的分数 (0-1000)
     :param initial_position: 初始位置 (0-1000)
     :param params: dict，参数配置
     :return: 偏移后 position (0-1000)
     """
 
-    # 获取偏移强度参数
-    strength = params.get("strength", 0.5)  # 0-1之间，控制非线性程度
+    # 获取偏移参数
+    left_bias = params.get("left_bias", 0)    # -100到100，左侧偏移控制
+    right_bias = params.get("right_bias", 0)  # -100到100，右侧偏移控制
 
-    # 计算方向和距离
-    direction = score - initial_position
+    # 参数验证
+    if not (-100 <= left_bias <= 100):
+        raise ValueError("left_bias must be between -100 and 100")
+    if not (-100 <= right_bias <= 100):
+        raise ValueError("right_bias must be between -100 and 100")
 
-    if direction == 0:
+    # initial_position永远映射到自己
+    if score == initial_position:
         return initial_position
 
-    # 归一化方向到[-1, 1]范围
-    max_distance = 500.0  # 最大可能距离
-    normalized_direction = direction / max_distance
+    if score < initial_position:
+        # 左侧区间 [0, initial_position]
+        if initial_position == 0:
+            return score
 
-    # 应用非线性曲线 (指数函数)
-    # strength > 0: 增强偏移效果
-    # strength = 0: 线性偏移
-    curve_factor = 1 + strength
-    curved_offset = math.copysign(
-        abs(normalized_direction) ** curve_factor,
-        normalized_direction
-    ) * max_distance
+        # 计算相对位置 [0, 1]
+        relative_pos = score / initial_position
 
-    # 计算最终位置
-    final_position = initial_position + curved_offset
+        # 应用左侧偏移曲线
+        if left_bias == 0:
+            # 线性，不调整
+            adjusted_pos = relative_pos
+        elif left_bias < 0:
+            # 向原点偏移：压缩到initial_position附近
+            compression_factor = abs(left_bias) / 100.0
+            adjusted_pos = 1.0 - (1.0 - relative_pos) * (1.0 - compression_factor)
+        else:
+            # 向两端偏移：拉伸到0附近
+            stretch_factor = left_bias / 100.0
+            adjusted_pos = relative_pos * (1.0 - stretch_factor)
 
-    # 确保结果在有效范围内
-    return max(0.0, min(1000.0, final_position))
+        return adjusted_pos * initial_position
+
+    else:
+        # 右侧区间 [initial_position, 1000]
+        if initial_position == 1000:
+            return score
+
+        right_range = 1000.0 - initial_position
+        relative_pos = (score - initial_position) / right_range
+
+        # 应用右侧偏移曲线
+        if right_bias == 0:
+            # 线性，不调整
+            adjusted_pos = relative_pos
+        elif right_bias < 0:
+            # 向原点偏移：压缩到initial_position附近
+            compression_factor = abs(right_bias) / 100.0
+            adjusted_pos = relative_pos * (1.0 - compression_factor)
+        else:
+            # 向两端偏移：拉伸到1000附近
+            stretch_factor = right_bias / 100.0
+            adjusted_pos = relative_pos + (1.0 - relative_pos) * stretch_factor
+
+        return initial_position + adjusted_pos * right_range
 ```
 
 ai_characters.score_offset_params示例
 
 ```json
 {
-  "strength": 0.5
+  "left_bias": 0,
+  "right_bias": 0
 }
 ```
 
-strength: 非线性强度控制
+参数说明：
 
-- 0.0: 线性偏移
-- 0.5: 中等非线性效果 (推荐)
-- 1.0: 强非线性效果
+- left_bias: 左侧偏移控制 (-100到100)
+  - 负值: 向原点偏移（压缩到initial_position附近）
+  - 0: 线性映射（无偏移）
+  - 正值: 向两端偏移（拉伸到0附近）
+- right_bias: 右侧偏移控制 (-100到100)
+  - 负值: 向原点偏移（压缩到initial_position附近）
+  - 0: 线性映射（无偏移）
+  - 正值: 向两端偏移（拉伸到1000附近）
+
+性格模拟示例：
+
+```json
+// 难以相处的人 - 强烈向原点偏移，关系难以改变
+{"left_bias": -80, "right_bias": -80}
+
+// 容易发展关系的人 - 强烈向两端偏移，关系容易极化
+{"left_bias": 80, "right_bias": 80}
+
+// 容易产生好感但难以深入 - 右侧向两端，左侧向原点
+{"left_bias": -30, "right_bias": 70}
+
+// 难以产生好感但容易深入 - 左侧向两端，右侧向原点
+{"left_bias": 70, "right_bias": -30}
+
+// 标准线性行为 - 无特殊偏移
+{"left_bias": 0, "right_bias": 0}
+```
 
 ## JSON Schema
 

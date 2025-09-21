@@ -95,6 +95,32 @@
 - 发送联系人申请: 管理员可以为无归属的AI角色向用户发送好友申请（2.0功能）
 - 新增角色: 管理员可以创建新的AI角色（2.0功能）
 
+##### 对话测试
+
+作为AI角色的功能按钮，独立页面打开。
+
+表单：
+
+1. LLM Configuration（下拉菜单，包含所有可用的llm_configs）
+2. 输入框：测试消息内容
+
+不应该包含的表单：
+
+1. AI角色选择（AI角色固定为当前角色）
+2. 用户选择（每个AI角色最多只能有一个测试用户）
+
+不能开始测试的情况：
+
+1. AI角色缺少Profile
+2. AI角色没有关联测试用户（type:vitual）或关联的不是测试用户
+3. 测试用户没有Profile
+4. 占位符验证出错误、Json Schema出错等验证问题
+
+输出内容：
+
+1. 对话记录
+2. 请求记录（更新在request_logs表）
+
 #### ai_personalities（AI人格管理）
 
 - 人格列表: 显示所有AI人格模板
@@ -108,6 +134,27 @@
 - 风格配置: 管理评分维度和评分名称
 - 关系管理: 专门页面管理ai_relationship_indexes，在分数轴上直观显示关系位置
 - 使用统计: 显示usage_count统计
+
+##### 分数算法测试
+
+表单：
+
+1. 算法选择（下拉菜单，写死的算法列表）
+2. 偏移参数
+3. 当前关系
+4. 分数值Score*N（模拟LLM输出的分数，对应N个维度）
+5. 最大分数值Score max*N（分数值的终点，用于计算position映射，对应N个维度）
+6. 最小分数值Score min*N（分数值的起点，用于计算position映射，对应N个维度）
+
+输出内容：
+
+1. dimension_name
+2. 没有经过算法偏移直接映射的position
+3. 偏移后的positon
+4. ai_relationship.display_name
+5. ai_relationship.prompt_fragment
+
+注：测试时忽略ai_relationship_indexes.limit_count的影响
 
 #### ai_relationship（AI关系管理）
 

@@ -53,6 +53,7 @@ from .views import (
     # AI Testing (for routing only, not in menu)
     ai_character_chat_test_view,
     ai_score_algorithm_test_view,
+    ai_relationship_index_api_view,
 )
 from .views.custom_views import (
     DashboardView,
@@ -105,6 +106,9 @@ ai_group = DropDown(
         ai_request_log_view,
         ai_context_view,
         ai_relationship_score_view,
+        ai_character_chat_test_view,
+        ai_score_algorithm_test_view,
+        ai_relationship_index_api_view,
     ],
     always_open=False,
 )
@@ -164,8 +168,6 @@ system_group = DropDown(
 )
 admin.add_view(system_group)
 
-# Add test views for routing (not in menu - accessed via row actions)
-admin.add_view(ai_character_chat_test_view)
-admin.add_view(ai_score_algorithm_test_view)
+# Test views are now included in AI group with add_to_menu=False
 
 # Development tools and testing functionality are now integrated into respective list views

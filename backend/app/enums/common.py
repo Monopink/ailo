@@ -20,12 +20,14 @@ class UserStatus(IntEnum):
 
 
 class UserType(IntEnum):
-    """User type classification (users.user_type)"""
+    """User type classification (users.user_type).
+
+    Design document standard: 1=normal, 2=official, 3=virtual (test/virtual user)
+    """
 
     NORMAL = 1  # Regular user
     OFFICIAL = 2  # Official account
-    ADMIN = 3  # Administrator
-    VIRTUAL = 4  # Virtual user (for AI testing)
+    VIRTUAL = 3  # Virtual user (for AI testing)
 
 
 class DeviceType(IntEnum):

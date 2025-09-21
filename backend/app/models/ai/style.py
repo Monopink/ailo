@@ -79,10 +79,6 @@ class AIRelationshipDimension(AutoIncrementModel):
         Integer, nullable=False, comment="Initial position, 0-1000 per mille"
     )
 
-    status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
-    )
-
     # Relationships
     style: Mapped["AIStyle"] = relationship(
         "AIStyle",
@@ -101,7 +97,6 @@ class AIRelationshipDimension(AutoIncrementModel):
     __table_args__ = (
         Index("idx_ai_relationship_dimensions_style_id", "style_id"),
         Index("idx_ai_relationship_dimensions_name", "name"),
-        Index("idx_ai_relationship_dimensions_status", "status"),
         Index("idx_ai_relationship_dimensions_style_name", "style_id", "name", unique=True),
     )
 

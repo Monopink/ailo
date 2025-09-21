@@ -191,9 +191,10 @@ class AITestManager:
         initial_position: float,
         params: Dict[str, Any],
         batch_test: Optional[Dict[str, Any]] = None,
+        current_relationship_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
-        Test score offset algorithm.
+        Test score offset algorithm with current relationship priority support.
 
         Args:
             algorithm: Algorithm type
@@ -201,9 +202,10 @@ class AITestManager:
             initial_position: Initial position
             params: Algorithm parameters
             batch_test: Optional batch test configuration
+            current_relationship_id: Current relationship ID for priority testing
 
         Returns:
-            Algorithm test result with calculation details
+            Algorithm test result with calculation details and relationship change info
 
         Raises:
             ValueError: If validation fails
@@ -243,6 +245,9 @@ class AITestManager:
                 },
                 "calculation_details": calculation_details,
                 "batch_results": None,
+                "current_relationship_id": current_relationship_id,
+                "relationship_changed": False,  # Will be updated by relationship selection logic
+                "current_relationship_name": None,  # Will be populated if current_relationship_id exists
             }
 
             # Handle batch test if requested

@@ -15,7 +15,7 @@ from .session_views import SESSION_MODEL_VIEWS
 from .business_views import BUSINESS_MODEL_VIEWS
 from .ai_extended_views import AI_EXTENDED_MODEL_VIEWS
 
-from .ai_test_views import ai_character_chat_test_view, ai_score_algorithm_test_view
+from .ai_test_views import ai_character_chat_test_view, ai_score_algorithm_test_view, ai_relationship_index_api_view
 
 # Import individual views for backward compatibility
 from .ai_views import (
@@ -136,4 +136,5 @@ __all__ = [
     # AI Testing views (for routing only, not in menu)
     "ai_character_chat_test_view",
     "ai_score_algorithm_test_view",
+    "ai_relationship_index_api_view",
 ]

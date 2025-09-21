@@ -395,7 +395,6 @@ CREATE TABLE IF NOT EXISTS ai_relationship_dimensions (
     name VARCHAR(50) NOT NULL,
     display_name VARCHAR(100),
     initial_position INTEGER NOT NULL,
-    status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     UNIQUE(style_id, name)
@@ -404,7 +403,6 @@ CREATE TABLE IF NOT EXISTS ai_relationship_dimensions (
 -- Create indexes for ai_relationship_dimensions table
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_dimensions_style_id ON ai_relationship_dimensions(style_id);
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_dimensions_name ON ai_relationship_dimensions(name);
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_dimensions_status ON ai_relationship_dimensions(status);
 
 -- AI relationship indexes table - Score to relationship mapping
 CREATE TABLE IF NOT EXISTS ai_relationship_indexes (
@@ -476,8 +474,8 @@ CREATE TABLE IF NOT EXISTS ai_info_templates (
     personality_id INTEGER NOT NULL,
     memory TEXT,
     prompt_variables JSONB,
-    score_offset_algorithm VARCHAR(100),
-    score_offset_params JSONB,
+    score_offset_algorithm INTEGER DEFAULT 1,
+    score_offset_params JSONB DEFAULT '{"left_bias": 0, "right_bias": 0}',
     is_reusable INTEGER NOT NULL DEFAULT 1,
     profile_count INTEGER NOT NULL DEFAULT 0,
     profile_id INTEGER,
@@ -532,8 +530,8 @@ CREATE TABLE IF NOT EXISTS ai_characters (
     status INTEGER NOT NULL DEFAULT 1,
     memory TEXT,
     prompt_variables JSONB,
-    score_offset_algorithm VARCHAR(100),
-    score_offset_params JSONB,
+    score_offset_algorithm INTEGER DEFAULT 1,
+    score_offset_params JSONB DEFAULT '{"left_bias": 0, "right_bias": 0}',
     request_params JSONB,
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -627,8 +625,6 @@ CREATE TABLE IF NOT EXISTS ai_relationship_scores (
     position INTEGER NOT NULL,
     relationship_id INTEGER NOT NULL,
     relationship_display_name VARCHAR(100) NOT NULL,
-    score_offset_algorithm VARCHAR(100),
-    score_offset_params JSONB,
     relationship_counts JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -642,7 +638,6 @@ CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_relationship_id ON ai_rela
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_score ON ai_relationship_scores(score);
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_position ON ai_relationship_scores(position);
 -- GIN indexes for JSONB fields
-CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_score_offset_params_gin ON ai_relationship_scores USING GIN(score_offset_params);
 CREATE INDEX IF NOT EXISTS idx_ai_relationship_scores_relationship_counts_gin ON ai_relationship_scores USING GIN(relationship_counts);
 
 -- AI request logs table - AI request and response logging
@@ -1116,42 +1111,73 @@ ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert basic AI relationship types
 INSERT INTO ai_relationships (name, display_name, prompt_fragment, usage_count, status) VALUES
-('stranger', 'Stranger', 'You are meeting this person for the first time. Be polite but maintain some distance.', 0, 1),
-('acquaintance', 'Acquaintance', 'You know this person casually. Be friendly but not too personal.', 0, 1),
-('friend', 'Friend', 'This person is your friend. Be warm, caring, and supportive.', 0, 1),
-('close_friend', 'Close Friend', 'This person is very close to you. Be intimate, understanding, and deeply caring.', 0, 1),
-('romantic_interest', 'Romantic Interest', 'You have romantic feelings for this person. Be affectionate and flirtatious.', 0, 1)
+('stranger', '陌生人', '你们刚刚认识，保持礼貌和适当的距离感。态度友善但不过分亲密。', 0, 1),
+('acquaintance', '熟人', '你们有一定了解，可以进行日常交流。表现得友好但还不够深入。', 0, 1),
+('friend', '朋友', '你们是好朋友，可以分享日常生活和想法。表现得温暖、关心和支持。', 0, 1),
+('close_friend', '密友', '你们关系很亲密，可以谈论私人话题。表现得理解、深度关怀和信任。', 0, 1),
+('best_friend', '挚友', '你们是最亲密的朋友，无话不谈。表现得像家人一样亲密和依赖。', 0, 1),
+('romantic_interest', '有好感', '你们之间有一些浪漫的氛围和互相吸引。表现得温柔、关怀并带有轻微的暧昧。', 0, 1),
+('lover', '恋人', '你们是恋人关系，充满爱意和亲密。表现得深情、体贴和浪漫。', 0, 1)
 ON CONFLICT (name) DO NOTHING;
 
--- Insert basic AI styles
+-- Insert AI styles with better names and configurations
 INSERT INTO ai_styles (name, display_name, usage_count, status, initial_relationship_id) VALUES
-('Default Style', 'Default Style', 0, 1, 1),
-('Casual Style', 'Casual Style', 0, 1, 1),
-('Professional Style', 'Professional Style', 0, 1, 1)
+('romantic_companion', '浪漫伴侣', 0, 1, 1),
+('friendly_companion', '友好伴侣', 0, 1, 1),
+('professional_assistant', '专业助手', 0, 1, 1)
 ON CONFLICT (name) DO NOTHING;
 
--- Insert basic AI relationship dimensions
-INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position, status) VALUES
--- Default Style dimensions
-(1, 'friend', 'Friendship Level', 500, 1),
-(1, 'romance', 'Romance Level', 300, 1),
--- Casual Style dimensions
-(2, 'friend', 'Friendship Level', 600, 1),
--- Professional Style dimensions
-(3, 'professional', 'Professional Level', 700, 1)
+-- Insert AI relationship dimensions for each style
+INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position) VALUES
+-- Romantic Companion Style (浪漫伴侣) - focused on friendship and romance development
+(1, 'friendship', '友谊度', 400),
+(1, 'romance', '浪漫度', 200),
+-- Friendly Companion Style (友好伴侣) - focused on friendship and trust building
+(2, 'friendship', '友谊度', 500),
+(2, 'trust', '信任度', 300),
+-- Professional Assistant Style (专业助手) - focused on professional relationship and competence
+(3, 'professionalism', '专业度', 600),
+(3, 'helpfulness', '协助度', 500)
 ON CONFLICT (style_id, name) DO NOTHING;
 
--- Insert basic AI relationship indexes (score ranges to relationship mappings)
+-- Insert comprehensive AI relationship indexes with correct dimension names
 INSERT INTO ai_relationship_indexes (style_id, dimension_id, dimension_name, start_position, end_position, relationship_id, priority) VALUES
--- Default Style - Friend dimension mappings
-(1, 1, 'friend', 0, 200, 1, 1),      -- 0-200: Stranger
-(1, 1, 'friend', 201, 500, 2, 1),    -- 201-500: Acquaintance
-(1, 1, 'friend', 501, 750, 3, 1),    -- 501-750: Friend
-(1, 1, 'friend', 751, 1000, 4, 1),   -- 751-1000: Close Friend
--- Default Style - Romance dimension mappings
-(1, 2, 'romance', 0, 300, 1, 1),     -- 0-300: Stranger
-(1, 2, 'romance', 301, 600, 2, 1),   -- 301-600: Acquaintance
-(1, 2, 'romance', 601, 1000, 5, 1)   -- 601-1000: Romantic Interest
+-- Romantic Companion Style (style_id=1) - Friendship dimension mappings
+(1, 1, 'friendship', 0, 160, 1, 10),        -- 0-150: 陌生人
+(1, 1, 'friendship', 140, 360, 2, 20),      -- 151-350: 熟人
+(1, 1, 'friendship', 340, 560, 3, 30),      -- 351-550: 朋友
+(1, 1, 'friendship', 540, 760, 4, 40),      -- 551-750: 密友
+(1, 1, 'friendship', 740, 1000, 5, 50),     -- 751-1000: 挚友
+
+-- Romantic Companion Style (style_id=1) - Romance dimension mappings
+(1, 2, 'romance', 0, 220, 1, 15),           -- 0-200: 陌生人
+(1, 2, 'romance', 200, 420, 2, 35),         -- 201-400: 熟人
+(1, 2, 'romance', 400, 650, 6, 45),         -- 401-600: 有好感
+(1, 2, 'romance', 600, 1000, 7, 55),        -- 601-1000: 恋人
+
+-- Friendly Companion Style (style_id=2) - Friendship dimension mappings  
+(2, 3, 'friendship', 0, 200, 1, 1),        -- 0-200: 陌生人
+(2, 3, 'friendship', 201, 400, 2, 1),      -- 201-400: 熟人
+(2, 3, 'friendship', 401, 650, 3, 1),      -- 401-650: 朋友
+(2, 3, 'friendship', 651, 850, 4, 1),      -- 651-850: 密友
+(2, 3, 'friendship', 851, 1000, 5, 1),     -- 851-1000: 挚友
+
+-- Friendly Companion Style (style_id=2) - Trust dimension mappings
+(2, 4, 'trust', 0, 250, 1, 1),             -- 0-250: 陌生人
+(2, 4, 'trust', 251, 500, 2, 1),           -- 251-500: 熟人
+(2, 4, 'trust', 501, 750, 3, 1),           -- 501-750: 朋友
+(2, 4, 'trust', 751, 1000, 4, 1),          -- 751-1000: 密友
+
+-- Professional Assistant Style (style_id=3) - Professionalism dimension mappings
+(3, 5, 'professionalism', 0, 300, 1, 1),   -- 0-300: 陌生人 
+(3, 5, 'professionalism', 301, 600, 2, 1), -- 301-600: 熟人
+(3, 5, 'professionalism', 601, 1000, 3, 1),-- 601-1000: 朋友
+
+-- Professional Assistant Style (style_id=3) - Helpfulness dimension mappings
+(3, 6, 'helpfulness', 0, 250, 1, 1),       -- 0-250: 陌生人
+(3, 6, 'helpfulness', 251, 500, 2, 1),     -- 251-500: 熟人
+(3, 6, 'helpfulness', 501, 750, 3, 1),     -- 501-750: 朋友
+(3, 6, 'helpfulness', 751, 1000, 4, 1)     -- 751-1000: 密友
 ON CONFLICT DO NOTHING;
 
 -- Insert basic AI personality
@@ -1203,7 +1229,7 @@ ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 
 -- Insert AI character for testing
 INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, created_by) VALUES
-(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'companion', 1, 1, 1, '{}', '{}', '1', '{}', 1)
+(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'companion', 1, 1, 1, '{}', '{}', 1, '{}', 1)
 ON CONFLICT (qiao_id) DO NOTHING;
 
 -- Insert profile for existing AI character
@@ -1271,15 +1297,15 @@ INSERT INTO ai_relationships (name, display_name, prompt_fragment, usage_count, 
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert additional AI relationship dimensions for romantic_companion style
-INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position, status) VALUES
-(1, 'friendship', '友谊度', 300, 1),
-(1, 'romance', '浪漫度', 200, 1)
+INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position) VALUES
+(1, 'friendship', '友谊度', 300),
+(1, 'romance', '浪漫度', 200)
 ON CONFLICT (style_id, name) DO NOTHING;
 
 -- Insert additional AI relationship dimensions for friendly_companion style
-INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position, status) VALUES
-(2, 'friendship', '友谊度', 400, 1),
-(2, 'trust', '信任度', 300, 1)
+INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position) VALUES
+(2, 'friendship', '友谊度', 400),
+(2, 'trust', '信任度', 300)
 ON CONFLICT (style_id, name) DO NOTHING;
 
 -- Insert sample admin operation logs
@@ -1378,8 +1404,8 @@ INSERT INTO ai_personality_placeholders (id, personality_id, placeholder_key, di
 
 -- Insert sample AI info templates
 INSERT INTO ai_info_templates (id, style_id, personality_id, memory, prompt_variables, score_offset_algorithm, score_offset_params, is_reusable, profile_count, status) VALUES
-(1013, 1, 1, '基础问候模板', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', NULL, NULL, 1, 2, 1),
-(1014, 1, 2, '兴趣分享模板', '{"hobbies": "音乐、电影"}', NULL, NULL, 1, 1, 1)
+(1013, 1, 1, '基础问候模板', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', 1, '{"left_bias": 0, "right_bias": 0}', 1, 2, 1),
+(1014, 1, 2, '兴趣分享模板', '{"hobbies": "音乐、电影"}', 2, '{"left_bias": -20, "right_bias": 30}', 1, 1, 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample AI profile templates

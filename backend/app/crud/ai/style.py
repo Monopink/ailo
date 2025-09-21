@@ -180,9 +180,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
             # Get dimensions for the style
             dimensions_result = await db.execute(
-                select(AIRelationshipDimension)
-                .where(AIRelationshipDimension.style_id == style_id)
-                .where(AIRelationshipDimension.status == 1)
+                select(AIRelationshipDimension).where(AIRelationshipDimension.style_id == style_id)
             )
             dimensions = dimensions_result.all()
 
@@ -337,7 +335,6 @@ class CRUDAIRelationshipDimension(
             result = await db.execute(
                 select(AIRelationshipDimension)
                 .where(AIRelationshipDimension.style_id == style_id)
-                .where(AIRelationshipDimension.status == 1)
                 .order_by(AIRelationshipDimension.name)
             )
             dimensions = result.scalars().all()

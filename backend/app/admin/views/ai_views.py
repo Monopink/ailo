@@ -207,7 +207,7 @@ class AICharacterView(ModelView):
             help_text="Character-specific memory and background information",
         ),
         "prompt_variables",
-        StringField(
+        IntegerField(
             "score_offset_algorithm",
             label="Score Offset Algorithm",
             help_text="Algorithm for relationship score calculation (1=NONE, 2=V1)",
@@ -325,7 +325,7 @@ class AIRelationshipDimensionView(ModelView):
 
     fields_default_sort = [("style_id", False), ("name", False)]
     searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "style_id", "name", "display_name", "initial_position", "status", "created_at"]
+    sortable_fields = ["id", "style_id", "name", "display_name", "initial_position", "created_at"]
 
     fields = [
         StringField("id", label="ID", help_text="Internal dimension ID"),
@@ -348,13 +348,6 @@ class AIRelationshipDimensionView(ModelView):
             "initial_position",
             label="Initial Position",
             help_text="Initial position value (0-1000 permille)",
-            required=True,
-        ),
-        EnumField(
-            "status",
-            enum=AIStyleStatus,
-            label="Status",
-            help_text="Active dimensions can be used",
             required=True,
         ),
     ]

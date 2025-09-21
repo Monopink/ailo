@@ -41,6 +41,9 @@ class AlgorithmTestRequest(BaseModel):
     initial_position: float = Field(..., description="Initial position")
     params: Dict[str, Any] = Field(..., description="Algorithm parameters")
     batch_test: Optional[Dict[str, Any]] = Field(None, description="Batch test configuration")
+    current_relationship_id: Optional[int] = Field(
+        None, description="Current relationship ID for priority testing"
+    )
 
 
 class PromptTestRequest(BaseModel):
@@ -108,6 +111,7 @@ async def test_algorithm(
             initial_position=request.initial_position,
             params=request.params,
             batch_test=request.batch_test,
+            current_relationship_id=request.current_relationship_id,
         )
 
         return format_success_response(result, "分数算法测试完成")

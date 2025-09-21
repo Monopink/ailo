@@ -6,9 +6,8 @@ based on relationship scores using various algorithms.
 All algorithms are stateless and maintain initial position as origin.
 """
 
-import math
 from typing import Dict, Any, Optional
-from enums import ScoreOffsetAlgorithm
+from enums.common import ScoreOffsetAlgorithm
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,7 +17,8 @@ logger = get_logger(__name__)
 DEFAULT_ALGORITHM_PARAMS = {
     ScoreOffsetAlgorithm.NONE: {},
     ScoreOffsetAlgorithm.V1: {
-        "strength": 0.5,  # Non-linear strength factor (0.0-1.0)
+        "left_bias": 0,  # -100 to 100, left side offset control
+        "right_bias": 0,  # -100 to 100, right side offset control
     },
 }
 
@@ -99,17 +99,20 @@ def calculate_none_offset(score: float, initial_position: float, params: Dict[st
 
 def calculate_v1_offset(score: float, initial_position: float, params: Dict[str, Any]) -> float:
     """
-    V1 algorithm using simplified non-linear offset based on initial position.
+    V1 algorithm with independent bidirectional offset control.
 
-    This algorithm:
-    - Uses initial_position as the baseline
-    - Applies non-linear offset based on LLM score
-    - Provides configurable curve strength
+    This algorithm supports:
+    - Independent control for left and right side offsets
+    - Bidirectional offset (both towards endpoints and towards origin)
+    - Similar to Photoshop curve adjustment
+    - Algorithm itself guarantees staying within 0-1000 range
 
     Args:
-        score: LLM response score (0-1000)
+        score: Mapped score (0-1000) after range mapping
         initial_position: Initial position from dimension config (0-1000)
-        params: Algorithm parameters containing strength
+        params: Algorithm parameters
+            - left_bias: -100 to 100, left side offset control
+            - right_bias: -100 to 100, right side offset control
 
     Returns:
         New score position (0-1000)
@@ -117,59 +120,75 @@ def calculate_v1_offset(score: float, initial_position: float, params: Dict[str,
     Raises:
         ValueError: If parameters are invalid
     """
-    strength = params.get("strength", 0.5)
+    left_bias = params.get("left_bias", 0)  # -100 to 100
+    right_bias = params.get("right_bias", 0)  # -100 to 100
 
     # Validate parameters
-    if not (0.0 <= strength <= 1.0):
-        raise ValueError("strength must be between 0.0 and 1.0")
-    if score < 0:
-        raise ValueError("score cannot be negative")
+    if not (-100 <= left_bias <= 100):
+        raise ValueError("left_bias must be between -100 and 100")
+    if not (-100 <= right_bias <= 100):
+        raise ValueError("right_bias must be between -100 and 100")
+    if score < 0 or initial_position < 0:
+        raise ValueError("score and initial_position cannot be negative")
 
     try:
-        # Calculate direction and distance
-        direction = score - initial_position
-
-        if direction == 0:
+        # initial_position always maps to itself
+        if score == initial_position:
             return initial_position
 
-        # Normalize direction to [-1, 1] range
-        max_distance = 500.0  # Maximum possible distance
-        normalized_direction = direction / max_distance
+        if score < initial_position:
+            # Left side interval [0, initial_position]
+            if initial_position == 0:
+                return score
 
-        # Apply non-linear curve (exponential function)
-        # strength > 0: enhance offset effect
-        # strength = 0: linear offset
-        curve_factor = 1 + strength
-        curved_offset = (
-            math.copysign(abs(normalized_direction) ** curve_factor, normalized_direction) * max_distance
-        )
+            # Calculate relative position [0, 1]
+            relative_pos = score / initial_position
 
-        # Calculate final position
-        final_position = initial_position + curved_offset
+            # Apply left side offset curve
+            if left_bias == 0:
+                # Linear, no adjustment
+                adjusted_pos = relative_pos
+            elif left_bias < 0:
+                # Towards origin: compress towards initial_position
+                compression_factor = abs(left_bias) / 100.0
+                adjusted_pos = 1.0 - (1.0 - relative_pos) * (1.0 - compression_factor)
+            else:
+                # Towards endpoints: stretch towards 0
+                stretch_factor = left_bias / 100.0
+                adjusted_pos = relative_pos * (1.0 - stretch_factor)
 
-        # Ensure result is within valid range
-        final_position = max(0.0, min(1000.0, final_position))
+            return adjusted_pos * initial_position
 
-        logger.debug(
-            "v1_algorithm_applied",
-            score=score,
-            initial_position=initial_position,
-            direction=direction,
-            normalized_direction=normalized_direction,
-            curve_factor=curve_factor,
-            curved_offset=curved_offset,
-            final_position=final_position,
-            strength=strength,
-        )
+        else:
+            # Right side interval [initial_position, 1000]
+            if initial_position == 1000:
+                return score
 
-        return final_position
+            right_range = 1000.0 - initial_position
+            relative_pos = (score - initial_position) / right_range
 
-    except (ValueError, OverflowError) as e:
+            # Apply right side offset curve
+            if right_bias == 0:
+                # Linear, no adjustment
+                adjusted_pos = relative_pos
+            elif right_bias < 0:
+                # Towards origin: compress towards initial_position
+                compression_factor = abs(right_bias) / 100.0
+                adjusted_pos = relative_pos * (1.0 - compression_factor)
+            else:
+                # Towards endpoints: stretch towards 1000
+                stretch_factor = right_bias / 100.0
+                adjusted_pos = relative_pos + (1.0 - relative_pos) * stretch_factor
+
+            return initial_position + adjusted_pos * right_range
+
+    except (ValueError, OverflowError, ZeroDivisionError) as e:
         logger.error(
             "v1_algorithm_calculation_error",
             score=score,
             initial_position=initial_position,
-            strength=strength,
+            left_bias=left_bias,
+            right_bias=right_bias,
             error=str(e),
         )
         raise ValueError(f"V1 algorithm calculation failed: {str(e)}")
@@ -205,18 +224,26 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
         }
     elif algorithm_enum == ScoreOffsetAlgorithm.V1:
         return {
-            "name": "V1 Non-linear Offset",
+            "name": "V1 Independent Bidirectional Offset",
             "version": "1.0",
-            "description": "Simplified non-linear offset based on initial position",
+            "description": "Independent bidirectional offset control similar to Photoshop curve adjustment",
             "parameters": [
                 {
-                    "name": "strength",
-                    "type": "float",
-                    "default": 0.5,
-                    "description": "Non-linear strength factor (0.0-1.0)",
+                    "name": "left_bias",
+                    "type": "integer",
+                    "default": 0,
+                    "range": [-100, 100],
+                    "description": "Left side offset control: negative (towards origin), 0 (linear), positive (towards endpoints)",
+                },
+                {
+                    "name": "right_bias",
+                    "type": "integer",
+                    "default": 0,
+                    "range": [-100, 100],
+                    "description": "Right side offset control: negative (towards origin), 0 (linear), positive (towards endpoints)",
                 },
             ],
-            "formula": "final_position = initial_position + curved_offset",
+            "formula": "curve-based mapping with independent left/right control",
         }
     else:
         return {
@@ -248,15 +275,19 @@ def validate_algorithm_params(algorithm: int, params: Dict[str, Any]) -> bool:
         # No parameters needed
         return True
     elif algorithm_enum == ScoreOffsetAlgorithm.V1:
-        required_params = ["strength"]
+        required_params = ["left_bias", "right_bias"]
         for param in required_params:
             if param not in params:
                 return False
-            if not isinstance(params[param], (int, float)):
-                return False
-            # Validate strength is between 0.0 and 1.0
-            if param == "strength" and not (0.0 <= params[param] <= 1.0):
-                return False
+
+        # Validate left_bias range
+        if not isinstance(params["left_bias"], (int, float)) or not (-100 <= params["left_bias"] <= 100):
+            return False
+
+        # Validate right_bias range
+        if not isinstance(params["right_bias"], (int, float)) or not (-100 <= params["right_bias"] <= 100):
+            return False
+
         return True
     else:
         return False

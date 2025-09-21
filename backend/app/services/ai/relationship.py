@@ -128,8 +128,16 @@ async def determine_relationship_type(
         # Calculate score positions
         score_positions = _calculate_score_positions(scores)
 
-        # Find matching relationship
-        matching_relationship = _find_matching_relationship(score_positions, relationship_mappings)
+        # Get current relationship ID from scores (if any)
+        current_relationship_id = None
+        if scores:
+            # Use the relationship_id from the first score entry as current relationship
+            current_relationship_id = scores[0].get("relationship_id")
+
+        # Find matching relationship with current relationship priority
+        matching_relationship = _find_matching_relationship(
+            score_positions, relationship_mappings, current_relationship_id
+        )
 
         if matching_relationship:
             logger.debug(
@@ -248,23 +256,29 @@ def _calculate_score_positions(scores: List[Dict[str, Any]]) -> Dict[int, int]:
 
 
 def _find_matching_relationship(
-    score_positions: Dict[int, int], relationship_mappings: List[Dict[str, Any]]
+    score_positions: Dict[int, int],
+    relationship_mappings: List[Dict[str, Any]],
+    current_relationship_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Find relationship mapping that matches the score positions.
 
+    Implements the special rule: if current relationship is among candidates,
+    it has the highest priority (relationship doesn't change).
+
     Args:
         score_positions: Dictionary of score_order -> position
         relationship_mappings: List of relationship mapping dictionaries
+        current_relationship_id: Current relationship ID for priority handling
 
     Returns:
         Matching relationship mapping, or None if no match
     """
     try:
-        # Sort mappings by priority (lower number = higher priority)
-        sorted_mappings = sorted(relationship_mappings, key=lambda x: x.get("priority", 999))
+        # Find all matching relationships first
+        matching_mappings = []
 
-        for mapping in sorted_mappings:
+        for mapping in relationship_mappings:
             dimension_name = mapping["dimension_name"]
             start_position = mapping["start_position"]
             end_position = mapping["end_position"]
@@ -274,18 +288,45 @@ def _find_matching_relationship(
 
                 # Check if position falls within range
                 if start_position <= position <= end_position:
+                    matching_mappings.append(mapping)
                     logger.debug(
-                        "relationship_mapping_matched",
+                        "relationship_mapping_candidate",
                         dimension_name=dimension_name,
                         position=position,
                         start_position=start_position,
                         end_position=end_position,
                         relationship_id=mapping["relationship"].id,
                     )
+
+        if not matching_mappings:
+            logger.debug("no_relationship_mapping_matched", score_positions=score_positions)
+            return None
+
+        # Special rule: if current relationship is among candidates, prioritize it
+        if current_relationship_id:
+            for mapping in matching_mappings:
+                if mapping["relationship"].id == current_relationship_id:
+                    logger.info(
+                        "current_relationship_prioritized",
+                        current_relationship_id=current_relationship_id,
+                        relationship_name=mapping["relationship"].name,
+                        candidates_count=len(matching_mappings),
+                    )
                     return mapping
 
-        logger.debug("no_relationship_mapping_matched", score_positions=score_positions)
-        return None
+        # Sort by priority (lower number = higher priority) and return first
+        sorted_mappings = sorted(matching_mappings, key=lambda x: x.get("priority", 999))
+        selected_mapping = sorted_mappings[0]
+
+        logger.debug(
+            "relationship_mapping_selected",
+            relationship_id=selected_mapping["relationship"].id,
+            priority=selected_mapping.get("priority", 999),
+            candidates_count=len(matching_mappings),
+            current_relationship_id=current_relationship_id,
+        )
+
+        return selected_mapping
 
     except Exception as e:
         logger.error(
@@ -293,6 +334,7 @@ def _find_matching_relationship(
             error=str(e),
             score_positions=score_positions,
             mappings_count=len(relationship_mappings),
+            current_relationship_id=current_relationship_id,
         )
         return None
 

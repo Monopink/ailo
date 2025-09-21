@@ -2,189 +2,745 @@
 
 {% block title %}AI Score Algorithm Test{% endblock %}
 
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1>
+            <i class="fas fa-calculator me-2"></i>
+            AI Score Algorithm Test
+            {% if selected_style_id %}
+            <small class="text-muted">- Style {{ selected_style_id }}</small>
+            {% endif %}
+        </h1>
+    </div>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="/qiao-dash/ai_style/list">AI</a>
+        </li>
+        <li class="breadcrumb-item active">Score Algorithm Test</li>
+    </ol>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-chart-line"></i>
-                        AI Score Algorithm Test
-                    </h3>
+                    <h3 class="card-title">Algorithm Configuration</h3>
                 </div>
                 <div class="card-body">
-                    {% if selected_style_id %}
-                    <div class="alert alert-info">
-                        <strong>Testing Style ID:</strong> {{ selected_style_id }}
-                    </div>
-                    {% endif %}
+                    <form id="algorithmTestForm" method="post">
+                        <input type="hidden" name="action" value="test_algorithm">
+                        {% if selected_style_id %}
+                        <input type="hidden" name="style_id" value="{{ selected_style_id }}">
+                        {% endif %}
 
-                    <!-- Algorithm Test Form -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h4 class="card-title">Algorithm Test</h4>
-                        </div>
-                        <div class="card-body">
-                            <form id="algorithmTestForm" method="post">
-                                <input type="hidden" name="action" value="test_algorithm">
-
-                                <div class="row">
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="algorithm">Algorithm</label>
-                                            <select class="form-control" id="algorithm" name="algorithm" required>
-                                                {% for algo_id, algo_info in algorithm_info.items() %}
-                                                <option value="{{ algo_id }}">
-                                                    {{ algo_info.name }} (v{{ algo_info.version }})
-                                                </option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="score">Score (0-1000)</label>
-                                            <input type="number" class="form-control" id="score" name="score" min="0"
-                                                max="1000" value="600" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="initial_position">Initial Position (0-1000)</label>
-                                            <input type="number" class="form-control" id="initial_position"
-                                                name="initial_position" min="0" max="1000" value="500" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            <label for="strength">Strength (0.1-1.0)</label>
-                                            <input type="number" class="form-control" id="strength" name="strength"
-                                                min="0.1" max="1.0" step="0.1" value="0.5" required>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-calculator"></i>
-                                        Test Algorithm
-                                    </button>
-                                    <button type="button" class="btn btn-secondary" onclick="clearAlgorithmResults()">
-                                        <i class="fas fa-eraser"></i>
-                                        Clear Results
-                                    </button>
-                                </div>
-                            </form>
-
-                            {% if test_result %}
-                            <div class="card mt-3">
-                                <div class="card-header">Algorithm Test Result</div>
-                                <div class="card-body">
-                                    {% if test_result.success %}
-                                    <div class="alert alert-success">
-                                        <h5><i class="fas fa-check-circle"></i> Test Successful</h5>
-                                        <p><strong>New Score:</strong> {{ test_result.data.single_result.new_score }}
-                                        </p>
-                                        <p><strong>Offset:</strong> {{ test_result.data.single_result.offset }}</p>
-                                        <p><strong>Algorithm:</strong> {{ test_result.data.algorithm_info.name }} v{{
-                                            test_result.data.algorithm_info.version }}</p>
-                                    </div>
-                                    {% else %}
-                                    <div class="alert alert-danger">
-                                        <h5><i class="fas fa-exclamation-triangle"></i> Test Failed</h5>
-                                        <p>{{ test_result.message }}</p>
-                                    </div>
+                        <!-- Algorithm Configuration -->
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <label for="algorithm" class="form-label">Algorithm Type</label>
+                                <select class="form-select" id="algorithm" name="algorithm" required>
+                                    {% for algo_id, algo_info in algorithm_info.items() %}
+                                    <option value="{{ algo_id }}">{{ algo_info.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="left_bias" class="form-label">Left Bias</label>
+                                <input type="number" class="form-control" id="left_bias" name="left_bias" min="-100"
+                                    max="100" step="1" value="0">
+                                <div class="form-text">Left side offset (-100 to 100, 0=linear)</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="right_bias" class="form-label">Right Bias</label>
+                                <input type="number" class="form-control" id="right_bias" name="right_bias" min="-100"
+                                    max="100" step="1" value="0">
+                                <div class="form-text">Right side offset (-100 to 100, 0=linear)</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="current_relationship" class="form-label">Current Relationship</label>
+                                <select class="form-select" id="current_relationship" name="current_relationship">
+                                    <option value="">None (New Character)</option>
+                                    {% if relationships %}
+                                    {% for relationship in relationships %}
+                                    <option value="{{ relationship.id }}">{{ relationship.display_name }}</option>
+                                    {% endfor %}
                                     {% endif %}
+                                </select>
+                                <div class="form-text">Current relationship for priority testing</div>
+                            </div>
+                        </div>
+
+                        <!-- Dimension Configuration -->
+                        {% if dimensions %}
+                        <h5 class="mb-3">Dimension Score Configuration</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th width="20%">Dimension</th>
+                                        <th width="15%">Min Value</th>
+                                        <th width="15%">Max Value</th>
+                                        <th width="15%">Score Value</th>
+                                        <th width="15%">Initial Position</th>
+                                        <th width="10%">Actions</th>
+                                        <th width="10%">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for dimension in dimensions %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ dimension.display_name }}</strong>
+                                            <small class="text-muted d-block">{{ dimension.name }}</small>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm"
+                                                name="score_min_{{ dimension.name }}" value="0" min="0" max="10000"
+                                                required>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm"
+                                                name="score_max_{{ dimension.name }}" value="1000" min="0" max="10000"
+                                                required>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm"
+                                                name="score_{{ dimension.name }}" value="500" min="0" max="10000"
+                                                required>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary text-white">{{ dimension.initial_position
+                                                }}</span>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                onclick="resetDimension('{{ dimension.name }}')"
+                                                title="Reset to default values">
+                                                <i class="fas fa-undo"></i>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success text-white">Ready</span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Please access this page through the "Relationship Management" button on the AI Style page to
+                            load the corresponding dimension configuration.
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <div>
+                                <button type="submit" class="btn btn-primary" {% if not dimensions %}disabled{% endif
+                                    %}>
+                                    <i class="fas fa-play me-2"></i>Start Test
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary ms-2" onclick="clearResults()">
+                                    <i class="fas fa-undo me-2"></i>Clear Results
+                                </button>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-outline-info" onclick="resetAllDimensions()">
+                                    <i class="fas fa-refresh me-2"></i>Reset All
+                                </button>
+                                <button type="button" class="btn btn-outline-warning ms-2" onclick="setRandomValues()">
+                                    <i class="fas fa-dice me-2"></i>Random Values
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Test Results -->
+            {% if test_result %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-chart-line me-2"></i>Test Results
+                    </h3>
+                    <div class="card-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportResults()">
+                            <i class="fas fa-download me-2"></i>Export
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if test_result.success %}
+                    <div class="alert alert-success">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <div>
+                                <strong>Test Completed Successfully</strong>
+                                <div class="text-muted">Algorithm: {{ test_result.algorithm_info.name }} | Parameters:
+                                    {{ test_result.parameters | tojson }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if test_result.dimension_results %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h5 class="mb-3">Final Relationship Selection</h5>
+
+                            <!-- Relationship Change Status -->
+                            {% if test_result.current_relationship_id %}
+                            <div
+                                class="alert {% if test_result.relationship_changed %}alert-warning{% else %}alert-success{% endif %}">
+                                <div class="d-flex align-items-center">
+                                    <i
+                                        class="fas {% if test_result.relationship_changed %}fa-exchange-alt{% else %}fa-check-circle{% endif %} me-2"></i>
+                                    <div>
+                                        {% if test_result.relationship_changed %}
+                                        <strong>Relationship Changed</strong>
+                                        <div class="text-muted mt-1">
+                                            From: <span class="badge bg-secondary">{{
+                                                test_result.current_relationship_name }}</span>
+                                            → To: <span class="badge bg-primary">{{
+                                                test_result.dimension_results[0].relationship.display_name }}</span>
+                                        </div>
+                                        {% else %}
+                                        <strong>Relationship Maintained</strong>
+                                        <div class="text-muted mt-1">
+                                            Current relationship <span class="badge bg-success">{{
+                                                test_result.current_relationship_name }}</span> was prioritized and
+                                            maintained
+                                        </div>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </div>
                             {% endif %}
-                        </div>
-                    </div>
 
-                    <!-- Algorithm Information -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">Algorithm Information</h4>
-                        </div>
-                        <div class="card-body">
                             <div class="alert alert-info">
-                                <h5><i class="fas fa-info-circle"></i> Score Offset Algorithm V1</h5>
-                                <p><strong>Purpose:</strong> Non-linear offset based on
-                                    ai_relationship_dimensions.initial_position</p>
-                                <p><strong>Input Range:</strong> Score (0-1000), Initial Position (0-1000)</p>
-                                <p><strong>Parameters:</strong> Strength (0.1-1.0) - Controls non-linear degree</p>
-                                <p><strong>Output:</strong> Final position (0-1000) after offset calculation</p>
-                            </div>
-
-                            {% for algo_id, algo_info in algorithm_info.items() %}
-                            <div class="card mb-2">
-                                <div class="card-body">
-                                    <h6>{{ algo_info.name }} (Version {{ algo_info.version }})</h6>
-                                    <p class="text-muted">{{ algo_info.description }}</p>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <div>
+                                        <strong>Selected Relationship: {{
+                                            test_result.dimension_results[0].relationship.display_name }}</strong>
+                                        <div class="text-muted mt-1">{{
+                                            test_result.dimension_results[0].relationship.selection_reason or "Single
+                                            relationship selected based on intersection of all dimensions" }}</div>
+                                        {% if test_result.dimension_results[0].relationship.candidate_relationships %}
+                                        <div class="text-muted mt-1">
+                                            <small>Candidates found: {{
+                                                test_result.dimension_results[0].relationship.candidate_relationships }}
+                                                |
+                                                Partial matches: {{
+                                                test_result.dimension_results[0].relationship.partial_matches|length if
+                                                test_result.dimension_results[0].relationship.partial_matches else 0
+                                                }}</small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </div>
-                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h5 class="mb-3">Dimension Processing Results</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Dimension</th>
+                                            <th>Input Score</th>
+                                            <th>Range</th>
+                                            <th>Mapped Position</th>
+                                            <th>Final Position</th>
+                                            <th>Offset</th>
+                                            <th>Candidates Found</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for result in test_result.dimension_results %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ result.dimension_display_name }}</strong>
+                                                <small class="text-muted d-block">{{ result.dimension_name }}</small>
+                                            </td>
+                                            <td><span class="badge bg-secondary text-white">{{ result.input_score
+                                                    }}</span></td>
+                                            <td><small class="text-muted">{{ result.score_min }} - {{ result.score_max
+                                                    }}</small></td>
+                                            <td>{{ result.mapped_position|round(0)|int }}</td>
+                                            <td><strong class="text-primary">{{ result.final_position|round(0)|int
+                                                    }}</strong></td>
+                                            <td>
+                                                <span
+                                                    class="badge {% if result.offset == 0 %}bg-secondary text-white{% elif result.offset > 0 %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+                                                    {{ "+" if result.offset > 0 else "" }}{{ result.offset|round(0)|int
+                                                    }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info text-white">{{ result.candidates|length if
+                                                    result.candidates else 0 }} found</span>
+                                            </td>
+                                            <td>
+                                                <span
+                                                    class="badge {% if result.candidates %}bg-success text-white{% else %}bg-warning text-dark{% endif %}">
+                                                    {% if result.candidates %}OK{% else %}No Candidates{% endif %}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Relationship Indexes Display -->
-                    {% if selected_style_id %}
-                    <div class="card mt-4">
-                        <div class="card-header">
-                            <h4 class="card-title">Relationship Indexes for Style {{ selected_style_id }}</h4>
-                        </div>
-                        <div class="card-body">
-                            <div id="relationshipIndexes">
-                                <div class="text-center">
-                                    <div class="spinner-border" role="status">
-                                        <span class="sr-only">Loading...</span>
+                    <!-- Advanced Debug Details (Collapsible) -->
+                    <div class="mt-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#debugDetails" aria-expanded="false"
+                                        aria-controls="debugDetails">
+                                        <i class="fas fa-bug me-2"></i>Advanced Debug Information
+                                        <span class="badge bg-secondary text-white ms-2">{{
+                                            test_result.dimension_results|length }} dimensions</span>
+                                    </button>
+                                </h5>
+                            </div>
+                            <div id="debugDetails" class="collapse">
+                                <div class="card-body">
+                                    <div class="row">
+                                        {% for result in test_result.dimension_results %}
+                                        <div class="col-md-6 col-lg-4 mb-3">
+                                            <div class="card card-sm border">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">{{ result.dimension_display_name }}</h6>
+                                                    <div class="row g-2">
+                                                        <div class="col-12">
+                                                            <small class="text-muted">Mapping Calculation</small>
+                                                            <div class="font-monospace small">ratio = {{
+                                                                result.debug_info.mapping_ratio|round(4) }}</div>
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <small class="text-muted">Position Offset</small>
+                                                            <div class="font-monospace small">{{
+                                                                result.debug_info.position_offset_from_initial|round(0)|int
+                                                                }}</div>
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <small class="text-muted">Relationship Range</small>
+                                                            <div class="font-monospace small">{{
+                                                                result.debug_info.relationship_position_range }}</div>
+                                                        </div>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    <small class="text-muted d-block">Relationship: {{
+                                                        result.relationship.prompt_fragment }}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
                                     </div>
-                                    <p class="mt-2">Loading relationship indexes...</p>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <div>
+                                <strong>Test Failed</strong>
+                                <div class="text-muted">{{ test_result.message }}</div>
                             </div>
                         </div>
                     </div>
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
+
+            <!-- Relationship Indexes -->
+            {% if selected_style_id %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-sitemap me-2"></i>Relationship Indexes
+                        <span class="badge bg-primary text-white ms-2">Style {{ selected_style_id }}</span>
+                    </h3>
+                    <div class="card-actions">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                onclick="toggleIndexView('table')" id="tableViewBtn">
+                                <i class="fas fa-table me-1"></i>Table
+                            </button>
+                            <button type="button" class="btn btn-outline-primary btn-sm active"
+                                onclick="toggleIndexView('visual')" id="visualViewBtn">
+                                <i class="fas fa-chart-line me-1"></i>Visual
+                            </button>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm ms-2"
+                            onclick="refreshRelationshipIndexes()">
+                            <i class="fas fa-refresh me-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Visual Axis View -->
+                    <div id="visualIndexes" style="display: block;">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2 text-muted">Loading relationship indexes...</span>
+                        </div>
+                    </div>
+
+                    <!-- Table View -->
+                    <div id="tableIndexes" style="display: none;">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2 text-muted">Loading relationship indexes...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
 <script>
-    // Load relationship indexes if style_id is provided
+    // Load relationship indexes on page load
     {% if selected_style_id %}
     document.addEventListener('DOMContentLoaded', function () {
         loadRelationshipIndexes('{{ selected_style_id }}');
     });
 
+    let currentIndexData = [];
+    let currentView = 'visual';
+
     async function loadRelationshipIndexes(styleId) {
         try {
-            const response = await fetch(`/qiao-dash/api/ai_relationship_index?style_id=${styleId}&limit=100`);
+            const response = await fetch(`/qiao-dash/api/relationship_indexes?style_id=${styleId}&limit=100`);
             const data = await response.json();
+            currentIndexData = data.items || [];
 
-            const container = document.getElementById('relationshipIndexes');
-
-            if (data.items && data.items.length > 0) {
-                let html = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Dimension</th><th>Range</th><th>Relationship ID</th><th>Priority</th></tr></thead><tbody>';
-                data.items.forEach(item => {
-                    html += `<tr><td>${item.dimension_name}</td><td>${item.start_position}-${item.end_position}</td><td>${item.relationship_id}</td><td>${item.priority}</td></tr>`;
-                });
-                html += '</tbody></table></div>';
-                container.innerHTML = html;
+            if (currentView === 'visual') {
+                renderVisualIndexes();
             } else {
-                container.innerHTML = '<div class="alert alert-warning">No relationship indexes found for this style.</div>';
+                renderTableIndexes();
             }
         } catch (error) {
-            document.getElementById('relationshipIndexes').innerHTML = '<div class="alert alert-danger">Failed to load relationship indexes: ' + error.message + '</div>';
+            console.error('Failed to load relationship indexes:', error);
+            const errorHtml = `
+                <div class="alert alert-danger mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Failed to load relationship indexes: ${error.message}
+                </div>`;
+            document.getElementById('visualIndexes').innerHTML = errorHtml;
+            document.getElementById('tableIndexes').innerHTML = errorHtml;
+        }
+    }
+
+    function renderVisualIndexes() {
+        const container = document.getElementById('visualIndexes');
+
+        if (currentIndexData.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No relationship index data found for this style.
+                </div>`;
+            return;
+        }
+
+        // Group by dimension
+        const dimensionGroups = {};
+        currentIndexData.forEach(item => {
+            if (!dimensionGroups[item.dimension_name]) {
+                dimensionGroups[item.dimension_name] = [];
+            }
+            dimensionGroups[item.dimension_name].push(item);
+        });
+
+        // Generate colors for relationships
+        const colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6f42c1', '#e83e8c', '#fd7e14'];
+        const relationshipColors = {};
+        let colorIndex = 0;
+        Object.values(dimensionGroups).flat().forEach(item => {
+            if (!relationshipColors[item.relationship_id]) {
+                relationshipColors[item.relationship_id] = colors[colorIndex % colors.length];
+                colorIndex++;
+            }
+        });
+
+        let html = '<div class="relationship-visual-container">';
+
+        Object.keys(dimensionGroups).forEach(dimensionName => {
+            const items = dimensionGroups[dimensionName].sort((a, b) => a.start_position - b.start_position);
+
+            html += `
+                <div class="dimension-axis mb-4">
+                    <h6 class="mb-3">
+                        <strong>${dimensionName}</strong>
+                        <small class="text-muted">(${items.length} relationships)</small>
+                    </h6>
+                    <div class="axis-container position-relative" style="height: 100px; margin: 20px 60px; border: 1px solid #eee;">
+                        <!-- Axis line -->
+                        <div class="axis-line" style="position: absolute; top: 30px; left: 0; right: 0; height: 2px; background: #dee2e6;"></div>
+
+                        <!-- Scale markers -->
+                        <div class="scale-markers">`;
+
+            // Add scale markers (0, 250, 500, 750, 1000)
+            // Now the axis spans the full width of the container (left: 0, right: 0)
+            for (let i = 0; i <= 1000; i += 250) {
+                const proportion = i / 1000; // 0.0 to 1.0
+                const leftPercent = proportion * 100; // 0% to 100%
+
+                html += `
+                    <div style="position: absolute; left: ${leftPercent}%; top: 25px;">
+                        <div style="width: 1px; height: 12px; background: #6c757d; margin: 0 auto;"></div>
+                        <small style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #6c757d;">${i}</small>
+                    </div>`;
+            }
+
+            html += '</div><!-- Relationship ranges -->';
+
+            items.forEach((item, index) => {
+                const startProportion = item.start_position / 1000; // 0.0 to 1.0
+                const endProportion = item.end_position / 1000; // 0.0 to 1.0
+                const widthProportion = endProportion - startProportion; // width as proportion
+                const color = relationshipColors[item.relationship_id];
+                const yOffset = 45 + (index % 3) * 18; // Stagger positions to avoid overlap
+
+                // Simple positioning within the container
+                const leftPercent = startProportion * 100; // 0% to 100%
+                const widthPercent = widthProportion * 100; // width as percentage
+
+                // Determine display text: use display_name if available, otherwise relationship_name, fallback to ID
+                let displayText = item.relationship_display_name || item.relationship_name || `R${item.relationship_id}`;
+                // If it's too long, abbreviate it
+                if (displayText.length > 8) {
+                    displayText = displayText.substring(0, 6) + '..';
+                }
+
+                html += `
+                    <div class="relationship-range"
+                         style="position: absolute;
+                                left: ${leftPercent}%;
+                                top: ${yOffset}px;
+                                width: ${widthPercent}%;
+                                height: 14px;
+                                background: ${color};
+                                border-radius: 6px;
+                                opacity: 0.8;
+                                cursor: pointer;
+                                border: 1px solid ${color};
+                                min-width: 15px;"
+                         title="Relationship: ${item.relationship_display_name || item.relationship_name || `ID ${item.relationship_id}`} (${item.start_position}-${item.end_position}, Priority: ${item.priority})">
+                        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: white; font-size: 9px; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.7);">
+                            ${displayText}
+                        </div>
+                    </div>`;
+            });
+
+            html += '</div></div>';
+        });
+
+        html += '</div>';
+
+        // Add legend
+        html += '<div class="mt-4"><h6>Relationship Legend</h6><div class="d-flex flex-wrap gap-2">';
+
+        // Create a map to avoid duplicate entries in legend
+        const legendItems = {};
+        currentIndexData.forEach(item => {
+            const relId = item.relationship_id;
+            if (!legendItems[relId]) {
+                legendItems[relId] = {
+                    color: relationshipColors[relId],
+                    displayName: item.relationship_display_name || item.relationship_name || `Relationship ${relId}`,
+                    id: relId
+                };
+            }
+        });
+
+        Object.keys(legendItems).sort((a, b) => parseInt(a) - parseInt(b)).forEach(relId => {
+            const item = legendItems[relId];
+            html += `
+                <div class="d-flex align-items-center me-3">
+                    <div style="width: 16px; height: 16px; background: ${item.color}; border-radius: 4px; margin-right: 6px; opacity: 0.7;"></div>
+                    <small>${item.displayName}</small>
+                </div>`;
+        });
+        html += '</div></div>';
+
+        container.innerHTML = html;
+    }
+
+    function renderTableIndexes() {
+        const container = document.getElementById('tableIndexes');
+
+        if (currentIndexData.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No relationship index data found for this style.
+                </div>`;
+            return;
+        }
+
+        let html = `
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Dimension</th>
+                            <th>Position Range</th>
+                            <th>Relationship</th>
+                            <th>Priority</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        currentIndexData.forEach(item => {
+            const relationshipName = item.relationship_display_name || item.relationship_name || `Relationship ${item.relationship_id}`;
+            html += `
+                <tr>
+                    <td>
+                        <strong>${item.dimension_name}</strong>
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark">${item.start_position} - ${item.end_position}</span>
+                    </td>
+                    <td>
+                        <span class="text-primary">${relationshipName}</span>
+                        <small class="text-muted d-block">ID: ${item.relationship_id}</small>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary text-white">${item.priority}</span>
+                    </td>
+                </tr>`;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>`;
+
+        container.innerHTML = html;
+    }
+
+    function toggleIndexView(view) {
+        currentView = view;
+
+        // Update button states
+        const tableBtn = document.getElementById('tableViewBtn');
+        const visualBtn = document.getElementById('visualViewBtn');
+
+        if (view === 'table') {
+            tableBtn.classList.remove('btn-outline-secondary');
+            tableBtn.classList.add('btn-secondary', 'active');
+            visualBtn.classList.remove('btn-primary', 'active');
+            visualBtn.classList.add('btn-outline-primary');
+
+            document.getElementById('tableIndexes').style.display = 'block';
+            document.getElementById('visualIndexes').style.display = 'none';
+
+            if (currentIndexData.length > 0) {
+                renderTableIndexes();
+            }
+        } else {
+            visualBtn.classList.remove('btn-outline-primary');
+            visualBtn.classList.add('btn-primary', 'active');
+            tableBtn.classList.remove('btn-secondary', 'active');
+            tableBtn.classList.add('btn-outline-secondary');
+
+            document.getElementById('visualIndexes').style.display = 'block';
+            document.getElementById('tableIndexes').style.display = 'none';
+
+            if (currentIndexData.length > 0) {
+                renderVisualIndexes();
+            }
+        }
+    }
+
+    function refreshRelationshipIndexes() {
+        const styleId = '{{ selected_style_id }}';
+        if (styleId) {
+            const loadingHtml = `
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <span class="ms-2 text-muted">Refreshing...</span>
+                </div>`;
+            document.getElementById('visualIndexes').innerHTML = loadingHtml;
+            document.getElementById('tableIndexes').innerHTML = loadingHtml;
+            loadRelationshipIndexes(styleId);
         }
     }
     {% endif %}
 
-    function clearAlgorithmResults() {
-        // This would be handled by server-side logic
+    // Utility functions
+    function clearResults() {
         window.location.href = window.location.pathname + (window.location.search || '');
+    }
+
+    function resetDimension(dimensionName) {
+        document.querySelector(`input[name="score_min_${dimensionName}"]`).value = '0';
+        document.querySelector(`input[name="score_max_${dimensionName}"]`).value = '1000';
+        document.querySelector(`input[name="score_${dimensionName}"]`).value = '500';
+    }
+
+    function resetAllDimensions() {
+        const dimensionInputs = document.querySelectorAll('input[name^="score_"]');
+        dimensionInputs.forEach(input => {
+            if (input.name.includes('_min_')) {
+                input.value = '0';
+            } else if (input.name.includes('_max_')) {
+                input.value = '1000';
+            } else if (input.name.startsWith('score_') && !input.name.includes('_min_') && !input.name.includes('_max_')) {
+                input.value = '500';
+            }
+        });
+    }
+
+    function setRandomValues() {
+        const scoreInputs = document.querySelectorAll('input[name^="score_"]:not([name*="_min_"]):not([name*="_max_"])');
+        scoreInputs.forEach(input => {
+            if (input.name.startsWith('score_') && !input.name.includes('_min_') && !input.name.includes('_max_')) {
+                input.value = Math.floor(Math.random() * 1000);
+            }
+        });
+    }
+
+    function exportResults() {
+        // Simple export functionality - could be enhanced
+        const results = document.querySelector('#debugDetails');
+        if (results) {
+            const content = results.textContent || results.innerText;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ai_score_test_results.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
     }
 </script>
 {% endblock %}

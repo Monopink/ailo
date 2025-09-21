@@ -33,14 +33,6 @@ class AIRelationshipScore(SnowflakeModel):
 
     score: Mapped[int] = mapped_column(Integer, nullable=False, comment="Current score value")
 
-    score_offset_algorithm: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Score offset algorithm"
-    )
-
-    score_offset_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="Score offset parameters (JSONB)"
-    )
-
     position: Mapped[int] = mapped_column(Integer, nullable=False, comment="Per mille position (0-1000)")
 
     relationship_id: Mapped[Optional[int]] = mapped_column(

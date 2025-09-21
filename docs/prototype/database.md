@@ -185,7 +185,7 @@ character_id -- 关联ai_characters.id
 character_qiao_id -- 关联ai_characters.qiao_id
 user_id -- 关联users.id
 user_qiao_id -- 关联users.qiao_id
-role -- 角色类型：1=user, 2=ai, 3=system
+role -- 角色类型：1=system, 2=user, 3=assistant
 content -- 消息内容
 source_type -- 来源类型：1=original, 2=merged, 3=summarized
 source_message_ids -- 源消息ID列表，JSON数组
@@ -293,7 +293,6 @@ style_id
 name -- 用于通过llm响应查询的名称
 display_name -- 用于显示的名称
 initial_position -- 起始位置，0-1000千分比
-status
 created_at
 updated_at
 ```
@@ -403,8 +402,8 @@ style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
 memory -- 角色记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
-score_offset_algorithm -- 分数偏移算法
-score_offset_params -- 分数偏移参数
+score_offset_algorithm -- 分数偏移算法：1=直接映射, 2=V1独立双向偏移
+score_offset_params -- 分数偏移参数，JSON格式：{"left_bias": 0, "right_bias": 0}
 created_by -- 创建者类型：1=user, 2=admin, 3=system
 created_at
 updated_at
@@ -419,12 +418,10 @@ id -- Snowflake ID
 character_id -- 关联ai_characters.id
 dimension_id -- 关联ai_relationship_dimensions.id
 dimension_name -- 维度名称
-score -- 当前分数值，初始化时根据position和score_offset_algorithm反向计算得出
+score -- 当前分数值
 position -- 千分比位置（0-1000）
 relationship_id -- 当前匹配的关系类型ID
 relationship_display_name -- 关系类型显示名称
-score_offset_algorithm -- 分数偏移算法
-score_offset_params -- 分数偏移参数，JSON格式
 relationship_counts -- 各关系类型使用次数统计，JSON格式：{"friend":5,"lover":2}
 created_at
 updated_at

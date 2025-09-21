@@ -53,8 +53,6 @@ async def get_character_relationship_scores(db: AsyncSession, character_id: int)
                     "relationship_id": score.relationship_id,
                     "relationship_display_name": score.relationship_display_name,
                     "relationship_counts": score.relationship_counts,
-                    "score_offset_algorithm": score.score_offset_algorithm,
-                    "score_offset_params": score.score_offset_params,
                     "created_at": score.created_at,
                     "updated_at": score.updated_at,
                 }
@@ -75,6 +73,59 @@ async def get_character_relationship_scores(db: AsyncSession, character_id: int)
             character_id=character_id,
         )
         return []
+
+
+async def get_character_current_relationship(db: AsyncSession, character_id: int) -> Dict[str, Any]:
+    """
+    Get the current relationship information for a character.
+
+    Args:
+        db: Database session
+        character_id: Character ID
+
+    Returns:
+        Dictionary containing current relationship info, or empty dict if not found
+    """
+    try:
+        # Get the first relationship score entry to determine current relationship
+        result = await db.execute(
+            select(AIRelationshipScore)
+            .where(AIRelationshipScore.character_id == character_id)
+            .where(AIRelationshipScore.relationship_id.isnot(None))
+            .limit(1)
+        )
+
+        score = result.scalar_one_or_none()
+
+        if score:
+            current_relationship = {
+                "relationship_id": score.relationship_id,
+                "relationship_display_name": score.relationship_display_name,
+                "character_id": character_id,
+            }
+
+            logger.debug(
+                "character_current_relationship_retrieved",
+                character_id=character_id,
+                relationship_id=score.relationship_id,
+                relationship_name=score.relationship_display_name,
+            )
+
+            return current_relationship
+        else:
+            logger.debug(
+                "no_current_relationship_found",
+                character_id=character_id,
+            )
+            return {}
+
+    except Exception as e:
+        logger.error(
+            "character_current_relationship_query_failed",
+            error=str(e),
+            character_id=character_id,
+        )
+        return {}
 
 
 async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List[Dict[str, Any]]:

@@ -6,7 +6,6 @@ and context length control for AI conversations.
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .data import get_conversation_contexts, save_context_entry
@@ -146,14 +145,21 @@ class ContextManager:
                     message_content = merged_content
 
             # Save context entry
-            context_id = await save_context_entry(
-                db=db,
-                character_qiao_id=character_qiao_id,
-                user_qiao_id=user_qiao_id,
-                role=1,  # user
-                content=message_content,
-                source_type=2 if merge_with_recent else 1,  # merged or original
-            )
+            context_data = {
+                "character_qiao_id": character_qiao_id,
+                "user_qiao_id": user_qiao_id,
+                "role": 1,  # user
+                "content": message_content,
+                "source_type": 2 if merge_with_recent else 1,  # merged or original
+            }
+            context_id = await save_context_entry(db, context_data)
+
+            if context_id is None:
+                raise AIServiceError(
+                    ai_service="context_management",
+                    reason="save_failed",
+                    message="Failed to save user message context",
+                )
 
             logger.debug(
                 "user_message_added_to_context",
@@ -197,14 +203,21 @@ class ContextManager:
             AIServiceError: If saving fails
         """
         try:
-            context_id = await save_context_entry(
-                db=db,
-                character_qiao_id=character_qiao_id,
-                user_qiao_id=user_qiao_id,
-                role=2,  # ai
-                content=response_content,
-                source_type=1,  # original
-            )
+            context_data = {
+                "character_qiao_id": character_qiao_id,
+                "user_qiao_id": user_qiao_id,
+                "role": 2,  # ai
+                "content": response_content,
+                "source_type": 1,  # original
+            }
+            context_id = await save_context_entry(db, context_data)
+
+            if context_id is None:
+                raise AIServiceError(
+                    ai_service="context_management",
+                    reason="save_failed",
+                    message="Failed to save AI response context",
+                )
 
             logger.debug(
                 "ai_response_added_to_context",

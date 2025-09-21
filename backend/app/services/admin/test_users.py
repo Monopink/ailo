@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc
 
 from models.user import User
+from enums.common import UserType
 from models.profile import Profile
 from utils.logging import get_logger
 
@@ -45,7 +46,7 @@ class TestUserService:
                         Profile.owner_type == 1,  # ProfileOwnerType.USER
                     ),
                 )
-                .where(User.user_type == 3)
+                .where(User.user_type == int(UserType.VIRTUAL))
             )
 
             if active_only:
@@ -107,7 +108,7 @@ class TestUserService:
                         Profile.owner_type == 1,  # ProfileOwnerType.USER
                     ),
                 )
-                .where(and_(User.qiao_id == qiao_id, User.user_type == 3))
+                .where(and_(User.qiao_id == qiao_id, User.user_type == int(UserType.VIRTUAL)))
             )
             row = result.first()
 
@@ -230,7 +231,7 @@ class TestUserService:
         """
         try:
             result = await db.execute(
-                select(User).where(and_(User.qiao_id == qiao_id, User.user_type == 3))
+                select(User).where(and_(User.qiao_id == qiao_id, User.user_type == int(UserType.VIRTUAL)))
             )
             user = result.scalar_one_or_none()
 
@@ -314,7 +315,7 @@ class TestUserService:
                 select(User).where(
                     and_(
                         User.qiao_id == qiao_id,
-                        User.user_type == 3,
+                        User.user_type == int(UserType.VIRTUAL),
                         User.status == 1,
                     )
                 )

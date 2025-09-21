@@ -37,8 +37,8 @@ class AIInfoTemplate(AutoIncrementModel):
         comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
-    score_offset_algorithm: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Score offset algorithm"
+    score_offset_algorithm: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Score offset algorithm (enum int)"
     )
 
     score_offset_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(

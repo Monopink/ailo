@@ -75,14 +75,12 @@ class AIRelationshipDimensionUpdate(BaseModel):
     initial_position: Optional[int] = Field(
         None, ge=0, le=1000, description="Initial position, 0-1000 per mille"
     )
-    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
 class AIRelationshipDimensionResponse(AIRelationshipDimensionBase):
     """Schema for AI relationship dimension response data."""
 
     id: int = Field(..., description="Dimension ID")
-    status: int = Field(..., description="Status")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
 

@@ -102,7 +102,7 @@ class AIRelationshipScoreView(ModelView):
 
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "character_id", "dimension_id", "created_at", "updated_at"]
-    exclude_fields_from_list = ["score_offset_params", "relationship_counts"]
+    exclude_fields_from_list = ["relationship_counts"]
 
     fields_default_sort = [("score", True)]
     searchable_fields = ["dimension_name", "relationship_display_name"]
@@ -124,10 +124,6 @@ class AIRelationshipScoreView(ModelView):
         IntegerField("dimension_id", label="Dimension ID", help_text="Relationship dimension ID"),
         StringField("dimension_name", label="Dimension Name", help_text="Relationship dimension name"),
         IntegerField("score", label="Score", help_text="Current relationship score (0-1000)"),
-        StringField(
-            "score_offset_algorithm", label="Score Algorithm", help_text="Score calculation algorithm"
-        ),
-        "score_offset_params",
         IntegerField("position", label="Position", help_text="Per mille position (0-1000)"),
         IntegerField("relationship_id", label="Relationship ID", help_text="Current relationship type ID"),
         StringField(

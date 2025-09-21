@@ -60,7 +60,6 @@ async def get_character_with_relations(
         dimensions_result = await db.execute(
             select(AIRelationshipDimension)
             .where(AIRelationshipDimension.style_id == style.id)
-            .where(AIRelationshipDimension.status == 1)
             .order_by(AIRelationshipDimension.name)
         )
         dimensions = [

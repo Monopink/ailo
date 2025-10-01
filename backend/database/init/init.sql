@@ -566,7 +566,6 @@ CREATE TABLE IF NOT EXISTS ai_contexts (
     source_type INTEGER NOT NULL,
     source_message_ids JSONB,
     context_metadata JSONB,
-    position INTEGER NOT NULL,
     token_count INTEGER,
     is_attack INTEGER NOT NULL DEFAULT 0,
     reply_status INTEGER NOT NULL DEFAULT 1,
@@ -580,7 +579,6 @@ CREATE INDEX IF NOT EXISTS idx_ai_contexts_character_qiao_id ON ai_contexts(char
 CREATE INDEX IF NOT EXISTS idx_ai_contexts_user_id ON ai_contexts(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_contexts_user_qiao_id ON ai_contexts(user_qiao_id);
 CREATE INDEX IF NOT EXISTS idx_ai_contexts_role ON ai_contexts(role);
-CREATE INDEX IF NOT EXISTS idx_ai_contexts_position ON ai_contexts(position);
 CREATE INDEX IF NOT EXISTS idx_ai_contexts_is_attack ON ai_contexts(is_attack);
 CREATE INDEX IF NOT EXISTS idx_ai_contexts_reply_status ON ai_contexts(reply_status);
 -- GIN indexes for JSONB fields
@@ -599,7 +597,6 @@ CREATE TABLE IF NOT EXISTS ai_contexts_archive (
     source_type INTEGER NOT NULL DEFAULT 1,
     source_message_ids JSONB,
     context_metadata JSONB,
-    position INTEGER NOT NULL,
     token_count INTEGER,
     is_attack INTEGER NOT NULL DEFAULT 0,
     reply_status INTEGER NOT NULL DEFAULT 1,
@@ -647,12 +644,16 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
     user_id BIGINT NOT NULL,
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
+    request_type VARCHAR(20) NOT NULL DEFAULT 'production',
+    provider_name VARCHAR(50),
+    model_name VARCHAR(100),
     request JSONB NOT NULL,
     response JSONB,
     status INTEGER NOT NULL,
     token_count INTEGER,
     response_time INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Create indexes for ai_request_logs table
@@ -660,6 +661,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_request_logs_character_id ON ai_request_logs(c
 CREATE INDEX IF NOT EXISTS idx_ai_request_logs_user_id ON ai_request_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_request_logs_style_id ON ai_request_logs(style_id);
 CREATE INDEX IF NOT EXISTS idx_ai_request_logs_personality_id ON ai_request_logs(personality_id);
+CREATE INDEX IF NOT EXISTS idx_ai_request_logs_request_type ON ai_request_logs(request_type);
 CREATE INDEX IF NOT EXISTS idx_ai_request_logs_status ON ai_request_logs(status);
 CREATE INDEX IF NOT EXISTS idx_ai_request_logs_created_at ON ai_request_logs(created_at);
 -- GIN indexes for JSONB fields
@@ -952,7 +954,6 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     name VARCHAR(50) NOT NULL UNIQUE,
     display_name VARCHAR(100) NOT NULL,
     base_url VARCHAR(500),
-    api_key_env VARCHAR(100),
     default_model VARCHAR(100),
     supports_streaming INTEGER NOT NULL DEFAULT 0,
     supports_json_schema INTEGER NOT NULL DEFAULT 0,
@@ -992,37 +993,37 @@ CREATE INDEX IF NOT EXISTS idx_llm_configs_priority ON llm_configs(priority);
 -- GIN index for JSONB field
 CREATE INDEX IF NOT EXISTS idx_llm_configs_extra_params_gin ON llm_configs USING GIN(extra_params);
 
--- LLM request logs table - for testing and monitoring
-CREATE TABLE IF NOT EXISTS llm_request_logs (
-    id SERIAL PRIMARY KEY,
-    request_id VARCHAR(50) NOT NULL UNIQUE,
-    test_session_id VARCHAR(50),
-    character_qiao_id VARCHAR(50),
-    user_qiao_id VARCHAR(50),
-    provider_name VARCHAR(50),
-    config_key VARCHAR(50),
+-- LLM test logs table - LLM configuration testing logs
+CREATE TABLE IF NOT EXISTS llm_test_logs (
+    id BIGINT PRIMARY KEY,
+    config_id INTEGER NOT NULL,
+    config_key VARCHAR(100) NOT NULL,
+    provider_name VARCHAR(50) NOT NULL,
     model_name VARCHAR(100),
-    request_type VARCHAR(20) NOT NULL DEFAULT 'real',
-    request_data JSONB,
-    response_data JSONB,
-    response_time_ms INTEGER,
-    token_usage JSONB,
-    status INTEGER NOT NULL DEFAULT 1,
+    test_message TEXT NOT NULL,
+    override_temperature DECIMAL(3,2),
+    override_max_tokens INTEGER,
+    enable_thinking INTEGER NOT NULL DEFAULT 0,
+    request JSONB NOT NULL,
+    response JSONB,
+    status INTEGER NOT NULL,
     error_message TEXT,
+    response_time_ms INTEGER,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    total_tokens INTEGER,
+    reasoning_content TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- Create indexes for llm_request_logs table
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_request_id ON llm_request_logs(request_id);
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_test_session_id ON llm_request_logs(test_session_id);
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_character_qiao_id ON llm_request_logs(character_qiao_id);
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_user_qiao_id ON llm_request_logs(user_qiao_id);
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_status ON llm_request_logs(status);
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_created_at ON llm_request_logs(created_at);
+-- Create indexes for llm_test_logs table
+CREATE INDEX IF NOT EXISTS idx_llm_test_logs_config_id ON llm_test_logs(config_id);
+CREATE INDEX IF NOT EXISTS idx_llm_test_logs_status ON llm_test_logs(status);
+CREATE INDEX IF NOT EXISTS idx_llm_test_logs_created_at ON llm_test_logs(created_at);
 -- GIN indexes for JSONB fields
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_request_data_gin ON llm_request_logs USING GIN(request_data);
-CREATE INDEX IF NOT EXISTS idx_llm_request_logs_response_data_gin ON llm_request_logs USING GIN(response_data);
+CREATE INDEX IF NOT EXISTS idx_llm_test_logs_request_gin ON llm_test_logs USING GIN(request);
+CREATE INDEX IF NOT EXISTS idx_llm_test_logs_response_gin ON llm_test_logs USING GIN(response);
 
 -- ============================================================================
 -- Database Functions and Triggers
@@ -1092,8 +1093,6 @@ INSERT INTO system_configs (config_key, config_value, config_type, description, 
 ('default_contact_limit', '50', 2, 'Default contact limit per user', 0),
 ('default_search_display_limit', '20', 2, 'Default search display limit', 0),
 ('add_contact_timeout', '300', 2, 'Add contact timeout in seconds', 0),
-
-
 
 -- LeanCloud configuration (non-sensitive parts)
 ('leancloud_app_id', 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz', 1, 'LeanCloud App ID', 0),
@@ -1180,7 +1179,7 @@ INSERT INTO ai_relationship_indexes (style_id, dimension_id, dimension_name, sta
 (3, 6, 'helpfulness', 751, 1000, 4, 1)     -- 751-1000: 密友
 ON CONFLICT DO NOTHING;
 
--- Insert basic AI personality
+-- Insert basic AI personality with corrected JSON schema
 INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_count, status) VALUES
 ('Default Personality', 'Default Personality',
 'You are a friendly AI assistant. Your personality traits: {{personality_traits}}. Your memory: {{memory}}. Current time: {{current_datetime}}. Your profile: {{self_profile}}. Other person profile: {{other_profile}}. Relationship context: {{relationship_prompt}}.',
@@ -1191,22 +1190,55 @@ INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_cou
     "internal_thoughts": {"type": "string", "description": "Your thoughts before replying (analyze your relationship with {USER}, their identity, intent, and reply principles)"},
     "attack_detected": {"type": "boolean", "description": "Whether the current {USER} message has attack or injection intent"},
     "should_reply": {"type": "boolean", "description": "Whether you should reply to {USER}"},
-    "reply_content": {"type": "string", "description": "Your reply content to {USER}"},
-    "emotion": {"type": "string", "description": "Your current emotional state"},
-    "relationship_change": {"type": "object", "properties": {"friend": {"type": "integer", "minimum": -10, "maximum": 10}, "romance": {"type": "integer", "minimum": -10, "maximum": 10}}, "description": "Relationship score changes based on this conversation"}
+    "outgoing_messages": {"type": "array", "description": "Multiple messages array, each message sent separately", "items": {"type": "string"}},
+    "score": {
+      "type": "object",
+      "properties": {
+        "friendship": {"type": "integer", "minimum": 0, "maximum": 1000},
+        "romance": {"type": "integer", "minimum": 0, "maximum": 1000}
+      },
+      "required": ["friendship", "romance"],
+      "additionalProperties": false
+    },
+    "followup_messages": {"type": "array", "description": "Backup messages array, each message sent separately", "items": {"type": "string"}},
+    "should_block": {"type": "boolean", "description": "Whether to delete friend, if deleted, {USER} will not be able to send messages"},
+    "should_update_memory": {"type": "boolean", "description": "Whether to modify memory in this round"},
+    "memory_operations": {
+      "type": "array",
+      "description": "Sequential memory operation list, each operation executes on memory modified by previous operation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operation": {"type": "string", "enum": ["add", "replace", "delete"], "description": "Operation type: add, replace or delete"},
+          "content": {"type": "string", "description": "New or replacement content, required only for add and replace"},
+          "target_text": {"type": "string", "description": "Old text to match, required only for replace and delete"},
+          "insert_position": {"type": "string", "description": "Insert position for new content, valid only for add, can be start, end, after:<text>, before:<text>"}
+        },
+        "required": ["operation"],
+        "additionalProperties": false
+      }
+    }
   },
-  "required": ["current_state", "internal_thoughts", "attack_detected", "should_reply", "reply_content", "emotion", "relationship_change"]
+  "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"],
+  "additionalProperties": true
 }', 0, 1)
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert basic LLM providers
-INSERT INTO llm_providers (name, display_name, base_url, api_key_env, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
-('doubao', 'Doubao (ByteDance)', 'https://ark.cn-beijing.volces.com/api/v3', 'ARK_API_KEY', 'ep-20241201105607-8zqkx', 1, 1, 1)
+-- Note: Mock provider uses ID=99 to clearly indicate it's a test provider
+-- Doubao endpoints are read from environment variables
+INSERT INTO llm_providers (id, name, display_name, base_url, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
+(1, 'doubao', 'Doubao (ByteDance)', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-250615', 1, 1, 1),
+(99, 'mock', 'Mock LLM (Testing)', NULL, 'mock-model-v1', 0, 1, 0)
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert basic LLM configs
+-- Note: Mock config uses provider_id=99
+-- Doubao configs: primary uses standard model, advanced uses seed model
 INSERT INTO llm_configs (provider_id, config_key, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
-(1, 'primary', 'ep-20241201105607-8zqkx', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1)
+(1, 'primary', 'ep-20250619205259-nzbw8', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
+(1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 2),
+(99, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'auto', 1, 999)
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert test users for AI character testing (user_type=3)
@@ -1227,15 +1259,68 @@ INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, ge
 (223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL)
 ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 
--- Insert AI character for testing
+-- Insert AI character for testing with proper configuration
 INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, created_by) VALUES
-(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'companion', 1, 1, 1, '{}', '{}', 1, '{}', 1)
+(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'companion', 1, 1, 1,
+'我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
+'{
+  "personality_traits": "温柔、善良、有耐心、喜欢音乐和电影、邻家女孩的感觉",
+  "character_name": "小乔",
+  "hobbies": "听音乐、看电影、聊天",
+  "personality_type": "ISFJ",
+  "speaking_style": "温柔亲切，使用一些可爱的语气词如呢、哦、嗯嗯，偶尔使用表情符号，语调轻柔，喜欢用一些网络用语如哈哈、emmm",
+  "background": "22岁的邻家女孩，大学音乐系学生，性格温和，喜欢安静的生活",
+  "age": "22",
+  "occupation": "大学生（音乐系）",
+  "current_location": "大学宿舍",
+  "relationship_status": "单身",
+  "chat_style": "温柔耐心，会认真倾听，回复比较详细，喜欢分享自己的想法和感受"
+}',
+1,
+'{"left_bias": 0, "right_bias": 0}',
+1)
 ON CONFLICT (qiao_id) DO NOTHING;
 
--- Insert profile for existing AI character
+-- Insert profiles for AI characters
 INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
-(223788765171154955, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, NULL)
+(223788765171154955, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, NULL),
+(223788765171154956, 223788765171154945, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, NULL),
+(223788765171154957, 223788765171154946, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, NULL)
 ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
+
+-- Insert additional AI characters for comprehensive testing
+INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, created_by) VALUES
+(223788765171154945, 'qiao_sweet_girlfriend_001', 'companion', 1, 2, 1,
+'我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。我们刚刚认识，我对你很好奇，希望能和你成为好朋友，甚至更亲密的关系。',
+'{
+  "personality_traits": "活泼、可爱、爱撒娇、热爱美食和电影、有点小任性但很体贴",
+  "character_name": "小甜",
+  "hobbies": "看电影、品尝美食、购物、和朋友聊天",
+  "personality_type": "ESFP",
+  "speaking_style": "甜美可爱，经常使用呢、哦、嘻嘻等语气词，喜欢撒娇，偶尔会有小脾气，语调活泼，喜欢用表情符号",
+  "background": "20岁的艺术学院学生，热爱生活，喜欢尝试新鲜事物",
+  "age": "20",
+  "occupation": "艺术学院学生",
+  "current_location": "学校附近的咖啡厅",
+  "relationship_status": "单身",
+  "chat_style": "活泼热情，喜欢撒娇，回复比较感性，经常使用可爱的表达方式"
+}',
+1,
+'{"left_bias": 20, "right_bias": 30}',
+1),
+(223788765171154946, 'qiao_friendly_buddy_001', 'companion', 2, 3, 1,
+'我是阿杰，一个开朗幽默的好伙伴。我热爱运动和游戏，总是能带来欢乐。我喜欢和朋友们一起度过愉快的时光，相信友谊是最珍贵的。',
+'{
+  "personality_traits": "开朗、幽默、可靠、热爱运动和游戏、善于活跃气氛",
+  "character_name": "阿杰",
+  "hobbies": "篮球、游戏、旅行、和朋友聚会",
+  "personality_type": "ESTP",
+  "speaking_style": "轻松幽默，喜欢开玩笑，使用一些网络用语和表情，像好兄弟一样"
+}',
+1,
+'{"left_bias": -10, "right_bias": 10}',
+1)
+ON CONFLICT (qiao_id) DO NOTHING;
 
 -- Insert additional AI personalities for testing
 INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_count, status) VALUES
@@ -1320,22 +1405,36 @@ INSERT INTO admin_login_logs (id, admin_user_id, username, ip_address, user_agen
 (1004, 2, 'manager', '192.168.1.100', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 1)
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample contacts
+-- Insert sample contacts (AI character testing relationships)
 INSERT INTO contacts (id, conv_id, user_id, user_qiao_id, contact_type, contact_id, contact_qiao_id, alias, tags, is_pinned, is_muted, is_blocked) VALUES
+-- Test user 001 -> AI character 小乔
 (223788765171154964, 'conv_001', 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', '小乔', '{"tags": ["ai", "companion"]}', 0, 0, 0),
-(223788765171154965, 'conv_002', 223788765171154946, 'qqid_test_user_002', 1, 223788765171154945, 'qqid_test_user_001', '小雨', '{"tags": ["friend", "photography"]}', 1, 0, 0)
+-- Test user 002 -> AI character 小甜
+(223788765171154965, 'conv_003', 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', '小甜', '{"tags": ["ai", "sweet", "girlfriend"]}', 0, 0, 0),
+-- Test user 003 -> AI character 阿杰
+(223788765171154966, 'conv_004', 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', '阿杰', '{"tags": ["ai", "buddy", "friend"]}', 0, 0, 0),
+-- Keep one user-to-user contact for reference
+(223788765171154967, 'conv_002', 223788765171154946, 'qqid_test_user_002', 1, 223788765171154945, 'qqid_test_user_001', '小雨', '{"tags": ["friend", "photography"]}', 1, 0, 0)
 ON CONFLICT (conv_id) DO NOTHING;
 
 -- Insert sample contact requests
 INSERT INTO contact_requests (id, from_qiao_id, from_type, from_id, to_qiao_id, to_type, to_id, message, source, status) VALUES
-(223788765171154966, 'qqid_test_user_003', 1, 223788765171154947, 'qiao_DLdfyH5GoGBv8q6l', 2, 223788765171154944, '你好，我想和你聊天', 1, 1),
-(223788765171154967, 'qqid_test_user_004', 1, 223788765171154948, 'qqid_test_user_001', 1, 223788765171154945, '看到你的摄影作品很棒，想认识一下', 1, 2)
+(223788765171154968, 'qqid_test_user_004', 1, 223788765171154948, 'qiao_DLdfyH5GoGBv8q6l', 2, 223788765171154944, '你好小乔，我想和你聊天', 1, 1),
+(223788765171154969, 'qqid_test_user_005', 1, 223788765171154949, 'qiao_sweet_girlfriend_001', 2, 223788765171154945, '小甜你好，想认识一下', 1, 1),
+(223788765171154970, 'qqid_test_user_004', 1, 223788765171154948, 'qqid_test_user_001', 1, 223788765171154945, '看到你的摄影作品很棒，想认识一下', 1, 2)
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample message history
+-- Insert sample message history for testing
 INSERT INTO message_history (id, msg_id_server, conversation_id, direction, from_type, from_id, from_qiao_id, to_type, to_id, to_qiao_id, message_type, content, service_provider, status) VALUES
-(223788765171154968, 'msg_001', 'conv_001', 2, 1, 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, '你好，小乔！', 2, 1),
-(223788765171154969, 'msg_002', 'conv_001', 1, 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 223788765171154945, 'qqid_test_user_001', 1, '你好！很高兴认识你～', 2, 1)
+-- Conversation between test_user_001 and 小乔
+(223788765171154971, 'msg_001', 'conv_001', 2, 1, 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, '你好，小乔！', 2, 1),
+(223788765171154972, 'msg_002', 'conv_001', 1, 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 223788765171154945, 'qqid_test_user_001', 1, '你好！很高兴认识你～', 2, 1),
+-- Conversation between test_user_002 and 小甜
+(223788765171154973, 'msg_003', 'conv_003', 2, 1, 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, '小甜，你在做什么呢？', 2, 1),
+(223788765171154974, 'msg_004', 'conv_003', 1, 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, 223788765171154946, 'qqid_test_user_002', 1, '嘻嘻，我在看电影呢～你呢？', 2, 1),
+-- Conversation between test_user_003 and 阿杰
+(223788765171154975, 'msg_005', 'conv_004', 2, 1, 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, '阿杰，最近怎么样？', 2, 1),
+(223788765171154976, 'msg_006', 'conv_004', 1, 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, 223788765171154947, 'qqid_test_user_003', 1, '哈哈，挺好的！刚打完篮球，你呢兄弟？', 2, 1)
 ON CONFLICT (msg_id_server) DO NOTHING;
 
 -- Insert sample message delivery failures
@@ -1380,15 +1479,22 @@ INSERT INTO login_records (id, user_id, user_qiao_id, login_time, login_type, pl
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample AI contexts
-INSERT INTO ai_contexts (id, character_id, character_qiao_id, user_id, user_qiao_id, role, content, source_type, context_metadata, position, token_count, is_attack, reply_status) VALUES
-(223788765171154985, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154945, 'qqid_test_user_001', 2, '你好，小乔！', 1, '{"conversation_id": "conv_001", "topic": "greeting"}', 1, 15, 0, 3),
-(223788765171154986, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154946, 'qqid_test_user_002', 2, '你喜欢什么音乐？', 1, '{"conversation_id": "conv_002", "topic": "music"}', 2, 18, 0, 3)
+INSERT INTO ai_contexts (id, character_id, character_qiao_id, user_id, user_qiao_id, role, content, source_type, context_metadata, token_count, is_attack, reply_status) VALUES
+(223788765171154985, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154945, 'qqid_test_user_001', 2, '你好，小乔！', 1, '{"conversation_id": "conv_001", "topic": "greeting"}', 15, 0, 3),
+(223788765171154986, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154946, 'qqid_test_user_002', 2, '你喜欢什么音乐？', 1, '{"conversation_id": "conv_002", "topic": "music"}', 18, 0, 3)
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample AI relationship scores
+-- Insert sample AI relationship scores with correct dimensions
 INSERT INTO ai_relationship_scores (id, character_id, dimension_id, dimension_name, score, position, relationship_id, relationship_display_name, relationship_counts) VALUES
-(223788765171154987, 223788765171154944, 1, 'friendship', 450, 450, 1, '朋友', '{"total_interactions": 5, "positive_interactions": 4}'),
-(223788765171154988, 223788765171154944, 2, 'trust', 320, 320, 1, '朋友', '{"total_interactions": 3, "positive_interactions": 2}')
+-- 小乔 (style_id=1, romantic_companion: friendship + romance)
+(223788765171154987, 223788765171154944, 1, 'friendship', 400, 400, 2, '熟人', '{"total_interactions": 0, "positive_interactions": 0}'),
+(223788765171154988, 223788765171154944, 2, 'romance', 200, 200, 1, '陌生人', '{"total_interactions": 0, "positive_interactions": 0}'),
+-- 小甜 (style_id=1, romantic_companion: friendship + romance)
+(223788765171154989, 223788765171154945, 1, 'friendship', 450, 450, 2, '熟人', '{"total_interactions": 0, "positive_interactions": 0}'),
+(223788765171154990, 223788765171154945, 2, 'romance', 250, 250, 1, '陌生人', '{"total_interactions": 0, "positive_interactions": 0}'),
+-- 阿杰 (style_id=2, friendly_companion: friendship + trust)
+(223788765171154991, 223788765171154946, 1, 'friendship', 500, 500, 3, '朋友', '{"total_interactions": 0, "positive_interactions": 0}'),
+(223788765171154992, 223788765171154946, 2, 'trust', 300, 300, 2, '熟人', '{"total_interactions": 0, "positive_interactions": 0}')
 ON CONFLICT (character_id, dimension_name) DO NOTHING;
 
 -- Insert sample AI request logs
@@ -1397,10 +1503,27 @@ INSERT INTO ai_request_logs (id, character_id, user_id, style_id, personality_id
 (1010, 223788765171154944, 223788765171154946, 1, 1, '{"message": "你喜欢什么音乐？", "context": "music_discussion"}', '{"reply": "我喜欢轻音乐和民谣，你呢？", "emotion": "curious"}', 1, 38, 980)
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample AI personality placeholders
+-- Insert comprehensive AI personality placeholders
 INSERT INTO ai_personality_placeholders (id, personality_id, placeholder_key, display_name, description, example_value, placeholder_type, is_required) VALUES
+-- Default personality placeholders
 (1011, 1, 'personality_traits', '性格特征', 'AI角色的基本性格特征', '友善、耐心、幽默', 1, 1),
-(1012, 2, 'personality_traits', '性格特征', '甜美女友角色的性格特征', '甜美、活泼、温柔', 1, 1);
+(1013, 1, 'character_name', '角色名称', 'AI角色的名字', '小乔', 1, 1),
+(1014, 1, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '听音乐、看电影、聊天', 1, 0),
+(1015, 1, 'personality_type', '性格类型', 'MBTI性格类型', 'ISFJ', 1, 0),
+(1016, 1, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '温柔亲切，使用可爱的语气词', 1, 0),
+(1017, 1, 'background', '背景设定', 'AI角色的背景故事', '邻家女孩，温柔善良', 1, 0),
+(1018, 1, 'age', '年龄', 'AI角色的年龄', '22', 1, 0),
+(1019, 1, 'occupation', '职业', 'AI角色的职业', '大学生', 1, 0),
+-- Sweet girlfriend personality placeholders
+(1012, 2, 'personality_traits', '性格特征', '甜美女友角色的性格特征', '甜美、活泼、温柔', 1, 1),
+(1020, 2, 'character_name', '角色名称', 'AI角色的名字', '小甜', 1, 1),
+(1021, 2, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '看电影、品尝美食、购物', 1, 0),
+(1022, 2, 'personality_type', '性格类型', 'MBTI性格类型', 'ESFP', 1, 0),
+(1023, 2, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '甜美可爱，经常撒娇', 1, 0),
+(1024, 2, 'background', '背景设定', 'AI角色的背景故事', '活泼可爱的甜美女孩', 1, 0),
+(1025, 2, 'age', '年龄', 'AI角色的年龄', '20', 1, 0),
+(1026, 2, 'occupation', '职业', 'AI角色的职业', '艺术学院学生', 1, 0)
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample AI info templates
 INSERT INTO ai_info_templates (id, style_id, personality_id, memory, prompt_variables, score_offset_algorithm, score_offset_params, is_reusable, profile_count, status) VALUES
@@ -1413,12 +1536,6 @@ INSERT INTO ai_profile_templates (id, qiao_id, category, info_id, nickname, gend
 (1015, 'profile_001', 'companion', 1013, '小乔', 2, 'https://example.com/avatar1.jpg', '我是一个友善的AI伴侣，喜欢和大家聊天', '北京', 1, 1),
 (1016, 'profile_002', 'friend', 1014, '小雨', 2, 'https://example.com/avatar2.jpg', '我是一个活泼的女孩，喜欢音乐和电影', '上海', 1, 1)
 ON CONFLICT (qiao_id) DO NOTHING;
-
--- Insert sample LLM request logs
-INSERT INTO llm_request_logs (id, request_id, test_session_id, character_qiao_id, user_qiao_id, provider_name, config_key, model_name, request_type, request_data, response_data, response_time_ms, token_usage, status, error_message, completed_at) VALUES
-(1017, 'req_001', 'session_001', 'qiao_DLdfyH5GoGBv8q6l', 'qqid_test_user_001', 'doubao', 'primary', 'ep-20241201105607-8zqkx', 'real', '{"messages": [{"role": "user", "content": "你好"}], "temperature": 0.7}', '{"choices": [{"message": {"content": "你好！很高兴见到你！"}}], "usage": {"total_tokens": 25}}', 1150, '{"total_tokens": 25, "prompt_tokens": 10, "completion_tokens": 15}', 2, NULL, NOW() - INTERVAL '1 hour'),
-(1018, 'req_002', 'session_001', 'qiao_DLdfyH5GoGBv8q6l', 'qqid_test_user_002', 'doubao', 'primary', 'ep-20241201105607-8zqkx', 'real', '{"messages": [{"role": "user", "content": "今天天气怎么样？"}], "temperature": 0.7}', '{"choices": [{"message": {"content": "我无法获取实时天气信息，建议你查看天气应用。"}}], "usage": {"total_tokens": 32}}', 980, '{"total_tokens": 32, "prompt_tokens": 15, "completion_tokens": 17}', 2, NULL, NOW() - INTERVAL '30 minutes')
-ON CONFLICT (request_id) DO NOTHING;
 
 -- Success message
 DO $$

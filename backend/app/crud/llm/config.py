@@ -1,7 +1,7 @@
 """
-LLM provider and configuration CRUD operations.
+CRUD operations for LLM configurations.
 
-This module contains CRUD operations for LLM management.
+This module provides database operations for LLM configurations.
 """
 
 from typing import List, Optional
@@ -9,36 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
-from models.llm import LLMProvider, LLMConfig
-from schemas.llm import LLMProviderCreate, LLMProviderUpdate, LLMConfigCreate, LLMConfigUpdate
-from .base import CRUDBase
-
-
-class CRUDLLMProvider(CRUDBase[LLMProvider, LLMProviderCreate, LLMProviderUpdate]):
-    """CRUD operations for LLMProvider model."""
-
-    async def get_by_name(self, db: AsyncSession, *, name: str) -> Optional[LLMProvider]:
-        """Get LLM provider by name."""
-        result = await db.execute(select(self.model).where(self.model.name == name))
-        return result.scalar_one_or_none()
-
-    async def get_active_providers(self, db: AsyncSession) -> List[LLMProvider]:
-        """Get all active LLM providers."""
-        result = await db.execute(
-            select(self.model).where(self.model.status == 1).order_by(self.model.name)
-        )
-        return list(result.scalars().all())
-
-    async def update_status(
-        self, db: AsyncSession, *, provider_id: int, status: int
-    ) -> Optional[LLMProvider]:
-        """Update provider status."""
-        provider = await self.get(db, id=provider_id)
-        if provider:
-            provider.status = status
-            await db.commit()
-            await db.refresh(provider)
-        return provider
+from models.llm import LLMConfig
+from schemas.llm import LLMConfigCreate, LLMConfigUpdate
+from crud.base import CRUDBase
 
 
 class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
@@ -112,6 +85,5 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
         return list(result.scalars().all())
 
 
-# Create instances
-llm_provider = CRUDLLMProvider(LLMProvider)
+# Create instance
 llm_config = CRUDLLMConfig(LLMConfig)

@@ -6,13 +6,21 @@ Supports structured output, thinking mode, and streaming according to Doubao API
 """
 
 import json
-import asyncio
 from typing import Dict, Any, Optional, List
 import httpx
 
 from models.llm import LLMConfig, LLMProvider
 from services.llm.utils import get_provider_api_key, get_provider_base_url
 from utils.logging import get_logger
+from exceptions.llm import (
+    LLMEndpointNotFoundError,
+    LLMAuthenticationError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    LLMNetworkError,
+    LLMServiceError,
+    LLMConfigurationError,
+)
 
 logger = get_logger(__name__)
 
@@ -41,6 +49,7 @@ async def doubao_chat_completion(
     Returns:
         Dictionary containing response data and metadata
     """
+    payload = None
     try:
         # Build request payload
         payload = _build_doubao_payload(
@@ -58,14 +67,35 @@ async def doubao_chat_completion(
 
         return result
 
-    except Exception as e:
-        logger.error("doubao_chat_completion_error", error=str(e))
+    except (
+        LLMEndpointNotFoundError,
+        LLMAuthenticationError,
+        LLMRateLimitError,
+        LLMTimeoutError,
+        LLMNetworkError,
+        LLMServiceError,
+    ) as e:
+        # LLM-specific exceptions - already formatted
+        logger.error("doubao_llm_error", error_code=e.error_code, error=str(e), details=e.details)
         return {
             "success": False,
             "error": str(e),
+            "error_code": e.error_code,
             "response": None,
             "usage": None,
-            "request_payload": None,
+            "request_payload": payload,
+        }
+
+    except Exception as e:
+        # Unexpected errors
+        logger.error("doubao_unexpected_error", error=str(e), exc_info=True)
+        return {
+            "success": False,
+            "error": f"Doubao API请求异常: {str(e)}",
+            "error_code": "UNKNOWN_ERROR",
+            "response": None,
+            "usage": None,
+            "request_payload": payload,
         }
 
 
@@ -126,76 +156,123 @@ def _build_doubao_payload(
 async def _send_doubao_request(
     config: LLMConfig, provider: LLMProvider, payload: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Send HTTP request to Doubao API with retries according to official documentation."""
-    # Get API key using naming convention
-    api_key = get_provider_api_key(provider)
+    """Send HTTP request to Doubao API with comprehensive error handling."""
 
-    # Build headers according to Doubao documentation
+    # Get API key
+    try:
+        api_key = get_provider_api_key(provider)
+    except ValueError as e:
+        raise LLMAuthenticationError(
+            provider=provider.name, message=str(e), details={"env_key": f"{provider.name.upper()}_API_KEY"}
+        )
+
+    # Build headers
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-    # Get base URL (can be overridden by environment variable)
+    # Get base URL
     base_url = get_provider_base_url(provider)
     if not base_url:
-        raise ValueError(f"Base URL not configured for provider: {provider.name}")
+        raise LLMConfigurationError(
+            message=f"Base URL未配置: {provider.name}", details={"provider": provider.name}
+        )
 
-    # Build URL - ensure proper format according to Doubao documentation
+    # Build full URL
     base_url = base_url.rstrip("/")
     if not base_url.endswith("/api/v3"):
-        if base_url.endswith("/"):
-            base_url = base_url[:-1]
-        url = f"{base_url}/api/v3/chat/completions"
-    else:
-        url = f"{base_url}/chat/completions"
+        base_url = f"{base_url}/api/v3"
+    url = f"{base_url}/chat/completions"
 
-    # Send request with timeout and retries
-    async with httpx.AsyncClient() as client:
-        for attempt in range(config.max_retries + 1):
-            try:
-                response = await client.post(
-                    url, json=payload, headers=headers, timeout=config.timeout_seconds
-                )
+    # Send request with error handling
+    try:
+        async with httpx.AsyncClient(timeout=config.timeout_seconds) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            return response.json()
 
-                if response.status_code == 200:
-                    return response.json()
-                else:
-                    error_text = response.text
-                    logger.warning(
-                        "doubao_request_failed",
-                        status_code=response.status_code,
-                        response=error_text[:500],  # Limit log size
-                        attempt=attempt + 1,
-                    )
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        error_body = e.response.text
 
-                    # Don't retry on client errors (4xx)
-                    if 400 <= response.status_code < 500:
-                        raise ValueError(f"Doubao API client error {response.status_code}: {error_text}")
+        # Parse error response
+        try:
+            error_data = json.loads(error_body)
+            error_message = error_data.get("error", {}).get("message", error_body)
+            error_code = error_data.get("error", {}).get("code", "UNKNOWN")
+        except Exception:
+            error_message = error_body
+            error_code = "PARSE_ERROR"
 
-                    if attempt < config.max_retries:
-                        await asyncio.sleep(2**attempt)  # Exponential backoff
-                    else:
-                        raise ValueError(f"Doubao API error {response.status_code}: {error_text}")
+        # Categorize and raise specific exceptions
+        if status_code == 404:
+            raise LLMEndpointNotFoundError(
+                endpoint=payload.get("model", "unknown"),
+                provider=provider.name,
+                details={
+                    "error_code": error_code,
+                    "error_message": error_message,
+                    "status_code": status_code,
+                },
+            )
 
-            except httpx.TimeoutException:
-                logger.warning(
-                    "doubao_request_timeout", attempt=attempt + 1, timeout=config.timeout_seconds
-                )
-                if attempt < config.max_retries:
-                    await asyncio.sleep(2**attempt)
-                else:
-                    raise TimeoutError(f"Doubao request timeout after {config.max_retries + 1} attempts")
+        elif status_code == 401:
+            raise LLMAuthenticationError(
+                provider=provider.name,
+                details={
+                    "error_code": error_code,
+                    "error_message": error_message,
+                },
+            )
 
-            except (httpx.ConnectError, httpx.NetworkError) as e:
-                logger.warning("doubao_network_error", error=str(e), attempt=attempt + 1)
-                if attempt < config.max_retries:
-                    await asyncio.sleep(2**attempt)
-                else:
-                    raise ConnectionError(f"Doubao network error: {str(e)}")
+        elif status_code == 429:
+            raise LLMRateLimitError(
+                provider=provider.name,
+                details={
+                    "error_code": error_code,
+                    "error_message": error_message,
+                },
+            )
 
-            except Exception as e:
-                # Don't retry on unexpected errors
-                raise RuntimeError(f"Doubao request unexpected error: {str(e)}")
+        elif status_code >= 500:
+            raise LLMServiceError(
+                message=f"Doubao服务器错误 ({status_code})",
+                provider=provider.name,
+                error_code=error_code,
+                details={
+                    "status_code": status_code,
+                    "error_message": error_message,
+                },
+            )
 
-    raise RuntimeError("Doubao request failed after all retries")
+        else:
+            raise LLMServiceError(
+                message=f"Doubao API请求失败 ({status_code}): {error_message}",
+                provider=provider.name,
+                error_code=error_code,
+                details={
+                    "status_code": status_code,
+                    "error_message": error_message,
+                },
+            )
+
+    except httpx.TimeoutException as e:
+        raise LLMTimeoutError(
+            timeout_seconds=config.timeout_seconds, provider=provider.name, details={"error": str(e)}
+        )
+
+    except httpx.NetworkError as e:
+        raise LLMNetworkError(
+            provider=provider.name,
+            message="无法连接到Doubao API。请检查网络连接和Base URL配置。",
+            details={"error": str(e), "url": url},
+        )
+
+    except Exception as e:
+        raise LLMServiceError(
+            message=f"Doubao请求异常: {str(e)}",
+            provider=provider.name,
+            error_code="UNEXPECTED_ERROR",
+            details={"error": str(e), "error_type": type(e).__name__},
+        )
 
 
 def _parse_doubao_response(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -234,6 +311,7 @@ def _parse_doubao_response(data: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "response": parsed_content,
             "raw_content": content,
+            "raw_response": data,  # Store original API response
             "usage": data.get("usage", {}),
             "model": data.get("model"),
             "finish_reason": choice.get("finish_reason"),

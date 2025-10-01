@@ -9,7 +9,7 @@ from sqlalchemy import BigInteger, Integer, String, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import Gender, ProfileOwnerType, ProfileModifierType
-from models.base import SnowflakeModel
+from models.base import SnowflakeModel, ImmutableSnowflakeModel
 
 
 class Profile(SnowflakeModel):
@@ -62,11 +62,12 @@ class Profile(SnowflakeModel):
     )
 
 
-class UserProfileLog(SnowflakeModel):
+class UserProfileLog(ImmutableSnowflakeModel):
     """
     User profile log model.
 
     Tracks profile changes for users only.
+    Immutable log - profile changes should not be modified after creation.
     """
 
     __tablename__ = "user_profile_logs"

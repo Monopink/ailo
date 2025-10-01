@@ -1,0 +1,540 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>LLM Configuration Test</title>{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1>LLM Configuration Test</h1>
+    </div>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="/qiao-dash/llm_config/list">LLM Configs</a>
+        </li>
+        <li class="breadcrumb-item active">Test</li>
+    </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+    .llm-test-container {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 20px;
+    }
+
+    .section-card {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .section-card h3 {
+        margin: 0 0 15px 0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #0d6efd;
+        padding-bottom: 10px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+    }
+
+    .info-item {
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+    }
+
+    .info-label {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    .info-value {
+        font-size: 14px;
+        color: #212529;
+        font-weight: 500;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .form-group textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 14px;
+        resize: vertical;
+    }
+
+    .form-group input[type="number"] {
+        width: 150px;
+        padding: 8px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .form-group input[type="number"]:disabled {
+        background: #e9ecef;
+        cursor: not-allowed;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #0d6efd;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #0b5ed7;
+    }
+
+    .btn-primary:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+        margin-left: 10px;
+    }
+
+    .btn-secondary:hover {
+        background: #5c636a;
+    }
+
+    .result-status {
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        font-weight: 500;
+    }
+
+    .result-status.success {
+        background: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+
+    .result-status.error {
+        background: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+    }
+
+    .result-content pre {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+        overflow-x: auto;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    #responseContent {
+        color: #212529 !important;
+        background-color: #f8f9fa;
+    }
+
+    .debug-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .debug-item {
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .debug-label {
+        color: #6c757d;
+        font-size: 11px;
+        margin-bottom: 4px;
+    }
+
+    .debug-value {
+        color: #212529;
+        font-weight: 500;
+    }
+
+    details {
+        margin-top: 15px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 10px;
+    }
+
+    details summary {
+        cursor: pointer;
+        font-weight: 500;
+        color: #0d6efd;
+        user-select: none;
+    }
+
+    details[open] summary {
+        margin-bottom: 10px;
+    }
+
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+        color: #6c757d;
+    }
+
+    .loading.active {
+        display: block;
+    }
+
+    .error-message {
+        background: #f8d7da;
+        color: #842029;
+        padding: 15px;
+        border-radius: 6px;
+        border: 1px solid #f5c2c7;
+        margin-bottom: 20px;
+    }
+</style>
+
+<div class="llm-test-container">
+    {% if error %}
+    <div class="error-message">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% else %}
+
+    <!-- Configuration Info Section -->
+    <div class="section-card">
+        <h3>Configuration Information</h3>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Config Key</div>
+                <div class="info-value">{{ config.config_key }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Provider</div>
+                <div class="info-value">{{ config.provider_name }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Model</div>
+                <div class="info-value">{{ config.model_name }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Temperature</div>
+                <div class="info-value">{{ config.temperature if config.temperature else 'Not set' }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Max Tokens</div>
+                <div class="info-value">{{ config.max_tokens if config.max_tokens else 'Not set' }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Timeout</div>
+                <div class="info-value">{{ config.timeout_seconds }}s</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Form Section -->
+    <div class="section-card">
+        <h3>Test Parameters</h3>
+        <form id="testForm">
+            <input type="hidden" name="config_id" value="{{ config_id }}">
+
+            <!-- Test Message -->
+            <div class="form-group">
+                <label for="test_message">Test Message <span style="color: red;">*</span></label>
+                <textarea id="test_message" name="test_message" rows="4" placeholder="Enter your test message here..."
+                    required></textarea>
+            </div>
+
+            <!-- Override Temperature -->
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="overrideTemp" onchange="toggleOverride('temperature')">
+                    <label for="overrideTemp" style="margin: 0;">Override Temperature</label>
+                </div>
+                <input type="hidden" id="override_temperature_enabled" name="override_temperature_enabled" value="0">
+                <input type="number" id="override_temperature" name="override_temperature" step="0.01" min="0" max="2"
+                    value="{{ config.temperature if config.temperature else 0.7 }}" disabled>
+            </div>
+
+            <!-- Override Max Tokens -->
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="overrideTokens" onchange="toggleOverride('tokens')">
+                    <label for="overrideTokens" style="margin: 0;">Override Max Tokens</label>
+                </div>
+                <input type="hidden" id="override_max_tokens_enabled" name="override_max_tokens_enabled" value="0">
+                <input type="number" id="override_max_tokens" name="override_max_tokens"
+                    value="{{ config.max_tokens if config.max_tokens else 2000 }}" disabled>
+            </div>
+
+            <!-- Enable Thinking Mode -->
+            {% if config.supports_thinking %}
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="enable_thinking" name="enable_thinking" value="1">
+                    <label for="enable_thinking" style="margin: 0;">Enable Thinking Mode</label>
+                </div>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary" id="submitBtn">Run Test</button>
+            <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
+        </form>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading" id="loading">
+        <div>Testing in progress...</div>
+        <div style="margin-top: 10px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Results Section -->
+    <div class="section-card" id="testResults" style="display: none;">
+        <h3>Test Results</h3>
+
+        <div id="resultStatus" class="result-status"></div>
+
+        <div class="result-content">
+            <h4>Response Content</h4>
+            <pre id="responseContent"></pre>
+        </div>
+
+        <div id="thinkingSection" style="display: none;">
+            <h4>Thinking Process</h4>
+            <pre id="thinkingContent"></pre>
+        </div>
+
+        <div>
+            <h4>Debug Information</h4>
+            <div class="debug-info" id="debugInfo"></div>
+        </div>
+
+        <details>
+            <summary>Request Payload</summary>
+            <pre id="requestPayload"></pre>
+        </details>
+
+        <details>
+            <summary>Raw API Response</summary>
+            <pre id="rawResponse"></pre>
+        </details>
+    </div>
+
+    {% endif %}
+</div>
+
+<script>
+    // Toggle override inputs
+    function toggleOverride(type) {
+        if (type === 'temperature') {
+            const checkbox = document.getElementById('overrideTemp');
+            const input = document.getElementById('override_temperature');
+            const hidden = document.getElementById('override_temperature_enabled');
+            input.disabled = !checkbox.checked;
+            hidden.value = checkbox.checked ? '1' : '0';
+        } else if (type === 'tokens') {
+            const checkbox = document.getElementById('overrideTokens');
+            const input = document.getElementById('override_max_tokens');
+            const hidden = document.getElementById('override_max_tokens_enabled');
+            input.disabled = !checkbox.checked;
+            hidden.value = checkbox.checked ? '1' : '0';
+        }
+    }
+
+    // Clear form
+    function clearForm() {
+        document.getElementById('testForm').reset();
+        document.getElementById('override_temperature').disabled = true;
+        document.getElementById('override_max_tokens').disabled = true;
+        document.getElementById('override_temperature_enabled').value = '0';
+        document.getElementById('override_max_tokens_enabled').value = '0';
+        document.getElementById('testResults').style.display = 'none';
+    }
+
+    // Handle form submission
+    document.getElementById('testForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const resultsDiv = document.getElementById('testResults');
+
+        // Show loading, hide results
+        submitBtn.disabled = true;
+        loading.classList.add('active');
+        resultsDiv.style.display = 'none';
+
+        try {
+            const response = await fetch(window.location.pathname + window.location.search, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            // Display results
+            displayResults(result);
+
+        } catch (error) {
+            displayError('Request failed: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            loading.classList.remove('active');
+        }
+    });
+
+    // Display test results
+    function displayResults(result) {
+        const resultsDiv = document.getElementById('testResults');
+        const statusDiv = document.getElementById('resultStatus');
+
+        resultsDiv.style.display = 'block';
+
+        // Status
+        if (result.success) {
+            statusDiv.className = 'result-status success';
+            statusDiv.innerHTML = '✓ Test Successful';
+        } else {
+            statusDiv.className = 'result-status error';
+            statusDiv.innerHTML = '✗ Test Failed: ' + (result.error || 'Unknown error');
+        }
+
+        if (result.success) {
+            // Response content - handle both string and object responses
+            const responseContent = result.response_content;
+            let displayContent = '';
+
+            if (responseContent === null || responseContent === undefined) {
+                displayContent = '(No response content)';
+            } else if (typeof responseContent === 'object') {
+                displayContent = JSON.stringify(responseContent, null, 2);
+            } else {
+                displayContent = String(responseContent);
+            }
+
+            document.getElementById('responseContent').textContent = displayContent;
+
+            // Thinking content (if present)
+            if (result.reasoning_content) {
+                document.getElementById('thinkingSection').style.display = 'block';
+                document.getElementById('thinkingContent').textContent = result.reasoning_content;
+            } else {
+                document.getElementById('thinkingSection').style.display = 'none';
+            }
+
+            // Debug info
+            const usage = result.usage || {};
+            document.getElementById('debugInfo').innerHTML = `
+            <div class="debug-item">
+                <div class="debug-label">Response Time</div>
+                <div class="debug-value">${result.response_time_ms}ms</div>
+            </div>
+            <div class="debug-item">
+                <div class="debug-label">Prompt Tokens</div>
+                <div class="debug-value">${usage.prompt_tokens || 0}</div>
+            </div>
+            <div class="debug-item">
+                <div class="debug-label">Completion Tokens</div>
+                <div class="debug-value">${usage.completion_tokens || 0}</div>
+            </div>
+            <div class="debug-item">
+                <div class="debug-label">Total Tokens</div>
+                <div class="debug-value">${usage.total_tokens || 0}</div>
+            </div>
+            <div class="debug-item">
+                <div class="debug-label">Model Used</div>
+                <div class="debug-value">${result.model_used || 'N/A'}</div>
+            </div>
+            <div class="debug-item">
+                <div class="debug-label">Finish Reason</div>
+                <div class="debug-value">${result.finish_reason || 'N/A'}</div>
+            </div>
+        `;
+
+            // Request payload
+            document.getElementById('requestPayload').textContent =
+                JSON.stringify(result.request_payload, null, 2);
+
+            // Raw API response
+            if (result.raw_response) {
+                document.getElementById('rawResponse').textContent =
+                    JSON.stringify(result.raw_response, null, 2);
+            } else {
+                document.getElementById('rawResponse').textContent = '(No raw response data)';
+            }
+        }
+    }
+
+    // Display error
+    function displayError(message) {
+        const resultsDiv = document.getElementById('testResults');
+        const statusDiv = document.getElementById('resultStatus');
+
+        resultsDiv.style.display = 'block';
+        statusDiv.className = 'result-status error';
+        statusDiv.innerHTML = '✗ ' + message;
+
+        document.getElementById('responseContent').textContent = '';
+        document.getElementById('debugInfo').innerHTML = '';
+        document.getElementById('requestPayload').textContent = '';
+    }
+</script>
+{% endblock %}

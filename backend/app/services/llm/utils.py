@@ -75,4 +75,3 @@ def get_provider_base_url(provider: LLMProvider) -> Optional[str]:
 
     # Fall back to database configuration
     return provider.base_url
-

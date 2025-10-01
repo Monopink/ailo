@@ -4,13 +4,31 @@ LLM (Large Language Model) related admin views.
 This module contains Starlette-Admin views for managing LLM providers and configurations.
 """
 
+import json
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, StringField, IntegerField, FloatField, JSONField
+from starlette_admin import EnumField, StringField, IntegerField, FloatField, JSONField, TextAreaField
 from starlette_admin.actions import link_row_action
 from starlette_admin.exceptions import FormValidationError
-from models.llm import LLMProvider, LLMConfig
+from models.llm import LLMProvider, LLMConfig, LLMTestLog
+
+
+class ChineseJSONField(TextAreaField):
+    """Custom field that displays JSON with Chinese characters properly in detail view."""
+
+    async def serialize_value(self, request: Request, value: Any, action: str) -> Any:
+        """Serialize value with ensure_ascii=False to display Chinese characters."""
+        if value is None:
+            return None
+
+        # Convert dict to formatted JSON string with Chinese characters
+        # This ensures Chinese characters are displayed properly in all views
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False, indent=2)
+
+        # If already a string, return as is
+        return value
 
 
 class LLMProviderView(ModelView):
@@ -25,6 +43,10 @@ class LLMProviderView(ModelView):
     fields_default_sort = [("name", False)]
     searchable_fields = ["name", "display_name"]
     sortable_fields = ["id", "name", "display_name", "created_at"]
+
+    def can_delete(self, request: Request) -> bool:
+        """Disable delete action for LLM providers."""
+        return False
 
     fields = [
         StringField("id", label="ID", help_text="Internal provider ID"),
@@ -173,8 +195,8 @@ class LLMConfigView(ModelView):
     )
     def test_config_row_action(self, request, pk):
         """Custom row action to test this LLM configuration."""
-        # Return JavaScript to open a modal or redirect to test interface
-        return f"javascript:testLLMConfig('{pk}')"
+        # Redirect to test interface with config_id parameter
+        return f"/qiao-dash/llm-config-test?config_id={pk}"
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
         """Custom validation and data conversion."""
@@ -193,8 +215,124 @@ llm_provider_view = LLMProviderView(
 
 llm_config_view = LLMConfigView(LLMConfig, name="Configs", icon="fa fa-cogs", identity="llm_config")
 
+
+class LLMTestLogView(ModelView):
+    """LLM Test Log view for viewing test execution records."""
+
+    label = "Test Logs"
+    name = "Test Logs"
+
+    # Read-only view - exclude all fields from create/edit to disable these actions
+    exclude_fields_from_create = [
+        "id",
+        "config_id",
+        "config_key",
+        "provider_name",
+        "model_name",
+        "test_message",
+        "override_temperature",
+        "override_max_tokens",
+        "enable_thinking",
+        "request",
+        "response",
+        "status",
+        "error_message",
+        "response_time_ms",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "reasoning_content",
+        "created_at",
+        "completed_at",
+    ]
+    exclude_fields_from_edit = [
+        "id",
+        "config_id",
+        "config_key",
+        "provider_name",
+        "model_name",
+        "test_message",
+        "override_temperature",
+        "override_max_tokens",
+        "enable_thinking",
+        "request",
+        "response",
+        "status",
+        "error_message",
+        "response_time_ms",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "reasoning_content",
+        "created_at",
+        "completed_at",
+    ]
+    exclude_fields_from_list = ["request", "response"]
+    exclude_fields_from_detail = []
+
+    fields_default_sort = [("created_at", True)]  # Newest first
+    searchable_fields = ["config_key", "provider_name", "model_name", "test_message"]
+    sortable_fields = ["id", "config_id", "created_at", "status", "response_time_ms"]
+
+    def can_create(self, request: Request) -> bool:
+        """Disable create action for test logs - logs are created automatically."""
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        """Disable edit action for test logs - logs are immutable."""
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        """Disable delete action for test logs."""
+        return False
+
+    fields = [
+        IntegerField("id", label="ID", help_text="Test log ID"),
+        IntegerField("config_id", label="Config ID", help_text="LLM configuration ID"),
+        StringField("config_key", label="Config Key", help_text="Configuration key"),
+        StringField("provider_name", label="Provider", help_text="LLM provider name"),
+        StringField("model_name", label="Model", help_text="Model name"),
+        StringField("test_message", label="Test Message", help_text="Test message sent"),
+        FloatField(
+            "override_temperature", label="Override Temperature", help_text="Overridden temperature value"
+        ),
+        IntegerField(
+            "override_max_tokens", label="Override Max Tokens", help_text="Overridden max tokens value"
+        ),
+        EnumField(
+            "enable_thinking",
+            choices=[(0, "No"), (1, "Yes")],
+            label="Enable Thinking",
+            help_text="Thinking mode enabled",
+        ),
+        ChineseJSONField("request", label="Request", help_text="Full request payload"),
+        ChineseJSONField("response", label="Response", help_text="Full response data"),
+        EnumField(
+            "status",
+            choices=[(1, "Success"), (2, "Failed"), (3, "Timeout")],
+            label="Status",
+            help_text="Test execution status",
+        ),
+        StringField("error_message", label="Error Message", help_text="Error message if failed"),
+        IntegerField(
+            "response_time_ms", label="Response Time (ms)", help_text="Response time in milliseconds"
+        ),
+        IntegerField("prompt_tokens", label="Prompt Tokens", help_text="Number of prompt tokens"),
+        IntegerField(
+            "completion_tokens", label="Completion Tokens", help_text="Number of completion tokens"
+        ),
+        IntegerField("total_tokens", label="Total Tokens", help_text="Total tokens used"),
+        StringField("reasoning_content", label="Reasoning Content", help_text="Thinking/reasoning content"),
+    ]
+
+
+llm_test_log_view = LLMTestLogView(
+    LLMTestLog, name="Test Logs", icon="fa fa-flask", identity="llm_test_log"
+)
+
 # Export views
 LLM_MODEL_VIEWS = [
     llm_provider_view,
     llm_config_view,
+    llm_test_log_view,
 ]

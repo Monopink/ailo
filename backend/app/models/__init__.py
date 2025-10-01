@@ -6,7 +6,15 @@ with SQLAlchemy's metadata for table creation and migrations.
 """
 
 # Import base classes first
-from .base import Base, BaseModel, SnowflakeModel, AutoIncrementModel, SnowflakeQiaoModel
+from .base import (
+    Base,
+    BaseModel,
+    SnowflakeModel,
+    AutoIncrementModel,
+    SnowflakeQiaoModel,
+    ImmutableSnowflakeModel,
+    ImmutableAutoIncrementModel,
+)
 
 # Import all models to register them with SQLAlchemy
 from .user import User, UserSession, LoginRecord
@@ -44,7 +52,7 @@ from .system import (
 )
 from .admin import AdminUser, AdminOperationLog, AdminLoginLog
 from .security import UserSecurityLog, UserSecurityStats
-from .llm import LLMProvider, LLMConfig
+from .llm import LLMProvider, LLMConfig, LLMTestLog
 
 # Export all models for easy importing
 __all__ = [
@@ -54,6 +62,8 @@ __all__ = [
     "SnowflakeModel",
     "AutoIncrementModel",
     "SnowflakeQiaoModel",
+    "ImmutableSnowflakeModel",
+    "ImmutableAutoIncrementModel",
     # User management
     "User",
     "UserSession",
@@ -106,4 +116,5 @@ __all__ = [
     # LLM management
     "LLMProvider",
     "LLMConfig",
+    "LLMTestLog",
 ]

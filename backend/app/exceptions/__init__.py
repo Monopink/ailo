@@ -36,6 +36,18 @@ from .business import (
     SnowflakeGeneratorError,
 )
 
+# LLM exceptions
+from .llm import (
+    LLMServiceError,
+    LLMEndpointNotFoundError,
+    LLMAuthenticationError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    LLMNetworkError,
+    LLMConfigurationError,
+    LLMNoConfigError,
+)
+
 __all__ = [
     # Base exceptions
     "BaseAppException",
@@ -62,4 +74,13 @@ __all__ = [
     "AIRelationshipError",
     "SecurityViolationError",
     "SnowflakeGeneratorError",
+    # LLM exceptions
+    "LLMServiceError",
+    "LLMEndpointNotFoundError",
+    "LLMAuthenticationError",
+    "LLMRateLimitError",
+    "LLMTimeoutError",
+    "LLMNetworkError",
+    "LLMConfigurationError",
+    "LLMNoConfigError",
 ]

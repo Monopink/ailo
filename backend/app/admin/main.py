@@ -38,6 +38,7 @@ from .views import (
     # LLM Management
     llm_provider_view,
     llm_config_view,
+    llm_test_log_view,
     # Security Management
     user_security_log_view,
     user_security_stats_view,
@@ -54,6 +55,8 @@ from .views import (
     ai_character_chat_test_view,
     ai_score_algorithm_test_view,
     ai_relationship_index_api_view,
+    # LLM Testing (for routing only, not in menu)
+    llm_config_test_view,
 )
 from .views.custom_views import (
     DashboardView,
@@ -115,6 +118,7 @@ admin.add_view(ai_group)
 admin.add_view(ai_character_chat_test_view)
 admin.add_view(ai_score_algorithm_test_view)
 admin.add_view(ai_relationship_index_api_view)
+admin.add_view(llm_config_test_view)
 
 llm_group = DropDown(
     "LLM",
@@ -122,6 +126,7 @@ llm_group = DropDown(
     views=[
         llm_provider_view,
         llm_config_view,
+        llm_test_log_view,
     ],
     always_open=False,
 )

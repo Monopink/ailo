@@ -395,3 +395,28 @@ class AdminLoginResult(IntEnum):
 
     SUCCESS = 1  # Login successful
     FAIL = 2  # Login failed
+
+
+# LLM Service Related Enums
+
+
+class LLMTestStatus(IntEnum):
+    """LLM test execution status (llm_test_logs.status)"""
+
+    SUCCESS = 1  # Test successful
+    FAILED = 2  # Test failed
+    TIMEOUT = 3  # Test timeout
+
+
+class LLMErrorCode(IntEnum):
+    """LLM error code classification"""
+
+    UNKNOWN = 0  # Unknown error
+    ENDPOINT_NOT_FOUND = 1  # 404: Endpoint not found
+    AUTHENTICATION_ERROR = 2  # 401: Invalid API Key
+    RATE_LIMIT_EXCEEDED = 3  # 429: Rate limit exceeded
+    SERVER_ERROR = 4  # 5xx: Server error
+    TIMEOUT = 5  # Request timeout
+    NETWORK_ERROR = 6  # Network connection failed
+    CONFIGURATION_ERROR = 7  # Configuration error
+    NO_CONFIG = 8  # No available configuration

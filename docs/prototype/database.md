@@ -490,6 +490,33 @@ created_at -- 请求创建时间
 completed_at -- 请求完成时间
 ```
 
+## llm_test_logs
+
+LLM配置测试日志表，专门记录通过管理后台进行的LLM配置测试。
+
+```txt
+id -- Snowflake ID
+config_id -- 关联llm_configs.id
+config_key -- 配置key（冗余字段，便于查询）
+provider_name -- Provider名称（冗余字段）
+model_name -- 使用的模型名称
+test_message -- 测试消息内容，TEXT类型
+override_temperature -- 覆盖的温度参数（0.0-2.0）
+override_max_tokens -- 覆盖的最大token数
+enable_thinking -- 是否启用思考模式：0=no, 1=yes
+request -- 完整请求payload，JSONB格式
+response -- 完整响应数据，JSONB格式
+status -- 状态：1=success, 2=failed, 3=timeout
+error_message -- 错误信息（如果失败），TEXT类型
+response_time_ms -- 响应时间（毫秒）
+prompt_tokens -- 提示词token数
+completion_tokens -- 完成token数
+total_tokens -- 总token数
+reasoning_content -- 思考过程内容（思考模式启用时），TEXT类型
+created_at -- 测试创建时间
+completed_at -- 测试完成时间
+```
+
 ## contact_requests
 
 联系人申请表，管理用户之间的联系人申请。

@@ -15,7 +15,12 @@ from .session_views import SESSION_MODEL_VIEWS
 from .business_views import BUSINESS_MODEL_VIEWS
 from .ai_extended_views import AI_EXTENDED_MODEL_VIEWS
 
-from .ai_test_views import ai_character_chat_test_view, ai_score_algorithm_test_view, ai_relationship_index_api_view
+from .ai_test_views import (
+    ai_character_chat_test_view,
+    ai_score_algorithm_test_view,
+    ai_relationship_index_api_view,
+)
+from .llm_test_views import llm_config_test_view
 
 # Import individual views for backward compatibility
 from .ai_views import (
@@ -50,6 +55,7 @@ from .message_media_views import (
 from .llm_views import (
     llm_provider_view,
     llm_config_view,
+    llm_test_log_view,
 )
 
 from .security_views import (
@@ -121,6 +127,7 @@ __all__ = [
     # Individual LLM views
     "llm_provider_view",
     "llm_config_view",
+    "llm_test_log_view",
     # Individual security views
     "user_security_log_view",
     "user_security_stats_view",
@@ -137,4 +144,6 @@ __all__ = [
     "ai_character_chat_test_view",
     "ai_score_algorithm_test_view",
     "ai_relationship_index_api_view",
+    # LLM Testing views (for routing only, not in menu)
+    "llm_config_test_view",
 ]

@@ -6,12 +6,12 @@ This module contains SQLAlchemy models for admin users and operation logs.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import DateTime, Integer, String, Index, Text, func
+from sqlalchemy import DateTime, Integer, String, Index, Text
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import AdminRole, AdminStatus
-from models.base import AutoIncrementModel, StatusMixin, Base, AutoIncrementIDMixin
+from models.base import AutoIncrementModel, StatusMixin, ImmutableAutoIncrementModel
 
 
 class AdminUser(AutoIncrementModel, StatusMixin):
@@ -116,11 +116,12 @@ class AdminUser(AutoIncrementModel, StatusMixin):
         return role_names[self.role]
 
 
-class AdminOperationLog(AutoIncrementModel):
+class AdminOperationLog(ImmutableAutoIncrementModel):
     """
     Admin operation log model.
 
     Admin operation tracking.
+    Immutable log - operations should not be modified after creation.
     """
 
     __tablename__ = "admin_operation_logs"
@@ -158,20 +159,17 @@ class AdminOperationLog(AutoIncrementModel):
     )
 
 
-class AdminLoginLog(Base, AutoIncrementIDMixin):
+class AdminLoginLog(ImmutableAutoIncrementModel):
     """
     Admin login log model.
 
     Admin login tracking.
-    Note: Only has created_at, no updated_at to match database schema.
+    Immutable log - only has created_at, no updated_at.
     """
 
     __tablename__ = "admin_login_logs"
 
-    # Only created_at timestamp, no updated_at
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=func.now(), comment="Record creation timestamp"
-    )
+    # created_at inherited from ImmutableAutoIncrementModel
 
     admin_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Admin user ID")
 

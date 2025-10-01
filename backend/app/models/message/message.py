@@ -6,15 +6,15 @@ This module contains SQLAlchemy models for message history and delivery failures
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index, func
+from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import MessageDirection, MessageParticipantType, ServiceProvider, MessageType, MessageStatus
-from models.base import Base, SnowflakeIDMixin, SnowflakeModel
+from models.base import ImmutableSnowflakeModel, SnowflakeModel
 
 
-class MessageHistory(Base, SnowflakeIDMixin):
+class MessageHistory(ImmutableSnowflakeModel):
     """
     Message history model.
 
@@ -84,9 +84,7 @@ class MessageHistory(Base, SnowflakeIDMixin):
         JSONB, nullable=True, comment="Message metadata (JSONB for better performance)"
     )
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=func.now(), comment="Message creation timestamp"
-    )
+    # Timestamps (created_at inherited from ImmutableSnowflakeModel)
 
     # Indexes
     __table_args__ = (

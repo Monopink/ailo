@@ -1,0 +1,26 @@
+"""
+CRUD operations for LLM providers.
+
+This module provides database operations for LLM providers.
+"""
+
+from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from models.llm import LLMProvider
+from schemas.llm import LLMProviderCreate, LLMProviderUpdate
+from crud.base import CRUDBase
+
+
+class CRUDLLMProvider(CRUDBase[LLMProvider, LLMProviderCreate, LLMProviderUpdate]):
+    """CRUD operations for LLMProvider model."""
+
+    async def get_by_name(self, db: AsyncSession, *, name: str) -> Optional[LLMProvider]:
+        """Get LLM provider by name."""
+        result = await db.execute(select(self.model).where(self.model.name == name))
+        return result.scalar_one_or_none()
+
+
+# Create instance
+llm_provider = CRUDLLMProvider(LLMProvider)

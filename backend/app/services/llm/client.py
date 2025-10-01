@@ -12,6 +12,7 @@ from .config import get_active_configs
 from .providers import PROVIDER_REGISTRY
 from models.llm import LLMConfig, LLMProvider
 from utils.logging import get_logger
+from exceptions.llm import LLMNoConfigError
 
 logger = get_logger(__name__)
 
@@ -45,16 +46,12 @@ async def chat_completion(
         configs_to_try = await _get_configs_to_try(db, config_key)
 
         if not configs_to_try:
-            return {
-                "success": False,
-                "error": "No active LLM configurations found",
-                "response": None,
-                "usage": None,
-                "request_payload": None,
-            }
+            raise LLMNoConfigError(config_key=config_key, details={"requested_key": config_key})
 
         # Try each configuration until one succeeds
         last_error = None
+        last_error_code = None
+
         for config, provider in configs_to_try:
             try:
                 result = await _call_provider(
@@ -73,37 +70,54 @@ async def chat_completion(
                         result["request_payload"] = None
                     return result
                 else:
-                    last_error = result["error"]
-                    logger.warning(
+                    last_error = result.get("error", "Unknown error")
+                    last_error_code = result.get("error_code", "UNKNOWN")
+                    logger.warn(
                         "llm_config_failed",
                         config_key=config.config_key,
                         provider=provider.name,
-                        error=result["error"],
+                        error=last_error,
+                        error_code=last_error_code,
                     )
 
             except Exception as e:
                 last_error = str(e)
-                logger.warning(
+                last_error_code = getattr(e, "error_code", "EXCEPTION")
+                logger.error(
                     "llm_config_exception",
                     config_key=config.config_key,
                     provider=provider.name,
                     error=str(e),
+                    exc_info=True,
                 )
 
         # All configurations failed
         return {
             "success": False,
-            "error": f"All LLM configurations failed. Last error: {last_error}",
+            "error": f"所有LLM配置均失败。最后错误: {last_error}",
+            "error_code": last_error_code or "ALL_CONFIGS_FAILED",
+            "response": None,
+            "usage": None,
+            "request_payload": None,
+        }
+
+    except LLMNoConfigError as e:
+        logger.error("no_llm_config", config_key=config_key)
+        return {
+            "success": False,
+            "error": str(e),
+            "error_code": e.error_code,
             "response": None,
             "usage": None,
             "request_payload": None,
         }
 
     except Exception as e:
-        logger.error("chat_completion_error", error=str(e))
+        logger.error("chat_completion_error", error=str(e), exc_info=True)
         return {
             "success": False,
-            "error": str(e),
+            "error": f"LLM调用异常: {str(e)}",
+            "error_code": "SYSTEM_ERROR",
             "response": None,
             "usage": None,
             "request_payload": None,

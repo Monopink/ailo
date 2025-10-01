@@ -97,7 +97,6 @@ class AIContextCreate(BaseModel):
     source_type: AIContextSourceType = Field(AIContextSourceType.ORIGINAL, description="Source type")
     source_message_ids: Optional[List[str]] = Field(None, description="Source message ID list")
     context_metadata: Optional[Dict[str, Any]] = Field(None, description="Context metadata")
-    position: int = Field(..., description="Position in conversation sequence")
     token_count: Optional[int] = Field(None, description="Token count")
 
 
@@ -119,7 +118,6 @@ class AIContextResponse(AIContextBase):
     source_type: AIContextSourceType = Field(..., description="Source type")
     source_message_ids: Optional[List[str]] = Field(None, description="Source message ID list")
     context_metadata: Optional[Dict[str, Any]] = Field(None, description="Context metadata")
-    position: int = Field(..., description="Position in conversation sequence")
     token_count: Optional[int] = Field(None, description="Token count")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")

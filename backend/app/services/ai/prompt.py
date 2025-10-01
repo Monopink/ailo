@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from enums.common import AIContextRole
 from .data import get_personality_with_placeholders
 from exceptions import AIServiceError
 from utils.logging import get_logger
@@ -346,19 +347,27 @@ def _format_profile(profile: Any) -> str:
     try:
         parts = []
 
-        if profile.nickname:
-            parts.append(f"昵称：{profile.nickname}")
+        # Support both dict and object
+        nickname = (
+            profile.get("nickname") if isinstance(profile, dict) else getattr(profile, "nickname", None)
+        )
+        gender = profile.get("gender") if isinstance(profile, dict) else getattr(profile, "gender", None)
+        bio = profile.get("bio") if isinstance(profile, dict) else getattr(profile, "bio", None)
+        region = profile.get("region") if isinstance(profile, dict) else getattr(profile, "region", None)
 
-        if profile.gender:
+        if nickname:
+            parts.append(f"昵称：{nickname}")
+
+        if gender:
             gender_map = {1: "男", 2: "女", 3: "其他", 4: "未知"}
-            gender_str = gender_map.get(profile.gender, "未知")
+            gender_str = gender_map.get(gender, "未知")
             parts.append(f"性别：{gender_str}")
 
-        if profile.bio:
-            parts.append(f"简介：{profile.bio}")
+        if bio:
+            parts.append(f"简介：{bio}")
 
-        if profile.region:
-            parts.append(f"地区：{profile.region}")
+        if region:
+            parts.append(f"地区：{region}")
 
         return "；".join(parts) if parts else "暂无资料"
 
@@ -447,7 +456,7 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
         logger.debug(
             "dynamic_schema_built_successfully",
             style_id=style.id,
-            score_names=style.score_name,
+            score_names=list(score_properties.keys()),
             score_count=len(score_properties),
         )
 
@@ -642,15 +651,15 @@ def _map_context_role_to_message_role(role: int) -> str:
     Map context role enum to message role string.
 
     Args:
-        role: Role enum value (1=user, 2=ai, 3=system)
+        role: Role enum value (1=system, 2=user, 3=assistant)
 
     Returns:
         Message role string
     """
     role_mapping = {
-        1: "user",  # user
-        2: "assistant",  # ai
-        3: "system",  # system
+        AIContextRole.SYSTEM: "system",  # system
+        AIContextRole.USER: "user",  # user
+        AIContextRole.ASSISTANT: "assistant",  # assistant
     }
     return role_mapping.get(role, "user")
 

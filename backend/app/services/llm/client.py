@@ -50,6 +50,7 @@ async def chat_completion(
                 "error": "No active LLM configurations found",
                 "response": None,
                 "usage": None,
+                "request_payload": None,
             }
 
         # Try each configuration until one succeeds
@@ -67,6 +68,9 @@ async def chat_completion(
                         "provider_name": provider.name,
                         "model": config.model_name or provider.default_model,
                     }
+                    # Ensure request_payload is present
+                    if "request_payload" not in result:
+                        result["request_payload"] = None
                     return result
                 else:
                     last_error = result["error"]
@@ -92,11 +96,18 @@ async def chat_completion(
             "error": f"All LLM configurations failed. Last error: {last_error}",
             "response": None,
             "usage": None,
+            "request_payload": None,
         }
 
     except Exception as e:
         logger.error("chat_completion_error", error=str(e))
-        return {"success": False, "error": str(e), "response": None, "usage": None}
+        return {
+            "success": False,
+            "error": str(e),
+            "response": None,
+            "usage": None,
+            "request_payload": None,
+        }
 
 
 async def get_primary_llm_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, LLMProvider]]:
@@ -147,6 +158,7 @@ async def _call_provider(
             "error": f"Unsupported provider: {provider.name}",
             "response": None,
             "usage": None,
+            "request_payload": None,
         }
 
     return await provider_func(
@@ -173,6 +185,7 @@ async def chat_completion_with_provider(
             "error": f"{provider_name.title()} configuration not found or inactive",
             "response": None,
             "usage": None,
+            "request_payload": None,
         }
 
     config, provider = config_result

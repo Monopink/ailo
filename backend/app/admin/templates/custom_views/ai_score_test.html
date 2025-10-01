@@ -1,12 +1,11 @@
 {% extends "layout.html" %}
 
-{% block title %}AI Score Algorithm Test{% endblock %}
+{% block title %}<title>AI Score Algorithm Test</title>{% endblock %}
 
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
     <div>
         <h1>
-            <i class="fas fa-calculator me-2"></i>
             AI Score Algorithm Test
             {% if selected_style_id %}
             <small class="text-muted">- Style {{ selected_style_id }}</small>

@@ -106,13 +106,15 @@ ai_group = DropDown(
         ai_request_log_view,
         ai_context_view,
         ai_relationship_score_view,
-        ai_character_chat_test_view,
-        ai_score_algorithm_test_view,
-        ai_relationship_index_api_view,
     ],
     always_open=False,
 )
 admin.add_view(ai_group)
+
+# Register test views separately (not in menu, accessed via row actions only)
+admin.add_view(ai_character_chat_test_view)
+admin.add_view(ai_score_algorithm_test_view)
+admin.add_view(ai_relationship_index_api_view)
 
 llm_group = DropDown(
     "LLM",

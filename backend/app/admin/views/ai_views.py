@@ -3,20 +3,19 @@ AI-related model views for Starlette-Admin.
 Creates ModelView instances for AI system models.
 """
 
+import json
 from typing import Any, Dict
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import EnumField, IntegerField, StringField, TextAreaField
 from starlette_admin.actions import link_row_action
 
-# Import AI models
 from models.ai.character import AICharacter
 from models.ai.personality import AIPersonality, AIPersonalityPlaceholder
 from models.ai.style import AIStyle, AIRelationship, AIRelationshipDimension, AIRelationshipIndex
 from models.ai.template import AIInfoTemplate, AIProfileTemplate
 from models.ai.log import AIRequestLog
 
-# Import enums
 from enums import (
     AICharacterCreator,
     AICharacterStatus,
@@ -28,6 +27,23 @@ from enums import (
     RequiredStatus,
     ReusableStatus,
 )
+
+
+class ChineseJSONField(TextAreaField):
+    """Custom field that displays JSON with Chinese characters properly in detail view."""
+
+    async def serialize_value(self, request: Request, value: Any, action: str) -> Any:
+        """Serialize value with ensure_ascii=False to display Chinese characters."""
+        if value is None:
+            return None
+
+        # Convert dict to formatted JSON string with Chinese characters
+        # This ensures Chinese characters are displayed properly in all views
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False, indent=2)
+
+        # If already a string, return as is
+        return value
 
 
 class AIPersonalityView(ModelView):
@@ -561,6 +577,7 @@ class AIRequestLogView(ModelView):
         "created_at",
     ]
     exclude_fields_from_list = ["request", "response"]
+    exclude_fields_from_detail = []  # Show all fields in detail view
 
     def can_create(self, request):
         return False
@@ -577,10 +594,12 @@ class AIRequestLogView(ModelView):
         "id",
         "character_id",
         "user_id",
+        "request_type",
         "status",
         "token_count",
         "response_time",
         "created_at",
+        "completed_at",
     ]
 
     fields = [
@@ -589,10 +608,16 @@ class AIRequestLogView(ModelView):
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         IntegerField("style_id", label="AI Style ID"),
         IntegerField("personality_id", label="AI Personality ID"),
+        StringField("request_type", label="Request Type", help_text="production or test"),
+        StringField("provider_name", label="Provider", help_text="LLM provider name"),
+        StringField("model_name", label="Model", help_text="Model name used"),
+        ChineseJSONField("request", label="Request", help_text="Request content in JSON format"),
+        ChineseJSONField("response", label="Response", help_text="Response content in JSON format"),
         EnumField("status", enum=AIRequestStatus, label="Status"),
         IntegerField("token_count", label="Token Count"),
         IntegerField("response_time", label="Response Time (ms)"),
         "created_at",
+        "completed_at",
     ]
 
 

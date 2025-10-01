@@ -30,7 +30,7 @@ class LLMProviderView(ModelView):
         StringField("id", label="ID", help_text="Internal provider ID"),
         EnumField(
             "name",
-            choices=[("doubao", "Doubao")],
+            choices=[("doubao", "Doubao"), ("mock", "Mock (Testing)")],
             label="Provider Name",
             help_text="LLM provider name",
             required=True,
@@ -107,7 +107,7 @@ class LLMConfigView(ModelView):
         StringField("id", label="ID", help_text="Internal config ID"),
         EnumField(
             "provider_id",
-            choices=[(1, "Doubao")],
+            choices=[(1, "Doubao"), (99, "Mock (Testing)")],
             label="Provider",
             help_text="Select LLM provider",
             required=True,

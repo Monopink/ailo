@@ -9,9 +9,9 @@ import json
 import asyncio
 from typing import Dict, Any, Optional, List
 import httpx
-import os
 
 from models.llm import LLMConfig, LLMProvider
+from services.llm.utils import get_provider_api_key, get_provider_base_url
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -53,11 +53,20 @@ async def doubao_chat_completion(
         # Parse response
         result = _parse_doubao_response(response_data)
 
+        # Include request payload in result for logging
+        result["request_payload"] = payload
+
         return result
 
     except Exception as e:
         logger.error("doubao_chat_completion_error", error=str(e))
-        return {"success": False, "error": str(e), "response": None, "usage": None}
+        return {
+            "success": False,
+            "error": str(e),
+            "response": None,
+            "usage": None,
+            "request_payload": None,
+        }
 
 
 def _build_doubao_payload(
@@ -83,14 +92,14 @@ def _build_doubao_payload(
 
     # Add optional parameters with proper defaults
     if temperature is not None:
-        payload["temperature"] = temperature
+        payload["temperature"] = float(temperature)
     elif config.temperature is not None:
-        payload["temperature"] = config.temperature
+        payload["temperature"] = float(config.temperature)
 
     if max_tokens is not None:
-        payload["max_tokens"] = max_tokens
+        payload["max_tokens"] = int(max_tokens)
     elif config.max_tokens is not None:
-        payload["max_tokens"] = config.max_tokens
+        payload["max_tokens"] = int(config.max_tokens)
 
     # Add structured output support according to Doubao documentation
     if json_schema and provider.supports_json_schema:
@@ -118,19 +127,19 @@ async def _send_doubao_request(
     config: LLMConfig, provider: LLMProvider, payload: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Send HTTP request to Doubao API with retries according to official documentation."""
-    # Validate API key configuration
-    if not provider.api_key_env:
-        raise ValueError("API key environment variable not configured")
-
-    api_key = os.getenv(provider.api_key_env)
-    if not api_key:
-        raise ValueError(f"API key not found in environment: {provider.api_key_env}")
+    # Get API key using naming convention
+    api_key = get_provider_api_key(provider)
 
     # Build headers according to Doubao documentation
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
+    # Get base URL (can be overridden by environment variable)
+    base_url = get_provider_base_url(provider)
+    if not base_url:
+        raise ValueError(f"Base URL not configured for provider: {provider.name}")
+
     # Build URL - ensure proper format according to Doubao documentation
-    base_url = provider.base_url.rstrip("/")
+    base_url = base_url.rstrip("/")
     if not base_url.endswith("/api/v3"):
         if base_url.endswith("/"):
             base_url = base_url[:-1]

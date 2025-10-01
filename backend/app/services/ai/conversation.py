@@ -5,9 +5,10 @@ This module handles the complete conversation processing flow,
 coordinating all AI service components with clear error handling.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from enums.common import AIContextRole
 from .data import get_character_with_relations
 from .relationship import (
     determine_relationship_type,
@@ -15,7 +16,6 @@ from .relationship import (
     update_relationship_positions,
 )
 from .prompt import build_system_prompt, get_response_schema, build_conversation_context
-from .context_manager import default_context_manager
 from .memory import process_memory_operations, archive_old_contexts
 from .data import (
     get_conversation_history,
@@ -40,6 +40,7 @@ async def process_conversation(
     character_qiao_id: str,
     message_content: str,
     message_type: str = "text",
+    config_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Process AI conversation following the complete 11-step flow.
@@ -93,7 +94,7 @@ async def process_conversation(
         context_data = {
             "character_qiao_id": character_qiao_id,
             "user_qiao_id": user_qiao_id,
-            "role": 1,  # user role
+            "role": AIContextRole.USER,  # user role
             "content": buffered_message["content"],
             "source_type": 1,  # original
             "reply_status": 1,  # pending
@@ -149,6 +150,7 @@ async def process_conversation(
             messages=messages,
             json_schema=json_schema,
             enable_thinking=True,
+            config_key=config_key,
         )
 
         if not llm_result["success"]:
@@ -186,6 +188,7 @@ async def process_conversation(
             "usage": llm_result.get("usage", {}),
             "model": llm_result.get("model"),
             "config_used": llm_result.get("config_used"),
+            "request_payload": llm_result.get("request_payload"),
         }
 
     except (AICharacterNotFoundError, AICharacterInactiveError) as e:
@@ -346,7 +349,7 @@ async def send_response_messages(
     db: AsyncSession, user_qiao_id: str, character_qiao_id: str, ai_response: Dict[str, Any]
 ) -> None:
     """
-    Send response messages to user.
+    Send response messages to user and save to ai_contexts.
 
     Args:
         db: Database session
@@ -359,10 +362,36 @@ async def send_response_messages(
             logger.debug("ai_chose_not_to_reply", character_qiao_id=character_qiao_id)
             return
 
-        # Send outgoing messages
+        # Send outgoing messages and save to ai_contexts
         outgoing_messages = ai_response.get("outgoing_messages", [])
         for message in outgoing_messages:
+            # Send message (currently just logs)
             await send_single_message(db, character_qiao_id, user_qiao_id, message)
+
+            # Save AI response to ai_contexts table
+            context_data = {
+                "character_qiao_id": character_qiao_id,
+                "user_qiao_id": user_qiao_id,
+                "role": AIContextRole.ASSISTANT,  # assistant role
+                "content": message,
+                "source_type": 1,  # original
+                "reply_status": 3,  # done
+            }
+            context_id = await save_context_entry(db, context_data)
+
+            if context_id:
+                logger.debug(
+                    "ai_response_saved_to_context",
+                    character_qiao_id=character_qiao_id,
+                    user_qiao_id=user_qiao_id,
+                    context_id=context_id,
+                )
+            else:
+                logger.error(
+                    "failed_to_save_ai_response_to_context",
+                    character_qiao_id=character_qiao_id,
+                    user_qiao_id=user_qiao_id,
+                )
 
         # TODO: Implement followup messages with delay
         followup_messages = ai_response.get("followup_messages", [])
@@ -375,7 +404,7 @@ async def send_response_messages(
             # For now, just log that followup messages would be scheduled
 
         logger.info(
-            "response_messages_sent",
+            "response_messages_sent_and_saved",
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
             outgoing_count=len(outgoing_messages),

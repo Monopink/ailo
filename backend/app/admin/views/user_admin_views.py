@@ -4,7 +4,7 @@ Creates ModelView instances for user management and admin system models.
 """
 
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, HasOne, IntegerField, StringField, TextAreaField
+from starlette_admin import EnumField, StringField, TextAreaField
 
 # Import user and admin models
 from models.admin import AdminUser, AdminOperationLog, AdminLoginLog

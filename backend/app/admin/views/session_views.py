@@ -7,19 +7,14 @@ This module contains Starlette-Admin views for managing user sessions and login 
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, StringField, IntegerField, DateTimeField, TextAreaField
+from starlette_admin import EnumField, StringField, DateTimeField, TextAreaField
 from starlette_admin.exceptions import FormValidationError
 
 # Import session models
 from models.user import UserSession, LoginRecord
 
 # Import enums
-from enums import (
-    DeviceType,
-    LoginType,
-    LoginResult,
-    UserStatus,
-)
+from enums import DeviceType, LoginType, LoginResult
 
 
 class UserSessionView(ModelView):

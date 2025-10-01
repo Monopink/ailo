@@ -19,6 +19,7 @@ from models.ai import (
     AIRelationshipDimension,
 )
 from models.profile import Profile
+from models.user import User
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -219,6 +220,32 @@ async def get_character_id_by_qiao_id(db: AsyncSession, character_qiao_id: str) 
 
     except Exception as e:
         logger.error("character_id_query_failed", error=str(e), character_qiao_id=character_qiao_id)
+        return None
+
+
+async def get_user_id_by_qiao_id(db: AsyncSession, user_qiao_id: str) -> Optional[int]:
+    """
+    Get user ID by qiao_id.
+
+    Args:
+        db: Database session
+        user_qiao_id: User's qiao_id
+
+    Returns:
+        User ID or None if not found
+    """
+    try:
+        result = await db.execute(select(User.id).where(User.qiao_id == user_qiao_id))
+
+        user_id = result.scalar_one_or_none()
+
+        if user_id is None:
+            logger.warning("user_id_not_found", user_qiao_id=user_qiao_id)
+
+        return user_id
+
+    except Exception as e:
+        logger.error("user_id_query_failed", error=str(e), user_qiao_id=user_qiao_id)
         return None
 
 

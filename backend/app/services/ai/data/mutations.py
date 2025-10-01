@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from models.ai import AIContext, AIRelationshipScore, AIRequestLog, AICharacter
 from utils.logging import get_logger
+from .character_queries import get_character_id_by_qiao_id, get_user_id_by_qiao_id
 
 logger = get_logger(__name__)
 
@@ -27,8 +28,28 @@ async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> 
         Context ID (int) if successful, None if failed
     """
     try:
+        # Query character_id and user_id from qiao_ids
+        character_id = await get_character_id_by_qiao_id(db, context_data["character_qiao_id"])
+        user_id = await get_user_id_by_qiao_id(db, context_data["user_qiao_id"])
+
+        if character_id is None:
+            logger.error(
+                "character_id_not_found_for_context",
+                character_qiao_id=context_data["character_qiao_id"],
+            )
+            return None
+
+        if user_id is None:
+            logger.error(
+                "user_id_not_found_for_context",
+                user_qiao_id=context_data["user_qiao_id"],
+            )
+            return None
+
         context = AIContext(
+            character_id=character_id,
             character_qiao_id=context_data["character_qiao_id"],
+            user_id=user_id,
             user_qiao_id=context_data["user_qiao_id"],
             role=context_data["role"],
             content=context_data["content"],
@@ -45,6 +66,8 @@ async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> 
         logger.debug(
             "context_entry_saved",
             context_id=context_id,
+            character_id=character_id,
+            user_id=user_id,
             user_qiao_id=context_data["user_qiao_id"],
             character_qiao_id=context_data["character_qiao_id"],
         )

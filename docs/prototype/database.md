@@ -190,7 +190,7 @@ content -- 消息内容
 source_type -- 来源类型：1=original, 2=merged, 3=summarized
 source_message_ids -- 源消息ID列表，JSON数组
 context_metadata -- 上下文元数据，JSON
-position -- 上下文在会话中的顺序位置
+position -- 上下文在会话中的顺序位置(删除)
 token_count -- 消息token数量
 is_attack -- 是否为攻击消息：1=yes, 0=no
 reply_status -- 回复状态：1=pending 2=processing 3=done
@@ -324,7 +324,7 @@ id -- 自增ID
 name -- 人格名称
 prompt -- 人格提示词模板
 json_schema -- JSON模式定义
-typing_speed -- 打字速度
+typing_speed -- 打字速度，每分钟词数
 usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
 created_at
@@ -470,7 +470,7 @@ updated_at
 
 ## ai_request_logs
 
-AI请求日志表，记录所有AI请求和响应。
+AI请求日志表，记录所有AI请求和响应（包括生产环境和测试环境）。
 
 ```txt
 id -- Snowflake ID
@@ -478,12 +478,16 @@ character_id -- 关联ai_characters.id
 user_id -- 关联users.id
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
-request -- 请求内容，JSON格式
-response -- 响应内容，JSON格式
+request_type -- 请求类型：production（生产环境）或test（测试环境），默认production
+provider_name -- LLM提供商名称（如doubao, openai, mock等）
+model_name -- 使用的模型名称
+request -- 请求内容，JSONB格式
+response -- 响应内容，JSONB格式
 status -- 请求状态：1=success, 2=failed, 3=timeout
 token_count -- 消耗的token数量
 response_time -- 响应时间（毫秒）
-created_at
+created_at -- 请求创建时间
+completed_at -- 请求完成时间
 ```
 
 ## contact_requests

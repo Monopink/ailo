@@ -11,6 +11,7 @@ from .character_queries import (
     get_personality_with_placeholders,
     get_style_with_relationships,
     get_character_id_by_qiao_id,
+    get_user_id_by_qiao_id,
     get_all_characters,
 )
 
@@ -66,6 +67,7 @@ __all__ = [
     "get_personality_with_placeholders",
     "get_style_with_relationships",
     "get_character_id_by_qiao_id",
+    "get_user_id_by_qiao_id",
     "get_all_characters",
     # Relationship queries
     "get_character_relationship_scores",

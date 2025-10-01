@@ -16,6 +16,62 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _build_mock_payload(
+    config: LLMConfig,
+    provider: LLMProvider,
+    messages: List[Dict[str, str]],
+    json_schema: Optional[Dict[str, Any]],
+    temperature: Optional[float],
+    max_tokens: Optional[int],
+    enable_thinking: Optional[bool],
+) -> Dict[str, Any]:
+    """
+    Build request payload matching Doubao API format for consistency.
+
+    This ensures mock requests have the same structure as real Doubao requests,
+    making it easier to test and debug.
+    """
+    # Use mock model name or default
+    model = config.model_name or provider.default_model or "mock-model-v1"
+
+    # Build base payload
+    payload = {
+        "model": model,
+        "messages": messages,
+    }
+
+    # Add optional parameters with proper defaults
+    if temperature is not None:
+        payload["temperature"] = float(temperature)
+    elif config.temperature is not None:
+        payload["temperature"] = float(config.temperature)
+
+    if max_tokens is not None:
+        payload["max_tokens"] = int(max_tokens)
+    elif config.max_tokens is not None:
+        payload["max_tokens"] = int(config.max_tokens)
+
+    # Add structured output support (matching Doubao format)
+    if json_schema and provider.supports_json_schema:
+        if config.json_schema_mode == "strict":
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "ai_response", "schema": json_schema, "strict": True},
+            }
+        elif config.json_schema_mode == "auto":
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "ai_response", "schema": json_schema, "strict": False},
+            }
+
+    # Add thinking mode support (matching Doubao format)
+    if provider.supports_thinking:
+        thinking_enabled = enable_thinking if enable_thinking is not None else config.enable_thinking
+        payload["thinking"] = {"type": "enabled" if thinking_enabled else "disabled"}
+
+    return payload
+
+
 async def mock_chat_completion(
     config: LLMConfig,
     provider: LLMProvider,
@@ -41,6 +97,11 @@ async def mock_chat_completion(
         Dictionary containing mock response data and metadata
     """
     try:
+        # Build complete request payload (matching Doubao API format)
+        payload = _build_mock_payload(
+            config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
+        )
+
         # Simulate processing delay
         await asyncio.sleep(0.5)
 
@@ -61,7 +122,7 @@ async def mock_chat_completion(
         usage = {
             "prompt_tokens": sum(len(msg.get("content", "").split()) for msg in messages),
             "completion_tokens": (
-                len(str(response_content).split()) if isinstance(response_content, str) else 50
+                len(str(response_content).split()) if isinstance(response_content, dict) else 50
             ),
             "total_tokens": 0,
         }
@@ -74,13 +135,20 @@ async def mock_chat_completion(
                 json.dumps(response_content) if isinstance(response_content, dict) else response_content
             ),
             "usage": usage,
-            "model": "mock-model-v1",
+            "model": payload["model"],
             "finish_reason": "stop",
+            "request_payload": payload,  # Include complete request payload
         }
 
     except Exception as e:
         logger.error("mock_chat_completion_error", error=str(e))
-        return {"success": False, "error": str(e), "response": None, "usage": None}
+        return {
+            "success": False,
+            "error": str(e),
+            "response": None,
+            "usage": None,
+            "request_payload": None,
+        }
 
 
 def _generate_structured_response(json_schema: Dict[str, Any], user_message: str) -> Dict[str, Any]:
@@ -103,8 +171,8 @@ def _generate_structured_response(json_schema: Dict[str, Any], user_message: str
                 response[field_name] = True
             elif field_name == "outgoing_messages":
                 response[field_name] = [
-                    f"收到你的消息了！你说：{user_message[:30]}...",
-                    "我是AI助手，很高兴和你聊天！",
+                    f"嗯嗯，听到了～你说：{user_message[:30]}{'...' if len(user_message) > 30 else ''}",
+                    "有什么想聊的吗？我在呢！",
                 ]
             elif field_name == "score":
                 # Generate mock scores based on schema

@@ -55,7 +55,6 @@ async def get_conversation_contexts(
                     "id": context.id,
                     "role": context.role,
                     "content": context.content,
-                    "position": context.position,
                     "created_at": context.created_at,
                 }
             )
@@ -195,7 +194,9 @@ async def get_contexts_for_archiving(
         List of contexts to archive
     """
     try:
-        cutoff_date = datetime.now() - timedelta(days=max_age_days)
+        from datetime import timezone
+
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=max_age_days)
 
         # Get all done contexts for this character
         result = await db.execute(

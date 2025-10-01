@@ -10,7 +10,7 @@ from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, func
 from sqlalchemy.dialects.postgresql import JSONB, INET
 from sqlalchemy.orm import Mapped, mapped_column
 
-from enums import UserStatus, UserType, DeviceType, LoginType, LoginResult
+from enums import UserType
 from models.base import SnowflakeQiaoModel, SnowflakeModel, StatusMixin, Base, SnowflakeIDMixin
 
 
@@ -48,7 +48,10 @@ class User(SnowflakeQiaoModel, StatusMixin):
     )
 
     user_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=UserType.NORMAL, comment="User type: 1=normal, 2=official, 3=virtual"
+        Integer,
+        nullable=False,
+        default=UserType.NORMAL,
+        comment="User type: 1=normal, 2=official, 3=virtual",
     )
 
     last_login: Mapped[Optional[datetime]] = mapped_column(

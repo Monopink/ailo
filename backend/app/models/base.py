@@ -140,6 +140,21 @@ class AutoIncrementModel(BaseModel, AutoIncrementIDMixin):
     __abstract__ = True
 
 
+class ImmutableAutoIncrementModel(Base, AutoIncrementIDMixin):
+    """
+    Base model for immutable entities that use auto-increment IDs.
+
+    Use this for log tables and other immutable data that only needs created_at.
+    Does not include updated_at field.
+    """
+
+    __abstract__ = True
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=func.now(), comment="Record creation timestamp"
+    )
+
+
 class SnowflakeQiaoModel(SnowflakeModel, QiaoIDMixin):
     """
     Base model for entities that use both Snowflake IDs and qiao_id.

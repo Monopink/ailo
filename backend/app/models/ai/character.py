@@ -9,7 +9,6 @@ from sqlalchemy import BigInteger, Integer, String, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from enums import AICharacterCreator
 from models.base import SnowflakeModel, SnowflakeQiaoModel
 
 
@@ -125,10 +124,6 @@ class AIContext(SnowflakeModel):
         JSONB, nullable=True, comment="Context metadata (JSONB for better performance)"
     )
 
-    position: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Position in conversation sequence"
-    )
-
     token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Token count")
 
     is_attack: Mapped[int] = mapped_column(
@@ -146,7 +141,6 @@ class AIContext(SnowflakeModel):
         Index("idx_ai_contexts_user_id", "user_id"),
         Index("idx_ai_contexts_user_qiao_id", "user_qiao_id"),
         Index("idx_ai_contexts_role", "role"),
-        Index("idx_ai_contexts_position", "position"),
         Index("idx_ai_contexts_is_attack", "is_attack"),
         Index("idx_ai_contexts_reply_status", "reply_status"),
         # PostgreSQL GIN indexes for JSONB fields for better query performance
@@ -192,10 +186,6 @@ class AIContextArchive(SnowflakeModel):
 
     context_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB, nullable=True, comment="Context metadata (JSONB for better performance)"
-    )
-
-    position: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Position in conversation sequence"
     )
 
     token_count: Mapped[Optional[int]] = mapped_column(

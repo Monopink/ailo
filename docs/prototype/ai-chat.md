@@ -389,3 +389,9 @@ JSON Schema 用于约束大模型输出内容。
 先发送outgoing_messages内容，等待x秒后，发送followup_messages内容。
 
 如果发送过程中被打断（用户发送消息），则停止发送。开始新的一轮请求。
+
+## 打字速度计算
+
+ai_personalities.typing_speed * 词数
+
+1词数 = 1全角字符 = 3半角字符 = 1emoji = 1特殊字符

@@ -5,9 +5,11 @@ This module handles conversation history management, message merging logic,
 and context length control for AI conversations.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, List
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from enums.common import AIContextRole
 from .data import get_conversation_contexts, save_context_entry
 from exceptions import AIServiceError
 from utils.logging import get_logger
@@ -148,7 +150,7 @@ class ContextManager:
             context_data = {
                 "character_qiao_id": character_qiao_id,
                 "user_qiao_id": user_qiao_id,
-                "role": 1,  # user
+                "role": AIContextRole.USER,  # user
                 "content": message_content,
                 "source_type": 2 if merge_with_recent else 1,  # merged or original
             }
@@ -206,7 +208,7 @@ class ContextManager:
             context_data = {
                 "character_qiao_id": character_qiao_id,
                 "user_qiao_id": user_qiao_id,
-                "role": 2,  # ai
+                "role": AIContextRole.ASSISTANT,  # assistant
                 "content": response_content,
                 "source_type": 1,  # original
             }
@@ -277,6 +279,7 @@ class ContextManager:
         """
         try:
             # Get recent contexts within merge window
+            # TODO: Implement message merging logic using cutoff_time for buffer mechanism
             cutoff_time = datetime.utcnow() - timedelta(seconds=self.merge_window_seconds)
 
             # For now, return original content as merging logic needs more complex implementation

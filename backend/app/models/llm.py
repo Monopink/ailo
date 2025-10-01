@@ -34,10 +34,6 @@ class LLMProvider(AutoIncrementModel):
 
     base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="API base URL")
 
-    api_key_env: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Environment variable name for API key"
-    )
-
     default_model: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True, comment="Default model name"
     )

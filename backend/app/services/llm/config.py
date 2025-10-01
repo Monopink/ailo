@@ -12,7 +12,7 @@ from models.llm import LLMConfig, LLMProvider
 
 
 async def get_llm_config(
-    db: AsyncSession, config_key: str = None, config_id: int = None
+    db: AsyncSession, config_key: Optional[str] = None, config_id: Optional[int] = None
 ) -> Optional[Tuple[LLMConfig, LLMProvider]]:
     """
     Get LLM configuration and provider by config key or ID.
@@ -32,11 +32,11 @@ async def get_llm_config(
     else:
         return None
 
-    if not config or config.status != 1:
+    if not config:
         return None
 
     provider = await llm_provider.get(db, id=config.provider_id)
-    if not provider or provider.status != 1:
+    if not provider:
         return None
 
     return config, provider
@@ -57,7 +57,7 @@ async def get_primary_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, LLMP
         return None
 
     provider = await llm_provider.get(db, id=config.provider_id)
-    if not provider or provider.status != 1:
+    if not provider:
         return None
 
     return config, provider
@@ -78,7 +78,7 @@ async def get_active_configs(db: AsyncSession) -> List[Tuple[LLMConfig, LLMProvi
 
     for config in configs:
         provider = await llm_provider.get(db, id=config.provider_id)
-        if provider and provider.status == 1:
+        if provider:
             result.append((config, provider))
 
     return result
@@ -98,7 +98,7 @@ async def get_config_by_provider(
         Tuple of (config, provider) or None if not found
     """
     provider = await llm_provider.get_by_name(db, name=provider_name)
-    if not provider or provider.status != 1:
+    if not provider:
         return None
 
     configs = await llm_config.get_active_configs(db, provider_id=provider.id)

@@ -1,11 +1,10 @@
 """
 AI character testing views for admin panel.
 
-This module provides admin interface for testing AI characters
-with different users and LLM configurations.
+This module provides admin interface for testing AI characters following
+the architectural patterns and prototype design specifications.
 """
 
-import uuid
 from typing import Dict, Any, List, Optional
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -14,18 +13,14 @@ from starlette_admin import CustomView
 from sqlalchemy import text
 
 from core.database import SessionLocal
-from services.admin.test_users import default_test_user_service
-from services.llm.config import default_llm_config_service
-from services.ai.data import get_all_characters
-from services.ai.conversation import process_conversation
+from services.admin.ai_character_chat import ai_character_chat_test_service, AICharacterChatTestError
 from services.ai.utils.score_algorithm import (
     apply_score_algorithm,
     get_algorithm_info,
     validate_algorithm_params,
 )
-from services.ai.relationship import get_relationship_scores
-from services.llm.request_logger import default_request_logger
 from utils.logging import get_logger
+from utils.form_helpers import get_text_field, get_int_field, FormFieldError
 
 logger = get_logger(__name__)
 
@@ -34,249 +29,241 @@ templates = Jinja2Templates(directory="admin/templates")
 
 
 class AICharacterChatTestView(CustomView):
-    """AI Character Chat Test interface."""
+    """
+    AI Character Chat Test interface following prototype design.
+
+    Prototype Requirements:
+    - Only includes: LLM Configuration dropdown + Test message input
+    - No AI character selection (fixed via URL parameter)
+    - No user selection (automatically matched)
+    - Shows prerequisite validation status
+    - Supports continuous testing with context preservation
+    """
 
     def is_accessible(self, request: Request) -> bool:
         """Allow access to this view."""
         return True
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
-        """Render the AI character chat test interface."""
+        """Render the AI character chat test interface according to prototype design."""
+
+        # Check action parameter for API endpoints
+        action = request.query_params.get("action")
+
+        if action == "readiness":
+            return await self.check_test_readiness(request)
+
+        # Handle POST requests (test execution)
+        if request.method == "POST":
+            return await self.handle_test_request(request)
+
+        # Default GET request - render the interface
         try:
-            # Get character_id from URL parameters
-            character_id = request.query_params.get("character_id")
-
-            # Initialize variables
-            test_users = []
-            llm_config_options = []
-            character_options = []
-            characters = []
-            selected_character = None
-
-            # Get database session
-            async with SessionLocal() as db:
-                # Get test users
-                test_users = await default_test_user_service.get_test_users_for_selection(db)
-
-                # Get LLM configs
-                llm_configs = await default_llm_config_service.get_active_configs(db)
-                llm_config_options = [
+            # Get character_id from URL parameters (required)
+            character_id_str = request.query_params.get("character_id")
+            if not character_id_str:
+                return templates.TemplateResponse(
+                    "custom_views/ai_character_chat_test.html",
                     {
-                        "value": config["config_key"],
-                        "label": f"{config['config_key']} ({config['model_name']})",
-                    }
-                    for config in llm_configs
-                ]
+                        "request": request,
+                        "error": "Character ID is required in URL parameters",
+                        "page_title": "AI Character Chat Test - Error",
+                    },
+                )
 
-                # Get AI characters
-                characters = await get_all_characters(db)
-                character_options = [
+            try:
+                character_id = int(character_id_str)
+            except ValueError:
+                return templates.TemplateResponse(
+                    "custom_views/ai_character_chat_test.html",
                     {
-                        "value": char["qiao_id"],
-                        "label": f"{char['name']} ({char['qiao_id']})",
-                    }
-                    for char in characters
-                ]
+                        "request": request,
+                        "error": "Invalid character ID format",
+                        "page_title": "AI Character Chat Test - Error",
+                    },
+                )
 
-            # Parse character_id from query parameters (single character)
-            selected_character_id = request.query_params.get("character_id", "")
-            selected_character_info = None
-
-            # Get detailed info for selected character
-            if selected_character_id:
-                for char in characters:
-                    if char["qiao_id"] == selected_character_id:
-                        selected_character_info = char
-                        break
-
+            # Initialize context
             context = {
                 "request": request,
-                "test_users": test_users,
-                "llm_configs": llm_config_options,
-                "characters": character_options,
-                "selected_character_id": selected_character_id,
-                "selected_character_info": selected_character_info,
+                "character_id": character_id,
                 "page_title": "AI Character Chat Test",
+                "test_readiness": None,
+                "llm_configs": [],
+                "error": None,
             }
+
+            async with SessionLocal() as db:
+                # Check test readiness using the new service
+                test_readiness = await ai_character_chat_test_service.validate_test_readiness(
+                    db=db, character_id=character_id
+                )
+                context["test_readiness"] = test_readiness
+
+                # Get available LLM configurations
+                if test_readiness.get("ready", False):
+                    context["llm_configs"] = test_readiness.get("available_llm_configs", [])
 
             return templates.TemplateResponse("custom_views/ai_character_chat_test.html", context)
 
         except Exception as e:
-            logger.error(
-                "ai_character_chat_test_render_failed",
-                error=str(e),
-            )
-            return JSONResponse(
-                {"error": "Failed to load AI character chat test interface"},
-                status_code=500,
+            logger.error("ai_character_chat_test_render_failed", error=str(e), exc_info=True)
+            return templates.TemplateResponse(
+                "custom_views/ai_character_chat_test.html",
+                {
+                    "request": request,
+                    "error": f"Failed to load AI character chat test interface: {str(e)}",
+                    "page_title": "AI Character Chat Test - Error",
+                },
             )
 
     async def handle_test_request(self, request: Request) -> JSONResponse:
-        """Handle AI character test request."""
-        try:
-            # Parse request data
-            form_data = await request.form()
-            character_qiao_id = form_data.get("character_qiao_id")
-            user_qiao_id = form_data.get("user_qiao_id")
-            llm_config_key = form_data.get("llm_config_key")
-            test_message = form_data.get("test_message", "Hello, how are you today?")  # real or simulated
+        """
+        Handle AI character test request using the new unified service.
 
-            # Validate required fields
-            if not all([character_qiao_id, user_qiao_id, llm_config_key]):
+        This method leverages the facade service to execute the complete test flow:
+        validation -> user matching -> execution (calling main logic).
+        """
+        try:
+            # Parse request data with type-safe extraction
+            form_data = await request.form()
+
+            try:
+                character_id = get_int_field(form_data, "character_id")
+                llm_config_key = get_text_field(form_data, "llm_config_key")
+                test_message = get_text_field(form_data, "test_message")
+            except FormFieldError as e:
                 return JSONResponse(
-                    {"error": "Missing required fields: character_qiao_id, user_qiao_id, llm_config_key"},
+                    {"error": str(e)},
                     status_code=400,
                 )
 
-            # Generate test session ID
-            test_session_id = str(uuid.uuid4())
-
-            async with SessionLocal() as db:
-                # Validate test user
-                is_valid_user = await default_test_user_service.validate_test_user(db, user_qiao_id)
-                if not is_valid_user:
-                    return JSONResponse(
-                        {"error": f"Invalid test user: {user_qiao_id}"},
-                        status_code=400,
-                    )
-
-                # Start request logging
-                request_id = await default_request_logger.start_request_log(
-                    db=db,
-                    character_qiao_id=character_qiao_id,
-                    user_qiao_id=user_qiao_id,
-                    config_key=llm_config_key,
-                    test_session_id=test_session_id,
-                    request_data={
-                        "message": test_message,
-                        "character_qiao_id": character_qiao_id,
-                        "user_qiao_id": user_qiao_id,
-                        "llm_config_key": llm_config_key,
-                    },
+            # Validate message content
+            if not test_message.strip():
+                return JSONResponse(
+                    {"error": "Test message cannot be empty"},
+                    status_code=400,
                 )
 
-                try:
-                    # Process AI conversation using configured LLM
-                    import time
+            async with SessionLocal() as db:
+                # Use the unified facade service for complete test execution
+                result = await ai_character_chat_test_service.prepare_and_execute_test(
+                    db=db,
+                    character_id=character_id,
+                    llm_config_key=llm_config_key,
+                    test_message=test_message,
+                )
 
-                    start_time = time.time()
+                # Format response for frontend display
+                test_execution = result["test_execution"]
 
-                    conversation_result = await process_conversation(
-                        db=db,
-                        user_qiao_id=user_qiao_id,
-                        character_qiao_id=character_qiao_id,
-                        message_content=test_message,
-                    )
+                response_data = {
+                    "success": True,
+                    "test_mode": test_execution["test_mode"],
+                    "log_id": test_execution["log_id"],
+                    "character_info": {
+                        "qiao_id": result["validation_info"]["character"]["qiao_id"],
+                        "category": result["validation_info"]["character"]["category"],
+                        "style": result["validation_info"]["style"]["display_name"],
+                        "personality": result["validation_info"]["personality"]["display_name"],
+                    },
+                    "test_user_info": {
+                        "qiao_id": result["test_user_info"]["test_user"]["qiao_id"],
+                        "username": result["test_user_info"]["test_user"]["username"],
+                        "nickname": result["test_user_info"]["test_user_profile"]["nickname"],
+                    },
+                    "conversation": test_execution["conversation"],
+                    "performance": test_execution["performance"],
+                    "relationship_scores": result["validation_info"]["relationship_scores"],
+                }
 
-                    end_time = time.time()
-                    response_time_ms = int((end_time - start_time) * 1000)
+                logger.info(
+                    "ai_character_test_completed_successfully",
+                    character_id=character_id,
+                    response_time_ms=test_execution["performance"]["response_time_ms"],
+                    messages_count=len(test_execution["conversation"]["all_messages"]),
+                )
 
-                    # Complete request log
-                    await default_request_logger.complete_request_log(
-                        db=db,
-                        request_id=request_id,
-                        response_data=conversation_result,
-                        response_time_ms=response_time_ms,
-                        status="success",
-                    )
+                return JSONResponse(response_data)
 
-                    result = {
-                        "success": True,
-                        "request_id": request_id,
-                        "test_session_id": test_session_id,
-                        "response": conversation_result,
-                        "response_time_ms": response_time_ms,
-                    }
+        except FormFieldError as e:
+            logger.error(
+                "ai_character_test_form_validation_error",
+                error=str(e),
+            )
+            return JSONResponse(
+                {"success": False, "error": str(e)},
+                status_code=400,
+            )
 
-                    logger.info(
-                        "ai_character_test_completed",
-                        character_qiao_id=character_qiao_id,
-                        user_qiao_id=user_qiao_id,
-                        test_session_id=test_session_id,
-                    )
-
-                    return JSONResponse(result)
-
-                except Exception as conversation_error:
-                    # Complete request log with error
-                    await default_request_logger.complete_request_log(
-                        db=db,
-                        request_id=request_id,
-                        status="error",
-                        error_message=str(conversation_error),
-                    )
-
-                    logger.error(
-                        "ai_character_test_conversation_failed",
-                        error=str(conversation_error),
-                        character_qiao_id=character_qiao_id,
-                        user_qiao_id=user_qiao_id,
-                    )
-
-                    return JSONResponse(
-                        {
-                            "success": False,
-                            "error": f"Conversation processing failed: {str(conversation_error)}",
-                            "request_id": request_id,
-                            "test_session_id": test_session_id,
-                        },
-                        status_code=500,
-                    )
+        except AICharacterChatTestError as e:
+            logger.error(
+                "ai_character_test_service_error",
+                error_code=e.error_code,
+                error=str(e),
+            )
+            return JSONResponse(
+                {
+                    "success": False,
+                    "error": e.message,
+                    "error_code": e.error_code,
+                    "suggestions": e.suggestions,
+                },
+                status_code=400,
+            )
 
         except Exception as e:
             logger.error(
                 "ai_character_test_request_failed",
                 error=str(e),
+                exc_info=True,
             )
             return JSONResponse(
-                {"error": f"Test request failed: {str(e)}"},
+                {"success": False, "error": f"Test request failed: {str(e)}"},
                 status_code=500,
             )
 
-    async def get_test_logs(self, request: Request) -> JSONResponse:
-        """Get test session logs."""
+    async def check_test_readiness(self, request: Request) -> JSONResponse:
+        """API endpoint to check test readiness status."""
         try:
-            test_session_id = request.query_params.get("test_session_id")
-            if not test_session_id:
+            character_id_str = request.query_params.get("character_id")
+            if not character_id_str:
                 return JSONResponse(
-                    {"error": "Missing test_session_id parameter"},
+                    {"error": "Missing character_id parameter"},
+                    status_code=400,
+                )
+
+            try:
+                character_id = int(character_id_str)
+            except ValueError:
+                return JSONResponse(
+                    {"error": "Invalid character_id format"},
                     status_code=400,
                 )
 
             async with SessionLocal() as db:
-                # Get request logs
-                logs = await default_request_logger.get_request_logs(
-                    db=db,
-                    test_session_id=test_session_id,
-                    limit=50,
+                readiness = await ai_character_chat_test_service.validate_test_readiness(
+                    db=db, character_id=character_id
                 )
 
-                # Get session summary
-                summary = await default_request_logger.get_test_session_summary(db, test_session_id)
-
-                result = {
-                    "test_session_id": test_session_id,
-                    "summary": summary,
-                    "logs": [log.to_dict() for log in logs],
-                }
-
-                return JSONResponse(result)
+                return JSONResponse(readiness)
 
         except Exception as e:
             logger.error(
-                "ai_character_test_logs_failed",
+                "test_readiness_check_failed",
+                character_id=character_id_str,
                 error=str(e),
             )
             return JSONResponse(
-                {"error": f"Failed to get test logs: {str(e)}"},
+                {"error": f"Failed to check test readiness: {str(e)}"},
                 status_code=500,
             )
 
 
 class AIScoreAlgorithmTestView(CustomView):
-    """AI Score Algorithm Test interface."""
+    """AI Score Algorithm Test interface - Kept largely unchanged for reference."""
 
-    def is_accessible(self, request: Request) -> bool:
+    def is_accessible(self, _request: Request) -> bool:
         """Allow access to this view."""
         return True
 
@@ -289,9 +276,7 @@ class AIScoreAlgorithmTestView(CustomView):
             context = {
                 "request": request,
                 "algorithm_info": {},
-                "character_options": [],
                 "test_result": None,
-                "character_scores": None,
                 "error": None,
                 "selected_style_id": style_id,
                 "relationships": [],
@@ -306,17 +291,6 @@ class AIScoreAlgorithmTestView(CustomView):
 
             # Get database session
             async with SessionLocal() as db:
-                # Get all characters for testing
-                characters = await get_all_characters(db)
-                context["character_options"] = [
-                    {
-                        "qiao_id": char["qiao_id"],
-                        "name": char["name"],
-                        "nickname": char.get("nickname", ""),  # Use get() to handle missing nickname
-                    }
-                    for char in characters
-                ]
-
                 # Get dimensions and relationships for the selected style
                 if style_id:
                     dimensions_result = await db.execute(
@@ -371,8 +345,6 @@ class AIScoreAlgorithmTestView(CustomView):
 
                     if action == "test_algorithm":
                         context["test_result"] = await self._handle_test_algorithm(form_data)
-                    elif action == "get_character_scores":
-                        context["character_scores"] = await self._handle_character_scores(db, form_data)
 
             return templates.TemplateResponse("custom_views/ai_score_test.html", context)
 
@@ -386,13 +358,12 @@ class AIScoreAlgorithmTestView(CustomView):
                         1: get_algorithm_info(1),
                         2: get_algorithm_info(2),
                     },
-                    "character_options": [],
                     "error": f"Failed to render score test interface: {str(e)}",
                 },
             )
 
     async def _handle_test_algorithm(self, form_data) -> Dict[str, Any]:
-        """Handle score algorithm testing with multi-dimension support."""
+        """Handle score algorithm testing - direct call to utility functions."""
         try:
             # Get basic parameters
             raw_algorithm = form_data.get("algorithm")
@@ -417,7 +388,7 @@ class AIScoreAlgorithmTestView(CustomView):
                         "message": "Invalid current_relationship value",
                     }
 
-            # Parse algorithm parameters (no silent defaults)
+            # Parse algorithm parameters
             params: Dict[str, Any] = {}
             if algorithm == 2:  # V1 algorithm
                 left_bias_str = form_data.get("left_bias")
@@ -444,7 +415,7 @@ class AIScoreAlgorithmTestView(CustomView):
                         "message": "Algorithm parameters validation failed",
                     }
 
-            # Get dimensions and their scores from form data
+            # Get dimensions from database
             async with SessionLocal() as db:
                 dimensions_result = await db.execute(
                     text(
@@ -462,23 +433,11 @@ class AIScoreAlgorithmTestView(CustomView):
                 if not dimensions:
                     return {"success": False, "message": "No dimensions configured for this style"}
 
-                # Validate current relationship name if provided
-                if current_relationship_id is not None:
-                    rel_res = await db.execute(
-                        text("SELECT display_name FROM ai_relationships WHERE id = :id"),
-                        {"id": current_relationship_id},
-                    )
-                    row = rel_res.first()
-                    current_relationship_name = row.display_name if row else None
-
-                # Process each dimension with its own score range
+                # Process each dimension
                 dimension_results: List[Dict[str, Any]] = []
-                all_relationship_candidates: List[Dict[str, Any]] = (
-                    []
-                )  # Store candidates from all dimensions
 
                 for dim in dimensions:
-                    # Get per-dimension score configuration (no server-side defaults)
+                    # Get per-dimension score configuration
                     score_key = f"score_{dim.name}"
                     score_min_key = f"score_min_{dim.name}"
                     score_max_key = f"score_max_{dim.name}"
@@ -510,27 +469,14 @@ class AIScoreAlgorithmTestView(CustomView):
                             "message": f"Score max must be greater than score min for dimension {dim.display_name}",
                         }
 
-                    # First map score to 0-1000 range
+                    # Map score to 0-1000 range
                     mapped_position = ((score - score_min) / (score_max - score_min)) * 1000.0
                     mapped_position = max(0.0, min(1000.0, mapped_position))
 
-                    # Then apply algorithm with mapped score
+                    # Apply algorithm directly using utility function
                     final_position = apply_score_algorithm(
                         algorithm, mapped_position, dim.initial_position, params
                     )
-
-                    # Calculate detailed debugging information
-                    score_range = score_max - score_min
-                    score_offset_from_min = score - score_min
-                    mapping_ratio = score_offset_from_min / score_range if score_range > 0 else 0.0
-                    position_offset_from_initial = final_position - dim.initial_position
-                    algorithm_applied_offset = final_position - mapped_position
-
-                    # Find candidate relationships for this dimension (restrict to selected style)
-                    candidates = await self._find_relationship_candidates_by_position(
-                        style_id, dim.name, final_position
-                    )
-                    all_relationship_candidates.extend(candidates)
 
                     dimension_results.append(
                         {
@@ -543,47 +489,11 @@ class AIScoreAlgorithmTestView(CustomView):
                             "initial_position": dim.initial_position,
                             "final_position": final_position,
                             "offset": final_position - mapped_position,
-                            "candidates": candidates,
-                            "debug_info": {
-                                "score_range": score_range,
-                                "score_offset_from_min": score_offset_from_min,
-                                "mapping_ratio": mapping_ratio,
-                                "position_offset_from_initial": position_offset_from_initial,
-                                "algorithm_applied_offset": algorithm_applied_offset,
-                            },
                         }
                     )
 
-                # Relationship selection according to documentation
-                selected_relationship = await self._select_final_relationship(
-                    all_relationship_candidates, current_relationship_id
-                )
-
-                # Enhance selected relationship with candidate summary
-                unique_relationship_ids = {c.get("relationship_id") for c in all_relationship_candidates}
-                selected_relationship["candidate_relationships"] = len(unique_relationship_ids)
-                # partial_matches is optional and UI tolerates absence; keep as empty list for clarity
-                selected_relationship["partial_matches"] = []
-
-                # Update dimension results with selected relationship
-                for result in dimension_results:
-                    result["relationship"] = selected_relationship
-                    result["debug_info"]["relationship_position_range"] = selected_relationship.get(
-                        "position_range", "N/A"
-                    )
-
-                # Get algorithm info for display from services layer
+                # Get algorithm info
                 algo_info = get_algorithm_info(algorithm)
-
-                # Relationship change status (only if current is provided and valid)
-                relationship_changed: Optional[bool] = None
-                if (
-                    current_relationship_id is not None
-                    and selected_relationship.get("relationship_id") is not None
-                ):
-                    relationship_changed = (
-                        selected_relationship["relationship_id"] != current_relationship_id
-                    )
 
                 return {
                     "success": True,
@@ -592,155 +502,40 @@ class AIScoreAlgorithmTestView(CustomView):
                     "dimension_results": dimension_results,
                     "current_relationship_id": current_relationship_id,
                     "current_relationship_name": current_relationship_name,
-                    "relationship_changed": relationship_changed,
                 }
 
         except Exception as e:
             logger.error("ai_score_algorithm_test_failed", error=str(e))
             return {"success": False, "message": f"Algorithm test failed: {str(e)}"}
 
-    async def _find_relationship_candidates_by_position(
-        self, style_id: int, dimension_name: str, position: float
-    ) -> List[Dict[str, Any]]:
-        """Find all candidate relationships for a dimension position"""
-        try:
-            async with SessionLocal() as db:
-                query = """
-                SELECT DISTINCT
-                    ari.relationship_id,
-                    ari.dimension_name,
-                    ari.start_position,
-                    ari.end_position,
-                    ari.priority,
-                    ar.display_name,
-                    ar.prompt_fragment
-                FROM ai_relationship_indexes ari
-                JOIN ai_relationships ar ON ari.relationship_id = ar.id
-                WHERE ari.style_id = :style_id
-                AND ari.dimension_name = :dimension_name
-                AND :position BETWEEN ari.start_position AND ari.end_position
-                ORDER BY ari.priority ASC
-                """
 
-                from sqlalchemy import text
+# Create view instances with updated configuration
+ai_character_chat_test_view = AICharacterChatTestView(
+    label="Character Chat Test",
+    icon="",
+    path="/ai-character-chat-test",
+    methods=["GET", "POST"],  # Allow both GET and POST
+    add_to_menu=False,  # Accessed via row actions only
+)
 
-                result = await db.execute(
-                    text(query),
-                    {"style_id": int(style_id), "dimension_name": dimension_name, "position": position},
-                )
-                rows = result.fetchall()
-
-                candidates = []
-                for row in rows:
-                    candidates.append(
-                        {
-                            "relationship_id": row.relationship_id,
-                            "dimension_name": row.dimension_name,
-                            "display_name": row.display_name,
-                            "prompt_fragment": row.prompt_fragment,
-                            "position_range": f"{row.start_position}-{row.end_position}",
-                            "priority": row.priority,
-                        }
-                    )
-
-                return candidates
-
-        except Exception as e:
-            logger.error("relationship_candidates_lookup_failed", error=str(e))
-            return []
-
-    async def _select_final_relationship(
-        self, all_candidates: List[Dict[str, Any]], current_relationship_id: Optional[int] = None
-    ) -> Dict[str, Any]:
-        """Select final relationship according to documentation requirements"""
-        try:
-            if not all_candidates:
-                return {
-                    "display_name": "No Match",
-                    "prompt_fragment": "No relationships found",
-                    "position_range": "N/A",
-                    "selection_reason": "No candidates found",
-                }
-
-            # 1. Special rule: if current relationship is among candidates, prioritize it
-            if current_relationship_id:
-                for candidate in all_candidates:
-                    if candidate["relationship_id"] == current_relationship_id:
-                        candidate["selection_reason"] = "Current relationship prioritized"
-                        logger.info(
-                            "current_relationship_prioritized_in_test",
-                            current_relationship_id=current_relationship_id,
-                            relationship_name=candidate["display_name"],
-                            total_candidates=len(all_candidates),
-                        )
-                        return candidate
-
-            # 2. Sort by priority (higher number = higher priority)
-            sorted_candidates = sorted(all_candidates, key=lambda x: x["priority"], reverse=True)
-
-            # 3. Check for priority conflicts
-            highest_priority = sorted_candidates[0]["priority"]
-            conflicts = [c for c in sorted_candidates if c["priority"] == highest_priority]
-
-            if len(conflicts) > 1:
-                # Log priority conflict but continue with first candidate
-                conflict_ids = [c["relationship_id"] for c in conflicts]
-                logger.warning(
-                    "priority_conflict_detected_selecting_first",
-                    priority=highest_priority,
-                    conflicting_relationships=conflict_ids,
-                    selected_relationship=conflicts[0]["relationship_id"],
-                )
-                selected = conflicts[0]
-                selected["selection_reason"] = (
-                    f"Priority conflict detected (priority {highest_priority}), selected first candidate among {len(conflicts)} conflicts"
-                )
-            else:
-                selected = sorted_candidates[0]
-                selected["selection_reason"] = (
-                    f"Highest priority (priority {highest_priority}) among {len(all_candidates)} candidates"
-                )
-
-            return selected
-
-        except Exception as e:
-            logger.error("relationship_selection_failed", error=str(e))
-            return {
-                "display_name": "Selection Error",
-                "prompt_fragment": f"Selection failed: {str(e)}",
-                "position_range": "N/A",
-                "selection_reason": "Error occurred during selection",
-            }
-
-    async def _handle_character_scores(self, db, form_data) -> Dict[str, Any]:
-        """Handle getting character relationship scores."""
-        try:
-            character_qiao_id = form_data.get("character_qiao_id")
-
-            if not character_qiao_id:
-                return {"error": "Character qiao_id is required"}
-
-            scores = await get_relationship_scores(db, character_qiao_id)
-
-            return {
-                "success": True,
-                "scores": scores,
-            }
-
-        except Exception as e:
-            logger.error("ai_character_scores_failed", error=str(e))
-            return {"error": f"Failed to get character scores: {str(e)}"}
+ai_score_algorithm_test_view = AIScoreAlgorithmTestView(
+    label="Score Algorithm Test",
+    icon="",
+    path="/ai-score-algorithm-test",
+    methods=["GET", "POST"],
+    add_to_menu=False,  # Accessed via row actions only
+)
 
 
 class AIRelationshipIndexAPIView(CustomView):
     """API endpoint for relationship indexes."""
 
-    def is_accessible(self, request: Request) -> bool:
+    def is_accessible(self, _request: Request) -> bool:
         """Allow access to this view."""
         return True
 
-    async def render(self, request: Request, templates: Jinja2Templates) -> JSONResponse:
-        """Return relationship indexes as JSON."""
+    async def render(self, request: Request, _templates: Jinja2Templates) -> Response:
+        """Handle API requests for relationship indexes."""
         try:
             style_id = request.query_params.get("style_id")
             limit = int(request.query_params.get("limit", 100))
@@ -800,22 +595,6 @@ class AIRelationshipIndexAPIView(CustomView):
                 status_code=500,
             )
 
-
-# Create view instances
-ai_character_chat_test_view = AICharacterChatTestView(
-    label="Character Chat Test",
-    icon="fas fa-robot",
-    path="/ai-character-chat-test",
-    add_to_menu=False,  # Do not show in menu - accessed via row actions only
-)
-
-ai_score_algorithm_test_view = AIScoreAlgorithmTestView(
-    label="Score Algorithm Test",
-    icon="fas fa-calculator",
-    path="/ai-score-algorithm-test",
-    methods=["GET", "POST"],  # Allow both GET and POST methods
-    add_to_menu=False,  # Do not show in menu - accessed via row actions only
-)
 
 ai_relationship_index_api_view = AIRelationshipIndexAPIView(
     label="Relationship Index API",

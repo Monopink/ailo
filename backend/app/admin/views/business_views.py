@@ -16,13 +16,7 @@ from models.contact import ContactRequest
 from models.message import MessageDeliveryFailure
 
 # Import enums
-from enums import (
-    ContactRequestSource,
-    ContactRequestStatus,
-    MessageParticipantType,
-    ServiceProvider,
-    MessageType,
-)
+from enums import ContactRequestSource, ContactRequestStatus, MessageParticipantType, MessageType
 
 
 class ContactRequestView(ModelView):

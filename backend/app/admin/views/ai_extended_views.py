@@ -28,7 +28,7 @@ class AIContextView(ModelView):
 
     exclude_fields_from_create = ["id", "character_id", "user_id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "character_id", "user_id", "created_at", "updated_at"]
-    exclude_fields_from_list = ["content", "source_message_ids", "context_metadata"]
+    exclude_fields_from_list = ["source_message_ids", "context_metadata"]
 
     # Read-only view for AI contexts (mainly for monitoring)
     def can_create(self, request: Request) -> bool:

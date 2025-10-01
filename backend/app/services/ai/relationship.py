@@ -96,11 +96,12 @@ async def determine_relationship_type(
             logger.warning("style_not_found", style_id=style_id)
             return None
 
-        relationship_mappings = style_data["relationship_mappings"]
+        # Unified key name for relationships collection
+        relationships = style_data["relationships"]
 
         if not scores:
             # Use default relationship (first one with lowest priority)
-            default_mapping = _get_default_relationship_mapping(relationship_mappings)
+            default_mapping = _get_default_relationship_mapping(relationships)
             if default_mapping:
                 logger.info(
                     "using_default_relationship_for_new_character",
@@ -116,7 +117,7 @@ async def determine_relationship_type(
                 logger.error(
                     "no_default_relationship_found",
                     style_id=style_id,
-                    mappings_count=len(relationship_mappings),
+                    mappings_count=len(relationships),
                 )
                 raise AIRelationshipError(
                     operation="get_default_relationship",
@@ -136,7 +137,7 @@ async def determine_relationship_type(
 
         # Find matching relationship with current relationship priority
         matching_relationship = _find_matching_relationship(
-            score_positions, relationship_mappings, current_relationship_id
+            score_positions, relationships, current_relationship_id
         )
 
         if matching_relationship:
@@ -158,7 +159,7 @@ async def determine_relationship_type(
                 "no_matching_relationship_found",
                 style_id=style_id,
                 score_positions=score_positions,
-                available_mappings=len(relationship_mappings),
+                available_mappings=len(relationships),
             )
             raise AIRelationshipError(
                 operation="find_matching_relationship",

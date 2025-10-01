@@ -8,7 +8,6 @@ with clear separation of concerns and pure function design.
 from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
 
 from models.ai import AIRelationshipScore, AIRelationshipDimension
 from utils.logging import get_logger

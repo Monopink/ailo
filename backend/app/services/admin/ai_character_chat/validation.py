@@ -254,13 +254,14 @@ class ValidationService:
                 ],
             )
 
+        # configs is a list of (LLMConfig, LLMProvider) tuples
         return [
             {
-                "config_key": config["config_key"],
-                "model_name": config["model_name"],
-                "provider_name": config["provider_name"],
+                "config_key": config.config_key,
+                "model_name": config.model_name or provider.default_model,
+                "provider_name": provider.name,
             }
-            for config in configs
+            for config, provider in configs
         ]
 
     async def _validate_prompt_variables(

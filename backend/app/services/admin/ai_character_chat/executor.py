@@ -137,8 +137,8 @@ class ExecutorService:
             log_entry.status = 1  # success
             log_entry.response_time = response_time_ms
             log_entry.token_count = conversation_result.get("usage", {}).get("total_tokens", 0)
-            log_entry.provider_name = conversation_result.get("config_used", {}).get("provider")
-            log_entry.model_name = conversation_result.get("model")
+            log_entry.provider_name = conversation_result.get("config_used", {}).get("provider_name")
+            log_entry.model_name = conversation_result.get("config_used", {}).get("model")
             log_entry.completed_at = datetime.now(timezone.utc)
             await db.commit()
 

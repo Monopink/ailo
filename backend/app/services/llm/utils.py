@@ -5,7 +5,8 @@ This module provides common utility functions for LLM providers.
 """
 
 import os
-from typing import Optional
+import json
+from typing import Optional, Tuple, Any
 
 from models.llm import LLMProvider
 from utils.logging import get_logger
@@ -75,3 +76,25 @@ def get_provider_base_url(provider: LLMProvider) -> Optional[str]:
 
     # Fall back to database configuration
     return provider.base_url
+
+
+def is_valid_json(content: str) -> Tuple[bool, Optional[Any]]:
+    """
+    Check if content is valid JSON and parse it.
+
+    Args:
+        content: String content to check
+
+    Returns:
+        Tuple of (is_valid, parsed_data)
+        - is_valid: True if content is valid JSON
+        - parsed_data: Parsed JSON data if valid, None otherwise
+    """
+    if not content or not isinstance(content, str):
+        return False, None
+
+    try:
+        parsed = json.loads(content)
+        return True, parsed
+    except (json.JSONDecodeError, ValueError):
+        return False, None

@@ -951,8 +951,9 @@ CREATE INDEX IF NOT EXISTS idx_admin_login_logs_created_at ON admin_login_logs(c
 -- LLM providers table - LLM provider configuration
 CREATE TABLE IF NOT EXISTS llm_providers (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    display_name VARCHAR(100) NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    display_name VARCHAR(100) NOT NULL UNIQUE,
+    api_key_env VARCHAR(100),
     base_url VARCHAR(500),
     default_model VARCHAR(100),
     supports_streaming INTEGER NOT NULL DEFAULT 0,
@@ -962,8 +963,39 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+-- Migrate existing table if it exists (for development/upgrade scenarios)
+-- Add api_key_env column if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'llm_providers' AND column_name = 'api_key_env'
+    ) THEN
+        ALTER TABLE llm_providers ADD COLUMN api_key_env VARCHAR(100);
+    END IF;
+END $$;
+
+-- Remove old UNIQUE constraint on name if it exists
+ALTER TABLE llm_providers DROP CONSTRAINT IF EXISTS llm_providers_name_key;
+
+-- Add UNIQUE constraint on display_name if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'llm_providers_display_name_key'
+    ) THEN
+        ALTER TABLE llm_providers ADD CONSTRAINT llm_providers_display_name_key UNIQUE (display_name);
+    END IF;
+END $$;
+
+COMMENT ON COLUMN llm_providers.name IS 'Provider identifier (doubao, openai, claude, etc.)';
+COMMENT ON COLUMN llm_providers.display_name IS 'Display name for UI (must be unique)';
+COMMENT ON COLUMN llm_providers.api_key_env IS 'Environment variable name for API key (optional, defaults to {NAME}_API_KEY)';
+
 -- Create indexes for llm_providers table
 CREATE INDEX IF NOT EXISTS idx_llm_providers_name ON llm_providers(name);
+CREATE INDEX IF NOT EXISTS idx_llm_providers_display_name ON llm_providers(display_name);
 
 -- LLM configs table - LLM runtime configuration
 CREATE TABLE IF NOT EXISTS llm_configs (
@@ -984,6 +1016,8 @@ CREATE TABLE IF NOT EXISTS llm_configs (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+COMMENT ON COLUMN llm_configs.json_schema_mode IS 'JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified (default)';
 
 -- Create indexes for llm_configs table
 CREATE INDEX IF NOT EXISTS idx_llm_configs_provider_id ON llm_configs(provider_id);
@@ -1226,19 +1260,24 @@ ON CONFLICT (name) DO NOTHING;
 
 -- Insert basic LLM providers
 -- Note: Mock provider uses ID=99 to clearly indicate it's a test provider
--- Doubao endpoints are read from environment variables
-INSERT INTO llm_providers (id, name, display_name, base_url, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
-(1, 'doubao', 'Doubao (ByteDance)', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-250615', 1, 1, 1),
-(99, 'mock', 'Mock LLM (Testing)', NULL, 'mock-model-v1', 0, 1, 0)
-ON CONFLICT (name) DO NOTHING;
+-- API keys are read from environment variables specified in api_key_env column
+INSERT INTO llm_providers (id, name, display_name, api_key_env, base_url, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
+(1, 'doubao', 'Doubao Production', 'DOUBAO_API_KEY', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-250615', 1, 1, 1),
+(99, 'mock', 'Mock LLM (Testing)', NULL, NULL, 'mock-model-v1', 0, 1, 0)
+ON CONFLICT (display_name) DO UPDATE SET
+    name = EXCLUDED.name,
+    api_key_env = EXCLUDED.api_key_env,
+    base_url = EXCLUDED.base_url,
+    default_model = EXCLUDED.default_model,
+    supports_streaming = EXCLUDED.supports_streaming,
+    supports_json_schema = EXCLUDED.supports_json_schema,
+    supports_thinking = EXCLUDED.supports_thinking,
+    updated_at = NOW();
 
 -- Insert basic LLM configs
--- Note: Mock config uses provider_id=99
--- Doubao configs: primary uses standard model, advanced uses seed model
 INSERT INTO llm_configs (provider_id, config_key, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
-(1, 'primary', 'ep-20250619205259-nzbw8', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
-(1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 2),
-(99, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'auto', 1, 999)
+(1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
+(99, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'strict', 1, 999)
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert test users for AI character testing (user_type=3)

@@ -182,3 +182,100 @@ class LLMNoConfigError(LLMConfigurationError):
             details=details,
         )
         self.error_code = "LLM_NO_CONFIG"
+
+
+class LLMRequestError(LLMServiceError):
+    """Exception raised for general LLM request errors."""
+
+    def __init__(
+        self,
+        provider: Optional[str] = None,
+        message: str = "LLM请求失败",
+        error_code: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            provider=provider,
+            error_code=error_code or "REQUEST_ERROR",
+            details=details,
+        )
+        self.error_code = "LLM_REQUEST_ERROR"
+        self.status_code = http_status.HTTP_500_INTERNAL_SERVER_ERROR
+
+
+class ConfigNotVerifiedError(LLMConfigurationError):
+    """Exception raised when LLM config has not been verified for JSON Schema support."""
+
+    def __init__(
+        self,
+        config_key: str,
+        message: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        if not message:
+            message = (
+                f"配置 '{config_key}' 未经过测试验证。"
+                f"请先在配置测试页面进行测试，系统会自动检测JSON Schema支持情况。"
+            )
+
+        super().__init__(
+            config_key=config_key,
+            message=message,
+            details=details,
+        )
+        self.error_code = "CONFIG_NOT_VERIFIED"
+
+
+class JSONSchemaNotSupportedError(LLMConfigurationError):
+    """Exception raised when LLM config does not support JSON Schema."""
+
+    def __init__(
+        self,
+        config_key: str,
+        message: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        if not message:
+            message = (
+                f"配置 '{config_key}' 不支持JSON Schema，无法用于AI Character功能。"
+                f"此配置只能用于查看测试响应。"
+                f"建议使用其他支持JSON Schema的配置。"
+            )
+
+        super().__init__(
+            config_key=config_key,
+            message=message,
+            details=details,
+        )
+        self.error_code = "JSON_SCHEMA_NOT_SUPPORTED"
+
+
+class LLMResponseFormatError(LLMServiceError):
+    """Exception raised when LLM response format is invalid."""
+
+    def __init__(
+        self,
+        config_key: str,
+        provider: Optional[str] = None,
+        message: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        if not message:
+            message = (
+                f"配置 '{config_key}' 返回了非JSON格式的响应。"
+                f"配置状态已自动更新为'disabled'。"
+                f"请检查endpoint是否发生变化，或使用其他配置。"
+            )
+
+        error_details = details or {}
+        error_details["config_key"] = config_key
+
+        super().__init__(
+            message=message,
+            provider=provider,
+            error_code="RESPONSE_FORMAT_ERROR",
+            details=error_details,
+        )
+        self.error_code = "LLM_RESPONSE_FORMAT_ERROR"
+        self.status_code = http_status.HTTP_500_INTERNAL_SERVER_ERROR

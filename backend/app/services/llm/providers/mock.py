@@ -72,7 +72,7 @@ def _build_mock_payload(
     return payload
 
 
-async def mock_chat_completion(
+async def chat_completion(
     config: LLMConfig,
     provider: LLMProvider,
     messages: List[Dict[str, str]],
@@ -80,6 +80,7 @@ async def mock_chat_completion(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     enable_thinking: Optional[bool] = None,
+    timeout: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Mock chat completion for testing purposes.
@@ -92,52 +93,90 @@ async def mock_chat_completion(
         temperature: Override temperature setting
         max_tokens: Override max tokens setting
         enable_thinking: Override thinking mode setting
+        timeout: Optional timeout override (not used in mock)
 
     Returns:
-        Dictionary containing mock response data and metadata
+        {
+            "content": str,
+            "model": str,
+            "usage": {
+                "prompt_tokens": int,
+                "completion_tokens": int,
+                "total_tokens": int,
+            },
+            "finish_reason": str,
+        }
+    """
+    # Build complete request payload (matching Doubao API format)
+    payload = _build_mock_payload(
+        config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
+    )
+
+    # Simulate processing delay
+    await asyncio.sleep(0.5)
+
+    # Get the last user message
+    user_message = ""
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            user_message = msg.get("content", "")
+            break
+
+    # Generate mock response based on JSON schema or default
+    if json_schema:
+        response_content = _generate_structured_response(json_schema, user_message)
+        # Convert to JSON string for structured output
+        content = json.dumps(response_content, ensure_ascii=False)
+    else:
+        content = _generate_text_response(user_message)
+
+    # Mock usage statistics
+    usage = {
+        "prompt_tokens": sum(len(msg.get("content", "").split()) for msg in messages),
+        "completion_tokens": len(str(content).split()),
+        "total_tokens": 0,
+    }
+    usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
+
+    return {
+        "content": content,
+        "model": payload["model"],
+        "usage": usage,
+        "finish_reason": "stop",
+    }
+
+
+# Keep old function name for backward compatibility
+async def mock_chat_completion(
+    config: LLMConfig,
+    provider: LLMProvider,
+    messages: List[Dict[str, str]],
+    json_schema: Optional[Dict[str, Any]] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    enable_thinking: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """
+    Legacy mock chat completion function.
+
+    This function is kept for backward compatibility.
+    New code should use chat_completion() instead.
     """
     try:
-        # Build complete request payload (matching Doubao API format)
-        payload = _build_mock_payload(
+        result = await chat_completion(
             config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
         )
 
-        # Simulate processing delay
-        await asyncio.sleep(0.5)
-
-        # Get the last user message
-        user_message = ""
-        for msg in reversed(messages):
-            if msg.get("role") == "user":
-                user_message = msg.get("content", "")
-                break
-
-        # Generate mock response based on JSON schema or default
-        if json_schema:
-            response_content = _generate_structured_response(json_schema, user_message)
-        else:
-            response_content = _generate_text_response(user_message)
-
-        # Mock usage statistics
-        usage = {
-            "prompt_tokens": sum(len(msg.get("content", "").split()) for msg in messages),
-            "completion_tokens": (
-                len(str(response_content).split()) if isinstance(response_content, dict) else 50
-            ),
-            "total_tokens": 0,
-        }
-        usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
-
         return {
             "success": True,
-            "response": response_content,
-            "raw_content": (
-                json.dumps(response_content) if isinstance(response_content, dict) else response_content
+            "response": result["content"],
+            "raw_content": result["content"],
+            "usage": result["usage"],
+            "model": result["model"],
+            "finish_reason": result["finish_reason"],
+            "request_payload": _build_mock_payload(
+                config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
             ),
-            "usage": usage,
-            "model": payload["model"],
-            "finish_reason": "stop",
-            "request_payload": payload,  # Include complete request payload
         }
 
     except Exception as e:

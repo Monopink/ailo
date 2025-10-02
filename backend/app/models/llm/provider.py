@@ -19,6 +19,7 @@ class LLMProvider(AutoIncrementModel):
     LLM provider model.
 
     Manages different LLM providers like Doubao, OpenAI, Claude, etc.
+    Multiple providers with the same name are allowed (e.g., Doubao Production, Doubao Test).
     """
 
     __tablename__ = "llm_providers"
@@ -26,12 +27,17 @@ class LLMProvider(AutoIncrementModel):
     name: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        unique=True,
         comment="Provider identifier (doubao, openai, claude, etc.)",
     )
 
-    display_name: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Display name for UI"
+    display_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, comment="Display name for UI (must be unique)"
+    )
+
+    api_key_env: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Environment variable name for API key (optional, defaults to {NAME}_API_KEY)",
     )
 
     base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="API base URL")

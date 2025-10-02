@@ -25,6 +25,7 @@ from .data import (
     update_character_status,
 )
 from .utils.validator import chat_completion_with_validation
+from services.llm.client import select_config_for_ai, validate_ai_response
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AIConversationError
 from utils.logging import get_logger
 
@@ -144,6 +145,17 @@ async def process_conversation(
         # Get JSON schema for response validation
         json_schema = await get_response_schema(db, character_qiao_id)
 
+        # Pre-check: Validate config supports JSON Schema
+        # This will raise ConfigNotVerifiedError or JSONSchemaNotSupportedError if config is not suitable
+        config, provider = await select_config_for_ai(db, config_key)
+
+        logger.info(
+            "ai_conversation_config_validated",
+            config_key=config.config_key,
+            provider=provider.name,
+            json_schema_mode=config.json_schema_mode,
+        )
+
         # Step 8: Request LLM with validation
         llm_result = await chat_completion_with_validation(
             db=db,
@@ -162,6 +174,16 @@ async def process_conversation(
 
         # Step 9: JSON Schema validation (already done in LLM call)
         ai_response = llm_result["response"]
+
+        # Post-check: Validate response format
+        # Convert Python dict to JSON string for validation
+        raw_content = llm_result.get("raw_content")
+        if not raw_content:
+            # If no raw_content, convert Python object to JSON string
+            import json
+
+            raw_content = json.dumps(ai_response, ensure_ascii=False)
+        await validate_ai_response(db, config, raw_content, allow_auto_update=False)
 
         # Step 10: Update ai_relationship_score and other related content
         await process_ai_response_updates(

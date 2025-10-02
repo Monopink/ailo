@@ -433,10 +433,10 @@ LLM提供商配置表，管理不同的大模型提供商信息。
 
 ```txt
 id -- 自增ID
-name -- 提供商标识，如doubao、openai、claude等，唯一
-display_name -- 显示名称
+name -- 提供商标识，如doubao、openai、claude等（允许重复）
+display_name -- 显示名称（必须唯一，用于区分同一 Provider 的不同配置）
+api_key_env -- API Key 环境变量名（可选，默认为 {NAME}_API_KEY）
 base_url -- API基础URL
-api_key_env -- 环境变量名，如ARK_API_KEY
 default_model -- 默认模型名称
 supports_streaming -- 是否支持流式输出：1=yes, 0=no
 supports_json_schema -- 是否支持JSON Schema：1=yes, 0=no
@@ -460,7 +460,10 @@ timeout_seconds -- 超时时间（秒）
 max_retries -- 最大重试次数
 enable_streaming -- 是否启用流式输出：1=yes, 0=no
 enable_thinking -- 是否启用思考模式：1=yes, 0=no
-json_schema_mode -- JSON Schema模式：auto、strict、disabled
+json_schema_mode -- JSON Schema支持状态
+  - 'strict': 已验证支持JSON Schema（测试通过，可用于AI Character）
+  - 'disabled': 已验证不支持JSON Schema（测试失败，仅供查看测试响应）
+  - 'auto': 未验证（默认值，需要先测试）
 status -- 状态：1=active, 2=inactive
 priority -- 优先级，数字越小优先级越高，用于故障转移
 extra_params -- 其他的参数

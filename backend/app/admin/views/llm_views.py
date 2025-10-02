@@ -8,7 +8,15 @@ import json
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, StringField, IntegerField, FloatField, JSONField, TextAreaField
+from starlette_admin import (
+    EnumField,
+    StringField,
+    IntegerField,
+    FloatField,
+    JSONField,
+    TextAreaField,
+    HasOne,
+)
 from starlette_admin.actions import link_row_action
 from starlette_admin.exceptions import FormValidationError
 from models.llm import LLMProvider, LLMConfig, LLMTestLog
@@ -40,7 +48,7 @@ class LLMProviderView(ModelView):
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
 
-    fields_default_sort = [("name", False)]
+    fields_default_sort = [("display_name", False)]
     searchable_fields = ["name", "display_name"]
     sortable_fields = ["id", "name", "display_name", "created_at"]
 
@@ -50,22 +58,26 @@ class LLMProviderView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal provider ID"),
-        EnumField(
+        StringField(
             "name",
-            choices=[("doubao", "Doubao"), ("mock", "Mock (Testing)")],
             label="Provider Name",
-            help_text="LLM provider name",
+            help_text="LLM provider name (doubao, openai, qwen, deepseek, etc.)",
             required=True,
         ),
-        StringField("display_name", label="Display Name", help_text="Display name for UI", required=True),
-        StringField("base_url", label="Base URL", help_text="API base URL", required=True),
+        StringField(
+            "display_name",
+            label="Display Name",
+            help_text="Display name for UI (must be unique)",
+            required=True,
+        ),
         StringField(
             "api_key_env",
             label="API Key Environment Variable",
-            help_text="Environment variable name for API key",
-            required=True,
+            help_text="Environment variable name for API key (optional, defaults to {NAME}_API_KEY)",
+            required=False,
         ),
-        StringField("default_model", label="Default Model", help_text="Default model name", required=True),
+        StringField("base_url", label="Base URL", help_text="API base URL", required=False),
+        StringField("default_model", label="Default Model", help_text="Default model name", required=False),
         IntegerField(
             "supports_streaming",
             label="Supports Streaming",
@@ -87,24 +99,49 @@ class LLMProviderView(ModelView):
     ]
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
-        """Custom validation to prevent duplicate provider names and handle data conversion."""
+        """Custom validation to prevent duplicate display names."""
         errors: Dict[str | int, Any] = {}
 
-        # Convert string values to integers for integer database fields
-        # (status field removed from LLMProvider model)
-
-        # Check if provider name already exists (for create operation)
-        if request.url.path.endswith("/create") and data.get("name") == "doubao":
-            # Check if doubao already exists in database
+        # Check if display_name already exists
+        if "display_name" in data:
             from sqlalchemy import select
             from core.database import SessionLocal
 
             async with SessionLocal() as session:
-                result = await session.execute(select(LLMProvider).where(LLMProvider.name == "doubao"))
-                existing_provider = result.scalar_one_or_none()
+                # For create operation
+                if request.url.path.endswith("/create"):
+                    result = await session.execute(
+                        select(LLMProvider).where(LLMProvider.display_name == data["display_name"])
+                    )
+                    existing_provider = result.scalar_one_or_none()
 
-                if existing_provider:
-                    errors["name"] = "Doubao provider already exists. Only one Doubao provider is allowed."
+                    if existing_provider:
+                        errors["display_name"] = (
+                            f"Display name '{data['display_name']}' already exists. "
+                            "Please use a unique display name."
+                        )
+
+                # For edit operation
+                elif "/edit/" in request.url.path:
+                    # Extract provider ID from URL
+                    try:
+                        provider_id = int(request.url.path.split("/edit/")[1].split("/")[0])
+
+                        result = await session.execute(
+                            select(LLMProvider).where(
+                                LLMProvider.display_name == data["display_name"],
+                                LLMProvider.id != provider_id,
+                            )
+                        )
+                        existing_provider = result.scalar_one_or_none()
+
+                        if existing_provider:
+                            errors["display_name"] = (
+                                f"Display name '{data['display_name']}' already exists. "
+                                "Please use a unique display name."
+                            )
+                    except (ValueError, IndexError):
+                        pass  # Invalid URL format, skip validation
 
         if len(errors) > 0:
             raise FormValidationError(errors)
@@ -127,9 +164,9 @@ class LLMConfigView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal config ID"),
-        EnumField(
-            "provider_id",
-            choices=[(1, "Doubao"), (99, "Mock (Testing)")],
+        HasOne(
+            "provider",
+            identity="llm_provider",
             label="Provider",
             help_text="Select LLM provider",
             required=True,
@@ -161,9 +198,19 @@ class LLMConfigView(ModelView):
         ),
         EnumField(
             "json_schema_mode",
-            choices=[("auto", "Auto"), ("strict", "Strict"), ("disabled", "Disabled")],
+            choices=[
+                ("auto", "Auto (Not Verified)"),
+                ("strict", "Strict (Verified Supported)"),
+                ("disabled", "Disabled (Verified Not Supported)"),
+            ],
             label="JSON Schema Mode",
-            help_text="JSON schema mode",
+            help_text=(
+                "JSON Schema support status. "
+                "This field is automatically updated after testing. "
+                "strict=Verified supported (can be used for AI Character), "
+                "disabled=Verified not supported (test only), "
+                "auto=Not verified (please test first)"
+            ),
             required=True,
         ),
         EnumField(
@@ -199,12 +246,8 @@ class LLMConfigView(ModelView):
         return f"/qiao-dash/llm-config-test?config_id={pk}"
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
-        """Custom validation and data conversion."""
-        # Convert string values to integers for integer database fields
-        if "provider_id" in data and isinstance(data["provider_id"], str):
-            data["provider_id"] = int(data["provider_id"])
-        # Note: status field removed from LLMConfig model
-
+        """Custom validation."""
+        # No custom validation needed for now
         return await super().validate(request, data)
 
 

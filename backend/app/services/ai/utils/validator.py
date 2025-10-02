@@ -6,6 +6,7 @@ with retry mechanisms and detailed error reporting.
 """
 
 import asyncio
+import json
 from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +24,7 @@ def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str
     Validate AI response against JSON schema.
 
     Args:
-        response: AI response to validate
+        response: AI response to validate (can be JSON string or object)
         json_schema: JSON schema for validation
 
     Returns:
@@ -37,6 +38,34 @@ def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str
         if not json_schema:
             logger.debug("no_json_schema_provided")
             return {"valid": True, "error": "", "validated_data": response}
+
+        # Log the raw response for debugging
+        logger.debug(
+            "validating_ai_response",
+            response_type=type(response).__name__,
+            response_length=len(str(response)) if response else 0,
+            response_preview=str(response)[:200] if response else None,
+        )
+
+        # If response is a JSON string, parse it first
+        # This is necessary because LLM providers (like OpenAI) return JSON strings
+        # when using JSON Schema mode
+        if isinstance(response, str):
+            try:
+                parsed_response = json.loads(response)
+                logger.debug(
+                    "ai_response_parsed_from_json_string",
+                    parsed_type=type(parsed_response).__name__,
+                )
+                response = parsed_response
+            except json.JSONDecodeError as e:
+                error_msg = f"Failed to parse JSON response: {str(e)}"
+                logger.warning(
+                    "ai_response_json_parse_failed",
+                    error=error_msg,
+                    response_preview=response[:500] if response else None,
+                )
+                return {"valid": False, "error": error_msg, "validated_data": None}
 
         # Perform JSON schema validation
         jsonschema.validate(instance=response, schema=json_schema)
@@ -108,6 +137,8 @@ async def chat_completion_with_validation(
 
                     if validation_result["valid"]:
                         logger.debug("ai_response_validated_successfully", attempt=attempt + 1)
+                        # Replace response with validated (parsed) data
+                        llm_result["response"] = validation_result["validated_data"]
                         return llm_result
                     else:
                         last_error = validation_result["error"]

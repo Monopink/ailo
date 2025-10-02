@@ -183,6 +183,37 @@
 - 性能统计: 响应时间、成功率、token消耗统计
 - 错误分析: 按失败原因分类统计
 
+### LLM 管理
+
+#### 设计说明
+
+- 同一个 Provider（如 doubao）可以有多个配置记录，通过 `display_name` 区分
+- 例如：可以创建 "Doubao Production"、"Doubao Test"、"Doubao Backup" 等多个配置
+- `name` 字段用于代码层面的 SDK 选择，`display_name` 用于 UI 显示和唯一标识
+
+json_schema_mode 说明：
+
+- 自动更新：此字段会在配置测试时根据实际响应格式自动更新
+- 使用限制：AI Character功能只能使用 `json_schema_mode='strict'` 的配置
+- 测试流程：
+  1. 新配置默认为 `'auto'`（未验证）
+  2. 在配置测试页面进行测试
+  3. 系统检测响应格式：
+     - 如果返回JSON → 自动更新为 `'strict'`
+     - 如果返回普通文本 → 自动更新为 `'disabled'`
+  4. 测试结果会显示完整响应内容和JSON Schema支持状态
+- 运行时保护：
+  - 使用 `'auto'` 配置会提示"未验证，请先测试"
+  - 使用 `'disabled'` 配置会提示"不支持JSON Schema，无法使用"
+  - 如果 `'strict'` 配置返回非JSON，会自动更新为 `'disabled'` 并报错
+
+API Key 管理：
+
+- API Key 不存储在数据库中，而是存储在环境变量中
+- `api_key_env` 字段指定环境变量名（如 `DOUBAO_PROD_API_KEY`）
+- 如果 `api_key_env` 为空，则使用默认命名规则：`{NAME}_API_KEY`（如 `DOUBAO_API_KEY`）
+- 这种设计既保证了安全性，又提供了灵活性
+
 ### 媒体文件管理
 
 基于media_files表的文件管理功能。

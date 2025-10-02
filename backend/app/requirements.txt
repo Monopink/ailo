@@ -1,4 +1,5 @@
 # Cloud Services
+openai==2.0.0
 volcengine-python-sdk[ark]==4.0.7
 # leancloud==3.0.2  # Commented out - using REST API only
 

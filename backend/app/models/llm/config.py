@@ -67,7 +67,10 @@ class LLMConfig(AutoIncrementModel):
     )
 
     json_schema_mode: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="auto", comment="JSON schema mode: auto, strict, disabled"
+        String(20),
+        nullable=False,
+        default="auto",
+        comment="JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified",
     )
 
     status: Mapped[int] = mapped_column(

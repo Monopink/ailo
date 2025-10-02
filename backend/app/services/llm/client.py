@@ -9,10 +9,18 @@ from typing import Dict, Any, Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_active_configs
-from .providers import PROVIDER_REGISTRY
+from .providers import factory
+from .utils import is_valid_json
 from models.llm import LLMConfig, LLMProvider
 from utils.logging import get_logger
-from exceptions.llm import LLMNoConfigError
+from exceptions.llm import (
+    LLMNoConfigError,
+    LLMRequestError,
+    LLMTimeoutError,
+    ConfigNotVerifiedError,
+    JSONSchemaNotSupportedError,
+    LLMResponseFormatError,
+)
 
 logger = get_logger(__name__)
 
@@ -163,21 +171,55 @@ async def _call_provider(
     max_tokens: Optional[int],
     enable_thinking: Optional[bool],
 ) -> Dict[str, Any]:
-    """Call the appropriate provider function."""
-    provider_func = PROVIDER_REGISTRY.get(provider.name)
+    """Call the appropriate provider function using factory."""
+    try:
+        result = await factory.chat_completion(
+            config=config,
+            provider=provider,
+            messages=messages,
+            json_schema=json_schema,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            enable_thinking=enable_thinking,
+        )
 
-    if not provider_func:
+        # Wrap result in success format
+        return {
+            "success": True,
+            "response": result["content"],
+            "usage": result["usage"],
+            "finish_reason": result.get("finish_reason"),
+            "model": result.get("model"),
+            "raw_response": result.get("raw_response"),  # Pass through raw API response
+            "request_payload": result.get("request_params")
+            or {
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "enable_thinking": enable_thinking,
+            },
+        }
+
+    except (LLMRequestError, LLMTimeoutError) as e:
         return {
             "success": False,
-            "error": f"Unsupported provider: {provider.name}",
+            "error": str(e),
+            "error_code": getattr(e, "error_code", "REQUEST_ERROR"),
             "response": None,
             "usage": None,
             "request_payload": None,
         }
 
-    return await provider_func(
-        config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
-    )
+    except Exception as e:
+        logger.error(f"Unexpected error calling provider: {str(e)}", exc_info=True)
+        return {
+            "success": False,
+            "error": f"Unexpected error: {str(e)}",
+            "error_code": "SYSTEM_ERROR",
+            "response": None,
+            "usage": None,
+            "request_payload": None,
+        }
 
 
 # Convenience function for specific provider
@@ -204,3 +246,118 @@ async def chat_completion_with_provider(
 
     config, provider = config_result
     return await _call_provider(config, provider, messages, json_schema, **kwargs)
+
+
+async def select_config_for_ai(
+    db: AsyncSession, config_key: Optional[str] = None
+) -> Tuple[LLMConfig, LLMProvider]:
+    """
+    Select and validate LLM config for AI Character usage.
+
+    This function ensures the selected config supports JSON Schema,
+    which is required for AI Character functionality.
+
+    Args:
+        db: Database session
+        config_key: Specific config to use (defaults to primary)
+
+    Returns:
+        Tuple of (config, provider)
+
+    Raises:
+        LLMNoConfigError: If no config found
+        ConfigNotVerifiedError: If config not verified for JSON Schema support
+        JSONSchemaNotSupportedError: If config doesn't support JSON Schema
+    """
+    from .config import get_llm_config, get_primary_config
+
+    # Get configuration
+    if config_key:
+        config_result = await get_llm_config(db, config_key)
+        if not config_result:
+            raise LLMNoConfigError(
+                config_key=config_key,
+                message=f"配置 '{config_key}' 不存在或未激活",
+                details={"requested_key": config_key},
+            )
+    else:
+        config_result = await get_primary_config(db)
+        if not config_result:
+            raise LLMNoConfigError(
+                message="没有可用的主配置",
+                details={"requested_key": "primary"},
+            )
+
+    config, provider = config_result
+
+    # Check JSON Schema support
+    if config.json_schema_mode == "auto":
+        raise ConfigNotVerifiedError(config_key=config.config_key)
+
+    if config.json_schema_mode == "disabled":
+        raise JSONSchemaNotSupportedError(config_key=config.config_key)
+
+    # json_schema_mode == 'strict' - can be used
+    logger.info(
+        "config_selected_for_ai",
+        config_key=config.config_key,
+        provider=provider.name,
+        json_schema_mode=config.json_schema_mode,
+    )
+
+    return config, provider
+
+
+async def validate_ai_response(
+    db: AsyncSession, config: LLMConfig, response_content: str, allow_auto_update: bool = True
+) -> None:
+    """
+    Validate AI response format and optionally auto-update config if needed.
+
+    This function checks if the response is valid JSON. If not and auto-update
+    is allowed, it automatically updates the config's json_schema_mode to 'disabled'.
+
+    Args:
+        db: Database session
+        config: LLM configuration used
+        response_content: Response content to validate
+        allow_auto_update: Whether to allow automatic config updates (default: True)
+                          Set to False in production AI Character usage to prevent
+                          accidental config changes.
+
+    Raises:
+        LLMResponseFormatError: If response is not valid JSON
+    """
+    is_json, _ = is_valid_json(response_content)
+
+    if not is_json:
+        # Response is not JSON - config status is incorrect
+        logger.error(
+            "ai_response_format_error",
+            config_key=config.config_key,
+            json_schema_mode=config.json_schema_mode,
+            response_preview=response_content[:200],
+            allow_auto_update=allow_auto_update,
+        )
+
+        # Auto-update config status only if allowed
+        old_mode = config.json_schema_mode
+        if allow_auto_update and config.json_schema_mode != "disabled":
+            config.json_schema_mode = "disabled"
+            await db.commit()
+
+            logger.warning(
+                "config_auto_updated_to_disabled",
+                config_key=config.config_key,
+                old_mode=old_mode,
+                new_mode="disabled",
+            )
+
+        raise LLMResponseFormatError(
+            config_key=config.config_key,
+            details={
+                "response_preview": response_content[:200],
+                "old_json_schema_mode": old_mode,
+                "auto_update_allowed": allow_auto_update,
+            },
+        )

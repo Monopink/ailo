@@ -35,7 +35,9 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize Snowflake ID generator
         logger.info("initializing_snowflake_generator")
-        init_snowflake(datacenter_id=0, machine_id=0)
+        init_snowflake(
+            datacenter_id=settings.SNOWFLAKE_DATACENTER_ID, machine_id=settings.SNOWFLAKE_MACHINE_ID
+        )
         logger.info("snowflake_generator_initialized")
 
         # Initialize database connection

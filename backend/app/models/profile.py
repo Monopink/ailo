@@ -4,12 +4,17 @@ Profile management related models.
 This module contains SQLAlchemy models for user profiles and profile change logs.
 """
 
-from typing import Optional
-from sqlalchemy import BigInteger, Integer, String, Text, Index
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import Optional, TYPE_CHECKING
+from sqlalchemy import BigInteger, Integer, String, Text, Index, and_
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from enums import Gender, ProfileOwnerType, ProfileModifierType
 from models.base import SnowflakeModel, ImmutableSnowflakeModel
+
+if TYPE_CHECKING:
+    from models.user import User
+    from models.ai.character import AICharacter
 
 
 class Profile(SnowflakeModel):
@@ -26,7 +31,7 @@ class Profile(SnowflakeModel):
     owner_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Owner external ID")
 
     owner_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Owner type: 1=user, 2=ai, 3=official"
+        Integer, nullable=False, comment="Owner type: 1=user (all user types), 2=ai"
     )
 
     nickname: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Display nickname")
@@ -35,8 +40,8 @@ class Profile(SnowflakeModel):
         Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
 
-    avatar_file_id: Mapped[Optional[str]] = mapped_column(
-        String(32), nullable=True, comment="Avatar file ID, references media_files.file_id"
+    avatar_file_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Avatar file ID, references media_files.id"
     )
 
     avatar_url: Mapped[Optional[str]] = mapped_column(
@@ -50,6 +55,34 @@ class Profile(SnowflakeModel):
     bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Personal bio/description")
 
     region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Location/region")
+
+    # Polymorphic owner relationships
+    # owner_type=1 (USER) → users table (includes all user types: normal, official, virtual)
+    _owner_user: Mapped[Optional["User"]] = relationship(
+        "User",
+        primaryjoin="and_(Profile.owner_id == User.id, Profile.owner_type == 1)",
+        foreign_keys=[owner_id],
+        lazy="select",
+        viewonly=True,
+    )
+
+    # owner_type=2 (AI) → ai_characters table
+    _owner_character: Mapped[Optional["AICharacter"]] = relationship(
+        "AICharacter",
+        primaryjoin="and_(Profile.owner_id == AICharacter.id, Profile.owner_type == 2)",
+        foreign_keys=[owner_id],
+        lazy="select",
+        viewonly=True,
+    )
+
+    @hybrid_property
+    def owner(self):
+        """Return the appropriate owner object based on owner_type."""
+        if self.owner_type == 1:  # USER
+            return self._owner_user
+        elif self.owner_type == 2:  # AI
+            return self._owner_character
+        return None
 
     # Indexes
     __table_args__ = (

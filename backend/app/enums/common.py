@@ -72,7 +72,7 @@ class ContactRequestSource(IntEnum):
     SEARCH = 1  # Added through search
     ADMIN = 2  # Added by admin
     SYSTEM = 3  # Added by system
-    INVITE = 4  # Added through invitation
+    RECOMMEND = 4  # Added through recommendation
 
 
 class ContactRequestStatus(IntEnum):
@@ -171,11 +171,14 @@ class Gender(IntEnum):
 
 
 class ProfileOwnerType(IntEnum):
-    """Profile owner type (profiles.owner_type)"""
+    """Profile owner type (profiles.owner_type)
 
-    USER = 1  # User profile
+    Note: All user types (normal, official, virtual) use owner_type=1 (USER).
+    The user_type field in users table distinguishes between them.
+    """
+
+    USER = 1  # User profile (includes normal, official, virtual users)
     AI = 2  # AI character profile
-    OFFICIAL = 3  # Official account profile
 
 
 class ProfileModifierType(IntEnum):
@@ -360,6 +363,7 @@ class ConfigType(IntEnum):
     NUMBER = 2  # Numeric value
     BOOLEAN = 3  # Boolean value
     JSON = 4  # JSON object
+    ENUM = 5  # Enum value (select from allowed_values)
 
 
 # Admin System Related Enums

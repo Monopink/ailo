@@ -3,6 +3,9 @@ Configuration service.
 
 This module provides unified configuration management combining
 environment variables and database configurations.
+
+READ-ONLY service for configuration retrieval with caching.
+For write operations, use crud.system.config and reload cache.
 """
 
 import os
@@ -10,8 +13,7 @@ from typing import Any, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
-from crud.system.config import system_configs
-from enums import ConfigType
+from services.system_config import SystemConfigService
 
 
 class ConfigService:
@@ -42,7 +44,7 @@ class ConfigService:
             return env_value
 
         # Check database configuration
-        db_value = await system_configs.get_config_value(db, config_key=key, default_value=default)
+        db_value = await SystemConfigService.get_config(db, key, default)
 
         if use_cache and self._cache_enabled:
             self._cache[key] = db_value
@@ -64,44 +66,13 @@ class ConfigService:
         }
         return config
 
-    async def update_config(
-        self, db: AsyncSession, key: str, value: str, updated_by: Optional[int] = None
-    ) -> bool:
-        """Update configuration value in database."""
-        try:
-            result = await system_configs.update_config_value(
-                db, config_key=key, config_value=value, updated_by=updated_by
-            )
+    def clear_cache(self, key: Optional[str] = None) -> None:
+        """
+        Clear configuration cache.
 
-            # Clear cache for this key
-            if self._cache_enabled and key in self._cache:
-                del self._cache[key]
-
-            return result is not None
-        except Exception:
-            return False
-
-    async def batch_update_leancloud_config(
-        self, db: AsyncSession, config_updates: Dict[str, str], updated_by: Optional[int] = None
-    ) -> bool:
-        """Batch update LeanCloud configuration."""
-        try:
-            for key, value in config_updates.items():
-                config_key = f"leancloud_{key}"
-                await system_configs.update_config_value(
-                    db, config_key=config_key, config_value=value, updated_by=updated_by
-                )
-
-                # Clear cache
-                if self._cache_enabled and config_key in self._cache:
-                    del self._cache[config_key]
-
-            return True
-        except Exception:
-            return False
-
-    def clear_cache(self, key: Optional[str] = None):
-        """Clear configuration cache."""
+        Note: This only clears ConfigService cache, not SystemConfigService cache.
+        To reload system configs, use SystemConfigService.reload_cache().
+        """
         if key:
             self._cache.pop(key, None)
         else:

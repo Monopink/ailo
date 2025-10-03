@@ -227,7 +227,7 @@ updated_at
 id -- Snowflake ID
 owner_id -- 所有者内部ID
 owner_qiao_id -- 所有者外部ID
-owner_type -- 所有者类型：1=user, 2=ai, 3=official
+owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
 avatar_file_id -- 头像文件ID，关联media_files.id
@@ -247,7 +247,7 @@ updated_at
 id -- Snowflake ID
 owner_id -- 所有者内部ID
 owner_qiao_id -- 所有者外部ID
-owner_type -- 所有者类型：1=user, 2=ai, 3=official
+owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai
 modified_by_type -- 修改者类型：1=user, 2=admin, 3=system
 field_name -- 修改的字段名，例如 nickname, avatar_url, bio
 old_value -- 旧值
@@ -527,13 +527,13 @@ completed_at -- 测试完成时间
 ```txt
 id -- Snowflake ID
 from_qiao_id -- 申请发起者外部ID
-from_type -- 申请发起者类型：1=user, 2=ai, 3=official
+from_type -- 申请发起者类型：1=user (包括所有用户类型), 2=ai
 from_id -- 申请发起者内部ID
 to_qiao_id -- 申请接收者外部ID
-to_type -- 申请接收者类型：1=user, 2=ai, 3=official
+to_type -- 申请接收者类型：1=user (包括所有用户类型), 2=ai
 to_id -- 申请接收者内部ID
 message -- 附加申请说明（例如“我是xxx”）
-source -- 来源渠道：1=search, 2=admin, 3=system, 4=invite
+source -- 来源渠道：1=search, 2=admin, 3=system, 4=recommend
 status -- 申请状态：1=pending, 2=accepted, 3=rejected, 4=expired
 expires_at -- 申请过期时间
 created_at
@@ -592,9 +592,11 @@ updated_at
 id -- 自增ID
 config_key -- 配置键名，唯一
 config_value -- 配置值
-config_type -- 配置类型：1=string, 2=number, 3=boolean, 4=json
+config_type -- 配置类型：1=string, 2=number, 3=boolean, 4=json, 5=enumq
 description -- 配置描述
-is_public -- 是否公开：1=public, 0=private
+is_public -- 外部是否通过API可见,此项暂时无用：1=public, 0=private
+group_name -- 分组名称，用于显示分组
+allowed_values -- 用于枚举类型的可选项存储
 created_at
 updated_at
 updated_by -- 更新者ID
@@ -704,6 +706,161 @@ ip_address -- 登录IP地址
 result -- 登录结果：1=success, 2=fail
 fail_reason -- 失败原因
 created_at
+```
+
+## user_invitations（2.0功能）
+
+id
+inviter_id       -- 邀请人用户ID
+inviter_qiaoid
+invitee_id       -- 被邀请人用户ID（注册后绑定），注册前可以为NULL
+invitee_qiaoid
+invite_code      -- 邀请码
+status           -- pending, accepted, registered, rewarded
+created_at
+updated_at
+
+## 邀请奖励规则表 invite_reward_rules （2.0功能）
+
+配置不同条件下的奖励内容。
+
+id
+event_type       -- 注册完成、新用户活跃7天、首单支付等
+reward_type      -- contact_slot, points, quota, subscription_days
+reward_value     -- 奖励数值（如1栏位、100积分、30天VIP）
+status           -- active, inactive
+created_at
+updated_at
+
+## 奖励发放记录表 invite_rewards
+
+id
+invitation_id    -- 对应 user_invitations
+user_id          -- 获奖用户
+reward_type      -- contact_slot, points, quota, subscription_days
+reward_value
+status           -- pending, granted, revoked
+granted_at
+created_at
+updated_at
+
+确保奖励发放有日志，不会丢单。
+
+支持“撤回奖励”（如用户作弊）。
+
+## 用户权益扩展表（选用）
+
+如果奖励是 联系人栏位 +1 这种功能性权益，可以直接存在 quota 表里，或者单独建一张 user_entitlements。
+
+id
+user_id
+entitlement_type -- contact_slots, search_limit, ai_clone, etc.
+value            -- 当前值（默认值 + 奖励值）
+source           -- invite, subscription, purchase
+expire_at        -- NULL 表示永久
+updated_at
+
+统一管理用户的 功能权益（不限于邀请奖励）。
+
+和订阅、商城购买逻辑兼容。
+
+## subscription_plans （2.0功能）
+
+## subscriptions（2.0功能）
+
+```txt
+id
+user_id
+plan -- 等级写死
+status -- active,expired,canceled,trial
+start_date
+end_date
+auto_renew
+created_at
+updated_at
+```
+
+## wallets（2.0功能）
+
+```txt
+id
+user_id
+currency_type -- 写死 points,coins,gems
+balance
+updated_at
+```
+
+## wallet_transactions（2.0功能）
+
+```txt
+id
+user_id
+currency_type
+change_amount -- 正数增加，负数扣除
+balance_after -- 变动后的余额
+reason_code -- 'purchase', 'reward', 'exchange', 'refund', 'system_adjustment'
+metadata JSON -- 附加信息，比如订单号、活动ID
+created_at
+```
+
+## quota（2.0功能）
+
+```txt
+id
+user_id
+quota_type -- 写死 chat_tokens
+current_usage -- 已用量
+total_value -- 配额上限
+reset_cycle -- 重置周期
+reset_at -- 下次重置时间
+updated_at
+```
+
+## user_entitlements_summary（汇总表，方便查询总额）
+
+id
+user_id
+entitlement_type   -- contact_slots
+total_value        -- 汇总的有效上限（计算得出）
+used_value         -- 已用量
+updated_at
+
+## user_entitlement_batches（批次表，精确记录每一份来源）
+
+id
+user_id
+entitlement_type   -- contact_slots
+value              -- 本批次数量 (+10, +5)
+used_value         -- 本批次已使用量（可选）
+source             -- invite, subscription, promotion, system
+expire_at          -- NULL = 永久，否则到期时间
+created_at
+
+## quota_usage_log（2.0功能）
+
+```txt
+id
+user_id
+quota_type
+reason_code -- 'chat', 'system_adjust', 'purchase_extra'
+metadata
+created_at
+```
+
+## orders（2.0功能）
+
+交易类表要使用事务。
+
+```txt
+id
+user_id
+order_no -- 订单编号
+amount -- 金额
+currency
+pay_method -- wechat,apple,alipay
+status -- pending,paid,failed,refunded
+created_at
+paid_at
 ```
 
 ## 核心架构设计

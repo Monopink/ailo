@@ -14,6 +14,7 @@ from .security_views import SECURITY_MODEL_VIEWS
 from .session_views import SESSION_MODEL_VIEWS
 from .business_views import BUSINESS_MODEL_VIEWS
 from .ai_extended_views import AI_EXTENDED_MODEL_VIEWS
+from .stats_views import STATS_MODEL_VIEWS
 
 from .ai_test_views import (
     ai_character_chat_test_view,
@@ -42,6 +43,7 @@ from .user_admin_views import (
     admin_login_log_view,
     user_view,
     profile_view,
+    user_profile_log_view,
     contact_view,
 )
 
@@ -75,7 +77,23 @@ from .business_views import (
 
 from .ai_extended_views import (
     ai_context_view,
+    ai_context_archive_view,
     ai_relationship_score_view,
+)
+
+from .stats_views import (
+    stats_user_daily_view,
+    stats_user_weekly_view,
+    stats_user_monthly_view,
+    stats_revenue_daily_view,
+    stats_revenue_weekly_view,
+    stats_revenue_monthly_view,
+    stats_message_daily_view,
+    stats_message_weekly_view,
+    stats_message_monthly_view,
+    stats_ai_daily_view,
+    stats_ai_weekly_view,
+    stats_ai_monthly_view,
 )
 
 # Combine all model views for easy import
@@ -88,6 +106,7 @@ ALL_MODEL_VIEWS = [
     *SESSION_MODEL_VIEWS,
     *BUSINESS_MODEL_VIEWS,
     *AI_EXTENDED_MODEL_VIEWS,
+    *STATS_MODEL_VIEWS,
 ]
 
 __all__ = [
@@ -101,6 +120,7 @@ __all__ = [
     "SESSION_MODEL_VIEWS",
     "BUSINESS_MODEL_VIEWS",
     "AI_EXTENDED_MODEL_VIEWS",
+    "STATS_MODEL_VIEWS",
     # Individual AI views
     "ai_character_view",
     "ai_personality_view",
@@ -118,6 +138,7 @@ __all__ = [
     "admin_login_log_view",
     "user_view",
     "profile_view",
+    "user_profile_log_view",
     "contact_view",
     # Individual message/media views
     "message_history_view",
@@ -139,7 +160,21 @@ __all__ = [
     "message_delivery_failure_view",
     # Individual AI extended views
     "ai_context_view",
+    "ai_context_archive_view",
     "ai_relationship_score_view",
+    # Individual statistics views
+    "stats_user_daily_view",
+    "stats_user_weekly_view",
+    "stats_user_monthly_view",
+    "stats_revenue_daily_view",
+    "stats_revenue_weekly_view",
+    "stats_revenue_monthly_view",
+    "stats_message_daily_view",
+    "stats_message_weekly_view",
+    "stats_message_monthly_view",
+    "stats_ai_daily_view",
+    "stats_ai_weekly_view",
+    "stats_ai_monthly_view",
     # AI Testing views (for routing only, not in menu)
     "ai_character_chat_test_view",
     "ai_score_algorithm_test_view",

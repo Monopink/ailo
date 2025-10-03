@@ -66,7 +66,7 @@ class ContactRequestSource:
     SEARCH = 1      # 搜索添加
     ADMIN = 2       # 管理员添加
     SYSTEM = 3      # 系统添加
-    INVITE = 4      # 邀请添加
+    RECOMMEND = 4   # 推荐添加
 ```
 
 ### 联系人申请状态 (contact_requests.status)

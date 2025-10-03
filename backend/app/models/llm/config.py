@@ -78,7 +78,10 @@ class LLMConfig(AutoIncrementModel):
     )
 
     priority: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Priority for failover (lower number = higher priority)"
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Priority for failover (lower number = higher priority)",
     )
 
     extra_params: Mapped[Optional[dict]] = mapped_column(

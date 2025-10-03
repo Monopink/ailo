@@ -4,12 +4,16 @@ AI template related models.
 This module contains SQLAlchemy models for AI configuration templates.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
 from sqlalchemy import Integer, String, Text, Index, Float
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import AutoIncrementModel, SnowflakeQiaoModel
+
+if TYPE_CHECKING:
+    from models.ai.style import AIStyle
+    from models.ai.personality import AIPersonality
 
 
 class AIInfoTemplate(AutoIncrementModel):
@@ -64,6 +68,29 @@ class AIInfoTemplate(AutoIncrementModel):
         comment="Status: 1=active, 2=inactive",
     )
 
+    # Relationships
+    style: Mapped["AIStyle"] = relationship(
+        "AIStyle",
+        primaryjoin="AIInfoTemplate.style_id == AIStyle.id",
+        foreign_keys=[style_id],
+        lazy="select",
+        viewonly=True,
+    )
+    personality: Mapped["AIPersonality"] = relationship(
+        "AIPersonality",
+        primaryjoin="AIInfoTemplate.personality_id == AIPersonality.id",
+        foreign_keys=[personality_id],
+        lazy="select",
+        viewonly=True,
+    )
+    profile: Mapped[Optional["AIProfileTemplate"]] = relationship(
+        "AIProfileTemplate",
+        primaryjoin="AIInfoTemplate.profile_id == AIProfileTemplate.id",
+        foreign_keys=[profile_id],
+        lazy="select",
+        viewonly=True,
+    )
+
     # Indexes
     __table_args__ = (
         Index("idx_ai_info_templates_style_id", "style_id"),
@@ -109,6 +136,15 @@ class AIProfileTemplate(SnowflakeQiaoModel):
         nullable=False,
         default=1,
         comment="Status: 1=active, 2=inactive",
+    )
+
+    # Relationships
+    info: Mapped["AIInfoTemplate"] = relationship(
+        "AIInfoTemplate",
+        primaryjoin="AIProfileTemplate.info_id == AIInfoTemplate.id",
+        foreign_keys=[info_id],
+        lazy="select",
+        viewonly=True,
     )
 
     # Indexes

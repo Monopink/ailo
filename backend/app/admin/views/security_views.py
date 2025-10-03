@@ -7,7 +7,8 @@ This module contains Starlette-Admin views for managing user security logs and s
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, StringField, IntegerField, TextAreaField, DateTimeField
+from starlette_admin import StringField, IntegerField, TextAreaField, DateTimeField
+from admin.views.base import IntegerEnumField
 from starlette_admin.exceptions import FormValidationError
 
 # Import security models
@@ -62,13 +63,13 @@ class UserSecurityLogView(ModelView):
             "character_id", label="Character ID", help_text="AI character snowflake ID (if applicable)"
         ),
         StringField("character_qiao_id", label="Character Qiao ID", help_text="AI character qiao ID"),
-        EnumField(
+        IntegerEnumField(
             "violation_type",
             enum=ViolationType,
             label="Violation Type",
             help_text="Type of security violation detected",
         ),
-        EnumField(
+        IntegerEnumField(
             "severity_level",
             enum=SeverityLevel,
             label="Severity Level",
@@ -81,13 +82,13 @@ class UserSecurityLogView(ModelView):
             label="Confidence Score",
             help_text="AI detection confidence score (0-100)",
         ),
-        EnumField(
+        IntegerEnumField(
             "auto_action_taken",
             enum=AutoAction,
             label="Auto Action",
             help_text="Automatic action taken by system",
         ),
-        EnumField(
+        IntegerEnumField(
             "manual_review_status",
             enum=ManualReviewStatus,
             label="Review Status",
@@ -134,7 +135,7 @@ class UserSecurityStatsView(ModelView):
         IntegerField("total_violations", label="Total Violations", help_text="Total violation count"),
         "violation_by_type",
         DateTimeField("last_violation_at", label="Last Violation", help_text="Time of last violation"),
-        EnumField(
+        IntegerEnumField(
             "current_risk_level",
             enum=RiskLevel,
             label="Risk Level",

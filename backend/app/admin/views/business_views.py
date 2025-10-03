@@ -8,7 +8,8 @@ like contact requests and other workflow-related functionality.
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, StringField, IntegerField, DateTimeField, TextAreaField
+from starlette_admin import StringField, IntegerField, DateTimeField, TextAreaField, HasOne
+from admin.views.base import IntegerEnumField
 from starlette_admin.exceptions import FormValidationError
 
 # Import business models
@@ -25,8 +26,33 @@ class ContactRequestView(ModelView):
     label = "Contact Requests"
     name = "Contact Requests"
 
-    exclude_fields_from_create = ["id", "from_id", "to_id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "from_id", "to_id", "created_at", "updated_at"]
+    exclude_fields_from_create = [
+        "id",
+        "from_qiao_id",  # Auto-filled
+        "from_type",  # Auto-inferred from selected from entity
+        "from_id",  # Auto-filled
+        "to_qiao_id",  # Auto-filled
+        "to_type",  # Auto-inferred from selected to entity
+        "to_id",  # Auto-filled
+        "source",  # Auto-filled as ADMIN for admin panel creations
+        "status",  # Auto-filled as PENDING
+        "expires_at",  # Auto-calculated based on system config
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_edit = [
+        "id",
+        "from_qiao_id",  # Auto-filled
+        "from_type",  # Auto-inferred from selected from entity
+        "from_id",  # Auto-filled
+        "to_qiao_id",  # Auto-filled
+        "to_type",  # Auto-inferred from selected to entity
+        "to_id",  # Auto-filled
+        "source",  # Cannot change source after creation
+        "expires_at",  # Cannot change expiration after creation
+        "created_at",
+        "updated_at",
+    ]
     exclude_fields_from_list = ["message"]
 
     fields_default_sort = [("created_at", True)]
@@ -43,30 +69,46 @@ class ContactRequestView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal contact request ID"),
+        # Polymorphic from fields - select one, from_type is auto-inferred
+        HasOne(
+            "_from_user",
+            identity="user",
+            label="From (User)",
+            help_text="Select a user as applicant",
+            required=False,
+        ),
+        HasOne(
+            "_from_character",
+            identity="ai_character",
+            label="From (AI Character)",
+            help_text="Select an AI character as applicant",
+            required=False,
+        ),
         StringField("from_qiao_id", label="From Qiao ID", help_text="Applicant external identifier"),
-        EnumField(
-            "from_type",
-            choices=[(1, "User"), (2, "AI"), (3, "Official")],
-            label="From Type",
-            help_text="Type of applicant",
+        # Polymorphic to fields - select one, to_type is auto-inferred
+        HasOne(
+            "_to_user",
+            identity="user",
+            label="To (User)",
+            help_text="Select a user as target",
+            required=False,
         ),
-        StringField("from_id", label="From ID", help_text="Applicant snowflake ID"),
+        HasOne(
+            "_to_character",
+            identity="ai_character",
+            label="To (AI Character)",
+            help_text="Select an AI character as target",
+            required=False,
+        ),
         StringField("to_qiao_id", label="To Qiao ID", help_text="Target external identifier"),
-        EnumField(
-            "to_type",
-            choices=[(1, "User"), (2, "AI"), (3, "Official")],
-            label="To Type",
-            help_text="Type of target",
-        ),
-        StringField("to_id", label="To ID", help_text="Target snowflake ID"),
-        EnumField(
+        IntegerEnumField(
             "source",
             enum=ContactRequestSource,
             label="Request Source",
             help_text="How the contact request was initiated",
         ),
         TextAreaField("message", label="Request Message", help_text="Message from applicant"),
-        EnumField(
+        IntegerEnumField(
             "status",
             enum=ContactRequestStatus,
             label="Status",
@@ -79,6 +121,25 @@ class ContactRequestView(ModelView):
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
         """Custom validation for contact requests."""
+        from_user = data.get("_from_user")
+        from_character = data.get("_from_character")
+        to_user = data.get("_to_user")
+        to_character = data.get("_to_character")
+
+        # Must select exactly one from entity
+        if not from_user and not from_character:
+            raise FormValidationError(
+                {"_from_user": "Please select either From (User) or From (AI Character)"}
+            )
+        if from_user and from_character:
+            raise FormValidationError({"_from_user": "Please select only one from entity"})
+
+        # Must select exactly one to entity
+        if not to_user and not to_character:
+            raise FormValidationError({"_to_user": "Please select either To (User) or To (AI Character)"})
+        if to_user and to_character:
+            raise FormValidationError({"_to_user": "Please select only one to entity"})
+
         # Validate status changes
         if "status" in data:
             status = data["status"]
@@ -86,9 +147,83 @@ class ContactRequestView(ModelView):
             if status not in valid_statuses:
                 raise FormValidationError({"status": "Invalid request status"})
 
-        # Additional validation can be added here if needed
-
         return await super().validate(request, data)
+
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Set auto-filled fields before database commit."""
+        from models.user import User
+        from models.ai.character import AICharacter
+
+        # Auto-fill source as ADMIN for admin panel creations
+        obj.source = ContactRequestSource.ADMIN
+
+        # Auto-infer from_type and fill from_id, from_qiao_id
+        from_user = data.get("_from_user")
+        from_character = data.get("_from_character")
+
+        if from_user and isinstance(from_user, User):
+            obj.from_type = 1  # USER
+            obj.from_id = from_user.id
+            obj.from_qiao_id = from_user.qiao_id
+        elif from_character and isinstance(from_character, AICharacter):
+            obj.from_type = 2  # AI
+            obj.from_id = from_character.id
+            obj.from_qiao_id = from_character.qiao_id
+
+        # Auto-infer to_type and fill to_id, to_qiao_id
+        to_user = data.get("_to_user")
+        to_character = data.get("_to_character")
+
+        if to_user and isinstance(to_user, User):
+            obj.to_type = 1  # USER
+            obj.to_id = to_user.id
+            obj.to_qiao_id = to_user.qiao_id
+        elif to_character and isinstance(to_character, AICharacter):
+            obj.to_type = 2  # AI
+            obj.to_id = to_character.id
+            obj.to_qiao_id = to_character.qiao_id
+
+        # Auto-set status to PENDING
+        obj.status = ContactRequestStatus.PENDING
+
+        # Auto-calculate expires_at from system config
+        from datetime import datetime, timedelta
+        from services.system_config import get_config
+
+        # Get expiration hours from config (default: 168 hours = 7 days)
+        expiration_hours = await get_config(request.state.session, "contact_request_expiration_hours", 168)
+        obj.expires_at = datetime.utcnow() + timedelta(hours=int(expiration_hours))
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Set auto-filled fields before database commit."""
+        from models.user import User
+        from models.ai.character import AICharacter
+
+        # Auto-infer from_type and fill from_id, from_qiao_id
+        from_user = data.get("_from_user")
+        from_character = data.get("_from_character")
+
+        if from_user and isinstance(from_user, User):
+            obj.from_type = 1  # USER
+            obj.from_id = from_user.id
+            obj.from_qiao_id = from_user.qiao_id
+        elif from_character and isinstance(from_character, AICharacter):
+            obj.from_type = 2  # AI
+            obj.from_id = from_character.id
+            obj.from_qiao_id = from_character.qiao_id
+
+        # Auto-infer to_type and fill to_id, to_qiao_id
+        to_user = data.get("_to_user")
+        to_character = data.get("_to_character")
+
+        if to_user and isinstance(to_user, User):
+            obj.to_type = 1  # USER
+            obj.to_id = to_user.id
+            obj.to_qiao_id = to_user.qiao_id
+        elif to_character and isinstance(to_character, AICharacter):
+            obj.to_type = 2  # AI
+            obj.to_id = to_character.id
+            obj.to_qiao_id = to_character.qiao_id
 
     def can_delete(self, request: Request) -> bool:
         """Contact requests should not be deleted for audit purposes."""
@@ -121,7 +256,7 @@ class MessageDeliveryFailureView(ModelView):
 
     fields = [
         StringField("msg_id_server", label="Message ID", help_text="Original message ID"),
-        EnumField(
+        IntegerEnumField(
             "from_type",
             enum=MessageParticipantType,
             label="Sender Type",
@@ -129,7 +264,7 @@ class MessageDeliveryFailureView(ModelView):
         ),
         StringField("from_id", label="Sender ID", help_text="Sender snowflake ID"),
         StringField("from_qiao_id", label="Sender Qiao ID", help_text="Sender external identifier"),
-        EnumField(
+        IntegerEnumField(
             "to_type",
             enum=MessageParticipantType,
             label="Receiver Type",
@@ -137,7 +272,7 @@ class MessageDeliveryFailureView(ModelView):
         ),
         StringField("to_id", label="Receiver ID", help_text="Receiver snowflake ID"),
         StringField("to_qiao_id", label="Receiver Qiao ID", help_text="Receiver external identifier"),
-        EnumField(
+        IntegerEnumField(
             "message_type",
             enum=MessageType,
             label="Message Type",

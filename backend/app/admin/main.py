@@ -13,6 +13,7 @@ from .views import (
     # User Management
     user_view,
     profile_view,
+    user_profile_log_view,
     contact_view,
     # AI Management
     ai_character_view,
@@ -50,7 +51,21 @@ from .views import (
     message_delivery_failure_view,
     # AI Extended Management
     ai_context_view,
+    ai_context_archive_view,
     ai_relationship_score_view,
+    # Statistics Management
+    stats_user_daily_view,
+    stats_user_weekly_view,
+    stats_user_monthly_view,
+    stats_revenue_daily_view,
+    stats_revenue_weekly_view,
+    stats_revenue_monthly_view,
+    stats_message_daily_view,
+    stats_message_weekly_view,
+    stats_message_monthly_view,
+    stats_ai_daily_view,
+    stats_ai_weekly_view,
+    stats_ai_monthly_view,
     # AI Testing (for routing only, not in menu)
     ai_character_chat_test_view,
     ai_score_algorithm_test_view,
@@ -80,7 +95,7 @@ admin = Admin(
 user_group = DropDown(
     "Users",
     icon="fa fa-users",
-    views=[user_view, profile_view, contact_view, contact_request_view],
+    views=[user_view, profile_view, user_profile_log_view, contact_view, contact_request_view],
     always_open=False,
 )
 admin.add_view(user_group)
@@ -108,6 +123,7 @@ ai_group = DropDown(
         ai_profile_template_view,
         ai_request_log_view,
         ai_context_view,
+        ai_context_archive_view,
         ai_relationship_score_view,
     ],
     always_open=False,
@@ -158,6 +174,28 @@ media_group = DropDown(
     "Media", icon="fa fa-file-image", views=[media_file_view, emoticon_view], always_open=False
 )
 admin.add_view(media_group)
+
+# Statistics menu (flat structure, no nesting)
+stats_group = DropDown(
+    "Statistics",
+    icon="fa fa-chart-bar",
+    views=[
+        stats_user_daily_view,
+        stats_user_weekly_view,
+        stats_user_monthly_view,
+        stats_revenue_daily_view,
+        stats_revenue_weekly_view,
+        stats_revenue_monthly_view,
+        stats_message_daily_view,
+        stats_message_weekly_view,
+        stats_message_monthly_view,
+        stats_ai_daily_view,
+        stats_ai_weekly_view,
+        stats_ai_monthly_view,
+    ],
+    always_open=False,
+)
+admin.add_view(stats_group)
 
 system_group = DropDown(
     "System",

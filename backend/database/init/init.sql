@@ -133,7 +133,9 @@ CREATE TABLE IF NOT EXISTS contacts (
     is_deleted INTEGER NOT NULL DEFAULT 0,
     deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    -- Ensure one owner can only have one contact record for each contact
+    CONSTRAINT contacts_user_contact_unique UNIQUE (user_id, contact_id, contact_type)
 );
 
 -- Create indexes for contacts table
@@ -495,10 +497,10 @@ CREATE INDEX IF NOT EXISTS idx_ai_info_templates_score_offset_params_gin ON ai_i
 
 -- AI profile templates table - AI profile templates
 CREATE TABLE IF NOT EXISTS ai_profile_templates (
-    id SERIAL PRIMARY KEY,
+    id BIGINT PRIMARY KEY,  -- Changed from SERIAL to BIGINT for Snowflake ID
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
     category VARCHAR(50),
-    info_id INTEGER,
+    info_id INTEGER NOT NULL,  -- Changed from nullable to NOT NULL (matches model)
     nickname VARCHAR(100),
     gender INTEGER,
     avatar_url VARCHAR(500),
@@ -737,11 +739,13 @@ CREATE INDEX IF NOT EXISTS idx_user_security_stats_violation_by_type_gin ON user
 CREATE TABLE IF NOT EXISTS system_configs (
     id SERIAL PRIMARY KEY,
     config_key VARCHAR(100) NOT NULL UNIQUE,
-    config_value TEXT,
+    config_value TEXT NOT NULL,
+    default_value TEXT NOT NULL,
     config_type INTEGER NOT NULL,
     description TEXT,
-    is_public INTEGER NOT NULL DEFAULT 0,
     updated_by INTEGER,
+    group_name VARCHAR(50),
+    allowed_values JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -749,7 +753,6 @@ CREATE TABLE IF NOT EXISTS system_configs (
 -- Create indexes for system_configs table
 CREATE INDEX IF NOT EXISTS idx_system_configs_config_key ON system_configs(config_key);
 CREATE INDEX IF NOT EXISTS idx_system_configs_config_type ON system_configs(config_type);
-CREATE INDEX IF NOT EXISTS idx_system_configs_is_public ON system_configs(is_public);
 
 -- ============================================================================
 -- Statistics Tables
@@ -911,7 +914,7 @@ CREATE TABLE IF NOT EXISTS admin_operation_logs (
     id SERIAL PRIMARY KEY,
     admin_user_id INTEGER NOT NULL,
     operation_type INTEGER NOT NULL,
-    resource_type INTEGER NOT NULL,
+    resource_type VARCHAR(50) NOT NULL,
     resource_id VARCHAR(100),
     resource_name VARCHAR(255),
     operation_desc TEXT,
@@ -1113,34 +1116,40 @@ INSERT INTO admin_users (username, password_hash, role, status) VALUES
 ON CONFLICT (username) DO NOTHING;
 
 -- Insert default system configuration
-INSERT INTO system_configs (config_key, config_value, config_type, description, is_public) VALUES
-('max_message_length', '2000', 2, 'Maximum message length in characters', 0),
-('session_timeout_hours', '24', 2, 'User session timeout in hours', 0),
-('max_ai_requests_per_hour', '100', 2, 'Maximum AI requests per user per hour', 0),
-('enable_user_registration', 'true', 3, 'Enable new user registration', 0),
-('enable_ai_character_creation', 'true', 3, 'Enable AI character creation by users', 0),
-('ai_response_timeout_seconds', '30', 2, 'AI response timeout in seconds', 0),
-('ai_max_context_messages', '20', 2, 'Maximum context messages for AI', 0),
-('ai_json_schema_validation_enabled', 'true', 3, 'Enable JSON Schema validation', 0),
+INSERT INTO system_configs (config_key, config_value, default_value, config_type, description, group_name, allowed_values) VALUES
+-- Business configurations
+('default_contact_limit', '3', '3', 2, 'Default contact limit per user', 'business', NULL),
+('default_search_display_limit', '20', '20', 2, 'Default search display limit', 'business', NULL),
+('contact_request_expiration_hours', '72', '72', 2, 'Contact request expiration time in hours', 'business', NULL),
+('max_message_length', '79', '59', 2, 'Maximum message length in characters', 'business', NULL),
+('session_timeout_hours', '24', '24', 2, 'User session timeout in hours', 'business', NULL),
 
--- Business configuration (migrated from .env)
-('default_contact_limit', '50', 2, 'Default contact limit per user', 0),
-('default_search_display_limit', '20', 2, 'Default search display limit', 0),
-('add_contact_timeout', '300', 2, 'Add contact timeout in seconds', 0),
+-- LeanCloud configurations
+('leancloud_app_id', 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz', '', 1, 'LeanCloud App ID', 'leancloud', NULL),
+('leancloud_app_key', 'v8GM18oGSxzQTKpgQvdIfy2I', '', 1, 'LeanCloud App Key', 'leancloud', NULL),
+('leancloud_base_url', 'https://zcuk19lc.lc-cn-n1-shared.com', '', 1, 'LeanCloud Base URL', 'leancloud', NULL),
 
--- LeanCloud configuration (non-sensitive parts)
-('leancloud_app_id', 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz', 1, 'LeanCloud App ID', 0),
-('leancloud_app_key', 'v8GM18oGSxzQTKpgQvdIfy2I', 1, 'LeanCloud App Key', 0),
-('leancloud_base_url', 'https://zcuk19lc.lc-cn-n1-shared.com', 1, 'LeanCloud Base URL', 0),
-
--- System configuration
-('cors_origins', '["http://localhost:5174","http://127.0.0.1:5174"]', 1, 'CORS allowed origins (JSON array)', 0),
-('allowed_hosts', '["localhost","127.0.0.1","*"]', 1, 'Allowed hosts (JSON array)', 0),
-('log_level', 'INFO', 1, 'System logging level', 0),
-('log_format', 'json', 1, 'Log output format', 0),
-('jwt_access_token_expire_minutes', '30', 2, 'JWT token expiration time in minutes', 0),
-('bcrypt_rounds', '12', 2, 'BCrypt password hashing rounds', 0)
-ON CONFLICT (config_key) DO NOTHING;
+-- Admin security configurations
+('admin_max_ip_attempts', '10', '10', 2, 'Maximum login attempts per IP address before lockout', 'admin_security', NULL),
+('admin_ip_lockout_duration_minutes', '30', '30', 2, 'IP lockout duration in minutes after max attempts', 'admin_security', NULL),
+('admin_ip_attempt_window_minutes', '30', '30', 2, 'Time window for counting IP attempts in minutes', 'admin_security', NULL),
+('admin_whitelist_ips', '127.0.0.1,::1', '127.0.0.1,::1', 1, 'Whitelisted IP addresses (comma-separated)', 'admin_security', NULL),
+('admin_captcha_enabled', 'True', 'True', 3, 'Enable Cloudflare Turnstile CAPTCHA', 'admin_security', NULL),
+('admin_captcha_threshold', '1', '1', 2, 'Show CAPTCHA after N failed attempts from same IP', 'admin_security', NULL),
+('admin_captcha_mode', 'strict', 'strict', 5, 'CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'admin_security', '["strict", "fallback"]'::jsonb),
+('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '', 1, 'Cloudflare Turnstile Site Key (public)', 'admin_security', NULL),
+('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '', 1, 'Cloudflare Turnstile Secret Key (private)', 'admin_security', NULL),
+('admin_alert_on_suspicious_login', 'True', 'True', 3, 'Alert on suspicious login attempts', 'admin_security', NULL),
+('admin_alert_threshold_per_username', '20', '20', 2, 'Alert when username has N failed attempts from different IPs', 'admin_security', NULL),
+('admin_rate_limit_requests', '30', '30', 2, 'Maximum login requests per IP per minute', 'admin_security', NULL),
+('admin_rate_limit_window_seconds', '60', '60', 2, 'Rate limit time window in seconds', 'admin_security', NULL)
+ON CONFLICT (config_key) DO UPDATE SET
+    config_value = EXCLUDED.config_value,
+    default_value = EXCLUDED.default_value,
+    config_type = EXCLUDED.config_type,
+    description = EXCLUDED.description,
+    group_name = EXCLUDED.group_name,
+    allowed_values = EXCLUDED.allowed_values;
 
 -- Insert basic AI relationship types
 INSERT INTO ai_relationships (name, display_name, prompt_fragment, usage_count, status) VALUES
@@ -1259,11 +1268,10 @@ INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_cou
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert basic LLM providers
--- Note: Mock provider uses ID=99 to clearly indicate it's a test provider
 -- API keys are read from environment variables specified in api_key_env column
 INSERT INTO llm_providers (id, name, display_name, api_key_env, base_url, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
 (1, 'doubao', 'Doubao Production', 'DOUBAO_API_KEY', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-250615', 1, 1, 1),
-(99, 'mock', 'Mock LLM (Testing)', NULL, NULL, 'mock-model-v1', 0, 1, 0)
+(2, 'mock', 'Mock LLM (Testing)', NULL, NULL, 'mock-model-v1', 0, 1, 0)
 ON CONFLICT (display_name) DO UPDATE SET
     name = EXCLUDED.name,
     api_key_env = EXCLUDED.api_key_env,
@@ -1277,7 +1285,7 @@ ON CONFLICT (display_name) DO UPDATE SET
 -- Insert basic LLM configs
 INSERT INTO llm_configs (provider_id, config_key, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
 (1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
-(99, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'strict', 1, 999)
+(2, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'strict', 1, 999)
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert test users for AI character testing (user_type=3)
@@ -1576,10 +1584,35 @@ INSERT INTO ai_profile_templates (id, qiao_id, category, info_id, nickname, gend
 (1016, 'profile_002', 'friend', 1014, '小雨', 2, 'https://example.com/avatar2.jpg', '我是一个活泼的女孩，喜欢音乐和电影', '上海', 1, 1)
 ON CONFLICT (qiao_id) DO NOTHING;
 
+-- Reset all sequences after manual ID insertions
+-- This ensures next auto-generated IDs don't conflict with existing records
+DO $$
+DECLARE
+    seq_record RECORD;
+BEGIN
+    -- Reset sequences for all tables with SERIAL/BIGSERIAL columns
+    FOR seq_record IN
+        SELECT
+            sequence_name,
+            table_name
+        FROM information_schema.sequences
+        WHERE sequence_schema = 'public'
+        AND sequence_name LIKE '%_id_seq'
+    LOOP
+        EXECUTE format(
+            'SELECT setval(%L, COALESCE((SELECT MAX(id) FROM %I), 1), true)',
+            seq_record.sequence_name,
+            seq_record.table_name
+        );
+        RAISE NOTICE 'Reset sequence % for table %', seq_record.sequence_name, seq_record.table_name;
+    END LOOP;
+END $$;
+
 -- Success message
 DO $$
 BEGIN
     RAISE NOTICE 'Complete database initialization finished successfully!';
     RAISE NOTICE 'All tables, indexes, triggers, and initial data have been created.';
     RAISE NOTICE 'Additional test data for AI system has been inserted.';
+    RAISE NOTICE 'All sequences have been reset to avoid ID conflicts.';
 END $$;

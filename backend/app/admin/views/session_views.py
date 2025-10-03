@@ -7,7 +7,8 @@ This module contains Starlette-Admin views for managing user sessions and login 
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, StringField, DateTimeField, TextAreaField
+from starlette_admin import StringField, DateTimeField, TextAreaField
+from admin.views.base import IntegerEnumField
 from starlette_admin.exceptions import FormValidationError
 
 # Import session models
@@ -47,7 +48,7 @@ class UserSessionView(ModelView):
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         StringField("session_token", label="Session Token", help_text="Session authentication token"),
-        EnumField(
+        IntegerEnumField(
             "device_type",
             enum=DeviceType,
             label="Device Type",
@@ -58,7 +59,7 @@ class UserSessionView(ModelView):
         StringField("ip_address", label="IP Address", help_text="Login IP address"),
         TextAreaField("user_agent", label="User Agent", help_text="Browser/device user agent"),
         DateTimeField("expires_at", label="Expires At", help_text="Session expiration time"),
-        EnumField(
+        IntegerEnumField(
             "status",
             choices=[(1, "Active"), (0, "Inactive")],
             label="Status",
@@ -114,13 +115,13 @@ class LoginRecordView(ModelView):
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         DateTimeField("login_time", label="Login Time", help_text="Time of login attempt"),
-        EnumField(
+        IntegerEnumField(
             "login_type",
             enum=LoginType,
             label="Login Type",
             help_text="Method used for login",
         ),
-        EnumField(
+        IntegerEnumField(
             "platform",
             enum=DeviceType,
             label="Platform",
@@ -129,7 +130,7 @@ class LoginRecordView(ModelView):
         StringField("device_id", label="Device ID", help_text="Device identifier"),
         StringField("ip_address", label="IP Address", help_text="Login IP address"),
         TextAreaField("user_agent", label="User Agent", help_text="Browser/device user agent"),
-        EnumField(
+        IntegerEnumField(
             "result",
             enum=LoginResult,
             label="Result",

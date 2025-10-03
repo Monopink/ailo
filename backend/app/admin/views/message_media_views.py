@@ -4,7 +4,8 @@ Creates ModelView instances for message system and media management.
 """
 
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, HasOne, IntegerField, StringField, TextAreaField
+from starlette_admin import HasOne, IntegerField, JSONField, StringField, TextAreaField
+from admin.views.base import IntegerEnumField
 
 # Import message and media models
 from models.message.message import MessageHistory
@@ -48,8 +49,8 @@ class MessageHistoryView(ModelView):
     sortable_fields = ["id", "direction", "platform", "message_type", "status", "created_at"]
 
     fields = [
-        EnumField("direction", enum=MessageDirection, label="Direction", help_text="Message direction"),
-        EnumField(
+        IntegerEnumField("direction", enum=MessageDirection, label="Direction", help_text="Message direction"),
+        IntegerEnumField(
             "platform",
             choices=[(1, "iOS"), (2, "Android"), (3, "Web"), (4, "Mini Program")],
             label="Platform",
@@ -62,21 +63,21 @@ class MessageHistoryView(ModelView):
         ),
         StringField("msg_id_client", label="Client Message ID", help_text="Client-generated message ID"),
         "client_sent_time",
-        EnumField("from_type", enum=MessageParticipantType, label="From Type", help_text="Sender type"),
+        IntegerEnumField("from_type", enum=MessageParticipantType, label="From Type", help_text="Sender type"),
         StringField("from_id", label="From ID", help_text="Sender snowflake ID"),
         StringField("from_qiao_id", label="From Qiao ID", help_text="Sender external ID"),
-        EnumField("to_type", enum=MessageParticipantType, label="To Type", help_text="Receiver type"),
+        IntegerEnumField("to_type", enum=MessageParticipantType, label="To Type", help_text="Receiver type"),
         StringField("to_id", label="To ID", help_text="Receiver snowflake ID"),
         StringField("to_qiao_id", label="To Qiao ID", help_text="Receiver external ID"),
-        EnumField(
+        IntegerEnumField(
             "service_provider",
             enum=ServiceProvider,
             label="Service Provider",
             help_text="Message service provider",
         ),
-        EnumField("message_type", enum=MessageType, label="Message Type", help_text="Type of message"),
+        IntegerEnumField("message_type", enum=MessageType, label="Message Type", help_text="Type of message"),
         TextAreaField("content", label="Content", help_text="Message content"),
-        EnumField("status", enum=MessageStatus, label="Status", help_text="Message status"),
+        IntegerEnumField("status", enum=MessageStatus, label="Status", help_text="Message status"),
         "message_metadata",
         "created_at",
     ]
@@ -96,18 +97,18 @@ class MediaFileView(ModelView):
     sortable_fields = ["id", "file_type", "file_size", "status", "created_at"]
 
     fields = [
-        EnumField("file_type", enum=FileType, label="File Type", help_text="Type of media file"),
+        IntegerEnumField("file_type", enum=FileType, label="File Type", help_text="Type of media file"),
         StringField("original_name", label="Original Name", help_text="Original filename when uploaded"),
         StringField("file_path", label="File Path", help_text="Storage path of the file"),
         StringField("file_url", label="File URL", help_text="Public access URL"),
         IntegerField("file_size", label="File Size (bytes)", help_text="File size in bytes"),
         StringField("mime_type", label="MIME Type", help_text="File MIME type"),
-        EnumField(
+        IntegerEnumField(
             "upload_by_type", enum=UploaderType, label="Uploaded By Type", help_text="Type of uploader"
         ),
         StringField("upload_by_id", label="Uploader ID", help_text="Uploader snowflake ID"),
         StringField("upload_by_qiao_id", label="Uploader Qiao ID", help_text="External ID of uploader"),
-        EnumField("status", enum=FileStatus, label="Status", help_text="File status"),
+        IntegerEnumField("status", enum=FileStatus, label="Status", help_text="File status"),
     ]
 
 
@@ -126,18 +127,18 @@ class EmoticonView(ModelView):
 
     fields = [
         StringField("code", label="Emoticon Code", help_text="Unique identifier for the emoticon"),
-        EnumField("category", enum=EmoticonCategory, label="Category", help_text="Emoticon category"),
+        IntegerEnumField("category", enum=EmoticonCategory, label="Category", help_text="Emoticon category"),
         HasOne("file_id", identity="media_file", label="File", help_text="Select emoticon file"),
         StringField("url", label="URL", help_text="Direct URL to emoticon image"),
         StringField("description", label="Description", help_text="Emoticon description"),
-        EnumField(
+        IntegerEnumField(
             "created_by_type",
             enum=EmoticonCreatorType,
             label="Created By Type",
             help_text="Type of creator",
         ),
         StringField("created_by_id", label="Creator ID", help_text="Creator snowflake ID"),
-        EnumField(
+        IntegerEnumField(
             "status", choices=[(1, "Active"), (2, "Inactive")], label="Status", help_text="Emoticon status"
         ),
         IntegerField("sort_order", label="Sort Order", help_text="Display order"),
@@ -147,28 +148,27 @@ class EmoticonView(ModelView):
 class SystemConfigView(ModelView):
     """Enhanced System Config view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at", "updated_by"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at", "updated_by"]
 
     def can_delete(self, request):
         return False
 
     fields_default_sort = [("config_key", False)]
     searchable_fields = ["config_key", "description"]
-    sortable_fields = ["id", "config_key", "config_type", "is_public", "updated_at"]
+    sortable_fields = ["id", "config_key", "config_type", "updated_at"]
 
     fields = [
         StringField("config_key", label="Config Key", help_text="Unique configuration key"),
         StringField("config_value", label="Config Value", help_text="Configuration value"),
-        EnumField(
+        StringField("default_value", label="Default Value", help_text="Default configuration value"),
+        IntegerEnumField(
             "config_type", enum=ConfigType, label="Config Type", help_text="Data type of the configuration"
         ),
         StringField("description", label="Description", help_text="Description of this configuration"),
-        EnumField(
-            "is_public",
-            choices=[(0, "Private"), (1, "Public")],
-            label="Visibility",
-            help_text="Whether this config is publicly accessible",
+        StringField("group_name", label="Group Name", help_text="Configuration group name"),
+        JSONField(
+            "allowed_values", label="Allowed Values", help_text="Allowed values for enum type (JSON array)"
         ),
         "updated_by",
     ]

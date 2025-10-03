@@ -8,13 +8,13 @@ from datetime import date
 from sqlalchemy import Date, Integer, DECIMAL, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
-from models.base import AutoIncrementModel
+from models.base import ImmutableAutoIncrementModel
 
 
 # User Statistics Tables
 
 
-class StatsUserDaily(AutoIncrementModel):
+class StatsUserDaily(ImmutableAutoIncrementModel):
     """Daily user statistics model."""
 
     __tablename__ = "stats_user_daily"
@@ -45,7 +45,7 @@ class StatsUserDaily(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_user_daily_stat_date", "stat_date"),)
 
 
-class StatsUserWeekly(AutoIncrementModel):
+class StatsUserWeekly(ImmutableAutoIncrementModel):
     """Weekly user statistics model."""
 
     __tablename__ = "stats_user_weekly"
@@ -76,7 +76,7 @@ class StatsUserWeekly(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_user_weekly_stat_date", "stat_date"),)
 
 
-class StatsUserMonthly(AutoIncrementModel):
+class StatsUserMonthly(ImmutableAutoIncrementModel):
     """Monthly user statistics model."""
 
     __tablename__ = "stats_user_monthly"
@@ -110,7 +110,7 @@ class StatsUserMonthly(AutoIncrementModel):
 # Revenue Statistics Tables
 
 
-class StatsRevenueDaily(AutoIncrementModel):
+class StatsRevenueDaily(ImmutableAutoIncrementModel):
     """Daily revenue statistics model."""
 
     __tablename__ = "stats_revenue_daily"
@@ -135,7 +135,7 @@ class StatsRevenueDaily(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_revenue_daily_stat_date", "stat_date"),)
 
 
-class StatsRevenueWeekly(AutoIncrementModel):
+class StatsRevenueWeekly(ImmutableAutoIncrementModel):
     """Weekly revenue statistics model."""
 
     __tablename__ = "stats_revenue_weekly"
@@ -160,7 +160,7 @@ class StatsRevenueWeekly(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_revenue_weekly_stat_date", "stat_date"),)
 
 
-class StatsRevenueMonthly(AutoIncrementModel):
+class StatsRevenueMonthly(ImmutableAutoIncrementModel):
     """Monthly revenue statistics model."""
 
     __tablename__ = "stats_revenue_monthly"
@@ -188,7 +188,7 @@ class StatsRevenueMonthly(AutoIncrementModel):
 # Message Statistics Tables
 
 
-class StatsMessageDaily(AutoIncrementModel):
+class StatsMessageDaily(ImmutableAutoIncrementModel):
     """Daily message statistics model."""
 
     __tablename__ = "stats_message_daily"
@@ -211,7 +211,7 @@ class StatsMessageDaily(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_message_daily_stat_date", "stat_date"),)
 
 
-class StatsMessageWeekly(AutoIncrementModel):
+class StatsMessageWeekly(ImmutableAutoIncrementModel):
     """Weekly message statistics model."""
 
     __tablename__ = "stats_message_weekly"
@@ -234,7 +234,7 @@ class StatsMessageWeekly(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_message_weekly_stat_date", "stat_date"),)
 
 
-class StatsMessageMonthly(AutoIncrementModel):
+class StatsMessageMonthly(ImmutableAutoIncrementModel):
     """Monthly message statistics model."""
 
     __tablename__ = "stats_message_monthly"
@@ -260,7 +260,7 @@ class StatsMessageMonthly(AutoIncrementModel):
 # AI Statistics Tables
 
 
-class StatsAIDaily(AutoIncrementModel):
+class StatsAIDaily(ImmutableAutoIncrementModel):
     """Daily AI statistics model."""
 
     __tablename__ = "stats_ai_daily"
@@ -287,7 +287,7 @@ class StatsAIDaily(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_ai_daily_stat_date", "stat_date"),)
 
 
-class StatsAIWeekly(AutoIncrementModel):
+class StatsAIWeekly(ImmutableAutoIncrementModel):
     """Weekly AI statistics model."""
 
     __tablename__ = "stats_ai_weekly"
@@ -314,7 +314,7 @@ class StatsAIWeekly(AutoIncrementModel):
     __table_args__ = (Index("idx_stats_ai_weekly_stat_date", "stat_date"),)
 
 
-class StatsAIMonthly(AutoIncrementModel):
+class StatsAIMonthly(ImmutableAutoIncrementModel):
     """Monthly AI statistics model."""
 
     __tablename__ = "stats_ai_monthly"

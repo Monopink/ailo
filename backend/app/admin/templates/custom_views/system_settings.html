@@ -1,189 +1,274 @@
 {% extends "layout.html" %}
 
-{% block title %}系统设置{% endblock %}
+{% block title %}<title>System Settings</title>{% endblock %}
 
 {% block header %}
-<div class="row g-2 align-items-center">
-    <div class="col">
-        <h2 class="page-title">
-            <i class="fa fa-cogs me-2"></i>系统设置
-        </h2>
-        <div class="text-muted mt-1">管理系统配置参数</div>
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1>System Settings</h1>
     </div>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item active">System Settings</li>
+    </ol>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="col-12">
-    {% if success %}
-    <div class="alert alert-success alert-dismissible" role="alert">
-        <i class="fa fa-check-circle me-2"></i>{{ success }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    {% endif %}
-
-    {% if error %}
-    <div class="alert alert-danger alert-dismissible" role="alert">
-        <i class="fa fa-exclamation-triangle me-2"></i>{{ error }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    {% endif %}
-
-    <form method="post">
-        <div class="row">
-            {% for group_key, group in config_groups.items() %}
-            {% if group.configs %}
-            <div class="col-lg-6 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">{{ group.title }}</h3>
-                        <div class="card-subtitle">{{ group.description }}</div>
-                    </div>
-                    <div class="card-body">
-                        {% for config_key, config_value in group.configs.items() %}
-                        <div class="mb-3">
-                            <label class="form-label" for="config_{{ config_key }}">
-                                {{ config_key | replace('_', ' ') | title }}
-                            </label>
-
-                            {% if config_key.startswith('enable_') or config_key.endswith('_enabled') %}
-                            <!-- Boolean field -->
-                            <select class="form-select" name="config_{{ config_key }}" id="config_{{ config_key }}">
-                                <option value="true" {% if config_value %}selected{% endif %}>启用</option>
-                                <option value="false" {% if not config_value %}selected{% endif %}>禁用</option>
-                            </select>
-                            {% elif config_key in ['cors_origins', 'allowed_hosts'] %}
-                            <!-- JSON array field -->
-                            <textarea class="form-control" name="config_{{ config_key }}" id="config_{{ config_key }}"
-                                rows="3"
-                                placeholder='["http://localhost:5174", "http://127.0.0.1:5174"]'>{{ config_value | tojson if config_value is iterable and config_value is not string else config_value }}</textarea>
-                            <div class="form-text">JSON数组格式或逗号分隔的值</div>
-                            {% elif config_key.endswith('_timeout') or config_key.endswith('_seconds') or
-                            config_key.endswith('_minutes') or config_key.endswith('_hours') or
-                            config_key.endswith('_limit') or config_key.endswith('_rounds') or
-                            config_key.endswith('_count') %}
-                            <!-- Integer field -->
-                            <input type="number" class="form-control" name="config_{{ config_key }}"
-                                id="config_{{ config_key }}" value="{{ config_value or '' }}" min="0">
-                            {% elif config_key == 'log_level' %}
-                            <!-- Log level dropdown -->
-                            <select class="form-select" name="config_{{ config_key }}" id="config_{{ config_key }}">
-                                <option value="DEBUG" {% if config_value=='DEBUG' %}selected{% endif %}>DEBUG</option>
-                                <option value="INFO" {% if config_value=='INFO' %}selected{% endif %}>INFO</option>
-                                <option value="WARNING" {% if config_value=='WARNING' %}selected{% endif %}>WARNING
-                                </option>
-                                <option value="ERROR" {% if config_value=='ERROR' %}selected{% endif %}>ERROR</option>
-                                <option value="CRITICAL" {% if config_value=='CRITICAL' %}selected{% endif %}>CRITICAL
-                                </option>
-                            </select>
-                            {% elif config_key == 'log_format' %}
-                            <!-- Log format dropdown -->
-                            <select class="form-select" name="config_{{ config_key }}" id="config_{{ config_key }}">
-                                <option value="json" {% if config_value=='json' %}selected{% endif %}>JSON</option>
-                                <option value="text" {% if config_value=='text' %}selected{% endif %}>Text</option>
-                            </select>
-                            {% else %}
-                            <!-- String field -->
-                            <input type="text" class="form-control" name="config_{{ config_key }}"
-                                id="config_{{ config_key }}" value="{{ config_value or '' }}">
-                            {% endif %}
-
-                            <!-- Field descriptions -->
-                            {% if config_key == 'default_contact_limit' %}
-                            <div class="form-text">每个用户的默认联系人数量限制</div>
-                            {% elif config_key == 'default_search_display_limit' %}
-                            <div class="form-text">搜索结果的默认显示数量</div>
-                            {% elif config_key == 'add_contact_timeout' %}
-                            <div class="form-text">添加联系人操作的超时时间（秒）</div>
-                            {% elif config_key == 'leancloud_app_id' %}
-                            <div class="form-text">LeanCloud应用ID</div>
-                            {% elif config_key == 'leancloud_app_key' %}
-                            <div class="form-text">LeanCloud应用Key</div>
-                            {% elif config_key == 'leancloud_base_url' %}
-                            <div class="form-text">LeanCloud API基础URL</div>
-                            {% elif config_key == 'cors_origins' %}
-                            <div class="form-text">允许跨域访问的来源地址</div>
-                            {% elif config_key == 'allowed_hosts' %}
-                            <div class="form-text">允许访问的主机名列表</div>
-                            {% elif config_key == 'jwt_access_token_expire_minutes' %}
-                            <div class="form-text">JWT访问令牌的过期时间（分钟）</div>
-                            {% elif config_key == 'bcrypt_rounds' %}
-                            <div class="form-text">密码加密的BCrypt轮数</div>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-
+<div class="page-body">
+    <div class="container-xl">
         <div class="row">
             <div class="col-12">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between">
-                            <button type="button" class="btn btn-secondary" onclick="history.back()">
-                                <i class="fa fa-arrow-left me-2"></i>返回
-                            </button>
-                            <div>
-                                <button type="button" class="btn btn-outline-primary me-2" onclick="location.reload()">
-                                    <i class="fa fa-refresh me-2"></i>重新加载
-                                </button>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fa fa-save me-2"></i>保存设置
-                                </button>
+                <!-- Success/Error/Warning Messages -->
+                {% if success %}
+                <div class="alert alert-success alert-dismissible" role="alert">
+                    <i class="fa fa-check-circle me-2"></i>{{ success }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                {% if error %}
+                <div class="alert alert-danger alert-dismissible" role="alert">
+                    <i class="fa fa-exclamation-triangle me-2"></i>{{ error }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                {% if warning %}
+                <div class="alert alert-warning alert-dismissible" role="alert">
+                    <i class="fa fa-exclamation-circle me-2"></i>{{ warning }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                <!-- Missing Configs Warning -->
+                {% if missing_configs %}
+                <div class="alert alert-warning alert-dismissible" role="alert">
+                    <i class="fa fa-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> The following configuration keys are not displayed in the UI:
+                    <ul class="mb-0 mt-2">
+                        {% for key in missing_configs %}
+                        <li><code>{{ key }}</code></li>
+                        {% endfor %}
+                    </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endif %}
+
+                <!-- Configuration Form -->
+                <form method="post">
+                    {% for group_key, group in config_groups.items() %}
+                    {% if group.configs %}
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h3 class="card-title group-title">{{ group.title }}</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-3">{{ group.description }}</p>
+
+                            <!-- Single column layout with table-like rows -->
+                            <div class="config-list">
+                                {% for config_key, config in group.configs.items() %}
+                                <div class="config-row d-flex align-items-start mb-3 pb-3 border-bottom">
+                                    <!-- Config Name (25%) -->
+                                    <div class="config-name" style="flex: 0 0 25%; padding-right: 1rem;">
+                                        <label class="form-label fw-bold mb-1" for="config_modify_{{ config_key }}">
+                                            {{ config_key | replace('_', ' ') | title }}
+                                        </label>
+
+                                        <!-- Use config.description from database -->
+                                        {% if config.description %}
+                                        <small class="text-muted d-block">{{ config.description }}</small>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Current & Default Value (30%) -->
+                                    <div class="config-current" style="flex: 0 0 30%; padding-right: 1rem;">
+                                        <!-- Current Value (color indicates if modified) -->
+                                        <strong
+                                            class="{% if config.config_value == config.default_value %}text-success{% else %}text-primary{% endif %} d-block mb-1"
+                                            data-current-{{ config_key }}>
+                                            {% if config.config_value is sameas true or config.config_value == 'true' %}
+                                            true
+                                            {% elif config.config_value is sameas false or config.config_value ==
+                                            'false' %}
+                                            false
+                                            {% else %}
+                                            {{ config.config_value }}
+                                            {% endif %}
+                                        </strong>
+
+                                        <!-- Default Value -->
+                                        <small class="text-muted d-block">
+                                            Default:
+                                            <span class="text-secondary">
+                                                {% if config.default_value is sameas true or config.default_value ==
+                                                'true' %}
+                                                true
+                                                {% elif config.default_value is sameas false or config.default_value ==
+                                                'false' %}
+                                                false
+                                                {% else %}
+                                                {{ config.default_value }}
+                                                {% endif %}
+                                            </span>
+                                        </small>
+                                    </div>
+
+                                    <!-- Modification Input (45%) - Dynamic based on config_type -->
+                                    <div class="config-modify" style="flex: 1;">
+                                        <div class="input-group">
+                                            {% if config.config_type == 3 %}
+                                            <!-- Boolean field (config_type=3) -->
+                                            <select class="form-select" name="config_modify_{{ config_key }}"
+                                                id="config_modify_{{ config_key }}">
+                                                <option value="">-- No Change --</option>
+                                                <option value="true">true</option>
+                                                <option value="false">false</option>
+                                            </select>
+
+                                            {% elif config.config_type == 5 %}
+                                            <!-- Enum/Select field (config_type=5) -->
+                                            <select class="form-select" name="config_modify_{{ config_key }}"
+                                                id="config_modify_{{ config_key }}">
+                                                <option value="">-- No Change --</option>
+                                                {% for value in config.allowed_values %}
+                                                <option value="{{ value }}">{{ value }}</option>
+                                                {% endfor %}
+                                            </select>
+
+                                            {% elif config.config_type == 2 %}
+                                            <!-- Number field (config_type=2) -->
+                                            <input type="number" class="form-control"
+                                                name="config_modify_{{ config_key }}"
+                                                id="config_modify_{{ config_key }}"
+                                                placeholder="Leave empty for no change" min="0">
+
+                                            {% elif config.config_type == 4 %}
+                                            <!-- JSON field (config_type=4) -->
+                                            <textarea class="form-control" name="config_modify_{{ config_key }}"
+                                                id="config_modify_{{ config_key }}" rows="3"
+                                                placeholder='Leave empty for no change. Example: ["value1","value2"]'></textarea>
+
+                                            {% else %}
+                                            <!-- String field (config_type=1) -->
+                                            <input type="text" class="form-control"
+                                                name="config_modify_{{ config_key }}"
+                                                id="config_modify_{{ config_key }}"
+                                                placeholder="Leave empty for no change">
+                                            {% endif %}
+
+                                            <!-- Reset to default button -->
+                                            <button class="btn btn-outline-secondary" type="button"
+                                                title="Reset to default"
+                                                onclick="document.getElementById('config_modify_{{ config_key }}').value = '{{ config.default_value }}'">
+                                                <i class="fa fa-undo"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </form>
+                    {% endif %}
+                    {% endfor %}
 
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">配置说明</h3>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h4>业务配置</h4>
-                            <ul class="list-unstyled">
-                                <li>• <strong>联系人限制:</strong> 控制用户可添加的联系人数量</li>
-                                <li>• <strong>搜索显示限制:</strong> 搜索结果的分页大小</li>
-                                <li>• <strong>添加联系人超时:</strong> 防止频繁添加联系人的时间限制</li>
-                            </ul>
-
-
-                        </div>
-                        <div class="col-md-6">
-                            <h4>系统配置</h4>
-                            <ul class="list-unstyled">
-                                <li>• <strong>日志级别:</strong> 控制系统日志的详细程度</li>
-                                <li>• <strong>JWT过期时间:</strong> 用户登录令牌的有效期</li>
-                                <li>• <strong>密码加密轮数:</strong> 影响密码安全性和性能</li>
-                            </ul>
-
-                            <h4>网络配置</h4>
-                            <ul class="list-unstyled">
-                                <li>• <strong>CORS来源:</strong> 允许跨域请求的前端地址</li>
-                                <li>• <strong>允许的主机:</strong> 可以访问API的主机名</li>
-                            </ul>
-                        </div>
+                    <!-- Action Buttons -->
+                    <div class="mt-3 d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary" id="save-settings-btn">
+                            <i class="fa fa-save me-2"></i>Save Settings
+                        </button>
                     </div>
+                </form>
 
-                    <div class="alert alert-info mt-3">
-                        <i class="fa fa-info-circle me-2"></i>
-                        <strong>注意:</strong> 某些配置更改可能需要重启服务才能生效。建议在维护窗口期间进行重要配置的修改。
+                <!-- Save Confirmation Script -->
+                <script>
+                    document.getElementById('save-settings-btn').addEventListener('click', function (e) {
+                        // Collect non-empty modifications
+                        const changes = [];
+                        document.querySelectorAll('[name^="config_modify_"]').forEach(input => {
+                            const value = input.value ? input.value.trim() : '';
+                            if (value) {
+                                const key = input.name.replace('config_modify_', '');
+                                const currentValueEl = document.querySelector('[data-current-' + key + ']');
+                                const currentValue = currentValueEl ? currentValueEl.textContent.trim() : '';
+                                changes.push({
+                                    key: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                                    from: currentValue,
+                                    to: value
+                                });
+                            }
+                        });
+
+                        if (changes.length === 0) {
+                            e.preventDefault();
+                            alert('No changes to save. All modification fields are empty.');
+                            return;
+                        }
+
+                        // Show confirmation
+                        const message = 'You are about to modify the following configuration(s):\n\n' +
+                            changes.map(c => `• ${c.key}: ${c.from} → ${c.to}`).join('\n') +
+                            '\n\nAre you sure you want to save these changes?';
+
+                        if (!confirm(message)) {
+                            e.preventDefault();
+                        }
+                    });
+                </script>
+
+                <!-- Format configuration names -->
+                <script>
+                    (function () {
+                        const specialWords = {
+                            'ip': 'IP', 'id': 'ID', 'ai': 'AI', 'api': 'API',
+                            'url': 'URL', 'json': 'JSON', 'ips': 'IPs', 'ids': 'IDs',
+                            'html': 'HTML', 'css': 'CSS', 'sql': 'SQL',
+                            'http': 'HTTP', 'https': 'HTTPS', 'ssl': 'SSL',
+                            'jwt': 'JWT', 'oauth': 'OAuth', 'sms': 'SMS'
+                        };
+
+                        function formatConfigName(text) {
+                            return text.split('_')
+                                .map(word => specialWords[word.toLowerCase()] ||
+                                    word.charAt(0).toUpperCase() + word.slice(1))
+                                .join(' ');
+                        }
+
+                        // Format all group titles
+                        document.querySelectorAll('.group-title').forEach(el => {
+                            const original = el.textContent.trim();
+                            const snakeCase = original.toLowerCase().replace(/ /g, '_');
+                            el.textContent = formatConfigName(snakeCase);
+                        });
+
+                        // Format all config names
+                        document.querySelectorAll('.config-name label').forEach(el => {
+                            const original = el.textContent.trim();
+                            const snakeCase = original.toLowerCase().replace(/ /g, '_');
+                            el.textContent = formatConfigName(snakeCase);
+                        });
+                    })();
+                </script>
+
+                <!-- Configuration Notes -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Configuration Notes</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info mb-0">
+                            <i class="fa fa-info-circle me-2"></i>
+                            <strong>Note:</strong> Some configuration changes may require a service restart to take
+                            effect.
+                            It is recommended to make important configuration changes during maintenance windows.
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-</div>
-{% endblock %}
+    {% endblock %}

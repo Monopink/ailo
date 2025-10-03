@@ -22,7 +22,6 @@ class SystemConfigBase(BaseSchema):
     config_value: str = Field(..., description="Configuration value")
     config_type: ConfigType = Field(..., description="Value type")
     description: Optional[str] = Field(None, max_length=500, description="Configuration description")
-    is_public: bool = Field(False, description="Is public configuration")
 
 
 class SystemConfigCreate(BaseModel):
@@ -32,7 +31,6 @@ class SystemConfigCreate(BaseModel):
     config_value: str = Field(..., description="Configuration value")
     config_type: ConfigType = Field(..., description="Value type")
     description: Optional[str] = Field(None, max_length=500, description="Configuration description")
-    is_public: bool = Field(False, description="Is public configuration")
 
     @validator("config_value")
     def validate_config_value_by_type(cls, v, values):
@@ -62,7 +60,6 @@ class SystemConfigUpdate(BaseModel):
     config_value: Optional[str] = Field(None, description="Configuration value")
     config_type: Optional[ConfigType] = Field(None, description="Value type")
     description: Optional[str] = Field(None, max_length=500, description="Configuration description")
-    is_public: Optional[bool] = Field(None, description="Is public configuration")
 
     @validator("config_value")
     def validate_config_value_by_type(cls, v, values):

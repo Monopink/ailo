@@ -6,10 +6,14 @@ This module contains SQLAlchemy models for AI relationship scoring and statistic
 
 from sqlalchemy import BigInteger, Integer, String, Index
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
-from typing import Optional, Dict, Any
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional, Dict, Any, TYPE_CHECKING
 
 from models.base import SnowflakeModel
+
+if TYPE_CHECKING:
+    from models.ai.character import AICharacter
+    from models.ai.style import AIRelationshipDimension, AIRelationship
 
 
 class AIRelationshipScore(SnowflakeModel):
@@ -45,6 +49,29 @@ class AIRelationshipScore(SnowflakeModel):
 
     relationship_counts: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB, nullable=True, default={}, comment="Relationship usage counts (JSONB)"
+    )
+
+    # Relationships
+    character: Mapped["AICharacter"] = relationship(
+        "AICharacter",
+        primaryjoin="AIRelationshipScore.character_id == AICharacter.id",
+        foreign_keys=[character_id],
+        lazy="select",
+        viewonly=True,
+    )
+    dimension: Mapped["AIRelationshipDimension"] = relationship(
+        "AIRelationshipDimension",
+        primaryjoin="AIRelationshipScore.dimension_id == AIRelationshipDimension.id",
+        foreign_keys=[dimension_id],
+        lazy="select",
+        viewonly=True,
+    )
+    relationship: Mapped[Optional["AIRelationship"]] = relationship(
+        "AIRelationship",
+        primaryjoin="AIRelationshipScore.relationship_id == AIRelationship.id",
+        foreign_keys=[relationship_id],
+        lazy="select",
+        viewonly=True,
     )
 
     # Indexes

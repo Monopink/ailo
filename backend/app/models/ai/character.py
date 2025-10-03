@@ -4,12 +4,17 @@ AI character and context related models.
 This module contains SQLAlchemy models for AI characters and conversation contexts.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from sqlalchemy import BigInteger, Integer, String, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import SnowflakeModel, SnowflakeQiaoModel
+
+if TYPE_CHECKING:
+    from models.user import User
+    from models.ai.style import AIStyle
+    from models.ai.personality import AIPersonality
 
 
 class AICharacter(SnowflakeQiaoModel):
@@ -67,6 +72,29 @@ class AICharacter(SnowflakeQiaoModel):
 
     created_by: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Creator type: 1=system, 2=user"
+    )
+
+    # Relationships
+    user: Mapped[Optional["User"]] = relationship(
+        "User",
+        primaryjoin="AICharacter.user_id == User.id",
+        foreign_keys=[user_id],
+        lazy="select",
+        viewonly=True,
+    )
+    style: Mapped["AIStyle"] = relationship(
+        "AIStyle",
+        primaryjoin="AICharacter.style_id == AIStyle.id",
+        foreign_keys=[style_id],
+        lazy="select",
+        viewonly=True,
+    )
+    personality: Mapped["AIPersonality"] = relationship(
+        "AIPersonality",
+        primaryjoin="AICharacter.personality_id == AIPersonality.id",
+        foreign_keys=[personality_id],
+        lazy="select",
+        viewonly=True,
     )
 
     # Indexes

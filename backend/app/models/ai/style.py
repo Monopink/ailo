@@ -33,7 +33,19 @@ class AIStyle(AutoIncrementModel):
         comment="Status: 1=active, 2=inactive",
     )
 
+    initial_relationship_id: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Initial relationship ID, references ai_relationships.id"
+    )
+
     # Relationships
+    initial_relationship: Mapped[Optional["AIRelationship"]] = relationship(
+        "AIRelationship",
+        primaryjoin="AIStyle.initial_relationship_id == AIRelationship.id",
+        foreign_keys=[initial_relationship_id],
+        lazy="select",
+        viewonly=True,
+    )
+
     dimensions: Mapped[List["AIRelationshipDimension"]] = relationship(
         "AIRelationshipDimension",
         back_populates="style",
@@ -175,7 +187,9 @@ class AIRelationshipIndex(AutoIncrementModel):
         comment="Relationship ID, references ai_relationships.id",
     )
 
-    priority: Mapped[int] = mapped_column(Integer, nullable=False, comment="Priority level")
+    priority: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1", comment="Priority level (default: 1)"
+    )
 
     limit_count: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Maximum occurrence count, NULL means unlimited"

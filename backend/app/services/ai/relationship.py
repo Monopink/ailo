@@ -315,7 +315,7 @@ def _find_matching_relationship(
                     )
                     return mapping
 
-        # Sort by priority (lower number = higher priority) and return first
+        # Sort by priority (higher number = higher priority) and return first
         sorted_mappings = sorted(matching_mappings, key=lambda x: x.get("priority", 999))
         selected_mapping = sorted_mappings[0]
 

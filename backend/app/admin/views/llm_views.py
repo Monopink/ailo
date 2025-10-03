@@ -9,16 +9,17 @@ from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import (
-    EnumField,
     StringField,
     IntegerField,
     FloatField,
     JSONField,
     TextAreaField,
     HasOne,
+    EnumField,
 )
 from starlette_admin.actions import link_row_action
 from starlette_admin.exceptions import FormValidationError
+from admin.views.base import IntegerEnumField
 from models.llm import LLMProvider, LLMConfig, LLMTestLog
 
 
@@ -58,10 +59,14 @@ class LLMProviderView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal provider ID"),
-        StringField(
+        EnumField(
             "name",
+            choices=[
+                ("doubao", "doubao"),
+                ("mock", "mock"),
+            ],
             label="Provider Name",
-            help_text="LLM provider name (doubao, openai, qwen, deepseek, etc.)",
+            help_text="LLM provider name (only doubao and mock are currently supported)",
             required=True,
         ),
         StringField(
@@ -78,22 +83,25 @@ class LLMProviderView(ModelView):
         ),
         StringField("base_url", label="Base URL", help_text="API base URL", required=False),
         StringField("default_model", label="Default Model", help_text="Default model name", required=False),
-        IntegerField(
+        IntegerEnumField(
             "supports_streaming",
+            choices=[(0, "No"), (1, "Yes")],
             label="Supports Streaming",
-            help_text="Supports streaming output: 0=No, 1=Yes",
+            help_text="Supports streaming output",
             required=True,
         ),
-        IntegerField(
+        IntegerEnumField(
             "supports_json_schema",
+            choices=[(0, "No"), (1, "Yes")],
             label="Supports JSON Schema",
-            help_text="Supports JSON schema: 0=No, 1=Yes",
+            help_text="Supports JSON schema",
             required=True,
         ),
-        IntegerField(
+        IntegerEnumField(
             "supports_thinking",
+            choices=[(0, "No"), (1, "Yes")],
             label="Supports Thinking",
-            help_text="Supports thinking mode: 0=No, 1=Yes",
+            help_text="Supports thinking mode",
             required=True,
         ),
     ]
@@ -184,16 +192,18 @@ class LLMConfigView(ModelView):
             "timeout_seconds", label="Timeout (seconds)", help_text="Timeout in seconds", required=True
         ),
         IntegerField("max_retries", label="Max Retries", help_text="Maximum retry attempts", required=True),
-        IntegerField(
+        IntegerEnumField(
             "enable_streaming",
+            choices=[(0, "No"), (1, "Yes")],
             label="Enable Streaming",
-            help_text="Enable streaming output: 0=No, 1=Yes",
+            help_text="Enable streaming output",
             required=True,
         ),
-        IntegerField(
+        IntegerEnumField(
             "enable_thinking",
+            choices=[(0, "No"), (1, "Yes")],
             label="Enable Thinking",
-            help_text="Enable thinking mode: 0=No, 1=Yes",
+            help_text="Enable thinking mode",
             required=True,
         ),
         EnumField(
@@ -213,7 +223,7 @@ class LLMConfigView(ModelView):
             ),
             required=True,
         ),
-        EnumField(
+        IntegerEnumField(
             "status",
             choices=[(1, "Active"), (2, "Inactive")],
             label="Status",
@@ -342,7 +352,7 @@ class LLMTestLogView(ModelView):
         IntegerField(
             "override_max_tokens", label="Override Max Tokens", help_text="Overridden max tokens value"
         ),
-        EnumField(
+        IntegerEnumField(
             "enable_thinking",
             choices=[(0, "No"), (1, "Yes")],
             label="Enable Thinking",
@@ -350,7 +360,7 @@ class LLMTestLogView(ModelView):
         ),
         ChineseJSONField("request", label="Request", help_text="Full request payload"),
         ChineseJSONField("response", label="Response", help_text="Full response data"),
-        EnumField(
+        IntegerEnumField(
             "status",
             choices=[(1, "Success"), (2, "Failed"), (3, "Timeout")],
             label="Status",

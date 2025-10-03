@@ -7,7 +7,7 @@ This module contains SQLAlchemy models for AI personality templates and placehol
 from typing import Any, Dict, Optional
 from sqlalchemy import Integer, String, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import AutoIncrementModel
 
@@ -94,6 +94,15 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
 
     is_required: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, comment="Is required: 1=required, 0=optional"
+    )
+
+    # Relationships
+    personality: Mapped["AIPersonality"] = relationship(
+        "AIPersonality",
+        primaryjoin="AIPersonalityPlaceholder.personality_id == AIPersonality.id",
+        foreign_keys=[personality_id],
+        lazy="select",
+        viewonly=True,
     )
 
     # Indexes

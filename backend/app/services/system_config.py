@@ -3,10 +3,13 @@ System configuration management service.
 
 This module provides centralized management for system configuration
 stored in the database, with caching and type conversion support.
+
+IMPORTANT: This service is READ-ONLY. For write operations, use crud.system.config.
+After updating configs through CRUD, call SystemConfigService.reload_cache() to sync.
 """
 
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,58 +54,6 @@ class SystemConfigService:
         return default
 
     @staticmethod
-    async def set_config(db: AsyncSession, key: str, value: Any, description: str = None) -> bool:
-        """
-        Set configuration value.
-
-        Args:
-            db: Database session
-            key: Configuration key
-            value: Configuration value
-            description: Optional description
-
-        Returns:
-            True if successful
-        """
-        try:
-            # Get existing config
-            result = await db.execute(select(SystemConfig).where(SystemConfig.config_key == key))
-            config = result.scalar_one_or_none()
-
-            # Convert value to string and determine type
-            str_value, config_type = SystemConfigService._convert_to_db_format(value)
-
-            if config:
-                # Update existing
-                config.config_value = str_value
-                config.config_type = config_type
-                if description:
-                    config.description = description
-            else:
-                # Create new
-                config = SystemConfig(
-                    config_key=key,
-                    config_value=str_value,
-                    config_type=config_type,
-                    description=description or f"Configuration for {key}",
-                    is_public=0,
-                )
-                db.add(config)
-
-            await db.commit()
-
-            # Update cache
-            _config_cache[key] = value
-
-            logger.info("system_configs_updated", key=key, value_type=type(value).__name__)
-            return True
-
-        except Exception as e:
-            logger.error("system_configs_update_error", key=key, error=str(e), exc_info=True)
-            await db.rollback()
-            return False
-
-    @staticmethod
     async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:
         """
         Get all configuration values.
@@ -123,40 +74,64 @@ class SystemConfigService:
     @staticmethod
     async def get_configs_by_group(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
         """
-        Get configurations grouped by category for admin interface.
+        Get configurations grouped by group_name (fully dynamic from database).
 
         Returns:
-            Grouped configuration dictionary
+            Grouped configuration dictionary with full config objects
         """
-        all_configs = await SystemConfigService.get_all_configs(db)
+        # Get all config objects from database, ordered by group and key
+        result = await db.execute(
+            select(SystemConfig).order_by(SystemConfig.group_name, SystemConfig.config_key)
+        )
+        all_configs = result.scalars().all()
 
-        # Define configuration groups
-        groups = {
-            "business": {"title": "业务配置", "description": "用户和联系人相关的业务配置", "configs": {}},
-            "leancloud": {"title": "LeanCloud配置", "description": "LeanCloud服务配置", "configs": {}},
-            "system": {"title": "系统配置", "description": "系统运行相关配置", "configs": {}},
-            "network": {"title": "网络配置", "description": "CORS和网络访问配置", "configs": {}},
-            "other": {"title": "其他配置", "description": "其他系统配置", "configs": {}},
-        }
+        # Dynamically build groups from database
+        groups = {}
+        for config in all_configs:
+            group_name = config.group_name or "other"
 
-        # Group configurations
-        for key, value in all_configs.items():
-            if key.startswith(("default_", "add_contact_", "max_", "session_", "enable_")):
-                groups["business"]["configs"][key] = value
-            elif key.startswith("leancloud_"):
-                groups["leancloud"]["configs"][key] = value
-            elif key in ["log_level", "log_format", "jwt_access_token_expire_minutes", "bcrypt_rounds"]:
-                groups["system"]["configs"][key] = value
-            elif key in ["cors_origins", "allowed_hosts"]:
-                groups["network"]["configs"][key] = value
-            else:
-                groups["other"]["configs"][key] = value
+            # Create group if not exists
+            if group_name not in groups:
+                groups[group_name] = {
+                    "title": group_name,  # Will be formatted by frontend
+                    "description": "",
+                    "configs": {},
+                }
+
+            # Add config to group
+            groups[group_name]["configs"][config.config_key] = config
 
         return groups
 
     @staticmethod
+    async def check_missing_configs(db: AsyncSession, displayed_keys: set) -> list:
+        """
+        Check if all configs in database are displayed in UI.
+
+        Args:
+            db: Database session
+            displayed_keys: Set of config keys currently displayed
+
+        Returns:
+            List of missing config keys
+        """
+        try:
+            result = await db.execute(select(SystemConfig.config_key))
+            all_keys = {row[0] for row in result.fetchall()}
+            missing_keys = all_keys - displayed_keys
+            return sorted(list(missing_keys))
+        except Exception as e:
+            logger.error("check_missing_configs_error", error=str(e), exc_info=True)
+            return []
+
+    @staticmethod
     async def reload_cache(db: AsyncSession) -> None:
-        """Reload configuration cache from database."""
+        """
+        Reload configuration cache from database.
+
+        This should be called after updating configurations through CRUD layer
+        to ensure cache consistency.
+        """
         global _cache_loaded
         _cache_loaded = False
         await SystemConfigService._load_cache(db)
@@ -237,11 +212,6 @@ class SystemConfigService:
 async def get_config(db: AsyncSession, key: str, default: Any = None) -> Any:
     """Get configuration value."""
     return await SystemConfigService.get_config(db, key, default)
-
-
-async def set_config(db: AsyncSession, key: str, value: Any, description: str = None) -> bool:
-    """Set configuration value."""
-    return await SystemConfigService.set_config(db, key, value, description)
 
 
 async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:

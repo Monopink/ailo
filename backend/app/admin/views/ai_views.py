@@ -7,7 +7,7 @@ import json
 from typing import Any, Dict
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField, IntegerField, StringField, TextAreaField
+from starlette_admin import IntegerField, StringField, TextAreaField, HasOne
 from starlette_admin.actions import link_row_action
 
 from models.ai.character import AICharacter
@@ -15,6 +15,7 @@ from models.ai.personality import AIPersonality, AIPersonalityPlaceholder
 from models.ai.style import AIStyle, AIRelationship, AIRelationshipDimension, AIRelationshipIndex
 from models.ai.template import AIInfoTemplate, AIProfileTemplate
 from models.ai.log import AIRequestLog
+from admin.views.base import IntegerEnumField
 
 from enums import (
     AICharacterCreator,
@@ -84,7 +85,7 @@ class AIPersonalityView(ModelView):
             help_text="Characters per minute typing speed",
             required=True,
         ),
-        EnumField(
+        IntegerEnumField(
             "status",
             enum=AIStyleStatus,
             label="Status",
@@ -97,7 +98,7 @@ class AIPersonalityView(ModelView):
 class AIPersonalityPlaceholderView(ModelView):
     """Enhanced AI Personality Placeholder view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at", "validation_rules"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
     exclude_fields_from_list = ["validation_rules", "example_value"]
 
@@ -117,10 +118,12 @@ class AIPersonalityPlaceholderView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal placeholder ID"),
-        IntegerField(
-            "personality_id",
-            label="Personality ID",
-            help_text="AI personality ID this placeholder belongs to",
+        HasOne(
+            "personality",
+            identity="ai_personality",
+            label="AI Personality",
+            help_text="AI personality this placeholder belongs to",
+            required=True,
         ),
         StringField(
             "placeholder_key",
@@ -138,27 +141,34 @@ class AIPersonalityPlaceholderView(ModelView):
             label="Example Value",
             help_text="Sample value to help users understand the placeholder",
         ),
-        EnumField(
+        IntegerEnumField(
             "placeholder_type",
             enum=PlaceholderType,
             label="Placeholder Type",
             help_text="Data type for validation",
         ),
-        EnumField(
+        IntegerEnumField(
             "is_required",
             enum=RequiredStatus,
             label="Required",
             help_text="Whether this placeholder must be filled",
         ),
+        IntegerEnumField(
+            "is_reusable",
+            enum=ReusableStatus,
+            label="Reusable",
+            help_text="Whether this placeholder can be reused across multiple characters",
+        ),
+        "validation_rules",
     ]
 
 
 class AICharacterView(ModelView):
     """Enhanced AI Character view with proper field configuration and chat test functionality."""
 
-    exclude_fields_from_create = ["id", "qiao_id", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "qiao_id", "created_by", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "qiao_id", "created_by", "created_at", "updated_at"]
-    exclude_fields_from_list = ["prompt_variables", "memory"]
+    exclude_fields_from_list = ["prompt_variables", "memory", "request_params"]
 
     def can_delete(self, request: Request) -> bool:
         return False
@@ -186,6 +196,33 @@ class AICharacterView(ModelView):
         """Override edit to handle data processing."""
         return await super().edit(request, pk, data)
 
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys and required fields before creating character."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Set created_by to 2 (Admin) for admin panel creations
+        obj.created_by = 2
+
+        # Auto-fill foreign keys from HasOne relationships
+        # starlette-admin's HasOne sets the relationship object but not the FK field
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+        if hasattr(obj, "personality") and obj.personality is not None:
+            obj.personality_id = obj.personality.id
+        if hasattr(obj, "user") and obj.user is not None:
+            obj.user_id = obj.user.id
+            obj.user_qiao_id = obj.user.qiao_id
+
+        # Validate required foreign keys
+        errors = {}
+        if not hasattr(obj, "style_id") or obj.style_id is None:
+            errors["style"] = "AI Style is required"
+        if not hasattr(obj, "personality_id") or obj.personality_id is None:
+            errors["personality"] = "AI Personality is required"
+
+        if errors:
+            raise FormValidationError(errors)
+
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["qiao_id", "category"]
     sortable_fields = ["id", "qiao_id", "category", "status", "created_by", "created_at"]
@@ -194,28 +231,33 @@ class AICharacterView(ModelView):
         StringField("id", label="ID", help_text="Internal character ID"),
         StringField("qiao_id", label="Character ID", help_text="Unique character identifier"),
         StringField("category", label="Category", help_text="Character category classification"),
-        IntegerField(
-            "user_id",
-            label="Owner User ID",
-            help_text="User ID who owns this character (optional for system characters)",
+        HasOne(
+            "user",
+            identity="user",
+            label="Owner User",
+            help_text="User who owns this character (optional for system characters)",
+            required=False,
         ),
-        IntegerField(
-            "style_id",
-            label="AI Style ID",
-            help_text="AI style ID for this character",
+        HasOne(
+            "style",
+            identity="ai_style",
+            label="AI Style",
+            help_text="AI style for this character",
             required=True,
         ),
-        IntegerField(
-            "personality_id",
-            label="AI Personality ID",
-            help_text="AI personality ID for this character",
+        HasOne(
+            "personality",
+            identity="ai_personality",
+            label="AI Personality",
+            help_text="AI personality for this character",
             required=True,
         ),
-        EnumField(
+        IntegerEnumField(
             "status",
             enum=AICharacterStatus,
             label="Status",
-            help_text="Character status: Active characters can be used",
+            help_text="Character status: Active characters can be used (default: Active)",
+            required=True,
         ),
         TextAreaField(
             "memory",
@@ -223,13 +265,16 @@ class AICharacterView(ModelView):
             help_text="Character-specific memory and background information",
         ),
         "prompt_variables",
-        IntegerField(
+        IntegerEnumField(
             "score_offset_algorithm",
+            enum=ScoreOffsetAlgorithm,
             label="Score Offset Algorithm",
-            help_text="Algorithm for relationship score calculation (1=NONE, 2=V1)",
+            help_text="Algorithm for relationship score calculation (required, no default)",
+            required=True,
         ),
         "score_offset_params",
-        EnumField(
+        "request_params",
+        IntegerEnumField(
             "created_by",
             enum=AICharacterCreator,
             label="Created By",
@@ -268,7 +313,15 @@ class AIStyleView(ModelView):
         StringField(
             "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
         ),
-        EnumField(
+        HasOne(
+            "initial_relationship",
+            identity="ai_relationship",
+            label="Initial Relationship",
+            help_text="Initial relationship type for new characters (optional)",
+            required=False,
+        ),
+        IntegerField("usage_count", label="Usage Count", help_text="Number of characters using this style"),
+        IntegerEnumField(
             "status",
             enum=AIStyleStatus,
             label="Status",
@@ -320,7 +373,7 @@ class AIRelationshipView(ModelView):
             help_text="Text fragment to be included in AI prompts for this relationship",
             required=False,
         ),
-        EnumField(
+        IntegerEnumField(
             "status",
             enum=AIStyleStatus,
             label="Status",
@@ -339,16 +392,55 @@ class AIRelationshipDimensionView(ModelView):
     def can_delete(self, request):
         return False
 
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys before creating dimension."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Auto-fill style_id from HasOne relationship
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+
+        # Validate required foreign key
+        if not hasattr(obj, "style_id") or obj.style_id is None:
+            raise FormValidationError({"style": "AI Style is required"})
+
+        # Validate initial_position range (0-1000 permille)
+        errors = {}
+        if hasattr(obj, "initial_position") and obj.initial_position is not None:
+            if obj.initial_position < 0 or obj.initial_position > 1000:
+                errors["initial_position"] = "Initial position must be between 0 and 1000 (permille)"
+
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys before editing dimension."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Auto-fill style_id from HasOne relationship
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+
+        # Validate initial_position range (0-1000 permille)
+        errors = {}
+        if hasattr(obj, "initial_position") and obj.initial_position is not None:
+            if obj.initial_position < 0 or obj.initial_position > 1000:
+                errors["initial_position"] = "Initial position must be between 0 and 1000 (permille)"
+
+        if errors:
+            raise FormValidationError(errors)
+
     fields_default_sort = [("style_id", False), ("name", False)]
     searchable_fields = ["name", "display_name"]
     sortable_fields = ["id", "style_id", "name", "display_name", "initial_position", "created_at"]
 
     fields = [
         StringField("id", label="ID", help_text="Internal dimension ID"),
-        IntegerField(
-            "style_id",
-            label="AI Style ID",
-            help_text="AI style ID this dimension belongs to",
+        HasOne(
+            "style",
+            identity="ai_style",
+            label="AI Style",
+            help_text="AI style this dimension belongs to",
             required=True,
         ),
         StringField(
@@ -378,6 +470,90 @@ class AIRelationshipIndexView(ModelView):
     def can_delete(self, request):
         return False
 
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys before creating index."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Auto-fill foreign keys from HasOne relationships
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+        if hasattr(obj, "dimension") and obj.dimension is not None:
+            obj.dimension_id = obj.dimension.id
+            # Auto-fill dimension_name from dimension object
+            if hasattr(obj.dimension, "name"):
+                obj.dimension_name = obj.dimension.name
+        if hasattr(obj, "relationship") and obj.relationship is not None:
+            obj.relationship_id = obj.relationship.id
+
+        # Validate required foreign keys
+        errors = {}
+        if not hasattr(obj, "style_id") or obj.style_id is None:
+            errors["style"] = "AI Style is required"
+        if not hasattr(obj, "dimension_id") or obj.dimension_id is None:
+            errors["dimension"] = "Relationship Dimension is required"
+        if not hasattr(obj, "relationship_id") or obj.relationship_id is None:
+            errors["relationship"] = "Relationship Type is required"
+
+        # Validate position ranges (0-1000 permille)
+        if hasattr(obj, "start_position") and obj.start_position is not None:
+            if obj.start_position < 0 or obj.start_position > 1000:
+                errors["start_position"] = "Start position must be between 0 and 1000 (permille)"
+
+        if hasattr(obj, "end_position") and obj.end_position is not None:
+            if obj.end_position < 0 or obj.end_position > 1000:
+                errors["end_position"] = "End position must be between 0 and 1000 (permille)"
+
+        # Validate start_position < end_position
+        if (
+            hasattr(obj, "start_position")
+            and obj.start_position is not None
+            and hasattr(obj, "end_position")
+            and obj.end_position is not None
+        ):
+            if obj.start_position >= obj.end_position:
+                errors["end_position"] = "End position must be greater than start position"
+
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys before editing index."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Auto-fill foreign keys from HasOne relationships
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+        if hasattr(obj, "dimension") and obj.dimension is not None:
+            obj.dimension_id = obj.dimension.id
+            # Auto-fill dimension_name from dimension object
+            if hasattr(obj.dimension, "name"):
+                obj.dimension_name = obj.dimension.name
+        if hasattr(obj, "relationship") and obj.relationship is not None:
+            obj.relationship_id = obj.relationship.id
+
+        # Validate position ranges (0-1000 permille)
+        errors = {}
+        if hasattr(obj, "start_position") and obj.start_position is not None:
+            if obj.start_position < 0 or obj.start_position > 1000:
+                errors["start_position"] = "Start position must be between 0 and 1000 (permille)"
+
+        if hasattr(obj, "end_position") and obj.end_position is not None:
+            if obj.end_position < 0 or obj.end_position > 1000:
+                errors["end_position"] = "End position must be between 0 and 1000 (permille)"
+
+        # Validate start_position < end_position
+        if (
+            hasattr(obj, "start_position")
+            and obj.start_position is not None
+            and hasattr(obj, "end_position")
+            and obj.end_position is not None
+        ):
+            if obj.start_position >= obj.end_position:
+                errors["end_position"] = "End position must be greater than start position"
+
+        if errors:
+            raise FormValidationError(errors)
+
     fields_default_sort = [("style_id", False), ("dimension_name", False), ("start_position", False)]
     searchable_fields = ["dimension_name"]
     sortable_fields = [
@@ -393,16 +569,18 @@ class AIRelationshipIndexView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal relationship index ID"),
-        IntegerField(
-            "style_id",
-            label="AI Style ID",
-            help_text="AI style ID this index belongs to",
+        HasOne(
+            "style",
+            identity="ai_style",
+            label="AI Style",
+            help_text="AI style this index belongs to",
             required=True,
         ),
-        IntegerField(
-            "dimension_id",
-            label="Dimension ID",
-            help_text="Relationship dimension ID",
+        HasOne(
+            "dimension",
+            identity="ai_relationship_dimension",
+            label="Relationship Dimension",
+            help_text="Relationship dimension",
             required=True,
         ),
         StringField(
@@ -422,14 +600,15 @@ class AIRelationshipIndexView(ModelView):
             help_text="End position of the range (0-1000)",
             required=True,
         ),
-        IntegerField(
-            "relationship_id",
-            label="Relationship Type ID",
-            help_text="Relationship type ID for this range",
+        HasOne(
+            "relationship",
+            identity="ai_relationship",
+            label="Relationship Type",
+            help_text="Relationship type for this range",
             required=True,
         ),
         IntegerField(
-            "priority", label="Priority", help_text="Priority level (lower number = higher priority)"
+            "priority", label="Priority", help_text="Priority level (higher number = higher priority)"
         ),
         IntegerField(
             "limit_count",
@@ -449,21 +628,47 @@ class AIInfoTemplateView(ModelView):
     def can_delete(self, request):
         return False
 
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys before creating info template."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Auto-fill foreign keys from HasOne relationships
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+        if hasattr(obj, "personality") and obj.personality is not None:
+            obj.personality_id = obj.personality.id
+        if hasattr(obj, "profile") and obj.profile is not None:
+            obj.profile_id = obj.profile.id
+
+        # Validate required foreign keys
+        errors = {}
+        if not hasattr(obj, "style_id") or obj.style_id is None:
+            errors["style"] = "AI Style is required"
+        if not hasattr(obj, "personality_id") or obj.personality_id is None:
+            errors["personality"] = "AI Personality is required"
+
+        if errors:
+            raise FormValidationError(errors)
+
     fields_default_sort = [("created_at", True)]
     searchable_fields = []
     sortable_fields = ["id", "style_id", "personality_id", "status", "is_reusable", "created_at"]
 
     fields = [
         StringField("id", label="ID", help_text="Internal info template ID"),
-        IntegerField(
-            "style_id",
-            label="AI Style ID",
-            help_text="AI style ID for this template",
+        HasOne(
+            "style",
+            identity="ai_style",
+            label="AI Style",
+            help_text="AI style for this template",
+            required=True,
         ),
-        IntegerField(
-            "personality_id",
-            label="AI Personality ID",
-            help_text="AI personality ID for this template",
+        HasOne(
+            "personality",
+            identity="ai_personality",
+            label="AI Personality",
+            help_text="AI personality for this template",
+            required=True,
         ),
         TextAreaField(
             "memory",
@@ -471,27 +676,34 @@ class AIInfoTemplateView(ModelView):
             help_text="Default memory settings for characters using this template",
         ),
         "prompt_variables",
-        EnumField(
+        IntegerEnumField(
             "score_offset_algorithm",
             enum=ScoreOffsetAlgorithm,
             label="Score Offset Algorithm",
-            help_text="Algorithm for relationship score calculation",
+            help_text="Algorithm for relationship score calculation (optional)",
+            required=False,
         ),
         "score_offset_params",
-        EnumField(
+        IntegerEnumField(
             "is_reusable",
             enum=ReusableStatus,
             label="Reusable",
             help_text="Whether this template can be used multiple times",
+            required=True,
         ),
-        IntegerField(
-            "profile_id", label="Profile ID", help_text="Associated profile ID (for single-use templates)"
+        HasOne(
+            "profile",
+            identity="ai_profile_template",
+            label="Profile Template",
+            help_text="Associated profile template (for single-use templates)",
+            required=False,
         ),
-        EnumField(
+        IntegerEnumField(
             "status",
             enum=AIStyleStatus,
             label="Status",
             help_text="Active templates can be used",
+            required=True,
         ),
     ]
 
@@ -504,6 +716,28 @@ class AIProfileTemplateView(ModelView):
 
     def can_delete(self, request):
         return False
+
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys and generate IDs before creating profile template."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Auto-fill info_id from HasOne relationship
+        if hasattr(obj, "info") and obj.info is not None:
+            obj.info_id = obj.info.id
+
+        # Validate required foreign key
+        if not hasattr(obj, "info_id") or obj.info_id is None:
+            raise FormValidationError({"info": "Info Template is required"})
+
+        # Generate qiao_id if not provided
+        if not hasattr(obj, "qiao_id") or not obj.qiao_id:
+            from models.base import generate_qiao_id
+            obj.qiao_id = generate_qiao_id()
+
+        # Generate id if not provided (Snowflake ID)
+        if not hasattr(obj, "id") or not obj.id:
+            from utils.snowflake import generate_snowflake_id
+            obj.id = generate_snowflake_id()
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["qiao_id", "nickname", "category"]
@@ -522,27 +756,33 @@ class AIProfileTemplateView(ModelView):
         StringField("id", label="ID", help_text="Internal profile template ID"),
         StringField("qiao_id", label="Qiao ID", help_text="External external identifier for this template"),
         StringField("category", label="Category", help_text="Profile template category"),
-        IntegerField(
-            "info_id",
-            label="Info Template ID",
-            help_text="Associated AI info template ID",
+        HasOne(
+            "info",
+            identity="ai_info_template",
+            label="Info Template",
+            help_text="Associated AI info template",
+            required=True,
         ),
         StringField("nickname", label="Nickname", help_text="Character nickname"),
-        EnumField("gender", enum=Gender, label="Gender", help_text="Character gender"),
+        IntegerEnumField(
+            "gender", enum=Gender, label="Gender", help_text="Character gender (optional)", required=False
+        ),
         StringField("avatar_url", label="Avatar URL", help_text="Character avatar image URL"),
         TextAreaField("bio", label="Bio", help_text="Character biography and description"),
         StringField("region", label="Region", help_text="Character location/region"),
-        EnumField(
+        IntegerEnumField(
             "is_reusable",
             enum=ReusableStatus,
             label="Reusable",
             help_text="Whether this template can be used multiple times",
+            required=True,
         ),
-        EnumField(
+        IntegerEnumField(
             "status",
             enum=AIStyleStatus,
             label="Status",
             help_text="Active templates can be used",
+            required=True,
         ),
     ]
 
@@ -613,7 +853,7 @@ class AIRequestLogView(ModelView):
         StringField("model_name", label="Model", help_text="Model name used"),
         ChineseJSONField("request", label="Request", help_text="Request content in JSON format"),
         ChineseJSONField("response", label="Response", help_text="Response content in JSON format"),
-        EnumField("status", enum=AIRequestStatus, label="Status"),
+        IntegerEnumField("status", enum=AIRequestStatus, label="Status"),
         IntegerField("token_count", label="Token Count"),
         IntegerField("response_time", label="Response Time (ms)"),
         "created_at",

@@ -24,14 +24,16 @@ logger = get_logger(__name__)
 
 
 async def get_relationship_scores(
-    db: AsyncSession, character_qiao_id: str
+    db: AsyncSession, character_qiao_id: str, auto_initialize: bool = True
 ) -> Optional[List[Dict[str, Any]]]:
     """
     Get relationship scores for a character.
+    Auto-initialize scores based on initial_position if missing.
 
     Args:
         db: Database session
         character_qiao_id: Character's qiao_id
+        auto_initialize: Whether to auto-initialize scores if missing (default: True)
 
     Returns:
         List of score dictionaries, or None if not found
@@ -44,6 +46,17 @@ async def get_relationship_scores(
             return None
 
         scores = await get_character_relationship_scores(db, character_id)
+
+        if not scores and auto_initialize:
+            # Auto-initialize scores based on initial_position
+            logger.info(
+                "auto_initializing_relationship_scores",
+                character_qiao_id=character_qiao_id,
+                character_id=character_id,
+            )
+            await initialize_relationship_scores(db, character_id)
+            # Re-query scores after initialization
+            scores = await get_character_relationship_scores(db, character_id)
 
         if not scores:
             logger.info(
@@ -68,6 +81,136 @@ async def get_relationship_scores(
         )
         # Non-fatal error: return None and log error
         return None
+
+
+async def initialize_relationship_scores(db: AsyncSession, character_id: int) -> None:
+    """
+    Initialize relationship scores based on dimension initial_position.
+
+    Args:
+        db: Database session
+        character_id: Character ID
+
+    Returns:
+        None (scores are created and committed to database)
+
+    Raises:
+        AIRelationshipError: If initialization fails
+    """
+    try:
+        from models.ai.character import AICharacter
+        from models.ai.score import AIRelationshipScore
+        from models.ai.style import AIRelationshipDimension, AIRelationshipIndex, AIRelationship
+        from sqlalchemy import select
+
+        # Get character to find style_id
+        stmt = select(AICharacter).where(AICharacter.id == character_id)
+        result = await db.execute(stmt)
+        character = result.scalar_one_or_none()
+
+        if not character:
+            raise AIRelationshipError(
+                operation="initialize_relationship_scores",
+                reason="character_not_found",
+                message=f"Character {character_id} not found",
+            )
+
+        style_id = character.style_id
+
+        # Get all dimensions for this style
+        stmt = select(AIRelationshipDimension).where(AIRelationshipDimension.style_id == style_id)
+        result = await db.execute(stmt)
+        dimensions = result.scalars().all()
+
+        if not dimensions:
+            raise AIRelationshipError(
+                operation="initialize_relationship_scores",
+                reason="dimensions_not_found",
+                message=f"No dimensions found for style {style_id}",
+            )
+
+        # Get relationship indexes for this style to determine initial relationship
+        stmt = (
+            select(AIRelationshipIndex, AIRelationship)
+            .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
+            .where(AIRelationshipIndex.style_id == style_id)
+            .order_by(AIRelationshipIndex.priority)
+        )
+        result = await db.execute(stmt)
+        indexes_data = result.all()
+
+        if not indexes_data:
+            logger.warning(
+                "no_relationship_indexes_found_for_initialization",
+                style_id=style_id,
+                character_id=character_id,
+            )
+
+        # Build dimension_id -> relationship mapping based on initial_position
+        dimension_relationships = {}
+        for dimension in dimensions:
+            # Find matching relationship for this dimension's initial_position
+            for index, relationship in indexes_data:
+                if (
+                    index.dimension_id == dimension.id
+                    and index.start_position <= dimension.initial_position <= index.end_position
+                ):
+                    dimension_relationships[dimension.id] = {
+                        "relationship_id": relationship.id,
+                        "relationship_display_name": relationship.display_name,
+                    }
+                    break
+
+        # Create score records
+        for dimension in dimensions:
+            rel_info = dimension_relationships.get(dimension.id)
+            if not rel_info:
+                logger.error(
+                    "no_relationship_found_for_initial_position",
+                    dimension_id=dimension.id,
+                    dimension_name=dimension.name,
+                    initial_position=dimension.initial_position,
+                    style_id=style_id,
+                    character_id=character_id,
+                )
+                # Allow NULL relationship - this is an abnormal situation
+                rel_info = {
+                    "relationship_id": None,
+                    "relationship_display_name": None,
+                }
+
+            score = AIRelationshipScore(
+                character_id=character_id,
+                dimension_id=dimension.id,
+                score=dimension.initial_position,  # Use initial_position as initial score
+                position=dimension.initial_position,
+                relationship_id=rel_info["relationship_id"],
+                relationship_display_name=rel_info["relationship_display_name"],
+            )
+            db.add(score)
+
+        await db.commit()
+
+        logger.info(
+            "relationship_scores_initialized",
+            character_id=character_id,
+            scores_count=len(dimensions),
+        )
+
+    except AIRelationshipError:
+        raise
+    except Exception as e:
+        logger.error(
+            "relationship_scores_initialization_failed",
+            error=str(e),
+            character_id=character_id,
+            exc_info=True,
+        )
+        raise AIRelationshipError(
+            operation="initialize_relationship_scores",
+            reason="initialization_failed",
+            message=f"Failed to initialize relationship scores: {str(e)}",
+        )
 
 
 async def determine_relationship_type(

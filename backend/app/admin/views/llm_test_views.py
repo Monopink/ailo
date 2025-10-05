@@ -56,26 +56,27 @@ class LLMConfigTestView(CustomView):
 
         # Handle GET requests (render interface)
         try:
-            # Get config_id from URL parameters (required)
-            config_id_str = request.query_params.get("config_id")
+            # Get config_id from path parameters (required)
+            config_id_str = request.path_params.get("id")
             if not config_id_str:
                 return templates.TemplateResponse(
                     "custom_views/llm_config_test.html",
                     {
                         "request": request,
-                        "error": "Configuration ID is required in URL parameters",
+                        "error": "Configuration ID is required in URL path",
                         "page_title": "LLM Config Test - Error",
                     },
                 )
 
             try:
                 config_id = int(config_id_str)
-            except ValueError:
+            except (ValueError, TypeError) as e:
+                logger.error("invalid_config_id", config_id=config_id_str, error=str(e))
                 return templates.TemplateResponse(
                     "custom_views/llm_config_test.html",
                     {
                         "request": request,
-                        "error": "Invalid configuration ID format",
+                        "error": f"Invalid configuration ID: {config_id_str}",
                         "page_title": "LLM Config Test - Error",
                     },
                 )
@@ -95,11 +96,12 @@ class LLMConfigTestView(CustomView):
 
                 config, provider = config_result
 
-                # Prepare context for template
+                # Prepare context for template - extract all data BEFORE leaving async context
+                # NOTE: Use 'llm_config' instead of 'config' to avoid conflict with starlette-admin's AdminConfig
                 context = {
                     "request": request,
                     "config_id": config_id,
-                    "config": {
+                    "llm_config": {
                         "config_key": config.config_key,
                         "provider_name": provider.display_name,
                         "model_name": config.model_name or provider.default_model,
@@ -114,7 +116,8 @@ class LLMConfigTestView(CustomView):
                     "page_title": f"Test LLM Config: {config.config_key}",
                 }
 
-                return templates.TemplateResponse("custom_views/llm_config_test.html", context)
+            # Return response AFTER async context to ensure all data is extracted
+            return templates.TemplateResponse("custom_views/llm_config_test.html", context)
 
         except Exception as e:
             logger.error("llm_config_test_render_failed", error=str(e), exc_info=True)
@@ -197,7 +200,7 @@ class LLMConfigTestView(CustomView):
 llm_config_test_view = LLMConfigTestView(
     label="LLM Config Test",
     icon="",
-    path="/llm-config-test",
+    path="/llm-config/{id:int}/test",
     methods=["GET", "POST"],
     add_to_menu=False,  # Accessed via row actions only
 )

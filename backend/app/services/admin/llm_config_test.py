@@ -100,11 +100,11 @@ async def execute_llm_config_test(
         # Step 2: Build messages for LLM
         messages = [{"role": "user", "content": test_message}]
 
-        # Step 3: Call LLM with test schema to detect JSON Schema support
+        # Step 3: Call LLM without JSON Schema - pure model testing
         llm_result = await chat_completion(
             db=db,
             messages=messages,
-            json_schema=TEST_SCHEMA,  # Use test schema to detect JSON Schema support
+            json_schema=None,  # No JSON Schema for regular testing
             temperature=override_temperature,
             max_tokens=override_max_tokens,
             enable_thinking=enable_thinking,
@@ -115,42 +115,7 @@ async def execute_llm_config_test(
         end_time = datetime.now()
         response_time_ms = int((end_time - start_time).total_seconds() * 1000)
 
-        # Step 5: Detect JSON Schema support and auto-update json_schema_mode
-        json_schema_supported = False
-        json_schema_warning = None
-
-        if llm_result.get("success"):
-            # Check if response is valid JSON
-            response_content = llm_result.get("response", "")
-            is_json, parsed_json = is_valid_json(response_content)
-
-            if is_json:
-                # Response is JSON - supports JSON Schema
-                json_schema_supported = True
-                if config.json_schema_mode != "strict":
-                    logger.info(
-                        "llm_config_test_json_schema_detected",
-                        config_id=config_id,
-                        old_mode=config.json_schema_mode,
-                        new_mode="strict",
-                    )
-                    config.json_schema_mode = "strict"
-                    await db.commit()
-            else:
-                # Response is plain text - does not support JSON Schema
-                json_schema_supported = False
-                json_schema_warning = "⚠️ 此配置不支持JSON Schema，无法用于AI Character功能"
-                if config.json_schema_mode != "disabled":
-                    logger.info(
-                        "llm_config_test_json_schema_not_supported",
-                        config_id=config_id,
-                        old_mode=config.json_schema_mode,
-                        new_mode="disabled",
-                    )
-                    config.json_schema_mode = "disabled"
-                    await db.commit()
-
-        # Step 6: Safely extract data with defaults
+        # Step 5: Safely extract data with defaults
         usage = llm_result.get("usage") or {}
         config_used = llm_result.get("config_used") or {}
         request_payload = llm_result.get("request_payload") or {}
@@ -167,7 +132,7 @@ async def execute_llm_config_test(
                 status = LLMTestStatus.FAILED
             error_message = llm_result.get("error", "Unknown error")
 
-        # Step 7: Prepare log data
+        # Step 6: Prepare log data
         log_data = {
             "id": generate_snowflake_id(),
             "config_id": config_id,
@@ -178,6 +143,7 @@ async def execute_llm_config_test(
             "override_temperature": override_temperature,
             "override_max_tokens": override_max_tokens,
             "enable_thinking": 1 if enable_thinking else 0,
+            "enable_json_schema": 0,  # Always 0 for regular testing
             "request": request_payload,  # Store full request parameters
             "response": llm_result.get("raw_response"),  # Store full OpenAI API response
             "status": status,
@@ -190,7 +156,7 @@ async def execute_llm_config_test(
             "completed_at": end_time,
         }
 
-        # Step 8: Save to database
+        # Step 7: Save to database
         db_log = LLMTestLog(**log_data)
         db.add(db_log)
         await db.commit()
@@ -202,10 +168,9 @@ async def execute_llm_config_test(
             log_id=log_data["id"],
             success=llm_result["success"],
             response_time_ms=response_time_ms,
-            json_schema_supported=json_schema_supported,
         )
 
-        # Step 9: Return formatted result with JSON Schema support info
+        # Step 8: Return formatted result
         result = {
             "success": llm_result.get("success", False),
             "status": status,
@@ -224,15 +189,7 @@ async def execute_llm_config_test(
             "model_used": config_used.get("model") or config.model_name or provider.default_model,
             "finish_reason": llm_result.get("finish_reason"),
             "request_payload": request_payload,
-            # JSON Schema support info
-            "json_schema_supported": json_schema_supported,
-            "json_schema_mode": config.json_schema_mode,
         }
-
-        # Add warning if JSON Schema not supported
-        if json_schema_warning:
-            result["warning"] = json_schema_warning
-            result["recommendation"] = "此配置无法用于AI Character功能，仅供查看测试响应"
 
         return result
 

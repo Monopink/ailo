@@ -5,20 +5,21 @@ This module provides both standard CRUD operations and complex queries
 for AI character management.
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.ai import AICharacter
 from schemas.ai import AICharacterCreate, AICharacterUpdate
+from services.ai.usage_tracking import increment_usage_count, decrement_usage_count
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 class CRUDAICharacter(CRUDBase[AICharacter, AICharacterCreate, AICharacterUpdate]):
-    """AI Character CRUD operations with complex queries."""
+    """AI Character CRUD operations with complex queries and usage tracking."""
 
     async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[AICharacter]:
         """
@@ -75,6 +76,86 @@ class CRUDAICharacter(CRUDBase[AICharacter, AICharacterCreate, AICharacterUpdate
             logger.error("user_characters_query_failed", error=str(e), user_qiao_id=user_qiao_id)
             # Non-fatal error: return empty list
             return []
+
+    async def create(self, db: AsyncSession, *, obj_in: AICharacterCreate) -> AICharacter:
+        """
+        Create a new AI character and update usage counts.
+
+        Args:
+            db: Database session
+            obj_in: Character creation schema
+
+        Returns:
+            Created character object
+
+        Raises:
+            Exception: If creation or usage tracking fails
+        """
+        try:
+            # Create character using base class method
+            character = await super().create(db, obj_in=obj_in)
+
+            # Update usage counts for personality and style
+            await increment_usage_count(db, "personality", character.personality_id)
+            await increment_usage_count(db, "style", character.style_id)
+
+            logger.info(
+                "character_created_with_usage_tracking",
+                character_id=character.id,
+                personality_id=character.personality_id,
+                style_id=character.style_id,
+            )
+
+            return character
+
+        except Exception as e:
+            logger.error("character_creation_failed", error=str(e))
+            raise
+
+    async def remove(self, db: AsyncSession, *, id: Any) -> Optional[AICharacter]:
+        """
+        Remove an AI character and update usage counts.
+
+        Args:
+            db: Database session
+            id: Character ID
+
+        Returns:
+            Removed character object or None if not found
+
+        Raises:
+            Exception: If removal or usage tracking fails
+        """
+        try:
+            # Get character first to access personality_id and style_id
+            character = await self.get(db, id=id)
+
+            if not character:
+                logger.warning("character_not_found_for_removal", character_id=id)
+                return None
+
+            personality_id = character.personality_id
+            style_id = character.style_id
+
+            # Remove character using base class method
+            removed_character = await super().remove(db, id=id)
+
+            # Update usage counts for personality and style
+            await decrement_usage_count(db, "personality", personality_id)
+            await decrement_usage_count(db, "style", style_id)
+
+            logger.info(
+                "character_removed_with_usage_tracking",
+                character_id=id,
+                personality_id=personality_id,
+                style_id=style_id,
+            )
+
+            return removed_character
+
+        except Exception as e:
+            logger.error("character_removal_failed", error=str(e), character_id=id)
+            raise
 
 
 ai_character = CRUDAICharacter(AICharacter)

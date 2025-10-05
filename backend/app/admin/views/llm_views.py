@@ -17,7 +17,7 @@ from starlette_admin import (
     HasOne,
     EnumField,
 )
-from starlette_admin.actions import link_row_action
+from starlette_admin.actions import link_row_action, row_action
 from starlette_admin.exceptions import FormValidationError
 from admin.views.base import IntegerEnumField
 from models.llm import LLMProvider, LLMConfig, LLMTestLog
@@ -243,7 +243,7 @@ class LLMConfigView(ModelView):
         ),
     ]
 
-    row_actions = ["view", "edit", "delete", "test_config"]
+    row_actions = ["view", "edit", "test_config", "test_json_schema"]
 
     @link_row_action(
         name="test_config",
@@ -252,8 +252,48 @@ class LLMConfigView(ModelView):
     )
     def test_config_row_action(self, request, pk):
         """Custom row action to test this LLM configuration."""
-        # Redirect to test interface with config_id parameter
-        return f"/qiao-dash/llm-config-test?config_id={pk}"
+        # Redirect to test interface with RESTful path
+        return f"/qiao-dash/llm-config/{pk}/test"
+
+    @row_action(
+        name="test_json_schema",
+        text="Test JSON Schema",
+        icon_class="fas fa-sync",
+        confirmation="Test JSON Schema compatibility for this configuration? This will automatically update the JSON Schema Mode field based on the result.",
+        submit_btn_text="Run Test",
+        submit_btn_class="btn-primary",
+    )
+    async def test_json_schema_action(self, request: Request, pk: Any) -> str:
+        """Test JSON Schema compatibility and update json_schema_mode."""
+        from core.database import SessionLocal
+        from services.admin.llm_json_schema_test import test_json_schema_compatibility
+
+        async with SessionLocal() as session:
+            result = await test_json_schema_compatibility(session, int(pk))
+
+            # Build detailed message
+            message = result["message"]
+
+            # Add test log link if available
+            if result.get("test_log_id"):
+                message += f"\n\n📝 Test Log ID: {result['test_log_id']}"
+
+            # Add response details for successful tests
+            if result.get("success") and result.get("response"):
+                message += f"\n\n📤 Response: {result['response'][:100]}..."
+
+            # Add performance metrics
+            if result.get("response_time_ms"):
+                message += f"\n⏱️ Response Time: {result['response_time_ms']}ms"
+
+            if result.get("usage"):
+                usage = result["usage"]
+                message += f"\n📊 Tokens: {usage.get('total_tokens', 'N/A')} (prompt: {usage.get('prompt_tokens', 'N/A')}, completion: {usage.get('completion_tokens', 'N/A')})"
+
+            if result.get("model"):
+                message += f"\n🤖 Model: {result['model']}"
+
+            return message
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
         """Custom validation."""
@@ -357,6 +397,12 @@ class LLMTestLogView(ModelView):
             choices=[(0, "No"), (1, "Yes")],
             label="Enable Thinking",
             help_text="Thinking mode enabled",
+        ),
+        IntegerEnumField(
+            "enable_json_schema",
+            choices=[(0, "No"), (1, "Yes")],
+            label="Enable JSON Schema",
+            help_text="JSON Schema mode enabled",
         ),
         ChineseJSONField("request", label="Request", help_text="Full request payload"),
         ChineseJSONField("response", label="Response", help_text="Full response data"),

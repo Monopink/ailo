@@ -23,6 +23,9 @@ class AICharacterBase(BaseSchema):
     personality_id: int = Field(..., description="Personality ID")
     memory: Optional[str] = Field(None, description="Character memory settings")
     placeholder_overrides: Optional[Dict[str, Any]] = Field(None, description="Placeholder overrides")
+    request_params: Optional[Dict[str, Any]] = Field(
+        None, description="LLM request parameters override (temperature, max_tokens, etc.)"
+    )
 
 
 class AICharacterCreate(BaseModel):
@@ -37,6 +40,18 @@ class AICharacterCreate(BaseModel):
         None, max_length=100, description="Score offset algorithm"
     )
     score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
+    request_params: Optional[Dict[str, Any]] = Field(
+        None,
+        description="LLM request parameters override",
+        examples=[
+            {
+                "temperature": 0.8,
+                "max_tokens": 2000,
+                "top_p": 0.9,
+                "frequency_penalty": 0.5,
+            }
+        ],
+    )
 
 
 class AICharacterUpdate(BaseModel):
@@ -49,6 +64,7 @@ class AICharacterUpdate(BaseModel):
         None, max_length=100, description="Score offset algorithm"
     )
     score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
+    request_params: Optional[Dict[str, Any]] = Field(None, description="LLM request parameters override")
 
 
 class AICharacterResponse(AICharacterBase):

@@ -30,6 +30,7 @@ from .character import (
 # Relationship management
 from .relationship import (
     get_relationship_scores,
+    initialize_relationship_scores,
     determine_relationship_type,
     update_character_relationship_scores,
 )
@@ -74,6 +75,7 @@ __all__ = [
     "get_character_configuration",
     # Relationship management
     "get_relationship_scores",
+    "initialize_relationship_scores",
     "determine_relationship_type",
     "update_character_relationship_scores",
     # Prompt building

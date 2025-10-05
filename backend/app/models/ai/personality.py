@@ -83,15 +83,6 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
         Text, nullable=True, comment="Example placeholder value"
     )
 
-    # Keep additional fields for enhanced functionality
-    placeholder_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Placeholder type: 1=text, 2=number, 3=boolean, 4=list"
-    )
-
-    validation_rules: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="Validation rules (JSONB for better performance)"
-    )
-
     is_required: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, comment="Is required: 1=required, 0=optional"
     )
@@ -109,13 +100,6 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
     __table_args__ = (
         Index("idx_ai_personality_placeholders_personality_id", "personality_id"),
         Index("idx_ai_personality_placeholders_placeholder_key", "placeholder_key"),
-        Index("idx_ai_personality_placeholders_placeholder_type", "placeholder_type"),
         Index("idx_ai_personality_placeholders_is_required", "is_required"),
         Index("idx_ai_personality_placeholders_display_name", "display_name"),
-        # PostgreSQL GIN index for JSONB field for better query performance
-        Index(
-            "idx_ai_personality_placeholders_validation_rules_gin",
-            "validation_rules",
-            postgresql_using="gin",
-        ),
     )

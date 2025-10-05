@@ -168,6 +168,7 @@ class ExecutorService:
                     "response_time_ms": response_time_ms,
                     "llm_tokens": conversation_result.get("usage", {}).get("total_tokens", 0),
                 },
+                "request_payload": conversation_result.get("request_payload"),
                 "log_id": log_id,
             }
 

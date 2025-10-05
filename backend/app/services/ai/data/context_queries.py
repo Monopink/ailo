@@ -41,7 +41,7 @@ async def get_conversation_contexts(
                     AIContext.reply_status == 3,  # done
                 )
             )
-            .order_by(desc(AIContext.created_at))
+            .order_by(desc(AIContext.created_at), desc(AIContext.id))
             .limit(limit)
         )
 

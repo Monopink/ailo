@@ -6,14 +6,13 @@ configurations and relationships are properly established before test execution.
 """
 
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from models.ai.character import AICharacter
 from models.ai.personality import AIPersonality
 from models.ai.style import AIStyle
-from models.ai.score import AIRelationshipScore
 from models.profile import Profile
 from services.llm.config import get_active_configs
 from utils.logging import get_logger
@@ -213,28 +212,32 @@ class ValidationService:
 
     async def _validate_relationship_scores(
         self, db: AsyncSession, character_info: Dict[str, Any], style_info: Dict[str, Any]
-    ) -> list[Dict[str, Any]]:
-        """Validate relationship scores exist for this character"""
-        stmt = select(AIRelationshipScore).where(AIRelationshipScore.character_id == character_info["id"])
-        result = await db.execute(stmt)
-        scores = result.scalars().all()
+    ) -> List[Dict[str, Any]]:
+        """
+        Validate relationship scores exist for this character.
+        Uses main logic from services.ai.relationship for score retrieval and initialization.
+        """
+        from services.ai.relationship import get_relationship_scores
+
+        # Use main logic to get scores (with auto-initialization)
+        scores = await get_relationship_scores(db, character_info["qiao_id"], auto_initialize=True)
 
         if not scores:
-            raise ValidationError(
-                f"No relationship scores found for AI character '{character_info['qiao_id']}'",
-                error_code="RELATIONSHIP_SCORES_MISSING",
-                suggestions=[
-                    "Initialize relationship scores for this character",
-                    "Check AI Relationship Scores management",
-                ],
+            # This should not happen after auto-initialization, but handle gracefully
+            logger.warning(
+                "no_scores_after_initialization",
+                character_id=character_info["id"],
+                character_qiao_id=character_info["qiao_id"],
             )
+            return []
 
+        # Convert to expected format
         return [
             {
-                "dimension_name": score.dimension_name,
-                "score": score.score,
-                "position": score.position,
-                "relationship_display_name": score.relationship_display_name,
+                "dimension_name": score["dimension_name"],
+                "score": score["score"],
+                "position": score["position"],
+                "relationship_display_name": score.get("relationship_display_name"),
             }
             for score in scores
         ]

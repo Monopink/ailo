@@ -46,22 +46,25 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
                 logger.warning("style_not_found", style_id=style_id)
                 return None
 
-            # Get relationship indexes
+            # Get relationship indexes with dimension info
             indexes_result = await db.execute(
-                select(AIRelationshipIndex, AIRelationship)
+                select(AIRelationshipIndex, AIRelationship, AIRelationshipDimension)
                 .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
+                .join(
+                    AIRelationshipDimension, AIRelationshipIndex.dimension_id == AIRelationshipDimension.id
+                )
                 .where(AIRelationshipIndex.style_id == style_id)
-                .order_by(AIRelationshipIndex.dimension_name, AIRelationshipIndex.priority)
+                .order_by(AIRelationshipDimension.name, AIRelationshipIndex.priority)
             )
 
             indexes = indexes_result.all()
 
             relationship_mappings = []
-            for index, relationship in indexes:
+            for index, relationship, dimension in indexes:
                 relationship_mappings.append(
                     {
                         "dimension_id": index.dimension_id,
-                        "dimension_name": index.dimension_name,
+                        "dimension_name": dimension.name,
                         "start_position": index.start_position,
                         "end_position": index.end_position,
                         "relationship": relationship,
@@ -92,21 +95,24 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
         """
         try:
             result = await db.execute(
-                select(AIRelationshipIndex, AIRelationship)
+                select(AIRelationshipIndex, AIRelationship, AIRelationshipDimension)
                 .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
+                .join(
+                    AIRelationshipDimension, AIRelationshipIndex.dimension_id == AIRelationshipDimension.id
+                )
                 .where(AIRelationshipIndex.style_id == style_id)
-                .order_by(AIRelationshipIndex.dimension_name, AIRelationshipIndex.priority)
+                .order_by(AIRelationshipDimension.name, AIRelationshipIndex.priority)
             )
 
             indexes = result.all()
 
             mappings = []
-            for index, relationship in indexes:
+            for index, relationship, dimension in indexes:
                 mappings.append(
                     {
                         "index_id": index.id,
                         "dimension_id": index.dimension_id,
-                        "dimension_name": index.dimension_name,
+                        "dimension_name": dimension.name,
                         "start_position": index.start_position,
                         "end_position": index.end_position,
                         "priority": index.priority,
@@ -273,8 +279,11 @@ class CRUDAIRelationshipIndex(CRUDBase[AIRelationshipIndex, Any, AIRelationshipI
         try:
             result = await db.execute(
                 select(AIRelationshipIndex)
+                .join(
+                    AIRelationshipDimension, AIRelationshipIndex.dimension_id == AIRelationshipDimension.id
+                )
                 .where(AIRelationshipIndex.style_id == style_id)
-                .order_by(AIRelationshipIndex.dimension_name, AIRelationshipIndex.priority)
+                .order_by(AIRelationshipDimension.name, AIRelationshipIndex.priority)
             )
 
             indexes = result.scalars().all()

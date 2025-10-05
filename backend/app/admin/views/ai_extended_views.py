@@ -111,12 +111,11 @@ class AIRelationshipScoreView(ModelView):
         return False
 
     fields_default_sort = [("score", True)]
-    searchable_fields = ["dimension_name", "relationship_display_name"]
+    searchable_fields = ["relationship_display_name"]
     sortable_fields = [
         "id",
         "character_id",
         "dimension_id",
-        "dimension_name",
         "score",
         "position",
         "relationship_id",
@@ -140,7 +139,6 @@ class AIRelationshipScoreView(ModelView):
             help_text="Relationship dimension",
             required=True,
         ),
-        StringField("dimension_name", label="Dimension Name", help_text="Relationship dimension name"),
         IntegerField("score", label="Score", help_text="Current relationship score (0-1000)"),
         IntegerField("position", label="Position", help_text="Per mille position (0-1000)"),
         HasOne(
@@ -191,9 +189,6 @@ class AIRelationshipScoreView(ModelView):
             obj.character_id = obj.character.id
         if hasattr(obj, "dimension") and obj.dimension is not None:
             obj.dimension_id = obj.dimension.id
-            # Auto-fill dimension_name from dimension object
-            if hasattr(obj.dimension, "name"):
-                obj.dimension_name = obj.dimension.name
         if hasattr(obj, "relationship") and obj.relationship is not None:
             obj.relationship_id = obj.relationship.id
             # Auto-fill relationship_display_name from relationship object
@@ -208,12 +203,17 @@ class AIRelationshipScoreView(ModelView):
             errors["dimension"] = "Relationship Dimension is required"
 
         # Check uniqueness constraint: same character + dimension
-        if hasattr(obj, "character_id") and obj.character_id and hasattr(obj, "dimension_name") and obj.dimension_name:
+        if (
+            hasattr(obj, "character_id")
+            and obj.character_id
+            and hasattr(obj, "dimension_id")
+            and obj.dimension_id
+        ):
             session = request.state.session
             with session.no_autoflush:
                 stmt = select(AIRelationshipScore).where(
                     AIRelationshipScore.character_id == obj.character_id,
-                    AIRelationshipScore.dimension_name == obj.dimension_name,
+                    AIRelationshipScore.dimension_id == obj.dimension_id,
                 )
                 result = await session.execute(stmt)
                 existing_score = result.scalar_one_or_none()

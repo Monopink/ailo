@@ -25,7 +25,7 @@ from utils.form_helpers import get_text_field, get_int_field, FormFieldError
 logger = get_logger(__name__)
 
 # Initialize templates with relative path
-templates = Jinja2Templates(directory="admin/templates")
+templates = Jinja2Templates(directory="admin/templates", auto_reload=True)
 
 
 class AICharacterChatTestView(CustomView):
@@ -59,26 +59,27 @@ class AICharacterChatTestView(CustomView):
 
         # Default GET request - render the interface
         try:
-            # Get character_id from URL parameters (required)
-            character_id_str = request.query_params.get("character_id")
+            # Get character_id from path parameters (required)
+            character_id_str = request.path_params.get("id")
             if not character_id_str:
                 return templates.TemplateResponse(
                     "custom_views/ai_character_chat_test.html",
                     {
                         "request": request,
-                        "error": "Character ID is required in URL parameters",
+                        "error": "Character ID is required in URL path",
                         "page_title": "AI Character Chat Test - Error",
                     },
                 )
 
             try:
                 character_id = int(character_id_str)
-            except ValueError:
+            except (ValueError, TypeError) as e:
+                logger.error("invalid_character_id", character_id=character_id_str, error=str(e))
                 return templates.TemplateResponse(
                     "custom_views/ai_character_chat_test.html",
                     {
                         "request": request,
-                        "error": "Invalid character ID format",
+                        "error": f"Invalid character_id: {character_id_str}",
                         "page_title": "AI Character Chat Test - Error",
                     },
                 )
@@ -175,6 +176,7 @@ class AICharacterChatTestView(CustomView):
                     "conversation": test_execution["conversation"],
                     "performance": test_execution["performance"],
                     "relationship_scores": result["validation_info"]["relationship_scores"],
+                    "request_payload": test_execution.get("request_payload"),
                 }
 
                 logger.info(
@@ -226,16 +228,16 @@ class AICharacterChatTestView(CustomView):
     async def check_test_readiness(self, request: Request) -> JSONResponse:
         """API endpoint to check test readiness status."""
         try:
-            character_id_str = request.query_params.get("character_id")
+            character_id_str = request.path_params.get("id")
             if not character_id_str:
                 return JSONResponse(
-                    {"error": "Missing character_id parameter"},
+                    {"error": "Missing character_id in URL path"},
                     status_code=400,
                 )
 
             try:
                 character_id = int(character_id_str)
-            except ValueError:
+            except (ValueError, TypeError):
                 return JSONResponse(
                     {"error": "Invalid character_id format"},
                     status_code=400,
@@ -270,8 +272,29 @@ class AIScoreAlgorithmTestView(CustomView):
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         """Render the AI score algorithm test interface."""
         try:
-            # Get style_id from URL parameters
-            style_id = request.query_params.get("style_id")
+            # Get style_id from path parameters
+            style_id_raw = request.path_params.get("id")
+
+            # Convert to int if present
+            style_id = None
+            if style_id_raw:
+                try:
+                    style_id = int(style_id_raw)
+                except (ValueError, TypeError) as e:
+                    logger.error(
+                        "invalid_style_id_format",
+                        style_id_raw=style_id_raw,
+                        error=str(e),
+                    )
+
+            # Debug logging
+            logger.info(
+                "score_algorithm_test_render",
+                style_id_raw=style_id_raw,
+                style_id=style_id,
+                path=request.url.path,
+                path_params=dict(request.path_params),
+            )
 
             context = {
                 "request": request,
@@ -293,47 +316,64 @@ class AIScoreAlgorithmTestView(CustomView):
             async with SessionLocal() as db:
                 # Get dimensions and relationships for the selected style
                 if style_id:
-                    dimensions_result = await db.execute(
-                        text(
+                    try:
+                        dimensions_result = await db.execute(
+                            text(
+                                """
+                                SELECT name, display_name, initial_position
+                                FROM ai_relationship_dimensions
+                                WHERE style_id = :style_id
+                                ORDER BY name
                             """
-                            SELECT name, display_name, initial_position
-                            FROM ai_relationship_dimensions
-                            WHERE style_id = :style_id
-                            ORDER BY name
-                        """
-                        ),
-                        {"style_id": int(style_id)},
-                    )
-                    context["dimensions"] = [
-                        {
-                            "name": row.name,
-                            "display_name": row.display_name,
-                            "initial_position": row.initial_position,
-                        }
-                        for row in dimensions_result.fetchall()
-                    ]
+                            ),
+                            {"style_id": int(style_id)},
+                        )
+                        dimensions_rows = dimensions_result.fetchall()
 
-                    # Get relationships for the selected style
-                    relationships_result = await db.execute(
-                        text(
+                        logger.info(
+                            "dimensions_query_result",
+                            style_id=style_id,
+                            count=len(dimensions_rows),
+                            dimensions=[
+                                {"name": r.name, "display_name": r.display_name} for r in dimensions_rows
+                            ],
+                        )
+
+                        context["dimensions"] = [
+                            {
+                                "name": row.name,
+                                "display_name": row.display_name,
+                                "initial_position": row.initial_position,
+                            }
+                            for row in dimensions_rows
+                        ]
+
+                        # Get relationships for the selected style
+                        relationships_result = await db.execute(
+                            text(
+                                """
+                                SELECT DISTINCT r.id, r.name, r.display_name
+                                FROM ai_relationships r
+                                JOIN ai_relationship_indexes ri ON r.id = ri.relationship_id
+                                WHERE ri.style_id = :style_id
+                                ORDER BY r.display_name
                             """
-                            SELECT DISTINCT r.id, r.name, r.display_name
-                            FROM ai_relationships r
-                            JOIN ai_relationship_indexes ri ON r.id = ri.relationship_id
-                            WHERE ri.style_id = :style_id
-                            ORDER BY r.display_name
-                        """
-                        ),
-                        {"style_id": int(style_id)},
-                    )
-                    context["relationships"] = [
-                        {
-                            "id": row.id,
-                            "name": row.name,
-                            "display_name": row.display_name,
-                        }
-                        for row in relationships_result.fetchall()
-                    ]
+                            ),
+                            {"style_id": int(style_id)},
+                        )
+                        context["relationships"] = [
+                            {
+                                "id": row.id,
+                                "name": row.name,
+                                "display_name": row.display_name,
+                            }
+                            for row in relationships_result.fetchall()
+                        ]
+                    except (ValueError, TypeError) as e:
+                        logger.error("invalid_style_id", style_id=style_id, error=str(e))
+                        context["dimensions"] = []
+                        context["relationships"] = []
+                        context["error"] = f"Invalid style_id: {style_id}"
                 else:
                     context["dimensions"] = []
                     context["relationships"] = []
@@ -345,6 +385,8 @@ class AIScoreAlgorithmTestView(CustomView):
 
                     if action == "test_algorithm":
                         context["test_result"] = await self._handle_test_algorithm(form_data)
+                        # Preserve form data for re-rendering
+                        context["form_data"] = dict(form_data)
 
             return templates.TemplateResponse("custom_views/ai_score_test.html", context)
 
@@ -478,6 +520,31 @@ class AIScoreAlgorithmTestView(CustomView):
                         algorithm, mapped_position, dim.initial_position, params
                     )
 
+                    # Step 4: Find relationship candidates for this dimension
+                    candidates_result = await db.execute(
+                        text(
+                            """
+                            SELECT DISTINCT
+                                ari.relationship_id,
+                                ari.priority,
+                                ari.start_position,
+                                ari.end_position,
+                                ar.name as relationship_name,
+                                ar.display_name as relationship_display_name,
+                                ar.prompt_fragment
+                            FROM ai_relationship_indexes ari
+                            JOIN ai_relationships ar ON ari.relationship_id = ar.id
+                            WHERE ari.style_id = :style_id
+                              AND ari.dimension_id = :dimension_id
+                              AND ari.start_position <= :position
+                              AND ari.end_position >= :position
+                            ORDER BY ari.priority DESC
+                            """
+                        ),
+                        {"style_id": style_id, "dimension_id": dim.id, "position": final_position},
+                    )
+                    candidates = candidates_result.fetchall()
+
                     dimension_results.append(
                         {
                             "dimension_name": dim.name,
@@ -489,8 +556,84 @@ class AIScoreAlgorithmTestView(CustomView):
                             "initial_position": dim.initial_position,
                             "final_position": final_position,
                             "offset": final_position - mapped_position,
+                            "candidates": [
+                                {
+                                    "relationship_id": c.relationship_id,
+                                    "relationship_name": c.relationship_name,
+                                    "relationship_display_name": c.relationship_display_name,
+                                    "prompt_fragment": c.prompt_fragment,
+                                    "priority": c.priority,
+                                    "start_position": c.start_position,
+                                    "end_position": c.end_position,
+                                }
+                                for c in candidates
+                            ],
                         }
                     )
+
+                # Step 5: Skip limit_count filtering (as per spec: "测试时忽略ai_relationship_indexes.limit_count的影响")
+
+                # Step 6: Select final relationship
+                # Find all unique relationships and their max priority across all dimensions
+                all_candidates: Dict[int, Dict[str, Any]] = {}
+                for result in dimension_results:
+                    for candidate in result["candidates"]:
+                        rel_id = candidate["relationship_id"]
+                        if rel_id not in all_candidates:
+                            all_candidates[rel_id] = {
+                                "relationship_id": rel_id,
+                                "relationship_name": candidate["relationship_name"],
+                                "relationship_display_name": candidate["relationship_display_name"],
+                                "prompt_fragment": candidate["prompt_fragment"],
+                                "count": 0,
+                                "max_priority": 0,
+                            }
+                        all_candidates[rel_id]["count"] += 1
+                        all_candidates[rel_id]["max_priority"] = max(
+                            all_candidates[rel_id]["max_priority"], candidate["priority"]
+                        )
+
+                # All unique candidates (already deduplicated in all_candidates dict)
+                all_unique_candidates = list(all_candidates.values())
+
+                # Select final relationship from all unique candidates
+                selected_relationship: Optional[Dict[str, Any]] = None
+                relationship_changed = False
+                selection_reason = ""
+
+                if all_unique_candidates:
+                    # Check if current relationship is in candidates
+                    if current_relationship_id:
+                        current_in_candidates = any(
+                            r["relationship_id"] == current_relationship_id for r in all_unique_candidates
+                        )
+                        if current_in_candidates:
+                            # Current relationship has highest priority (special rule)
+                            selected_relationship = next(
+                                r
+                                for r in all_unique_candidates
+                                if r["relationship_id"] == current_relationship_id
+                            )
+                            relationship_changed = False
+                            selection_reason = "Current relationship maintained (special rule: current relationship has priority)"
+                        else:
+                            # Select highest priority from all candidates
+                            selected_relationship = max(
+                                all_unique_candidates, key=lambda r: r["max_priority"]
+                            )
+                            relationship_changed = True
+                            selection_reason = (
+                                "Relationship changed (current relationship not in candidates)"
+                            )
+                    else:
+                        # No current relationship, select highest priority
+                        selected_relationship = max(all_unique_candidates, key=lambda r: r["max_priority"])
+                        relationship_changed = False
+                        selection_reason = (
+                            "New relationship selected (highest priority from all candidates)"
+                        )
+                else:
+                    selection_reason = "No relationship candidates found in any dimension"
 
                 # Get algorithm info
                 algo_info = get_algorithm_info(algorithm)
@@ -500,6 +643,11 @@ class AIScoreAlgorithmTestView(CustomView):
                     "algorithm_info": algo_info,
                     "parameters": params,
                     "dimension_results": dimension_results,
+                    "selected_relationship": selected_relationship,
+                    "all_unique_candidates": all_unique_candidates,
+                    "all_candidates": list(all_candidates.values()),
+                    "relationship_changed": relationship_changed,
+                    "selection_reason": selection_reason,
                     "current_relationship_id": current_relationship_id,
                     "current_relationship_name": current_relationship_name,
                 }
@@ -513,7 +661,7 @@ class AIScoreAlgorithmTestView(CustomView):
 ai_character_chat_test_view = AICharacterChatTestView(
     label="Character Chat Test",
     icon="",
-    path="/ai-character-chat-test",
+    path="/ai-character/{id:int}/chat-test",
     methods=["GET", "POST"],  # Allow both GET and POST
     add_to_menu=False,  # Accessed via row actions only
 )
@@ -521,7 +669,7 @@ ai_character_chat_test_view = AICharacterChatTestView(
 ai_score_algorithm_test_view = AIScoreAlgorithmTestView(
     label="Score Algorithm Test",
     icon="",
-    path="/ai-score-algorithm-test",
+    path="/ai-style/{id:int}/score-algorithm-test",
     methods=["GET", "POST"],
     add_to_menu=False,  # Accessed via row actions only
 )
@@ -551,17 +699,18 @@ class AIRelationshipIndexAPIView(CustomView):
                 query = """
                 SELECT DISTINCT
                     ari.relationship_id,
-                    ari.dimension_name,
+                    ari.dimension_id,
+                    ard.name as dimension_name,
                     ari.start_position,
                     ari.end_position,
                     ari.priority,
                     ar.name as relationship_name,
                     ar.display_name as relationship_display_name
                 FROM ai_relationship_indexes ari
-                JOIN ai_relationship_dimensions ard ON ard.name = ari.dimension_name AND ard.style_id = :style_id
+                JOIN ai_relationship_dimensions ard ON ard.id = ari.dimension_id AND ard.style_id = :style_id
                 JOIN ai_relationships ar ON ar.id = ari.relationship_id
                 WHERE ari.style_id = :style_id
-                ORDER BY ari.dimension_name, ari.start_position
+                ORDER BY ard.name, ari.start_position
                 LIMIT :limit
                 """
 

@@ -21,10 +21,11 @@ from enums import (
     AICharacterCreator,
     AICharacterStatus,
     AIStyleStatus,
+    AIPersonalityStatus,
+    AIRelationshipStatus,
     AIRequestStatus,
     ScoreOffsetAlgorithm,
     Gender,
-    PlaceholderType,
     RequiredStatus,
     ReusableStatus,
 )
@@ -54,12 +55,30 @@ class AIPersonalityView(ModelView):
     exclude_fields_from_edit = ["id", "usage_count", "created_at", "updated_at"]
     exclude_fields_from_list = ["json_schema", "prompt"]
 
+    row_actions = ["view", "edit", "edit_complete"]
+
     def can_delete(self, request: Request) -> bool:
         return False
+
+    async def before_edit(self, request: Request, data: Dict, obj: Any) -> None:
+        """Validate status change before editing."""
+        from services.ai.usage_tracking import validate_status_change
+
+        if "status" in data:
+            await validate_status_change(request.state.session, "personality", obj.id, data["status"])
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["name", "display_name"]
     sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at"]
+
+    @link_row_action(
+        name="edit_complete",
+        text="Edit Complete",
+        icon_class="fas fa-cogs",
+    )
+    def edit_complete_row_action(self, request: Request, pk: Any) -> str:
+        """Link to edit personality JSON schema and placeholders."""
+        return f"/qiao-dash/ai-personality/{pk}/edit-complete"
 
     fields = [
         StringField("id", label="ID", help_text="Internal personality ID"),
@@ -78,7 +97,12 @@ class AIPersonalityView(ModelView):
             help_text="Template for AI personality behavior",
             required=True,
         ),
-        "json_schema",
+        ChineseJSONField(
+            "json_schema", label="JSON Schema", help_text="JSON schema for AI response validation"
+        ),
+        IntegerField(
+            "usage_count", label="Usage Count", help_text="Number of characters using this personality"
+        ),
         IntegerField(
             "typing_speed",
             label="Typing Speed (CPM)",
@@ -87,7 +111,7 @@ class AIPersonalityView(ModelView):
         ),
         IntegerEnumField(
             "status",
-            enum=AIStyleStatus,
+            enum=AIPersonalityStatus,
             label="Status",
             help_text="Active personalities can be used",
             required=True,
@@ -100,7 +124,7 @@ class AIPersonalityPlaceholderView(ModelView):
 
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
-    exclude_fields_from_list = ["validation_rules", "example_value"]
+    exclude_fields_from_list = ["example_value"]
 
     def can_delete(self, request: Request) -> bool:
         return False
@@ -112,7 +136,6 @@ class AIPersonalityPlaceholderView(ModelView):
         "personality_id",
         "placeholder_key",
         "display_name",
-        "placeholder_type",
         "is_required",
     ]
 
@@ -142,24 +165,11 @@ class AIPersonalityPlaceholderView(ModelView):
             help_text="Sample value to help users understand the placeholder",
         ),
         IntegerEnumField(
-            "placeholder_type",
-            enum=PlaceholderType,
-            label="Placeholder Type",
-            help_text="Data type for validation",
-        ),
-        IntegerEnumField(
             "is_required",
             enum=RequiredStatus,
             label="Required",
             help_text="Whether this placeholder must be filled",
         ),
-        IntegerEnumField(
-            "is_reusable",
-            enum=ReusableStatus,
-            label="Reusable",
-            help_text="Whether this placeholder can be reused across multiple characters",
-        ),
-        "validation_rules",
     ]
 
 
@@ -264,7 +274,11 @@ class AICharacterView(ModelView):
             label="Memory Settings",
             help_text="Character-specific memory and background information",
         ),
-        "prompt_variables",
+        ChineseJSONField(
+            "prompt_variables",
+            label="Prompt Variables",
+            help_text="Character-specific prompt variable values",
+        ),
         IntegerEnumField(
             "score_offset_algorithm",
             enum=ScoreOffsetAlgorithm,
@@ -272,8 +286,16 @@ class AICharacterView(ModelView):
             help_text="Algorithm for relationship score calculation (required, no default)",
             required=True,
         ),
-        "score_offset_params",
-        "request_params",
+        ChineseJSONField(
+            "score_offset_params",
+            label="Score Offset Parameters",
+            help_text="Parameters for score offset algorithm",
+        ),
+        ChineseJSONField(
+            "request_params",
+            label="Request Parameters",
+            help_text="LLM request parameters (temperature, max_tokens, etc.)",
+        ),
         IntegerEnumField(
             "created_by",
             enum=AICharacterCreator,
@@ -282,16 +304,25 @@ class AICharacterView(ModelView):
         ),
     ]
 
-    row_actions = ["view", "edit", "chat_test"]
+    row_actions = ["view", "edit", "edit_json", "chat_test"]
+
+    @link_row_action(
+        name="edit_json",
+        text="Edit JSON",
+        icon_class="fas fa-cogs",
+    )
+    def edit_json_row_action(self, request: Request, pk: Any) -> str:
+        """Link to edit character JSON fields."""
+        return f"/qiao-dash/ai-character/{pk}/edit-json"
 
     @link_row_action(
         name="chat_test",
         text="Chat Test",
-        icon_class="fas fa-comment-dots",
+        icon_class="fas fa-flask",
     )
     def chat_test_row_action(self, request: Request, pk: Any) -> str:
         """Link to AI character chat test page."""
-        return f"/qiao-dash/ai-character-chat-test?character_id={pk}"
+        return f"/qiao-dash/ai-character/{pk}/chat-test"
 
 
 class AIStyleView(ModelView):
@@ -303,6 +334,13 @@ class AIStyleView(ModelView):
     def can_delete(self, request):
         return False
 
+    async def before_edit(self, request: Request, data: Dict, obj: Any) -> None:
+        """Validate status change before editing."""
+        from services.ai.usage_tracking import validate_status_change
+
+        if "status" in data:
+            await validate_status_change(request.state.session, "style", obj.id, data["status"])
+
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["name", "display_name"]
     sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at"]
@@ -312,13 +350,6 @@ class AIStyleView(ModelView):
         StringField("name", label="Style Name", help_text="Unique identifier for the style", required=True),
         StringField(
             "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
-        ),
-        HasOne(
-            "initial_relationship",
-            identity="ai_relationship",
-            label="Initial Relationship",
-            help_text="Initial relationship type for new characters (optional)",
-            required=False,
         ),
         IntegerField("usage_count", label="Usage Count", help_text="Number of characters using this style"),
         IntegerEnumField(
@@ -330,16 +361,25 @@ class AIStyleView(ModelView):
         ),
     ]
 
-    row_actions = ["view", "edit", "relationship_management"]
+    row_actions = ["view", "edit", "edit_complete", "relationship_management"]
+
+    @link_row_action(
+        name="edit_complete",
+        text="Edit Complete",
+        icon_class="fas fa-cogs",
+    )
+    def edit_complete_row_action(self, request: Request, pk: Any) -> str:
+        """Link to edit style complete (dimensions and indexes)."""
+        return f"/qiao-dash/ai-style/{pk}/edit-complete"
 
     @link_row_action(
         name="relationship_management",
         text="Relationship Management",
-        icon_class="fas fa-chart-line",
+        icon_class="fas fa-flask",
     )
     def relationship_management_row_action(self, request: Request, pk: Any) -> str:
         """Link to AI style relationship management page."""
-        return f"/qiao-dash/ai-score-algorithm-test?style_id={pk}"
+        return f"/qiao-dash/ai-style/{pk}/score-algorithm-test"
 
 
 class AIRelationshipView(ModelView):
@@ -351,6 +391,13 @@ class AIRelationshipView(ModelView):
 
     def can_delete(self, request):
         return False
+
+    async def before_edit(self, request: Request, data: Dict, obj: Any) -> None:
+        """Validate status change before editing."""
+        from services.ai.usage_tracking import validate_status_change
+
+        if "status" in data:
+            await validate_status_change(request.state.session, "relationship", obj.id, data["status"])
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["name", "display_name"]
@@ -707,6 +754,17 @@ class AIInfoTemplateView(ModelView):
         ),
     ]
 
+    row_actions = ["view", "edit", "edit_json"]
+
+    @link_row_action(
+        name="edit_json",
+        text="Edit JSON",
+        icon_class="fas fa-cogs",
+    )
+    def edit_json_row_action(self, request: Request, pk: Any) -> str:
+        """Link to edit info template JSON fields."""
+        return f"/qiao-dash/ai-info-template/{pk}/edit-json"
+
 
 class AIProfileTemplateView(ModelView):
     """Enhanced AI Profile Template view with proper field configuration."""
@@ -732,11 +790,13 @@ class AIProfileTemplateView(ModelView):
         # Generate qiao_id if not provided
         if not hasattr(obj, "qiao_id") or not obj.qiao_id:
             from models.base import generate_qiao_id
+
             obj.qiao_id = generate_qiao_id()
 
         # Generate id if not provided (Snowflake ID)
         if not hasattr(obj, "id") or not obj.id:
             from utils.snowflake import generate_snowflake_id
+
             obj.id = generate_snowflake_id()
 
     fields_default_sort = [("created_at", True)]

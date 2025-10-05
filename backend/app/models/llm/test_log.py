@@ -54,6 +54,10 @@ class LLMTestLog(ImmutableSnowflakeModel):
         Integer, nullable=False, default=0, comment="Enable thinking mode: 0=no, 1=yes"
     )
 
+    enable_json_schema: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Enable JSON Schema mode: 0=no, 1=yes"
+    )
+
     # Request and response
     request: Mapped[Dict[str, Any]] = mapped_column(
         JSONB, nullable=False, comment="Complete request payload"

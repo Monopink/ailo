@@ -33,19 +33,7 @@ class AIStyle(AutoIncrementModel):
         comment="Status: 1=active, 2=inactive",
     )
 
-    initial_relationship_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Initial relationship ID, references ai_relationships.id"
-    )
-
     # Relationships
-    initial_relationship: Mapped[Optional["AIRelationship"]] = relationship(
-        "AIRelationship",
-        primaryjoin="AIStyle.initial_relationship_id == AIRelationship.id",
-        foreign_keys=[initial_relationship_id],
-        lazy="select",
-        viewonly=True,
-    )
-
     dimensions: Mapped[List["AIRelationshipDimension"]] = relationship(
         "AIRelationshipDimension",
         back_populates="style",
@@ -122,7 +110,9 @@ class AIRelationship(AutoIncrementModel):
 
     __tablename__ = "ai_relationships"
 
-    name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Relationship name")
+    name: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, comment="Relationship name (unique identifier)"
+    )
 
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
 
@@ -133,7 +123,7 @@ class AIRelationship(AutoIncrementModel):
     usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Usage count")
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 0=inactive"
+        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive"
     )
 
     # Relationships
@@ -170,8 +160,6 @@ class AIRelationshipIndex(AutoIncrementModel):
         nullable=False,
         comment="Dimension ID, references ai_relationship_dimensions.id",
     )
-
-    dimension_name: Mapped[str] = mapped_column(String(50), nullable=False, comment="Dimension name")
 
     start_position: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Start position, 0-1000 per mille"
@@ -218,14 +206,13 @@ class AIRelationshipIndex(AutoIncrementModel):
     __table_args__ = (
         Index("idx_ai_relationship_indexes_style_id", "style_id"),
         Index("idx_ai_relationship_indexes_dimension_id", "dimension_id"),
-        Index("idx_ai_relationship_indexes_dimension_name", "dimension_name"),
         Index("idx_ai_relationship_indexes_relationship_id", "relationship_id"),
         Index("idx_ai_relationship_indexes_position_range", "start_position", "end_position"),
         Index("idx_ai_relationship_indexes_priority", "priority"),
         Index(
             "idx_ai_relationship_indexes_style_dimension",
             "style_id",
-            "dimension_name",
+            "dimension_id",
             "start_position",
             "end_position",
             unique=True,

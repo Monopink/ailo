@@ -33,6 +33,7 @@ async def chat_completion(
     max_tokens: Optional[int] = None,
     enable_thinking: Optional[bool] = None,
     config_key: Optional[str] = None,
+    character_request_params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Send chat completion request with automatic provider selection and failover.
@@ -45,6 +46,7 @@ async def chat_completion(
         max_tokens: Override max tokens setting
         enable_thinking: Override thinking mode setting
         config_key: Specific config to use (defaults to primary)
+        character_request_params: Character-specific request parameters override
 
     Returns:
         Dictionary containing response data and metadata
@@ -63,7 +65,14 @@ async def chat_completion(
         for config, provider in configs_to_try:
             try:
                 result = await _call_provider(
-                    config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
+                    config,
+                    provider,
+                    messages,
+                    json_schema,
+                    temperature,
+                    max_tokens,
+                    enable_thinking,
+                    character_request_params,
                 )
 
                 if result["success"]:
@@ -170,17 +179,49 @@ async def _call_provider(
     temperature: Optional[float],
     max_tokens: Optional[int],
     enable_thinking: Optional[bool],
+    character_request_params: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Call the appropriate provider function using factory."""
+    """
+    Call the appropriate provider function using factory.
+
+    Parameter priority (highest to lowest):
+    1. Explicit parameters (temperature, max_tokens, enable_thinking)
+    2. Character-specific overrides (character_request_params from AI Character)
+    3. Config defaults (from LLMConfig)
+    """
     try:
+        # Merge request parameters with priority:
+        # 1. Start with character-specific parameters (if provided)
+        merged_params = {}
+        if character_request_params:
+            merged_params.update(character_request_params)
+            logger.debug(
+                "character_request_params_applied",
+                character_params=character_request_params,
+                merged_params=merged_params,
+            )
+
+        # 2. Apply explicit parameters (highest priority, overrides character params)
+        if temperature is not None:
+            merged_params["temperature"] = temperature
+        if max_tokens is not None:
+            merged_params["max_tokens"] = max_tokens
+        if enable_thinking is not None:
+            merged_params["enable_thinking"] = enable_thinking
+
+        # Extract parameters for factory call
+        final_temperature = merged_params.get("temperature")
+        final_max_tokens = merged_params.get("max_tokens")
+        final_enable_thinking = merged_params.get("enable_thinking")
+
         result = await factory.chat_completion(
             config=config,
             provider=provider,
             messages=messages,
             json_schema=json_schema,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            enable_thinking=enable_thinking,
+            temperature=final_temperature,
+            max_tokens=final_max_tokens,
+            enable_thinking=final_enable_thinking,
         )
 
         # Wrap result in success format

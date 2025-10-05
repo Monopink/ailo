@@ -27,25 +27,27 @@ async def get_character_relationship_scores(db: AsyncSession, character_id: int)
         List of score dictionaries
     """
     try:
-        # Join with AIRelationshipDimension to get initial_position
+        # Join with AIRelationshipDimension to get initial_position and dimension name
         result = await db.execute(
-            select(AIRelationshipScore, AIRelationshipDimension.initial_position)
+            select(
+                AIRelationshipScore, AIRelationshipDimension.initial_position, AIRelationshipDimension.name
+            )
             .join(AIRelationshipDimension, AIRelationshipScore.dimension_id == AIRelationshipDimension.id)
             .where(AIRelationshipScore.character_id == character_id)
-            .order_by(AIRelationshipScore.dimension_name)
+            .order_by(AIRelationshipDimension.name)
         )
 
         score_data = result.all()
 
         # Convert to dictionaries
         score_list = []
-        for score, initial_position in score_data:
+        for score, initial_position, dimension_name in score_data:
             score_list.append(
                 {
                     "id": score.id,
                     "character_id": score.character_id,
                     "dimension_id": score.dimension_id,
-                    "dimension_name": score.dimension_name,
+                    "dimension_name": dimension_name,
                     "score": score.score,
                     "position": score.position,
                     "initial_position": initial_position,  # Add initial_position from dimension
@@ -139,23 +141,24 @@ async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List
         List of score range dictionaries
     """
     try:
-        from models.ai import AIRelationshipIndex, AIRelationship
+        from models.ai import AIRelationshipIndex, AIRelationship, AIRelationshipDimension
 
         result = await db.execute(
-            select(AIRelationshipIndex, AIRelationship)
+            select(AIRelationshipIndex, AIRelationship, AIRelationshipDimension.name)
             .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
+            .join(AIRelationshipDimension, AIRelationshipIndex.dimension_id == AIRelationshipDimension.id)
             .where(AIRelationshipIndex.style_id == style_id)
             .order_by(AIRelationshipIndex.start_position)
         )
 
         ranges = []
-        for index, relationship in result:
+        for index, relationship, dimension_name in result:
             ranges.append(
                 {
                     "relationship_id": relationship.id,
                     "relationship_name": relationship.name,
                     "dimension_id": index.dimension_id,
-                    "dimension_name": index.dimension_name,
+                    "dimension_name": dimension_name,
                     "start_position": index.start_position,
                     "end_position": index.end_position,
                     "priority": index.priority,

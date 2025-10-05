@@ -251,6 +251,47 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
             )
             return None
 
+    async def get_placeholders_by_personality(
+        self, db: AsyncSession, *, personality_id: int
+    ) -> List[AIPersonalityPlaceholder]:
+        """
+        Get all placeholders for a personality (both specific and global).
+
+        Args:
+            db: Database session
+            personality_id: Personality ID
+
+        Returns:
+            List of placeholders (personality-specific + global)
+        """
+        try:
+            result = await db.execute(
+                select(AIPersonalityPlaceholder)
+                .where(
+                    or_(
+                        AIPersonalityPlaceholder.personality_id == personality_id,
+                        AIPersonalityPlaceholder.personality_id.is_(None),
+                    )
+                )
+                .order_by(AIPersonalityPlaceholder.placeholder_key)
+            )
+
+            placeholders = result.scalars().all()
+
+            logger.debug(
+                "placeholders_by_personality_retrieved",
+                personality_id=personality_id,
+                count=len(placeholders),
+            )
+
+            return placeholders
+
+        except Exception as e:
+            logger.error(
+                "placeholders_by_personality_query_failed", error=str(e), personality_id=personality_id
+            )
+            return []
+
 
 ai_personality = CRUDAIPersonality(AIPersonality)
 ai_personality_placeholder = CRUDAIPersonalityPlaceholder(AIPersonalityPlaceholder)

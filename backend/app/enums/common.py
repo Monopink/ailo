@@ -226,6 +226,20 @@ class AIStyleStatus(IntEnum):
     INACTIVE = 2  # Inactive style
 
 
+class AIPersonalityStatus(IntEnum):
+    """AI personality status (ai_personalities.status)"""
+
+    ACTIVE = 1  # Active personality
+    INACTIVE = 2  # Inactive personality
+
+
+class AIRelationshipStatus(IntEnum):
+    """AI relationship status (ai_relationships.status)"""
+
+    ACTIVE = 1  # Active relationship
+    INACTIVE = 2  # Inactive relationship
+
+
 class AIContextReplyStatus(IntEnum):
     """AI context reply status (ai_contexts.reply_status)"""
 
@@ -279,15 +293,6 @@ class LLMRequestStatus(IntEnum):
     PENDING = 1  # Request pending
     SUCCESS = 2  # Request successful
     ERROR = 3  # Request failed with error
-
-
-class PlaceholderType(IntEnum):
-    """AI personality placeholder type (ai_personality_placeholders.placeholder_type)"""
-
-    TEXT = 1  # Text placeholder
-    NUMBER = 2  # Number placeholder
-    BOOLEAN = 3  # Boolean placeholder
-    LIST = 4  # List placeholder
 
 
 class RequiredStatus(IntEnum):

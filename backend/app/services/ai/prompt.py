@@ -107,18 +107,22 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
 
     Placeholders use {{variable_name}} format.
     System placeholders take priority over character-specific ones.
+    Unknown placeholders are detected, logged, and cleared.
 
     Args:
         template: Template string with placeholders
         placeholders: Dictionary of placeholder values
 
     Returns:
-        Template with placeholders replaced
+        Template with placeholders replaced and unknown placeholders cleared
     """
+    import re
+
     result = template
     replaced_count = 0
     failed_count = 0
 
+    # Replace known placeholders
     for key, value in placeholders.items():
         placeholder_pattern = f"{{{{{key}}}}}"
         if placeholder_pattern in result:
@@ -138,6 +142,19 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
                 result = result.replace(placeholder_pattern, "")
                 failed_count += 1
 
+    # Detect and clear unknown placeholders
+    unknown_pattern = r"\{\{([^}]+)\}\}"
+    unknown_matches = re.findall(unknown_pattern, result)
+
+    if unknown_matches:
+        logger.warning(
+            "unknown_placeholders_detected_clearing",
+            unknown_placeholders=unknown_matches,
+            template_preview=template[:200] if len(template) > 200 else template,
+        )
+        # Clear all unknown placeholders
+        result = re.sub(unknown_pattern, "", result)
+
     logger.debug(
         "placeholders_processed",
         original_length=len(template),
@@ -145,6 +162,7 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
         total_placeholders=len(placeholders),
         replaced_count=replaced_count,
         failed_count=failed_count,
+        unknown_count=len(unknown_matches) if unknown_matches else 0,
     )
 
     return result

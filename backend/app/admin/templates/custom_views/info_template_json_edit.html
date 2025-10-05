@@ -1,0 +1,145 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>Edit JSON Fields</title>{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1>Edit JSON Fields</h1>
+    </div>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':list', identity='ai_info_template') }}">AI Info Templates</a>
+        </li>
+        <li class="breadcrumb-item active">Edit JSON</li>
+    </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Template Information Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Template Information</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-2">
+                                <span class="text-muted">Template ID:</span>
+                                <strong>{{ template.id }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-2">
+                                <span class="text-muted">Personality:</span>
+                                <strong>{{ template.personality_display_name }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompt Variables Card -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h3 class="card-title">Prompt Variables</h3>
+                </div>
+                <div class="card-body">
+                    {% if not placeholders %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        No placeholders defined for this personality.
+                    </div>
+                    {% else %}
+                    <form id="variables-form">
+                        {% for placeholder in placeholders %}
+                        <div class="mb-3">
+                            <label for="var_{{ placeholder.placeholder_key }}" class="form-label">
+                                {{ placeholder.display_name or placeholder.placeholder_key }}
+                                {% if placeholder.is_required %}
+                                <span class="text-danger">*</span>
+                                {% endif %}
+                            </label>
+                            <input type="text" class="form-control" id="var_{{ placeholder.placeholder_key }}"
+                                name="var_{{ placeholder.placeholder_key }}"
+                                value="{{ current_values.get(placeholder.placeholder_key, '') }}" {% if
+                                placeholder.is_required %}required{% endif %}
+                                placeholder="{{ placeholder.example_value or '' }}">
+                            {% if placeholder.description %}
+                            <div class="form-text">{{ placeholder.description }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Save
+                            </button>
+                            <a href="{{ url_for(__name__ ~ ':list', identity='ai_info_template') }}"
+                                class="btn btn-secondary ms-2">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('variables-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalBtnHtml = submitBtn.innerHTML;
+
+        // Show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        // Collect form data
+        const formData = new FormData(e.target);
+        const variables = {};
+
+        for (const [key, value] of formData.entries()) {
+            if (key.startsWith('var_')) {
+                const varName = key.substring(4);
+                if (value) {  // Only include non-empty values
+                    variables[varName] = value;
+                }
+            }
+        }
+
+        // Submit
+        try {
+            const response = await fetch('/admin-api/ai/ai-info-template/{{ template.id }}/save-json', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt_variables: variables }),
+            });
+
+            if (response.ok) {
+                window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_info_template') }}";
+            } else {
+                const error = await response.json();
+                alert('Save failed: ' + (error.detail || 'Unknown error'));
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            }
+        } catch (error) {
+            alert('Save failed: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHtml;
+        }
+    });
+</script>
+{% endblock %}

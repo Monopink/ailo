@@ -1,0 +1,209 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>Edit JSON Fields</title>{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1>Edit JSON Fields</h1>
+    </div>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':list', identity='ai_character') }}">AI Characters</a>
+        </li>
+        <li class="breadcrumb-item active">Edit JSON</li>
+    </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Character Information Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Character Information</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <span class="text-muted">Character ID:</span>
+                                <strong>{{ character.qiao_id }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <span class="text-muted">Personality:</span>
+                                <strong>{{ character.personality_display_name }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <span class="text-muted">Algorithm:</span>
+                                <strong>{{ algorithm.name }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- JSON Fields Card -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h3 class="card-title">JSON Fields</h3>
+                </div>
+                <div class="card-body">
+                    <form id="json-form">
+                        <!-- Prompt Variables Section -->
+                        <h4 class="mb-3">Prompt Variables</h4>
+                        {% if not placeholders %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No placeholders defined for this personality.
+                        </div>
+                        {% else %}
+                        {% for placeholder in placeholders %}
+                        <div class="mb-3">
+                            <label for="var_{{ placeholder.placeholder_key }}" class="form-label">
+                                {{ placeholder.display_name or placeholder.placeholder_key }}
+                                {% if placeholder.is_required %}
+                                <span class="text-danger">*</span>
+                                {% endif %}
+                            </label>
+                            <input type="text" class="form-control" id="var_{{ placeholder.placeholder_key }}"
+                                name="var_{{ placeholder.placeholder_key }}"
+                                value="{{ current_variables.get(placeholder.placeholder_key, '') }}" {% if
+                                placeholder.is_required %}required{% endif %}
+                                placeholder="{{ placeholder.example_value or '' }}">
+                            {% if placeholder.description %}
+                            <div class="form-text">{{ placeholder.description }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+
+                        <!-- Score Offset Parameters Section -->
+                        <hr class="my-4">
+                        <h4 class="mb-3">Score Offset Parameters</h4>
+
+                        {% if algorithm.value == 1 %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Direct mapping algorithm requires no parameters.
+                        </div>
+
+                        {% elif algorithm.value == 2 %}
+                        <div class="alert alert-info mb-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            V1 Independent Bidirectional Offset algorithm parameters.
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="left_bias" class="form-label">Left Bias</label>
+                                    <input type="number" class="form-control" id="left_bias" name="left_bias"
+                                        value="{{ current_params.get('left_bias', 0) }}" min="-100" max="100" step="1"
+                                        required>
+                                    <div class="form-text">Range: -100 to 100 (0 = linear)</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="right_bias" class="form-label">Right Bias</label>
+                                    <input type="number" class="form-control" id="right_bias" name="right_bias"
+                                        value="{{ current_params.get('right_bias', 0) }}" min="-100" max="100" step="1"
+                                        required>
+                                    <div class="form-text">Range: -100 to 100 (0 = linear)</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Unknown algorithm type: {{ algorithm.value }}
+                        </div>
+                        {% endif %}
+
+                        <!-- Submit Buttons -->
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Save All
+                            </button>
+                            <a href="{{ url_for(__name__ ~ ':list', identity='ai_character') }}"
+                                class="btn btn-secondary ms-2">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('json-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalBtnHtml = submitBtn.innerHTML;
+
+        // Show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        // Collect form data
+        const formData = new FormData(e.target);
+        const variables = {};
+        const params = {};
+
+        for (const [key, value] of formData.entries()) {
+            if (key.startsWith('var_')) {
+                const varName = key.substring(4);
+                if (value) {  // Only include non-empty values
+                    variables[varName] = value;
+                }
+            } else if (key === 'left_bias' || key === 'right_bias') {
+                params[key] = parseInt(value);
+            }
+        }
+
+        // Prepare request data
+        const requestData = {};
+        if (Object.keys(variables).length > 0) {
+            requestData.prompt_variables = variables;
+        }
+        if (Object.keys(params).length > 0) {
+            requestData.score_offset_params = params;
+        }
+
+        // Submit
+        try {
+            const response = await fetch('/admin-api/ai/ai-character/{{ character.id }}/save-json', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestData),
+            });
+
+            if (response.ok) {
+                window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_character') }}";
+            } else {
+                const error = await response.json();
+                alert('Save failed: ' + (error.detail || 'Unknown error'));
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            }
+        } catch (error) {
+            alert('Save failed: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHtml;
+        }
+    });
+</script>
+{% endblock %}

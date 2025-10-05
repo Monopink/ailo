@@ -362,7 +362,6 @@ CREATE TABLE IF NOT EXISTS ai_styles (
     display_name VARCHAR(100) NOT NULL,
     usage_count INTEGER NOT NULL DEFAULT 0,
     status INTEGER NOT NULL DEFAULT 1,
-    initial_relationship_id INTEGER,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -371,7 +370,6 @@ CREATE TABLE IF NOT EXISTS ai_styles (
 CREATE INDEX IF NOT EXISTS idx_ai_styles_name ON ai_styles(name);
 CREATE INDEX IF NOT EXISTS idx_ai_styles_status ON ai_styles(status);
 CREATE INDEX IF NOT EXISTS idx_ai_styles_usage_count ON ai_styles(usage_count);
-CREATE INDEX IF NOT EXISTS idx_ai_styles_initial_relationship_id ON ai_styles(initial_relationship_id);
 
 -- AI relationships table - Relationship type definitions
 CREATE TABLE IF NOT EXISTS ai_relationships (
@@ -453,12 +451,10 @@ CREATE TABLE IF NOT EXISTS ai_personality_placeholders (
     id SERIAL PRIMARY KEY,
     personality_id INTEGER,
     placeholder_key VARCHAR(100) NOT NULL,
-    placeholder_type INTEGER NOT NULL DEFAULT 1,
     display_name VARCHAR(100) NOT NULL,
     description VARCHAR(500),
     example_value TEXT,
     is_required INTEGER NOT NULL DEFAULT 0,
-    validation_rules JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -466,8 +462,6 @@ CREATE TABLE IF NOT EXISTS ai_personality_placeholders (
 -- Create indexes for ai_personality_placeholders table
 CREATE INDEX IF NOT EXISTS idx_ai_personality_placeholders_personality_id ON ai_personality_placeholders(personality_id);
 CREATE INDEX IF NOT EXISTS idx_ai_personality_placeholders_placeholder_key ON ai_personality_placeholders(placeholder_key);
--- GIN index for JSONB validation_rules
-CREATE INDEX IF NOT EXISTS idx_ai_personality_placeholders_validation_rules_gin ON ai_personality_placeholders USING GIN(validation_rules);
 
 -- AI info templates table - AI core configuration templates
 CREATE TABLE IF NOT EXISTS ai_info_templates (
@@ -1041,6 +1035,7 @@ CREATE TABLE IF NOT EXISTS llm_test_logs (
     override_temperature DECIMAL(3,2),
     override_max_tokens INTEGER,
     enable_thinking INTEGER NOT NULL DEFAULT 0,
+    enable_json_schema INTEGER NOT NULL DEFAULT 0,
     request JSONB NOT NULL,
     response JSONB,
     status INTEGER NOT NULL,
@@ -1163,10 +1158,10 @@ INSERT INTO ai_relationships (name, display_name, prompt_fragment, usage_count, 
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert AI styles with better names and configurations
-INSERT INTO ai_styles (name, display_name, usage_count, status, initial_relationship_id) VALUES
-('romantic_companion', '浪漫伴侣', 0, 1, 1),
-('friendly_companion', '友好伴侣', 0, 1, 1),
-('professional_assistant', '专业助手', 0, 1, 1)
+INSERT INTO ai_styles (name, display_name, usage_count, status) VALUES
+('romantic_companion', '浪漫伴侣', 0, 1),
+('friendly_companion', '友好伴侣', 0, 1),
+('professional_assistant', '专业助手', 0, 1)
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert AI relationship dimensions for each style
@@ -1551,25 +1546,25 @@ INSERT INTO ai_request_logs (id, character_id, user_id, style_id, personality_id
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert comprehensive AI personality placeholders
-INSERT INTO ai_personality_placeholders (id, personality_id, placeholder_key, display_name, description, example_value, placeholder_type, is_required) VALUES
+INSERT INTO ai_personality_placeholders (id, personality_id, placeholder_key, display_name, description, example_value, is_required) VALUES
 -- Default personality placeholders
-(1011, 1, 'personality_traits', '性格特征', 'AI角色的基本性格特征', '友善、耐心、幽默', 1, 1),
-(1013, 1, 'character_name', '角色名称', 'AI角色的名字', '小乔', 1, 1),
-(1014, 1, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '听音乐、看电影、聊天', 1, 0),
-(1015, 1, 'personality_type', '性格类型', 'MBTI性格类型', 'ISFJ', 1, 0),
-(1016, 1, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '温柔亲切，使用可爱的语气词', 1, 0),
-(1017, 1, 'background', '背景设定', 'AI角色的背景故事', '邻家女孩，温柔善良', 1, 0),
-(1018, 1, 'age', '年龄', 'AI角色的年龄', '22', 1, 0),
-(1019, 1, 'occupation', '职业', 'AI角色的职业', '大学生', 1, 0),
+(1011, 1, 'personality_traits', '性格特征', 'AI角色的基本性格特征', '友善、耐心、幽默', 1),
+(1013, 1, 'character_name', '角色名称', 'AI角色的名字', '小乔', 1),
+(1014, 1, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '听音乐、看电影、聊天', 0),
+(1015, 1, 'personality_type', '性格类型', 'MBTI性格类型', 'ISFJ', 0),
+(1016, 1, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '温柔亲切，使用可爱的语气词', 0),
+(1017, 1, 'background', '背景设定', 'AI角色的背景故事', '邻家女孩，温柔善良', 0),
+(1018, 1, 'age', '年龄', 'AI角色的年龄', '22', 0),
+(1019, 1, 'occupation', '职业', 'AI角色的职业', '大学生', 0),
 -- Sweet girlfriend personality placeholders
-(1012, 2, 'personality_traits', '性格特征', '甜美女友角色的性格特征', '甜美、活泼、温柔', 1, 1),
-(1020, 2, 'character_name', '角色名称', 'AI角色的名字', '小甜', 1, 1),
-(1021, 2, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '看电影、品尝美食、购物', 1, 0),
-(1022, 2, 'personality_type', '性格类型', 'MBTI性格类型', 'ESFP', 1, 0),
-(1023, 2, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '甜美可爱，经常撒娇', 1, 0),
-(1024, 2, 'background', '背景设定', 'AI角色的背景故事', '活泼可爱的甜美女孩', 1, 0),
-(1025, 2, 'age', '年龄', 'AI角色的年龄', '20', 1, 0),
-(1026, 2, 'occupation', '职业', 'AI角色的职业', '艺术学院学生', 1, 0)
+(1012, 2, 'personality_traits', '性格特征', '甜美女友角色的性格特征', '甜美、活泼、温柔', 1),
+(1020, 2, 'character_name', '角色名称', 'AI角色的名字', '小甜', 1),
+(1021, 2, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '看电影、品尝美食、购物', 0),
+(1022, 2, 'personality_type', '性格类型', 'MBTI性格类型', 'ESFP', 0),
+(1023, 2, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '甜美可爱，经常撒娇', 0),
+(1024, 2, 'background', '背景设定', 'AI角色的背景故事', '活泼可爱的甜美女孩', 0),
+(1025, 2, 'age', '年龄', 'AI角色的年龄', '20', 0),
+(1026, 2, 'occupation', '职业', 'AI角色的职业', '艺术学院学生', 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample AI info templates

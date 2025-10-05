@@ -33,8 +33,6 @@ class AIRelationshipScore(SnowflakeModel):
         Integer, nullable=False, comment="Dimension ID, references ai_relationship_dimensions.id"
     )
 
-    dimension_name: Mapped[str] = mapped_column(String(50), nullable=False, comment="Dimension name")
-
     score: Mapped[int] = mapped_column(Integer, nullable=False, comment="Current score value")
 
     position: Mapped[int] = mapped_column(Integer, nullable=False, comment="Per mille position (0-1000)")
@@ -78,11 +76,10 @@ class AIRelationshipScore(SnowflakeModel):
     __table_args__ = (
         Index("idx_ai_relationship_scores_character_id", "character_id"),
         Index("idx_ai_relationship_scores_dimension_id", "dimension_id"),
-        Index("idx_ai_relationship_scores_dimension_name", "dimension_name"),
         Index("idx_ai_relationship_scores_score", "score"),
         Index("idx_ai_relationship_scores_position", "position"),
         Index("idx_ai_relationship_scores_relationship_id", "relationship_id"),
         Index(
-            "idx_ai_relationship_scores_character_dimension", "character_id", "dimension_name", unique=True
+            "idx_ai_relationship_scores_character_dimension", "character_id", "dimension_id", unique=True
         ),
     )

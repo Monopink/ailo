@@ -260,27 +260,39 @@
         <div class="info-grid">
             <div class="info-item">
                 <div class="info-label">Config Key</div>
-                <div class="info-value">{{ config.config_key }}</div>
+                <div class="info-value">{{ llm_config.config_key }}</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Provider</div>
-                <div class="info-value">{{ config.provider_name }}</div>
+                <div class="info-value">{{ llm_config.provider_name }}</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Model</div>
-                <div class="info-value">{{ config.model_name }}</div>
+                <div class="info-value">{{ llm_config.model_name }}</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Temperature</div>
-                <div class="info-value">{{ config.temperature if config.temperature else 'Not set' }}</div>
+                <div class="info-value">{{ llm_config.temperature if llm_config.temperature else 'Not set' }}</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Max Tokens</div>
-                <div class="info-value">{{ config.max_tokens if config.max_tokens else 'Not set' }}</div>
+                <div class="info-value">{{ llm_config.max_tokens if llm_config.max_tokens else 'Not set' }}</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Timeout</div>
-                <div class="info-value">{{ config.timeout_seconds }}s</div>
+                <div class="info-value">{{ llm_config.timeout_seconds }}s</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">JSON Schema Mode</div>
+                <div class="info-value">
+                    {% if llm_config.json_schema_mode == 'strict' %}
+                    <span style="color: #198754;">✓ Strict (AI Character Ready)</span>
+                    {% elif llm_config.json_schema_mode == 'disabled' %}
+                    <span style="color: #dc3545;">✗ Disabled (Not Supported)</span>
+                    {% else %}
+                    <span style="color: #ffc107;">⚠ Auto (Not Tested)</span>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -306,7 +318,7 @@
                 </div>
                 <input type="hidden" id="override_temperature_enabled" name="override_temperature_enabled" value="0">
                 <input type="number" id="override_temperature" name="override_temperature" step="0.01" min="0" max="2"
-                    value="{{ config.temperature if config.temperature else 0.7 }}" disabled>
+                    value="{{ llm_config.temperature if llm_config.temperature else 0.7 }}" disabled>
             </div>
 
             <!-- Override Max Tokens -->
@@ -317,11 +329,11 @@
                 </div>
                 <input type="hidden" id="override_max_tokens_enabled" name="override_max_tokens_enabled" value="0">
                 <input type="number" id="override_max_tokens" name="override_max_tokens"
-                    value="{{ config.max_tokens if config.max_tokens else 2000 }}" disabled>
+                    value="{{ llm_config.max_tokens if llm_config.max_tokens else 2000 }}" disabled>
             </div>
 
             <!-- Enable Thinking Mode -->
-            {% if config.supports_thinking %}
+            {% if llm_config.supports_thinking %}
             <div class="form-group">
                 <div class="checkbox-group">
                     <input type="checkbox" id="enable_thinking" name="enable_thinking" value="1">

@@ -1,0 +1,946 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>Edit Complete</title>{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1>Edit Complete</h1>
+    </div>
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ url_for(__name__ ~ ':list', identity='ai_style') }}">AI Styles</a>
+        </li>
+        <li class="breadcrumb-item active">Edit Complete</li>
+    </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Style Information Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Style Information</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <span class="text-muted">Style ID:</span>
+                                <strong>{{ style.id }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <span class="text-muted">Name:</span>
+                                <strong>{{ style.name }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <span class="text-muted">Display Name:</span>
+                                <strong>{{ style.display_name }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dimensions and Indexes Management -->
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0">Dimensions & Indexes Management</h3>
+                    <button type="button" class="btn btn-primary" onclick="showAddDimensionModal()">
+                        <i class="fas fa-plus me-1"></i>添加Dimension
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        为每个维度配置position范围到relationship的映射。position范围可以重叠。Initial Position是偏移算法的原点,用于首次聊天初始化。
+                    </div>
+
+                    <div id="dimensions-indexes-container">
+                        <!-- Dimension sections will be rendered here by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="card mt-3">
+                <div class="card-body text-end">
+                    <a href="{{ url_for(__name__ ~ ':list', identity='ai_style') }}" class="btn btn-secondary">
+                        <i class="fas fa-times me-2"></i>取消
+                    </a>
+                    <button type="button" class="btn btn-primary ms-2" onclick="saveAll()">
+                        <i class="fas fa-save me-2"></i>保存全部
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dimension-section {
+        margin-bottom: 40px;
+        padding: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background: #f8f9fa;
+    }
+
+    .dimension-section h5 {
+        margin-bottom: 20px;
+        color: #495057;
+    }
+
+    .dimension-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .dimension-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #495057;
+        margin: 0;
+    }
+
+    .dimension-actions {
+        display: flex;
+        gap: 5px;
+    }
+
+    .dimension-edit-form {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        display: none;
+        /* Hidden by default */
+    }
+
+    .dimension-edit-form.active {
+        display: block;
+    }
+
+    .dimension-edit-form .form-group {
+        margin-bottom: 10px;
+    }
+
+    .dimension-edit-form label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #6c757d;
+        margin-bottom: 5px;
+        display: block;
+    }
+
+    .dimension-edit-form input {
+        width: 100%;
+        padding: 6px 10px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .score-axis {
+        position: relative;
+        min-height: 160px;
+        /* Minimum height, will grow dynamically */
+        margin: 20px 0;
+        background: white;
+        border-radius: 4px;
+        padding: 35px 30px 20px 30px;
+        /* Top padding 35px for labels, left/right 30px for edge label spacing */
+        overflow: visible;
+        /* Allow markers to be visible */
+    }
+
+    .axis-line {
+        position: relative;
+        height: 2px;
+        background: #dee2e6;
+        margin-bottom: 10px;
+        margin-top: 0px;
+        /* Remove top margin for compact layout */
+    }
+
+    .axis-label {
+        position: absolute;
+        top: 15px;
+        /* Position above axis line (axis starts at padding-top 35px, so 15px puts label 20px above line) */
+        transform: translateX(-50%);
+        /* Center horizontally only */
+        font-size: 12px;
+        color: #6c757d;
+        z-index: 5;
+        white-space: nowrap;
+        /* Prevent label text wrapping */
+    }
+
+    /* Initial position marker - vertical line */
+    .initial-position-marker {
+        position: absolute;
+        width: 2px;
+        height: 100%;
+        background: #dc3545;
+        /* Red color */
+        transform: translateX(-50%);
+        top: 0;
+        cursor: pointer;
+        z-index: 15;
+        opacity: 0.7;
+    }
+
+    .initial-position-marker:hover {
+        opacity: 1;
+        width: 3px;
+        box-shadow: 0 0 8px rgba(220, 53, 69, 0.5);
+    }
+
+    .initial-position-label {
+        position: absolute;
+        font-size: 10px;
+        color: #dc3545;
+        font-weight: bold;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        top: 5px;
+        /* Position at top near axis labels */
+        z-index: 16;
+        background: white;
+        padding: 2px 4px;
+        border-radius: 2px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .index-segment {
+        position: absolute;
+        height: 35px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        opacity: 0.85;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        z-index: 1;
+        /* Base z-index to stay below markers */
+    }
+
+    .index-segment:hover {
+        opacity: 1;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        z-index: 10;
+    }
+
+    .index-table {
+        margin-top: 20px;
+    }
+
+    .index-table input[type="number"] {
+        width: 100px;
+    }
+
+    .index-table select {
+        min-width: 150px;
+    }
+</style>
+
+<script>
+    // Constants for placeholder delimiters
+    const PLACEHOLDER_LEFT = '{' + '{';
+    const PLACEHOLDER_RIGHT = '}' + '}';
+
+    // Data from backend
+    const dimensions = {{ dimensions | tojson | safe }};
+    const indexes = {{ indexes | tojson | safe }};
+    const relationships = {{ relationships | tojson | safe }};
+
+    // Track deleted IDs
+    let deletedIndexIds = [];
+    let deletedDimensionIds = [];
+    let nextTempDimensionId = -1; // For new dimensions
+
+    // Color palette for relationships
+    const relationshipColors = [
+        '#a8edea', '#fbc2eb', '#f093fb', '#a6c1ee', '#fed6e3',
+        '#ffeaa7', '#74b9ff', '#fd79a8', '#fdcb6e', '#6c5ce7'
+    ];
+
+    // Calculate luminance to determine if text should be dark or light
+    function getTextColor(hexColor) {
+        // Convert hex to RGB
+        const r = parseInt(hexColor.substr(1, 2), 16);
+        const g = parseInt(hexColor.substr(3, 2), 16);
+        const b = parseInt(hexColor.substr(5, 2), 16);
+
+        // Calculate relative luminance (ITU-R BT.709)
+        const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+        // Use dark text for light backgrounds, light text for dark backgrounds
+        return luminance > 0.5 ? '#333' : 'white';
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        initializeIndexes();
+    });
+
+    // Initialize: group indexes by dimension
+    function initializeIndexes() {
+        const container = document.getElementById('dimensions-indexes-container');
+
+        dimensions.forEach(dimension => {
+            const dimensionIndexes = indexes.filter(idx => idx.dimension_id === dimension.id);
+            renderDimensionSection(dimension, dimensionIndexes);
+        });
+    }
+
+    // Create dimension edit form
+    function createDimensionEditForm(dimension) {
+        const form = document.createElement('div');
+        form.className = 'dimension-edit-form';
+        form.id = 'edit-form-' + dimension.id;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        // Display Name
+        const col1 = document.createElement('div');
+        col1.className = 'col-md-6';
+        const group1 = document.createElement('div');
+        group1.className = 'form-group';
+        const label1 = document.createElement('label');
+        label1.textContent = 'Display Name:';
+        const input1 = document.createElement('input');
+        input1.type = 'text';
+        input1.className = 'form-control form-control-sm';
+        input1.name = 'display_name';
+        input1.value = dimension.display_name || '';
+        group1.appendChild(label1);
+        group1.appendChild(input1);
+        col1.appendChild(group1);
+        row.appendChild(col1);
+
+        // Initial Position
+        const col2 = document.createElement('div');
+        col2.className = 'col-md-6';
+        const group2 = document.createElement('div');
+        group2.className = 'form-group';
+        const label2 = document.createElement('label');
+        label2.textContent = 'Initial Position (0-1000):';
+        const input2 = document.createElement('input');
+        input2.type = 'number';
+        input2.className = 'form-control form-control-sm';
+        input2.name = 'initial_position';
+        input2.value = dimension.initial_position || 500;
+        input2.min = 0;
+        input2.max = 1000;
+        input2.onchange = () => updateInitialPositionMarker(dimension.name);
+        group2.appendChild(label2);
+        group2.appendChild(input2);
+        col2.appendChild(group2);
+        row.appendChild(col2);
+
+        form.appendChild(row);
+
+        // Buttons
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'mt-2 text-end';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'btn btn-primary btn-success me-2';
+        saveBtn.innerHTML = '<i class="fas fa-check me-1"></i>保存';
+        saveBtn.onclick = () => saveDimensionEdit(dimension.id);
+        btnGroup.appendChild(saveBtn);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn btn-primary btn-secondary';
+        cancelBtn.innerHTML = '<i class="fas fa-times me-1"></i>取消';
+        cancelBtn.onclick = () => toggleDimensionEdit(dimension.id);
+        btnGroup.appendChild(cancelBtn);
+
+        form.appendChild(btnGroup);
+
+        return form;
+    }
+
+    // Toggle dimension edit mode
+    function toggleDimensionEdit(dimensionId) {
+        const form = document.getElementById('edit-form-' + dimensionId);
+        if (form) {
+            form.classList.toggle('active');
+        }
+    }
+
+    // Save dimension edit
+    function saveDimensionEdit(dimensionId) {
+        const form = document.getElementById('edit-form-' + dimensionId);
+        const section = form.closest('.dimension-section');
+        const dimensionName = section.getAttribute('data-dimension-name');
+
+        const displayName = form.querySelector('[name="display_name"]').value;
+        const initialPosition = parseInt(form.querySelector('[name="initial_position"]').value);
+
+        // Update dimension data
+        const dimension = dimensions.find(d => d.id === dimensionId);
+        if (dimension) {
+            dimension.display_name = displayName;
+            dimension.initial_position = initialPosition;
+        }
+
+        // Update title
+        const title = section.querySelector('.dimension-title');
+        title.textContent = displayName + ' (' + dimensionName + ')';
+
+        // Update initial position marker
+        updateInitialPositionMarker(dimensionName);
+
+        // Hide form
+        toggleDimensionEdit(dimensionId);
+    }
+
+    // Delete dimension
+    function deleteDimension(dimensionId, dimensionName) {
+        // Check if dimension has indexes
+        const dimensionIndexes = document.querySelectorAll('.index-item[data-dimension="' + dimensionName + '"]');
+        if (dimensionIndexes.length > 0) {
+            alert('无法删除: 该dimension还有 ' + dimensionIndexes.length + ' 个indexes。请先删除所有indexes。');
+            return;
+        }
+
+        if (!confirm('确定删除dimension "' + dimensionName + '"?')) {
+            return;
+        }
+
+        // Add to deleted list
+        if (dimensionId > 0) {
+            deletedDimensionIds.push(dimensionId);
+        }
+
+        // Remove from dimensions array
+        const index = dimensions.findIndex(d => d.id === dimensionId);
+        if (index !== -1) {
+            dimensions.splice(index, 1);
+        }
+
+        // Remove section from DOM
+        const section = document.querySelector('.dimension-section[data-dimension-id="' + dimensionId + '"]');
+        if (section) {
+            section.remove();
+        }
+    }
+
+    // Render dimension section with its indexes
+    function renderDimensionSection(dimension, dimensionIndexes) {
+        const container = document.getElementById('dimensions-indexes-container');
+
+        const section = document.createElement('div');
+        section.className = 'dimension-section';
+        section.setAttribute('data-dimension-id', dimension.id);
+        section.setAttribute('data-dimension-name', dimension.name);
+
+        // Header with title and actions
+        const header = document.createElement('div');
+        header.className = 'dimension-header';
+
+        const title = document.createElement('div');
+        title.className = 'dimension-title';
+        title.textContent = (dimension.display_name || dimension.name) + ' (' + dimension.name + ')';
+        header.appendChild(title);
+
+        // Action buttons
+        const actions = document.createElement('div');
+        actions.className = 'dimension-actions';
+
+        // Edit button
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'btn btn-primary btn-outline-primary';
+        editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+        editBtn.title = '编辑';
+        editBtn.onclick = () => toggleDimensionEdit(dimension.id);
+        actions.appendChild(editBtn);
+
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-primary btn-outline-danger';
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteBtn.title = '删除';
+        deleteBtn.onclick = () => deleteDimension(dimension.id, dimension.name);
+        actions.appendChild(deleteBtn);
+
+        header.appendChild(actions);
+        section.appendChild(header);
+
+        // Edit form (hidden by default)
+        const editForm = createDimensionEditForm(dimension);
+        section.appendChild(editForm);
+
+        // Score axis visualization
+        const axisDiv = createScoreAxis(dimension.name, dimension.initial_position);
+        section.appendChild(axisDiv);
+
+        // Table
+        const table = createIndexTable(dimension.name, dimensionIndexes);
+        section.appendChild(table);
+
+        // Add button
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'btn btn-outline-primary mt-2';
+        addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>添加Index';
+        addBtn.onclick = () => addIndex(dimension.id, dimension.name);
+        section.appendChild(addBtn);
+
+        container.appendChild(section);
+
+        // Update visualization
+        updateScoreAxisVisualization(dimension.name);
+    }
+
+    // Create score axis HTML
+    function createScoreAxis(dimensionName, initialPosition) {
+        const axisDiv = document.createElement('div');
+        axisDiv.className = 'score-axis';
+        axisDiv.id = 'score-axis-' + dimensionName;
+
+        // Axis line
+        const axisLine = document.createElement('div');
+        axisLine.className = 'axis-line';
+        axisDiv.appendChild(axisLine);
+
+        // Labels - calculate position considering padding (30px on each side)
+        // Formula: 30px (left padding) + percentage of the content area (100% - 60px total padding)
+        [0, 250, 500, 750, 1000].forEach(score => {
+            const label = document.createElement('span');
+            label.className = 'axis-label';
+            const percentage = score / 1000; // 0 to 1
+            label.style.left = `calc(30px + ${percentage} * (100% - 60px))`;
+            label.textContent = score;
+            axisDiv.appendChild(label);
+        });
+
+        // Initial position marker
+        if (initialPosition !== undefined && initialPosition !== null) {
+            const marker = document.createElement('div');
+            marker.className = 'initial-position-marker';
+            marker.id = 'initial-marker-' + dimensionName;
+            const percentage = initialPosition / 1000;
+            marker.style.left = `calc(30px + ${percentage} * (100% - 60px))`;
+            marker.title = 'Initial Position: ' + initialPosition;
+            axisDiv.appendChild(marker);
+
+            const markerLabel = document.createElement('div');
+            markerLabel.className = 'initial-position-label';
+            markerLabel.id = 'initial-label-' + dimensionName;
+            markerLabel.style.left = `calc(30px + ${percentage} * (100% - 60px))`;
+            markerLabel.textContent = 'IP: ' + initialPosition;
+            axisDiv.appendChild(markerLabel);
+        }
+
+        return axisDiv;
+    }
+
+    // Update initial position marker
+    function updateInitialPositionMarker(dimensionName) {
+        const section = document.querySelector('.dimension-section[data-dimension-name="' + dimensionName + '"]');
+        if (!section) return;
+
+        const form = section.querySelector('.dimension-edit-form');
+        const initialPosition = parseInt(form.querySelector('[name="initial_position"]').value);
+
+        const marker = document.getElementById('initial-marker-' + dimensionName);
+        const label = document.getElementById('initial-label-' + dimensionName);
+
+        if (marker && label) {
+            const percentage = initialPosition / 1000;
+            marker.style.left = `calc(30px + ${percentage} * (100% - 60px))`;
+            marker.title = 'Initial Position: ' + initialPosition;
+            label.style.left = `calc(30px + ${percentage} * (100% - 60px))`;
+            label.textContent = 'IP: ' + initialPosition;
+        }
+    }
+
+    // Create index table
+    function createIndexTable(dimensionName, dimensionIndexes) {
+        const tableDiv = document.createElement('div');
+        tableDiv.className = 'index-table';
+
+        const table = document.createElement('table');
+        table.className = 'table table-sm';
+
+        // Table header
+        const thead = document.createElement('thead');
+        thead.innerHTML =
+            '<tr>' +
+            '<th>起始位置</th>' +
+            '<th>结束位置</th>' +
+            '<th>关系</th>' +
+            '<th>优先级</th>' +
+            '<th>次数限制</th>' +
+            '<th style="width: 80px;">操作</th>' +
+            '</tr>';
+        table.appendChild(thead);
+
+        // Table body
+        const tbody = document.createElement('tbody');
+        tbody.id = 'indexes-' + dimensionName;
+
+        // Add existing indexes
+        dimensionIndexes.forEach(index => {
+            const row = createIndexRow(index, dimensionName);
+            tbody.appendChild(row);
+        });
+
+        table.appendChild(tbody);
+        tableDiv.appendChild(table);
+
+        return tableDiv;
+    }
+
+    // Create index row
+    function createIndexRow(index, dimensionName) {
+        const row = document.createElement('tr');
+        row.className = 'index-item';
+        row.setAttribute('data-dimension', dimensionName);
+        row.setAttribute('data-dimension-id', index.dimension_id);
+
+        if (index.id) {
+            row.setAttribute('data-index-id', index.id);
+        }
+
+        // Start position
+        const startTd = document.createElement('td');
+        const startInput = document.createElement('input');
+        startInput.type = 'number';
+        startInput.name = 'start_position';
+        startInput.className = 'form-control form-control-sm';
+        startInput.value = index.start_position || 0;
+        startInput.min = 0;
+        startInput.max = 1000;
+        startInput.onchange = () => updateScoreAxisVisualization(dimensionName);
+        startTd.appendChild(startInput);
+        row.appendChild(startTd);
+
+        // End position
+        const endTd = document.createElement('td');
+        const endInput = document.createElement('input');
+        endInput.type = 'number';
+        endInput.name = 'end_position';
+        endInput.className = 'form-control form-control-sm';
+        endInput.value = index.end_position || 1000;
+        endInput.min = 0;
+        endInput.max = 1000;
+        endInput.onchange = () => updateScoreAxisVisualization(dimensionName);
+        endTd.appendChild(endInput);
+        row.appendChild(endTd);
+
+        // Relationship
+        const relTd = document.createElement('td');
+        const relSelect = document.createElement('select');
+        relSelect.name = 'relationship_id';
+        relSelect.className = 'form-select form-select-sm';
+        relSelect.onchange = () => updateScoreAxisVisualization(dimensionName);
+        relationships.forEach(rel => {
+            const option = document.createElement('option');
+            option.value = rel.id;
+            option.textContent = rel.display_name || rel.name;
+            if (index.relationship_id === rel.id) {
+                option.selected = true;
+            }
+            relSelect.appendChild(option);
+        });
+        relTd.appendChild(relSelect);
+        row.appendChild(relTd);
+
+        // Priority
+        const priorityTd = document.createElement('td');
+        const priorityInput = document.createElement('input');
+        priorityInput.type = 'number';
+        priorityInput.name = 'priority';
+        priorityInput.className = 'form-control form-control-sm';
+        priorityInput.value = index.priority || 1;
+        priorityInput.min = 1;
+        priorityInput.max = 100;
+        priorityTd.appendChild(priorityInput);
+        row.appendChild(priorityTd);
+
+        // Limit count
+        const limitTd = document.createElement('td');
+        const limitInput = document.createElement('input');
+        limitInput.type = 'number';
+        limitInput.name = 'limit_count';
+        limitInput.className = 'form-control form-control-sm';
+        limitInput.value = index.limit_count || 0;
+        limitInput.min = 0;
+        limitTd.appendChild(limitInput);
+        row.appendChild(limitTd);
+
+        // Delete button
+        const actionTd = document.createElement('td');
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-sm btn-danger';
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteBtn.onclick = () => removeIndex(deleteBtn, dimensionName);
+        actionTd.appendChild(deleteBtn);
+        row.appendChild(actionTd);
+
+        return row;
+    }
+
+    // Update score axis visualization
+    function updateScoreAxisVisualization(dimensionName) {
+        const axisDiv = document.getElementById('score-axis-' + dimensionName);
+        const indexItems = document.querySelectorAll('.index-item[data-dimension="' + dimensionName + '"]');
+
+        // Remove existing segments
+        const existingSegments = axisDiv.querySelectorAll('.index-segment');
+        existingSegments.forEach(seg => seg.remove());
+
+        // Get axis line position for proper segment positioning
+        const axisLine = axisDiv.querySelector('.axis-line');
+        const axisLineTop = axisLine.offsetTop + axisLine.offsetHeight;
+
+        // Add segments for each index
+        let layerIndex = 0;
+        indexItems.forEach((item, idx) => {
+            const startPos = parseInt(item.querySelector('[name="start_position"]').value) || 0;
+            const endPos = parseInt(item.querySelector('[name="end_position"]').value) || 0;
+            const relationshipSelect = item.querySelector('[name="relationship_id"]');
+            const relationshipName = relationshipSelect.options[relationshipSelect.selectedIndex].text;
+
+            if (endPos > startPos) {
+                const segment = document.createElement('div');
+                segment.className = 'index-segment';
+                segment.setAttribute('data-relationship', relationshipName);
+                // Calculate position considering padding
+                const startPercentage = startPos / 1000;
+                const widthPercentage = (endPos - startPos) / 1000;
+                segment.style.left = `calc(30px + ${startPercentage} * (100% - 60px))`;
+                segment.style.width = `calc(${widthPercentage} * (100% - 60px))`;
+                // Position segments below the axis line with 5px gap
+                segment.style.top = (axisLineTop + 5 + layerIndex * 40) + 'px';
+
+                // Use color from palette
+                const colorIndex = idx % relationshipColors.length;
+                const bgColor = relationshipColors[colorIndex];
+                segment.style.background = bgColor;
+                segment.style.color = getTextColor(bgColor);
+
+                segment.textContent = relationshipName + ' (' + startPos + '-' + endPos + ')';
+
+                // Click to scroll to form
+                segment.onclick = () => {
+                    item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    item.querySelector('[name="start_position"]').focus();
+                };
+
+                axisDiv.appendChild(segment);
+                layerIndex++;
+            }
+        });
+
+        // Dynamically adjust container height based on number of segments
+        // Calculate required height: axis line position + gap (5px) + segments (layerIndex * 40px) + bottom padding (20px)
+        const requiredHeight = axisLineTop + 5 + (layerIndex * 40) + 20;
+        const minHeight = 120; // Reduced minimum height for compact layout
+        axisDiv.style.height = Math.max(requiredHeight, minHeight) + 'px';
+    }
+
+    // Add new index
+    function addIndex(dimensionId, dimensionName) {
+        const tbody = document.getElementById('indexes-' + dimensionName);
+
+        const newIndex = {
+            dimension_id: dimensionId,
+            start_position: 0,
+            end_position: 1000,
+            relationship_id: relationships[0].id,
+            priority: 1,
+            limit_count: 0
+        };
+
+        const row = createIndexRow(newIndex, dimensionName);
+        tbody.appendChild(row);
+
+        updateScoreAxisVisualization(dimensionName);
+    }
+
+    // Remove index
+    function removeIndex(btn, dimensionName) {
+        const row = btn.closest('tr');
+        const indexId = row.getAttribute('data-index-id');
+
+        if (indexId) {
+            deletedIndexIds.push(parseInt(indexId));
+        }
+
+        row.remove();
+        updateScoreAxisVisualization(dimensionName);
+    }
+
+    // Show add dimension modal
+    function showAddDimensionModal() {
+        const name = prompt('请输入Dimension Name (英文标识符,如: trust):');
+        if (!name) return;
+
+        // Validate name
+        if (!/^[a-z_]+$/.test(name)) {
+            alert('Dimension Name只能包含小写字母和下划线');
+            return;
+        }
+
+        // Check duplicate
+        if (dimensions.find(d => d.name === name)) {
+            alert('Dimension Name已存在');
+            return;
+        }
+
+        const displayName = prompt('请输入Display Name (显示名称,如: 信任度):');
+        if (!displayName) return;
+
+        const initialPosition = prompt('请输入Initial Position (0-1000):', '500');
+        if (!initialPosition) return;
+
+        const initialPos = parseInt(initialPosition);
+        if (isNaN(initialPos) || initialPos < 0 || initialPos > 1000) {
+            alert('Initial Position必须是0-1000之间的数字');
+            return;
+        }
+
+        // Create new dimension
+        const newDimension = {
+            id: nextTempDimensionId--,  // Negative ID for new dimensions
+            name: name,
+            display_name: displayName,
+            initial_position: initialPos
+        };
+
+        dimensions.push(newDimension);
+
+        // Render new dimension section
+        renderDimensionSection(newDimension, []);
+    }
+
+    // Save all
+    async function saveAll() {
+        const saveBtn = event.target;
+        const originalBtnHtml = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
+
+        try {
+            // Collect all dimensions
+            const allDimensions = [];
+            dimensions.forEach(dimension => {
+                const dimData = {
+                    display_name: dimension.display_name,
+                    initial_position: dimension.initial_position
+                };
+
+                // Only include ID for existing dimensions (positive IDs)
+                if (dimension.id > 0) {
+                    dimData.id = dimension.id;
+                } else {
+                    // New dimension needs name
+                    dimData.name = dimension.name;
+                }
+
+                allDimensions.push(dimData);
+            });
+
+            // Collect all indexes
+            const allIndexes = [];
+            const indexItems = document.querySelectorAll('.index-item');
+
+            indexItems.forEach(item => {
+                const indexId = item.getAttribute('data-index-id');
+                const dimensionId = parseInt(item.getAttribute('data-dimension-id'));
+                const dimensionName = item.getAttribute('data-dimension');
+                const startPos = parseInt(item.querySelector('[name="start_position"]').value);
+                const endPos = parseInt(item.querySelector('[name="end_position"]').value);
+                const relationshipId = parseInt(item.querySelector('[name="relationship_id"]').value);
+                const priority = parseInt(item.querySelector('[name="priority"]').value) || 1;
+                const limitCount = parseInt(item.querySelector('[name="limit_count"]').value) || 0;
+
+                const indexData = {
+                    dimension_id: dimensionId,
+                    dimension_name: dimensionName,
+                    start_position: startPos,
+                    end_position: endPos,
+                    relationship_id: relationshipId,
+                    priority: priority,
+                    limit_count: limitCount
+                };
+
+                if (indexId) {
+                    indexData.id = parseInt(indexId);
+                }
+
+                allIndexes.push(indexData);
+            });
+
+            // Prepare request data
+            const requestData = {
+                dimensions: allDimensions,
+                deleted_dimension_ids: deletedDimensionIds,
+                indexes: allIndexes,
+                deleted_index_ids: deletedIndexIds
+            };
+
+            // Submit
+            const response = await fetch('/admin-api/ai/ai-style/{{ style.id }}/save-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestData),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                let message = '保存成功!\n\n';
+                message += 'Dimensions:\n';
+                message += '  更新: ' + result.updated_dimensions + '个\n';
+                message += '  创建: ' + result.created_dimensions + '个\n';
+                message += '  删除: ' + result.deleted_dimensions + '个\n\n';
+                message += 'Indexes:\n';
+                message += '  更新: ' + result.updated_indexes + '个\n';
+                message += '  创建: ' + result.created_indexes + '个\n';
+                message += '  删除: ' + result.deleted_indexes + '个';
+                alert(message);
+                window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_style') }}";
+            } else {
+                const error = await response.json();
+                alert('保存失败: ' + (error.detail || '未知错误'));
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalBtnHtml;
+            }
+        } catch (error) {
+            alert('保存失败: ' + error.message);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnHtml;
+        }
+    }
+</script>
+{% endblock %}

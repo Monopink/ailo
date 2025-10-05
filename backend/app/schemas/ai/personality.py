@@ -67,11 +67,6 @@ class AIPersonalityPlaceholderBase(BaseSchema):
     description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
     example_value: Optional[str] = Field(None, description="Example placeholder value")
     is_required: bool = Field(False, description="Is required")
-    # Enhanced fields for better functionality
-    placeholder_type: int = Field(
-        1, ge=1, le=4, description="Placeholder type: 1=text, 2=number, 3=boolean, 4=list"
-    )
-    validation_rules: Optional[Dict[str, Any]] = Field(None, description="Validation rules")
 
 
 class AIPersonalityPlaceholderCreate(BaseModel):
@@ -83,11 +78,6 @@ class AIPersonalityPlaceholderCreate(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
     example_value: Optional[str] = Field(None, description="Example placeholder value")
     is_required: bool = Field(False, description="Is required")
-    # Enhanced fields for better functionality
-    placeholder_type: int = Field(
-        1, ge=1, le=4, description="Placeholder type: 1=text, 2=number, 3=boolean, 4=list"
-    )
-    validation_rules: Optional[Dict[str, Any]] = Field(None, description="Validation rules")
 
 
 class AIPersonalityPlaceholderUpdate(BaseModel):
@@ -97,9 +87,6 @@ class AIPersonalityPlaceholderUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
     example_value: Optional[str] = Field(None, description="Example placeholder value")
     is_required: Optional[bool] = Field(None, description="Is required")
-    # Enhanced fields for better functionality
-    placeholder_type: Optional[int] = Field(None, ge=1, le=4, description="Placeholder type")
-    validation_rules: Optional[Dict[str, Any]] = Field(None, description="Validation rules")
 
 
 class AIPersonalityPlaceholderResponse(AIPersonalityPlaceholderBase):

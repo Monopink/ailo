@@ -156,6 +156,15 @@ async def process_conversation(
             json_schema_mode=config.json_schema_mode,
         )
 
+        # Extract character-specific request parameters
+        character_request_params = character_info.get("character", {}).request_params
+        if character_request_params:
+            logger.debug(
+                "using_character_request_params",
+                character_qiao_id=character_qiao_id,
+                params=character_request_params,
+            )
+
         # Step 8: Request LLM with validation
         llm_result = await chat_completion_with_validation(
             db=db,
@@ -163,6 +172,7 @@ async def process_conversation(
             json_schema=json_schema,
             enable_thinking=True,
             config_key=config_key,
+            character_request_params=character_request_params,
         )
 
         if not llm_result["success"]:

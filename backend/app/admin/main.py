@@ -77,6 +77,12 @@ from .views.custom_views import (
     DashboardView,
     SystemSettingsView,
 )
+from .views.ai_json_edit_views import (
+    character_json_edit_view,
+    info_template_json_edit_view,
+    personality_complete_edit_view,
+    style_complete_edit_view,
+)
 
 # Create admin instance with authentication and dashboard as index
 admin = Admin(
@@ -212,6 +218,12 @@ system_group = DropDown(
     always_open=False,
 )
 admin.add_view(system_group)
+
+# Register JSON editing custom views (not in menu, accessed via buttons)
+admin.add_view(character_json_edit_view)
+admin.add_view(info_template_json_edit_view)
+admin.add_view(personality_complete_edit_view)
+admin.add_view(style_complete_edit_view)
 
 # Test views are now included in AI group with add_to_menu=False
 

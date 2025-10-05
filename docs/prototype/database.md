@@ -404,6 +404,9 @@ memory -- 角色记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
 score_offset_algorithm -- 分数偏移算法：1=直接映射, 2=V1独立双向偏移
 score_offset_params -- 分数偏移参数，JSON格式：{"left_bias": 0, "right_bias": 0}
+request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
+  示例：{"temperature": 0.8, "max_tokens": 2000, "top_p": 0.9, "frequency_penalty": 0.5}
+  参数优先级：显式调用参数 > request_params > LLM配置默认值
 created_by -- 创建者类型：1=user, 2=admin, 3=system
 created_at
 updated_at

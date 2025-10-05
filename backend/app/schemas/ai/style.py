@@ -24,14 +24,12 @@ class AIStyleCreate(BaseModel):
     """Schema for creating an AI style."""
 
     name: str = Field(..., max_length=100, description="Style name")
-    initial_relationship_id: Optional[int] = Field(None, description="Initial relationship type ID")
 
 
 class AIStyleUpdate(BaseModel):
     """Schema for updating an AI style."""
 
     name: Optional[str] = Field(None, max_length=100, description="Style name")
-    initial_relationship_id: Optional[int] = Field(None, description="Initial relationship type ID")
     usage_count: Optional[int] = Field(None, ge=0, description="Reference count")
     status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
@@ -127,7 +125,6 @@ class AIRelationshipIndexBase(BaseSchema):
 
     style_id: int = Field(..., description="Style ID")
     dimension_id: int = Field(..., description="Dimension ID")
-    dimension_name: str = Field(..., max_length=50, description="Dimension name")
     start_position: int = Field(..., ge=0, le=1000, description="Start position, 0-1000 per mille")
     end_position: int = Field(..., ge=0, le=1000, description="End position, 0-1000 per mille")
     relationship_id: int = Field(..., description="Relationship ID")
@@ -140,7 +137,6 @@ class AIRelationshipIndexCreate(BaseModel):
 
     style_id: int = Field(..., description="Style ID")
     dimension_id: int = Field(..., description="Dimension ID")
-    dimension_name: str = Field(..., max_length=50, description="Dimension name")
     start_position: int = Field(..., ge=0, le=1000, description="Start position, 0-1000 per mille")
     end_position: int = Field(..., ge=0, le=1000, description="End position, 0-1000 per mille")
     relationship_id: int = Field(..., description="Relationship ID")
@@ -162,7 +158,6 @@ class AIRelationshipIndexUpdate(BaseModel):
     """Schema for updating an AI relationship index."""
 
     dimension_id: Optional[int] = Field(None, description="Dimension ID")
-    dimension_name: Optional[str] = Field(None, max_length=50, description="Dimension name")
     start_position: Optional[int] = Field(
         None, ge=0, le=1000, description="Start position, 0-1000 per mille"
     )

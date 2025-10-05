@@ -35,14 +35,32 @@ flowchart TB
 
 收到消息后等待x秒，如果再次收到消息则合并，并循环等待，直到x秒后没有收到则存入ai_contexts表，并开始处理消息。
 
-## 分数计算和关系选择（包括初始化）
+## 分数初始化
 
-1. 输入分数，输入分数的数量和名称需要符合ai_style对应的dimension配置（如果是实际页面，输入来自LLM输出，测试则来自表单输入，如果是初始化则来自ai_relationship_dimensions.initial_position）
+当角色首次需要relationship scores时（如第一次对话或测试），系统会自动初始化分数：
+
+1. 从ai_relationship_dimensions表获取该style的所有dimensions
+2. 使用每个dimension的initial_position作为初始score和position
+3. 在ai_relationship_indexes表中查找每个dimension的initial_position对应的relationship
+4. 如果找到匹配的relationship，设置relationship_id和relationship_display_name
+5. 如果找不到匹配的relationship（异常情况）：
+   - relationship_id和relationship_display_name设置为NULL
+   - 记录ERROR级别日志
+   - 对应的{{relationship_prompt}}占位符内容为空
+6. 创建ai_relationship_scores记录并提交到数据库
+
+**实现位置**：`backend/app/services/ai/relationship.py` 中的 `initialize_relationship_scores` 函数
+
+**调用时机**：`get_relationship_scores` 函数在发现角色没有scores时自动调用初始化
+
+## 分数计算和关系选择
+
+1. 输入分数，输入分数的数量和名称需要符合ai_style对应的dimension配置（输入来自LLM输出）
 2. 将每个dimension的分数映射到0-1000的区间
 3. 对每个dimension分数应用偏移算法计算position
 4. 在ai_relationship_indexes表找出每个dimension对应position对应的relationship（在start_position和end_position之间，包含两端）
 5. 根据ai_relationship_indexes.limit_count和ai_relationship_scores.relationship_counts对达到次数限制的relationship去除。
-6. 在去重后所有的relationship候选中选择优先级最高的relationship，特殊规则：如果其中有当前关系则当前关系优先级最高（换句话说如果候选中有当前关系则关系不变，如果是初始化计算则没有当前关系），如果存在优先级相同则记录日志并选择第一个。
+6. 在去重后所有的relationship候选中选择优先级最高的relationship，特殊规则：如果其中有当前关系则当前关系优先级最高（换句话说如果候选中有当前关系则关系不变），如果存在优先级相同则记录日志并选择第一个。
 7. 选中的关系更新为当前关系，写入ai_relationship_scores等相关表
 
 ## 请求上下文构造
@@ -52,6 +70,8 @@ flowchart TB
 占位符在ai_personalities.prompt使用 {{variable_name}} 书写。
 
 除了角色在数据库ai_characters.prompt_variable存储占位符之外，还有预设的系统占位符，如果存在冲突，则系统占位符优先。
+
+#### 系统占位符
 
 {{relationship_prompt}} 关系提示词，通过ai_relationship_indexes表获取ai_relationship.prompt_fragment得到。
 
@@ -64,6 +84,16 @@ flowchart TB
 {{current_datetime}} 现在(+8:00)的日期、农历、时间。
 
 {{memory}} ai_characters.memory值。
+
+#### 占位符处理机制
+
+1. **替换顺序**：系统占位符优先于角色自定义占位符
+2. **未知占位符检测**：使用正则表达式 `\{\{([^}]+)\}\}` 检测所有剩余的占位符
+3. **未知占位符处理**：
+   - 记录警告日志，包含未知占位符列表和模板预览
+   - 自动清空所有未知占位符
+   - 确保最终prompt中不包含任何未替换的占位符
+4. **替换失败处理**：如果占位符值转换失败，清空该占位符并记录警告
 
 ### context
 

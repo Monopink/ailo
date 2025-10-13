@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for various system statistics.
 """
 
 from datetime import date
-from sqlalchemy import Date, Integer, DECIMAL, Index
+from sqlalchemy import Date, Integer, DECIMAL, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import ImmutableAutoIncrementModel
@@ -21,28 +21,29 @@ class StatsUserDaily(ImmutableAutoIncrementModel):
 
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
 
-    total_users: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Total user count")
+    total_users: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total user count"
+    )
 
-    new_users: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="New user count")
+    new_users: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="New user count"
+    )
 
     active_users: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active user count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active user count"
     )
 
     subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total subscription count"
     )
 
     new_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="New subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="New subscription count"
     )
 
     canceled_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Canceled subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Canceled subscription count"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_user_daily_stat_date", "stat_date"),)
 
 
 class StatsUserWeekly(ImmutableAutoIncrementModel):
@@ -52,28 +53,29 @@ class StatsUserWeekly(ImmutableAutoIncrementModel):
 
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
 
-    total_users: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Total user count")
+    total_users: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total user count"
+    )
 
-    new_users: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="New user count")
+    new_users: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="New user count"
+    )
 
     active_users: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active user count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active user count"
     )
 
     subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total subscription count"
     )
 
     new_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="New subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="New subscription count"
     )
 
     canceled_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Canceled subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Canceled subscription count"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_user_weekly_stat_date", "stat_date"),)
 
 
 class StatsUserMonthly(ImmutableAutoIncrementModel):
@@ -83,28 +85,29 @@ class StatsUserMonthly(ImmutableAutoIncrementModel):
 
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
 
-    total_users: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Total user count")
+    total_users: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total user count"
+    )
 
-    new_users: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="New user count")
+    new_users: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="New user count"
+    )
 
     active_users: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active user count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active user count"
     )
 
     subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total subscription count"
     )
 
     new_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="New subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="New subscription count"
     )
 
     canceled_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Canceled subscription count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Canceled subscription count"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_user_monthly_stat_date", "stat_date"),)
 
 
 # Revenue Statistics Tables
@@ -118,21 +121,24 @@ class StatsRevenueDaily(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
 
     total_revenue: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, comment="Total revenue"
+        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Total revenue"
     )
 
-    orders_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Order count")
+    orders_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Order count"
+    )
 
     avg_order_amount: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average order amount"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average order amount",
     )
 
     refund_amount: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, comment="Refund amount"
+        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Refund amount"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_revenue_daily_stat_date", "stat_date"),)
 
 
 class StatsRevenueWeekly(ImmutableAutoIncrementModel):
@@ -143,21 +149,24 @@ class StatsRevenueWeekly(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
 
     total_revenue: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, comment="Total revenue"
+        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Total revenue"
     )
 
-    orders_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Order count")
+    orders_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Order count"
+    )
 
     avg_order_amount: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average order amount"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average order amount",
     )
 
     refund_amount: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, comment="Refund amount"
+        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Refund amount"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_revenue_weekly_stat_date", "stat_date"),)
 
 
 class StatsRevenueMonthly(ImmutableAutoIncrementModel):
@@ -168,21 +177,24 @@ class StatsRevenueMonthly(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
 
     total_revenue: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, comment="Total revenue"
+        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Total revenue"
     )
 
-    orders_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Order count")
+    orders_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Order count"
+    )
 
     avg_order_amount: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average order amount"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average order amount",
     )
 
     refund_amount: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, comment="Refund amount"
+        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Refund amount"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_revenue_monthly_stat_date", "stat_date"),)
 
 
 # Message Statistics Tables
@@ -196,19 +208,20 @@ class StatsMessageDaily(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
 
     total_messages: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total message count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total message count"
     )
 
     avg_messages_per_user: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average messages per user"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average messages per user",
     )
 
     active_conversations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active conversation count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active conversation count"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_message_daily_stat_date", "stat_date"),)
 
 
 class StatsMessageWeekly(ImmutableAutoIncrementModel):
@@ -219,19 +232,20 @@ class StatsMessageWeekly(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
 
     total_messages: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total message count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total message count"
     )
 
     avg_messages_per_user: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average messages per user"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average messages per user",
     )
 
     active_conversations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active conversation count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active conversation count"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_message_weekly_stat_date", "stat_date"),)
 
 
 class StatsMessageMonthly(ImmutableAutoIncrementModel):
@@ -242,19 +256,20 @@ class StatsMessageMonthly(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
 
     total_messages: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total message count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total message count"
     )
 
     avg_messages_per_user: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average messages per user"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average messages per user",
     )
 
     active_conversations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active conversation count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active conversation count"
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_message_monthly_stat_date", "stat_date"),)
 
 
 # AI Statistics Tables
@@ -268,23 +283,24 @@ class StatsAIDaily(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
 
     ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total AI character count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI character count"
     )
 
     active_ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active AI character count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI character count"
     )
 
     ai_requests_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="AI request count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="AI request count"
     )
 
     avg_ai_requests_per_user: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average AI requests per user"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average AI requests per user",
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_ai_daily_stat_date", "stat_date"),)
 
 
 class StatsAIWeekly(ImmutableAutoIncrementModel):
@@ -295,23 +311,24 @@ class StatsAIWeekly(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
 
     ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total AI character count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI character count"
     )
 
     active_ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active AI character count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI character count"
     )
 
     ai_requests_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="AI request count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="AI request count"
     )
 
     avg_ai_requests_per_user: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average AI requests per user"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average AI requests per user",
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_ai_weekly_stat_date", "stat_date"),)
 
 
 class StatsAIMonthly(ImmutableAutoIncrementModel):
@@ -322,20 +339,21 @@ class StatsAIMonthly(ImmutableAutoIncrementModel):
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
 
     ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total AI character count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI character count"
     )
 
     active_ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Active AI character count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI character count"
     )
 
     ai_requests_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="AI request count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="AI request count"
     )
 
     avg_ai_requests_per_user: Mapped[float] = mapped_column(
-        DECIMAL(10, 2), nullable=False, default=0.00, comment="Average AI requests per user"
+        DECIMAL(10, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Average AI requests per user",
     )
-
-    # Indexes
-    __table_args__ = (Index("idx_stats_ai_monthly_stat_date", "stat_date"),)

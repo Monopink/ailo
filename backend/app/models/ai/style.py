@@ -5,8 +5,8 @@ This module contains SQLAlchemy models for AI styles and relationship configurat
 """
 
 from typing import Optional, List
-from sqlalchemy import Integer, String, Text, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
+from sqlalchemy import Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import AutoIncrementModel
 
@@ -24,12 +24,15 @@ class AIStyle(AutoIncrementModel):
 
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
 
-    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Reference count")
+    usage_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Reference count"
+    )
 
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=1,
+        server_default=text("1"),
         comment="Status: 1=active, 2=inactive",
     )
 
@@ -48,12 +51,8 @@ class AIStyle(AutoIncrementModel):
         cascade="all, delete-orphan",
     )
 
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_styles_name", "name"),
-        Index("idx_ai_styles_status", "status"),
-        Index("idx_ai_styles_usage_count", "usage_count"),
-    )
+    # Constraints
+    __table_args__ = (UniqueConstraint("name", name="ai_styles_name_key"),)
 
 
 class AIRelationshipDimension(AutoIncrementModel):
@@ -93,11 +92,9 @@ class AIRelationshipDimension(AutoIncrementModel):
         cascade="all, delete-orphan",
     )
 
-    # Indexes
+    # Constraints
     __table_args__ = (
-        Index("idx_ai_relationship_dimensions_style_id", "style_id"),
-        Index("idx_ai_relationship_dimensions_name", "name"),
-        Index("idx_ai_relationship_dimensions_style_name", "style_id", "name", unique=True),
+        UniqueConstraint("style_id", "name", name="ai_relationship_dimensions_style_id_name_key"),
     )
 
 
@@ -120,10 +117,12 @@ class AIRelationship(AutoIncrementModel):
         Text, nullable=True, comment="Prompt fragment for this relationship type"
     )
 
-    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Usage count")
+    usage_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Usage count"
+    )
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Status: 1=active, 2=inactive"
+        Integer, nullable=False, default=1, server_default=text("1"), comment="Status: 1=active, 2=inactive"
     )
 
     # Relationships
@@ -132,13 +131,6 @@ class AIRelationship(AutoIncrementModel):
         back_populates="relationship",
         primaryjoin="AIRelationship.id == foreign(AIRelationshipIndex.relationship_id)",
         cascade="all, delete-orphan",
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_relationships_name", "name"),
-        Index("idx_ai_relationships_status", "status"),
-        Index("idx_ai_relationships_usage_count", "usage_count"),
     )
 
 
@@ -176,7 +168,7 @@ class AIRelationshipIndex(AutoIncrementModel):
     )
 
     priority: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="1", comment="Priority level (default: 1)"
+        Integer, nullable=False, default=1, server_default=text("1"), comment="Priority level (default: 1)"
     )
 
     limit_count: Mapped[Optional[int]] = mapped_column(
@@ -200,21 +192,4 @@ class AIRelationshipIndex(AutoIncrementModel):
         "AIRelationship",
         back_populates="relationship_indexes",
         primaryjoin="foreign(AIRelationshipIndex.relationship_id) == AIRelationship.id",
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_relationship_indexes_style_id", "style_id"),
-        Index("idx_ai_relationship_indexes_dimension_id", "dimension_id"),
-        Index("idx_ai_relationship_indexes_relationship_id", "relationship_id"),
-        Index("idx_ai_relationship_indexes_position_range", "start_position", "end_position"),
-        Index("idx_ai_relationship_indexes_priority", "priority"),
-        Index(
-            "idx_ai_relationship_indexes_style_dimension",
-            "style_id",
-            "dimension_id",
-            "start_position",
-            "end_position",
-            unique=True,
-        ),
     )

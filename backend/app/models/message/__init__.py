@@ -10,9 +10,6 @@ from .message import MessageHistory, MessageDeliveryFailure
 # Media models
 from .media import MediaFile
 
-# Emoticon models
-from .emoticon import Emoticon
-
 # Export all message models
 __all__ = [
     # Message
@@ -20,6 +17,4 @@ __all__ = [
     "MessageDeliveryFailure",
     # Media
     "MediaFile",
-    # Emoticon
-    "Emoticon",
 ]

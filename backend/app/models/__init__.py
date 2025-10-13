@@ -19,7 +19,7 @@ from .base import (
 # Import all models to register them with SQLAlchemy
 from .user import User, UserSession, LoginRecord
 from .contact import Contact, ContactRequest
-from .message import MessageHistory, MessageDeliveryFailure, MediaFile, Emoticon
+from .message import MessageHistory, MessageDeliveryFailure, MediaFile
 from .profile import Profile, UserProfileLog
 from .ai import (
     AIRelationship,
@@ -75,7 +75,6 @@ __all__ = [
     "MessageHistory",
     "MessageDeliveryFailure",
     "MediaFile",
-    "Emoticon",
     # Profile management
     "Profile",
     "UserProfileLog",

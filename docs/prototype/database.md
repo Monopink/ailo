@@ -122,10 +122,10 @@ to_type -- 接收方类型：1=user, 2=ai, 3=admin, 4=system
 to_id -- 接收方内部ID
 to_qiao_id -- 接收方外部ID
 service_provider -- 服务提供商：1=leancloud, 2=internal
-message_type -- 消息类型：1=text, 2=typing, 3=typing_end, 4=system, 5=image, 6=emoji
+message_type -- 消息类型：1=text, 2=typing_start, 3=typing_end, 4=system, 5=image, 6=emoji
 content -- 消息内容
 status -- 消息状态：1=sent, 2=delivered, 3=read, 4=failed
-message_metadata -- 消息元数据JSON
+message_metadata -- 消息元数据JSON，包含supports_typing等字段
 created_at
 ```
 
@@ -202,17 +202,20 @@ updated_at
 
 参照ai_contexts表结构，用于归档。
 
-## emoticons
+## preset_assets
+
+预设资源管理表，统一管理预设图片资源（头像、表情贴图等）和对应的AI提示词。
 
 ```txt
-id -- 自增ID
-code -- 唯一标识，如"smile"或"emoji_1"
-category -- 表情分类：1=system, 2=custom, 3=premium
-file_id -- 关联media_files.id
-url -- 图片资源地址（冗余字段，便于查询）
-description -- 表情描述
-created_by_type -- 创建者类型：1=user, 2=system, 3=admin
-created_by_id -- 创建者ID
+id -- Snowflake ID
+asset_type -- 资源类型：1=avatar, 2=emoticon
+name -- 资源唯一标识，如"avatar_01", "emoji_smile"
+category -- 分类
+is_client_preset -- 是否客户端预设：1=yes, 0=no
+file_id -- 关联media_files.id（云端预设资源，客户端预设为NULL）
+url -- 资源URL（客户端预设：assets://avatar_01；云端：https://...）
+prompt -- AI提示词（用于AI生成内容时的描述）
+description -- 资源描述（用于管理后台显示）
 status -- 状态：1=active, 2=inactive
 sort_order -- 排序顺序
 created_at
@@ -230,8 +233,8 @@ owner_qiao_id -- 所有者外部ID
 owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
-avatar_file_id -- 头像文件ID，关联media_files.id
-avatar_url -- 头像URL（冗余字段，便于查询）
+avatar_file_id -- 头像文件ID，关联media_files.id（自定义头像）
+avatar_url -- 头像URL（客户端预设：assets://avatar_01；云端：https://...）
 avatar_prompt -- 头像描述，用于AI生成头像的占位符覆盖
 bio -- 个人简介
 region -- 地区
@@ -260,9 +263,11 @@ created_at
 
 AI关系类型表，定义AI角色的关系类型。usage_count不为0不允许修改status。
 
+**注意：** name字段具有UNIQUE约束，确保关系名称唯一。
+
 ```txt
 id -- 自增ID
-name -- 关系名称
+name -- 关系名称（唯一）
 display_name -- 显示名称
 prompt_fragment -- 提示词片段
 usage_count -- 被引用的数量
@@ -304,13 +309,11 @@ AI关系索引表，定义风格评分与关系类型的映射关系。
 ```txt
 id -- 自增ID
 style_id -- 关联ai_styles.id
-dimension_id
-dimension_name -- 维度名称
+dimension_id -- 关联ai_relationship_dimensions.id
 start_position -- 起始位置，0-1000千分比
 end_position -- 结束位置，0-1000千分比
-relationship_id -- 关联ai_relationship.id
-priority -- 优先级
-limit_count -- 出现的最大次数，NULL表示无限制
+relationship_id -- 关联ai_relationships.id
+priority -- 优先级，数字越小优先级越高
 created_at
 updated_at
 ```
@@ -358,7 +361,7 @@ category -- 分类，可选项写死
 info_id -- 绑定的ai_info_templates.id
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
-avatar_url -- 头像URL
+avatar_url -- 头像URL（客户端预设：assets://avatar_01；云端：https://...）
 bio -- 个人简介
 region -- 地区
 is_reusable -- 是否可以复用：1=reusable, 0=single_use（不可复用使用完后删除）
@@ -595,11 +598,11 @@ updated_at
 id -- 自增ID
 config_key -- 配置键名，唯一
 config_value -- 配置值
-config_type -- 配置类型：1=string, 2=number, 3=boolean, 4=json, 5=enumq
+default_value -- 默认配置值
+config_type -- 配置类型：1=string, 2=number, 3=boolean, 4=json
 description -- 配置描述
-is_public -- 外部是否通过API可见,此项暂时无用：1=public, 0=private
 group_name -- 分组名称，用于显示分组
-allowed_values -- 用于枚举类型的可选项存储
+allowed_values -- 用于枚举类型的可选项存储（JSONB）
 created_at
 updated_at
 updated_by -- 更新者ID

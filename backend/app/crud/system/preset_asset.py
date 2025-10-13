@@ -1,49 +1,76 @@
 """
-Emoticon CRUD operations.
+Preset asset CRUD operations.
 
-This module contains CRUD operations for emoticon management.
+This module provides CRUD operations for preset assets (avatars, emoticons, etc.).
 """
 
-from typing import List, Optional
-from sqlalchemy import select, and_
+from typing import Optional, List
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
-from models.message import Emoticon
-from schemas.message import EmoticonCreate
-from enums import EmoticonCategory
+from models.system import PresetAsset
+from schemas.system import PresetAssetCreate, PresetAssetUpdate
 
 
-class CRUDEmoticon(CRUDBase[Emoticon, EmoticonCreate, dict]):
-    """CRUD operations for Emoticon model."""
+class CRUDPresetAsset(CRUDBase[PresetAsset, PresetAssetCreate, PresetAssetUpdate]):
+    """CRUD operations for preset assets."""
 
-    async def get_by_code(self, db: AsyncSession, *, code: str) -> Optional[Emoticon]:
-        """Get emoticon by code."""
-        result = await db.execute(select(self.model).where(self.model.code == code))
+    async def get_by_name(self, db: AsyncSession, *, name: str) -> Optional[PresetAsset]:
+        """Get preset asset by name."""
+        result = await db.execute(select(PresetAsset).where(PresetAsset.name == name))
         return result.scalar_one_or_none()
 
-    async def get_by_category(
-        self, db: AsyncSession, *, category: EmoticonCategory, skip: int = 0, limit: int = 100
-    ) -> List[Emoticon]:
-        """Get emoticons by category."""
+    async def get_by_type(
+        self, db: AsyncSession, *, asset_type: int, skip: int = 0, limit: int = 100
+    ) -> List[PresetAsset]:
+        """Get preset assets by type."""
         result = await db.execute(
-            select(self.model)
-            .where(and_(self.model.category == category, self.model.status == 1))  # Active
-            .order_by(self.model.sort_order, self.model.created_at)
+            select(PresetAsset)
+            .where(PresetAsset.asset_type == asset_type)
+            .where(PresetAsset.status == 1)
+            .order_by(PresetAsset.sort_order, PresetAsset.id)
             .offset(skip)
             .limit(limit)
         )
         return list(result.scalars().all())
 
-    async def get_all_active(self, db: AsyncSession) -> List[Emoticon]:
-        """Get all active emoticons."""
+    async def get_by_category(
+        self,
+        db: AsyncSession,
+        *,
+        asset_type: int,
+        category: int,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[PresetAsset]:
+        """Get preset assets by type and category."""
         result = await db.execute(
-            select(self.model)
-            .where(self.model.status == 1)
-            .order_by(self.model.category, self.model.sort_order)
+            select(PresetAsset)
+            .where(PresetAsset.asset_type == asset_type)
+            .where(PresetAsset.category == category)
+            .where(PresetAsset.status == 1)
+            .order_by(PresetAsset.sort_order, PresetAsset.id)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def get_client_presets(
+        self, db: AsyncSession, *, asset_type: int, skip: int = 0, limit: int = 100
+    ) -> List[PresetAsset]:
+        """Get client preset assets (bundled with client)."""
+        result = await db.execute(
+            select(PresetAsset)
+            .where(PresetAsset.asset_type == asset_type)
+            .where(PresetAsset.is_client_preset == 1)
+            .where(PresetAsset.status == 1)
+            .order_by(PresetAsset.sort_order, PresetAsset.id)
+            .offset(skip)
+            .limit(limit)
         )
         return list(result.scalars().all())
 
 
 # Create instance
-emoticon = CRUDEmoticon(Emoticon)
+preset_assets = CRUDPresetAsset(PresetAsset)

@@ -6,8 +6,8 @@ This module contains SQLAlchemy models for admin users and operation logs.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import DateTime, Integer, String, Index, Text
-from sqlalchemy.dialects.postgresql import INET
+from sqlalchemy import Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import INET, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import AdminRole, AdminStatus
@@ -28,24 +28,21 @@ class AdminUser(AutoIncrementModel, StatusMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, comment="Password hash")
 
     role: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=AdminRole.ADMIN, comment="Role: 1=super_admin, 2=admin, 3=viewer"
+        Integer,
+        nullable=False,
+        comment="Role: 1=super_admin, 2=admin, 3=viewer",
     )
 
     last_login: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, comment="Last login time"
+        TIMESTAMP(timezone=True), nullable=True, comment="Last login time"
     )
 
-    login_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Login count")
+    login_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Login count"
+    )
 
     created_by: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Creator admin user ID"
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_admin_users_role", "role"),
-        Index("idx_admin_users_status", "status"),
-        Index("idx_admin_users_last_login", "last_login"),
     )
 
     def has_permission(self, permission: str) -> bool:
@@ -139,24 +136,14 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
     resource_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Resource ID")
 
     resource_name: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True, comment="Resource name"
+        String(255), nullable=True, comment="Resource name"
     )
 
-    operation_desc: Mapped[str] = mapped_column(
-        String(500), nullable=False, comment="Operation description"
-    )
+    operation_desc: Mapped[str] = mapped_column(Text, nullable=False, comment="Operation description")
 
     ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="IP address")
 
-    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="User agent")
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_admin_operation_logs_admin_user_id", "admin_user_id"),
-        Index("idx_admin_operation_logs_operation_type", "operation_type"),
-        Index("idx_admin_operation_logs_resource_type", "resource_type"),
-        Index("idx_admin_operation_logs_created_at", "created_at"),
-    )
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent")
 
     @property
     def operation_type_display(self) -> str:
@@ -194,11 +181,3 @@ class AdminLoginLog(ImmutableAutoIncrementModel):
     result: Mapped[int] = mapped_column(Integer, nullable=False, comment="Result: 1=success, 2=fail")
 
     fail_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Failure reason")
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_admin_login_logs_admin_user_id", "admin_user_id"),
-        Index("idx_admin_login_logs_username", "username"),
-        Index("idx_admin_login_logs_result", "result"),
-        Index("idx_admin_login_logs_created_at", "created_at"),
-    )

@@ -6,8 +6,8 @@ This module contains SQLAlchemy models for contact relationships and requests.
 
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, and_
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, UniqueConstraint, and_, text
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -61,15 +61,15 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
     remark: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Contact remark/notes")
 
     is_pinned: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Is pinned: 1=yes, 0=no"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Is pinned: 1=yes, 0=no"
     )
 
     is_muted: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Is muted: 1=yes, 0=no"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Is muted: 1=yes, 0=no"
     )
 
     is_blocked: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Is blocked: 1=yes, 0=no"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Is blocked: 1=yes, 0=no"
     )
 
     # Relationships
@@ -106,21 +106,13 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
             return self._contact_character
         return None
 
-    # Indexes
+    # Indexes - Only essential indexes for MVP
+    # Note: conv_id already has unique index
     __table_args__ = (
-        Index("idx_contacts_conv_id", "conv_id"),
-        Index("idx_contacts_user_id", "user_id"),
         Index("idx_contacts_user_qiao_id", "user_qiao_id"),
-        Index("idx_contacts_contact_type", "contact_type"),
-        Index("idx_contacts_contact_id", "contact_id"),
         Index("idx_contacts_contact_qiao_id", "contact_qiao_id"),
-        Index("idx_contacts_is_pinned", "is_pinned"),
-        Index("idx_contacts_is_muted", "is_muted"),
-        Index("idx_contacts_is_blocked", "is_blocked"),
-        Index("idx_contacts_is_deleted", "is_deleted"),
-        Index("idx_contacts_created_at", "created_at"),
-        # PostgreSQL GIN index for JSONB field for better query performance
-        Index("idx_contacts_tags_gin", "tags", postgresql_using="gin"),
+        # Unique constraint: one owner can only have one contact record for each contact
+        UniqueConstraint("user_id", "contact_id", "contact_type", name="contacts_user_contact_unique"),
     )
 
 
@@ -159,10 +151,13 @@ class ContactRequest(SnowflakeModel):
         Integer,
         nullable=False,
         default=ContactRequestStatus.PENDING,
+        server_default=text("1"),
         comment="Status: 1=pending, 2=accepted, 3=rejected, 4=expired",
     )
 
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, comment="Expiration time")
+    expires_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, comment="Expiration time"
+    )
 
     # Polymorphic from relationships
     # from_type=1 (USER) → users table (includes all user types)
@@ -202,11 +197,5 @@ class ContactRequest(SnowflakeModel):
         viewonly=True,
     )
 
-    # Indexes
-    __table_args__ = (
-        Index("idx_contact_requests_from_qiao_id", "from_qiao_id"),
-        Index("idx_contact_requests_to_qiao_id", "to_qiao_id"),
-        Index("idx_contact_requests_status", "status"),
-        Index("idx_contact_requests_expires_at", "expires_at"),
-        Index("idx_contact_requests_created_at", "created_at"),
-    )
+    # Indexes - Only essential indexes for MVP
+    __table_args__ = (Index("idx_contact_requests_expires_at", "expires_at"),)

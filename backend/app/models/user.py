@@ -6,8 +6,8 @@ This module contains SQLAlchemy models for user accounts, sessions, and login re
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, func
-from sqlalchemy.dialects.postgresql import JSONB, INET
+from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, func, text
+from sqlalchemy.dialects.postgresql import JSONB, INET, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import UserType
@@ -51,25 +51,17 @@ class User(SnowflakeQiaoModel, StatusMixin):
         Integer,
         nullable=False,
         default=UserType.NORMAL,
+        server_default=text("1"),
         comment="User type: 1=normal, 2=official, 3=virtual",
     )
 
     last_login: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, comment="Last login time"
+        TIMESTAMP(timezone=True), nullable=True, comment="Last login time"
     )
 
-    # Indexes
-    __table_args__ = (
-        Index("idx_users_qiao_id", "qiao_id"),
-        Index("idx_users_phone", "phone"),
-        Index("idx_users_email", "email"),
-        Index("idx_users_wechat_openid", "wechat_openid"),
-        Index("idx_users_apple_id", "apple_id"),
-        Index("idx_users_status", "status"),
-        Index("idx_users_user_type", "user_type"),
-        Index("idx_users_last_login", "last_login"),
-        Index("idx_users_created_at", "created_at"),
-    )
+    # Indexes - Only essential indexes for MVP
+    # Note: phone, email, wechat_openid, apple_id already have unique indexes
+    __table_args__ = tuple()
 
 
 class UserSession(SnowflakeModel):
@@ -108,30 +100,24 @@ class UserSession(SnowflakeModel):
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent string")
 
     expires_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, comment="Session expiration time"
+        TIMESTAMP(timezone=True), nullable=False, comment="Session expiration time"
     )
 
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=1,
+        server_default=text("1"),
         comment="Session status: 1=active, 2=inactive",
     )
 
-    last_activity_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow, comment="Last activity time"
+    last_activity_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Last activity time"
     )
 
-    # Indexes
-    __table_args__ = (
-        Index("idx_user_sessions_session_token", "session_token"),
-        Index("idx_user_sessions_user_id", "user_id"),
-        Index("idx_user_sessions_user_qiao_id", "user_qiao_id"),
-        Index("idx_user_sessions_device_type", "device_type"),
-        Index("idx_user_sessions_expires_at", "expires_at"),
-        Index("idx_user_sessions_status", "status"),
-        Index("idx_user_sessions_last_activity_at", "last_activity_at"),
-    )
+    # Indexes - Only essential indexes for MVP
+    # Note: session_token already has unique index
+    __table_args__ = (Index("idx_user_sessions_user_qiao_id", "user_qiao_id"),)
 
 
 class LoginRecord(Base, SnowflakeIDMixin):
@@ -150,7 +136,9 @@ class LoginRecord(Base, SnowflakeIDMixin):
         String(32), nullable=True, comment="User external ID"
     )
 
-    login_time: Mapped[datetime] = mapped_column(DateTime, nullable=False, comment="Login attempt time")
+    login_time: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"), comment="Login attempt time"
+    )
 
     login_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Login method: 1=password, 2=sms, 3=wechat, 4=apple"
@@ -170,23 +158,15 @@ class LoginRecord(Base, SnowflakeIDMixin):
 
     result: Mapped[int] = mapped_column(Integer, nullable=False, comment="Login result: 1=success, 2=fail")
 
-    fail_reason: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Failure reason")
+    fail_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Failure reason")
 
     session_token: Mapped[Optional[str]] = mapped_column(
         String(128), nullable=True, comment="Associated session token"
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=func.now(), comment="Login record creation timestamp"
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_login_records_user_id", "user_id"),
-        Index("idx_login_records_user_qiao_id", "user_qiao_id"),
-        Index("idx_login_records_login_time", "login_time"),
-        Index("idx_login_records_login_type", "login_type"),
-        Index("idx_login_records_platform", "platform"),
-        Index("idx_login_records_result", "result"),
-        Index("idx_login_records_ip_address", "ip_address"),
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Login record creation timestamp",
     )

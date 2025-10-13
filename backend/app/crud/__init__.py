@@ -14,7 +14,7 @@ from .user import user, user_session, login_record
 from .contact import contact, contact_request
 
 # Message CRUD
-from .message import message, message_failure, media_file, emoticon
+from .message import message, message_failure, media_file
 
 # AI CRUD - removed (using new data access layer)
 
@@ -51,7 +51,6 @@ __all__ = [
     "message",
     "message_failure",
     "media_file",
-    "emoticon",
     # AI - removed (using new data access layer)
     # Admin
     "admin_user",

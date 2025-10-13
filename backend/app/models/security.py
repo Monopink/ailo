@@ -6,8 +6,8 @@ This module contains SQLAlchemy models for user security logs and statistics.
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import AutoAction, ManualReviewStatus, RiskLevel
@@ -59,6 +59,7 @@ class UserSecurityLog(SnowflakeModel):
         Integer,
         nullable=False,
         default=AutoAction.NONE,
+        server_default=text("1"),
         comment="Auto action: 1=none, 2=warning, 3=restrict, 4=suspend",
     )
 
@@ -66,24 +67,13 @@ class UserSecurityLog(SnowflakeModel):
         Integer,
         nullable=False,
         default=ManualReviewStatus.PENDING,
+        server_default=text("1"),
         comment="Manual review: 1=pending, 2=confirmed, 3=false_positive, 4=ignored",
     )
 
     reviewer_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Reviewer admin ID")
 
     review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Review notes")
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_user_security_logs_user_id", "user_id"),
-        Index("idx_user_security_logs_user_qiao_id", "user_qiao_id"),
-        Index("idx_user_security_logs_character_id", "character_id"),
-        Index("idx_user_security_logs_violation_type", "violation_type"),
-        Index("idx_user_security_logs_severity_level", "severity_level"),
-        Index("idx_user_security_logs_auto_action_taken", "auto_action_taken"),
-        Index("idx_user_security_logs_manual_review_status", "manual_review_status"),
-        Index("idx_user_security_logs_created_at", "created_at"),
-    )
 
 
 class UserSecurityStats(SnowflakeModel):
@@ -104,49 +94,48 @@ class UserSecurityStats(SnowflakeModel):
     )
 
     total_violations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Total violation count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total violation count"
     )
 
-    violation_by_type: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    violation_by_type: Mapped[Dict[str, Any]] = mapped_column(
         JSONB,
-        nullable=True,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
         comment='Violations by type: {"prompt_injection": 5, "abuse": 2} (JSONB for better performance)',
     )
 
     last_violation_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, comment="Last violation time"
+        TIMESTAMP(timezone=True), nullable=True, comment="Last violation time"
     )
 
     current_risk_level: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=RiskLevel.LOW,
+        server_default=text("1"),
         comment="Risk level: 1=low, 2=medium, 3=high, 4=banned",
     )
 
     consecutive_violations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Consecutive violations (reset after 7 days)"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Consecutive violations (reset after 7 days)",
     )
 
-    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Warning count")
+    warning_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Warning count"
+    )
 
     restriction_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Restriction count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Restriction count"
     )
 
     suspension_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Suspension count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Suspension count"
     )
 
     last_action_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, comment="Last action time"
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_user_security_stats_user_id", "user_id"),
-        Index("idx_user_security_stats_user_qiao_id", "user_qiao_id"),
-        Index("idx_user_security_stats_current_risk_level", "current_risk_level"),
-        Index("idx_user_security_stats_total_violations", "total_violations"),
-        Index("idx_user_security_stats_last_violation_at", "last_violation_at"),
+        TIMESTAMP(timezone=True), nullable=True, comment="Last action time"
     )

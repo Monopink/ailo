@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for user profiles and profile change logs
 """
 
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import BigInteger, Integer, String, Text, Index, and_
+from sqlalchemy import BigInteger, Integer, String, Text, Index, and_, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -34,7 +34,7 @@ class Profile(SnowflakeModel):
         Integer, nullable=False, comment="Owner type: 1=user (all user types), 2=ai"
     )
 
-    nickname: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Display nickname")
+    nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Display nickname")
 
     gender: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other, 4=unknown"
@@ -84,14 +84,9 @@ class Profile(SnowflakeModel):
             return self._owner_character
         return None
 
-    # Indexes
+    # Constraints
     __table_args__ = (
-        Index("idx_profiles_owner_qiao_id", "owner_qiao_id"),
-        Index("idx_profiles_owner_id", "owner_id"),
-        Index("idx_profiles_owner_type", "owner_type"),
-        Index("idx_profiles_nickname", "nickname"),
-        Index("idx_profiles_gender", "gender"),
-        Index("idx_profiles_region", "region"),
+        UniqueConstraint("owner_qiao_id", "owner_type", name="profiles_owner_qiao_id_owner_type_key"),
     )
 
 
@@ -124,7 +119,7 @@ class UserProfileLog(ImmutableSnowflakeModel):
     new_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="New value")
 
     change_reason: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True, comment="Change reason"
+        String(255), nullable=True, comment="Change reason"
     )
 
     # Indexes

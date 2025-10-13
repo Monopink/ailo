@@ -1,0 +1,115 @@
+-- Required System Data
+-- This file contains essential data required for the system to function
+-- Must be loaded after schema initialization
+
+-- Set timezone and encoding
+SET timezone = 'UTC';
+SET client_encoding = 'UTF8';
+
+-- Success message for data loading start
+DO $$
+BEGIN
+    RAISE NOTICE 'Loading required system data...';
+END $$;
+
+-- ============================================================================
+-- Admin Users
+-- ============================================================================
+
+-- Insert default admin users (password: admin123)
+INSERT INTO admin_users (username, password_hash, role, status) VALUES
+('admin', '$2b$12$i4kzuJnXuIQdxS3GgFXOh.JhvEjMntTakeqw4QKXah2zCpXpbwlJi', 1, 1),
+('manager', '$2b$12$i4kzuJnXuIQdxS3GgFXOh.JhvEjMntTakeqw4QKXah2zCpXpbwlJi', 2, 1),
+('viewer', '$2b$12$i4kzuJnXuIQdxS3GgFXOh.JhvEjMntTakeqw4QKXah2zCpXpbwlJi', 3, 1)
+ON CONFLICT (username) DO NOTHING;
+
+-- ============================================================================
+-- System Configuration
+-- ============================================================================
+
+-- Insert default system configuration
+INSERT INTO system_configs (config_key, config_value, default_value, config_type, description, group_name, allowed_values) VALUES
+-- Business configurations
+('default_contact_limit', '3', '3', 2, 'Default contact limit per user', 'business', NULL),
+('default_search_display_limit', '20', '20', 2, 'Default search display limit', 'business', NULL),
+('contact_request_expiration_hours', '72', '72', 2, 'Contact request expiration time in hours', 'business', NULL),
+('max_message_length', '79', '59', 2, 'Maximum message length in characters', 'business', NULL),
+('session_timeout_hours', '24', '24', 2, 'User session timeout in hours', 'business', NULL),
+
+-- LeanCloud configurations
+-- Note: leancloud_master_key is managed via environment variable LEANCLOUD_MASTER_KEY
+('leancloud_app_id', 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz', '', 1, 'LeanCloud App ID', 'leancloud', NULL),
+('leancloud_app_key', 'v8GM18oGSxzQTKpgQvdIfy2I', '', 1, 'LeanCloud App Key', 'leancloud', NULL),
+('leancloud_base_url', 'https://zcuk19lc.lc-cn-n1-shared.com', '', 1, 'LeanCloud Base URL', 'leancloud', NULL),
+('leancloud_service_conversation_id', '', '', 1, 'LeanCloud system conversation ID for message routing', 'leancloud', NULL),
+
+-- Message buffer configurations
+('message_buffer_normal_wait', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
+('message_buffer_typing_wait', '10000', '10000', 2, 'Long wait time in milliseconds when user is typing', 'message_buffer', NULL),
+('message_buffer_typing_end_wait', '1000', '1000', 2, 'Short wait time in milliseconds after typing ends', 'message_buffer', NULL),
+('message_buffer_no_typing_wait', '2000', '2000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
+
+-- AI context archive configurations
+('ai_context_archive_time_hours', '168', '168', 2, 'Archive AI contexts older than this many hours (7 days)', 'ai_context', NULL),
+('ai_context_archive_max_count', '50', '50', 2, 'Archive AI contexts when count exceeds this limit', 'ai_context', NULL),
+('ai_context_archive_min_count', '10', '10', 2, 'Minimum contexts to keep, do not archive if below this count', 'ai_context', NULL),
+('ai_context_archive_threshold', '80', '80', 2, 'Trigger immediate archive when count exceeds this threshold', 'ai_context', NULL),
+
+-- Admin security configurations
+('admin_max_ip_attempts', '10', '10', 2, 'Maximum login attempts per IP address before lockout', 'admin_security', NULL),
+('admin_ip_lockout_duration_minutes', '30', '30', 2, 'IP lockout duration in minutes after max attempts', 'admin_security', NULL),
+('admin_ip_attempt_window_minutes', '30', '30', 2, 'Time window for counting IP attempts in minutes', 'admin_security', NULL),
+('admin_whitelist_ips', '127.0.0.1,::1', '127.0.0.1,::1', 1, 'Whitelisted IP addresses (comma-separated)', 'admin_security', NULL),
+('admin_captcha_enabled', 'True', 'True', 3, 'Enable Cloudflare Turnstile CAPTCHA', 'admin_security', NULL),
+('admin_captcha_threshold', '1', '1', 2, 'Show CAPTCHA after N failed attempts from same IP', 'admin_security', NULL),
+('admin_captcha_mode', 'strict', 'strict', 5, 'CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'admin_security', '["strict", "fallback"]'::jsonb),
+('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '', 1, 'Cloudflare Turnstile Site Key (public)', 'admin_security', NULL),
+('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '', 1, 'Cloudflare Turnstile Secret Key (private)', 'admin_security', NULL),
+('admin_alert_on_suspicious_login', 'True', 'True', 3, 'Alert on suspicious login attempts', 'admin_security', NULL),
+('admin_alert_threshold_per_username', '20', '20', 2, 'Alert when username has N failed attempts from different IPs', 'admin_security', NULL),
+('admin_rate_limit_requests', '30', '30', 2, 'Maximum login requests per IP per minute', 'admin_security', NULL),
+('admin_rate_limit_window_seconds', '60', '60', 2, 'Rate limit time window in seconds', 'admin_security', NULL)
+ON CONFLICT (config_key) DO UPDATE SET
+    config_value = EXCLUDED.config_value,
+    default_value = EXCLUDED.default_value,
+    config_type = EXCLUDED.config_type,
+    description = EXCLUDED.description,
+    group_name = EXCLUDED.group_name,
+    allowed_values = EXCLUDED.allowed_values;
+
+-- ============================================================================
+-- LLM Providers and Configurations
+-- ============================================================================
+
+-- Insert basic LLM providers
+-- API keys are read from environment variables specified in api_key_env column
+INSERT INTO llm_providers (id, name, display_name, api_key_env, base_url, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
+(1, 'doubao', 'Doubao Production', 'DOUBAO_API_KEY', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-250615', 1, 1, 1),
+(2, 'mock', 'Mock LLM (Testing)', NULL, NULL, 'mock-model-v1', 0, 1, 0)
+ON CONFLICT (display_name) DO UPDATE SET
+    name = EXCLUDED.name,
+    api_key_env = EXCLUDED.api_key_env,
+    base_url = EXCLUDED.base_url,
+    default_model = EXCLUDED.default_model,
+    supports_streaming = EXCLUDED.supports_streaming,
+    supports_json_schema = EXCLUDED.supports_json_schema,
+    supports_thinking = EXCLUDED.supports_thinking,
+    updated_at = NOW();
+
+-- Insert basic LLM configs
+INSERT INTO llm_configs (provider_id, config_key, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
+(1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
+(2, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'strict', 1, 999)
+ON CONFLICT (config_key) DO NOTHING;
+
+-- ============================================================================
+-- Data Loading Complete
+-- ============================================================================
+
+-- Success message
+DO $$
+BEGIN
+    RAISE NOTICE 'Required system data loaded successfully!';
+    RAISE NOTICE 'Admin users, system configs, and LLM configurations have been initialized.';
+END $$;
+

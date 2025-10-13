@@ -6,7 +6,7 @@ This module contains SQLAlchemy models for AI service request logging.
 
 from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy import BigInteger, Integer, String, Index, DateTime
+from sqlalchemy import BigInteger, Integer, String, DateTime, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,7 +38,11 @@ class AIRequestLog(ImmutableSnowflakeModel):
     )
 
     request_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="production", comment="Request type: production or test"
+        String(20),
+        nullable=False,
+        default="production",
+        server_default=text("'production'"),
+        comment="Request type: production or test",
     )
 
     provider_name: Mapped[Optional[str]] = mapped_column(
@@ -68,15 +72,4 @@ class AIRequestLog(ImmutableSnowflakeModel):
     # Timestamps (created_at inherited from ImmutableSnowflakeModel)
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Request completion timestamp"
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_request_logs_character_id", "character_id"),
-        Index("idx_ai_request_logs_user_id", "user_id"),
-        Index("idx_ai_request_logs_style_id", "style_id"),
-        Index("idx_ai_request_logs_personality_id", "personality_id"),
-        Index("idx_ai_request_logs_request_type", "request_type"),
-        Index("idx_ai_request_logs_status", "status"),
-        Index("idx_ai_request_logs_created_at", "created_at"),
     )

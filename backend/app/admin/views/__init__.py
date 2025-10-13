@@ -50,7 +50,7 @@ from .user_admin_views import (
 from .message_media_views import (
     message_history_view,
     media_file_view,
-    emoticon_view,
+    preset_asset_view,
     system_config_view,
 )
 
@@ -143,7 +143,7 @@ __all__ = [
     # Individual message/media views
     "message_history_view",
     "media_file_view",
-    "emoticon_view",
+    "preset_asset_view",
     "system_config_view",
     # Individual LLM views
     "llm_provider_view",

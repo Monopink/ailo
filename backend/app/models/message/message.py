@@ -6,8 +6,8 @@ This module contains SQLAlchemy models for message history and delivery failures
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index, text
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import MessageDirection, MessageParticipantType, ServiceProvider, MessageType, MessageStatus
@@ -29,7 +29,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     )
 
     msg_id_provider: Mapped[Optional[str]] = mapped_column(
-        String(64), nullable=True, comment="Third-party service message ID"
+        String(128), nullable=True, comment="Third-party service message ID"
     )
 
     msg_id_client: Mapped[Optional[str]] = mapped_column(
@@ -47,7 +47,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     platform: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Platform identifier")
 
     client_sent_time: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, comment="Client-side sent time"
+        TIMESTAMP(timezone=True), nullable=True, comment="Client-side sent time"
     )
 
     from_type: Mapped[int] = mapped_column(
@@ -77,7 +77,11 @@ class MessageHistory(ImmutableSnowflakeModel):
     )
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Message status: 1=sent, 2=delivered, 3=read, 4=failed"
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Message status: 1=sent, 2=delivered, 3=read, 4=failed",
     )
 
     message_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
@@ -86,23 +90,14 @@ class MessageHistory(ImmutableSnowflakeModel):
 
     # Timestamps (created_at inherited from ImmutableSnowflakeModel)
 
-    # Indexes
+    # Indexes - Only essential indexes for MVP
+    # Note: msg_id_server already has unique index
     __table_args__ = (
-        Index("idx_message_history_direction", "direction"),
-        Index("idx_message_history_platform", "platform"),
-        Index("idx_message_history_conversation_id", "conversation_id"),
-        Index("idx_message_history_msg_id_server", "msg_id_server"),
-        Index("idx_message_history_msg_id_client", "msg_id_client"),
-        Index("idx_message_history_from_type", "from_type"),
-        Index("idx_message_history_from_id", "from_id"),
         Index("idx_message_history_from_qiao_id", "from_qiao_id"),
-        Index("idx_message_history_to_type", "to_type"),
-        Index("idx_message_history_to_id", "to_id"),
         Index("idx_message_history_to_qiao_id", "to_qiao_id"),
-        Index("idx_message_history_service_provider", "service_provider"),
-        Index("idx_message_history_message_type", "message_type"),
-        Index("idx_message_history_status", "status"),
+        Index("idx_message_history_conversation_id", "conversation_id"),
         Index("idx_message_history_created_at", "created_at"),
+        Index("idx_message_history_msg_id_client", "msg_id_client"),
         # PostgreSQL GIN index for JSONB field for better query performance
         Index("idx_message_history_metadata_gin", "message_metadata", postgresql_using="gin"),
     )
@@ -143,6 +138,10 @@ class MessageDeliveryFailure(SnowflakeModel):
 
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Message content")
 
+    service_provider: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Service provider: 1=leancloud, 2=internal"
+    )
+
     fail_reason_code: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True, comment="Failure reason code"
     )
@@ -152,22 +151,13 @@ class MessageDeliveryFailure(SnowflakeModel):
     )
 
     retry_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Current retry count"
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Current retry count"
     )
 
     max_retry_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=3, comment="Maximum retry count"
+        Integer, nullable=False, default=3, server_default=text("3"), comment="Maximum retry count"
     )
 
     next_retry_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, comment="Next retry time"
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_message_delivery_failures_msg_id_server", "msg_id_server"),
-        Index("idx_message_delivery_failures_from_qiao_id", "from_qiao_id"),
-        Index("idx_message_delivery_failures_to_qiao_id", "to_qiao_id"),
-        Index("idx_message_delivery_failures_retry_count", "retry_count"),
-        Index("idx_message_delivery_failures_next_retry_at", "next_retry_at"),
+        TIMESTAMP(timezone=True), nullable=True, comment="Next retry time"
     )

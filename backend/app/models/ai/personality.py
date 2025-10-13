@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for AI personality templates and placehol
 """
 
 from typing import Any, Dict, Optional
-from sqlalchemy import Integer, String, Text, Index
+from sqlalchemy import Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,7 +31,9 @@ class AIPersonality(AutoIncrementModel):
         JSONB, nullable=True, comment="JSON schema definition (JSONB for better performance)"
     )
 
-    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Reference count")
+    usage_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Reference count"
+    )
 
     typing_speed: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Typing speed in characters per minute"
@@ -41,17 +43,12 @@ class AIPersonality(AutoIncrementModel):
         Integer,
         nullable=False,
         default=1,
+        server_default=text("1"),
         comment="Status: 1=active, 2=inactive",
     )
 
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_personalities_name", "name"),
-        Index("idx_ai_personalities_status", "status"),
-        Index("idx_ai_personalities_usage_count", "usage_count"),
-        # PostgreSQL GIN index for JSONB field for better query performance
-        Index("idx_ai_personalities_json_schema_gin", "json_schema", postgresql_using="gin"),
-    )
+    # Constraints
+    __table_args__ = (UniqueConstraint("name", name="ai_personalities_name_key"),)
 
 
 class AIPersonalityPlaceholder(AutoIncrementModel):
@@ -71,9 +68,7 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
         String(100), nullable=False, comment="Placeholder key name"
     )
 
-    display_name: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True, comment="Display name for UI"
-    )
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name for UI")
 
     description: Mapped[Optional[str]] = mapped_column(
         String(500), nullable=True, comment="Placeholder description"
@@ -84,7 +79,11 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
     )
 
     is_required: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Is required: 1=required, 0=optional"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Is required: 1=required, 0=optional",
     )
 
     # Relationships
@@ -94,12 +93,4 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
         foreign_keys=[personality_id],
         lazy="select",
         viewonly=True,
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_personality_placeholders_personality_id", "personality_id"),
-        Index("idx_ai_personality_placeholders_placeholder_key", "placeholder_key"),
-        Index("idx_ai_personality_placeholders_is_required", "is_required"),
-        Index("idx_ai_personality_placeholders_display_name", "display_name"),
     )

@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for system configuration management.
 """
 
 from typing import Optional
-from sqlalchemy import Integer, String, Text, Index
+from sqlalchemy import Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,7 +34,7 @@ class SystemConfig(AutoIncrementModel):
     )
 
     description: Mapped[Optional[str]] = mapped_column(
-        String(500), nullable=True, comment="Configuration description"
+        Text, nullable=True, comment="Configuration description"
     )
 
     updated_by: Mapped[Optional[int]] = mapped_column(
@@ -47,10 +47,4 @@ class SystemConfig(AutoIncrementModel):
 
     allowed_values: Mapped[Optional[list]] = mapped_column(
         JSONB, nullable=True, comment="Allowed values for enum type (JSON array)"
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_system_configs_config_key", "config_key"),
-        Index("idx_system_configs_updated_at", "updated_at"),
     )

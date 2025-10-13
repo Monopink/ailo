@@ -220,6 +220,39 @@ class AICharacterCreator:
     SYSTEM = 3      # 系统创建
 ```
 
+### AI角色状态 (ai_characters.status)
+
+```python
+class AICharacterStatus:
+    ACTIVE = 1      # 活跃角色
+    INACTIVE = 2    # 非活跃角色
+    BLOCKED = 3     # 已封禁角色
+```
+
+### AI风格状态 (ai_styles.status)
+
+```python
+class AIStyleStatus:
+    ACTIVE = 1      # 活跃风格
+    INACTIVE = 2    # 非活跃风格
+```
+
+### AI人格状态 (ai_personalities.status)
+
+```python
+class AIPersonalityStatus:
+    ACTIVE = 1      # 活跃人格
+    INACTIVE = 2    # 非活跃人格
+```
+
+### AI关系状态 (ai_relationships.status)
+
+```python
+class AIRelationshipStatus:
+    ACTIVE = 1      # 活跃关系
+    INACTIVE = 2    # 非活跃关系
+```
+
 ### AI上下文角色 (ai_contexts.role)
 
 ```python

@@ -4,7 +4,7 @@ AI relationship score related models.
 This module contains SQLAlchemy models for AI relationship scoring and statistics.
 """
 
-from sqlalchemy import BigInteger, Integer, String, Index
+from sqlalchemy import BigInteger, Integer, String, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, Dict, Any, TYPE_CHECKING
@@ -45,8 +45,11 @@ class AIRelationshipScore(SnowflakeModel):
         String(100), nullable=True, comment="Relationship display name"
     )
 
-    relationship_counts: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, default={}, comment="Relationship usage counts (JSONB)"
+    relationship_counts: Mapped[Dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+        comment="Relationship usage counts (JSONB)",
     )
 
     # Relationships
@@ -72,14 +75,11 @@ class AIRelationshipScore(SnowflakeModel):
         viewonly=True,
     )
 
-    # Indexes
+    # Indexes and constraints - Only essential indexes for MVP
     __table_args__ = (
+        UniqueConstraint(
+            "character_id", "dimension_id", name="ai_relationship_scores_character_id_dimension_id_key"
+        ),
         Index("idx_ai_relationship_scores_character_id", "character_id"),
         Index("idx_ai_relationship_scores_dimension_id", "dimension_id"),
-        Index("idx_ai_relationship_scores_score", "score"),
-        Index("idx_ai_relationship_scores_position", "position"),
-        Index("idx_ai_relationship_scores_relationship_id", "relationship_id"),
-        Index(
-            "idx_ai_relationship_scores_character_dimension", "character_id", "dimension_id", unique=True
-        ),
     )

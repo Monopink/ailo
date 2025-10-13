@@ -4,7 +4,7 @@ LLM provider model.
 This module contains the LLMProvider SQLAlchemy model.
 """
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -47,16 +47,26 @@ class LLMProvider(AutoIncrementModel):
     )
 
     supports_streaming: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Supports streaming output: 1=yes, 0=no"
+        Integer,
+        nullable=False,
+        comment="Supports streaming output: 1=yes, 0=no",
     )
 
     supports_json_schema: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Supports JSON schema: 1=yes, 0=no"
+        Integer,
+        nullable=False,
+        comment="Supports JSON schema: 1=yes, 0=no",
     )
 
     supports_thinking: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Supports thinking mode: 1=yes, 0=no"
+        Integer,
+        nullable=False,
+        comment="Supports thinking mode: 1=yes, 0=no",
     )
 
     # Relationship to configs
-    configs: Mapped[list["LLMConfig"]] = relationship("LLMConfig", back_populates="provider")
+    configs: Mapped[List["LLMConfig"]] = relationship(
+        "LLMConfig",
+        back_populates="provider",
+        primaryjoin="LLMProvider.id == foreign(LLMConfig.provider_id)",
+    )

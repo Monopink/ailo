@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for AI configuration templates.
 """
 
 from typing import Any, Dict, Optional, TYPE_CHECKING
-from sqlalchemy import Integer, String, Text, Index, Float
+from sqlalchemy import Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,19 +42,34 @@ class AIInfoTemplate(AutoIncrementModel):
     )
 
     score_offset_algorithm: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Score offset algorithm (enum int)"
+        Integer,
+        nullable=True,
+        default=1,
+        server_default=text("1"),
+        comment="Score offset algorithm (enum int)",
     )
 
     score_offset_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="Score offset parameters (JSONB)"
+        JSONB,
+        nullable=True,
+        server_default=text('\'{"left_bias": 0, "right_bias": 0}\''),
+        comment="Score offset parameters (JSONB)",
     )
 
     is_reusable: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Is reusable: 1=reusable, 0=single_use"
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Is reusable: 1=reusable, 0=single_use",
     )
 
     profile_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Associated profile template count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Associated profile template count",
     )
 
     profile_id: Mapped[Optional[int]] = mapped_column(
@@ -65,6 +80,7 @@ class AIInfoTemplate(AutoIncrementModel):
         Integer,
         nullable=False,
         default=1,
+        server_default=text("1"),
         comment="Status: 1=active, 2=inactive",
     )
 
@@ -89,14 +105,6 @@ class AIInfoTemplate(AutoIncrementModel):
         foreign_keys=[profile_id],
         lazy="select",
         viewonly=True,
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_info_templates_style_id", "style_id"),
-        Index("idx_ai_info_templates_personality_id", "personality_id"),
-        Index("idx_ai_info_templates_status", "status"),
-        Index("idx_ai_info_templates_is_reusable", "is_reusable"),
     )
 
 
@@ -128,13 +136,18 @@ class AIProfileTemplate(SnowflakeQiaoModel):
     region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Region/location")
 
     is_reusable: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, comment="Is reusable: 1=reusable, 0=single_use"
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Is reusable: 1=reusable, 0=single_use",
     )
 
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=1,
+        server_default=text("1"),
         comment="Status: 1=active, 2=inactive",
     )
 
@@ -145,13 +158,4 @@ class AIProfileTemplate(SnowflakeQiaoModel):
         foreign_keys=[info_id],
         lazy="select",
         viewonly=True,
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_ai_profile_templates_category", "category"),
-        Index("idx_ai_profile_templates_info_id", "info_id"),
-        Index("idx_ai_profile_templates_nickname", "nickname"),
-        Index("idx_ai_profile_templates_status", "status"),
-        Index("idx_ai_profile_templates_is_reusable", "is_reusable"),
     )

@@ -9,7 +9,8 @@ import secrets
 import string
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, DateTime, Integer, String, func
+from sqlalchemy import BigInteger, DateTime, Integer, String, func, text
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from utils.snowflake import generate_snowflake_id
@@ -32,13 +33,16 @@ class TimestampMixin:
     """Mixin for models that need created_at and updated_at timestamps."""
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=func.now(), comment="Record creation timestamp"
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Record creation timestamp",
     )
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        TIMESTAMP(timezone=True),
         nullable=False,
-        default=func.now(),
+        server_default=text("NOW()"),
         onupdate=func.now(),
         comment="Record last update timestamp",
     )
@@ -151,7 +155,10 @@ class ImmutableAutoIncrementModel(Base, AutoIncrementIDMixin):
     __abstract__ = True
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=func.now(), comment="Record creation timestamp"
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Record creation timestamp",
     )
 
 
@@ -166,7 +173,10 @@ class ImmutableSnowflakeModel(Base, SnowflakeIDMixin):
     __abstract__ = True
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=func.now(), comment="Record creation timestamp"
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Record creation timestamp",
     )
 
 
@@ -183,18 +193,24 @@ class SnowflakeQiaoModel(SnowflakeModel, QiaoIDMixin):
 class StatusMixin:
     """Mixin for models that have a status field."""
 
-    status: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="Entity status")
+    status: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1"), comment="Entity status"
+    )
 
 
 class SoftDeleteMixin:
     """Mixin for models that support soft deletion."""
 
     is_deleted: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Soft delete flag: 1=deleted, 0=active"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Soft delete flag: 1=deleted, 0=active",
     )
 
     deleted_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, comment="Deletion timestamp"
+        TIMESTAMP(timezone=True), nullable=True, comment="Deletion timestamp"
     )
 
     def soft_delete(self) -> None:

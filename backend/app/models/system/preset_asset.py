@@ -1,63 +1,72 @@
-"""
-Emoticon related models.
+from typing import Optional, TYPE_CHECKING
+from sqlalchemy import BigInteger, Integer, String, Text, Index, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-This module contains SQLAlchemy models for emoticon management.
-"""
-
-from typing import Optional
-from sqlalchemy import Integer, String, Index
-from sqlalchemy.orm import Mapped, mapped_column
-
-from enums import EmoticonCategory, EmoticonCreatorType
 from models.base import AutoIncrementModel
 
+if TYPE_CHECKING:
+    from models.message import MediaFile
 
-class Emoticon(AutoIncrementModel):
-    """
-    Emoticon model.
 
-    Emoticon and sticker management.
-    """
+class PresetAsset(AutoIncrementModel):
+    """Preset asset model for managing preset resources (avatars, emoticons, etc.)"""
 
-    __tablename__ = "emoticons"
+    __tablename__ = "preset_assets"
 
-    code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, comment="Unique identifier")
-
-    category: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Emoticon category: 1=emoji, 2=sticker, 3=custom"
+    # Asset type: 1=avatar, 2=emoticon
+    asset_type: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Asset type: 1=avatar, 2=emoticon"
     )
 
-    file_id: Mapped[Optional[str]] = mapped_column(
-        String(32), nullable=True, comment="Media file ID, references media_files.qiao_id"
+    # Asset name (unique identifier)
+    name: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, comment="Asset name")
+
+    # Category (integer enum)
+    category: Mapped[int] = mapped_column(Integer, nullable=False, comment="Category")
+
+    # Is client preset (bundled with client)
+    is_client_preset: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1"), comment="Is client preset"
     )
 
-    url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="Image URL")
-
-    description: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True, comment="Emoticon description"
+    # Media file ID (references media_files table)
+    file_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        nullable=True,
+        comment="Media file ID, references media_files.id",
     )
 
-    created_by_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Creator type: 1=system, 2=user, 3=admin"
-    )
+    # URL for the asset
+    url: Mapped[str] = mapped_column(String(500), nullable=False, comment="Asset URL")
 
-    created_by_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="Creator internal ID")
+    # Prompt for AI generation
+    prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Generation prompt")
 
+    # Description
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Description")
+
+    # Status
     status: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=1,
-        comment="Status: 1=active, 2=inactive",
+        Integer, nullable=False, default=1, server_default=text("1"), comment="Status: 1=active, 2=inactive"
     )
 
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="Sort order")
+    # Sort order
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Sort order"
+    )
 
-    # Indexes
+    # Relationship to media_files
+    media_file: Mapped[Optional["MediaFile"]] = relationship(
+        "MediaFile",
+        primaryjoin="foreign(PresetAsset.file_id) == MediaFile.id",
+        lazy="select",
+        viewonly=True,
+    )
+
+    # Indexes - Only essential indexes for MVP
     __table_args__ = (
-        Index("idx_emoticons_code", "code"),
-        Index("idx_emoticons_category", "category"),
-        Index("idx_emoticons_created_by_type", "created_by_type"),
-        Index("idx_emoticons_created_by_id", "created_by_id"),
-        Index("idx_emoticons_status", "status"),
-        Index("idx_emoticons_sort_order", "sort_order"),
+        Index("idx_preset_assets_asset_type", "asset_type"),
+        Index("idx_preset_assets_category", "category"),
+        Index("idx_preset_assets_status", "status"),
+        Index("idx_preset_assets_sort_order", "sort_order"),
     )

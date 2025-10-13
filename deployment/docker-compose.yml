@@ -12,6 +12,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       # PostgreSQL performance optimizations
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      # Sample data loading control (set to false in production)
+      LOAD_SAMPLE_DATA: ${LOAD_SAMPLE_DATA:-true}
     command:
       # PostgreSQL performance and configuration optimizations
       - postgres

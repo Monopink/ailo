@@ -1,148 +1,8 @@
 # 后端文件目录结构设计
 
-## 完整目录结构
-
-```
-backend/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                     # FastAPI应用入口
-│   ├── requirements.txt            # Python依赖
-│   ├── Dockerfile                  # Docker配置
-│   ├── Dockerfile.prod            # 生产环境Docker配置
-│   │
-│   ├── api/                        # API路由层
-│   │   ├── __init__.py
-│   │   ├── deps.py                 # 依赖注入
-│   │   └── v1/                     # API版本1
-│   │       ├── __init__.py
-│   │       ├── auth.py             # 认证相关API
-│   │       ├── users.py            # 用户管理API
-│   │       ├── contacts.py         # 联系人管理API
-│   │       ├── square.py           # 广场功能API
-│   │       ├── media.py            # 媒体文件API
-│   │       ├── webhook.py          # LeanCloud Webhook接收
-│   │       └── admin/              # 管理后台API
-│   │           ├── __init__.py
-│   │           ├── auth.py         # 管理员认证
-│   │           ├── users.py        # 用户管理
-│   │           ├── ai.py           # AI管理
-│   │           ├── messages.py     # 消息管理
-│   │           ├── security.py     # 安全监控
-│   │           ├── media.py        # 媒体文件管理
-│   │           └── system.py       # 系统管理
-│   │
-│   ├── services/                   # 业务服务层
-│   │   ├── __init__.py
-│   │   ├── auth.py                 # 认证服务
-│   │   ├── user.py                 # 用户服务
-│   │   ├── contact.py              # 联系人服务
-│   │   ├── media.py                # 媒体文件服务
-│   │   │
-│   │   ├── message/                # 消息服务模块
-│   │   │   ├── __init__.py
-│   │   │   ├── core.py             # 消息服务核心逻辑
-│   │   │   ├── buffer.py           # 消息合并缓冲器
-│   │   │   ├── crypto.py           # 消息加解密
-│   │   │   ├── signature.py        # 消息签名验证
-│   │   │   ├── rate_limiter.py     # 消息频率限制
-│   │   │   └── providers/          # 消息服务提供商
-│   │   │       ├── __init__.py
-│   │   │       ├── base.py         # 抽象基类
-│   │   │       └── leancloud/      # LeanCloud实现
-│   │   │           ├── __init__.py
-│   │   │           ├── webhook.py  # Webhook处理
-│   │   │           ├── sender.py   # 消息发送
-│   │   │           └── client.py   # LeanCloud客户端
-│   │   │
-│   │   ├── ai/                     # AI服务模块
-│   │   │   ├── __init__.py
-│   │   │   ├── core.py             # AI服务核心逻辑
-│   │   │   ├── context.py          # 对话上下文管理
-│   │   │   ├── prompt.py           # 系统提示词构建
-│   │   │   ├── character.py        # AI角色管理
-│   │   │   ├── security.py         # 内容安全检测
-│   │   │   ├── llm_client.py       # 大模型客户端
-│   │   │   └── processors/         # 消息处理器
-│   │   │       ├── __init__.py
-│   │   │       ├── text.py         # 文本消息处理
-│   │   │       └── system.py       # 系统消息处理
-│   │   │
-│   │   └── admin/                  # 管理后台服务
-│   │       ├── __init__.py
-│   │       ├── user.py             # 管理后台用户服务
-│   │       ├── ai.py               # 管理后台AI服务
-│   │       ├── message.py          # 管理后台消息服务
-│   │       ├── security.py         # 管理后台安全服务
-│   │       └── system.py           # 管理后台系统服务
-│   │
-│   ├── repositories/               # 数据访问层
-│   │   ├── __init__.py
-│   │   ├── base.py                 # 基础Repository类
-│   │   ├── user.py                 # 用户数据访问
-│   │   ├── contact.py              # 联系人数据访问
-│   │   ├── message.py              # 消息数据访问
-│   │   ├── ai.py                   # AI相关数据访问
-│   │   ├── media.py                # 媒体文件数据访问
-│   │   ├── security.py             # 安全相关数据访问
-│   │   └── admin.py                # 管理员相关数据访问
-│   │
-│   ├── models/                     # 数据库模型
-│   │   ├── __init__.py
-│   │   ├── base.py                 # 基础模型类
-│   │   ├── user.py                 # 用户相关表模型
-│   │   ├── contact.py              # 联系人相关表模型
-│   │   ├── message.py              # 消息相关表模型
-│   │   ├── ai.py                   # AI相关表模型
-│   │   ├── media.py                # 媒体文件表模型
-│   │   ├── security.py             # 安全相关表模型
-│   │   ├── admin.py                # 管理员相关表模型
-│   │   └── system.py               # 系统相关表模型
-│   │
-│   ├── schemas/                    # Pydantic模型
-│   │   ├── __init__.py
-│   │   ├── common.py               # 通用模型
-│   │   ├── auth.py                 # 认证相关模型
-│   │   ├── user.py                 # 用户相关模型
-│   │   ├── contact.py              # 联系人相关模型
-│   │   ├── message.py              # 消息相关模型
-│   │   ├── ai.py                   # AI相关模型
-│   │   ├── media.py                # 媒体文件模型
-│   │   └── admin.py                # 管理后台模型
-│   │
-│   ├── crud/                       # CRUD操作（如果需要）
-│   │   ├── __init__.py
-│   │   └── base.py                 # 基础CRUD类
-│   │
-│   ├── core/                       # 核心功能
-│   │   ├── __init__.py
-│   │   ├── config.py               # 配置管理
-│   │   ├── security.py             # 安全相关（JWT等）
-│   │   ├── auth.py                 # 认证逻辑
-│   │   └── permissions.py          # 权限控制
-│   │
-│   ├── utils/                      # 工具函数
-│   │   ├── __init__.py
-│   │   ├── logging.py              # 日志工具（已存在）
-│   │   ├── security.py             # 安全工具
-│   │   ├── validators.py           # 验证工具
-│   │   ├── formatters.py           # 格式化工具
-│   │   ├── snowflake.py            # Snowflake ID生成器
-│   │   ├── redis_client.py         # Redis客户端
-│   │   ├── exceptions.py           # 自定义异常
-│   │   └── helpers.py              # 辅助函数
-│   │
-│   └── admin/                      # 管理后台前端（如果需要）
-│       └── [管理后台静态文件]
-│
-└── database/                       # 数据库相关
-    ├── conf/                       # 数据库配置
-    └── init/                       # 数据库初始化脚本
-```
-
 ## 关键模块设计说明
 
-### 1. 消息服务流程设计 (services/message/)
+### 消息服务流程设计 (services/message/)
 
 #### 核心流程
 
@@ -159,7 +19,7 @@ Webhook接收 → 消息验证 → 安全检测 → 消息缓冲 → AI处理 �
 - **rate_limiter.py**: 用户消息频率限制，防止刷屏
 - **providers/**: 消息服务提供商抽象，支持LeanCloud等
 
-### 2. AI服务流程设计 (services/ai/)
+### AI服务流程设计 (services/ai/)
 
 #### 核心流程
 
@@ -176,7 +36,7 @@ Webhook接收 → 消息验证 → 安全检测 → 消息缓冲 → AI处理 �
 - **security.py**: 内容安全检测，过滤违规内容
 - **llm_client.py**: 大模型API客户端封装
 
-### 3. 数据访问层设计 (repositories/)
+### 数据访问层设计 (repositories/)
 
 #### 设计原则
 
@@ -185,7 +45,7 @@ Webhook接收 → 消息验证 → 安全检测 → 消息缓冲 → AI处理 �
 - 封装复杂查询逻辑
 - 支持事务管理
 
-### 4. API层设计 (api/v1/)
+### API层设计 (api/v1/)
 
 #### 设计原则
 
@@ -193,6 +53,14 @@ Webhook接收 → 消息验证 → 安全检测 → 消息缓冲 → AI处理 �
 - 统一的响应格式
 - 完整的错误处理
 - 管理后台API独立分组
+
+### usage_count自动管理机制
+
+- AI配置表（ai_personalities、ai_styles、ai_relationships）包含usage_count字段
+- 当AI角色创建时，自动增加对应personality和style的usage_count
+- 当AI角色删除时，自动减少对应personality和style的usage_count
+- 当usage_count > 0时，不允许将status修改为INACTIVE
+- 确保正在使用的配置不会被意外停用
 
 ## 配置管理设计
 

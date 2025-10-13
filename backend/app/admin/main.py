@@ -30,7 +30,7 @@ from .views import (
     message_history_view,
     # Media Management
     media_file_view,
-    emoticon_view,
+    preset_asset_view,
     # System Management
     admin_user_view,
     admin_operation_log_view,
@@ -177,7 +177,7 @@ session_group = DropDown(
 admin.add_view(session_group)
 
 media_group = DropDown(
-    "Media", icon="fa fa-file-image", views=[media_file_view, emoticon_view], always_open=False
+    "Media", icon="fa fa-file-image", views=[media_file_view, preset_asset_view], always_open=False
 )
 admin.add_view(media_group)
 

@@ -4,22 +4,20 @@ Creates ModelView instances for message system and media management.
 """
 
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import HasOne, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
 from admin.views.base import IntegerEnumField
 
 # Import message and media models
 from models.message.message import MessageHistory
 from models.message.media import MediaFile
-from models.message.emoticon import Emoticon
 from models.system.config import SystemConfig
+from models.system import PresetAsset
 
 # Import enums
 from enums import (
     FileType,
     FileStatus,
     UploaderType,
-    EmoticonCategory,
-    EmoticonCreatorType,
     MessageDirection,
     MessageParticipantType,
     ServiceProvider,
@@ -49,7 +47,9 @@ class MessageHistoryView(ModelView):
     sortable_fields = ["id", "direction", "platform", "message_type", "status", "created_at"]
 
     fields = [
-        IntegerEnumField("direction", enum=MessageDirection, label="Direction", help_text="Message direction"),
+        IntegerEnumField(
+            "direction", enum=MessageDirection, label="Direction", help_text="Message direction"
+        ),
         IntegerEnumField(
             "platform",
             choices=[(1, "iOS"), (2, "Android"), (3, "Web"), (4, "Mini Program")],
@@ -63,10 +63,14 @@ class MessageHistoryView(ModelView):
         ),
         StringField("msg_id_client", label="Client Message ID", help_text="Client-generated message ID"),
         "client_sent_time",
-        IntegerEnumField("from_type", enum=MessageParticipantType, label="From Type", help_text="Sender type"),
+        IntegerEnumField(
+            "from_type", enum=MessageParticipantType, label="From Type", help_text="Sender type"
+        ),
         StringField("from_id", label="From ID", help_text="Sender snowflake ID"),
         StringField("from_qiao_id", label="From Qiao ID", help_text="Sender external ID"),
-        IntegerEnumField("to_type", enum=MessageParticipantType, label="To Type", help_text="Receiver type"),
+        IntegerEnumField(
+            "to_type", enum=MessageParticipantType, label="To Type", help_text="Receiver type"
+        ),
         StringField("to_id", label="To ID", help_text="Receiver snowflake ID"),
         StringField("to_qiao_id", label="To Qiao ID", help_text="Receiver external ID"),
         IntegerEnumField(
@@ -75,7 +79,9 @@ class MessageHistoryView(ModelView):
             label="Service Provider",
             help_text="Message service provider",
         ),
-        IntegerEnumField("message_type", enum=MessageType, label="Message Type", help_text="Type of message"),
+        IntegerEnumField(
+            "message_type", enum=MessageType, label="Message Type", help_text="Type of message"
+        ),
         TextAreaField("content", label="Content", help_text="Message content"),
         IntegerEnumField("status", enum=MessageStatus, label="Status", help_text="Message status"),
         "message_metadata",
@@ -112,39 +118,6 @@ class MediaFileView(ModelView):
     ]
 
 
-class EmoticonView(ModelView):
-    """Enhanced Emoticon view with proper field configuration."""
-
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
-
-    def can_delete(self, request):
-        return False
-
-    fields_default_sort = [("sort_order", False), ("created_at", True)]
-    searchable_fields = ["code", "description"]
-    sortable_fields = ["id", "code", "category", "status", "sort_order", "created_at"]
-
-    fields = [
-        StringField("code", label="Emoticon Code", help_text="Unique identifier for the emoticon"),
-        IntegerEnumField("category", enum=EmoticonCategory, label="Category", help_text="Emoticon category"),
-        HasOne("file_id", identity="media_file", label="File", help_text="Select emoticon file"),
-        StringField("url", label="URL", help_text="Direct URL to emoticon image"),
-        StringField("description", label="Description", help_text="Emoticon description"),
-        IntegerEnumField(
-            "created_by_type",
-            enum=EmoticonCreatorType,
-            label="Created By Type",
-            help_text="Type of creator",
-        ),
-        StringField("created_by_id", label="Creator ID", help_text="Creator snowflake ID"),
-        IntegerEnumField(
-            "status", choices=[(1, "Active"), (2, "Inactive")], label="Status", help_text="Emoticon status"
-        ),
-        IntegerField("sort_order", label="Sort Order", help_text="Display order"),
-    ]
-
-
 class SystemConfigView(ModelView):
     """Enhanced System Config view with proper field configuration."""
 
@@ -174,6 +147,50 @@ class SystemConfigView(ModelView):
     ]
 
 
+class PresetAssetView(ModelView):
+    """Preset Asset view for managing avatars, emoticons, etc."""
+
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+
+    fields_default_sort = [("asset_type", False), ("sort_order", False)]
+    searchable_fields = ["name", "description"]
+    sortable_fields = ["id", "asset_type", "category", "status", "sort_order"]
+
+    fields = [
+        IntegerEnumField(
+            "asset_type",
+            choices=[(1, "Avatar"), (2, "Emoticon")],
+            label="Asset Type",
+            help_text="Type of preset asset",
+            required=True,
+        ),
+        StringField("name", label="Name", help_text="Unique asset name", required=True),
+        IntegerField("category", label="Category", help_text="Asset category", required=True),
+        IntegerEnumField(
+            "is_client_preset",
+            choices=[(1, "Yes"), (0, "No")],
+            label="Client Preset",
+            help_text="Is bundled with client",
+            required=False,
+        ),
+        IntegerField("file_id", label="File ID", help_text="Media file ID (optional)", required=False),
+        StringField("url", label="URL", help_text="Asset URL", required=True),
+        TextAreaField(
+            "prompt", label="Prompt", help_text="AI generation prompt (optional)", required=False
+        ),
+        StringField("description", label="Description", help_text="Asset description", required=False),
+        IntegerEnumField(
+            "status",
+            choices=[(1, "Active"), (2, "Inactive")],
+            label="Status",
+            help_text="Asset status",
+            required=False,
+        ),
+        IntegerField("sort_order", label="Sort Order", help_text="Display order", required=False),
+    ]
+
+
 # Create view instances
 message_history_view = MessageHistoryView(
     MessageHistory, name="Message History", icon="fa fa-comments", identity="message_history"
@@ -181,7 +198,9 @@ message_history_view = MessageHistoryView(
 media_file_view = MediaFileView(
     MediaFile, name="Media Files", icon="fa fa-file-image", identity="media_file"
 )
-emoticon_view = EmoticonView(Emoticon, name="Emoticons", icon="fa fa-smile", identity="emoticon")
+preset_asset_view = PresetAssetView(
+    PresetAsset, name="Preset Assets", icon="fa fa-image", identity="preset_assets"
+)
 system_config_view = SystemConfigView(
     SystemConfig, name="System Config", icon="fa fa-cog", identity="system_configs"
 )
@@ -190,6 +209,6 @@ system_config_view = SystemConfigView(
 MESSAGE_MEDIA_MODEL_VIEWS = [
     message_history_view,
     media_file_view,
-    emoticon_view,
+    preset_asset_view,
     system_config_view,
 ]

@@ -6,7 +6,7 @@ This module contains SQLAlchemy model for LLM configuration testing logs.
 
 from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy import Integer, String, Text, DECIMAL, Index, DateTime
+from sqlalchemy import Integer, String, Text, DECIMAL, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,11 +51,11 @@ class LLMTestLog(ImmutableSnowflakeModel):
     )
 
     enable_thinking: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Enable thinking mode: 0=no, 1=yes"
+        Integer, nullable=False, comment="Enable thinking mode: 0=no, 1=yes"
     )
 
     enable_json_schema: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Enable JSON Schema mode: 0=no, 1=yes"
+        Integer, nullable=False, comment="Enable JSON Schema mode: 0=no, 1=yes"
     )
 
     # Request and response
@@ -101,11 +101,4 @@ class LLMTestLog(ImmutableSnowflakeModel):
     # Timestamps (created_at inherited from ImmutableSnowflakeModel)
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Test completion timestamp"
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_llm_test_logs_config_id", "config_id"),
-        Index("idx_llm_test_logs_status", "status"),
-        Index("idx_llm_test_logs_created_at", "created_at"),
     )

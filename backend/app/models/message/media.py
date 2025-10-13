@@ -5,14 +5,14 @@ This module contains SQLAlchemy models for media file management.
 """
 
 from typing import Optional
-from sqlalchemy import BigInteger, Integer, String, Index
+from sqlalchemy import BigInteger, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import FileType, FileStatus, UploaderType
-from models.base import SnowflakeQiaoModel
+from models.base import SnowflakeModel
 
 
-class MediaFile(SnowflakeQiaoModel):
+class MediaFile(SnowflakeModel):
     """
     Media file model.
 
@@ -20,6 +20,10 @@ class MediaFile(SnowflakeQiaoModel):
     """
 
     __tablename__ = "media_files"
+
+    file_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, unique=True, comment="File external ID"
+    )
 
     file_path: Mapped[str] = mapped_column(String(500), nullable=False, comment="File storage path")
 
@@ -35,7 +39,7 @@ class MediaFile(SnowflakeQiaoModel):
 
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False, comment="MIME type")
 
-    file_size: Mapped[int] = mapped_column(Integer, nullable=False, comment="File size in bytes")
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="File size in bytes")
 
     upload_by_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Uploader type: 1=user, 2=ai_character, 3=system"
@@ -51,15 +55,6 @@ class MediaFile(SnowflakeQiaoModel):
         Integer,
         nullable=False,
         default=1,
+        server_default=text("1"),
         comment="File status: 1=active, 2=processing, 3=failed, 0=deleted",
-    )
-
-    # Indexes
-    __table_args__ = (
-        Index("idx_media_files_file_type", "file_type"),
-        Index("idx_media_files_upload_by_type", "upload_by_type"),
-        Index("idx_media_files_upload_by_id", "upload_by_id"),
-        Index("idx_media_files_upload_by_qiao_id", "upload_by_qiao_id"),
-        Index("idx_media_files_status", "status"),
-        Index("idx_media_files_created_at", "created_at"),
     )

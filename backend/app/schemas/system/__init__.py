@@ -16,6 +16,15 @@ from .config import (
     BatchConfigDelete,
 )
 
+# Preset asset schemas
+from .preset_asset import (
+    PresetAssetBase,
+    PresetAssetCreate,
+    PresetAssetUpdate,
+    PresetAssetResponse,
+    PresetAssetListResponse,
+)
+
 # Statistics schemas
 from .stats import (
     BaseStatsSchema,
@@ -52,6 +61,12 @@ __all__ = [
     "ConfigValueResponse",
     "BatchConfigUpdate",
     "BatchConfigDelete",
+    # Preset Assets
+    "PresetAssetBase",
+    "PresetAssetCreate",
+    "PresetAssetUpdate",
+    "PresetAssetResponse",
+    "PresetAssetListResponse",
     # Statistics
     "BaseStatsSchema",
     "UserStatsBase",

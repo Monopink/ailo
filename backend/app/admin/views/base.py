@@ -55,6 +55,9 @@ class IntegerEnumField(EnumField):
             choices: List of (int_value, display_label) tuples (alternative to enum)
             **kwargs: Additional field arguments
         """
+        # Store enum for later use in serialize_value
+        self._enum = enum
+
         # Convert IntEnum to choices if provided
         if enum is not None:
             choices = [(member.value, member.name) for member in enum]
@@ -89,7 +92,7 @@ class IntegerEnumField(EnumField):
 
     async def serialize_value(self, request: Request, value: Any, action: str) -> Any:
         """
-        Serialize database value for form display.
+        Serialize database value for display.
 
         Args:
             request: Request object
@@ -97,13 +100,26 @@ class IntegerEnumField(EnumField):
             action: Action type (list/detail/edit/create)
 
         Returns:
-            String value for form selection
+            For list/detail: enum name (e.g., "ACTIVE")
+            For edit/create: string value for form selection (e.g., "1")
         """
-        # For display, convert int to string for EnumField compatibility
         if value is None:
             return None
 
-        # Ensure value is string for select options
+        # For list and detail views, show enum name
+        if action in ("list", "detail"):
+            if self._enum is not None:
+                try:
+                    return self._enum(value).name
+                except (ValueError, AttributeError):
+                    return f"UNKNOWN({value})"
+            # Fallback: search in choices
+            for choice_value, choice_label in self.choices:
+                if choice_value == value:
+                    return choice_label
+            return str(value)
+
+        # For edit/create forms, return string value for select options
         return str(value)
 
 
@@ -139,4 +155,3 @@ class BaseRoleAwareModelView(ModelView):
         if role == AdminRole.VIEWER:
             return False
         return True
-

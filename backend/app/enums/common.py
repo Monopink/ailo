@@ -121,6 +121,14 @@ class MessageType(IntEnum):
     EMOJI = 6  # Emoji message
 
 
+class ChatSystemMessageType(IntEnum):
+    """System message type for chat interface display (message_history.system_message_type)"""
+
+    CONTACT_ADDED = 1  # Contact has added you
+    MESSAGE_BLOCKED = 2  # Message sent but blocked by recipient
+    NOT_FRIEND = 3  # Recipient hasn't added you as contact
+
+
 class MessageStatus(IntEnum):
     """Message delivery status (message_history.status)"""
 
@@ -392,11 +400,16 @@ class AdminStatus(IntEnum):
 class AdminOperationType(IntEnum):
     """Admin operation type (admin_operation_logs.operation_type)"""
 
-    CREATE = 1  # Create operation
-    UPDATE = 2  # Update operation
-    DELETE = 3  # Delete operation
-    ENABLE = 4  # Enable operation
-    DISABLE = 5  # Disable operation
+    CREATE = 1  # Create resource
+    UPDATE = 2  # Update resource
+    DELETE = 3  # Delete resource
+    ENABLE = 4  # Enable resource
+    DISABLE = 5  # Disable resource
+    REFRESH = 6  # Refresh operation (e.g., refresh system conversation)
+    QUERY = 7  # Query operation (for sensitive queries only)
+    EXECUTE = 8  # Execute operation (e.g., execute test)
+    EXPORT = 9  # Export operation
+    IMPORT = 10  # Import operation
 
 
 class AdminLoginResult(IntEnum):

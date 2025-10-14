@@ -147,15 +147,13 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
 
     @property
     def operation_type_display(self) -> str:
-        """Get human-readable operation type."""
-        operation_types = {
-            1: "CREATE",
-            2: "UPDATE",
-            3: "DELETE",
-            4: "ENABLE",
-            5: "DISABLE",
-        }
-        return operation_types.get(self.operation_type, f"UNKNOWN({self.operation_type})")
+        """Get display name for operation type."""
+        from enums import AdminOperationType
+
+        try:
+            return AdminOperationType(self.operation_type).name
+        except (ValueError, AttributeError):
+            return f"UNKNOWN({self.operation_type})"
 
 
 class AdminLoginLog(ImmutableAutoIncrementModel):

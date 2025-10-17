@@ -88,7 +88,7 @@ class SessionResponse(BaseSchema):
     device_type: DeviceType = Field(..., description="Device type")
     device_id: Optional[str] = Field(None, description="Device identifier")
     expires_at: datetime = Field(..., description="Session expiration time")
-    is_active: int = Field(..., description="Session status: 1=active, 0=inactive")
+    status: int = Field(..., description="Session status: 1=active, 2=inactive")
     last_activity_at: datetime = Field(..., description="Last activity time")
     created_at: datetime = Field(..., description="Session creation time")
 

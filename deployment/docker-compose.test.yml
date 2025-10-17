@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: postgres_test_container
+    env_file:
+      - .env.test
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432" # Use different port to avoid conflict with production
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ../backend/database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - says-test-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DATABASE}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend Service
+  backend_test:
+    build:
+      context: ../backend
+      dockerfile: app/Dockerfile.test
+    container_name: backend_test_container
+    env_file:
+      - .env.test
+    environment:
+      POSTGRES_HOST: postgres_test
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      API_BASE_URL: ${API_BASE_URL}
+      LEANCLOUD_APP_ID: ${LEANCLOUD_APP_ID}
+      LEANCLOUD_APP_KEY: ${LEANCLOUD_APP_KEY}
+      LEANCLOUD_MASTER_KEY: ${LEANCLOUD_MASTER_KEY}
+      LEANCLOUD_BASE_URL: ${LEANCLOUD_BASE_URL}
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+      DOUBAO_API_KEY: ${DOUBAO_API_KEY}
+      ENVIRONMENT: ${ENVIRONMENT}
+      LOAD_SAMPLE_DATA: ${LOAD_SAMPLE_DATA}
+      DEBUG: false
+      LOG_LEVEL: INFO
+    volumes:
+      - /opt/says-test/logs:/app/logs
+    networks:
+      - says-test-network
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx_test:
+    image: nginx:alpine
+    container_name: nginx_test_container
+    env_file:
+      - .env.test
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+      - ../nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_webroot:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - says-test-network
+    depends_on:
+      - backend_test
+    restart: unless-stopped
+  # Certbot for SSL certificates
+  # Note: Certificate already obtained. For renewal, run manually:
+  # docker run --rm -v certbot_webroot:/var/www/certbot -v /etc/letsencrypt:/etc/letsencrypt certbot/certbot renew
+  # certbot_test:
+  #   image: certbot/certbot
+  #   container_name: certbot_test_container
+  #   volumes:
+  #     - certbot_webroot:/var/www/certbot
+  #     - /etc/letsencrypt:/etc/letsencrypt
+  #   command: certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}
+  #   depends_on:
+  #     - nginx_test
+
+networks:
+  says-test-network:
+    driver: bridge
+
+volumes:
+  postgres_test_data:
+    driver: local
+  certbot_webroot:
+    driver: local

@@ -24,7 +24,7 @@ from enums import (
 class AIContextView(ModelView):
     """Enhanced AI Context view for conversation context management."""
 
-    label = "AI Contexts"
+    label = "Contexts"
     name = "AI Contexts"
 
     exclude_fields_from_create = ["id", "character_id", "user_id", "created_at", "updated_at"]

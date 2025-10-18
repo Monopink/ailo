@@ -106,7 +106,13 @@ admin.templates.env.filters["tojson"] = lambda data: json.dumps(data, default=st
 user_group = DropDown(
     "Users",
     icon="fa fa-users",
-    views=[user_view, profile_view, user_profile_log_view, contact_view, contact_request_view],
+    views=[
+        user_view,
+        profile_view,
+        contact_view,
+        contact_request_view,
+        user_profile_log_view,
+    ],
     always_open=False,
 )
 admin.add_view(user_group)
@@ -114,7 +120,10 @@ admin.add_view(user_group)
 message_group = DropDown(
     "Messages",
     icon="fa fa-comments",
-    views=[message_history_view, message_delivery_failure_view],
+    views=[
+        message_history_view,
+        message_delivery_failure_view,
+    ],
     always_open=False,
 )
 admin.add_view(message_group)
@@ -123,19 +132,19 @@ ai_group = DropDown(
     "AI",
     icon="fa fa-robot",
     views=[
-        ai_character_view,
-        ai_personality_view,
-        ai_personality_placeholder_view,
-        ai_style_view,
-        ai_relationship_view,
-        ai_relationship_dimension_view,
-        ai_relationship_index_view,
         ai_info_template_view,
         ai_profile_template_view,
-        ai_request_log_view,
         ai_context_view,
-        ai_context_archive_view,
         ai_relationship_score_view,
+        ai_request_log_view,
+        ai_character_view,
+        ai_style_view,
+        ai_personality_view,
+        ai_relationship_view,
+        ai_context_archive_view,
+        ai_personality_placeholder_view,
+        ai_relationship_dimension_view,
+        ai_relationship_index_view,
     ],
     always_open=False,
 )
@@ -163,8 +172,8 @@ security_group = DropDown(
     "Security",
     icon="fa fa-shield",
     views=[
-        user_security_log_view,
         user_security_stats_view,
+        user_security_log_view,
     ],
     always_open=False,
 )
@@ -182,7 +191,13 @@ session_group = DropDown(
 admin.add_view(session_group)
 
 media_group = DropDown(
-    "Media", icon="fa fa-file-image", views=[media_file_view, preset_asset_view], always_open=False
+    "Media",
+    icon="fa fa-file-image",
+    views=[
+        preset_asset_view,
+        media_file_view,
+    ],
+    always_open=False,
 )
 admin.add_view(media_group)
 
@@ -194,15 +209,15 @@ stats_group = DropDown(
         stats_user_daily_view,
         stats_user_weekly_view,
         stats_user_monthly_view,
-        stats_revenue_daily_view,
-        stats_revenue_weekly_view,
-        stats_revenue_monthly_view,
         stats_message_daily_view,
         stats_message_weekly_view,
         stats_message_monthly_view,
         stats_ai_daily_view,
         stats_ai_weekly_view,
         stats_ai_monthly_view,
+        stats_revenue_daily_view,
+        stats_revenue_weekly_view,
+        stats_revenue_monthly_view,
     ],
     always_open=False,
 )

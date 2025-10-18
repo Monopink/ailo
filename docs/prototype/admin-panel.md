@@ -473,12 +473,12 @@ API Key 管理：
 
 - `default_contact_limit`: 默认联系人上限 (默认: 3)
 - `default_search_display_limit`: 默认搜索显示数量 (默认: 20)
-- `contact_request_expiration_hours`: 联系人请求过期时间/小时 (默认: 168 = 7天)
+- `contact_request_expiration`: 联系人请求过期时间 (默认: 259200 秒 = 72 小时 = 3 天)
 
 **系统配置**:
 
 - `max_message_length`: 最大消息长度/字符 (默认: 49)
-- `session_timeout_hours`: 用户会话超时时间/小时 (默认: 24)
+- `session_timeout`: 用户会话超时时间 (默认: 86400 秒 = 24 小时)
 
 ### 系统管理
 

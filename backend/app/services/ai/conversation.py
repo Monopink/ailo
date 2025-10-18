@@ -83,20 +83,13 @@ async def process_conversation(
             message_type=message_type,
         )
 
-        # Step 1: Message buffering (simplified - no actual buffering for now)
-        buffered_message = {
-            "content": message_content,
-            "source_type": "original",
-            "message_count": 1,
-            "timestamp": None,  # Will be set by save_context_entry
-        }
-
-        # Step 2: Store in ai_contexts table
+        # Step 1: Store in ai_contexts table
+        # Note: Message buffering is handled by buffer.py before this function is called
         context_data = {
             "character_qiao_id": character_qiao_id,
             "user_qiao_id": user_qiao_id,
             "role": AIContextRole.USER,  # user role
-            "content": buffered_message["content"],
+            "content": message_content,
             "source_type": 1,  # original
             "reply_status": 1,  # pending
         }

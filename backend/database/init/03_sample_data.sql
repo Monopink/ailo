@@ -215,7 +215,8 @@ ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 -- ============================================================================
 
 -- Insert AI character for testing with proper configuration
-INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, created_by) VALUES
+-- Each AI character is owned by a test user (establishing AI->User relationship)
+INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, user_id, user_qiao_id, created_by) VALUES
 (223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'companion', 1, 1, 1,
 '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
 '{
@@ -233,6 +234,7 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
 }',
 1,
 '{"left_bias": 0, "right_bias": 0}',
+223788765171154945, 'qqid_test_user_001',
 1)
 ON CONFLICT (qiao_id) DO NOTHING;
 
@@ -244,7 +246,7 @@ INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, ge
 ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 
 -- Insert additional AI characters for comprehensive testing
-INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, created_by) VALUES
+INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, user_id, user_qiao_id, created_by) VALUES
 (223788765171154945, 'qiao_sweet_girlfriend_001', 'companion', 1, 2, 1,
 '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。我们刚刚认识，我对你很好奇，希望能和你成为好朋友，甚至更亲密的关系。',
 '{
@@ -262,6 +264,7 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
 }',
 1,
 '{"left_bias": 20, "right_bias": 30}',
+223788765171154946, 'qqid_test_user_002',
 1),
 (223788765171154946, 'qiao_friendly_buddy_001', 'companion', 2, 3, 1,
 '我是阿杰，一个开朗幽默的好伙伴。我热爱运动和游戏，总是能带来欢乐。我喜欢和朋友们一起度过愉快的时光，相信友谊是最珍贵的。',
@@ -274,6 +277,7 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
 }',
 1,
 '{"left_bias": -10, "right_bias": 10}',
+223788765171154947, 'qqid_test_user_003',
 1)
 ON CONFLICT (qiao_id) DO NOTHING;
 

@@ -86,8 +86,12 @@ CREATE TABLE IF NOT EXISTS login_records (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for login_records table
--- Note: No additional indexes needed for MVP
+-- Create indexes for login_records table to optimize failed login attempts query
+CREATE INDEX IF NOT EXISTS idx_login_records_phone_result_time
+ON login_records(user_qiao_id, result, login_time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_login_records_ip_result_time
+ON login_records(ip_address, result, login_time DESC);
 
 
 -- ============================================================================

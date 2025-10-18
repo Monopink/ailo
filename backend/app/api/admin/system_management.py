@@ -251,7 +251,7 @@ async def regenerate_webhook_token(
             "success": true,
             "message": "Webhook token regenerated successfully",
             "warning": "Please update the webhook URL in LeanCloud console immediately",
-            "new_token_length": 43
+            "new_token_length": 24
         }
     """
     logger.info(
@@ -261,8 +261,8 @@ async def regenerate_webhook_token(
     )
 
     try:
-        # Generate new token (43 characters)
-        new_token = secrets.token_urlsafe(32)
+        # Generate new token (24 characters)
+        new_token = secrets.token_urlsafe(18)
 
         # Update database
         updated_config = await system_configs.update_config_value(

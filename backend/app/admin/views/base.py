@@ -4,12 +4,33 @@ Base role-aware ModelView for Starlette-Admin.
 Provides unified create/edit/delete permissions based on admin role.
 """
 
-from typing import Any, List, Tuple
+from typing import Any, List
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import EnumField
 
 from enums import AdminRole
+
+
+def convert_empty_strings_to_none(obj: Any, field_names: List[str]) -> None:
+    """
+    Convert empty string values to None for specified fields.
+
+    This is essential for fields with unique constraints in the database,
+    as NULL values don't count as duplicates but empty strings do.
+
+    Args:
+        obj: The model object to modify
+        field_names: List of field names to check and convert
+
+    Example:
+        convert_empty_strings_to_none(user_obj, ["phone", "email", "wechat_openid"])
+    """
+    for field_name in field_names:
+        if hasattr(obj, field_name):
+            value = getattr(obj, field_name)
+            if value == "":
+                setattr(obj, field_name, None)
 
 
 def _get_admin_role(request: Request) -> int | None:
@@ -101,7 +122,7 @@ class IntegerEnumField(EnumField):
 
         Returns:
             For list/detail: enum name (e.g., "ACTIVE")
-            For edit/create: string value for form selection (e.g., "1")
+            For edit/create: integer value for form selection (e.g., 1)
         """
         if value is None:
             return None
@@ -119,8 +140,9 @@ class IntegerEnumField(EnumField):
                     return choice_label
             return str(value)
 
-        # For edit/create forms, return string value for select options
-        return str(value)
+        # For edit/create forms, return integer value for form selection
+        # This ensures the form correctly matches the value with select options
+        return int(value) if value is not None else None
 
 
 class BaseRoleAwareModelView(ModelView):

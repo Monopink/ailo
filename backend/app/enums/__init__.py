@@ -21,6 +21,7 @@ from .common import (
     MessageParticipantType,
     ServiceProvider,
     MessageType,
+    ChatSystemMessageType,
     MessageStatus,
     # Media Files
     FileType,
@@ -81,6 +82,7 @@ __all__ = [
     "MessageParticipantType",
     "ServiceProvider",
     "MessageType",
+    "ChatSystemMessageType",
     "MessageStatus",
     # Media Files
     "FileType",

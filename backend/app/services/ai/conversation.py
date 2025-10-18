@@ -119,6 +119,67 @@ async def process_conversation(
                 message=f"Character not found: {character_qiao_id}",
             )
 
+        # Step 3.5: Validate message permission (bidirectional relationship)
+        # Get contact relationship and AI character for validation
+        from models.contact import Contact
+        from models.ai.character import AICharacter
+        from services.message.validation import message_validation_service
+        from sqlalchemy import select
+
+        # Find contact by user and character qiao_ids
+        contact_stmt = select(Contact).where(
+            Contact.user_qiao_id == user_qiao_id,
+            Contact.contact_qiao_id == character_qiao_id,
+            Contact.contact_type == 2,  # AI character
+        )
+        contact_result = await db.execute(contact_stmt)
+        contact = contact_result.scalar_one_or_none()
+
+        if not contact:
+            logger.warning(
+                "contact_not_found_for_validation",
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
+            )
+            raise AIConversationError(
+                conversation_step="permission_validation",
+                reason="contact_not_found",
+                message=f"Contact relationship not found between user and character",
+            )
+
+        # Get AI character instance for validation
+        character_stmt = select(AICharacter).where(AICharacter.qiao_id == character_qiao_id)
+        character_result = await db.execute(character_stmt)
+        character = character_result.scalar_one_or_none()
+
+        if not character:
+            raise AIConversationError(
+                conversation_step="permission_validation",
+                reason="character_not_found",
+                message=f"Character not found: {character_qiao_id}",
+            )
+
+        # Validate message permission
+        validation_result = await message_validation_service.validate_message_permission(
+            db=db, from_qiao_id=user_qiao_id, character=character, contact=contact
+        )
+
+        if not validation_result.allowed:
+            logger.warning(
+                "message_permission_denied",
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
+                reason=validation_result.reason,
+                error_code=validation_result.error_code,
+            )
+            # TODO: Send system message to user (MESSAGE_BLOCKED or NOT_FRIEND)
+            # For now, just raise error to stop AI processing
+            raise AIConversationError(
+                conversation_step="permission_validation",
+                reason=validation_result.error_code or "permission_denied",
+                message=validation_result.reason or "Message permission denied",
+            )
+
         # Step 4: Get relationship scores
         from .relationship import get_relationship_scores
 

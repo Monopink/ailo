@@ -127,6 +127,8 @@ class ValidationService:
             "prompt_variables": character.prompt_variables,
             "score_offset_algorithm": character.score_offset_algorithm,
             "score_offset_params": character.score_offset_params,
+            "user_id": character.user_id,
+            "user_qiao_id": character.user_qiao_id,
         }
 
     async def _validate_character_profile(

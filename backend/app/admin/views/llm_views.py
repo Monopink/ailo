@@ -4,7 +4,6 @@ LLM (Large Language Model) related admin views.
 This module contains Starlette-Admin views for managing LLM providers and configurations.
 """
 
-import json
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
@@ -13,7 +12,6 @@ from starlette_admin import (
     IntegerField,
     FloatField,
     JSONField,
-    TextAreaField,
     HasOne,
     EnumField,
 )
@@ -21,23 +19,6 @@ from starlette_admin.actions import link_row_action, row_action
 from starlette_admin.exceptions import FormValidationError
 from admin.views.base import IntegerEnumField
 from models.llm import LLMProvider, LLMConfig, LLMTestLog
-
-
-class ChineseJSONField(TextAreaField):
-    """Custom field that displays JSON with Chinese characters properly in detail view."""
-
-    async def serialize_value(self, request: Request, value: Any, action: str) -> Any:
-        """Serialize value with ensure_ascii=False to display Chinese characters."""
-        if value is None:
-            return None
-
-        # Convert dict to formatted JSON string with Chinese characters
-        # This ensures Chinese characters are displayed properly in all views
-        if isinstance(value, (dict, list)):
-            return json.dumps(value, ensure_ascii=False, indent=2)
-
-        # If already a string, return as is
-        return value
 
 
 class LLMProviderView(ModelView):
@@ -404,8 +385,8 @@ class LLMTestLogView(ModelView):
             label="Enable JSON Schema",
             help_text="JSON Schema mode enabled",
         ),
-        ChineseJSONField("request", label="Request", help_text="Full request payload"),
-        ChineseJSONField("response", label="Response", help_text="Full response data"),
+        JSONField("request", label="Request", help_text="Full request payload"),
+        JSONField("response", label="Response", help_text="Full response data"),
         IntegerEnumField(
             "status",
             choices=[(1, "Success"), (2, "Failed"), (3, "Timeout")],

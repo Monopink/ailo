@@ -38,6 +38,7 @@ class AdminUserView(BaseRoleAwareModelView):
 
     def can_create(self, request):  # type: ignore[override]
         from enums import AdminRole
+
         admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
         role = admin_user.get("role") if admin_user else None
         try:
@@ -48,6 +49,7 @@ class AdminUserView(BaseRoleAwareModelView):
 
     def can_edit(self, request):  # type: ignore[override]
         from enums import AdminRole
+
         admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
         role = admin_user.get("role") if admin_user else None
         try:
@@ -262,23 +264,31 @@ class UserView(BaseRoleAwareModelView):
         await super().validate(request, data)
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Hash password before creating user."""
+        """Hash password before creating user. Convert empty unique fields to NULL."""
         from core.security import get_password_hash
+        from admin.views.base import convert_empty_strings_to_none
 
         password = data.pop("password", None)
 
         if password:
             obj.password_hash = get_password_hash(password)
 
+        # Convert empty unique fields to NULL to avoid unique constraint violation
+        convert_empty_strings_to_none(obj, ["phone", "email", "wechat_openid", "apple_id"])
+
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Hash password before updating user if password is changed."""
+        """Hash password before updating user if password is changed. Convert empty unique fields to NULL."""
         from core.security import get_password_hash
+        from admin.views.base import convert_empty_strings_to_none
 
         password = data.pop("password", None)
 
         # Only update password if a new one is provided
         if password:
             obj.password_hash = get_password_hash(password)
+
+        # Convert empty unique fields to NULL to avoid unique constraint violation
+        convert_empty_strings_to_none(obj, ["phone", "email", "wechat_openid", "apple_id"])
 
 
 class ProfileView(BaseRoleAwareModelView):
@@ -572,7 +582,9 @@ class ContactView(BaseRoleAwareModelView):
                 duplicate_result = await session.execute(duplicate_stmt)
                 existing_contact = duplicate_result.scalar_one_or_none()
                 if existing_contact:
-                    errors["_contact_user" if obj.contact_type == ContactType.USER else "_contact_character"] = (
+                    errors[
+                        "_contact_user" if obj.contact_type == ContactType.USER else "_contact_character"
+                    ] = (
                         f"Contact already exists for this user (ID: {existing_contact.id}). "
                         f"Each user can only have one contact record per contact."
                     )
@@ -599,7 +611,9 @@ class ContactView(BaseRoleAwareModelView):
                         obj.conv_id = f"conv_{random_chars}"
                 else:
                     # For AI contacts, always generate new conv_id (no reverse relationship)
-                    random_chars = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+                    random_chars = "".join(
+                        secrets.choice(string.ascii_letters + string.digits) for _ in range(16)
+                    )
                     obj.conv_id = f"conv_{random_chars}"
 
         if errors:

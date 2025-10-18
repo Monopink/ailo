@@ -2,6 +2,7 @@
 Main Starlette-Admin configuration.
 """
 
+import json
 from pathlib import Path
 from starlette_admin.contrib.sqla import Admin
 from starlette_admin import DropDown
@@ -95,6 +96,10 @@ admin = Admin(
     statics_dir=str(Path(__file__).parent / "static"),
     index_view=DashboardView(label="Dashboard", icon="fa fa-dashboard", path="/"),
 )
+
+# Configure Jinja2 tojson filter to display Chinese characters correctly
+# Override starlette-admin's default tojson filter which uses ensure_ascii=True
+admin.templates.env.filters["tojson"] = lambda data: json.dumps(data, default=str, ensure_ascii=False)
 
 # Menu groups with English labels (removed "Management" suffix and fixed "AI" spacing)
 # Set always_open=False to make menus collapsed by default

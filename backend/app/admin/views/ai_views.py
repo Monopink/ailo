@@ -3,12 +3,12 @@ AI-related model views for Starlette-Admin.
 Creates ModelView instances for AI system models.
 """
 
-import json
 from typing import Any, Dict
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import IntegerField, StringField, TextAreaField, HasOne
 from starlette_admin.actions import link_row_action
+from starlette_admin.fields import JSONField
 
 from models.ai.character import AICharacter
 from models.ai.personality import AIPersonality, AIPersonalityPlaceholder
@@ -22,30 +22,12 @@ from enums import (
     AICharacterStatus,
     AIStyleStatus,
     AIPersonalityStatus,
-    AIRelationshipStatus,
     AIRequestStatus,
     ScoreOffsetAlgorithm,
     Gender,
     RequiredStatus,
     ReusableStatus,
 )
-
-
-class ChineseJSONField(TextAreaField):
-    """Custom field that displays JSON with Chinese characters properly in detail view."""
-
-    async def serialize_value(self, request: Request, value: Any, action: str) -> Any:
-        """Serialize value with ensure_ascii=False to display Chinese characters."""
-        if value is None:
-            return None
-
-        # Convert dict to formatted JSON string with Chinese characters
-        # This ensures Chinese characters are displayed properly in all views
-        if isinstance(value, (dict, list)):
-            return json.dumps(value, ensure_ascii=False, indent=2)
-
-        # If already a string, return as is
-        return value
 
 
 class AIPersonalityView(ModelView):
@@ -97,9 +79,7 @@ class AIPersonalityView(ModelView):
             help_text="Template for AI personality behavior",
             required=True,
         ),
-        ChineseJSONField(
-            "json_schema", label="JSON Schema", help_text="JSON schema for AI response validation"
-        ),
+        JSONField("json_schema", label="JSON Schema", help_text="JSON schema for AI response validation"),
         IntegerField(
             "usage_count", label="Usage Count", help_text="Number of characters using this personality"
         ),
@@ -222,6 +202,37 @@ class AICharacterView(ModelView):
         if hasattr(obj, "user") and obj.user is not None:
             obj.user_id = obj.user.id
             obj.user_qiao_id = obj.user.qiao_id
+        else:
+            # If user is not set, clear user_id and user_qiao_id
+            obj.user_id = None
+            obj.user_qiao_id = None
+
+        # Validate required foreign keys
+        errors = {}
+        if not hasattr(obj, "style_id") or obj.style_id is None:
+            errors["style"] = "AI Style is required"
+        if not hasattr(obj, "personality_id") or obj.personality_id is None:
+            errors["personality"] = "AI Personality is required"
+
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys before editing character."""
+        from starlette_admin.exceptions import FormValidationError
+
+        # Auto-fill foreign keys from HasOne relationships
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+        if hasattr(obj, "personality") and obj.personality is not None:
+            obj.personality_id = obj.personality.id
+        if hasattr(obj, "user") and obj.user is not None:
+            obj.user_id = obj.user.id
+            obj.user_qiao_id = obj.user.qiao_id
+        else:
+            # If user is not set or cleared, set to None
+            obj.user_id = None
+            obj.user_qiao_id = None
 
         # Validate required foreign keys
         errors = {}
@@ -274,7 +285,7 @@ class AICharacterView(ModelView):
             label="Memory Settings",
             help_text="Character-specific memory and background information",
         ),
-        ChineseJSONField(
+        JSONField(
             "prompt_variables",
             label="Prompt Variables",
             help_text="Character-specific prompt variable values",
@@ -286,12 +297,12 @@ class AICharacterView(ModelView):
             help_text="Algorithm for relationship score calculation (required, no default)",
             required=True,
         ),
-        ChineseJSONField(
+        JSONField(
             "score_offset_params",
             label="Score Offset Parameters",
             help_text="Parameters for score offset algorithm",
         ),
-        ChineseJSONField(
+        JSONField(
             "request_params",
             label="Request Parameters",
             help_text="LLM request parameters (temperature, max_tokens, etc.)",
@@ -911,8 +922,8 @@ class AIRequestLogView(ModelView):
         StringField("request_type", label="Request Type", help_text="production or test"),
         StringField("provider_name", label="Provider", help_text="LLM provider name"),
         StringField("model_name", label="Model", help_text="Model name used"),
-        ChineseJSONField("request", label="Request", help_text="Request content in JSON format"),
-        ChineseJSONField("response", label="Response", help_text="Response content in JSON format"),
+        JSONField("request", label="Request", help_text="Request content in JSON format"),
+        JSONField("response", label="Response", help_text="Response content in JSON format"),
         IntegerEnumField("status", enum=AIRequestStatus, label="Status"),
         IntegerField("token_count", label="Token Count"),
         IntegerField("response_time", label="Response Time (ms)"),

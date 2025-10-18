@@ -80,7 +80,15 @@ class UserMatcherService:
     async def _find_associated_test_user(
         self, db: AsyncSession, character_info: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Find test user associated with this AI character"""
+        """
+        Find test user associated with this AI character.
+        Uses main validation logic from services.message.validation to ensure
+        consistency with production message processing.
+        """
+        from models.ai.character import AICharacter
+        from services.message.validation import message_validation_service
+
+        # Step 1: Find contact relationship (User->AI direction)
         stmt = (
             select(Contact, User)
             .where(
@@ -95,22 +103,62 @@ class UserMatcherService:
         row = result.one_or_none()
 
         if not row:
-            raise UserMatcherError(
-                f"No test user associated with AI character '{character_info['qiao_id']}'",
-                error_code="TEST_USER_NOT_FOUND",
-                suggestions=[
-                    "Create a test user and establish contact relationship",
-                    "Check Contacts management to link test user with AI character",
-                    "Verify test user has user_type=3",
-                ],
-            )
+            # Check if AI character has owner but no contact relationship
+            if character_info.get("user_qiao_id"):
+                raise UserMatcherError(
+                    f"Missing contact relationship: AI character '{character_info['qiao_id']}' has owner "
+                    f"(user_qiao_id={character_info['user_qiao_id']}), but no test user has added this character as contact",
+                    error_code="CONTACT_RELATIONSHIP_MISSING",
+                    suggestions=[
+                        f"Create a test user (user_type=3) with qiao_id={character_info['user_qiao_id']}",
+                        "Or add this AI character to an existing test user's contact list",
+                        "Check Contacts management to establish User->AI relationship",
+                    ],
+                )
+            else:
+                raise UserMatcherError(
+                    f"No test user relationship found: AI character '{character_info['qiao_id']}' has no owner "
+                    f"and no test user has added this character as contact",
+                    error_code="NO_TEST_USER_RELATIONSHIP",
+                    suggestions=[
+                        "Set AI character's Owner User to a test user (user_type=3)",
+                        "Create a test user and add this AI character to their contact list",
+                        "Both User->AI (contact) and AI->User (owner) relationships are required for testing",
+                    ],
+                )
 
         contact, test_user = row
+
+        # Step 2: Validate test user status
         if test_user.status != 1:  # ACTIVE
             raise UserMatcherError(
                 f"Test user '{test_user.qiao_id}' is not active",
                 error_code="TEST_USER_INACTIVE",
                 suggestions=["Activate the test user", "Check user status in Users management"],
+            )
+
+        # Step 3: Get AI character instance for validation
+        character_stmt = select(AICharacter).where(AICharacter.qiao_id == character_info["qiao_id"])
+        character_result = await db.execute(character_stmt)
+        character = character_result.scalar_one_or_none()
+
+        if not character:
+            raise UserMatcherError(
+                f"AI character '{character_info['qiao_id']}' not found",
+                error_code="CHARACTER_NOT_FOUND",
+                suggestions=["Check AI Characters management"],
+            )
+
+        # Step 4: Use main validation logic to check permissions
+        validation_result = await message_validation_service.validate_test_user_permission(
+            db=db, test_user_qiao_id=test_user.qiao_id, character=character, contact=contact
+        )
+
+        if not validation_result.allowed:
+            raise UserMatcherError(
+                validation_result.reason or "Permission validation failed",
+                error_code=validation_result.error_code or "PERMISSION_DENIED",
+                suggestions=validation_result.suggestions or [],
             )
 
         return {

@@ -32,52 +32,63 @@ class CharacterJSONEditView(CustomView):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid character ID")
 
-        async with SessionLocal() as db:
-            # Get character with eager loading
-            from sqlalchemy.orm import selectinload
-            from sqlalchemy import select
-            from models.ai.character import AICharacter
+        try:
+            async with SessionLocal() as db:
+                # Get character with eager loading
+                from sqlalchemy.orm import selectinload
+                from sqlalchemy import select
+                from models.ai.character import AICharacter
 
-            result = await db.execute(
-                select(AICharacter)
-                .where(AICharacter.id == character_id)
-                .options(selectinload(AICharacter.personality))
-            )
-            character = result.scalar_one_or_none()
+                result = await db.execute(
+                    select(AICharacter)
+                    .where(AICharacter.id == character_id)
+                    .options(selectinload(AICharacter.personality))
+                )
+                character = result.scalar_one_or_none()
 
-            if not character:
-                raise HTTPException(status_code=404, detail="Character not found")
+                if not character:
+                    raise HTTPException(status_code=404, detail="Character not found")
 
-            # Get placeholders for the personality
-            placeholders = await personality_crud.get_placeholders_by_personality(
-                db, personality_id=character.personality_id
-            )
+                # Get placeholders for the personality
+                placeholders = await personality_crud.get_placeholders_by_personality(
+                    db, personality_id=character.personality_id
+                )
 
-            # Extract data while session is active
-            character_data = {
-                "id": character.id,
-                "qiao_id": character.qiao_id,
-                "personality_display_name": (
-                    character.personality.display_name if character.personality else "N/A"
-                ),
-                "score_offset_algorithm": character.score_offset_algorithm,
-                "prompt_variables": character.prompt_variables or {},
-                "score_offset_params": character.score_offset_params or {},
+                # Extract data while session is active
+                character_data = {
+                    "id": character.id,
+                    "qiao_id": character.qiao_id,
+                    "personality_display_name": (
+                        character.personality.display_name if character.personality else "N/A"
+                    ),
+                    "score_offset_algorithm": character.score_offset_algorithm,
+                    "prompt_variables": character.prompt_variables or {},
+                    "score_offset_params": character.score_offset_params or {},
+                }
+
+            # Get algorithm info
+            algorithm = ScoreOffsetAlgorithm(character_data["score_offset_algorithm"])
+
+            context = {
+                "request": request,
+                "character": character_data,
+                "placeholders": placeholders,
+                "algorithm": algorithm,
+                "current_variables": character_data["prompt_variables"],
+                "current_params": character_data["score_offset_params"],
             }
 
-        # Get algorithm info
-        algorithm = ScoreOffsetAlgorithm(character_data["score_offset_algorithm"])
+            return templates.TemplateResponse("custom_views/character_json_edit.html", context)
 
-        context = {
-            "request": request,
-            "character": character_data,
-            "placeholders": placeholders,
-            "algorithm": algorithm,
-            "current_variables": character_data["prompt_variables"],
-            "current_params": character_data["score_offset_params"],
-        }
-
-        return templates.TemplateResponse("custom_views/character_json_edit.html", context)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(
+                "character_json_edit_error", character_id=character_id, error=str(e), exc_info=True
+            )
+            raise HTTPException(
+                status_code=500, detail=f"Failed to load character JSON edit page: {str(e)}"
+            )
 
 
 class InfoTemplateJSONEditView(CustomView):

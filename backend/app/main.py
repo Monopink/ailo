@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -45,6 +46,21 @@ async def lifespan(app: FastAPI):
         await init_database()
         logger.info("database_initialized")
 
+        # Initialize message service (LeanCloud)
+        logger.info("initializing_message_service")
+        try:
+            from services.message.providers.leancloud import create_leancloud_provider
+
+            async with SessionLocal() as db:
+                provider = create_leancloud_provider(db)
+                success = await provider.initialize_service()
+                if success:
+                    logger.info("message_service_initialized")
+                else:
+                    logger.warning("message_service_initialization_failed")
+        except Exception as e:
+            logger.error("message_service_initialization_error", error=str(e), exc_info=True)
+
         logger.info("application_startup_complete")
         yield
 
@@ -72,6 +88,26 @@ app = FastAPI(
     redirect_slashes=False,  # Disable automatic slash redirects
 )
 
+
+# Proxy headers middleware - must be first to handle X-Forwarded-* headers
+class ProxyHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to trust X-Forwarded-* headers from reverse proxy.
+    This ensures request.url.scheme reflects the actual protocol (https) used by clients.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        # Trust X-Forwarded-Proto header from Nginx
+        forwarded_proto = request.headers.get("X-Forwarded-Proto")
+        if forwarded_proto:
+            # Modify the request scope to use the forwarded protocol
+            request.scope["scheme"] = forwarded_proto
+
+        response = await call_next(request)
+        return response
+
+
+app.add_middleware(ProxyHeadersMiddleware)
 
 # Add middleware
 app.add_middleware(

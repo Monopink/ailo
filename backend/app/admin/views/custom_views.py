@@ -17,9 +17,51 @@ class DashboardView(CustomView):
     """Dashboard with system overview."""
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
-        """Render dashboard page. Data is loaded via JavaScript from /admin-api/dashboard/stats."""
+        """Render dashboard page with initial data from database."""
         try:
-            context = {"request": request}
+            # Get database session
+            db = request.state.session
+
+            from crud.system import system_configs
+            from services.config import config_service
+            from services.message.health import get_message_service_status
+
+            # Read initial data from database
+            webhook_token = await system_configs.get_config_value(db, config_key="leancloud_webhook_token")
+            api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
+            conversation_id = await system_configs.get_config_value(
+                db, config_key="leancloud_service_conversation_id"
+            )
+
+            # Get LeanCloud config
+            leancloud_config = await config_service.get_leancloud_config(db)
+
+            # Check message service health
+            health_status = await get_message_service_status(db)
+
+            # Construct webhook URL
+            webhook_url = None
+            if webhook_token and api_base_url:
+                webhook_url = f"{api_base_url}/api/v1/webhook/leancloud/{webhook_token}"
+
+            context = {
+                "request": request,
+                "webhook_url": webhook_url,
+                "webhook_token": webhook_token,
+                "token_length": len(webhook_token) if webhook_token else 0,
+                "conversation_id": conversation_id,
+                "leancloud_config": {
+                    "configured": bool(
+                        leancloud_config.get("app_id")
+                        and leancloud_config.get("master_key")
+                        and leancloud_config.get("base_url")
+                    ),
+                    "has_app_id": bool(leancloud_config.get("app_id")),
+                    "has_master_key": bool(leancloud_config.get("master_key")),
+                    "has_base_url": bool(leancloud_config.get("base_url")),
+                },
+                "message_service_health": health_status,
+            }
             return templates.TemplateResponse("custom_views/dashboard.html", context)
         except Exception as e:
             logger.error("dashboard_render_error", error=str(e), exc_info=True)
@@ -40,6 +82,7 @@ class SystemSettingsView(CustomView):
             # Get grouped configurations from service
             from services.system_config import get_configs_by_group, get_config, SystemConfigService
             from crud.system import system_configs
+            from services.config import config_service
             from utils.admin_logs import create_operation_log
 
             config_groups = await get_configs_by_group(db)
@@ -51,6 +94,21 @@ class SystemSettingsView(CustomView):
 
             missing_configs = await SystemConfigService.check_missing_configs(db, displayed_keys)
 
+            # Get webhook and LeanCloud data for System Management section
+            webhook_token = await system_configs.get_config_value(db, config_key="leancloud_webhook_token")
+            api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
+            conversation_id = await system_configs.get_config_value(
+                db, config_key="leancloud_service_conversation_id"
+            )
+
+            # Get LeanCloud config
+            leancloud_config = await config_service.get_leancloud_config(db)
+
+            # Construct webhook URL
+            webhook_url = None
+            if webhook_token and api_base_url:
+                webhook_url = f"{api_base_url}/api/v1/webhook/leancloud/{webhook_token}"
+
             context = {
                 "request": request,
                 "success": None,
@@ -58,6 +116,20 @@ class SystemSettingsView(CustomView):
                 "warning": None,
                 "config_groups": config_groups,
                 "missing_configs": missing_configs,
+                "webhook_url": webhook_url,
+                "webhook_token": webhook_token,
+                "token_length": len(webhook_token) if webhook_token else 0,
+                "conversation_id": conversation_id,
+                "leancloud_config": {
+                    "configured": bool(
+                        leancloud_config.get("app_id")
+                        and leancloud_config.get("master_key")
+                        and leancloud_config.get("base_url")
+                    ),
+                    "has_app_id": bool(leancloud_config.get("app_id")),
+                    "has_master_key": bool(leancloud_config.get("master_key")),
+                    "has_base_url": bool(leancloud_config.get("base_url")),
+                },
             }
 
             # Handle POST request (save settings)
@@ -75,6 +147,7 @@ class SystemSettingsView(CustomView):
                         admin_role_val = None
 
                     from enums import AdminRole
+
                     if admin_role_val not in (AdminRole.ADMIN, AdminRole.SUPER_ADMIN):
                         context["error"] = "Permission denied"
                         return templates.TemplateResponse("custom_views/system_settings.html", context)

@@ -1,163 +1,219 @@
 """
-LeanCloud Conversation Manager
+LeanCloud REST API client functions.
 
-Functional module for managing LeanCloud conversation IDs using standard CRUD operations.
-Integrates with system_config_crud for database persistence.
+This module provides pure functions for LeanCloud REST API calls.
+All functions are stateless and return explicit results.
 """
 
-import json
-import requests
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from crud.system_config import system_config_crud
-from core.config import settings
+from typing import Optional, Dict, Any
+import httpx
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Configuration key for storing LeanCloud conversation ID
-LEANCLOUD_CONVERSATION_ID_KEY = "leancloud_conversation_id"
-LEANCLOUD_CONVERSATION_ID_DESCRIPTION = "LeanCloud system conversation ID for message service"
 
-
-async def get_leancloud_conversation_id(db: AsyncSession) -> str:
+async def create_system_conversation(
+    app_id: str,
+    master_key: str,
+    base_url: str,
+    name: str = "系统对话"
+) -> tuple[bool, Optional[str], Optional[str]]:
     """
-    Get LeanCloud conversation ID from database.
-
+    Create LeanCloud system conversation (service conversation).
+    
+    Pure function that calls LeanCloud REST API to create a system conversation.
+    
     Args:
-        db: Database session
-
+        app_id: LeanCloud App ID
+        master_key: LeanCloud Master Key
+        base_url: LeanCloud base URL (e.g., https://zcuk19lc.lc-cn-n1-shared.com)
+        name: System conversation name (default: "系统对话")
+        
     Returns:
-        str: The conversation ID
-
-    Raises:
-        ValueError: If conversation ID is not configured
+        Tuple of (success, conversation_id, error_message)
+        - success: True if creation successful
+        - conversation_id: LeanCloud conversation ID (objectId) if successful
+        - error_message: Error message if failed
+        
+    Example:
+        success, conv_id, error = await create_system_conversation(
+            app_id="xxx",
+            master_key="yyy",
+            base_url="https://xxx.lc-cn-n1-shared.com",
+            name="系统对话"
+        )
     """
-    config_value = await system_config_crud.get_config_value(db, LEANCLOUD_CONVERSATION_ID_KEY)
-    if not config_value:
-        raise ValueError("LeanCloud conversation ID not configured")
-
-    logger.debug("leancloud_conversation_id_retrieved", conversation_id=config_value)
-    return config_value
-
-
-async def create_and_save_leancloud_conversation_id(db: AsyncSession) -> str:
-    """
-    Create new LeanCloud conversation ID and save to database.
-
-    Args:
-        db: Database session
-
-    Returns:
-        str: The newly created conversation ID
-
-    Raises:
-        RuntimeError: If LeanCloud API fails
-    """
-    conversation_id = await _create_leancloud_conversation_via_api()
-
-    await system_config_crud.set_config(
-        db, LEANCLOUD_CONVERSATION_ID_KEY, conversation_id, LEANCLOUD_CONVERSATION_ID_DESCRIPTION
-    )
-
-    logger.info("leancloud_conversation_id_created_and_saved", conversation_id=conversation_id)
-    return conversation_id
-
-
-async def validate_leancloud_conversation_exists(conversation_id: str) -> bool:
-    """
-    Validate if LeanCloud conversation exists on LeanCloud server.
-
-    Args:
-        conversation_id: The conversation ID to validate
-
-    Returns:
-        bool: True if conversation exists, False otherwise
-    """
-    try:
-        url = f"{settings.LEANCLOUD_BASE_URL}/1.2/rtm/service-conversations"
-        headers = {
-            "X-LC-Id": settings.LEANCLOUD_APP_ID,
-            "X-LC-Key": f"{settings.LEANCLOUD_MASTER_KEY},master",
-        }
-        params = {"where": json.dumps({"objectId": conversation_id})}
-
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-
-        if response.status_code == 200:
-            data = response.json()
-            exists = len(data.get("results", [])) > 0
-            logger.debug(
-                "leancloud_conversation_validation_result", conversation_id=conversation_id, exists=exists
-            )
-            return exists
-        else:
-            logger.warning(
-                "leancloud_conversation_validation_failed",
-                conversation_id=conversation_id,
-                status_code=response.status_code,
-            )
-            return False
-
-    except Exception as e:
-        logger.error("validate_leancloud_conversation_error", conversation_id=conversation_id, error=str(e))
-        return False
-
-
-async def _create_leancloud_conversation_via_api() -> str:
-    """
-    Create LeanCloud service conversation via REST API.
-
-    Returns:
-        str: The created conversation ID (objectId)
-
-    Raises:
-        RuntimeError: If API call fails
-    """
-    url = f"{settings.LEANCLOUD_BASE_URL}/1.2/rtm/service-conversations"
-
+    url = f"{base_url}/1.2/rtm/service-conversations"
     headers = {
-        "X-LC-Id": settings.LEANCLOUD_APP_ID,
-        "X-LC-Key": f"{settings.LEANCLOUD_MASTER_KEY},master",
-        "Content-Type": "application/json",
+        "X-LC-Id": app_id,
+        "X-LC-Key": f"{master_key},master",
+        "Content-Type": "application/json"
     }
-
-    data = {
-        "name": "leancloud_message_service",
-        "sys": True,
-        "attr": {
-            "created_by": "says",
-            "auto_generated": True,
-            "version": "1.0",
-        },
-    }
-
-    logger.debug("creating_leancloud_conversation", url=url, data=data)
-
+    body = {"name": name}
+    
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-
-        if response.status_code == 201:
-            conversation = response.json()
-            conversation_id = conversation["objectId"]
-            logger.info(
-                "leancloud_conversation_created",
-                conversation_id=conversation_id,
-                name=conversation.get("name"),
-            )
-            return conversation_id
-        else:
-            error_msg = (
-                f"LeanCloud API returned error. "
-                f"Status: {response.status_code}, "
-                f"Response: {response.text}"
-            )
-            logger.error("leancloud_api_error", status=response.status_code, response=response.text)
-            raise RuntimeError(error_msg)
-
-    except requests.RequestException as e:
-        logger.error("network_error_creating_leancloud_conversation", error=str(e))
-        raise RuntimeError(f"Network error creating LeanCloud conversation: {str(e)}")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(url, headers=headers, json=body)
+            
+            if response.status_code == 201 or response.status_code == 200:
+                data = response.json()
+                conversation_id = data.get("objectId")
+                if conversation_id:
+                    logger.info(
+                        "leancloud_system_conversation_created",
+                        conversation_id=conversation_id,
+                        name=name
+                    )
+                    return True, conversation_id, None
+                else:
+                    error_msg = "Response missing objectId field"
+                    logger.error("leancloud_create_conversation_invalid_response", response=data)
+                    return False, None, error_msg
+            else:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
+                logger.error(
+                    "leancloud_create_conversation_failed",
+                    status_code=response.status_code,
+                    response=response.text
+                )
+                return False, None, error_msg
+                
+    except httpx.TimeoutException as e:
+        error_msg = f"Request timeout: {str(e)}"
+        logger.error("leancloud_create_conversation_timeout", error=str(e))
+        return False, None, error_msg
+    except httpx.HTTPError as e:
+        error_msg = f"HTTP error: {str(e)}"
+        logger.error("leancloud_create_conversation_http_error", error=str(e))
+        return False, None, error_msg
     except Exception as e:
-        logger.error("unexpected_error_creating_leancloud_conversation", error=str(e))
-        raise RuntimeError(f"Unexpected error creating LeanCloud conversation: {str(e)}")
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error("leancloud_create_conversation_unexpected_error", error=str(e))
+        return False, None, error_msg
+
+
+async def subscribe_user_to_conversation(
+    app_id: str,
+    master_key: str,
+    base_url: str,
+    conversation_id: str,
+    client_id: str
+) -> tuple[bool, Optional[str]]:
+    """
+    Subscribe user to LeanCloud system conversation.
+    
+    Args:
+        app_id: LeanCloud App ID
+        master_key: LeanCloud Master Key
+        base_url: LeanCloud base URL
+        conversation_id: System conversation ID
+        client_id: User's client ID (qiao_id)
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    url = f"{base_url}/1.2/rtm/service-conversations/{conversation_id}/subscribers"
+    headers = {
+        "X-LC-Id": app_id,
+        "X-LC-Key": f"{master_key},master",
+        "Content-Type": "application/json"
+    }
+    body = {"client_id": client_id}
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(url, headers=headers, json=body)
+            
+            if response.status_code == 200:
+                logger.info(
+                    "leancloud_user_subscribed",
+                    conversation_id=conversation_id,
+                    client_id=client_id
+                )
+                return True, None
+            else:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
+                logger.error(
+                    "leancloud_subscribe_failed",
+                    conversation_id=conversation_id,
+                    client_id=client_id,
+                    status_code=response.status_code,
+                    response=response.text
+                )
+                return False, error_msg
+                
+    except httpx.TimeoutException as e:
+        error_msg = f"Request timeout: {str(e)}"
+        logger.error("leancloud_subscribe_timeout", error=str(e))
+        return False, error_msg
+    except httpx.HTTPError as e:
+        error_msg = f"HTTP error: {str(e)}"
+        logger.error("leancloud_subscribe_http_error", error=str(e))
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error("leancloud_subscribe_unexpected_error", error=str(e))
+        return False, error_msg
+
+
+async def unsubscribe_user_from_conversation(
+    app_id: str,
+    master_key: str,
+    base_url: str,
+    conversation_id: str,
+    client_id: str
+) -> tuple[bool, Optional[str]]:
+    """
+    Unsubscribe user from LeanCloud system conversation.
+    
+    Args:
+        app_id: LeanCloud App ID
+        master_key: LeanCloud Master Key
+        base_url: LeanCloud base URL
+        conversation_id: System conversation ID
+        client_id: User's client ID (qiao_id)
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    url = f"{base_url}/1.2/rtm/service-conversations/{conversation_id}/subscribers/{client_id}"
+    headers = {
+        "X-LC-Id": app_id,
+        "X-LC-Key": f"{master_key},master"
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.delete(url, headers=headers)
+            
+            if response.status_code == 200:
+                logger.info(
+                    "leancloud_user_unsubscribed",
+                    conversation_id=conversation_id,
+                    client_id=client_id
+                )
+                return True, None
+            else:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
+                logger.error(
+                    "leancloud_unsubscribe_failed",
+                    conversation_id=conversation_id,
+                    client_id=client_id,
+                    status_code=response.status_code,
+                    response=response.text
+                )
+                return False, error_msg
+                
+    except httpx.TimeoutException as e:
+        error_msg = f"Request timeout: {str(e)}"
+        logger.error("leancloud_unsubscribe_timeout", error=str(e))
+        return False, error_msg
+    except httpx.HTTPError as e:
+        error_msg = f"HTTP error: {str(e)}"
+        logger.error("leancloud_unsubscribe_http_error", error=str(e))
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error("leancloud_unsubscribe_unexpected_error", error=str(e))
+        return False, error_msg
+

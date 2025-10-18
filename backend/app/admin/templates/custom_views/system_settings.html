@@ -57,6 +57,100 @@
                 </div>
                 {% endif %}
 
+                <!-- System Management Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h2 class="mb-3">System Management</h2>
+                    </div>
+
+                    <!-- LeanCloud Management -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">LeanCloud System</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">System Conversation ID</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" value="{{ conversation_id or '' }}"
+                                            readonly>
+                                        <button class="btn btn-icon" onclick="copyConversationId()" title="Copy">
+                                            <i class="fa fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Configuration Status</label>
+                                    <div>
+                                        {% if leancloud_config.has_app_id %}✓{% else %}✗{% endif %} App ID<br>
+                                        {% if leancloud_config.has_master_key %}✓{% else %}✗{% endif %} Master Key<br>
+                                        {% if leancloud_config.has_base_url %}✓{% else %}✗{% endif %} Base URL<br>
+                                        {% if conversation_id %}✓{% else %}✗{% endif %} Conversation
+                                    </div>
+                                </div>
+                                <div>
+                                    <button class="btn btn-warning" onclick="regenerateSystemConversation()">
+                                        <i class="fa fa-refresh me-1"></i>Regenerate Conversation
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Webhook Management -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Webhook Management</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Webhook URL</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" value="{{ webhook_url or '' }}"
+                                            readonly>
+                                        <button class="btn btn-icon" onclick="copyWebhookUrlSettings()" title="Copy">
+                                            <i class="fa fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        Configure this URL in LeanCloud console: 开发者中心 > 即时通讯 > 设置 > 服务号消息回调
+                                    </small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Token Status</label>
+                                    <div>
+                                        {% if webhook_token %}
+                                        ✓ Token generated ({{ token_length }} characters)
+                                        {% else %}
+                                        ✗ Token not generated
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="alert alert-warning" role="alert">
+                                    <i class="fa fa-exclamation-triangle me-2"></i>
+                                    <strong>Warning:</strong> Regenerating the token will invalidate the current webhook
+                                    URL.
+                                    You must update the URL in LeanCloud console immediately.
+                                </div>
+                                <button class="btn btn-warning" onclick="regenerateWebhookTokenSettings()">
+                                    <i class="fa fa-refresh me-1"></i>Regenerate Token
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Original Configuration Section -->
+                <div class="row">
+                    <div class="col-12">
+                        <h2 class="mb-3">System Configuration</h2>
+                    </div>
+                </div>
+
                 <!-- Configuration Form -->
                 <form method="post">
                     {% for group_key, group in config_groups.items() %}
@@ -271,4 +365,74 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Copy conversation ID to clipboard
+        async function copyConversationId() {
+            try {
+                const id = '{{ conversation_id }}';
+                await navigator.clipboard.writeText(id);
+                alert('Conversation ID copied!');
+            } catch (error) {
+                alert('Failed to copy');
+            }
+        }
+
+        // Regenerate system conversation
+        async function regenerateSystemConversation() {
+            if (!confirm('⚠️ WARNING: This will create a new system conversation and invalidate the old one!\n\nYou should update any references to the old conversation ID.\n\nContinue?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/admin-api/system/leancloud/refresh-conversation', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`✓ System conversation regenerated successfully!\n\nNew ID: ${data.conversation_id}`);
+                    location.reload();  // Reload page to show new conversation ID
+                } else {
+                    alert(`✗ Failed: ${data.error}`);
+                }
+            } catch (error) {
+                alert('✗ Failed to regenerate conversation');
+            }
+        }
+
+        // Copy webhook URL to clipboard
+        async function copyWebhookUrlSettings() {
+            try {
+                const url = '{{ webhook_url }}';
+                await navigator.clipboard.writeText(url);
+                alert('Webhook URL copied to clipboard!');
+            } catch (error) {
+                alert('Failed to copy URL');
+            }
+        }
+
+        // Regenerate webhook token
+        async function regenerateWebhookTokenSettings() {
+            if (!confirm('⚠️ WARNING: This will invalidate the current webhook URL!\n\nYou MUST update the webhook URL in LeanCloud console immediately after regeneration.\n\nContinue?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/admin-api/system/regenerate-webhook-token', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`✓ Token regenerated successfully!\n\n${data.warning}\n\nNew webhook URL has been loaded.`);
+                    location.reload();  // Reload page to show new token and URL
+                } else {
+                    alert(`✗ Failed: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert('✗ Failed to regenerate token');
+            }
+        }
+    </script>
     {% endblock %}

@@ -23,6 +23,13 @@ def generate_qiao_id() -> str:
     return f"qiao_{random_chars}"
 
 
+def generate_conv_id() -> str:
+    """Generate conv_id with proper prefix and random characters."""
+    # Generate 16 random characters (letters and digits)
+    random_chars = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+    return f"conv_{random_chars}"
+
+
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
 

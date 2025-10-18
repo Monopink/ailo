@@ -16,6 +16,7 @@ from utils.snowflake import init_snowflake
 from api.v1 import v1_router
 from api.admin import admin_api_router
 from admin import admin
+from middleware.rate_limit import APIRateLimitMiddleware
 
 configure_logging(
     log_level=settings.LOG_LEVEL,
@@ -45,6 +46,26 @@ async def lifespan(app: FastAPI):
         logger.info("initializing_database")
         await init_database()
         logger.info("database_initialized")
+
+        # Load rate limit configuration for middleware
+        logger.info("loading_rate_limit_config")
+        try:
+            from services.system_config import get_config
+
+            async with SessionLocal() as db:
+                api_requests = int(await get_config(db, key="api_rate_limit_requests", default=100))
+                api_window = int(await get_config(db, key="api_rate_limit_window", default=60))
+
+            # Store in app state for middleware
+            app.state.api_rate_limit_requests = api_requests
+            app.state.api_rate_limit_window = api_window
+
+            logger.info("rate_limit_config_loaded", api_requests=api_requests, api_window=api_window)
+        except Exception as e:
+            logger.error("rate_limit_config_load_error", error=str(e), exc_info=True)
+            # Use defaults
+            app.state.api_rate_limit_requests = 100
+            app.state.api_rate_limit_window = 60
 
         # Initialize message service (LeanCloud)
         logger.info("initializing_message_service")
@@ -108,6 +129,9 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(ProxyHeadersMiddleware)
+
+# API rate limit middleware (must be before other middlewares to protect early)
+app.add_middleware(APIRateLimitMiddleware)
 
 # Add middleware
 app.add_middleware(

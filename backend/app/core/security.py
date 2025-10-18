@@ -97,22 +97,5 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
-def create_admin_access_token(subject: Union[str, int], expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create a JWT access token specifically for admin users.
-
-    Args:
-        subject: The subject (admin user ID) to encode in the token
-        expires_delta: Optional expiration time delta
-
-    Returns:
-        str: The encoded JWT token
-    """
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ADMIN_JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-
-    to_encode = {"exp": expire, "sub": str(subject), "type": "admin"}
-    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-    return encoded_jwt
+# Admin authentication is handled by Starlette-Admin session-based authentication
+# No need for admin JWT tokens

@@ -31,7 +31,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
                 and_(
                     self.model.user_qiao_id == user_qiao_id,
                     self.model.contact_qiao_id == contact_qiao_id,
-                    ~self.model.is_deleted,
+                    self.model.is_deleted == 0,
                 )
             )
         )
@@ -48,13 +48,13 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         limit: int = 100,
     ) -> List[Contact]:
         """Get user's contacts with filtering."""
-        conditions = [self.model.user_qiao_id == user_qiao_id, ~self.model.is_deleted]
+        conditions = [self.model.user_qiao_id == user_qiao_id, self.model.is_deleted == 0]
 
         if contact_type:
             conditions.append(self.model.contact_type == contact_type)
 
         if not include_blocked:
-            conditions.append(~self.model.is_blocked)
+            conditions.append(self.model.is_blocked == 0)
 
         result = await db.execute(
             select(self.model)
@@ -73,7 +73,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
                 and_(
                     self.model.user_qiao_id == user_qiao_id,
                     self.model.is_pinned.is_(True),
-                    ~self.model.is_deleted,
+                    self.model.is_deleted == 0,
                 )
             )
             .order_by(self.model.updated_at.desc())
@@ -89,7 +89,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             .where(
                 and_(
                     self.model.user_qiao_id == user_qiao_id,
-                    ~self.model.is_deleted,
+                    self.model.is_deleted == 0,
                     or_(
                         self.model.alias.ilike(f"%{query}%"), self.model.contact_qiao_id.ilike(f"%{query}%")
                     ),
@@ -103,7 +103,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         self, db: AsyncSession, *, user_qiao_id: str, contact_type: Optional[ContactType] = None
     ) -> int:
         """Count user's contacts."""
-        conditions = [self.model.user_qiao_id == user_qiao_id, ~self.model.is_deleted]
+        conditions = [self.model.user_qiao_id == user_qiao_id, self.model.is_deleted == 0]
 
         if contact_type:
             conditions.append(self.model.contact_type == contact_type)
@@ -112,6 +112,31 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         count = result.scalar()
         return count if count is not None else 0
 
+    async def create_with_user(
+        self, db: AsyncSession, *, obj_in: ContactCreate, user_qiao_id: str, user_id: int, conv_id: str
+    ) -> Contact:
+        """Create contact with user information."""
+        from utils.snowflake import generate_snowflake_id
+
+        contact_data = {
+            "id": generate_snowflake_id(),
+            "conv_id": conv_id,
+            "user_id": user_id,
+            "user_qiao_id": user_qiao_id,
+            "contact_type": obj_in.contact_type,
+            "contact_id": 0,  # Will be set after querying contact
+            "contact_qiao_id": obj_in.contact_qiao_id,
+            "alias": obj_in.alias,
+            "avatar_alias_url": obj_in.avatar_alias_url,
+            "tags": obj_in.tags,
+            "remark": obj_in.remark,
+        }
+
+        db_obj = self.model(**contact_data)
+        db.add(db_obj)
+        await db.flush()
+        return db_obj
+
     async def is_contact_exists(self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str) -> bool:
         """Check if contact relationship exists."""
         result = await db.execute(
@@ -119,7 +144,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
                 and_(
                     self.model.user_qiao_id == user_qiao_id,
                     self.model.contact_qiao_id == contact_qiao_id,
-                    ~self.model.is_deleted,
+                    self.model.is_deleted == 0,
                 )
             )
         )
@@ -149,7 +174,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
                 and_(
                     self.model.user_qiao_id == user_qiao_id,
                     self.model.contact_qiao_id.in_(contact_qiao_ids),
-                    ~self.model.is_deleted,
+                    self.model.is_deleted == 0,
                 )
             )
         )

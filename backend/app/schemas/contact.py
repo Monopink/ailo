@@ -53,6 +53,7 @@ class ContactResponse(ContactBase):
     """Schema for contact response data."""
 
     conv_id: str = Field(..., description="Conversation identifier")
+    im_conv_id: str = Field(..., description="IM provider conversation ID")
     contact_id: int = Field(..., description="Contact internal ID")
     is_pinned: bool = Field(..., description="Is pinned")
     is_muted: bool = Field(..., description="Is muted")
@@ -66,6 +67,7 @@ class ContactListResponse(BaseSchema):
     """Schema for contact list item (minimal info)."""
 
     conv_id: str = Field(..., description="Conversation identifier")
+    im_conv_id: str = Field(..., description="IM provider conversation ID")
     contact_qiao_id: str = Field(..., description="Contact external ID")
     contact_type: ContactType = Field(..., description="Contact type")
     alias: Optional[str] = Field(None, description="Contact alias/remark name")
@@ -74,6 +76,39 @@ class ContactListResponse(BaseSchema):
     is_muted: bool = Field(..., description="Is muted")
     is_blocked: bool = Field(..., description="Is blocked")
     created_at: datetime = Field(..., description="Contact creation time")
+
+
+# Contact Add Schema
+
+
+class ContactAddRequest(BaseModel):
+    """Schema for adding a new contact."""
+
+    contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID to add")
+    alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
+    tags: Optional[List[str]] = Field(None, description="Contact tags")
+    source: str = Field("discovery", description="Add source: discovery, search, recommend, etc.")
+
+
+# Conversation Info Schema
+
+
+class ContactInfoBase(BaseSchema):
+    """Base schema for contact info in conversation."""
+
+    nickname: Optional[str] = Field(None, description="Contact nickname")
+    avatar_url: Optional[str] = Field(None, description="Contact avatar URL")
+    gender: Optional[int] = Field(None, description="Contact gender")
+
+
+class ConversationInfoResponse(BaseSchema):
+    """Schema for conversation info response."""
+
+    conv_id: str = Field(..., description="Conversation identifier")
+    im_conv_id: str = Field(..., description="IM provider conversation ID")
+    contact_qiao_id: str = Field(..., description="Contact external ID")
+    contact_type: ContactType = Field(..., description="Contact type")
+    contact_info: ContactInfoBase = Field(..., description="Contact basic info")
 
 
 # Contact Request Schemas

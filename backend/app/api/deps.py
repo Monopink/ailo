@@ -195,7 +195,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         HTTPException: 401 if not authenticated or token invalid
     """
     from crud.user import user as user_crud, user_token as token_crud
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     # 1. Get token from Authorization header
     auth_header = request.headers.get("Authorization")
@@ -214,7 +214,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"})
 
     # 4. Check token expiration
-    if user_token.expires_at < datetime.utcnow():
+    if user_token.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"})
 
     # 5. Get user
@@ -227,7 +227,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=401, detail="账号已被禁用", headers={"WWW-Authenticate": "Bearer"})
 
     # 7. Update last_activity_at
-    user_token.last_activity_at = datetime.utcnow()
+    user_token.last_activity_at = datetime.now(timezone.utc)
     db.add(user_token)
     await db.commit()
 

@@ -4,12 +4,13 @@ Profile CRUD operations
 
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, and_
 from sqlalchemy.orm import selectinload
 
 from crud.base import CRUDBase
 from models.profile import Profile
 from schemas.profile import ProfileCreate, ProfileUpdate
+from enums import ProfileOwnerType
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,74 +19,139 @@ logger = get_logger(__name__)
 class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
     """Profile CRUD operations"""
 
-    async def get_by_user_id(self, db: AsyncSession, user_id: int) -> Optional[Profile]:
-        """Get profile by user ID"""
+    async def get_by_owner(
+        self, db: AsyncSession, *, owner_id: int, owner_type: ProfileOwnerType
+    ) -> Optional[Profile]:
+        """Get profile by owner ID and type"""
         try:
-            stmt = select(self.model).where(self.model.user_id == user_id)
+            stmt = select(self.model).where(
+                and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type)
+            )
             result = await db.execute(stmt)
             return result.scalar_one_or_none()
         except Exception as e:
-            logger.error("get_profile_by_user_id_error", error=str(e), user_id=user_id)
+            logger.error(
+                "get_profile_by_owner_error", error=str(e), owner_id=owner_id, owner_type=owner_type
+            )
             raise
 
-    async def create_with_user_id(
-        self, db: AsyncSession, *, obj_in: ProfileCreate, user_id: int
-    ) -> Profile:
-        """Create profile with user ID"""
+    async def get_by_owner_qiao_id(
+        self, db: AsyncSession, *, owner_qiao_id: str, owner_type: ProfileOwnerType
+    ) -> Optional[Profile]:
+        """Get profile by owner qiao_id and type"""
         try:
-            obj_data = obj_in.model_dump()
-            obj_data["user_id"] = user_id
+            stmt = select(self.model).where(
+                and_(self.model.owner_qiao_id == owner_qiao_id, self.model.owner_type == owner_type)
+            )
+            result = await db.execute(stmt)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(
+                "get_profile_by_owner_qiao_id_error",
+                error=str(e),
+                owner_qiao_id=owner_qiao_id,
+                owner_type=owner_type,
+            )
+            raise
+
+    async def create_with_owner(
+        self,
+        db: AsyncSession,
+        *,
+        obj_in: ProfileCreate,
+        owner_id: int,
+        owner_qiao_id: str,
+        owner_type: ProfileOwnerType,
+    ) -> Profile:
+        """Create profile with owner information"""
+        try:
+            obj_data = obj_in.model_dump(exclude_unset=True)
+            obj_data["owner_id"] = owner_id
+            obj_data["owner_qiao_id"] = owner_qiao_id
+            obj_data["owner_type"] = owner_type
+
+            from utils.snowflake import generate_snowflake_id
+
+            obj_data["id"] = generate_snowflake_id()
+
             db_obj = self.model(**obj_data)
             db.add(db_obj)
             await db.commit()
             await db.refresh(db_obj)
-            logger.info("profile_created", profile_id=db_obj.id, user_id=user_id)
+            logger.info(
+                "profile_created",
+                profile_id=db_obj.id,
+                owner_id=owner_id,
+                owner_qiao_id=owner_qiao_id,
+                owner_type=owner_type,
+            )
             return db_obj
         except Exception as e:
             await db.rollback()
-            logger.error("create_profile_error", error=str(e), user_id=user_id)
+            logger.error(
+                "create_profile_error",
+                error=str(e),
+                owner_id=owner_id,
+                owner_qiao_id=owner_qiao_id,
+                owner_type=owner_type,
+            )
             raise
 
-    async def update_by_user_id(
-        self, db: AsyncSession, *, user_id: int, obj_in: ProfileUpdate
+    async def update_by_owner(
+        self,
+        db: AsyncSession,
+        *,
+        owner_id: int,
+        owner_type: ProfileOwnerType,
+        obj_in: ProfileUpdate,
     ) -> Optional[Profile]:
-        """Update profile by user ID"""
+        """Update profile by owner ID and type"""
         try:
             # Get existing profile
-            db_obj = await self.get_by_user_id(db, user_id=user_id)
+            db_obj = await self.get_by_owner(db, owner_id=owner_id, owner_type=owner_type)
             if not db_obj:
                 return None
 
             # Update profile
             update_data = obj_in.model_dump(exclude_unset=True)
             if update_data:
-                stmt = update(self.model).where(self.model.user_id == user_id).values(**update_data)
+                stmt = (
+                    update(self.model)
+                    .where(and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type))
+                    .values(**update_data)
+                )
                 await db.execute(stmt)
                 await db.commit()
                 await db.refresh(db_obj)
-                logger.info("profile_updated", profile_id=db_obj.id, user_id=user_id)
+                logger.info(
+                    "profile_updated", profile_id=db_obj.id, owner_id=owner_id, owner_type=owner_type
+                )
 
             return db_obj
         except Exception as e:
             await db.rollback()
-            logger.error("update_profile_error", error=str(e), user_id=user_id)
+            logger.error("update_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type)
             raise
 
-    async def delete_by_user_id(self, db: AsyncSession, user_id: int) -> bool:
-        """Delete profile by user ID"""
+    async def delete_by_owner(
+        self, db: AsyncSession, *, owner_id: int, owner_type: ProfileOwnerType
+    ) -> bool:
+        """Delete profile by owner ID and type"""
         try:
-            stmt = delete(self.model).where(self.model.user_id == user_id)
+            stmt = delete(self.model).where(
+                and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type)
+            )
             result = await db.execute(stmt)
             await db.commit()
 
             deleted = result.rowcount > 0
             if deleted:
-                logger.info("profile_deleted", user_id=user_id)
+                logger.info("profile_deleted", owner_id=owner_id, owner_type=owner_type)
 
             return deleted
         except Exception as e:
             await db.rollback()
-            logger.error("delete_profile_error", error=str(e), user_id=user_id)
+            logger.error("delete_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type)
             raise
 
     async def get_profiles_by_gender(

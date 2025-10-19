@@ -1,7 +1,7 @@
 """
 User management CRUD operations.
 
-This module contains CRUD operations for user accounts, sessions, and authentication.
+This module contains CRUD operations for user accounts, tokens, and authentication.
 """
 
 from typing import List, Optional
@@ -9,8 +9,8 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBaseWithQiaoId, CRUDBase
-from models.user import User, UserSession, LoginRecord
-from schemas.user import UserCreate, UserUpdate, SessionCreate
+from models.user import User, UserToken, LoginRecord
+from schemas.user import UserCreate, UserUpdate, TokenCreate
 from enums import UserStatus, DeviceType
 
 
@@ -47,12 +47,13 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         self, db: AsyncSession, *, phone: Optional[str] = None, email: Optional[str] = None, password: str
     ) -> Optional[User]:
         """Authenticate user with phone/email and password."""
+        from core.security import verify_password
+
         user = await self.get_by_phone_or_email(db, phone=phone, email=email)
         if not user:
             return None
-        # TODO: Implement password verification
-        # if not verify_password(password, user.password_hash):
-        #     return None
+        if not verify_password(password, user.password_hash):
+            return None
         return user
 
     async def is_active(self, user: User) -> bool:
@@ -85,25 +86,25 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         return list(result.scalars().all())
 
 
-class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
-    """CRUD operations for UserSession model."""
+class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
+    """CRUD operations for UserToken model."""
 
-    async def get_by_token(self, db: AsyncSession, *, token: str) -> Optional[UserSession]:
-        """Get session by token."""
-        result = await db.execute(select(self.model).where(self.model.session_token == token))
+    async def get_by_token(self, db: AsyncSession, *, token: str) -> Optional[UserToken]:
+        """Get token by token string."""
+        result = await db.execute(select(self.model).where(self.model.token == token))
         return result.scalar_one_or_none()
 
-    async def get_active_session(self, db: AsyncSession, *, token: str) -> Optional[UserSession]:
-        """Get active session by token."""
+    async def get_active_token(self, db: AsyncSession, *, token: str) -> Optional[UserToken]:
+        """Get active token by token string."""
         result = await db.execute(
-            select(self.model).where(and_(self.model.session_token == token, self.model.status == 1))
+            select(self.model).where(and_(self.model.token == token, self.model.status == 1))
         )
         return result.scalar_one_or_none()
 
-    async def get_user_sessions(
+    async def get_user_tokens(
         self, db: AsyncSession, *, user_id: int, active_only: bool = True
-    ) -> List[UserSession]:
-        """Get user's sessions."""
+    ) -> List[UserToken]:
+        """Get user's tokens."""
         query = select(self.model).where(self.model.user_id == user_id)
         if active_only:
             query = query.where(self.model.status == 1)
@@ -111,10 +112,10 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
         result = await db.execute(query)
         return list(result.scalars().all())
 
-    async def get_user_sessions_by_device(
+    async def get_user_tokens_by_device(
         self, db: AsyncSession, *, user_id: int, device_type: DeviceType
-    ) -> List[UserSession]:
-        """Get user's sessions by device type."""
+    ) -> List[UserToken]:
+        """Get user's tokens by device type."""
         result = await db.execute(
             select(self.model).where(
                 and_(
@@ -126,31 +127,64 @@ class CRUDUserSession(CRUDBase[UserSession, SessionCreate, dict]):
         )
         return list(result.scalars().all())
 
-    async def deactivate_session(self, db: AsyncSession, *, token: str) -> Optional[UserSession]:
-        """Deactivate a session."""
-        session = await self.get_by_token(db, token=token)
-        if session:
-            session.status = 2
-            db.add(session)
-            await db.commit()
-            await db.refresh(session)
-        return session
+    async def revoke_token(self, db: AsyncSession, *, token: str) -> Optional[UserToken]:
+        """Revoke a token."""
+        from datetime import datetime
 
-    async def deactivate_user_sessions(
+        user_token = await self.get_by_token(db, token=token)
+        if user_token:
+            user_token.status = 2
+            user_token.revoked_at = datetime.utcnow()
+            db.add(user_token)
+            await db.commit()
+            await db.refresh(user_token)
+        return user_token
+
+    async def revoke_user_tokens(
         self, db: AsyncSession, *, user_id: int, exclude_token: Optional[str] = None
     ) -> int:
-        """Deactivate all user sessions except the excluded one."""
+        """Revoke all user tokens except the excluded one."""
+        from datetime import datetime
+
         query = select(self.model).where(and_(self.model.user_id == user_id, self.model.status == 1))
         if exclude_token:
-            query = query.where(self.model.session_token != exclude_token)
+            query = query.where(self.model.token != exclude_token)
 
         result = await db.execute(query)
-        sessions = result.scalars().all()
+        tokens = result.scalars().all()
 
         count = 0
-        for session in sessions:
-            session.status = 2
-            db.add(session)
+        revoked_at = datetime.utcnow()
+        for user_token in tokens:
+            user_token.status = 2
+            user_token.revoked_at = revoked_at
+            db.add(user_token)
+            count += 1
+
+        await db.commit()
+        return count
+
+    async def revoke_user_tokens_by_device(
+        self, db: AsyncSession, *, user_id: int, device_type: DeviceType
+    ) -> int:
+        """Revoke all user tokens for a specific device type."""
+        from datetime import datetime
+
+        query = select(self.model).where(
+            and_(
+                self.model.user_id == user_id, self.model.device_type == device_type, self.model.status == 1
+            )
+        )
+
+        result = await db.execute(query)
+        tokens = result.scalars().all()
+
+        count = 0
+        revoked_at = datetime.utcnow()
+        for user_token in tokens:
+            user_token.status = 2
+            user_token.revoked_at = revoked_at
+            db.add(user_token)
             count += 1
 
         await db.commit()
@@ -193,5 +227,5 @@ class CRUDLoginRecord(CRUDBase[LoginRecord, dict, dict]):
 
 # Create CRUD instances
 user = CRUDUser(User)
-user_session = CRUDUserSession(UserSession)
+user_token = CRUDUserToken(UserToken)
 login_record = CRUDLoginRecord(LoginRecord)

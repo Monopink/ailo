@@ -172,7 +172,7 @@ async def get_active_sessions_stats(db: AsyncSession) -> Dict[str, Any]:
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM user_sessions
+                SELECT COUNT(*) FROM user_tokens
                 WHERE status = 1
                   AND expires_at > NOW()
                   AND last_activity_at >= NOW() - INTERVAL '30 minutes'
@@ -185,7 +185,7 @@ async def get_active_sessions_stats(db: AsyncSession) -> Dict[str, Any]:
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM user_sessions
+                SELECT COUNT(*) FROM user_tokens
                 WHERE status = 1
                   AND expires_at > NOW() - INTERVAL '1 hour'
                   AND last_activity_at >= NOW() - INTERVAL '90 minutes'

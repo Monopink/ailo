@@ -11,7 +11,7 @@ from .user_admin_views import USER_ADMIN_MODEL_VIEWS
 from .message_media_views import MESSAGE_MEDIA_MODEL_VIEWS
 from .llm_views import LLM_MODEL_VIEWS
 from .security_views import SECURITY_MODEL_VIEWS
-from .session_views import SESSION_MODEL_VIEWS
+from .token_views import TOKEN_MODEL_VIEWS
 from .business_views import BUSINESS_MODEL_VIEWS
 from .ai_extended_views import AI_EXTENDED_MODEL_VIEWS
 from .stats_views import STATS_MODEL_VIEWS
@@ -65,8 +65,8 @@ from .security_views import (
     user_security_stats_view,
 )
 
-from .session_views import (
-    user_session_view,
+from .token_views import (
+    user_token_view,
     login_record_view,
 )
 
@@ -103,7 +103,7 @@ ALL_MODEL_VIEWS = [
     *MESSAGE_MEDIA_MODEL_VIEWS,
     *LLM_MODEL_VIEWS,
     *SECURITY_MODEL_VIEWS,
-    *SESSION_MODEL_VIEWS,
+    *TOKEN_MODEL_VIEWS,
     *BUSINESS_MODEL_VIEWS,
     *AI_EXTENDED_MODEL_VIEWS,
     *STATS_MODEL_VIEWS,
@@ -152,8 +152,8 @@ __all__ = [
     # Individual security views
     "user_security_log_view",
     "user_security_stats_view",
-    # Individual session views
-    "user_session_view",
+    # Individual token views
+    "user_token_view",
     "login_record_view",
     # Individual business views
     "contact_request_view",

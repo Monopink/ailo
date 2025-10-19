@@ -48,12 +48,12 @@ CREATE TABLE IF NOT EXISTS users (
 -- Note: No additional indexes needed for MVP
 
 
--- User sessions table - Session management with device limits
-CREATE TABLE IF NOT EXISTS user_sessions (
+-- User tokens table - JWT token management with device limits
+CREATE TABLE IF NOT EXISTS user_tokens (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
-    session_token VARCHAR(128) NOT NULL UNIQUE,
+    token VARCHAR(512) NOT NULL UNIQUE,
     device_type INTEGER NOT NULL,
     device_id VARCHAR(128),
     platform_info JSONB,
@@ -62,12 +62,13 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
     last_activity_at TIMESTAMP WITH TIME ZONE,
+    revoked_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for user_sessions table
-CREATE INDEX idx_user_sessions_user_qiao_id ON user_sessions(user_qiao_id);
+-- Create indexes for user_tokens table
+CREATE INDEX idx_user_tokens_user_qiao_id ON user_tokens(user_qiao_id);
 
 -- Login records table - Login attempt tracking
 CREATE TABLE IF NOT EXISTS login_records (
@@ -82,16 +83,9 @@ CREATE TABLE IF NOT EXISTS login_records (
     user_agent TEXT,
     result INTEGER NOT NULL,
     fail_reason VARCHAR(255),
-    session_token VARCHAR(128),
+    token VARCHAR(512),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
-
--- Create indexes for login_records table to optimize failed login attempts query
-CREATE INDEX IF NOT EXISTS idx_login_records_phone_result_time
-ON login_records(user_qiao_id, result, login_time DESC);
-
-CREATE INDEX IF NOT EXISTS idx_login_records_ip_result_time
-ON login_records(ip_address, result, login_time DESC);
 
 
 -- ============================================================================
@@ -953,7 +947,7 @@ $$ language 'plpgsql';
 -- Create triggers for all tables with updated_at column
 -- Drop existing triggers first to ensure idempotency
 DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-DROP TRIGGER IF EXISTS update_user_sessions_updated_at ON user_sessions;
+DROP TRIGGER IF EXISTS update_user_tokens_updated_at ON user_tokens;
 DROP TRIGGER IF EXISTS update_contacts_updated_at ON contacts;
 DROP TRIGGER IF EXISTS update_contact_requests_updated_at ON contact_requests;
 DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
@@ -980,7 +974,7 @@ DROP TRIGGER IF EXISTS update_llm_configs_updated_at ON llm_configs;
 
 -- Create triggers
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_user_sessions_updated_at BEFORE UPDATE ON user_sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_tokens_updated_at BEFORE UPDATE ON user_tokens FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contacts_updated_at BEFORE UPDATE ON contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contact_requests_updated_at BEFORE UPDATE ON contact_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

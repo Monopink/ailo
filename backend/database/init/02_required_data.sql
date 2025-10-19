@@ -32,9 +32,15 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 -- Business configurations
 ('default_contact_limit', '3', '3', 2, 'Default contact limit per user', 'business', NULL),
 ('default_search_display_limit', '20', '20', 2, 'Default search display limit', 'business', NULL),
-('contact_request_expiration_hours', '72', '72', 2, 'Contact request expiration time in hours', 'business', NULL),
+('contact_request_expiration', '259200', '259200', 2, 'Contact request expiration time (72 hours, in seconds)', 'business', NULL),
 ('max_message_length', '79', '59', 2, 'Maximum message length in characters', 'business', NULL),
-('session_timeout_hours', '24', '24', 2, 'User session timeout in hours', 'business', NULL),
+
+-- Authentication configurations
+('jwt_token_expires_in', '1209600', '1209600', 2, 'JWT token expiration time in seconds (14 days)', 'auth', NULL),
+('jwt_sliding_window', '604800', '604800', 2, 'JWT sliding window threshold in seconds (7 days, auto-renew if < this)', 'auth', NULL),
+('jwt_algorithm', 'HS256', 'HS256', 1, 'JWT signing algorithm', 'auth', NULL),
+('token_max_active_per_device', '1', '1', 2, 'Maximum active tokens per device type', 'auth', NULL),
+('token_cleanup_after', '2592000', '2592000', 2, 'Clean up revoked tokens older than N seconds (30 days)', 'auth', NULL),
 
 -- LeanCloud configurations
 -- Note: leancloud_master_key is managed via environment variable LEANCLOUD_MASTER_KEY
@@ -42,6 +48,8 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('leancloud_app_key', 'v8GM18oGSxzQTKpgQvdIfy2I', '', 1, 'LeanCloud App Key', 'leancloud', NULL),
 ('leancloud_base_url', 'https://zcuk19lc.lc-cn-n1-shared.com', '', 1, 'LeanCloud Base URL', 'leancloud', NULL),
 ('leancloud_service_conversation_id', '', '', 1, 'LeanCloud system conversation ID for message routing', 'leancloud', NULL),
+('leancloud_webhook_token', '', '', 1, 'Webhook security token for LeanCloud message callbacks (24-character URL-safe string)', 'leancloud', NULL),
+('api_base_url', '', '', 1, 'Base URL for API (e.g., https://example.com)', 'system', NULL),
 
 -- Message buffer configurations
 ('message_buffer_normal_wait', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
@@ -55,20 +63,66 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('ai_context_archive_min_count', '10', '10', 2, 'Minimum contexts to keep, do not archive if below this count', 'ai_context', NULL),
 ('ai_context_archive_threshold', '80', '80', 2, 'Trigger immediate archive when count exceeds this threshold', 'ai_context', NULL),
 
--- Admin security configurations
-('admin_max_ip_attempts', '10', '10', 2, 'Maximum login attempts per IP address before lockout', 'admin_security', NULL),
-('admin_ip_lockout_duration_minutes', '30', '30', 2, 'IP lockout duration in minutes after max attempts', 'admin_security', NULL),
-('admin_ip_attempt_window_minutes', '30', '30', 2, 'Time window for counting IP attempts in minutes', 'admin_security', NULL),
-('admin_whitelist_ips', '127.0.0.1,::1', '127.0.0.1,::1', 1, 'Whitelisted IP addresses (comma-separated)', 'admin_security', NULL),
-('admin_captcha_enabled', 'True', 'True', 3, 'Enable Cloudflare Turnstile CAPTCHA', 'admin_security', NULL),
-('admin_captcha_threshold', '1', '1', 2, 'Show CAPTCHA after N failed attempts from same IP', 'admin_security', NULL),
-('admin_captcha_mode', 'strict', 'strict', 5, 'CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'admin_security', '["strict", "fallback"]'::jsonb),
-('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '', 1, 'Cloudflare Turnstile Site Key (public)', 'admin_security', NULL),
-('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '', 1, 'Cloudflare Turnstile Secret Key (private)', 'admin_security', NULL),
-('admin_alert_on_suspicious_login', 'True', 'True', 3, 'Alert on suspicious login attempts', 'admin_security', NULL),
-('admin_alert_threshold_per_username', '20', '20', 2, 'Alert when username has N failed attempts from different IPs', 'admin_security', NULL),
-('admin_rate_limit_requests', '30', '30', 2, 'Maximum login requests per IP per minute', 'admin_security', NULL),
-('admin_rate_limit_window_seconds', '60', '60', 2, 'Rate limit time window in seconds', 'admin_security', NULL)
+-- API rate limit configuration
+('api_rate_limit_requests', '100', '100', 2, 'API requests per window', 'rate_limit', NULL),
+('api_rate_limit_window', '60', '60', 2, 'API window (seconds)', 'rate_limit', NULL),
+('api_whitelist', '', '', 1, 'API whitelist IPs (comma separated)', 'rate_limit', NULL),
+
+-- Admin authentication rate limit and security
+('admin_auth_rate_limit_requests', '30', '30', 2, 'Admin auth requests per window', 'rate_limit', NULL),
+('admin_auth_rate_limit_window', '60', '60', 2, 'Admin auth window (seconds)', 'rate_limit', NULL),
+('admin_auth_max_failures', '10', '10', 2, 'Max admin failures before lockout', 'security', NULL),
+('admin_auth_lockout_duration', '1800', '1800', 2, 'Admin lockout duration (seconds)', 'security', NULL),
+('admin_auth_whitelist', '127.0.0.1,::1', '127.0.0.1,::1', 1, 'Admin whitelist IPs (comma separated)', 'security', NULL),
+
+-- User authentication rate limit and security
+('user_auth_rate_limit_requests', '10', '10', 2, 'User auth requests per window', 'rate_limit', NULL),
+('user_auth_rate_limit_window', '3600', '3600', 2, 'User auth window (seconds)', 'rate_limit', NULL),
+('user_auth_max_failures', '5', '5', 2, 'Max user failures before lockout', 'security', NULL),
+('user_auth_lockout_duration', '900', '900', 2, 'User lockout duration (seconds)', 'security', NULL),
+
+-- SMS rate limit configuration
+('sms_rate_limit_requests', '1', '1', 2, 'SMS requests per window', 'rate_limit', NULL),
+('sms_rate_limit_window', '60', '60', 2, 'SMS window (seconds)', 'rate_limit', NULL),
+('sms_whitelist', '', '', 1, 'SMS whitelist phones (comma separated)', 'rate_limit', NULL),
+
+-- SMS provider configuration
+('sms_provider', 'mock', 'mock', 1, 'SMS provider', 'sms', '["mock"]'::jsonb),
+('sms_code_expires_in', '300', '300', 2, 'SMS code expiration time in seconds', 'sms', NULL),
+('sms_code_length', '6', '6', 2, 'SMS code length', 'sms', NULL),
+
+-- Admin CAPTCHA configuration
+('admin_captcha_provider', 'turnstile', 'turnstile', 1, 'Admin captcha provider', 'captcha', '["none","turnstile"]'::jsonb),
+('admin_captcha_threshold', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'captcha', NULL),
+('admin_captcha_mode', 'strict', 'strict', 5, 'Admin CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'captcha', '["strict", "fallback"]'::jsonb),
+('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '', 1, 'Admin Turnstile site key', 'captcha', NULL),
+('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '', 1, 'Admin Turnstile secret key', 'captcha', NULL),
+
+-- User CAPTCHA configuration
+('user_captcha_provider', 'turnstile', 'turnstile', 1, 'User captcha provider', 'captcha', '["none","turnstile"]'::jsonb),
+('user_captcha_threshold', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
+('user_turnstile_site_key', '', '', 1, 'User Turnstile site key', 'captcha', NULL),
+('user_turnstile_secret_key', '', '', 1, 'User Turnstile secret key', 'captcha', NULL),
+
+-- Admin security alerts
+('admin_alert_on_suspicious_login', 'True', 'True', 3, 'Alert on suspicious login attempts', 'security', NULL),
+('admin_alert_threshold_per_username', '20', '20', 2, 'Alert when username has N failed attempts from different IPs', 'security', NULL),
+
+-- User profile configuration
+('profile_nickname_min_length', '1', '1', 2, 'Minimum nickname length', 'profile', NULL),
+('profile_nickname_max_length', '50', '50', 2, 'Maximum nickname length', 'profile', NULL),
+('profile_bio_max_length', '200', '200', 2, 'Maximum bio length', 'profile', NULL),
+
+-- Contact configuration
+('contact_max_count', '100', '100', 2, 'Maximum contact count per user', 'contact', NULL),
+('contact_alias_max_length', '100', '100', 2, 'Maximum contact alias length', 'contact', NULL),
+('contact_remark_max_length', '500', '500', 2, 'Maximum contact remark length', 'contact', NULL),
+
+-- Message rate limit configuration (dual constraints)
+('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
+('message_rate_limit_short_window', '10', '10', 2, 'Short window (seconds)', 'rate_limit', NULL),
+('message_rate_limit_long_requests', '20', '20', 2, 'Max messages per long window', 'rate_limit', NULL),
+('message_rate_limit_long_window', '60', '60', 2, 'Long window (seconds)', 'rate_limit', NULL)
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     default_value = EXCLUDED.default_value,

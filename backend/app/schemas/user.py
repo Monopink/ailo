@@ -1,7 +1,7 @@
 """
 User management related schemas.
 
-This module contains Pydantic schemas for user accounts, sessions, and authentication.
+This module contains Pydantic schemas for user accounts, tokens, and authentication.
 """
 
 from datetime import datetime
@@ -68,11 +68,11 @@ class UserListResponse(BaseSchema):
     created_at: datetime = Field(..., description="Account creation time")
 
 
-# Session Schemas
+# Token Schemas
 
 
-class SessionCreate(BaseModel):
-    """Schema for creating a user session."""
+class TokenCreate(BaseModel):
+    """Schema for creating a user token."""
 
     device_type: DeviceType = Field(..., description="Device type")
     device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
@@ -81,16 +81,16 @@ class SessionCreate(BaseModel):
     user_agent: Optional[str] = Field(None, description="User agent string")
 
 
-class SessionResponse(BaseSchema):
-    """Schema for session response data."""
+class TokenResponse(BaseSchema):
+    """Schema for token response data."""
 
-    session_token: str = Field(..., description="Session token")
+    token: str = Field(..., description="JWT token")
     device_type: DeviceType = Field(..., description="Device type")
     device_id: Optional[str] = Field(None, description="Device identifier")
-    expires_at: datetime = Field(..., description="Session expiration time")
-    status: int = Field(..., description="Session status: 1=active, 2=inactive")
+    expires_at: datetime = Field(..., description="Token expiration time")
+    status: int = Field(..., description="Token status: 1=active, 2=revoked")
     last_activity_at: datetime = Field(..., description="Last activity time")
-    created_at: datetime = Field(..., description="Session creation time")
+    created_at: datetime = Field(..., description="Token creation time")
 
 
 # Authentication Schemas
@@ -122,14 +122,14 @@ class LoginResponse(BaseSchema):
     """Schema for login response."""
 
     user: UserResponse = Field(..., description="User information")
-    session_token: str = Field(..., description="Session token")
-    expires_at: datetime = Field(..., description="Session expiration time")
+    token: str = Field(..., description="JWT token")
+    expires_at: datetime = Field(..., description="Token expiration time")
 
 
 class LogoutRequest(BaseModel):
     """Schema for logout request."""
 
-    session_token: str = Field(..., description="Session token to invalidate")
+    token: str = Field(..., description="JWT token to revoke")
 
 
 # Password Management Schemas

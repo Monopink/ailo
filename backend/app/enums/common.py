@@ -15,8 +15,8 @@ class UserStatus(IntEnum):
     """User account status (users.status)"""
 
     ACTIVE = 1  # Normal active user
-    INACTIVE = 2  # Inactive user
-    SUSPENDED = 3  # Suspended user
+    DEACTIVATED = 2  # Account deactivated (user-initiated)
+    SUSPENDED = 3  # Account suspended (admin-initiated)
 
 
 class UserType(IntEnum):

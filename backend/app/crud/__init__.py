@@ -8,7 +8,7 @@ This module imports all CRUD classes for database operations.
 from .base import CRUDBase, CRUDBaseWithQiaoId, CRUDBaseWithStatus, ImmutableCRUDBase
 
 # User CRUD
-from .user import user, user_session, login_record
+from .user import user, user_token, login_record
 
 # Contact CRUD
 from .contact import contact, contact_request
@@ -42,7 +42,7 @@ __all__ = [
     "ImmutableCRUDBase",
     # User
     "user",
-    "user_session",
+    "user_token",
     "login_record",
     # Contact
     "contact",

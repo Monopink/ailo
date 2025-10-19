@@ -87,7 +87,7 @@ async def require_auth_rate_limit(auth_type: str):
                 status_code=429,
                 detail={
                     "error": error_code,
-                    "message": "认证请求过于频繁，请稍后再试",
+                    "message": "操作过于频繁，请稍后再试",
                     "retry_after": retry_after,
                 },
                 headers={"Retry-After": str(retry_after)},
@@ -165,7 +165,7 @@ async def require_captcha_if_needed(
             token = body.get(token_field)
 
             if not token:
-                raise HTTPException(status_code=400, detail="需要人机验证")
+                raise HTTPException(status_code=400, detail="需要进行验证")
 
             # Verify token
             provider = await create_captcha_provider(auth_type, db)
@@ -173,7 +173,7 @@ async def require_captcha_if_needed(
 
             if not is_valid:
                 logger.warning("captcha_verification_failed", ip=ip, auth_type=auth_type, error=error)
-                raise HTTPException(status_code=400, detail=f"人机验证失败: {error}")
+                raise HTTPException(status_code=400, detail=f"验证失败: {error}")
 
             logger.info("captcha_verification_success", ip=ip, auth_type=auth_type)
 
@@ -182,7 +182,7 @@ async def require_captcha_if_needed(
 
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Get current authenticated user from session token.
+    Get current authenticated user from JWT token.
 
     Args:
         request: FastAPI request
@@ -192,37 +192,33 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         User object
 
     Raises:
-        HTTPException: 401 if not authenticated or session invalid
+        HTTPException: 401 if not authenticated or token invalid
     """
-    from crud.user import user as user_crud, user_session as session_crud
+    from crud.user import user as user_crud, user_token as token_crud
     from datetime import datetime
 
     # 1. Get token from Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401, detail="未提供认证令牌", headers={"WWW-Authenticate": "Bearer"}
-        )
+        raise HTTPException(status_code=401, detail="登录失败", headers={"WWW-Authenticate": "Bearer"})
 
     token = auth_header[7:]  # Remove "Bearer " prefix
 
-    # 2. Get session from database
-    session = await session_crud.get_by_token(db, token=token)
-    if not session:
-        raise HTTPException(
-            status_code=401, detail="无效的认证令牌", headers={"WWW-Authenticate": "Bearer"}
-        )
+    # 2. Get token from database
+    user_token = await token_crud.get_by_token(db, token=token)
+    if not user_token:
+        raise HTTPException(status_code=401, detail="登录失败", headers={"WWW-Authenticate": "Bearer"})
 
-    # 3. Check session status
-    if session.status != 1:
-        raise HTTPException(status_code=401, detail="会话已失效", headers={"WWW-Authenticate": "Bearer"})
+    # 3. Check token status
+    if user_token.status != 1:
+        raise HTTPException(status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"})
 
-    # 4. Check session expiration
-    if session.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=401, detail="会话已过期", headers={"WWW-Authenticate": "Bearer"})
+    # 4. Check token expiration
+    if user_token.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"})
 
     # 5. Get user
-    user = await user_crud.get_by_qiao_id(db, qiao_id=session.user_qiao_id)
+    user = await user_crud.get_by_qiao_id(db, qiao_id=user_token.user_qiao_id)
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在", headers={"WWW-Authenticate": "Bearer"})
 
@@ -231,10 +227,10 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=401, detail="账号已被禁用", headers={"WWW-Authenticate": "Bearer"})
 
     # 7. Update last_activity_at
-    session.last_activity_at = datetime.utcnow()
-    db.add(session)
+    user_token.last_activity_at = datetime.utcnow()
+    db.add(user_token)
     await db.commit()
 
-    logger.debug("user_authenticated", qiao_id=user.qiao_id, session_token=token[:16] + "...")
+    logger.debug("user_authenticated", qiao_id=user.qiao_id, token=token[:16] + "...")
 
     return user

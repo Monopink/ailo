@@ -1,12 +1,12 @@
 """
 User management related models.
 
-This module contains SQLAlchemy models for user accounts, sessions, and login records.
+This module contains SQLAlchemy models for user accounts, tokens, and login records.
 """
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, func, text
+from sqlalchemy import BigInteger, Integer, String, Text, Index, text
 from sqlalchemy.dialects.postgresql import JSONB, INET, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -64,14 +64,14 @@ class User(SnowflakeQiaoModel, StatusMixin):
     __table_args__ = tuple()
 
 
-class UserSession(SnowflakeModel):
+class UserToken(SnowflakeModel):
     """
-    User session model.
+    User token model.
 
-    Manages user sessions with device limits and activity tracking.
+    Manages JWT tokens with device limits and activity tracking.
     """
 
-    __tablename__ = "user_sessions"
+    __tablename__ = "user_tokens"
 
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="User internal ID")
 
@@ -79,9 +79,7 @@ class UserSession(SnowflakeModel):
         String(32), nullable=False, comment="User external ID (redundant for query optimization)"
     )
 
-    session_token: Mapped[str] = mapped_column(
-        String(128), nullable=False, unique=True, comment="Session token"
-    )
+    token: Mapped[str] = mapped_column(String(512), nullable=False, unique=True, comment="JWT token")
 
     device_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Device type: 1=ios, 2=android, 3=web, 4=mini_program"
@@ -100,7 +98,7 @@ class UserSession(SnowflakeModel):
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent string")
 
     expires_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, comment="Session expiration time"
+        TIMESTAMP(timezone=True), nullable=False, comment="Token expiration time"
     )
 
     status: Mapped[int] = mapped_column(
@@ -108,16 +106,20 @@ class UserSession(SnowflakeModel):
         nullable=False,
         default=1,
         server_default=text("1"),
-        comment="Session status: 1=active, 2=inactive",
+        comment="Token status: 1=active, 2=revoked",
     )
 
     last_activity_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Last activity time"
     )
 
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Token revocation time"
+    )
+
     # Indexes - Only essential indexes for MVP
-    # Note: session_token already has unique index
-    __table_args__ = (Index("idx_user_sessions_user_qiao_id", "user_qiao_id"),)
+    # Note: token already has unique index
+    __table_args__ = (Index("idx_user_tokens_user_qiao_id", "user_qiao_id"),)
 
 
 class LoginRecord(Base, SnowflakeIDMixin):
@@ -160,9 +162,7 @@ class LoginRecord(Base, SnowflakeIDMixin):
 
     fail_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Failure reason")
 
-    session_token: Mapped[Optional[str]] = mapped_column(
-        String(128), nullable=True, comment="Associated session token"
-    )
+    token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, comment="Associated JWT token")
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),

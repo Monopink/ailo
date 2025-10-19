@@ -44,8 +44,8 @@ from .views import (
     # Security Management
     user_security_log_view,
     user_security_stats_view,
-    # Session Management
-    user_session_view,
+    # Token Management
+    user_token_view,
     login_record_view,
     # Business Management
     contact_request_view,
@@ -180,10 +180,10 @@ security_group = DropDown(
 admin.add_view(security_group)
 
 session_group = DropDown(
-    "Sessions",
-    icon="fa fa-users",
+    "Tokens",
+    icon="fa fa-key",
     views=[
-        user_session_view,
+        user_token_view,
         login_record_view,
     ],
     always_open=False,

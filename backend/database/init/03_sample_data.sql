@@ -378,11 +378,11 @@ INSERT INTO user_security_stats (id, user_id, user_qiao_id, total_violations, vi
 (223788765171155006, 223788765171154946, 'qqid_test_user_002', 1, '{"spam": 1}', NOW() - INTERVAL '30 minutes', 1, 1, 1, 0, 0, NOW() - INTERVAL '30 minutes')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample user sessions
-INSERT INTO user_sessions (id, user_id, user_qiao_id, session_token, device_type, device_id, platform_info, ip_address, user_agent, expires_at, status) VALUES
-(223788765171154980, 223788765171154945, 'qqid_test_user_001', 'sess_abc123def456', 3, 'web_device_001', '{"browser": "Chrome", "os": "Windows 10"}', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', NOW() + INTERVAL '24 hours', 1),
-(223788765171154981, 223788765171154946, 'qqid_test_user_002', 'sess_def456ghi789', 1, 'ios_device_001', '{"device": "iPhone 13", "os": "iOS 15.0"}', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', NOW() + INTERVAL '24 hours', 1)
-ON CONFLICT (session_token) DO NOTHING;
+-- Insert sample user tokens
+INSERT INTO user_tokens (id, user_id, user_qiao_id, token, device_type, device_id, platform_info, ip_address, user_agent, expires_at, status) VALUES
+(223788765171154980, 223788765171154945, 'qqid_test_user_001', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDEiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDUsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MCwiZGV2aWNlX3R5cGUiOjMsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_001', 3, 'web_device_001', '{"browser": "Chrome", "os": "Windows 10"}', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', NOW() + INTERVAL '14 days', 1),
+(223788765171154981, 223788765171154946, 'qqid_test_user_002', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDIiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDYsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MSwiZGV2aWNlX3R5cGUiOjEsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_002', 1, 'ios_device_001', '{"device": "iPhone 13", "os": "iOS 15.0"}', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', NOW() + INTERVAL '14 days', 1)
+ON CONFLICT (token) DO NOTHING;
 
 -- Insert sample login records
 INSERT INTO login_records (id, user_id, user_qiao_id, login_time, login_type, platform, device_id, ip_address, user_agent, result, fail_reason) VALUES

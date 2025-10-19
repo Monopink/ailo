@@ -17,7 +17,7 @@ from .base import (
 )
 
 # Import all models to register them with SQLAlchemy
-from .user import User, UserSession, LoginRecord
+from .user import User, UserToken, LoginRecord
 from .contact import Contact, ContactRequest
 from .message import MessageHistory, MessageDeliveryFailure, MediaFile
 from .profile import Profile, UserProfileLog
@@ -66,7 +66,7 @@ __all__ = [
     "ImmutableAutoIncrementModel",
     # User management
     "User",
-    "UserSession",
+    "UserToken",
     "LoginRecord",
     # Contact management
     "Contact",

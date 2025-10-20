@@ -9,10 +9,6 @@
 5. 配置表使用自增ID：系统配置、统计等辅助表使用AUTO_INCREMENT
 6. 完善的索引设计：为高频查询字段添加合适的索引
 7. 时间字段自动管理：created_at和updated_at字段自动设置和更新
-8. ID类型使用规范：
-   - 内部使用int：后端数据层、服务层统一使用 `int` 类型处理Snowflake ID
-   - 外部使用string：API接口、前端交互使用字符串格式避免JavaScript精度问题
-   - 转换边界：在API层进行类型转换，保持数据层类型纯净
 
 ## 详细表结构
 
@@ -24,10 +20,11 @@
 id -- Snowflake ID
 qiao_id -- qiao_+随机字符，外部使用，唯一标识
 username -- 用户名，初始默认为qiao_id
-phone -- 手机号，用于登录验证
+phone -- 手机号(E.164格式)，用于登录验证，必填，唯一
 email -- 邮箱地址
 password_hash -- 密码哈希值
-wechat_openid -- 微信授权登录标识
+wechat_openid -- 微信授权登录标识，唯一
+wechat_unionid -- 微信开放平台unionid
 apple_id -- Apple授权登录标识
 status -- 账户状态：1=active, 2=inactive, 3=suspended
 user_type -- 用户类型：1=normal, 2=official, 3=virtual
@@ -73,6 +70,7 @@ alias -- 备注名称
 avatar_alias_url -- 备注头像URL
 tags -- 标签JSON数组：["tag1","tag2"]
 remark -- 备注描述
+source -- 添加来源：discovery=发现页, search=搜索, recommend=推荐等
 is_pinned -- 是否置顶：1=yes, 0=no
 is_muted -- 是否免打扰：1=yes, 0=no
 is_blocked -- 是否屏蔽：1=yes, 0=no
@@ -104,14 +102,14 @@ created_at
 
 ## message_history
 
-消息历史记录表，只有发送成功后才写入数据。
+消息历史记录表，消息发送成功后写入数据。
 
 ```txt
 id -- Snowflake ID
 direction -- 消息方向：1=inbound, 2=outbound
 platform -- 平台：1=ios, 2=android, 3=web, 4=mini_program（入站消息使用）
 conversation_id -- 对话ID，关联contacts.conv_id
-msg_id_server -- msg_+(Snowflake+Base36)，外部使用，发送消息使用
+msg_id_server -- msg_+(Snowflake字符串)，外部使用，发送消息使用
 msg_id_provider -- 第三方消息服务生成的消息ID
 msg_id_client -- 客户端消息ID，接收消息使用
 client_sent_time -- 消息中包含的客户端发送时间
@@ -125,7 +123,7 @@ service_provider -- 服务提供商：1=leancloud, 2=internal
 message_type -- 消息类型：1=text, 2=typing_start, 3=typing_end, 4=system, 5=image, 6=emoji
 content -- 消息内容
 status -- 消息状态：1=sent, 2=delivered, 3=read, 4=failed
-message_metadata -- 消息元数据JSON，包含supports_typing等字段
+message_metadata -- 消息元数据JSON
 created_at
 ```
 
@@ -164,7 +162,7 @@ to_id -- 接收方内部ID
 to_qiao_id -- 接收方外部ID
 to_type -- 接收方类型：1=user, 2=ai, 3=admin, 4=system
 service_provider -- 服务提供商：1=leancloud, 2=internal
-message_type -- 消息类型：1=text, 2=typing, 3=typing_end, 4=system, 5=image, 6=emoji
+message_type -- 消息类型：1=text, 2=typing, 3=typing_end, 4=system
 content -- 消息内容
 fail_reason_code -- 失败原因代码
 fail_detail -- 详细错误信息/堆栈，TEXT类型
@@ -209,7 +207,7 @@ updated_at
 ```txt
 id -- Snowflake ID
 asset_type -- 资源类型：1=avatar, 2=emoticon
-name -- 资源唯一标识，如"avatar_01", "emoji_smile"
+name -- 资源唯一标识，4位随机数字，如"8923", "7452"（默认头像使用"default"）
 category -- 分类
 is_client_preset -- 是否客户端预设：1=yes, 0=no
 file_id -- 关联media_files.id（云端预设资源，客户端预设为NULL）

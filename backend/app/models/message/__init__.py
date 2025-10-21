@@ -10,6 +10,9 @@ from .message import MessageHistory, MessageDeliveryFailure
 # Media models
 from .media import MediaFile
 
+# Notification models
+from .notification import NotificationPushHistory
+
 # Export all message models
 __all__ = [
     # Message
@@ -17,4 +20,6 @@ __all__ = [
     "MessageDeliveryFailure",
     # Media
     "MediaFile",
+    # Notification
+    "NotificationPushHistory",
 ]

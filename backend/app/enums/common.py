@@ -5,7 +5,7 @@ All enum values correspond to the integer values defined in the database schema.
 These enums ensure type safety and consistency across the application.
 """
 
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 
 # User Management Related Enums
@@ -80,8 +80,9 @@ class ContactRequestStatus(IntEnum):
 
     PENDING = 1  # Pending approval
     ACCEPTED = 2  # Accepted
-    REJECTED = 3  # Rejected
+    IGNORED = 3  # Ignored (no response, no notification)
     EXPIRED = 4  # Expired
+    REJECTED = 5  # Rejected (future: explicit rejection with notification)
 
 
 # Message System Related Enums
@@ -116,17 +117,44 @@ class MessageType(IntEnum):
     TEXT = 1  # Text message
     TYPING = 2  # Typing indicator
     TYPING_END = 3  # Typing end indicator
-    SYSTEM = 4  # System message
-    IMAGE = 5  # Image message
-    EMOJI = 6  # Emoji message
+    CHAT_INFO = 4  # Chat interface informational message
+    NOTIFICATION = 9  # Notification message
 
 
-class ChatSystemMessageType(IntEnum):
-    """System message type for chat interface display (message_history.system_message_type)"""
+class ChatInfoType(IntEnum):
+    """Chat interface informational message subtypes"""
 
     CONTACT_ADDED = 1  # Contact has added you
     MESSAGE_BLOCKED = 2  # Message sent but blocked by recipient
     NOT_FRIEND = 3  # Recipient hasn't added you as contact
+
+
+class NotificationType(IntEnum):
+    """Notification message subtypes"""
+
+    CONTACT_REQUEST = 1  # Contact request notification
+
+
+class NotificationActionType(str, Enum):
+    """Notification action types"""
+
+    NAVIGATE = "navigate"  # Navigate to a page
+    REFRESH = "refresh"  # Refresh data
+    BADGE = "badge"  # Update badge count
+
+
+class NotificationTarget(str, Enum):
+    """Notification action targets"""
+
+    CONTACT_REQUESTS = "contact_requests"  # Contact requests page
+    CONTACTS = "contacts"  # Contacts list page
+
+
+class NotificationStatus(IntEnum):
+    """Notification push status"""
+
+    SENT = 1  # Sent successfully
+    FAILED = 2  # Send failed
 
 
 class MessageStatus(IntEnum):
@@ -197,23 +225,7 @@ class ProfileModifierType(IntEnum):
     SYSTEM = 3  # Modified by system
 
 
-# Emoticons Related Enums
-
-
-class EmoticonCategory(IntEnum):
-    """Emoticon category (emoticons.category)"""
-
-    SYSTEM = 1  # System emoticon
-    CUSTOM = 2  # Custom emoticon
-    PREMIUM = 3  # Premium emoticon
-
-
-class EmoticonCreatorType(IntEnum):
-    """Emoticon creator type (emoticons.created_by_type)"""
-
-    USER = 1  # Created by user
-    SYSTEM = 2  # Created by system
-    ADMIN = 3  # Created by admin
+# Emoticons Related Enums - Removed (emoticons table renamed to preset_assets)
 
 
 # AI System Related Enums

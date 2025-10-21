@@ -29,6 +29,7 @@ from .views import (
     ai_request_log_view,
     # Message Management
     message_history_view,
+    notification_push_history_view,
     # Media Management
     media_file_view,
     preset_asset_view,
@@ -123,6 +124,7 @@ message_group = DropDown(
     views=[
         message_history_view,
         message_delivery_failure_view,
+        notification_push_history_view,
     ],
     always_open=False,
 )

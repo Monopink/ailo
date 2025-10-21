@@ -21,7 +21,11 @@ from .common import (
     MessageParticipantType,
     ServiceProvider,
     MessageType,
-    ChatSystemMessageType,
+    ChatInfoType,
+    NotificationType,
+    NotificationActionType,
+    NotificationTarget,
+    NotificationStatus,
     MessageStatus,
     # Media Files
     FileType,
@@ -31,9 +35,6 @@ from .common import (
     Gender,
     ProfileOwnerType,
     ProfileModifierType,
-    # Emoticons
-    EmoticonCategory,
-    EmoticonCreatorType,
     # AI System
     AICharacterCreator,
     AICharacterStatus,
@@ -66,6 +67,8 @@ from .common import (
     LLMErrorCode,
 )
 
+from .templates import CHAT_INFO_TEMPLATES
+
 __all__ = [
     # User Management
     "UserStatus",
@@ -82,8 +85,13 @@ __all__ = [
     "MessageParticipantType",
     "ServiceProvider",
     "MessageType",
-    "ChatSystemMessageType",
+    "ChatInfoType",
+    "NotificationType",
+    "NotificationActionType",
+    "NotificationTarget",
+    "NotificationStatus",
     "MessageStatus",
+    "CHAT_INFO_TEMPLATES",
     # Media Files
     "FileType",
     "FileStatus",
@@ -92,9 +100,6 @@ __all__ = [
     "Gender",
     "ProfileOwnerType",
     "ProfileModifierType",
-    # Emoticons
-    "EmoticonCategory",
-    "EmoticonCreatorType",
     # AI System
     "AICharacterCreator",
     "AICharacterStatus",

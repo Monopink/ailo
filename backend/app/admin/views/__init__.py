@@ -52,6 +52,7 @@ from .message_media_views import (
     media_file_view,
     preset_asset_view,
     system_config_view,
+    notification_push_history_view,
 )
 
 from .llm_views import (
@@ -145,6 +146,7 @@ __all__ = [
     "media_file_view",
     "preset_asset_view",
     "system_config_view",
+    "notification_push_history_view",
     # Individual LLM views
     "llm_provider_view",
     "llm_config_view",

@@ -120,11 +120,28 @@ to_type -- 接收方类型：1=user, 2=ai, 3=admin, 4=system
 to_id -- 接收方内部ID
 to_qiao_id -- 接收方外部ID
 service_provider -- 服务提供商：1=leancloud, 2=internal
-message_type -- 消息类型：1=text, 2=typing_start, 3=typing_end, 4=system, 5=image, 6=emoji
+message_type -- 消息类型：1=text, 2=typing, 3=typing_end, 4=chat_info, 9=notification
 content -- 消息内容
 status -- 消息状态：1=sent, 2=delivered, 3=read, 4=failed
 message_metadata -- 消息元数据JSON
 created_at
+```
+
+## notification_push_history
+
+通知推送历史表，记录所有发送的通知消息。
+
+**说明**: 通知消息不存入 message_history，单独存储用于调试、分析和重试。
+
+```txt
+id -- Snowflake ID
+to_qiao_id -- 接收者 qiao_id
+notification_type -- 通知类型：1=contact_request
+action_data -- 操作数据（action + data），JSONB类型
+status -- 状态：1=sent, 2=failed
+error_message -- 错误信息（失败时），TEXT类型
+created_at
+updated_at
 ```
 
 ## media_files
@@ -526,7 +543,7 @@ completed_at -- 测试完成时间
 
 ## contact_requests
 
-联系人申请表，管理用户之间的联系人申请。
+联系人申请表。
 
 ```txt
 id -- Snowflake ID

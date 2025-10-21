@@ -11,11 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.message import MessageHistory
-from schemas.message import MessageSend
 from enums import MessageType, MessageStatus
 
 
-class CRUDMessage(CRUDBase[MessageHistory, MessageSend, dict]):
+class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
     """CRUD operations for MessageHistory model."""
 
     async def get_by_server_id(self, db: AsyncSession, *, msg_id_server: str) -> Optional[MessageHistory]:

@@ -4,20 +4,7 @@ Message system schemas module.
 This module imports all message-related Pydantic schemas.
 """
 
-# Message schemas
-from .message import (
-    MessageBase,
-    MessageSend,
-    MessageResponse,
-    MessageListResponse,
-    MessageUpdate,
-    MessageHistoryRequest,
-    ConversationListRequest,
-    ConversationInfo,
-    MessageFailureResponse,
-    BatchMessageUpdate,
-    BatchMessageDelete,
-)
+# Message schemas removed - not currently used
 
 # Media schemas
 from .media import (
@@ -30,32 +17,10 @@ from .media import (
     MediaFileStats,
 )
 
-# Emoticon schemas
-from .emoticon import (
-    EmoticonBase,
-    EmoticonCreate,
-    EmoticonUpdate,
-    EmoticonResponse,
-    EmoticonListResponse,
-    EmoticonQuery,
-    EmoticonSearch,
-    EmoticonStats,
-)
+# Emoticon schemas removed - emoticons table renamed to preset_assets
 
 # Export all message schemas
 __all__ = [
-    # Message
-    "MessageBase",
-    "MessageSend",
-    "MessageResponse",
-    "MessageListResponse",
-    "MessageUpdate",
-    "MessageHistoryRequest",
-    "ConversationListRequest",
-    "ConversationInfo",
-    "MessageFailureResponse",
-    "BatchMessageUpdate",
-    "BatchMessageDelete",
     # Media
     "MediaFileBase",
     "MediaFileUpload",
@@ -64,13 +29,4 @@ __all__ = [
     "MediaFileUpdate",
     "MediaFileQuery",
     "MediaFileStats",
-    # Emoticon
-    "EmoticonBase",
-    "EmoticonCreate",
-    "EmoticonUpdate",
-    "EmoticonResponse",
-    "EmoticonListResponse",
-    "EmoticonQuery",
-    "EmoticonSearch",
-    "EmoticonStats",
 ]

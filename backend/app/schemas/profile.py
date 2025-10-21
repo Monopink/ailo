@@ -10,13 +10,13 @@ from datetime import datetime
 class ProfileBase(BaseModel):
     """Base profile schema matching Profile model"""
 
-    nickname: Optional[str] = Field(None, max_length=100, description="Display nickname")
+    nickname: Optional[str] = Field(None, max_length=10, description="Display nickname")
     gender: Optional[int] = Field(
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
     avatar_url: Optional[str] = Field(None, max_length=500, description="Avatar URL")
     avatar_prompt: Optional[str] = Field(None, description="Avatar description for AI-generated avatars")
-    bio: Optional[str] = Field(None, description="Personal bio/description")
+    bio: Optional[str] = Field(None, max_length=70, description="Personal bio/description")
     region: Optional[str] = Field(None, max_length=100, description="Location/region")
 
 

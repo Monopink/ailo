@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS contact_requests (
     from_id BIGINT NOT NULL,
     to_qiao_id VARCHAR(32) NOT NULL,
     to_type INTEGER NOT NULL,
-    to_id BIGINT NOT NULL,
+    to_id BIGINT,  -- Allow NULL: AI character not created yet when request is created
     message TEXT,
     source INTEGER NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
@@ -225,6 +225,21 @@ CREATE INDEX idx_message_history_created_at ON message_history(created_at);
 CREATE INDEX idx_message_history_msg_id_client ON message_history(msg_id_client);
 -- GIN index for JSONB message_metadata
 CREATE INDEX idx_message_history_metadata_gin ON message_history USING GIN(message_metadata);
+
+-- Notification push history table - Track all notification messages
+CREATE TABLE IF NOT EXISTS notification_push_history (
+    id BIGINT PRIMARY KEY,
+    to_qiao_id VARCHAR(32) NOT NULL,
+    notification_type INTEGER NOT NULL,
+    action_data JSONB NOT NULL,
+    status INTEGER NOT NULL DEFAULT 1,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Create index for notification_push_history table
+CREATE INDEX idx_notification_push_created_at ON notification_push_history(created_at);
 
 -- Message delivery failures table - Failed message retry management
 CREATE TABLE IF NOT EXISTS message_delivery_failures (

@@ -75,8 +75,9 @@ class ContactRequestSource:
 class ContactRequestStatus:
     PENDING = 1     # 待处理
     ACCEPTED = 2    # 已接受
-    REJECTED = 3    # 已拒绝
+    IGNORED = 3     # 已忽略（无响应，无通知）
     EXPIRED = 4     # 已过期
+    REJECTED = 5    # 已拒绝（未来功能：明确拒绝并通知）
 ```
 
 ## 消息系统相关枚举
@@ -111,12 +112,63 @@ class ServiceProvider:
 
 ```python
 class MessageType:
-    TEXT = 1            # 文本消息
-    TYPING = 2          # 正在输入
-    TYPING_END = 3      # 输入结束
-    SYSTEM = 4          # 系统消息
-    IMAGE = 5           # 图片消息
-    EMOJI = 6           # 表情消息
+    TEXT = 1          # 文本消息
+    TYPING = 2        # 正在输入
+    TYPING_END = 3    # 输入结束
+    CHAT_INFO = 4     # 对话界面提示信息
+    NOTIFICATION = 9  # 通知消息
+```
+
+### 对话提示信息类型 (ChatInfoType)
+
+说明: 用于业务层选择预设文本，不存储在数据库中
+
+```python
+class ChatInfoType:
+    CONTACT_ADDED = 1      # 对方已将你添加为联系人
+    MESSAGE_BLOCKED = 2    # 消息已发出,但对方拒收了
+    NOT_FRIEND = 3         # 对方还没有添加你为联系人
+```
+
+### 对话提示信息行为类型 (message_history.metadata.action.type)
+
+说明: CHAT_INFO 消息可选的 action 字段类型
+
+```python
+class ChatInfoActionType:
+    MARK_MESSAGE_FAILED = "mark_message_failed"  # 标记消息为失败
+```
+
+### 通知消息类型 (notification_push_history.notification_type)
+
+```python
+class NotificationType:
+    CONTACT_REQUEST = 1    # 联系人请求通知
+```
+
+### 通知行为类型 (action_data.action.type)
+
+```python
+class NotificationActionType:
+    NAVIGATE = "navigate"  # 导航到页面
+    REFRESH = "refresh"    # 刷新数据
+    BADGE = "badge"        # 更新角标
+```
+
+### 通知目标 (action_data.action.target)
+
+```python
+class NotificationTarget:
+    CONTACT_REQUESTS = "contact_requests"  # 联系人请求页面
+    CONTACTS = "contacts"                  # 联系人列表页面
+```
+
+### 通知推送状态 (notification_push_history.status)
+
+```python
+class NotificationStatus:
+    SENT = 1      # 已发送
+    FAILED = 2    # 发送失败
 ```
 
 ### 消息状态 (message_history.status)

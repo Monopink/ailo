@@ -31,9 +31,10 @@ ON CONFLICT (username) DO NOTHING;
 INSERT INTO system_configs (config_key, config_value, default_value, config_type, description, group_name, allowed_values) VALUES
 -- Business configurations
 ('default_contact_limit', '3', '3', 2, 'Default contact limit per user', 'business', NULL),
-('default_search_display_limit', '20', '20', 2, 'Default search display limit', 'business', NULL),
 ('contact_request_expiration', '259200', '259200', 2, 'Contact request expiration time (72 hours, in seconds)', 'business', NULL),
-('max_message_length', '79', '59', 2, 'Maximum message length in characters', 'business', NULL),
+('square_recommend_count', '10', '10', 2, 'Square recommend count per refresh', 'business', NULL),
+('square_refresh_interval', '60', '60', 2, 'Square refresh interval in seconds', 'business', NULL),
+('max_message_length', '49', '49', 2, 'Maximum message length in characters', 'business', NULL),
 
 -- Authentication configurations
 ('jwt_token_expires_in', '1209600', '1209600', 2, 'JWT token expiration time in seconds (14 days)', 'auth', NULL),
@@ -103,20 +104,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('user_captcha_threshold', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
 ('user_turnstile_site_key', '', '', 1, 'User Turnstile site key', 'captcha', NULL),
 ('user_turnstile_secret_key', '', '', 1, 'User Turnstile secret key', 'captcha', NULL),
-
--- Admin security alerts
-('admin_alert_on_suspicious_login', 'True', 'True', 3, 'Alert on suspicious login attempts', 'security', NULL),
-('admin_alert_threshold_per_username', '20', '20', 2, 'Alert when username has N failed attempts from different IPs', 'security', NULL),
-
--- User profile configuration
-('profile_nickname_min_length', '1', '1', 2, 'Minimum nickname length', 'profile', NULL),
-('profile_nickname_max_length', '50', '50', 2, 'Maximum nickname length', 'profile', NULL),
-('profile_bio_max_length', '200', '200', 2, 'Maximum bio length', 'profile', NULL),
-
--- Contact configuration
-('contact_max_count', '100', '100', 2, 'Maximum contact count per user', 'contact', NULL),
-('contact_alias_max_length', '100', '100', 2, 'Maximum contact alias length', 'contact', NULL),
-('contact_remark_max_length', '500', '500', 2, 'Maximum contact remark length', 'contact', NULL),
 
 -- Message rate limit configuration (dual constraints)
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),

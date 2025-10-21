@@ -139,7 +139,9 @@ class ContactRequest(SnowflakeModel):
         Integer, nullable=False, comment="Target type: 1=user (all user types), 2=ai"
     )
 
-    to_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Target internal ID")
+    to_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Target internal ID (NULL when AI character not created yet)"
+    )
 
     message: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Application message")
 
@@ -152,7 +154,7 @@ class ContactRequest(SnowflakeModel):
         nullable=False,
         default=ContactRequestStatus.PENDING,
         server_default=text("1"),
-        comment="Status: 1=pending, 2=accepted, 3=rejected, 4=expired",
+        comment="Status: 1=pending, 2=accepted, 3=ignored, 4=expired, 5=rejected",
     )
 
     expires_at: Mapped[datetime] = mapped_column(

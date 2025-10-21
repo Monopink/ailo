@@ -18,7 +18,7 @@ class AIChatRequest(BaseModel):
     """Schema for AI chat request."""
 
     character_qiao_id: str = Field(..., max_length=32, description="Character external ID")
-    message: str = Field(..., min_length=1, max_length=1000, description="User message")
+    message: str = Field(..., min_length=1, max_length=49, description="User message")
     context_limit: int = Field(10, ge=1, le=50, description="Maximum context messages to include")
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="AI temperature setting")
     max_tokens: Optional[int] = Field(None, ge=1, le=4000, description="Maximum response tokens")

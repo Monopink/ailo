@@ -10,6 +10,7 @@ from admin.views.base import IntegerEnumField
 # Import message and media models
 from models.message.message import MessageHistory
 from models.message.media import MediaFile
+from models.message.notification import NotificationPushHistory
 from models.system.config import SystemConfig
 from models.system import PresetAsset
 
@@ -205,10 +206,39 @@ system_config_view = SystemConfigView(
     SystemConfig, name="System Config", icon="fa fa-cog", identity="system_configs"
 )
 
+
+class NotificationPushHistoryView(ModelView):
+    """Notification Push History view - read-only for monitoring."""
+
+    def can_create(self, request):
+        return False
+
+    def can_edit(self, request):
+        return False
+
+    def can_delete(self, request):
+        return False
+
+    exclude_fields_from_list = ["action_data", "error_message", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    fields_default_sort = [("created_at", True)]
+    searchable_fields = ["to_qiao_id"]
+    sortable_fields = ["id", "notification_type", "status", "created_at"]
+
+
+notification_push_history_view = NotificationPushHistoryView(
+    NotificationPushHistory,
+    name="Notification History",
+    icon="fa fa-bell",
+    identity="notification_push_history",
+)
+
 # Export all message and media views
 MESSAGE_MEDIA_MODEL_VIEWS = [
     message_history_view,
     media_file_view,
     preset_asset_view,
     system_config_view,
+    notification_push_history_view,
 ]

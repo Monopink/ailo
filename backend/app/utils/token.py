@@ -44,8 +44,8 @@ def generate_jwt_token(
     }
 
     # Get JWT secret and algorithm from settings
-    secret = settings.SECRET_KEY
-    algorithm = "HS256"  # Default algorithm
+    secret = settings.JWT_SECRET_KEY
+    algorithm = settings.JWT_ALGORITHM
 
     return jwt.encode(payload, secret, algorithm=algorithm)
 
@@ -61,8 +61,8 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         Decoded payload dict, or None if invalid
     """
     try:
-        secret = settings.SECRET_KEY
-        algorithm = "HS256"
+        secret = settings.JWT_SECRET_KEY
+        algorithm = settings.JWT_ALGORITHM
 
         payload = jwt.decode(token, secret, algorithms=[algorithm])
         return payload

@@ -76,6 +76,11 @@ class ContactListResponse(BaseSchema):
     is_muted: bool = Field(..., description="Is muted")
     is_blocked: bool = Field(..., description="Is blocked")
     created_at: datetime = Field(..., description="Contact creation time")
+    # Profile fields
+    nickname: Optional[str] = Field(None, description="Contact nickname from profile")
+    avatar_url: Optional[str] = Field(None, description="Contact avatar URL from profile")
+    bio: Optional[str] = Field(None, description="Contact bio from profile")
+    gender: Optional[int] = Field(None, description="Contact gender from profile")
 
 
 # Conversation Info Schema

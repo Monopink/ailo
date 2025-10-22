@@ -165,6 +165,66 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             await db.refresh(contact)
         return contact
 
+    async def get_user_contact_including_deleted(
+        self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
+    ) -> Optional[Contact]:
+        """
+        Get contact including deleted ones.
+
+        Used for checking if a deleted contact exists before re-adding.
+
+        Args:
+            db: Database session
+            user_qiao_id: User's qiao_id
+            contact_qiao_id: Contact's qiao_id
+
+        Returns:
+            Contact record or None if not found
+        """
+        result = await db.execute(
+            select(self.model).where(
+                and_(
+                    self.model.user_qiao_id == user_qiao_id,
+                    self.model.contact_qiao_id == contact_qiao_id,
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def restore_contact(
+        self,
+        db: AsyncSession,
+        *,
+        contact: Contact,
+        alias: Optional[str] = None,
+        tags: Optional[dict] = None,
+    ) -> Contact:
+        """
+        Restore a soft-deleted contact with new settings.
+
+        Strategy: Do not preserve old settings (alias, tags, remark).
+
+        Args:
+            db: Database session
+            contact: Contact object to restore
+            alias: New alias (optional)
+            tags: New tags (optional)
+
+        Returns:
+            Restored contact
+        """
+        contact.is_deleted = 0
+        contact.deleted_at = None
+        contact.alias = alias
+        contact.tags = tags
+        contact.remark = None  # Reset remark
+
+        db.add(contact)
+        await db.commit()
+        await db.refresh(contact)
+
+        return contact
+
     async def batch_update_contacts(
         self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_ids: List[str], update_data: dict
     ) -> int:
@@ -198,15 +258,18 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, dict]):
     async def get_pending_request(
         self, db: AsyncSession, *, from_qiao_id: str, to_qiao_id: str
     ) -> Optional[ContactRequest]:
-        """Get pending contact request between two users."""
+        """Get pending contact request between two users. Returns the most recent one if multiple exist."""
         result = await db.execute(
-            select(self.model).where(
+            select(self.model)
+            .where(
                 and_(
                     self.model.from_qiao_id == from_qiao_id,
                     self.model.to_qiao_id == to_qiao_id,
                     self.model.status == ContactRequestStatus.PENDING,
                 )
             )
+            .order_by(self.model.created_at.desc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
 

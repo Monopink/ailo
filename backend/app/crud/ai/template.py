@@ -116,6 +116,24 @@ class CRUDAIInfoTemplate(CRUDBase[AIInfoTemplate, AIInfoTemplateCreate, AIInfoTe
 class CRUDAIProfileTemplate(CRUDBase[AIProfileTemplate, AIProfileTemplateCreate, AIProfileTemplateUpdate]):
     """AI Profile Template CRUD operations with complex queries."""
 
+    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[AIProfileTemplate]:
+        """
+        Get profile template by qiao_id.
+
+        Args:
+            db: Database session
+            qiao_id: Template qiao_id
+
+        Returns:
+            Profile template object or None if not found
+        """
+        try:
+            result = await db.execute(select(self.model).where(self.model.qiao_id == qiao_id))
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error("profile_template_get_by_qiao_id_failed", error=str(e), qiao_id=qiao_id)
+            return None
+
     async def get_profile_with_info(
         self, db: AsyncSession, *, template_id: int
     ) -> Optional[Dict[str, Any]]:

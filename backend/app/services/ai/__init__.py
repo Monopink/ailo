@@ -48,6 +48,12 @@ from .memory import (
     archive_old_contexts,
 )
 
+# Contact request handling
+from .contact_handler import (
+    handle_ai_contact_request,
+    ContactRequestDecision,
+)
+
 # LLM integration (moved to services.llm)
 from services.llm import (
     chat_completion,
@@ -85,6 +91,9 @@ __all__ = [
     # Memory management
     "process_memory_operations",
     "archive_old_contexts",
+    # Contact request handling
+    "handle_ai_contact_request",
+    "ContactRequestDecision",
     # LLM integration
     "chat_completion",
     "get_primary_llm_config",

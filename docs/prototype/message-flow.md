@@ -11,7 +11,7 @@
   "to": "qiao_xm001",                       // 接收者qiao_id
   "conv_id": "conv_xyz789",                 // 对话ID（后端管理）
   "content": "你好",                         // 消息内容
-  "message_type": 1,                        // 消息类型：1=TEXT, 2=TYPING_START, 3=TYPING_END, 4=SYSTEM
+  "message_type": 1,                        // 消息类型：1=TEXT, 2=TYPING, 3=TYPING_END, 4=CHAT_INFO, 9=NOTIFICATION
   "supports_typing": true,                  // 客户端是否支持输入状态
   "sent_time": 1710001111222                // 发送时间戳（毫秒）
 }
@@ -63,35 +63,6 @@ message_history表存储两个ID：
 - `false`或不存在: 客户端不支持输入状态（公众号等）
   - 不会发送输入状态消息
   - 服务端使用NO_TYPING_WAIT策略
-
-### 2.0功能扩展（暂不实现）
-
-```json
-{
-  "from": "qiao_user001",
-  "to": "qiao_xm001",
-  "conv_id": "conv_xyz789",
-  "content": {
-    "type": "image",
-    "body": {
-      "url": "ENCRYPTED_BLOB",
-      "size": 234567,
-      "width": 720,
-      "height": 1280
-    }
-  },
-  "message_type": 5,
-  "supports_typing": true,
-  "mentions": ["qiao_456", "qiao_789"],  // @ 指定成员
-  "reply_to": "msg_654321",              // 回复某条消息
-  "client_sent_time": 1710001111222,
-  "encryption": {
-    "alg": "AES-256-GCM",
-    "ciphertext": "base64-encoded-data",
-    "key_id": "k1"
-  }
-}
-```
 
 ## 消息处理流程
 
@@ -241,56 +212,109 @@ MESSAGE_BUFFER_NO_TYPING_WAIT = 2000   # 无输入状态等待：2秒
 - 30秒超时自动隐藏
 - 用户发送消息时立即隐藏
 
-### 5. 系统消息处理机制
+### 5. 对话提示信息处理机制（message_type=4）
 
-#### 5.1 系统消息类型
+#### 5.1 对话提示信息类型
 
-系统消息用于在聊天界面向用户展示状态信息，不需要AI处理。
+对话提示信息用于在聊天界面向用户展示状态信息，不需要AI处理。
 
 **消息类型：**
 
 ```python
-class ChatSystemMessageType(IntEnum):
+class ChatInfoType(IntEnum):
     CONTACT_ADDED = 1        # 对方已将你添加为联系人
     MESSAGE_BLOCKED = 2      # 消息已发出，但对方拒收了
     NOT_FRIEND = 3           # 对方还没有添加你为联系人
 ```
 
-#### 5.2 系统消息架构设计
+#### 5.2 消息结构
+
+**不带 action 的消息**：
+
+```json
+{
+  "msg_id": "223788765171154945",
+  "from": "system",
+  "to": "qiao_user_001",
+  "message_type": 4,
+  "content": "对方已将你添加为联系人",
+  "sent_time": 1710001112000
+}
+```
+
+**带 action 的消息**：
+
+```json
+{
+  "msg_id": "223788765171154946",
+  "from": "system",
+  "to": "qiao_user_001",
+  "message_type": 4,
+  "content": "消息已发出，但对方拒收了",
+  "action": {
+    "type": "mark_message_failed",
+    "target_msg_id": "client_1710001111222_abc123"
+  },
+  "sent_time": 1710001113000
+}
+```
+
+**action 字段说明**：
+
+- `type`: 操作类型（mark_message_failed）
+- `target_msg_id`: 目标消息ID（客户端生成的消息ID）
+
+**action 类型枚举**：
+
+```python
+class ChatInfoActionType(str, Enum):
+    MARK_MESSAGE_FAILED = "mark_message_failed"  # 标记消息为失败
+```
+
+#### 5.3 架构设计
 
 **架构分层：**
 
-系统消息的发送采用分层架构，业务层不关心传输协议细节：
+对话提示信息的发送采用三层函数架构：
 
 ```
 业务层 (Business Layer)
-  ↓ 调用: send_system_message(to_qiao_id, system_message_code OR custom_text)
-  ↓ 服务端映射: code -> text (使用SYSTEM_MESSAGE_TEMPLATES)
+  ↓ 调用: send_chat_info(to_qiao_id, conv_id, content)
+  ↓ 业务层负责: 从CHAT_INFO_TEMPLATES获取文本
 消息服务层 (Message Service)
-  ↓ 调用: provider.send_system_message(content=mapped_text)
+  ↓ 调用: send_message(from_qiao_id="system", to_qiao_id, conv_id, content, message_type=CHAT_INFO)
+  ↓ 调用: _send_message_internal(...)
 Provider层 (LeanCloud)
-  ↓ 处理: from_client="system"等协议字段
+  ↓ 调用: provider.send_message_as_system(to_qiao_id, conv_id, content)
+  ↓ 处理: from="system"等协议字段
 LeanCloud REST API
 ```
 
 **Content字段设计：**
 
-系统消息的content字段采用"服务端映射"的设计：
+对话提示信息的content字段直接存储最终显示文本：
 
-1. **标准场景（使用system_message_code）：**
-   - 服务端传入system_message_code
-   - 服务端使用SYSTEM_MESSAGE_TEMPLATES映射为文本
+1. **使用预定义模板：**
+   - 业务层从CHAT_INFO_TEMPLATES获取文本
+   - 调用send_chat_info()传入文本
    - 文本存入content字段
-   - message_metadata存储system_message_code用于追踪
    - 客户端直接显示content字段
 
-2. **自定义场景（使用custom_text）：**
-   - 服务端传入custom_text
-   - 文本直接存入content字段
-   - message_metadata为None或包含extra_metadata
-   - 客户端直接显示content字段
+示例代码：
 
-#### 5.3 系统消息发送场景
+```python
+from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
+
+content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
+await send_chat_info(
+    db=db,
+    to_qiao_id=user_qiao_id,
+    conv_id=conv_id,
+    content=content,
+)
+```
+
+#### 5.4 发送场景
 
 1. CONTACT_ADDED - 对方已将你添加为联系人
 
@@ -304,7 +328,7 @@ LeanCloud REST API
 
 当用户向未添加自己为联系人的对方发送消息时，系统自动发送此消息。
 
-#### 5.4 系统消息显示规则
+#### 5.5 显示规则
 
 客户端处理：
 
@@ -316,25 +340,18 @@ LeanCloud REST API
    - 不显示时间（可选）
 
 2. 聊天列表显示
-   - 最后一条消息显示系统消息内容
+   - 最后一条消息显示对话提示信息内容
    - 灰色文字
    - 不计入未读数
 
-3. 不触发通知
-   - 系统消息不触发推送通知
-   - 不播放提示音
-
-#### 5.5 系统消息存储
-
-**存储规则：**
+#### 5.6 存储规则
 
 - 存储到message_history表
 - from_type = 4 (system)
 - from_id = 0
 - from_qiao_id = "system"
-- message_type = 4 (SYSTEM)
-- content字段包含完整文本(服务端映射或自定义)
-- message_metadata包含system_message_code(如果是预定义消息)
+- message_type = 4 (CHAT_INFO)
+- content字段包含完整文本
 
 ### 6. Block功能和消息拒收处理
 
@@ -380,44 +397,79 @@ LeanCloud REST API
 
 #### 7.2 服务端拒收标记
 
-服务端通过Webhook响应或系统消息通知客户端消息被拒收，客户端标记消息为失败状态。
+服务端通过对话界面系统消息通知客户端消息被拒收，客户端标记消息为失败状态。
 
-### 8. 通知消息处理机制（message_type=5）
+### 8. 通知消息处理机制（message_type=9）
 
-#### 8.1 通知消息类型
-
-```python
-class NotificationType(IntEnum):
-    CONTACT_REQUEST = 1      # 联系人申请
-```
-
-#### 8.2 联系人申请通知
-
-**消息结构：**
+#### 8.1 消息结构
 
 ```json
 {
-  "msg_id": "223788765171154945",
+  "msg_id": "223788765171154947",
   "from": "system",
   "to": "qiao_user_b",
-  "message_type": 5,
+  "message_type": 9,
   "notification_type": 1,
-  "notification_data": {
+  "action": {
+    "type": "navigate",
+    "target": "contact_requests",
+    "params": {
+      "request_id": "req_123"
+    }
+  },
+  "data": {
     "request_id": "req_123",
     "from_qiao_id": "qiao_user_a",
     "from_nickname": "用户A",
     "from_avatar": "avatar_url",
     "message": "你好，我想添加你为联系人"
   },
-  "sent_time": 1710001112000
+  "sent_time": 1710001114000
 }
 ```
 
-**说明：**
+#### 8.2 字段说明
 
-- 通知消息不存储到message_history表
-- 数据存储在contact_requests表中
-- 客户端处理逻辑请参考 `docs/prototype/minipg.md`
+- `notification_type`: 通知类型（1=联系人请求）
+- `action`: 客户端操作对象
+  - `type`: 操作类型（navigate/refresh/badge）
+  - `target`: 操作目标（contact_requests/contacts）
+  - `params`: 操作参数
+- `data`: 通知数据（用于显示）
+
+#### 8.3 通知类型
+
+**NotificationType**:
+
+- CONTACT_REQUEST (1): 联系人请求通知
+
+**NotificationActionType**:
+
+- navigate: 导航到指定页面
+- refresh: 刷新数据
+- badge: 更新角标数量
+
+**NotificationTarget**:
+
+- contact_requests: 联系人请求页面
+- contacts: 联系人列表页面
+
+#### 8.4 存储说明
+
+- 通知消息**不存入** message_history 表
+- 存入 notification_push_history 表
+- 用于调试、分析和重试
+
+#### 8.5 客户端处理流程
+
+1. 收到通知消息（message_type=9）
+2. 解析 notification_type 确定通知类别
+3. 解析 action 对象确定操作类型
+4. 根据 action.type 执行相应操作：
+   - navigate: 跳转到 action.target 页面
+   - refresh: 刷新 action.target 数据
+   - badge: 更新 action.target 角标
+5. 使用 data 对象显示通知内容
 
 ### 9. AI处理阶段 (services/ai/core.py)
 

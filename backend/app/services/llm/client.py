@@ -111,7 +111,7 @@ async def chat_completion(
         # All configurations failed
         return {
             "success": False,
-            "error": f"所有LLM配置均失败。最后错误: {last_error}",
+            "error": f"All LLM configurations failed. Last error: {last_error}",
             "error_code": last_error_code or "ALL_CONFIGS_FAILED",
             "response": None,
             "usage": None,
@@ -133,7 +133,7 @@ async def chat_completion(
         logger.error("chat_completion_error", error=str(e), exc_info=True)
         return {
             "success": False,
-            "error": f"LLM调用异常: {str(e)}",
+            "error": f"LLM invocation exception: {str(e)}",
             "error_code": "SYSTEM_ERROR",
             "response": None,
             "usage": None,

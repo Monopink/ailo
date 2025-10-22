@@ -52,6 +52,22 @@
 - 个人中心显示
 - 任何需要显示手机号的地方
 
+### 邮箱脱敏
+
+**格式**: `首字母 + *** + @ + 域名`
+
+**示例**:
+
+- `user@example.com` → `u***@example.com`
+- `hello@gmail.com` → `h***@gmail.com`
+- `a@test.com` → `a***@test.com`
+
+**应用场景**:
+
+- 账户信息接口返回
+- 账户安全页面显示
+- 任何需要显示邮箱的地方
+
 ## 通用响应格式
 
 ### 成功响应 (HTTP 200)
@@ -212,9 +228,9 @@ Authorization: Bearer <token>
 - 返回冷却时间供客户端倒计时
 - 服务端强制验证速率限制
 
-#### 1.2 用户注册（自动登录）
+#### 1.2 手机号验证（统一登录注册入口）
 
-**接口**: `POST /api/v1/auth/register`
+**接口**: `POST /api/v1/auth/phone`
 
 **请求参数**:
 
@@ -222,7 +238,62 @@ Authorization: Bearer <token>
 {
   "phone": "+8613800138000",
   "sms_code": "123456",
-  "captcha_token": "cloudflare_turnstile_token"
+  "wechat_code": "wx_code_for_binding"  // 可选，微信绑定场景需要
+}
+```
+
+**成功响应 - 已注册用户（直接登录）**:
+
+```json
+{
+  "is_new_user": false,
+  "token": "jwt_token_here",
+  "user": {
+    "qiao_id": "qiao_abc123",
+    "phone": "138******00",
+    "nickname": "小雨",
+    "gender": 2,
+    "avatar_url": "assets://avatar_01",
+    "bio": "个人简介"
+  }
+}
+```
+
+**成功响应 - 未注册用户（需要填写资料）**:
+
+```json
+{
+  "is_new_user": true,
+  "verified_phone_token": "temp_token_xxx",
+  "phone": "+8613800138000"
+}
+```
+
+**说明**:
+
+- **统一登录注册入口**: 用户无需区分登录和注册，系统自动判断
+- phone格式: E.164标准格式(+8613800138000)
+- 前端可以传入13800138000或+8613800138000，后端自动规范化为E.164格式
+- MVP阶段只支持+86(中国大陆)手机号
+- wechat_code: 可选参数，仅在微信登录需要绑定手机号时传入
+- **已注册用户**: 直接返回token和用户信息，前端保存token后跳转到聊天列表
+- **未注册用户**: 返回临时凭证(verified_phone_token)，前端跳转到资料填写页
+- verified_phone_token有效期5分钟，用于完成注册
+- 如果有wechat_code，会在用户创建时自动绑定微信openid
+
+#### 1.3 完成注册（填写资料）
+
+**接口**: `POST /api/v1/auth/complete-registration`
+
+**请求参数**:
+
+```json
+{
+  "verified_phone_token": "temp_token_xxx",
+  "nickname": "小雨",  // 必填，2-20字符
+  "gender": 2,  // 可选: 0=未知, 1=男, 2=女
+  "bio": "个人简介",  // 可选，最多200字符
+  "avatar_url": "assets://avatar_01"  // 可选
 }
 ```
 
@@ -230,27 +301,31 @@ Authorization: Bearer <token>
 
 ```json
 {
+  "token": "jwt_token_here",
   "user": {
-    "qiao_id": "qiao_abc123"
-  },
-  "session": {
-    "token": "session_token_here",
-    "expires_at": 1710001111000
+    "qiao_id": "qiao_abc123",
+    "phone": "138******00",
+    "nickname": "小雨",
+    "gender": 2,
+    "avatar_url": "assets://avatar_01",
+    "bio": "个人简介"
   }
 }
 ```
 
 **说明**:
 
-- phone格式: E.164标准格式(+8613800138000)
-- 前端可以传入13800138000或+8613800138000,后端自动规范化为E.164格式
-- MVP阶段只支持+86(中国大陆)手机号
-- 注册只需要手机号和验证码
+- **注册和填写资料是整体事务**: 只有完成资料填写才会创建用户
+- verified_phone_token: 从手机号验证接口获取的临时凭证
+- nickname: 必填，2-20字符，支持中英文、数字、下划线
+- gender: 可选，0=未知, 1=男, 2=女
+- bio: 可选，最多200字符
+- avatar_url: 可选，使用默认头像资源标识符
+- **用户取消注册**: 如果用户在资料填写页取消，临时凭证会自动过期，不会创建用户
 - 注册成功后自动登录，返回JWT token
-- 用户资料通过单独的API设置
-- 需要人机验证（CAPTCHA）
+- 如果手机号验证时传入了wechat_code，会自动绑定微信openid
 
-#### 1.3 微信登录
+#### 1.4 微信登录
 
 **接口**: `POST /api/v1/auth/wechat/login`
 
@@ -263,64 +338,59 @@ Authorization: Bearer <token>
 }
 ```
 
-**成功响应(+86手机号)**:
+**成功响应 - +86手机号（直接登录）**:
 
 ```json
 {
+  "success": true,
   "user": {
-    "qiao_id": "qiao_abc123"
-  },
-  "profile": {
+    "qiao_id": "qiao_abc123",
+    "phone": "138******00",
     "nickname": "小雨",
     "gender": 2,
-    "avatar_url": "assets://avatar_01"
-  },
-  "session": {
-    "token": "session_token_here",
-    "expires_at": 1710001111000
-  },
-  "is_new_user": false
+    "avatar_url": "assets://avatar_01",
+    "token": "jwt_token_here"
+  }
 }
 ```
 
-**成功响应(国际手机号,需要绑定)**:
+**成功响应 - 国际手机号（需要绑定）**:
 
 ```json
 {
+  "success": false,
   "needs_phone_binding": true,
-  "wechat_phone": "+14155552671",
   "wechat_code": "wx_code_for_binding",
-  "message": "检测到国际手机号,请绑定中国大陆手机号"
+  "message": "手机号格式无效，请绑定手机号"
 }
 ```
 
 **说明**:
 
-- login_code: 小程序wx.login()返回的code,用于获取openid
-- phone_code: 小程序getPhoneNumber返回的code,用于获取手机号
+- login_code: 小程序wx.login()返回的code，用于获取openid
+- phone_code: 小程序getPhoneNumber返回的code，用于获取手机号
 - 两个code都必须在小程序端获取后传给后端
-- 后端流程:
+- **后端流程**:
   1. 使用login_code调用微信code2session接口获取openid
   2. 使用phone_code调用微信getPhoneNumber接口获取手机号
   3. 检查手机号国家代码:
-     - 如果是+86手机号: 直接注册/登录,返回用户信息和JWT token
-     - 如果是国际手机号: 返回needs_phone_binding=true,前端引导用户绑定+86手机号
-- 如果微信接口失败,返回错误,客户端引导使用短信验证码绑定
-- 如果profile为null,客户端强制引导设置资料(nickname和gender必填)
-- is_new_user: true表示新注册用户,false表示已存在用户
-- wechat_code: 用于后续绑定手机号的临时code,有效期5分钟
+     - 如果是+86手机号: 查找或创建用户，返回用户信息和JWT token
+     - 如果是国际手机号: 返回needs_phone_binding=true，前端引导用户使用手机号验证接口
+- 如果微信接口失败，返回错误，客户端引导使用手机号验证接口
+- wechat_code: 用于后续绑定手机号的临时code，有效期5分钟
+- **与手机号验证接口的关系**: 当返回needs_phone_binding=true时，前端应该调用`POST /api/v1/auth/phone`接口，并传入wechat_code参数
 
-#### 1.4 绑定手机号(回退方案)
+#### 1.5 账号密码登录
 
-**接口**: `POST /api/v1/auth/bind-phone`
+**接口**: `POST /api/v1/auth/login`
 
 **请求参数**:
 
 ```json
 {
-  "wechat_code": "wx_code_for_binding",
-  "phone": "+8613800138000",
-  "sms_code": "123456"
+  "username": "user123",  // 用户名、邮箱或手机号
+  "password": "password123",
+  "captcha_token": "cloudflare_turnstile_token"  // 可选，失败3次后必需
 }
 ```
 
@@ -328,74 +398,29 @@ Authorization: Bearer <token>
 
 ```json
 {
+  "token": "jwt_token_here",
   "user": {
-    "qiao_id": "qiao_abc123"
-  },
-  "session": {
-    "token": "session_token_here",
-    "expires_at": 1710001111000
-  },
-  "is_new_user": true
-}
-```
-
-**说明**:
-
-- 使用场景:
-  1. 微信获取手机号接口失败
-  2. 微信返回国际手机号(非+86)
-- phone格式: E.164标准格式(+8613800138000)
-- 前端可以传入13800138000或+8613800138000,后端自动规范化为E.164格式
-- MVP阶段只支持+86(中国大陆)手机号
-- 需要先调用发送短信验证码接口
-- 验证通过后创建用户并绑定微信openid
-- 如果手机号已注册,则关联微信openid到已有账号
-- 强制绑定手机号,不能跳过
-- wechat_code有效期5分钟
-
-#### 1.5 短信验证码登录
-
-**接口**: `POST /api/v1/auth/login/sms`
-
-**请求参数**:
-
-```json
-{
-  "phone": "+8613800138000",
-  "sms_code": "123456",
-  "device_type": 4,
-  "device_id": "device_unique_id",
-  "captcha_token": "cloudflare_turnstile_token"
-}
-```
-
-**成功响应**:
-
-```json
-{
-  "user": {
-    "qiao_id": "qiao_abc123"
-  },
-  "profile": {
+    "qiao_id": "qiao_abc123",
+    "username": "user123",
+    "phone": "138******00",
+    "email": "us***@example.com",
     "nickname": "小雨",
     "gender": 2,
     "avatar_url": "assets://avatar_01"
-  },
-  "session": {
-    "token": "session_token_here",
-    "expires_at": 1710001111000
   }
 }
 ```
 
 **说明**:
 
-- phone格式: E.164标准格式(+8613800138000)
-- 前端可以传入13800138000或+8613800138000,后端自动规范化为E.164格式
-- MVP阶段只支持+86(中国大陆)手机号
-- captcha_token可选，失败3次后必需
-- 如果profile为null，客户端强制引导设置资料
-- device_type: 1=iOS, 2=Android, 3=Web, 4=MiniProgram
+- username: 支持用户名、邮箱或手机号登录
+- password: 用户密码
+- captcha_token: 可选，失败3次后必需
+- **安全限制**:
+  - 速率限制: 10次/小时
+  - 失败次数限制: 5次失败后锁定
+  - 锁定时长: 15分钟
+  - 人机验证触发: 3次失败后需要人机验证
 
 #### 1.6 退出登录
 
@@ -452,9 +477,8 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "qiao_id": "qiao_abc123",
-  "username": "qiao_abc123",
-  "phone": "+86 138****8000",
+  "qiao_id": "qqid_abc123",
+  "username": "my_custom_id",
   "nickname": "小雨",
   "gender": 2,
   "avatar_url": "assets://avatar_01",
@@ -465,9 +489,10 @@ Authorization: Bearer <token>
 
 **说明**:
 
-- phone格式: E.164格式脱敏显示(+86 138****8000)
-- 手机号脱敏规则: 显示国家代码+前3位+****+后4位
-- username用于登录
+- 只返回用户资料信息(profiles表内容) + username字段
+- qiao_id: 系统内部ID,注册时生成,不可修改
+- username: 用户可自定义的敲敲ID,注册时默认复制qiao_id,可修改,显示在界面上
+- 不包括账户安全信息(手机号、邮箱等)
 - region由前端维护列表，后端只验证长度
 
 #### 2.2 更新用户资料
@@ -480,6 +505,7 @@ Authorization: Bearer <token>
 
 ```json
 {
+  "username": "new_custom_id",
   "nickname": "新昵称",
   "gender": 2,
   "avatar_url": "assets://avatar_02",
@@ -492,9 +518,8 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "qiao_id": "qiao_abc123",
-  "username": "qiao_abc123",
-  "phone": "+86 138****8000",
+  "qiao_id": "qqid_abc123",
+  "username": "new_custom_id",
   "nickname": "新昵称",
   "gender": 2,
   "avatar_url": "assets://avatar_02",
@@ -506,9 +531,37 @@ Authorization: Bearer <token>
 **说明**:
 
 - 所有字段可选
+- 支持部分更新
+- username: 3-20个字符,检查唯一性
 - avatar_url以assets://开头时，自动设置avatar_prompt
 
-#### 2.3 获取用户设置
+#### 2.3 获取账户信息
+
+**接口**: `GET /api/v1/user/account`
+
+**请求头**: `Authorization: Bearer token`
+
+**成功响应**:
+
+```json
+{
+  "qiao_id": "qiao_abc123",
+  "username": "qiao_abc123",
+  "phone": "138******00",
+  "email": "u***@example.com",
+  "has_password": true
+}
+```
+
+**说明**:
+
+- 返回账户安全相关信息
+- phone: 手机号脱敏显示(138******00)
+- email: 邮箱脱敏显示(u***@example.com), 未绑定时为null
+- has_password: 是否设置了密码
+- username: 用于登录
+
+#### 2.4 获取用户设置
 
 **接口**: `GET /api/v1/user/settings`
 
@@ -525,7 +578,7 @@ Authorization: Bearer <token>
 }
 ```
 
-#### 2.4 更新用户设置
+#### 2.5 更新用户设置
 
 **接口**: `PUT /api/v1/user/settings`
 
@@ -542,9 +595,264 @@ Authorization: Bearer <token>
 }
 ```
 
-### 3. 联系人管理
+### 3. 账户安全管理
 
-#### 3.1 获取联系人列表
+#### 3.1 统一验证机制
+
+##### 3.1.1 发送验证码
+
+**接口**: `POST /api/v1/user/verify/send-code`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "verify_type": "phone",
+  "target": "+8613800138000"
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "cooldown": 60
+}
+```
+
+**说明**:
+
+- verify_type: "phone" | "email"
+- target: 可选,默认当前用户的手机号/邮箱
+- 用于修改手机号/邮箱时,可以指定新的target
+- 速率限制: 60秒/次
+
+##### 3.1.2 确认验证码
+
+**接口**: `POST /api/v1/user/verify/confirm`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "verify_type": "phone",
+  "code": "123456"
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "operation_token": "opt_xxx",
+  "expires_in": 300
+}
+```
+
+**说明**:
+
+- 验证成功返回operation_token
+- operation_token有效期5分钟
+- 用于后续敏感操作
+
+#### 3.2 密码管理
+
+##### 3.2.1 修改密码
+
+**接口**: `PUT /api/v1/user/password`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "old_password": "old123456",
+  "new_password": "new123456"
+}
+```
+
+**成功响应**: HTTP 204 No Content
+
+**说明**:
+
+- 首次设置密码: old_password可选(用户无密码时)
+- 修改密码: old_password必填(用户有密码时)
+- 密码要求: 8-128位
+
+##### 3.2.2 重置密码
+
+**接口**: `POST /api/v1/user/password/reset`
+
+**请求参数**:
+
+```json
+{
+  "operation_token": "opt_xxx",
+  "new_password": "new123456"
+}
+```
+
+**成功响应**: HTTP 204 No Content
+
+**说明**:
+
+- 不需要登录状态
+- 需要operation_token(通过手机号/邮箱验证获取)
+- 用于忘记密码场景
+
+#### 3.3 邮箱管理
+
+##### 3.3.1 发送邮箱验证码
+
+**接口**: `POST /api/v1/user/email/send-code`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "cooldown": 60
+}
+```
+
+**说明**:
+
+- 用于绑定/修改邮箱时发送验证码
+- 速率限制: 60秒/次
+
+##### 3.3.2 绑定邮箱
+
+**接口**: `POST /api/v1/user/email`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "email": "user@example.com",
+  "code": "123456"
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "email": "u***@example.com"
+}
+```
+
+**说明**:
+
+- 需要登录状态
+- 需要邮箱验证码
+- 邮箱唯一性检查
+- 返回脱敏后的邮箱
+
+##### 3.3.3 修改邮箱
+
+**接口**: `PUT /api/v1/user/email`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "operation_token": "opt_xxx",
+  "new_email": "new@example.com",
+  "email_code": "123456"
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "email": "n***@example.com"
+}
+```
+
+**说明**:
+
+- 需要operation_token(验证旧手机号/邮箱)
+- 需要新邮箱验证码
+- 邮箱唯一性检查
+- 返回脱敏后的新邮箱
+
+##### 3.3.4 解绑邮箱
+
+**接口**: `DELETE /api/v1/user/email`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "operation_token": "opt_xxx"
+}
+```
+
+**成功响应**: HTTP 204 No Content
+
+**说明**:
+
+- 需要operation_token(验证手机号/邮箱)
+- 解绑后邮箱字段为null
+
+#### 3.4 手机号管理
+
+##### 3.4.1 修改手机号
+
+**接口**: `PUT /api/v1/user/phone`
+
+**请求头**: `Authorization: Bearer token`
+
+**请求参数**:
+
+```json
+{
+  "operation_token": "opt_xxx",
+  "new_phone": "+8613900139000",
+  "sms_code": "123456"
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "phone": "139******00"
+}
+```
+
+**说明**:
+
+- 需要operation_token(验证旧手机号/邮箱)
+- 需要新手机号验证码
+- 手机号唯一性检查
+- qiao_id不变
+- 返回脱敏后的新手机号
+
+### 4. 联系人管理
+
+#### 4.1 获取联系人列表
 
 **接口**: `GET /api/v1/contacts`
 
@@ -586,7 +894,7 @@ Authorization: Bearer <token>
 - contact_type: 1=真人用户, 2=AI角色
 - 不返回last_message（客户端本地管理）
 
-#### 3.2 获取单个联系人详情
+#### 4.2 获取单个联系人详情
 
 **接口**: `GET /api/v1/contacts/{conv_id}`
 
@@ -616,7 +924,7 @@ Authorization: Bearer <token>
 }
 ```
 
-#### 3.3 更新联系人信息
+#### 4.3 更新联系人信息
 
 **接口**: `PUT /api/v1/contacts/{conv_id}`
 
@@ -634,19 +942,19 @@ Authorization: Bearer <token>
 }
 ```
 
-#### 3.4 屏蔽联系人
+#### 4.4 屏蔽联系人
 
 **接口**: `POST /api/v1/contacts/{conv_id}/block`
 
 **请求头**: `Authorization: Bearer token`
 
-#### 3.5 取消屏蔽联系人
+#### 4.5 取消屏蔽联系人
 
 **接口**: `POST /api/v1/contacts/{conv_id}/unblock`
 
 **请求头**: `Authorization: Bearer token`
 
-#### 3.6 删除联系人
+#### 4.6 删除联系人
 
 **接口**: `DELETE /api/v1/contacts/{conv_id}`
 
@@ -657,7 +965,7 @@ Authorization: Bearer <token>
 - 删除联系人关系
 - 不删除聊天记录（客户端本地管理）
 
-#### 3.7 获取对话信息
+#### 4.7 获取对话信息
 
 **接口**: `GET /api/v1/contacts/{conv_id}/conversation`
 
@@ -684,7 +992,7 @@ Authorization: Bearer <token>
 - im_conv_id与contacts接口返回的值一致
 - 此接口提供额外的联系人信息用于对话初始化
 
-#### 3.8 获取历史消息
+#### 4.8 获取历史消息
 
 **接口**: `GET /api/v1/contacts/{conv_id}/messages`
 
@@ -719,55 +1027,9 @@ Authorization: Bearer <token>
 - message_type: 1=文本, 2=图片, 3=语音, 4=视频, 5=系统消息
 - status: 1=已发送, 2=已送达, 3=已读, 4=失败
 
-### 4. 联系人添加
+### 5. 联系人申请
 
-#### 4.1 添加AI联系人
-
-**接口**: `POST /api/v1/contacts/add`
-
-**请求头**: `Authorization: Bearer token`
-
-**请求参数**:
-
-```json
-{
-  "contact_qiao_id": "qiao_xm001",
-  "alias": "小萌",
-  "tags": ["朋友", "聊天"],
-  "source": "discovery"
-}
-```
-
-**成功响应**:
-
-```json
-{
-  "conv_id": "conv_xyz789",
-  "im_conv_id": "system_conversation_id",
-  "contact_qiao_id": "qiao_xm001",
-  "contact_type": 2,
-  "alias": "小萌",
-  "tags": ["朋友", "聊天"],
-  "profile": {
-    "nickname": "小萌",
-    "gender": 2,
-    "avatar_url": "assets://avatar_01"
-  }
-}
-```
-
-**说明**:
-
-- 只能添加AI联系人(contact_type=2)
-- 验证联系人数量限制(默认1个,可通过订阅增加)
-- 验证AI角色是否可用
-- 系统自动填入初始备注(可由用户修改)
-- source: 添加来源(discovery=发现页, search=搜索, recommend=推荐等)
-- 直接创建联系人关系,无需审批
-
-### 5. 联系人申请(2.0功能,暂不实现)
-
-#### 5.1 发送联系人申请
+#### 4.1 发送联系人申请
 
 **接口**: `POST /api/v1/contact-requests`
 
@@ -780,33 +1042,213 @@ Authorization: Bearer <token>
   "to_qiao_id": "qiao_xm001",
   "message": "你好，我想和你聊天",
   "alias": "小萌",
-  "tags": ["朋友", "聊天"]
+  "tags": ["朋友", "聊天"],
+  "source": 1
 }
 ```
 
-#### 5.2 获取联系人申请列表
+**字段说明**:
+
+- `to_qiao_id`: 目标用户/AI的qiao_id（必填）
+- `message`: 申请消息（可选，最长500字符）
+- `alias`: 备注名（可选，最长100字符）
+- `tags`: 标签列表（可选）
+- `source`: 请求来源（1=搜索, 2=扫码, 3=推荐, 4=群聊, 5=名片）
+
+**成功响应**:
+
+```json
+{
+  "message": "请求已发送"
+}
+```
+
+**核心设计原则**:
+
+- **统一API设计**: 无论添加AI还是真人用户，都使用同一个API
+- **后端自动路由**: 后端通过查询数据库判断目标类型（先查users表，再查ai_characters表）
+- **统一返回格式**: 所有请求都返回 `{"message": "请求已发送"}`，不立即创建联系人
+- **防重复请求**: 相同的请求在有效期内只能有一条
+  - 如果已有pending状态的请求，返回200但不创建新请求
+  - 保持旧请求直到被处理或过期
+- **联系人请求 vs 联系人**:
+  - 发送请求时只创建 `contact_request` 记录（申请记录）
+  - 接受请求后才创建 `contact` 记录（实际联系人关系）
+
+**处理流程**:
+
+**AI联系人请求**:
+
+1. **联系人模块验证**：
+   - 检查是否已添加该联系人（包括已删除的）
+   - 如果已删除（`is_deleted=1`），恢复联系人关系，使用新的alias和tags
+   - 检查AI联系人数量上限
+2. **创建联系人请求记录**（`contact_request` 表，status=PENDING）
+3. **转发给AI模块验证**：
+   - 验证AI资料模板是否可用
+   - 验证信息模板是否可用
+   - AI返回同意/拒绝决策
+4. **AI接受后创建联系人**：
+   - 创建AI角色（从模板）
+   - 创建联系人记录（`contact` 表）
+   - 更新请求状态为ACCEPTED
+   - 发送CHAT_INFO消息（message_type=4）
+5. **返回统一响应**: `{"message": "请求已发送"}`
+
+**用户联系人请求**:
+
+1. **联系人模块验证**：
+   - 检查是否已添加该联系人（包括已删除的）
+   - 如果已删除（`is_deleted=1`），恢复联系人关系，使用新的alias和tags
+2. **创建联系人请求记录**（`contact_request` 表，status=PENDING）
+3. **验证目标用户存在**
+4. **发送NOTIFICATION消息**（message_type=9）给目标用户
+5. **返回统一响应**: `{"message": "请求已发送"}`
+
+**联系人恢复逻辑**:
+
+- 如果联系人关系存在且 `is_deleted=1`，则恢复联系人
+- 使用新的alias和tags，不保留旧的remark
+- 保留原有的conv_id
+- 返回 `{"message": "请求已发送"}`
+
+**错误处理**:
+
+- 400: 已添加该联系人、联系人数量已达上限、添加失败
+- 500: 系统错误
+
+**通知消息示例**:
+
+```json
+{
+  "message_type": 9,
+  "conv_id": "",
+  "content": {
+    "notification_type": 1,
+    "action": {
+      "type": "navigate",
+      "target": "contact_requests"
+    },
+    "data": {
+      "request_id": 123,
+      "from_qiao_id": "qiao_user002",
+      "from_nickname": "小红",
+      "from_avatar": "assets://avatar_02",
+      "message": "你好，我想加你为好友"
+    }
+  }
+}
+```
+
+**存储说明**:
+
+- 通知消息（message_type=9）存入 `notification_push_history` 表
+- 不存入 `message_history` 表
+- 聊天信息消息（message_type=4）存入 `message_history` 表
+
+#### 4.2 获取联系人申请列表
 
 **接口**: `GET /api/v1/contact-requests`
 
 **请求头**: `Authorization: Bearer token`
 
-**查询参数**: `?cursor=xxx&limit=20`
+**查询参数**: `?status=1&cursor=xxx&limit=20`
 
-#### 5.3 接受联系人申请
+**成功响应**:
+
+```json
+{
+  "items": [
+    {
+      "id": 123,
+      "from_qiao_id": "qiao_user001",
+      "from_type": 1,
+      "message": "你好，我想加你为好友",
+      "status": 1,
+      "created_at": 1710001111000,
+      "from_profile": {
+        "nickname": "小明",
+        "avatar_url": "assets://avatar_01",
+        "gender": 1
+      }
+    }
+  ],
+  "pagination": {
+    "cursor": "next_cursor",
+    "has_more": true
+  }
+}
+```
+
+**字段说明**:
+
+- `status`: 请求状态（1=待处理, 2=已接受, 3=已忽略, 4=已过期, 5=已拒绝）
+- `from_type`: 申请人类型（1=真人用户, 2=AI角色, 3=官方账号）
+
+#### 4.3 接受联系人申请
 
 **接口**: `POST /api/v1/contact-requests/{id}/accept`
 
 **请求头**: `Authorization: Bearer token`
 
-#### 5.4 拒绝联系人申请
+**请求参数**:
+
+```json
+{
+  "alias": "小明",
+  "tags": ["同事"]
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "conv_id": "conv_xyz789",
+  "im_conv_id": "system_conversation_id",
+  "contact_qiao_id": "qiao_user001",
+  "contact_type": 1,
+  "alias": "小明",
+  "tags": {"tags": ["同事"]},
+  "remark": null,
+  "is_pinned": false,
+  "is_muted": false,
+  "is_blocked": false,
+  "is_deleted": false,
+  "created_at": "2025-01-20T10:00:00Z",
+  "updated_at": "2025-01-20T10:00:00Z",
+  "contact_id": 456
+}
+```
+
+**说明**:
+
+- 接受后创建联系人记录
+- 发送NOTIFICATION消息给申请人
+- 返回完整的ContactResponse
+
+#### 4.4 拒绝联系人申请
 
 **接口**: `POST /api/v1/contact-requests/{id}/reject`
 
 **请求头**: `Authorization: Bearer token`
 
+**成功响应**:
+
+```json
+{
+  "message": "已拒绝"
+}
+```
+
+**说明**:
+
+- 更新请求状态为已拒绝
+- 不发送通知给申请人
+
 ### 6. 发现页面
 
-#### 6.1 获取广场随机联系人
+#### 5.1 获取广场随机联系人
 
 **接口**: `GET /api/v1/discovery/square`
 

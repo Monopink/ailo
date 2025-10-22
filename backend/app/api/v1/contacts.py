@@ -1,278 +1,545 @@
 """
-Contact and social profile related API routes
+Contact management API endpoints.
+
+This module provides endpoints for managing user contacts and conversations.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from api.deps import get_current_user, get_db
-from services.contacts.contacts import (
-    get_user_contacts,
-    search_contacts,
-    get_contact_by_entity_id,
-    get_contact_chat_info,
-    add_contact,
-)
-from repositories.profile import ProfileRepository
-from services.contacts.utils.contact_limits import get_user_contact_limits
-from schemas.social_profile import SocialProfileCreate, SocialProfileUpdate
+
+from core.database import get_db
+from api.deps import get_current_user
 from models.user import User
+from enums import ContactType
+from schemas.contact import (
+    ContactListResponse,
+    ContactResponse,
+    ContactUpdate,
+    ConversationInfoResponse,
+)
+from services.contact import (
+    get_user_contacts_with_profiles,
+    get_contact_with_profile,
+    get_conversation_info,
+    update_contact,
+    block_contact,
+    unblock_contact,
+    delete_contact,
+)
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter()
-
-# Initialize repository
-profile_repository = ProfileRepository()
+router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
 
-@router.get("")
-async def get_contacts(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """
-    Get current user's contacts with their social profiles
-    """
-    try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
-
-        contact_list = await get_user_contacts(db, user_entity_id)
-        return {"status": "success", "data": contact_list}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("get_contacts_endpoint_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/search")
-async def search_contacts_api(
-    query: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+@router.get("", response_model=List[ContactListResponse])
+async def get_contacts(
+    contact_type: Optional[ContactType] = Query(None, description="Filter by contact type"),
+    cursor: Optional[str] = Query(None, description="Pagination cursor"),
+    limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Search available contacts from preset configuration
+    Get user's contact list.
+
+    Returns a list of contacts with basic information and IM conversation ID.
+    Supports filtering by contact type and cursor-based pagination.
+
+    Args:
+        contact_type: Optional filter by contact type (USER, AI, OFFICIAL)
+        cursor: Pagination cursor (not implemented yet, uses skip for MVP)
+        limit: Maximum number of contacts to return (1-100)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        List of ContactListResponse with im_conv_id
+
+    Raises:
+        HTTPException: 500 if IM configuration is missing or internal error
     """
     try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
+        # TODO: Implement cursor-based pagination
+        # For MVP, use simple offset pagination
+        skip = 0
 
-        if not query:
-            raise HTTPException(status_code=400, detail="Query parameter is required")
+        contacts = await get_user_contacts_with_profiles(
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            contact_type=contact_type,
+            skip=skip,
+            limit=limit,
+        )
 
-        # Basic input validation for search query
-        if len(query.strip()) == 0:
-            raise HTTPException(status_code=400, detail="Query cannot be empty")
+        logger.info(
+            "contacts_list_retrieved",
+            user_qiao_id=current_user.qiao_id,
+            count=len(contacts),
+            contact_type=contact_type,
+        )
 
-        if len(query) > 100:  # Reasonable limit for search queries
-            raise HTTPException(status_code=400, detail="Query too long (max 100 characters)")
-
-        available_contacts = await search_contacts(db, user_entity_id, query)
-        return {"status": "success", "data": available_contacts}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("search_contacts_endpoint_error", error=str(e), query=query)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/limits")
-async def get_contact_limits(
-    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
-):
-    """
-    Get current user's contact limits and usage information
-    """
-    try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
-
-        limits_info = await get_user_contact_limits(db, user_entity_id)
-        return {"status": "success", "data": limits_info}
+        return contacts
 
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except HTTPException:
-        raise
+        # Configuration error (e.g., IM conv_id not configured)
+        logger.error(
+            "contacts_list_config_error",
+            user_qiao_id=current_user.qiao_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
     except Exception as e:
-        logger.error("get_contact_limits_endpoint_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(
+            "contacts_list_failed",
+            user_qiao_id=current_user.qiao_id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
 
 
-@router.get("/{contact_entity_id}")
+@router.get("/{conv_id}", response_model=ContactResponse)
 async def get_contact(
-    contact_entity_id: str,
-    db: AsyncSession = Depends(get_db),
+    conv_id: str,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Get a specific contact by entity ID
+    Get specific contact details.
+
+    Returns detailed information about a specific contact including IM conversation ID.
+
+    Args:
+        conv_id: Conversation identifier
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        ContactResponse with im_conv_id
+
+    Raises:
+        HTTPException: 404 if contact not found, 500 for internal errors
     """
     try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
+        contact = await get_contact_with_profile(
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
 
-        contact = await get_contact_by_entity_id(db, user_entity_id, contact_entity_id)
         if not contact:
-            raise HTTPException(status_code=404, detail="Contact not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="操作异常",
+            )
 
-        return {"status": "success", "data": contact}
+        logger.info(
+            "contact_detail_retrieved",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        return contact
 
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.error(
+            "contact_detail_config_error",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
     except Exception as e:
-        logger.error("get_contact_endpoint_error", error=str(e), contact_entity_id=contact_entity_id)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(
+            "contact_detail_failed",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
 
 
-@router.get("/{contact_entity_id}/chat-info")
-async def get_contact_chat_info_api(
-    contact_entity_id: str,
-    db: AsyncSession = Depends(get_db),
+@router.get("/{conv_id}/conversation", response_model=ConversationInfoResponse)
+async def get_contact_conversation(
+    conv_id: str,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Get specific contact's chat display information
+    Get conversation information.
+
+    Returns conversation information including contact basic info and IM conversation ID.
+    Used by messaging client to initialize conversation.
+
+    Args:
+        conv_id: Conversation identifier
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        ConversationInfoResponse with im_conv_id and contact info
+
+    Raises:
+        HTTPException: 404 if conversation not found, 500 for internal errors
     """
     try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
+        conversation = await get_conversation_info(
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
 
-        chat_info = await get_contact_chat_info(db, user_entity_id, contact_entity_id)
-        if not chat_info:
-            raise HTTPException(status_code=404, detail="Contact not found")
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="操作异常",
+            )
 
-        return {"status": "success", "data": chat_info}
+        logger.info(
+            "conversation_info_retrieved",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        return conversation
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(
+            "conversation_info_config_error",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+    except Exception as e:
+        logger.error(
+            "conversation_info_failed",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+
+
+@router.put("/{conv_id}", response_model=ContactResponse)
+async def update_contact_info(
+    conv_id: str,
+    update_data: ContactUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update contact information.
+
+    Allows updating contact alias, tags, remark, pin status, mute status, and block status.
+    All fields are optional - only provided fields will be updated.
+
+    Args:
+        conv_id: Conversation identifier
+        update_data: Contact update data
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Updated contact information
+
+    Raises:
+        HTTPException: 400 if contact not found or access denied
+        HTTPException: 500 if update fails
+    """
+    try:
+        updated_contact = await update_contact(
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            update_data=update_data,
+        )
+
+        if not updated_contact:
+            logger.warning(
+                "contact_update_not_found",
+                user_qiao_id=current_user.qiao_id,
+                conv_id=conv_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="操作异常",
+            )
+
+        logger.info(
+            "contact_updated_via_api",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        return updated_contact
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(
+            "contact_update_config_error",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+    except Exception as e:
+        logger.error(
+            "contact_update_failed",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+
+
+@router.post("/{conv_id}/block", response_model=ContactResponse)
+async def block_contact_endpoint(
+    conv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Block a contact.
+
+    Blocks the specified contact, preventing messages from being received.
+
+    Args:
+        conv_id: Conversation identifier
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Updated contact information with is_blocked=True
+
+    Raises:
+        HTTPException: 400 if contact not found or access denied
+        HTTPException: 500 if block operation fails
+    """
+    try:
+        blocked_contact = await block_contact(
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        if not blocked_contact:
+            logger.warning(
+                "contact_block_not_found",
+                user_qiao_id=current_user.qiao_id,
+                conv_id=conv_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="操作异常",
+            )
+
+        logger.info(
+            "contact_blocked_via_api",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        return blocked_contact
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(
+            "contact_block_config_error",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+    except Exception as e:
+        logger.error(
+            "contact_block_failed",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+
+
+@router.post("/{conv_id}/unblock", response_model=ContactResponse)
+async def unblock_contact_endpoint(
+    conv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Unblock a contact.
+
+    Unblocks the specified contact, allowing messages to be received again.
+
+    Args:
+        conv_id: Conversation identifier
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Updated contact information with is_blocked=False
+
+    Raises:
+        HTTPException: 400 if contact not found or access denied
+        HTTPException: 500 if unblock operation fails
+    """
+    try:
+        unblocked_contact = await unblock_contact(
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        if not unblocked_contact:
+            logger.warning(
+                "contact_unblock_not_found",
+                user_qiao_id=current_user.qiao_id,
+                conv_id=conv_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="操作异常",
+            )
+
+        logger.info(
+            "contact_unblocked_via_api",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        return unblocked_contact
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(
+            "contact_unblock_config_error",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+    except Exception as e:
+        logger.error(
+            "contact_unblock_failed",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
+        )
+
+
+@router.delete("/{conv_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_contact_endpoint(
+    conv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a contact.
+
+    Soft deletes the contact relationship. Chat history is not deleted (managed by client).
+
+    Args:
+        conv_id: Conversation identifier
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        No content (204)
+
+    Raises:
+        HTTPException: 400 if contact not found or access denied
+        HTTPException: 500 if delete operation fails
+    """
+    try:
+        success = await delete_contact(
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        if not success:
+            logger.warning(
+                "contact_delete_not_found",
+                user_qiao_id=current_user.qiao_id,
+                conv_id=conv_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="操作异常",
+            )
+
+        logger.info(
+            "contact_deleted_via_api",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+        )
+
+        return None
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(
-            "get_contact_chat_info_endpoint_error", error=str(e), contact_entity_id=contact_entity_id
+            "contact_delete_failed",
+            user_qiao_id=current_user.qiao_id,
+            conv_id=conv_id,
+            error=str(e),
+            exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/profile/{entity_id}")
-async def get_social_profile(entity_id: str, db: AsyncSession = Depends(get_db)):
-    """
-    Get social profile by entity ID
-    """
-    try:
-        profile = await profile_repository.get_social_profile_by_entity_id(db, entity_id)
-        if not profile:
-            raise HTTPException(status_code=404, detail="Profile not found")
-
-        return {"status": "success", "data": profile}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("get_social_profile_endpoint_error", error=str(e), entity_id=entity_id)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.put("/profile/me")
-async def create_or_update_my_profile(
-    profile_data: SocialProfileUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Create or update current user's social profile
-    """
-    try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
-
-        # Convert Pydantic model to dict, excluding None values
-        profile_dict = profile_data.dict(exclude_none=True)
-
-        if not profile_dict:
-            raise HTTPException(status_code=400, detail="No data provided for update")
-
-        updated_profile = await profile_repository.create_or_update_social_profile(
-            db, user_entity_id, profile_dict
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="操作失败，请稍后再试",
         )
-
-        return {"status": "success", "data": updated_profile}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("create_or_update_my_profile_endpoint_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/profile/me")
-async def create_my_profile(
-    profile_data: SocialProfileCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Create current user's social profile (for first-time setup)
-    """
-    try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
-
-        # Check if profile already exists
-        existing_profile = await profile_repository.get_social_profile_by_entity_id(db, user_entity_id)
-        if existing_profile:
-            raise HTTPException(status_code=409, detail="Profile already exists, use PUT to update")
-
-        # Convert Pydantic model to dict
-        profile_dict = profile_data.dict()
-
-        created_profile = await profile_repository.create_or_update_social_profile(
-            db, user_entity_id, profile_dict
-        )
-
-        return {"status": "success", "data": created_profile}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("create_my_profile_endpoint_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/add")
-async def add_contact_api(
-    request_data: dict, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
-):
-    """
-    Add a new contact for the current user
-    """
-    try:
-        user_entity_id = current_user.entity_id
-        if not user_entity_id:
-            raise HTTPException(status_code=400, detail="User entity_id not found")
-
-        contact_id = request_data.get("contact_id")  # Frontend sends contact_id (entity_id from mapping)
-        if not contact_id:
-            raise HTTPException(status_code=400, detail="contact_id is required")
-
-        # Ensure contact_id is valid string and not empty
-        if not isinstance(contact_id, str) or not contact_id.strip():
-            raise HTTPException(status_code=400, detail="contact_id must be a non-empty string")
-
-        result = await add_contact(db, user_entity_id, contact_id)
-
-        # Service layer now returns structured response, pass it through
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("add_contact_endpoint_error", error=str(e), request_data=request_data)
-        # Return consistent error format
-        return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}

@@ -1,328 +1,507 @@
 """
-Contacts Service - Core contact management functions
-Handles contact relationships and integrates with other services
+Contact service business logic.
+
+This module provides business logic for contact management operations.
 """
 
-import time
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
-from repositories.contact import ContactRepository
-from repositories.bot_template import TemplateRepository
-from repositories.profile import ProfileRepository
-from .template import (
-    search_available_templates,
-    get_template_mapping,
-    get_template_by_id,
-    instantiate_template_to_contact,
-    validate_search_timeout,
-)
 
-from .utils.contact_limits import get_user_contact_limits, check_contact_limit_reached
+from crud.contact import contact as contact_crud
+from crud.profile import profile as profile_crud
+from crud.system import system_configs
+from models.contact import Contact
+from models.profile import Profile
+from enums import ContactType, ProfileOwnerType
+from schemas.contact import (
+    ContactListResponse,
+    ContactResponse,
+    ContactUpdate,
+    ContactInfoBase,
+    ConversationInfoResponse,
+)
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Initialize repositories
-contact_repository = ContactRepository()
-template_repository = TemplateRepository()
-profile_repository = ProfileRepository()
 
-
-async def get_user_contacts(session: AsyncSession, user_entity_id: str) -> List[Dict[str, Any]]:
+async def _get_im_conv_id(db: AsyncSession) -> str:
     """
-    Get all contacts for a user (both bot and user contacts)
+    Get IM provider conversation ID from system config.
 
     Args:
-        session: Database session
-        user_entity_id: User's entity ID
+        db: Database session
 
     Returns:
-        List of contact dictionaries
+        IM conversation ID
+
+    Raises:
+        ValueError: If conversation ID is not configured
     """
-    try:
-        # Use repository to get contacts with profiles
-        contacts_data = await contact_repository.get_user_contacts_with_profiles(session, user_entity_id)
-
-        logger.info("user_contacts_retrieved", user_entity_id=user_entity_id, count=len(contacts_data))
-        return contacts_data
-
-    except Exception as e:
-        logger.error("get_user_contacts_error", error=str(e), user_entity_id=user_entity_id)
-        raise
+    conv_id = await system_configs.get_config_value(db, config_key="leancloud_service_conversation_id")
+    if not conv_id:
+        logger.error("im_conv_id_not_configured")
+        raise ValueError("IM conversation ID not configured in system settings")
+    return conv_id
 
 
-async def get_contact_by_entity_id(
-    session: AsyncSession, user_entity_id: str, contact_entity_id: str
-) -> Optional[Dict[str, Any]]:
+async def _get_contact_profile(
+    db: AsyncSession, contact_qiao_id: str, contact_type: ContactType
+) -> Optional[Profile]:
     """
-    Get specific contact by entity ID
+    Get profile for a contact.
 
     Args:
-        session: Database session
-        user_entity_id: User's entity ID
-        contact_entity_id: Contact's entity ID
+        db: Database session
+        contact_qiao_id: Contact's qiao_id
+        contact_type: Contact type
 
     Returns:
-        Contact dictionary or None if not found
+        Profile object or None if not found
     """
-    try:
-        # Get contact with profile using repository's combined method
-        return await contact_repository.get_contact_with_profile(session, user_entity_id, contact_entity_id)
+    # Map ContactType to ProfileOwnerType
+    owner_type_map = {
+        ContactType.USER: ProfileOwnerType.USER,
+        ContactType.AI: ProfileOwnerType.AI,
+        ContactType.OFFICIAL: ProfileOwnerType.USER,  # Official accounts use USER type
+    }
 
-    except Exception as e:
-        logger.error(
-            "get_contact_by_entity_id_error",
-            error=str(e),
-            user_entity_id=user_entity_id,
-            contact_entity_id=contact_entity_id,
-        )
-        raise
+    owner_type = owner_type_map.get(contact_type)
+    if not owner_type:
+        logger.warning("unknown_contact_type", contact_type=contact_type)
+        return None
+
+    return await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=contact_qiao_id, owner_type=owner_type)
 
 
-async def get_contact_chat_info(
-    session: AsyncSession, user_entity_id: str, contact_entity_id: str
-) -> Optional[Dict[str, Any]]:
+def _build_contact_list_response(
+    contact: Contact, im_conv_id: str, profile: Optional[Profile] = None
+) -> ContactListResponse:
     """
-    Get contact information for chat interface
+    Build ContactListResponse from contact and profile data.
 
     Args:
-        session: Database session
-        user_entity_id: User's entity ID
-        contact_entity_id: Contact's entity ID
+        contact: Contact model instance
+        im_conv_id: IM provider conversation ID
+        profile: Optional profile data
 
     Returns:
-        Chat info dictionary or None if not found
+        ContactListResponse instance
     """
-    try:
-        # Get contact chat info using repository's combined method
-        return await contact_repository.get_contact_chat_info(session, user_entity_id, contact_entity_id)
+    return ContactListResponse(
+        conv_id=contact.conv_id,
+        im_conv_id=im_conv_id,
+        contact_qiao_id=contact.contact_qiao_id,
+        contact_type=ContactType(contact.contact_type),
+        alias=contact.alias,
+        avatar_alias_url=contact.avatar_alias_url,
+        is_pinned=bool(contact.is_pinned),
+        is_muted=bool(contact.is_muted),
+        is_blocked=bool(contact.is_blocked),
+        created_at=contact.created_at,
+        # Add profile fields
+        nickname=profile.nickname if profile else None,
+        avatar_url=profile.avatar_url if profile else None,
+        bio=profile.bio if profile else None,
+        gender=profile.gender if profile else None,
+    )
 
-    except Exception as e:
-        logger.error(
-            "get_contact_chat_info_error",
-            error=str(e),
-            user_entity_id=user_entity_id,
-            contact_entity_id=contact_entity_id,
-        )
-        raise
 
-
-async def search_contacts(session: AsyncSession, user_entity_id: str, query: str) -> List[Dict[str, Any]]:
+def _build_contact_response(
+    contact: Contact, im_conv_id: str, profile: Optional[Profile] = None
+) -> ContactResponse:
     """
-    Search available contacts from templates
+    Build ContactResponse from contact and profile data.
 
     Args:
-        session: Database session
-        user_entity_id: User's entity ID
-        query: Search query
+        contact: Contact model instance
+        im_conv_id: IM provider conversation ID
+        profile: Optional profile data
 
     Returns:
-        List of available contact dictionaries
+        ContactResponse instance
     """
-    try:
-        return await search_available_templates(session, user_entity_id, query)
+    return ContactResponse(
+        conv_id=contact.conv_id,
+        im_conv_id=im_conv_id,
+        contact_id=contact.id,
+        contact_type=ContactType(contact.contact_type),
+        contact_qiao_id=contact.contact_qiao_id,
+        alias=contact.alias,
+        avatar_alias_url=contact.avatar_alias_url,
+        tags=contact.tags,
+        remark=contact.remark,
+        is_pinned=bool(contact.is_pinned),
+        is_muted=bool(contact.is_muted),
+        is_blocked=bool(contact.is_blocked),
+        is_deleted=bool(contact.is_deleted),
+        created_at=contact.created_at,
+        updated_at=contact.updated_at,
+    )
 
-    except Exception as e:
-        logger.error("search_contacts_error", error=str(e), user_entity_id=user_entity_id, query=query)
-        raise
 
-
-async def add_contact(session: AsyncSession, user_entity_id: str, contact_entity_id: str) -> Dict[str, Any]:
+async def get_user_contacts_with_profiles(
+    db: AsyncSession,
+    user_qiao_id: str,
+    contact_type: Optional[ContactType] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[ContactListResponse]:
     """
-    Add a new contact from template mapping
+    Get user's contacts with profile information and IM conversation ID.
 
     Args:
-        session: Database session
-        user_entity_id: User's entity ID
-        contact_entity_id: Contact entity ID (from template_mappings.entity_id)
+        db: Database session
+        user_qiao_id: User's qiao_id
+        contact_type: Optional filter by contact type
+        skip: Number of records to skip
+        limit: Maximum number of records to return
 
     Returns:
-        Result dictionary with status and message
+        List of ContactListResponse with im_conv_id populated
     """
-    start_time = time.time()
-    try:
-        # Start explicit transaction for rollback capability
-        async with session.begin():
-            # Check user's contact limits first
-            limits_info = await get_user_contact_limits(session, user_entity_id)
-            if check_contact_limit_reached(limits_info):
-                logger.warning(
-                    "add_contact_limit_reached",
-                    user_entity_id=user_entity_id,
-                    current_count=limits_info["current_count"],
-                    contact_limit=limits_info["contact_limit"],
-                    reason="Contact limit reached",
-                )
-                return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
+    # Get IM conversation ID
+    im_conv_id = await _get_im_conv_id(db)
 
-            # Get template mapping
-            mapping = await get_template_mapping(session, user_entity_id, contact_entity_id)
-            if not mapping:
-                logger.warning(
-                    "add_contact_invalid_mapping",
-                    user_entity_id=user_entity_id,
-                    contact_entity_id=contact_entity_id,
-                    reason="Template mapping not found or inactive",
-                )
-                return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
+    # Get contacts from database
+    contacts = await contact_crud.get_user_contacts(
+        db,
+        user_qiao_id=user_qiao_id,
+        contact_type=contact_type,
+        include_blocked=False,
+        skip=skip,
+        limit=limit,
+    )
 
-            # Check search timeout
-            if not validate_search_timeout(mapping):
-                logger.warning(
-                    "add_contact_search_timeout",
-                    user_entity_id=user_entity_id,
-                    contact_entity_id=contact_entity_id,
-                    reason="Search timeout exceeded or no search record",
-                )
-                return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
+    # Build response list
+    result = []
+    for contact in contacts:
+        # Get profile for additional info (optional, for future use)
+        profile = await _get_contact_profile(db, contact.contact_qiao_id, ContactType(contact.contact_type))
 
-            # Check if contact already exists using repository
-            existing_contact = await contact_repository.get_contact_by_entities(
-                session, user_entity_id, contact_entity_id
-            )
+        # Build response
+        contact_response = _build_contact_list_response(contact, im_conv_id, profile)
+        result.append(contact_response)
 
-            if existing_contact:
-                logger.warning(
-                    "add_contact_already_exists",
-                    user_entity_id=user_entity_id,
-                    contact_entity_id=contact_entity_id,
-                    reason="Contact already added",
-                )
-                return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
+    logger.info(
+        "contacts_retrieved",
+        user_qiao_id=user_qiao_id,
+        count=len(result),
+        contact_type=contact_type,
+    )
 
-            # Get template data
-            template = await get_template_by_id(session, mapping.template_id)
-            if not template:
-                logger.warning(
-                    "add_contact_template_not_found",
-                    user_entity_id=user_entity_id,
-                    contact_entity_id=contact_entity_id,
-                    template_id=mapping.template_id,
-                    reason="Template data not found",
-                )
-                return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
-
-            # Check template availability
-            if template.template_status != "active":
-                logger.warning(
-                    "add_contact_template_disabled",
-                    user_entity_id=user_entity_id,
-                    contact_entity_id=contact_entity_id,
-                    template_id=template.template_id,
-                    template_status=template.template_status,
-                    reason="Template is disabled",
-                )
-                return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
-
-            if template.remaining_uses is not None and template.remaining_uses == 0:
-                logger.warning(
-                    "add_contact_template_exhausted",
-                    user_entity_id=user_entity_id,
-                    contact_entity_id=contact_entity_id,
-                    template_id=template.template_id,
-                    remaining_uses=template.remaining_uses,
-                    reason="Template usage exhausted",
-                )
-                return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
-
-            # Generate unique entity_id for this user's bot instance
-            from utils.id_generator import generate_unique_entity_id
-
-            unique_entity_id = await generate_unique_entity_id(session)
-
-            # Instantiate template to create bot and profile
-            await instantiate_template_to_contact(session, template, user_entity_id, unique_entity_id)
-
-            # Create contact record using repository
-            await contact_repository.create_contact_relationship(
-                session, user_entity_id, unique_entity_id, contact_type=2
-            )
-
-            # Decrease template remaining uses
-            await template_repository.decrease_template_usage(session, template)
-
-            # Update template mapping status to inactive to prevent re-selection
-            mapping.status = "inactive"
-
-        # Transaction will auto-commit here if no exceptions
-
-        execution_time = time.time() - start_time
-        logger.info(
-            "contact_added_successfully",
-            user_entity_id=user_entity_id,
-            contact_entity_id=unique_entity_id,
-            template_id=template.template_id,
-            nickname=template.nickname,
-            remaining_uses=template.remaining_uses,
-            execution_time_ms=round(execution_time * 1000, 2),
-        )
-
-        # Send system message notification
-        await _send_new_contact_system_message(
-            contact_entity_id=unique_entity_id,
-            user_entity_id=user_entity_id,
-            contact_name=template.nickname,
-        )
-
-        return {
-            "status": "success",
-            "message": "申请已发送",
-            "contact": {"id": unique_entity_id, "nickname": template.nickname},
-        }
-
-    except Exception as e:
-        logger.error(
-            "add_contact_unexpected_error",
-            error=str(e),
-            user_entity_id=user_entity_id,
-            contact_entity_id=contact_entity_id,
-            reason="Unexpected error during contact addition",
-        )
-        return {"status": "error", "error_code": 1001, "message": "添加联系人失败"}
+    return result
 
 
-async def _send_new_contact_system_message(
-    contact_entity_id: str, user_entity_id: str, contact_name: str
-) -> None:
+async def get_contact_with_profile(
+    db: AsyncSession, user_qiao_id: str, conv_id: str
+) -> Optional[ContactResponse]:
     """
-    Send system message notification for new contact
+    Get specific contact with profile information and IM conversation ID.
 
     Args:
-        contact_entity_id: Contact's entity ID
-        user_entity_id: User's entity ID
-        contact_name: Contact's name
+        db: Database session
+        user_qiao_id: User's qiao_id
+        conv_id: Conversation ID
+
+    Returns:
+        ContactResponse with im_conv_id or None if not found
     """
-    try:
-        # Import the unified message module
-        from ..message.message import send_system_message
-        from enums import SystemMessageAction
+    # Get IM conversation ID
+    im_conv_id = await _get_im_conv_id(db)
 
-        logger.info(
-            "sending_new_contact_system_message",
-            contact_entity_id=contact_entity_id,
-            user_entity_id=user_entity_id,
-            contact_name=contact_name,
-        )
+    # Get contact from database
+    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
 
-        # Send NEW_CONTACT system message using unified function
-        await send_system_message(
-            from_entity=str(contact_entity_id),  # Bot entity_id as string, no prefix
-            to_entity=str(user_entity_id),
-            action=SystemMessageAction.NEW_CONTACT,
-            contact_id=contact_entity_id,
-        )
+    if not contact:
+        logger.warning("contact_not_found", conv_id=conv_id)
+        return None
 
-        logger.info(
-            "new_contact_system_message_sent",
-            contact_entity_id=contact_entity_id,
-            user_entity_id=user_entity_id,
-            contact_name=contact_name,
+    # Verify ownership
+    if contact.user_qiao_id != user_qiao_id:
+        logger.warning(
+            "contact_access_denied",
+            user_qiao_id=user_qiao_id,
+            contact_owner=contact.user_qiao_id,
+            conv_id=conv_id,
         )
-    except Exception as e:
-        logger.error(
-            "new_contact_system_message_error",
-            error=str(e),
-            contact_entity_id=contact_entity_id,
-            user_entity_id=user_entity_id,
+        return None
+
+    # Get profile
+    profile = await _get_contact_profile(db, contact.contact_qiao_id, ContactType(contact.contact_type))
+
+    # Build response
+    contact_response = _build_contact_response(contact, im_conv_id, profile)
+
+    logger.info("contact_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
+
+    return contact_response
+
+
+async def get_conversation_info(
+    db: AsyncSession, user_qiao_id: str, conv_id: str
+) -> Optional[ConversationInfoResponse]:
+    """
+    Get conversation information including contact basic info and IM conversation ID.
+
+    Args:
+        db: Database session
+        user_qiao_id: User's qiao_id
+        conv_id: Conversation ID
+
+    Returns:
+        ConversationInfoResponse or None if not found
+    """
+    # Get IM conversation ID
+    im_conv_id = await _get_im_conv_id(db)
+
+    # Get contact
+    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+
+    if not contact:
+        logger.warning("conversation_not_found", conv_id=conv_id)
+        return None
+
+    # Verify ownership
+    if contact.user_qiao_id != user_qiao_id:
+        logger.warning(
+            "conversation_access_denied",
+            user_qiao_id=user_qiao_id,
+            contact_owner=contact.user_qiao_id,
+            conv_id=conv_id,
         )
-        # Don't re-raise to avoid blocking contact addition
+        return None
+
+    # Get profile
+    profile = await _get_contact_profile(db, contact.contact_qiao_id, ContactType(contact.contact_type))
+
+    # Build contact info
+    contact_info = ContactInfoBase(
+        nickname=profile.nickname if profile else None,
+        avatar_url=profile.avatar_url if profile else None,
+        gender=profile.gender if profile else None,
+    )
+
+    # Build response
+    response = ConversationInfoResponse(
+        conv_id=contact.conv_id,
+        im_conv_id=im_conv_id,
+        contact_qiao_id=contact.contact_qiao_id,
+        contact_type=ContactType(contact.contact_type),
+        contact_info=contact_info,
+    )
+
+    logger.info("conversation_info_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
+
+    return response
+
+
+async def update_contact(
+    db: AsyncSession, user_qiao_id: str, conv_id: str, update_data: ContactUpdate
+) -> Optional[ContactResponse]:
+    """
+    Update contact information.
+
+    Args:
+        db: Database session
+        user_qiao_id: User's qiao_id
+        conv_id: Conversation ID
+        update_data: Contact update data
+
+    Returns:
+        Updated ContactResponse or None if not found
+
+    Raises:
+        ValueError: If validation fails
+    """
+    # Get IM conversation ID
+    im_conv_id = await _get_im_conv_id(db)
+
+    # Get contact
+    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+
+    if not contact:
+        logger.warning("contact_not_found_for_update", conv_id=conv_id)
+        return None
+
+    # Verify ownership
+    if contact.user_qiao_id != user_qiao_id:
+        logger.warning(
+            "contact_update_access_denied",
+            user_qiao_id=user_qiao_id,
+            contact_owner=contact.user_qiao_id,
+            conv_id=conv_id,
+        )
+        return None
+
+    # Prepare update dict (only include non-None values)
+    update_dict = {}
+    if update_data.alias is not None:
+        update_dict["alias"] = update_data.alias
+    if update_data.avatar_alias_url is not None:
+        update_dict["avatar_alias_url"] = update_data.avatar_alias_url
+    if update_data.tags is not None:
+        update_dict["tags"] = update_data.tags
+    if update_data.remark is not None:
+        update_dict["remark"] = update_data.remark
+    if update_data.is_pinned is not None:
+        update_dict["is_pinned"] = 1 if update_data.is_pinned else 0
+    if update_data.is_muted is not None:
+        update_dict["is_muted"] = 1 if update_data.is_muted else 0
+    if update_data.is_blocked is not None:
+        update_dict["is_blocked"] = 1 if update_data.is_blocked else 0
+
+    # Update contact
+    updated_contact = await contact_crud.update(db, db_obj=contact, obj_in=update_dict)
+
+    # Get profile
+    profile = await _get_contact_profile(
+        db, updated_contact.contact_qiao_id, ContactType(updated_contact.contact_type)
+    )
+
+    # Build response
+    contact_response = _build_contact_response(updated_contact, im_conv_id, profile)
+
+    logger.info(
+        "contact_updated",
+        user_qiao_id=user_qiao_id,
+        conv_id=conv_id,
+        updated_fields=list(update_dict.keys()),
+    )
+
+    return contact_response
+
+
+async def block_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> Optional[ContactResponse]:
+    """
+    Block a contact.
+
+    Args:
+        db: Database session
+        user_qiao_id: User's qiao_id
+        conv_id: Conversation ID
+
+    Returns:
+        Updated ContactResponse or None if not found
+    """
+    # Get IM conversation ID
+    im_conv_id = await _get_im_conv_id(db)
+
+    # Get contact
+    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+
+    if not contact:
+        logger.warning("contact_not_found_for_block", conv_id=conv_id)
+        return None
+
+    # Verify ownership
+    if contact.user_qiao_id != user_qiao_id:
+        logger.warning(
+            "contact_block_access_denied",
+            user_qiao_id=user_qiao_id,
+            contact_owner=contact.user_qiao_id,
+            conv_id=conv_id,
+        )
+        return None
+
+    # Block contact
+    updated_contact = await contact_crud.update(db, db_obj=contact, obj_in={"is_blocked": 1})
+
+    # Get profile
+    profile = await _get_contact_profile(
+        db, updated_contact.contact_qiao_id, ContactType(updated_contact.contact_type)
+    )
+
+    # Build response
+    contact_response = _build_contact_response(updated_contact, im_conv_id, profile)
+
+    logger.info("contact_blocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
+
+    return contact_response
+
+
+async def unblock_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> Optional[ContactResponse]:
+    """
+    Unblock a contact.
+
+    Args:
+        db: Database session
+        user_qiao_id: User's qiao_id
+        conv_id: Conversation ID
+
+    Returns:
+        Updated ContactResponse or None if not found
+    """
+    # Get IM conversation ID
+    im_conv_id = await _get_im_conv_id(db)
+
+    # Get contact
+    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+
+    if not contact:
+        logger.warning("contact_not_found_for_unblock", conv_id=conv_id)
+        return None
+
+    # Verify ownership
+    if contact.user_qiao_id != user_qiao_id:
+        logger.warning(
+            "contact_unblock_access_denied",
+            user_qiao_id=user_qiao_id,
+            contact_owner=contact.user_qiao_id,
+            conv_id=conv_id,
+        )
+        return None
+
+    # Unblock contact
+    updated_contact = await contact_crud.update(db, db_obj=contact, obj_in={"is_blocked": 0})
+
+    # Get profile
+    profile = await _get_contact_profile(
+        db, updated_contact.contact_qiao_id, ContactType(updated_contact.contact_type)
+    )
+
+    # Build response
+    contact_response = _build_contact_response(updated_contact, im_conv_id, profile)
+
+    logger.info("contact_unblocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
+
+    return contact_response
+
+
+async def delete_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> bool:
+    """
+    Delete a contact (soft delete).
+
+    Args:
+        db: Database session
+        user_qiao_id: User's qiao_id
+        conv_id: Conversation ID
+
+    Returns:
+        True if deleted successfully, False if not found or access denied
+    """
+    # Get contact
+    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+
+    if not contact:
+        logger.warning("contact_not_found_for_delete", conv_id=conv_id)
+        return False
+
+    # Verify ownership
+    if contact.user_qiao_id != user_qiao_id:
+        logger.warning(
+            "contact_delete_access_denied",
+            user_qiao_id=user_qiao_id,
+            contact_owner=contact.user_qiao_id,
+            conv_id=conv_id,
+        )
+        return False
+
+    # Soft delete contact
+    await contact_crud.soft_delete_contact(
+        db, user_qiao_id=user_qiao_id, contact_qiao_id=contact.contact_qiao_id
+    )
+
+    logger.info("contact_deleted", user_qiao_id=user_qiao_id, conv_id=conv_id)
+
+    return True

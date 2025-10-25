@@ -78,7 +78,7 @@
 {
   "qiao_id": "qiao_abc123",
   "nickname": "小明",
-  "avatar_url": "assets://avatar_01"
+  "avatar_url": "assets://1234"
 }
 ```
 
@@ -253,7 +253,7 @@ Authorization: Bearer <token>
     "phone": "138******00",
     "nickname": "小雨",
     "gender": 2,
-    "avatar_url": "assets://avatar_01",
+    "avatar_url": "assets://1234",
     "bio": "个人简介"
   }
 }
@@ -293,7 +293,7 @@ Authorization: Bearer <token>
   "nickname": "小雨",  // 必填，2-20字符
   "gender": 2,  // 可选: 0=未知, 1=男, 2=女
   "bio": "个人简介",  // 可选，最多200字符
-  "avatar_url": "assets://avatar_01"  // 可选
+  "avatar_url": "assets://1234"  // 可选
 }
 ```
 
@@ -307,7 +307,7 @@ Authorization: Bearer <token>
     "phone": "138******00",
     "nickname": "小雨",
     "gender": 2,
-    "avatar_url": "assets://avatar_01",
+    "avatar_url": "assets://1234",
     "bio": "个人简介"
   }
 }
@@ -348,7 +348,7 @@ Authorization: Bearer <token>
     "phone": "138******00",
     "nickname": "小雨",
     "gender": 2,
-    "avatar_url": "assets://avatar_01",
+    "avatar_url": "assets://1234",
     "token": "jwt_token_here"
   }
 }
@@ -406,7 +406,7 @@ Authorization: Bearer <token>
     "email": "us***@example.com",
     "nickname": "小雨",
     "gender": 2,
-    "avatar_url": "assets://avatar_01"
+    "avatar_url": "assets://1234"
   }
 }
 ```
@@ -481,7 +481,7 @@ Authorization: Bearer <token>
   "username": "my_custom_id",
   "nickname": "小雨",
   "gender": 2,
-  "avatar_url": "assets://avatar_01",
+  "avatar_url": "assets://1234",
   "bio": "喜欢看书和旅行",
   "region": "北京"
 }
@@ -508,7 +508,7 @@ Authorization: Bearer <token>
   "username": "new_custom_id",
   "nickname": "新昵称",
   "gender": 2,
-  "avatar_url": "assets://avatar_02",
+  "avatar_url": "assets://2345",
   "bio": "新的个人简介",
   "region": "上海"
 }
@@ -522,7 +522,7 @@ Authorization: Bearer <token>
   "username": "new_custom_id",
   "nickname": "新昵称",
   "gender": 2,
-  "avatar_url": "assets://avatar_02",
+  "avatar_url": "assets://2345",
   "bio": "新的个人简介",
   "region": "上海"
 }
@@ -1133,7 +1133,7 @@ Authorization: Bearer <token>
       "request_id": 123,
       "from_qiao_id": "qiao_user002",
       "from_nickname": "小红",
-      "from_avatar": "assets://avatar_02",
+      "from_avatar": "assets://2345",
       "message": "你好，我想加你为好友"
     }
   }
@@ -1168,7 +1168,7 @@ Authorization: Bearer <token>
       "created_at": 1710001111000,
       "from_profile": {
         "nickname": "小明",
-        "avatar_url": "assets://avatar_01",
+        "avatar_url": "assets://1234",
         "gender": 1
       }
     }
@@ -1300,6 +1300,46 @@ Authorization: Bearer <token>
 - refresh_available_at: 下次可刷新的时间（ISO 8601格式）
 - 频率限制错误返回HTTP 429状态码
 
+#### 6.2 获取陌生人详情
+
+**接口**: `GET /api/v1/discovery/profile/{qiao_id}`
+
+**请求头**: 无需认证
+
+**路径参数**:
+
+- `qiao_id`: 陌生人的qiao_id
+
+**成功响应**:
+
+```json
+{
+  "qiao_id": "abc123",
+  "nickname": "小乔",
+  "gender": 2,
+  "avatar_url": "https://example.com/avatar1.jpg",
+  "bio": "我是一个友善的AI伴侣，喜欢和大家聊天",
+  "region": "北京",
+  "category": "1"
+}
+```
+
+**错误响应**:
+
+```json
+{
+  "detail": "用户不存在"
+}
+```
+
+**说明**:
+
+- 公开访问,无需认证
+- 返回ai_profile_templates表中的基本信息
+- 只返回active状态的模板
+- 不返回是否已添加联系人的状态
+- 用于发现页面点击联系人后查看详情
+
 ### 7. 预设资源(2.0功能,暂不实现)
 
 #### 7.1 获取预设头像列表
@@ -1316,9 +1356,9 @@ Authorization: Bearer <token>
 {
   "avatars": [
     {
-      "name": "avatar_01",
+      "name": "1234",
       "category": 1,
-      "url": "assets://avatar_01",
+      "url": "assets://1234",
       "description": "默认头像1",
       "sort_order": 1
     }
@@ -1330,7 +1370,7 @@ Authorization: Bearer <token>
 
 - MVP阶段使用hardcode的默认头像
 - 头像文件内置在小程序中
-- avatar_url格式: assets://avatar_01, assets://avatar_02等
+- avatar_url格式: assets://1234, assets://2345等
 - 2.0功能: 管理后台可动态添加新头像
 
 ### 8. 系统配置

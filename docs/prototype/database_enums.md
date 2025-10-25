@@ -263,6 +263,19 @@ class EmoticonCreatorType:
 
 ## AI系统相关枚举
 
+### AI模板分类 (ai_profile_templates.category)
+
+```python
+class AIProfileCategory:
+    FRIEND = 1      # 交友
+    LOVE = 2        # 恋爱
+    TALK = 3        # 倾诉
+    BESTIE = 4      # 闺蜜
+    HOBBY = 5       # 同好
+```
+
+**注意**: 数据库字段为VARCHAR(50),存储字符串形式的数字("1","2"等),以保持灵活性。
+
 ### AI角色创建者 (ai_characters.created_by)
 
 ```python

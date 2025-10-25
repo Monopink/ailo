@@ -117,15 +117,22 @@ class IntegerEnumField(EnumField):
 
         Args:
             request: Request object
-            value: Database value (integer)
+            value: Database value (integer or string representation of integer)
             action: Action type (list/detail/edit/create)
 
         Returns:
             For list/detail: enum name (e.g., "ACTIVE")
             For edit/create: integer value for form selection (e.g., 1)
         """
-        if value is None:
+        if value is None or value == "":
             return None
+
+        # Convert string to int if needed (for VARCHAR fields storing integers)
+        if isinstance(value, str):
+            try:
+                value = int(value)
+            except (ValueError, TypeError):
+                return f"INVALID({value})"
 
         # For list and detail views, show enum name
         if action in ("list", "detail"):

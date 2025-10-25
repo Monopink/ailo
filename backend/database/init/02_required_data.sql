@@ -33,7 +33,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('default_contact_limit', '3', '3', 2, 'Default contact limit per user', 'business', NULL),
 ('contact_request_expiration', '259200', '259200', 2, 'Contact request expiration time (72 hours, in seconds)', 'business', NULL),
 ('square_recommend_count', '10', '10', 2, 'Square recommend count per refresh', 'business', NULL),
-('square_refresh_interval', '60', '60', 2, 'Square refresh interval in seconds', 'business', NULL),
 ('max_message_length', '49', '49', 2, 'Maximum message length in characters', 'business', NULL),
 
 -- Authentication configurations
@@ -109,7 +108,11 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
 ('message_rate_limit_short_window', '10', '10', 2, 'Short window (seconds)', 'rate_limit', NULL),
 ('message_rate_limit_long_requests', '20', '20', 2, 'Max messages per long window', 'rate_limit', NULL),
-('message_rate_limit_long_window', '60', '60', 2, 'Long window (seconds)', 'rate_limit', NULL)
+('message_rate_limit_long_window', '60', '60', 2, 'Long window (seconds)', 'rate_limit', NULL),
+
+-- Square rate limit configuration
+('square_rate_limit_requests', '1', '1', 2, 'Square refresh requests per window', 'rate_limit', NULL),
+('square_rate_limit_window', '10', '10', 2, 'Square refresh window (seconds)', 'rate_limit', NULL)
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     default_value = EXCLUDED.default_value,

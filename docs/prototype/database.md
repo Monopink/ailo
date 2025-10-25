@@ -228,7 +228,7 @@ name -- 资源唯一标识，4位随机数字，如"8923", "7452"（默认头像
 category -- 分类
 is_client_preset -- 是否客户端预设：1=yes, 0=no
 file_id -- 关联media_files.id（云端预设资源，客户端预设为NULL）
-url -- 资源URL（客户端预设：assets://avatar_01；云端：https://...）
+url -- 资源URL（客户端预设：assets://1234；云端：https://...）
 prompt -- AI提示词（用于AI生成内容时的描述）
 description -- 资源描述（用于管理后台显示）
 status -- 状态：1=active, 2=inactive
@@ -249,7 +249,7 @@ owner_type -- 所有者类型：1=user (包括所有用户类型: normal, offici
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
 avatar_file_id -- 头像文件ID，关联media_files.id（自定义头像）
-avatar_url -- 头像URL（客户端预设：assets://avatar_01；云端：https://...）
+avatar_url -- 头像URL（客户端预设：assets://1234；云端：https://...）
 avatar_prompt -- 头像描述，用于AI生成头像的占位符覆盖
 bio -- 个人简介
 region -- 地区
@@ -376,7 +376,7 @@ category -- 分类，可选项写死
 info_id -- 绑定的ai_info_templates.id
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
-avatar_url -- 头像URL（客户端预设：assets://avatar_01；云端：https://...）
+avatar_url -- 头像URL（客户端预设：assets://1234；云端：https://...）
 bio -- 个人简介
 region -- 地区
 is_reusable -- 是否可以复用：1=reusable, 0=single_use（不可复用使用完后删除）

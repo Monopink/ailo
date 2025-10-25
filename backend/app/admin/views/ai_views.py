@@ -18,6 +18,7 @@ from models.ai.log import AIRequestLog
 from admin.views.base import IntegerEnumField
 
 from enums import (
+    AIProfileCategory,
     AICharacterCreator,
     AICharacterStatus,
     AIStyleStatus,
@@ -810,6 +811,26 @@ class AIProfileTemplateView(ModelView):
 
             obj.id = generate_snowflake_id()
 
+        # Convert category from int to string for storage
+        if hasattr(obj, "category") and obj.category is not None:
+            obj.category = str(obj.category)
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Convert category from int to string before editing."""
+        # Convert category from int to string for storage
+        if hasattr(obj, "category") and obj.category is not None:
+            obj.category = str(obj.category)
+
+    async def after_find(self, obj: Any) -> None:
+        """Convert category from string to int for display."""
+        # Convert category from string to int for enum field display
+        if hasattr(obj, "category") and obj.category is not None and obj.category != "":
+            try:
+                obj.category = int(obj.category)
+            except (ValueError, TypeError):
+                # If conversion fails, leave as is
+                pass
+
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["qiao_id", "nickname", "category"]
     sortable_fields = [
@@ -826,7 +847,13 @@ class AIProfileTemplateView(ModelView):
     fields = [
         StringField("id", label="ID", help_text="Internal profile template ID"),
         StringField("qiao_id", label="Qiao ID", help_text="External external identifier for this template"),
-        StringField("category", label="Category", help_text="Profile template category"),
+        IntegerEnumField(
+            "category",
+            enum=AIProfileCategory,
+            label="Category",
+            help_text="Profile template category (交友/恋爱/倾诉/闺蜜/同好)",
+            required=False,
+        ),
         HasOne(
             "info",
             identity="ai_info_template",

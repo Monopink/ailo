@@ -231,6 +231,19 @@ class ProfileModifierType(IntEnum):
 # AI System Related Enums
 
 
+class AIProfileCategory(IntEnum):
+    """AI profile template category (ai_profile_templates.category)
+
+    Stored as string in VARCHAR field for flexibility.
+    """
+
+    FRIEND = 1  # 交友
+    LOVE = 2  # 恋爱
+    TALK = 3  # 倾诉
+    BESTIE = 4  # 闺蜜
+    HOBBY = 5  # 同好
+
+
 class AICharacterStatus(IntEnum):
     """AI character status (ai_characters.status)"""
 

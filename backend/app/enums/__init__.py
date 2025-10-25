@@ -36,6 +36,7 @@ from .common import (
     ProfileOwnerType,
     ProfileModifierType,
     # AI System
+    AIProfileCategory,
     AICharacterCreator,
     AICharacterStatus,
     AIStyleStatus,
@@ -101,6 +102,7 @@ __all__ = [
     "ProfileOwnerType",
     "ProfileModifierType",
     # AI System
+    "AIProfileCategory",
     "AICharacterCreator",
     "AICharacterStatus",
     "AIStyleStatus",

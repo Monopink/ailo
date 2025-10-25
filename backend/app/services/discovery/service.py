@@ -5,19 +5,16 @@ This module provides business logic for discovery page operations.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.system import system_configs
-from schemas.discovery import SquareContactResponse, SquareContactListResponse
+from schemas.discovery import SquareContactResponse, SquareContactListResponse, StrangerProfileResponse
 from services.discovery import data as discovery_data
+from services.security.rate_limiter import check_rate_limit
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# In-memory cache for refresh rate limiting (MVP solution)
-# Key: user_qiao_id, Value: last_refresh_time
-_refresh_cache: Dict[str, datetime] = {}
 
 
 async def get_square_contacts(
@@ -50,32 +47,24 @@ async def get_square_contacts(
         recommend_count = await system_configs.get_config_value(
             db, config_key="square_recommend_count", default_value=10
         )
-        refresh_interval = await system_configs.get_config_value(
-            db, config_key="square_refresh_interval", default_value=60
-        )
-
-        # Convert to int/float
         recommend_count = int(recommend_count)
-        refresh_interval = float(refresh_interval)
 
-        logger.debug(
-            "square_config_loaded", recommend_count=recommend_count, refresh_interval=refresh_interval
-        )
+        logger.debug("square_config_loaded", recommend_count=recommend_count)
 
-        # Check refresh rate limit
+        # Check refresh rate limit using standard rate limiter
         if not force_refresh:
-            last_refresh = _refresh_cache.get(user_qiao_id)
-            if last_refresh:
-                elapsed = (datetime.utcnow() - last_refresh).total_seconds()
-                if elapsed < refresh_interval:
-                    remaining = refresh_interval - elapsed
-                    logger.warning(
-                        "square_refresh_rate_limit",
-                        user_qiao_id=user_qiao_id,
-                        elapsed=elapsed,
-                        remaining=remaining,
-                    )
-                    raise ValueError(f"Refresh too frequent, wait {remaining:.0f} seconds")
+            allowed, error_code, retry_after = await check_rate_limit(
+                identifier=user_qiao_id, group="square", db=db
+            )
+
+            if not allowed:
+                logger.warning(
+                    "square_refresh_rate_limit",
+                    user_qiao_id=user_qiao_id,
+                    error_code=error_code,
+                    retry_after=retry_after,
+                )
+                raise ValueError(f"Refresh too frequent, wait {retry_after} seconds")
 
         # Query random templates
         templates = await discovery_data.get_random_templates(
@@ -97,11 +86,13 @@ async def get_square_contacts(
                 )
             )
 
-        # Update refresh cache
-        _refresh_cache[user_qiao_id] = datetime.utcnow()
-
         # Calculate next available refresh time
-        refresh_available_at = datetime.utcnow() + timedelta(seconds=refresh_interval)
+        window = int(
+            await system_configs.get_config_value(
+                db, config_key="square_rate_limit_window", default_value=10
+            )
+        )
+        refresh_available_at = datetime.utcnow() + timedelta(seconds=window)
 
         logger.info(
             "square_contacts_retrieved",
@@ -121,3 +112,44 @@ async def get_square_contacts(
             "square_contacts_service_error", user_qiao_id=user_qiao_id, category=category, error=str(e)
         )
         raise RuntimeError(f"Failed to get square contacts: {str(e)}")
+
+
+async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[StrangerProfileResponse]:
+    """
+    Get stranger profile by qiao_id.
+
+    This is a public endpoint that returns basic profile information
+    from ai_profile_templates without requiring authentication.
+
+    Args:
+        db: Database session
+        qiao_id: Profile qiao_id to query
+
+    Returns:
+        StrangerProfileResponse or None if not found
+    """
+    try:
+        # Query profile template by qiao_id
+        template = await discovery_data.get_template_by_qiao_id(db=db, qiao_id=qiao_id)
+
+        if not template:
+            logger.warning("stranger_profile_not_found", qiao_id=qiao_id)
+            return None
+
+        # Transform to response format
+        profile = StrangerProfileResponse(
+            qiao_id=template.qiao_id,
+            nickname=template.nickname,
+            gender=template.gender,
+            avatar_url=template.avatar_url,
+            bio=template.bio,
+            region=template.region,
+            category=template.category,
+        )
+
+        logger.info("stranger_profile_retrieved", qiao_id=qiao_id)
+        return profile
+
+    except Exception as e:
+        logger.error("stranger_profile_service_error", qiao_id=qiao_id, error=str(e))
+        raise RuntimeError(f"Failed to get stranger profile: {str(e)}")

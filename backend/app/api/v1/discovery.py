@@ -11,8 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from api.deps import get_current_user
 from models.user import User
-from schemas.discovery import SquareContactListResponse
+from schemas.discovery import SquareContactListResponse, StrangerProfileResponse
 from services.discovery import service as discovery_service
+from enums import AIProfileCategory
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -27,15 +28,34 @@ router = APIRouter(prefix="/discovery", tags=["Discovery"])
     description="Get random AI contacts for square page with rate limiting",
 )
 async def get_square_contacts(
-    category: Optional[str] = Query(None, description="Category filter"),
+    category: Optional[int] = Query(None, ge=1, le=5, description="Category filter (1-5)"),
     force_refresh: bool = Query(False, description="Force refresh (skip rate limit)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SquareContactListResponse:
-    """Get square page random contacts."""
+    """Get square page random contacts.
+
+    Category values:
+    - 1: 交友 (Friend)
+    - 2: 恋爱 (Love)
+    - 3: 倾诉 (Talk)
+    - 4: 闺蜜 (Bestie)
+    - 5: 同好 (Hobby)
+    """
     try:
+        # Validate category enum
+        if category is not None:
+            try:
+                AIProfileCategory(category)
+            except ValueError:
+                logger.warning("invalid_category", user_qiao_id=current_user.qiao_id, category=category)
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的分类参数")
+
+        # Convert category to string for service layer
+        category_str = str(category) if category is not None else None
+
         return await discovery_service.get_square_contacts(
-            db=db, user_qiao_id=current_user.qiao_id, category=category, force_refresh=force_refresh
+            db=db, user_qiao_id=current_user.qiao_id, category=category_str, force_refresh=force_refresh
         )
     except ValueError as e:
         # Rate limit error
@@ -54,4 +74,36 @@ async def get_square_contacts(
         logger.error("square_contacts_error", user_qiao_id=current_user.qiao_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取内容失败，请稍后再试"
+        )
+
+
+@router.get(
+    "/profile/{qiao_id}",
+    response_model=StrangerProfileResponse,
+    summary="Get stranger profile",
+    description="Get public profile of a stranger (no authentication required)",
+)
+async def get_stranger_profile(
+    qiao_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> StrangerProfileResponse:
+    """Get stranger profile by qiao_id.
+
+    This endpoint is public and does not require authentication.
+    It returns basic profile information from ai_profile_templates.
+    """
+    try:
+        profile = await discovery_service.get_stranger_profile(db=db, qiao_id=qiao_id)
+
+        if not profile:
+            logger.warning("stranger_profile_not_found", qiao_id=qiao_id)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+        return profile
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("stranger_profile_error", qiao_id=qiao_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取用户信息失败，请稍后再试"
         )

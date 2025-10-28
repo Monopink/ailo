@@ -1,0 +1,82 @@
+/* Contacts list page */
+.contacts-list-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Search bar */
+.search-bar {
+  padding: 20rpx 40rpx;
+  background-color: #fff;
+}
+
+.search-input {
+  width: 100%;
+  padding: 20rpx 30rpx;
+  background-color: #f5f5f5;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+}
+
+/* Contacts list */
+.contacts-list {
+  flex: 1;
+  height: calc(100vh - 120rpx);
+}
+
+/* Loading and empty states */
+.loading-state,
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100rpx 40rpx;
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* Contact group */
+.contact-group {
+  margin-bottom: 20rpx;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  padding: 10rpx 40rpx;
+  background-color: #f5f5f5;
+}
+
+.group-letter {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #666;
+}
+
+/* Contact item */
+.contact-item {
+  display: flex;
+  align-items: center;
+  padding: 30rpx 40rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.contact-item .avatar {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 8rpx;
+  margin-right: 30rpx;
+}
+
+.contact-item .info {
+  flex: 1;
+}
+
+.name {
+  font-size: 32rpx;
+  color: #333;
+}
+

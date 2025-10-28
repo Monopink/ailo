@@ -1,0 +1,65 @@
+<view class="chat-container">
+  <!-- Message list -->
+  <scroll-view
+    scroll-y
+    class="message-list"
+    scroll-into-view="{{scrollToView}}"
+    scroll-with-animation>
+    <block wx:for="{{messages}}" wx:key="msg_id">
+      <!-- Timestamp (show if needed) -->
+      <view wx:if="{{item.showTimestamp}}" class="message-timestamp">
+        <text>{{item.timestampText}}</text>
+      </view>
+
+      <!-- System message -->
+      <view wx:if="{{item.message_type === 9}}" class="system-message">
+        <text>{{item.content}}</text>
+      </view>
+
+      <!-- Normal message -->
+      <view
+        wx:else
+        id="msg-{{item.msg_id}}"
+        class="message-item {{item.from_me ? 'from-me' : 'from-other'}}">
+
+        <!-- Avatar -->
+        <image
+          src="{{item.from_me ? userAvatar : contactAvatar}}"
+          class="avatar"
+          mode="aspectFill" />
+
+        <!-- Message content wrapper -->
+        <view class="message-content">
+          <!-- Status indicator (failed) for messages from me -->
+          <view wx:if="{{item.from_me && item.status === 3}}"
+                class="status-indicator failed"
+                bindtap="retryMessage"
+                data-id="{{item.msg_id}}">!</view>
+          <!-- Text message bubble -->
+          <view wx:if="{{item.message_type === 1}}" class="text-message">
+            <text>{{item.content}}</text>
+          </view>
+        </view>
+      </view>
+    </block>
+  </scroll-view>
+
+  <!-- Input bar -->
+  <view class="input-bar">
+    <view class="input-wrapper">
+      <textarea
+        class="input-text"
+        placeholder="请输入消息"
+        value="{{inputText}}"
+        bindinput="onInput"
+        bindconfirm="sendMessage"
+        maxlength="{{maxMessageLength}}"
+        auto-height
+        show-confirm-bar="{{false}}"
+        adjust-position="{{true}}" />
+    </view>
+    <view class="send-button {{inputText ? 'active' : ''}}" bindtap="sendMessage">
+      <text>发送</text>
+    </view>
+  </view>
+</view>

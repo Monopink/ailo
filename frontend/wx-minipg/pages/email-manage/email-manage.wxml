@@ -1,0 +1,110 @@
+<view class="email-manage-page">
+  <!-- Loading state -->
+  <view wx:if="{{loading}}" class="loading-container">
+    <text>加载中...</text>
+  </view>
+
+  <!-- Email manage content -->
+  <view wx:else class="email-manage-content">
+    <!-- Change email mode (with operation token) -->
+    <view wx:if="{{action === 'change'}}" class="section">
+      <view class="section-title">修改邮箱</view>
+
+      <view class="info-section">
+        <text class="info-label">当前邮箱</text>
+        <text class="info-value">{{currentEmail}}</text>
+      </view>
+
+      <view class="input-item">
+        <text class="label">新邮箱地址</text>
+        <input
+          class="input-field"
+          type="text"
+          placeholder="请输入新邮箱地址"
+          value="{{newEmail}}"
+          bindinput="onNewEmailInput"
+        />
+      </view>
+
+      <view class="code-section">
+        <input
+          class="code-input"
+          type="number"
+          placeholder="请输入验证码"
+          value="{{emailCode}}"
+          bindinput="onEmailCodeInput"
+          maxlength="6"
+        />
+        <button
+          class="send-code-button"
+          bindtap="sendEmailCode"
+          disabled="{{cooldown > 0 || sending}}"
+        >
+          {{cooldown > 0 ? cooldown + 's' : (sending ? '发送中...' : '发送验证码')}}
+        </button>
+      </view>
+
+      <button class="action-button" bindtap="handleChangeEmailWithToken" disabled="{{saving}}">
+        {{saving ? '修改中...' : '确认修改'}}
+      </button>
+    </view>
+
+    <!-- Normal mode -->
+    <view wx:else>
+      <!-- Current email info -->
+      <view class="info-section">
+        <text class="info-label">当前邮箱</text>
+        <text class="info-value">{{currentEmail || '未绑定'}}</text>
+      </view>
+
+      <!-- Bind email (if no email) -->
+      <view wx:if="{{!hasEmail}}" class="section">
+        <view class="section-title">绑定邮箱</view>
+
+        <view class="input-item">
+          <text class="label">邮箱地址</text>
+          <input
+            class="input-field"
+            type="text"
+            placeholder="请输入邮箱地址"
+            value="{{newEmail}}"
+            bindinput="onNewEmailInput"
+          />
+        </view>
+
+        <view class="code-section">
+          <input
+            class="code-input"
+            type="number"
+            placeholder="请输入验证码"
+            value="{{emailCode}}"
+            bindinput="onEmailCodeInput"
+            maxlength="6"
+          />
+          <button
+            class="send-code-button"
+            bindtap="sendEmailCode"
+            disabled="{{cooldown > 0 || sending}}"
+          >
+            {{cooldown > 0 ? cooldown + 's' : (sending ? '发送中...' : '发送验证码')}}
+          </button>
+        </view>
+
+        <button class="action-button" bindtap="handleBindEmail" disabled="{{saving}}">
+          {{saving ? '绑定中...' : '绑定邮箱'}}
+        </button>
+      </view>
+
+      <!-- Change/Unbind email (if has email) -->
+      <view wx:else class="section">
+        <button class="action-button" bindtap="handleChangeEmail">
+          修改邮箱
+        </button>
+        <button class="action-button secondary" bindtap="handleUnbindEmail">
+          解绑邮箱
+        </button>
+      </view>
+    </view>
+  </view>
+</view>
+

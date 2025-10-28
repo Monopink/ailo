@@ -1,0 +1,36 @@
+<view class="profile-page">
+  <!-- Loading state -->
+  <view wx:if="{{loading}}" class="loading-container">
+    <text>加载中...</text>
+  </view>
+
+  <!-- Error state -->
+  <view wx:elif="{{error}}" class="error-container">
+    <text>{{error}}</text>
+    <button bindtap="loadProfile">重试</button>
+  </view>
+
+  <!-- Profile content -->
+  <view wx:else class="profile-content">
+    <!-- Avatar and basic info - Click to view detail -->
+    <view class="profile-header" bindtap="navigateToProfileDetail">
+      <image
+        class="avatar"
+        src="{{profile.avatar_url || '/assets/avatars/default.png'}}"
+        mode="aspectFill"
+      />
+      <view class="basic-info">
+        <text class="nickname">{{profile.nickname || '未设置昵称'}}</text>
+        <text class="qiao-id">敲敲ID: {{profile.username}}</text>
+      </view>
+      <text class="arrow">›</text>
+    </view>
+
+    <!-- Actions -->
+    <view class="profile-actions">
+      <button class="action-button" bindtap="navigateToContacts">通讯录</button>
+      <button class="action-button" bindtap="navigateToSettings">设置</button>
+    </view>
+  </view>
+</view>
+

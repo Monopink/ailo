@@ -1,0 +1,49 @@
+<view class="contacts-list-page">
+  <!-- Search bar -->
+  <view class="search-bar">
+    <input
+      class="search-input"
+      placeholder="搜索联系人"
+      value="{{searchKeyword}}"
+      bindinput="onSearchInput"
+    />
+  </view>
+
+  <!-- Contacts list -->
+  <scroll-view scroll-y class="contacts-list">
+    <!-- Loading state -->
+    <view wx:if="{{loading && contacts.length === 0}}" class="loading-state">
+      <text>加载中...</text>
+    </view>
+
+    <!-- Empty state -->
+    <view wx:elif="{{contacts.length === 0 && !loading}}" class="empty-state">
+      <text>暂无联系人</text>
+    </view>
+
+    <!-- Contacts grouped by letter -->
+    <view wx:else>
+      <view wx:for="{{groupedContacts}}" wx:key="letter" class="contact-group">
+        <!-- Group header (letter) -->
+        <view class="group-header">
+          <text class="group-letter">{{item.letter}}</text>
+        </view>
+
+        <!-- Contact items -->
+        <view
+          wx:for="{{item.contacts}}"
+          wx:key="conv_id"
+          wx:for-item="contact"
+          class="contact-item"
+          bindtap="goToContactInfo"
+          data-id="{{contact.conv_id}}">
+          <image src="{{contact.avatarUrl}}" class="avatar" mode="aspectFill" />
+          <view class="info">
+            <text class="name">{{contact.displayName}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>
+

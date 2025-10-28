@@ -1,0 +1,59 @@
+<view class="setup-container">
+  <!-- Avatar selection -->
+  <view class="form-section">
+    <text>头像(可选)</text>
+    <scroll-view scroll-x class="avatar-list">
+      <image
+        wx:for="{{presetAvatars}}"
+        wx:key="id"
+        src="{{item.url}}"
+        class="avatar-item {{selectedAvatar === item.id ? 'selected' : ''}}"
+        bindtap="selectAvatar"
+        data-id="{{item.id}}" />
+    </scroll-view>
+  </view>
+
+  <!-- Nickname -->
+  <view class="form-section">
+    <text>昵称(可选)</text>
+    <input
+      placeholder="请输入昵称"
+      bindinput="onNicknameInput"
+      value="{{nickname}}"
+      maxlength="{{maxNicknameLength}}" />
+  </view>
+
+  <!-- Gender -->
+  <view class="form-section">
+    <text>性别(必填)</text>
+    <picker mode="selector" range="{{genderOptions}}" range-key="label" value="{{genderIndex}}" bindchange="onGenderChange">
+      <view class="picker">
+        {{genderOptions[genderIndex].label || '请选择性别'}}
+      </view>
+    </picker>
+  </view>
+
+  <!-- Bio -->
+  <view class="form-section">
+    <text>个人简介(可选)</text>
+    <textarea
+      placeholder="请输入个人简介"
+      bindinput="onBioInput"
+      value="{{bio}}"
+      maxlength="{{maxBioLength}}" />
+  </view>
+
+  <!-- Region -->
+  <view class="form-section">
+    <text>地区(可选)</text>
+    <picker mode="selector" range="{{regions}}" bindchange="onRegionChange">
+      <view class="picker">
+        {{selectedRegion || '请选择地区'}}
+      </view>
+    </picker>
+  </view>
+
+  <!-- Submit button -->
+  <button bindtap="handleSubmit" loading="{{loading}}">完成</button>
+</view>
+

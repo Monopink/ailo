@@ -1,0 +1,67 @@
+<view class="profile-edit-page">
+  <!-- Text input fields (nickname, username, bio, region) -->
+  <view wx:if="{{fieldType === 'text'}}" class="edit-content">
+    <view class="input-section">
+      <textarea
+        wx:if="{{field === 'bio'}}"
+        class="input-field textarea-field"
+        placeholder="{{placeholder}}"
+        value="{{value}}"
+        bindinput="onInput"
+        maxlength="{{maxLength}}"
+        auto-height
+      />
+      <input
+        wx:else
+        class="input-field"
+        type="text"
+        placeholder="{{placeholder}}"
+        value="{{value}}"
+        bindinput="onInput"
+        maxlength="{{maxLength}}"
+      />
+      <view class="char-count">{{value.length}}/{{maxLength}}</view>
+    </view>
+
+    <view class="hint-section" wx:if="{{hint}}">
+      <text class="hint-text">{{hint}}</text>
+    </view>
+
+    <button class="save-button" bindtap="handleSave" disabled="{{saving}}">
+      {{saving ? '保存中...' : '保存'}}
+    </button>
+  </view>
+
+  <!-- Gender picker -->
+  <view wx:elif="{{fieldType === 'gender'}}" class="edit-content">
+    <view class="picker-section">
+      <picker mode="selector" range="{{genderOptions}}" value="{{genderIndex}}" bindchange="onGenderChange">
+        <view class="picker-display">
+          <text>{{genderOptions[genderIndex]}}</text>
+          <text class="arrow">›</text>
+        </view>
+      </picker>
+    </view>
+
+    <button class="save-button" bindtap="handleSave" disabled="{{saving}}">
+      {{saving ? '保存中...' : '保存'}}
+    </button>
+  </view>
+
+  <!-- Region picker -->
+  <view wx:elif="{{fieldType === 'region'}}" class="edit-content">
+    <view class="picker-section">
+      <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
+        <view class="picker-display">
+          <text>{{regionDisplay || '请选择地区'}}</text>
+          <text class="arrow">›</text>
+        </view>
+      </picker>
+    </view>
+
+    <button class="save-button" bindtap="handleSave" disabled="{{saving}}">
+      {{saving ? '保存中...' : '保存'}}
+    </button>
+  </view>
+</view>
+

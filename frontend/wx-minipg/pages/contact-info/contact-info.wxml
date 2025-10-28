@@ -1,0 +1,68 @@
+<view class="contact-info-page">
+  <!-- Loading state -->
+  <view wx:if="{{loading && !contact}}" class="loading-state">
+    <text>加载中...</text>
+  </view>
+
+  <!-- Contact info -->
+  <view wx:else class="contact-info">
+    <!-- Profile section (资料区域) -->
+    <view class="profile-section">
+      <!-- Avatar and basic info -->
+      <view class="profile-header">
+        <image
+          src="{{contact.avatar_alias_url || contact.avatar_url || '/assets/avatars/default.png'}}"
+          class="avatar"
+          mode="aspectFill"
+        />
+        <view class="header-info">
+          <view class="name-row">
+            <text class="nickname">{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
+            <text wx:if="{{contact.gender}}" class="gender">{{contact.gender === 'male' ? '♂' : contact.gender === 'female' ? '♀' : ''}}</text>
+          </view>
+          <text class="qiao-id">敲敲ID: {{contact.contact_qiao_id}}</text>
+        </view>
+      </view>
+
+      <!-- Bio -->
+      <view wx:if="{{contact.bio}}" class="bio-section">
+        <text class="bio">{{contact.bio}}</text>
+      </view>
+
+      <!-- Tags -->
+      <view wx:if="{{contact.tags && contact.tags.length > 0}}" class="tags-section">
+        <view class="tags">
+          <text wx:for="{{contact.tags}}" wx:key="*this" class="tag">{{item}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- Remark and tags entry (备注和标签区域) -->
+    <view class="entry-section">
+      <view class="entry-item" bindtap="editRemarkAndTags">
+        <text class="label">备注和标签</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
+    <!-- Chat settings section (对话设置区域) -->
+    <view class="settings-section">
+      <view class="setting-item">
+        <text class="label">置顶聊天</text>
+        <switch checked="{{isPinned}}" bindchange="onPinnedChange" color="#42db5a" />
+      </view>
+      <view class="setting-item">
+        <text class="label">消息免打扰</text>
+        <switch checked="{{isMuted}}" bindchange="onMutedChange" color="#42db5a" />
+      </view>
+    </view>
+
+    <!-- Actions section (操作按钮区域) -->
+    <view class="actions-section">
+      <button class="action-btn primary" bindtap="goToChat">发送消息</button>
+      <button class="action-btn" bindtap="clearChatHistory">清空聊天记录</button>
+      <button class="action-btn danger" bindtap="deleteContact">删除联系人</button>
+    </view>
+  </view>
+</view>
+

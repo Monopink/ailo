@@ -1,0 +1,92 @@
+<view class="login-container">
+  <!-- Brand name -->
+  <view class="brand-section">
+    <text class="brand-name">敲敲</text>
+  </view>
+
+  <!-- Login buttons (initial state) -->
+  <view wx:if="{{!showPhoneButton && !showPhoneBind}}" class="login-buttons">
+    <!-- WeChat login button -->
+    <button
+      class="login-btn wechat-login-btn"
+      bindtap="handleWeChatLogin"
+      loading="{{wechatLoading}}">
+      微信登录
+    </button>
+
+    <!-- Phone login button -->
+    <button
+      class="login-btn phone-login-btn"
+      bindtap="handlePhoneLogin">
+      手机号登录
+    </button>
+  </view>
+
+  <!-- Get phone number button (after WeChat login) -->
+  <view wx:if="{{showPhoneButton && !showPhoneBind}}" class="phone-auth">
+    <button
+      class="phone-auth-btn"
+      open-type="getPhoneNumber"
+      bindgetphonenumber="handleGetPhoneNumber"
+      loading="{{phoneLoading}}">
+      获取手机号
+    </button>
+  </view>
+
+  <!-- Phone bind page (fallback) -->
+  <view wx:if="{{showPhoneBind}}" class="phone-bind">
+    <view class="bind-title">
+      <text>绑定手机号</text>
+    </view>
+
+    <!-- Phone input -->
+    <view class="input-group">
+      <text class="country-code">+86</text>
+      <input
+        type="number"
+        placeholder="请输入手机号"
+        bindinput="onPhoneInput"
+        value="{{phone}}"
+        maxlength="11"
+        class="phone-input" />
+    </view>
+
+    <!-- SMS code -->
+    <view class="sms-group">
+      <input
+        type="number"
+        placeholder="请输入验证码"
+        bindinput="onSmsCodeInput"
+        value="{{smsCode}}"
+        maxlength="6"
+        class="sms-input" />
+      <button
+        class="sms-btn {{(countdown > 0) ? 'disabled' : ''}}"
+        bindtap="sendSmsCode"
+        disabled="{{countdown > 0}}">
+        {{countdown > 0 ? countdown + 's' : '获取验证码'}}
+      </button>
+    </view>
+
+    <!-- Bind button -->
+    <button
+      class="bind-btn"
+      bindtap="handleBindPhone"
+      loading="{{bindLoading}}">
+      确认绑定
+    </button>
+  </view>
+
+  <!-- Aliyun Captcha Plugin (mounted only when needed) -->
+  <view wx:if="{{loadCaptcha}}">
+    <aliyun-captcha id="captcha-element" props="{{pluginProps}}" />
+  </view>
+
+  <!-- Agreement -->
+  <view class="agreement">
+    <text>登录即表示同意</text>
+    <text class="link">《用户协议》</text>
+    <text>和</text>
+    <text class="link">《隐私政策》</text>
+  </view>
+</view>

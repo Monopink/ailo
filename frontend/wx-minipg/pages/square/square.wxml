@@ -1,0 +1,77 @@
+<view class="square-container">
+  <!-- Filter bar -->
+  <view class="filter-bar {{filterExpanded ? 'expanded' : 'collapsed'}}">
+    <button
+      class="filter-btn {{currentFilter === 'friend' ? 'active' : ''}}"
+      bindtap="selectFilter"
+      data-filter="friend">
+      交友
+    </button>
+    <button
+      class="filter-btn {{currentFilter === 'love' ? 'active' : ''}}"
+      bindtap="selectFilter"
+      data-filter="love">
+      恋爱(限时免费)
+    </button>
+    <button
+      class="filter-btn {{currentFilter === 'talk' ? 'active' : ''}}"
+      bindtap="selectFilter"
+      data-filter="talk">
+      倾诉(限时免费)
+    </button>
+    <button
+      class="filter-btn {{currentFilter === 'bestie' ? 'active' : ''}}"
+      bindtap="selectFilter"
+      data-filter="bestie">
+      闺蜜(限时免费)
+    </button>
+    <button
+      class="filter-btn {{currentFilter === 'hobby' ? 'active' : ''}}"
+      bindtap="selectFilter"
+      data-filter="hobby">
+      同好(限时免费)
+    </button>
+  </view>
+
+  <!-- Action bar -->
+  <view class="action-bar">
+    <button class="refresh-btn" bindtap="handleRefresh">
+      <text>刷新</text>
+    </button>
+  </view>
+
+  <!-- Result list -->
+  <scroll-view
+    scroll-y
+    class="result-list"
+    bindscroll="onPageScroll">
+    <view
+      wx:for="{{contacts}}"
+      wx:key="id"
+      class="contact-item"
+      bindtap="handleContactTap"
+      data-id="{{item.id}}">
+      <image src="{{item.avatar_url}}" class="avatar" mode="aspectFill" />
+      <view class="info">
+        <view class="top-row">
+          <text class="nickname">{{item.nickname}}</text>
+          <text class="gender">{{item.gender === 1 ? '♂' : item.gender === 2 ? '♀' : ''}}</text>
+        </view>
+        <view class="tags" wx:if="{{item.tags && item.tags.length > 0}}">
+          <text wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag" class="tag">{{tag}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- Empty state -->
+    <view wx:if="{{contacts.length === 0 && !loading}}" class="empty-state">
+      <text>暂无联系人</text>
+    </view>
+
+    <!-- Loading state -->
+    <view wx:if="{{loading}}" class="loading-state">
+      <text>加载中...</text>
+    </view>
+  </scroll-view>
+</view>
+

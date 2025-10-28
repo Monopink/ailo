@@ -1,0 +1,45 @@
+<view class="welcome-container">
+  <!-- App Logo & Name -->
+  <view class="welcome-header">
+    <image class="logo" src="/assets/logo.png" mode="aspectFit" />
+    <text class="app-name">敲敲</text>
+    <text class="slogan">AI陪伴,温暖相随</text>
+  </view>
+
+  <!-- Features -->
+  <view class="features-section">
+    <view class="feature-item">
+      <image class="feature-icon" src="/assets/icons/chat.png" mode="aspectFit" />
+      <text class="feature-title">智能对话</text>
+      <text class="feature-desc">24小时在线陪伴</text>
+    </view>
+    <view class="feature-item">
+      <image class="feature-icon" src="/assets/icons/heart.png" mode="aspectFit" />
+      <text class="feature-title">情感支持</text>
+      <text class="feature-desc">倾听你的心声</text>
+    </view>
+    <view class="feature-item">
+      <image class="feature-icon" src="/assets/icons/friend.png" mode="aspectFit" />
+      <text class="feature-title">多样角色</text>
+      <text class="feature-desc">找到合适的伙伴</text>
+    </view>
+  </view>
+
+  <!-- Sample Contacts Preview -->
+  <view class="preview-section">
+    <text class="section-title">发现有趣的AI伙伴</text>
+    <scroll-view class="sample-contacts" scroll-x>
+      <view class="contact-card" wx:for="{{sampleContacts}}" wx:key="qiao_id">
+        <image class="avatar" src="{{item.avatar}}" mode="aspectFill" />
+        <text class="nickname">{{item.nickname}}</text>
+        <text class="bio">{{item.bio}}</text>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- Action Buttons -->
+  <view class="action-buttons">
+    <button class="btn-primary" bindtap="handleStartUse">开始使用</button>
+  </view>
+</view>
+

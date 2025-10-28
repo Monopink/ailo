@@ -1,0 +1,22 @@
+# WeChat MiniProgram
+node_modules/
+miniprogram_npm/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+

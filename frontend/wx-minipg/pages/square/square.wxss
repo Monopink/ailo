@@ -1,0 +1,116 @@
+/* Square page - Contact discovery */
+.square-container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+/* Filter bar */
+.filter-bar {
+  display: flex;
+  gap: 20rpx;
+  padding: 30rpx 40rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #f0f0f0;
+  overflow-x: auto;
+}
+
+.filter-btn {
+  padding: 16rpx 32rpx;
+  background-color: #fff;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  white-space: nowrap;
+}
+
+.filter-btn.active {
+  background-color: #f5f5f5;
+}
+
+/* Action bar */
+.action-bar {
+  padding: 20rpx 40rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.refresh-btn {
+  width: auto;
+  padding: 12rpx 32rpx;
+  background-color: #f5f5f5;
+  border-radius: 32rpx;
+  font-size: 28rpx;
+  color: #666;
+}
+
+/* Result list */
+.result-list {
+  height: calc(100vh - 240rpx);
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  padding: 30rpx 40rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.contact-item .avatar {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 8rpx;
+  margin-right: 30rpx;
+}
+
+.contact-item .info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.contact-item .top-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.contact-item .nickname {
+  font-size: 32rpx;
+  font-weight: bold;
+}
+
+.contact-item .gender {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.contact-item .tags {
+  display: flex;
+  gap: 10rpx;
+  flex-wrap: wrap;
+}
+
+.contact-item .tag {
+  padding: 4rpx 12rpx;
+  background-color: #f0f0f0;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  color: #666;
+}
+
+
+
+/* Empty and loading states */
+.empty-state,
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100rpx 40rpx;
+  font-size: 28rpx;
+  color: #999;
+}
+

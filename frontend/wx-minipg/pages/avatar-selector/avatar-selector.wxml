@@ -1,0 +1,27 @@
+<view class="avatar-selector-page">
+  <!-- Loading state -->
+  <view wx:if="{{loading}}" class="loading-state">
+    <text>加载中...</text>
+  </view>
+
+  <!-- Avatar grid -->
+  <view wx:else class="avatar-grid">
+    <view 
+      wx:for="{{presetAvatars}}" 
+      wx:key="id"
+      class="avatar-item {{selectedAvatar === item.id ? 'selected' : ''}}"
+      bindtap="selectAvatar"
+      data-id="{{item.id}}"
+    >
+      <image src="{{item.url}}" class="avatar-image" mode="aspectFill" />
+      <view wx:if="{{currentAvatar === item.id}}" class="current-badge">当前</view>
+    </view>
+  </view>
+
+  <!-- Action buttons -->
+  <view class="action-buttons">
+    <button class="action-btn cancel-btn" bindtap="cancel">取消</button>
+    <button class="action-btn confirm-btn" bindtap="confirmSelection">确定</button>
+  </view>
+</view>
+

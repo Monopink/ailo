@@ -1,0 +1,6 @@
+<view class="boot-container">
+  <view class="boot-center">
+    <image class="boot-logo" src="/assets/logo.png" mode="aspectFit" />
+    <text class="boot-brand">敲敲</text>
+  </view>
+</view>

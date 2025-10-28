@@ -1,0 +1,85 @@
+<view class="index-container">
+  <!-- Search bar (show on scroll down) -->
+  <view class="search-bar {{showSearch ? 'show' : 'hide'}}">
+    <input placeholder="搜索" bindtap="goToSearch" disabled />
+  </view>
+
+  <!-- Chat list -->
+  <scroll-view scroll-y class="chat-list" bindscroll="onScroll">
+    <view
+      wx:for="{{chatList}}"
+      wx:key="conv_id"
+      class="chat-item-wrapper">
+      <!-- Chat item content -->
+      <view
+        class="chat-item"
+        bindtap="goToChat"
+        data-id="{{item.conv_id}}">
+        <image src="{{item.avatarUrl}}" class="avatar" mode="aspectFill" />
+        <view class="info">
+          <view class="top-row">
+            <text class="name">{{item.displayName}}</text>
+            <view class="tags">
+              <text wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag" class="tag">{{tag}}</text>
+            </view>
+            <text class="time">{{item.lastMessageTime}}</text>
+          </view>
+          <view class="bottom-row">
+            <text class="last-message">{{item.lastMessage}}</text>
+            <view wx:if="{{item.unreadCount > 0}}" class="unread-badge">
+              {{item.unreadCount > 99 ? '99+' : item.unreadCount}}
+            </view>
+          </view>
+        </view>
+        <!-- More button -->
+        <view
+          class="more-btn"
+          catchtap="showMenu"
+          data-index="{{index}}">
+          ···
+        </view>
+      </view>
+    </view>
+
+    <!-- Empty state -->
+    <view wx:if="{{chatList.length === 0 && !loading}}" class="empty-state">
+      <text>暂无聊天</text>
+    </view>
+  </scroll-view>
+
+  <!-- Popup menu overlay -->
+  <view
+    wx:if="{{currentMenuIndex >= 0}}"
+    class="menu-overlay"
+    catchtap="hideMenu">
+    <view class="menu-popup" catchtap="stopPropagation">
+      <!-- Contact info header -->
+      <view class="menu-header">
+        <image src="{{chatList[currentMenuIndex].avatarUrl}}" class="menu-avatar" mode="aspectFill" />
+        <text class="menu-name">{{chatList[currentMenuIndex].displayName}}</text>
+      </view>
+
+      <!-- Menu items -->
+      <view
+        class="menu-item"
+        catchtap="goToContactInfo"
+        data-index="{{currentMenuIndex}}"
+        data-id="{{chatList[currentMenuIndex].conv_id}}">
+        联系人详情
+      </view>
+      <view
+        class="menu-item"
+        catchtap="markAsUnread"
+        data-index="{{currentMenuIndex}}">
+        标为未读
+      </view>
+      <view
+        class="menu-item delete"
+        catchtap="deleteChat"
+        data-index="{{currentMenuIndex}}">
+        删除
+      </view>
+    </view>
+  </view>
+</view>
+

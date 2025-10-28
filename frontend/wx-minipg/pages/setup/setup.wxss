@@ -1,0 +1,74 @@
+/* Setup page - Profile setup */
+.setup-container {
+  min-height: 100vh;
+  padding: 40rpx;
+  background-color: #f5f5f5;
+}
+
+/* Form section */
+.form-section {
+  margin-bottom: 40rpx;
+  padding: 30rpx;
+  background-color: #fff;
+  border-radius: 16rpx;
+}
+
+.form-section > text {
+  display: block;
+  font-size: 28rpx;
+  font-weight: bold;
+  margin-bottom: 20rpx;
+  color: #333;
+}
+
+/* Avatar list */
+.avatar-list {
+  display: flex;
+  gap: 20rpx;
+  white-space: nowrap;
+}
+
+.avatar-item {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 60rpx;
+  border: 3rpx solid transparent;
+}
+
+.avatar-item.selected {
+  border-color: #333;
+}
+
+/* Input fields */
+.form-section input,
+.form-section textarea {
+  width: 100%;
+  padding: 25rpx 30rpx;
+  background-color: #f5f5f5;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+}
+
+.form-section textarea {
+  min-height: 150rpx;
+}
+
+/* Picker */
+.picker {
+  padding: 25rpx 30rpx;
+  background-color: #f5f5f5;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  color: #333;
+}
+
+/* Submit button */
+button {
+  width: 100%;
+  padding: 30rpx;
+  margin-top: 40rpx;
+  background-color: #fff;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+}
+

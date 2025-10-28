@@ -1,0 +1,124 @@
+/* Verify page container */
+.verify-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+/* Verify content */
+.verify-content {
+  padding: 40rpx;
+}
+
+/* Title section */
+.title-section {
+  margin-bottom: 60rpx;
+  text-align: center;
+}
+
+.title {
+  display: block;
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+}
+
+.subtitle {
+  display: block;
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* Method section */
+.method-section {
+  background-color: #fff;
+  border-radius: 16rpx;
+  margin-bottom: 40rpx;
+}
+
+.method-item {
+  display: flex;
+  flex-direction: column;
+  padding: 40rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  position: relative;
+}
+
+.method-item:last-child {
+  border-bottom: none;
+}
+
+.method-item.active {
+  background-color: #f5f5f5;
+}
+
+.method-item.active::after {
+  content: '✓';
+  position: absolute;
+  right: 40rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 40rpx;
+  color: #333;
+}
+
+.method-label {
+  font-size: 32rpx;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.method-value {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* Code section */
+.code-section {
+  display: flex;
+  gap: 20rpx;
+  margin-bottom: 40rpx;
+}
+
+.code-input {
+  flex: 1;
+  padding: 30rpx;
+  background-color: #fff;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+  color: #333;
+}
+
+.send-code-button {
+  width: 240rpx;
+  padding: 30rpx 20rpx;
+  background-color: #fff;
+  color: #333;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  text-align: center;
+  border: none;
+}
+
+.send-code-button[disabled] {
+  background-color: #f5f5f5;
+  color: #999;
+}
+
+/* Verify button */
+.verify-button {
+  width: 100%;
+  padding: 30rpx;
+  background-color: #fff;
+  color: #333;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+  text-align: center;
+  border: none;
+}
+
+.verify-button[disabled] {
+  background-color: #f5f5f5;
+  color: #999;
+}
+

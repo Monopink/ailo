@@ -1,0 +1,58 @@
+<view class="phone-manage-page">
+  <!-- Loading state -->
+  <view wx:if="{{loading}}" class="loading-container">
+    <text>加载中...</text>
+  </view>
+
+  <!-- Phone manage content -->
+  <view wx:else class="phone-manage-content">
+    <!-- Current phone info -->
+    <view class="info-section">
+      <text class="info-label">当前手机号</text>
+      <text class="info-value">{{currentPhone}}</text>
+    </view>
+
+    <!-- Change phone section -->
+    <view class="section">
+      <view class="section-title">修改手机号</view>
+
+      <view class="input-item">
+        <text class="label">新手机号</text>
+        <input
+          class="input-field"
+          type="number"
+          placeholder="请输入新手机号"
+          value="{{newPhone}}"
+          bindinput="onNewPhoneInput"
+        />
+      </view>
+
+      <view class="code-section">
+        <input
+          class="code-input"
+          type="number"
+          placeholder="请输入验证码"
+          value="{{smsCode}}"
+          bindinput="onSmsCodeInput"
+          maxlength="6"
+        />
+        <button
+          class="send-code-button"
+          bindtap="sendSmsCode"
+          disabled="{{cooldown > 0 || sending}}"
+        >
+          {{cooldown > 0 ? cooldown + 's' : (sending ? '发送中...' : '发送验证码')}}
+        </button>
+      </view>
+
+      <button class="action-button" bindtap="handleChangePhone" disabled="{{saving}}">
+        {{saving ? '修改中...' : '确认修改'}}
+      </button>
+    </view>
+  </view>
+
+  <!-- Aliyun Captcha Plugin (mounted only when needed) -->
+  <view wx:if="{{loadCaptcha}}">
+    <aliyun-captcha id="captcha-element" props="{{pluginProps}}" />
+  </view>
+</view>

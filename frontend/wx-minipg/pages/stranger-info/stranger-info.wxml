@@ -1,0 +1,48 @@
+<view class="stranger-info-page">
+  <!-- Loading state -->
+  <view wx:if="{{loading}}" class="loading-state">
+    <text>加载中...</text>
+  </view>
+
+  <!-- Profile content -->
+  <view wx:else class="profile-content">
+    <!-- Header section - WeChat style -->
+    <view class="header-section">
+      <image src="{{profile.avatarUrl || '/assets/avatars/default.png'}}" class="avatar" mode="aspectFill" />
+      <view class="header-info">
+        <view class="name-row">
+          <text class="nickname">{{profile.nickname || '未设置昵称'}}</text>
+          <text wx:if="{{profile.genderText}}" class="gender">{{profile.genderText}}</text>
+        </view>
+        <text class="qiao-id">敲敲ID: {{profile.qiao_id}}</text>
+      </view>
+    </view>
+
+    <!-- Info list -->
+    <view class="info-list">
+      <!-- Category -->
+      <view wx:if="{{profile.categoryText}}" class="info-item">
+        <text class="label">分类</text>
+        <text class="value">{{profile.categoryText}}</text>
+      </view>
+
+      <!-- Region -->
+      <view wx:if="{{profile.region}}" class="info-item">
+        <text class="label">地区</text>
+        <text class="value">{{profile.region}}</text>
+      </view>
+
+      <!-- Bio -->
+      <view wx:if="{{profile.bio}}" class="info-item bio-item">
+        <text class="label">简介</text>
+        <text class="value bio-value">{{profile.bio}}</text>
+      </view>
+    </view>
+
+    <!-- Add contact button -->
+    <view class="action-section">
+      <button class="add-btn" bindtap="handleAddContact">添加联系人</button>
+    </view>
+  </view>
+</view>
+

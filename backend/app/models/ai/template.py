@@ -16,14 +16,14 @@ if TYPE_CHECKING:
     from models.ai.personality import AIPersonality
 
 
-class AIInfoTemplate(AutoIncrementModel):
+class AICharacterTemplate(AutoIncrementModel):
     """
-    AI info template model.
+    AI character template model.
 
     AI core configuration templates.
     """
 
-    __tablename__ = "ai_info_templates"
+    __tablename__ = "ai_character_templates"
 
     style_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Style ID, references ai_styles.id"
@@ -41,19 +41,15 @@ class AIInfoTemplate(AutoIncrementModel):
         comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
-    score_offset_algorithm: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        nullable=True,
-        default=1,
-        server_default=text("1"),
-        comment="Score offset algorithm (enum int)",
+    # Display name for admin/UI list and association views
+    display_name: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, comment="Display name for character template"
     )
 
-    score_offset_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    position_mapping_config: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
-        server_default=text('\'{"left_bias": 0, "right_bias": 0}\''),
-        comment="Score offset parameters (JSONB)",
+        comment="Per-dimension position mapping configuration",
     )
 
     is_reusable: Mapped[int] = mapped_column(
@@ -87,21 +83,21 @@ class AIInfoTemplate(AutoIncrementModel):
     # Relationships
     style: Mapped["AIStyle"] = relationship(
         "AIStyle",
-        primaryjoin="AIInfoTemplate.style_id == AIStyle.id",
+        primaryjoin="AICharacterTemplate.style_id == AIStyle.id",
         foreign_keys=[style_id],
         lazy="select",
         viewonly=True,
     )
     personality: Mapped["AIPersonality"] = relationship(
         "AIPersonality",
-        primaryjoin="AIInfoTemplate.personality_id == AIPersonality.id",
+        primaryjoin="AICharacterTemplate.personality_id == AIPersonality.id",
         foreign_keys=[personality_id],
         lazy="select",
         viewonly=True,
     )
     profile: Mapped[Optional["AIProfileTemplate"]] = relationship(
         "AIProfileTemplate",
-        primaryjoin="AIInfoTemplate.profile_id == AIProfileTemplate.id",
+        primaryjoin="AICharacterTemplate.profile_id == AIProfileTemplate.id",
         foreign_keys=[profile_id],
         lazy="select",
         viewonly=True,
@@ -119,8 +115,8 @@ class AIProfileTemplate(SnowflakeQiaoModel):
 
     category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Category")
 
-    info_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Associated info template ID, references ai_info_templates.id"
+    character_template_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Associated character template ID, references ai_character_templates.id"
     )
 
     nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Nickname")
@@ -152,10 +148,10 @@ class AIProfileTemplate(SnowflakeQiaoModel):
     )
 
     # Relationships
-    info: Mapped["AIInfoTemplate"] = relationship(
-        "AIInfoTemplate",
-        primaryjoin="AIProfileTemplate.info_id == AIInfoTemplate.id",
-        foreign_keys=[info_id],
+    character_template: Mapped["AICharacterTemplate"] = relationship(
+        "AICharacterTemplate",
+        primaryjoin="AIProfileTemplate.character_template_id == AICharacterTemplate.id",
+        foreign_keys=[character_template_id],
         lazy="select",
         viewonly=True,
     )

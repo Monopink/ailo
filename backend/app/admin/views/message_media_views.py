@@ -3,18 +3,20 @@ Message and media-related model views for Starlette-Admin.
 Creates ModelView instances for message system and media management.
 """
 
+from typing import Dict, Any
+from starlette.requests import Request
+from starlette_admin import IntegerField, StringField, TextAreaField, JSONField
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin.exceptions import FormValidationError
 from admin.views.base import IntegerEnumField
+from admin.fields import LocalDateTimeField
 
-# Import message and media models
+from models.message import MessageDeliveryFailure
 from models.message.message import MessageHistory
 from models.message.media import MediaFile
 from models.message.notification import NotificationPushHistory
-from models.system.config import SystemConfig
 from models.system import PresetAsset
 
-# Import enums
 from enums import (
     FileType,
     FileStatus,
@@ -24,7 +26,8 @@ from enums import (
     ServiceProvider,
     MessageType,
     MessageStatus,
-    ConfigType,
+    NotificationType,
+    NotificationStatus,
 )
 
 
@@ -40,7 +43,7 @@ class MessageHistoryView(ModelView):
     def can_delete(self, request):
         return False
 
-    exclude_fields_from_list = ["content", "message_metadata", "updated_at"]
+    exclude_fields_from_list = []
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
     fields_default_sort = [("created_at", True)]
@@ -101,9 +104,11 @@ class MediaFileView(ModelView):
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["file_id", "original_name"]
-    sortable_fields = ["id", "file_type", "file_size", "status", "created_at"]
+    sortable_fields = ["id", "file_type", "file_size", "status", "created_at", "updated_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Internal file ID"),
+        StringField("file_id", label="File ID", help_text="External file identifier"),
         IntegerEnumField("file_type", enum=FileType, label="File Type", help_text="Type of media file"),
         StringField("original_name", label="Original Name", help_text="Original filename when uploaded"),
         StringField("file_path", label="File Path", help_text="Storage path of the file"),
@@ -116,36 +121,96 @@ class MediaFileView(ModelView):
         StringField("upload_by_id", label="Uploader ID", help_text="Uploader snowflake ID"),
         StringField("upload_by_qiao_id", label="Uploader Qiao ID", help_text="External ID of uploader"),
         IntegerEnumField("status", enum=FileStatus, label="Status", help_text="File status"),
+        LocalDateTimeField("created_at", label="Created At", help_text="File creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
-class SystemConfigView(ModelView):
-    """Enhanced System Config view with proper field configuration."""
+class MessageDeliveryFailureView(ModelView):
+    """Enhanced Message Delivery Failure view for failed message management."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at", "updated_by"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at", "updated_by"]
+    label = "Message Failures"
+    name = "Message Failures"
 
-    def can_delete(self, request):
-        return False
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit = ["id", "msg_id_server", "from_id", "to_id", "created_at", "updated_at"]
+    exclude_fields_from_list = []
 
-    fields_default_sort = [("config_key", False)]
-    searchable_fields = ["config_key", "description"]
-    sortable_fields = ["id", "config_key", "config_type", "updated_at"]
+    fields_default_sort = [("created_at", True)]
+    searchable_fields = ["msg_id_server", "from_qiao_id", "to_qiao_id", "fail_reason_code"]
+    sortable_fields = [
+        "id",
+        "msg_id_server",
+        "from_qiao_id",
+        "to_qiao_id",
+        "message_type",
+        "service_provider",
+        "retry_count",
+        "max_retry_count",
+        "next_retry_at",
+        "created_at",
+        "updated_at",
+    ]
 
     fields = [
-        StringField("config_key", label="Config Key", help_text="Unique configuration key"),
-        StringField("config_value", label="Config Value", help_text="Configuration value"),
-        StringField("default_value", label="Default Value", help_text="Default configuration value"),
+        StringField("msg_id_server", label="Message ID", help_text="Original message ID"),
         IntegerEnumField(
-            "config_type", enum=ConfigType, label="Config Type", help_text="Data type of the configuration"
+            "from_type",
+            enum=MessageParticipantType,
+            label="Sender Type",
+            help_text="Type of message sender",
         ),
-        StringField("description", label="Description", help_text="Description of this configuration"),
-        StringField("group_name", label="Group Name", help_text="Configuration group name"),
-        JSONField(
-            "allowed_values", label="Allowed Values", help_text="Allowed values for enum type (JSON array)"
+        StringField("from_id", label="Sender ID", help_text="Sender snowflake ID"),
+        StringField("from_qiao_id", label="Sender Qiao ID", help_text="Sender external identifier"),
+        IntegerEnumField(
+            "to_type",
+            enum=MessageParticipantType,
+            label="Receiver Type",
+            help_text="Type of message receiver",
         ),
-        "updated_by",
+        StringField("to_id", label="Receiver ID", help_text="Receiver snowflake ID"),
+        StringField("to_qiao_id", label="Receiver Qiao ID", help_text="Receiver external identifier"),
+        IntegerEnumField(
+            "message_type",
+            enum=MessageType,
+            label="Message Type",
+            help_text="Type of failed message",
+        ),
+        IntegerEnumField(
+            "service_provider",
+            enum=ServiceProvider,
+            label="Service Provider",
+            help_text="Message service provider",
+        ),
+        TextAreaField("content", label="Message Content", help_text="Original message content"),
+        StringField("fail_reason_code", label="Failure Code", help_text="Error reason code"),
+        TextAreaField("fail_detail", label="Failure Details", help_text="Detailed error information"),
+        IntegerField("retry_count", label="Retry Count", help_text="Current retry attempts"),
+        IntegerField("max_retry_count", label="Max Retries", help_text="Maximum retry attempts allowed"),
+        LocalDateTimeField("next_retry_at", label="Next Retry", help_text="Scheduled next retry time"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Failure record creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
+
+    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+        """Custom validation for message delivery failures."""
+        # Validate retry count
+        if "retry_count" in data and "max_retry_count" in data:
+            if data["retry_count"] > data["max_retry_count"]:
+                raise FormValidationError({"retry_count": "Retry count cannot exceed maximum retries"})
+
+        # Validate message type
+        if "message_type" in data:
+            message_type = data["message_type"]
+            valid_types = [msg_type.value for msg_type in MessageType]
+            if message_type not in valid_types:
+                raise FormValidationError({"message_type": "Invalid message type"})
+
+        return await super().validate(request, data)
+
+    def can_delete(self, request: Request) -> bool:
+        """Allow deletion of failure records after successful retry or manual resolution."""
+        return True
 
 
 class PresetAssetView(ModelView):
@@ -156,9 +221,10 @@ class PresetAssetView(ModelView):
 
     fields_default_sort = [("asset_type", False), ("sort_order", False)]
     searchable_fields = ["name", "description"]
-    sortable_fields = ["id", "asset_type", "category", "status", "sort_order"]
+    sortable_fields = ["id", "asset_type", "category", "status", "sort_order", "created_at", "updated_at"]
 
     fields = [
+        StringField("id", label="ID", help_text="Preset asset ID"),
         IntegerEnumField(
             "asset_type",
             choices=[(1, "Avatar"), (2, "Emoticon")],
@@ -189,6 +255,8 @@ class PresetAssetView(ModelView):
             required=False,
         ),
         IntegerField("sort_order", label="Sort Order", help_text="Display order", required=False),
+        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
@@ -201,9 +269,6 @@ media_file_view = MediaFileView(
 )
 preset_asset_view = PresetAssetView(
     PresetAsset, name="Preset Assets", icon="fa fa-image", identity="preset_assets"
-)
-system_config_view = SystemConfigView(
-    SystemConfig, name="System Config", icon="fa fa-cog", identity="system_configs"
 )
 
 
@@ -219,13 +284,41 @@ class NotificationPushHistoryView(ModelView):
     def can_delete(self, request):
         return False
 
-    exclude_fields_from_list = ["action_data", "error_message", "updated_at"]
+    exclude_fields_from_list = []
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["to_qiao_id"]
-    sortable_fields = ["id", "notification_type", "status", "created_at"]
+    sortable_fields = ["id", "notification_type", "status", "created_at", "updated_at"]
 
+    fields = [
+        StringField("id", label="ID", help_text="Notification record ID"),
+        StringField("to_qiao_id", label="To Qiao ID", help_text="Receiver external ID"),
+        IntegerEnumField(
+            "notification_type",
+            enum=NotificationType,
+            label="Notification Type",
+            help_text="Type of notification",
+        ),
+        JSONField("action_data", label="Action/Data", help_text="Action and data payload"),
+        IntegerEnumField(
+            "status",
+            enum=NotificationStatus,
+            label="Status",
+            help_text="Delivery status",
+        ),
+        TextAreaField("error_message", label="Error Message", help_text="Error details if failed"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+    ]
+
+
+message_delivery_failure_view = MessageDeliveryFailureView(
+    MessageDeliveryFailure,
+    name="Message Failures",
+    icon="fa fa-exclamation-circle",
+    identity="message_delivery_failure",
+)
 
 notification_push_history_view = NotificationPushHistoryView(
     NotificationPushHistory,
@@ -237,8 +330,8 @@ notification_push_history_view = NotificationPushHistoryView(
 # Export all message and media views
 MESSAGE_MEDIA_MODEL_VIEWS = [
     message_history_view,
-    media_file_view,
-    preset_asset_view,
-    system_config_view,
+    message_delivery_failure_view,
     notification_push_history_view,
+    preset_asset_view,
+    media_file_view,
 ]

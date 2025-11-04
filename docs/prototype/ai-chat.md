@@ -4,12 +4,12 @@
 
 ```mermaid
 flowchart TB
-    n1["用户选择ai_profile_template"] --> n2["找到对应ai_info_template"]
+    n1["用户选择ai_profile_template"] --> n2["找到对应ai_character_template"]
     n2 --> n3["将新的信息写入ai_characters"]
     n3 --> n4["写入profiles"]
     n4 --> n5["写入contacts"]
     n5 --> n6["ai_profile_templates如果不可复用删除项目"]
-    n6 --> n7["ai_info_templates如果不可复用删除项目"]
+    n6 --> n7["ai_character_templates如果不可复用删除项目"]
     n7 --> n8["构建新联系人消息"]
     n8 --> n9["发送消息流程"]
 ```
@@ -27,7 +27,7 @@ flowchart TB
     n7 --> n8["获取contexts表中的上下文，将system提示词与上下文合并合并，生成完整上下文"]
     n8 --> n9["请求大模型"]
     n9 --> n11["使用json_schema验证"]
-    n11 --> n12["更新ai_relationship_score和其他相关内容"]
+    n11 --> n12["更新ai_character_dimensions和其他相关内容"]
     n12 --> n13["回复消息"]
 ```
 
@@ -35,19 +35,30 @@ flowchart TB
 
 收到消息后等待x秒，如果再次收到消息则合并，并循环等待，直到x秒后没有收到则存入ai_contexts表，并开始处理消息。
 
+- 入站缓冲：用户消息到达即写入 `ai_contexts`，若存在最近 `role=user & state=OPEN` 窗口则合并，否则创建新窗口（OPEN）。
+- 等待策略：依据是否支持 typing 与消息类型设置 `buffer_expires_at_ms`（统一使用数据库时钟计算）。
+- 到期触发：调度器扫描 `OPEN 且到期` 窗口；事务内先取消同会话旧的 `OPEN/LOCKED`，再将“最新且到期”的窗口置 `LOCKED` 并开始处理。
+- Doubao 流式：使用流式输出 + 早停。当出现新窗口抢占时立即停止读取，减少后续输出 tokens。
+- 结果落地：仅当窗口仍为 `LOCKED` 时写入一条 `assistant` 行并将窗口置 `COMPLETE`；否则丢弃（被抢占）。
+- 发送与重试：通过 LeanCloud 发送；失败写入 `message_delivery_failures` 并按策略重试。
+
+说明：本流程依赖 `ai_contexts` 的精简字段与 `aggregate_state` 状态机，确保“新消息可抢占旧处理”，且只在 `role=user` 的窗口使用状态字段。
+
+实现细节请参见[技术文档](ai-message-processing.md)。
+
 ## 分数初始化
 
 当角色首次需要relationship scores时（如第一次对话或测试），系统会自动初始化分数：
 
-1. 从ai_relationship_dimensions表获取该style的所有dimensions
+1. 从ai_style_dimensions表获取该style的所有dimensions
 2. 使用每个dimension的initial_position作为初始score和position
-3. 在ai_relationship_indexes表中查找每个dimension的initial_position对应的relationship
+3. 在ai_dimension_relationship_mappings表中查找每个dimension的initial_position对应的relationship
 4. 如果找到匹配的relationship，设置relationship_id和relationship_display_name
 5. 如果找不到匹配的relationship（异常情况）：
    - relationship_id和relationship_display_name设置为NULL
    - 记录ERROR级别日志
    - 对应的{{relationship_prompt}}占位符内容为空
-6. 创建ai_relationship_scores记录并提交到数据库
+6. 创建ai_character_dimensions记录并提交到数据库
 
 **实现位置**：`backend/app/services/ai/relationship.py` 中的 `initialize_relationship_scores` 函数
 
@@ -55,13 +66,24 @@ flowchart TB
 
 ## 分数计算和关系选择
 
-1. 输入分数，输入分数的数量和名称需要符合ai_style对应的dimension配置（输入来自LLM输出）
-2. 将每个dimension的分数映射到0-1000的区间
-3. 对每个dimension分数应用偏移算法计算position
-4. 在ai_relationship_indexes表找出每个dimension对应position对应的relationship（在start_position和end_position之间，包含两端）
-5. 根据ai_relationship_indexes.limit_count和ai_relationship_scores.relationship_counts对达到次数限制的relationship去除。
-6. 在去重后所有的relationship候选中选择优先级最高的relationship，特殊规则：如果其中有当前关系则当前关系优先级最高（换句话说如果候选中有当前关系则关系不变），如果存在优先级相同则记录日志并选择第一个。
-7. 选中的关系更新为当前关系，写入ai_relationship_scores等相关表
+1. 输入分数：输入的数量与名称必须与 `ai_style_dimensions` 一致（来自 LLM 输出）。
+2. 分数映射：按 JSON Schema 中每个维度定义的 `minimum`/`maximum` 将分数映射到 [0,1000] 的区间。
+   - 任何维度缺少 `minimum/maximum`、类型非法、或 `min == max` 时，记录错误日志并终止本次选择，最终结果为空关系。
+3. 位置映射：对映射后的每个维度分数应用位置映射算法，得到最终 `position`（仍在 [0,1000]）。
+   - 位置映射计算异常（参数不合法、除零等）同样记录错误并终止，结果为空关系。
+4. 候选收集：在 `ai_dimension_relationship_mappings` 中查找每个维度 `start_position <= position <= end_position` 的关系，合并去重。
+5. 非当前关系过滤：同一维度中，如果包含当前关系，则只候选当前关系，过滤其他关系。若无当前关系，则所有选中都为候选。
+6. 次数限制过滤：对候选根据 `ai_dimension_relationship_mappings.limit_count` 与 `ai_characters.relationship_counts` 进行过滤。
+   - 当 `limit_count` 为 NULL/0 视为无限制；
+   - 当 `counts >= limit_count` 时剔除；当 `counts > limit_count`（异常）时剔除并记录错误日志。
+7. 优先级选择：在筛选后的候选集合中，选择“优先级数值更大”的唯一关系。
+   - 若出现最高优先级并列（tie），记录错误并返回空关系；若集合为空也返回空关系并记录错误。
+8. 结果落地：
+   - 将选中的关系更新为当前关系；
+   - 仅当选择结果与“当前关系”不同（发生变更）时，对 `relationship_counts[relationship_id] += 1`；
+   - 将本轮计算得到的 `score/position` 均以整数形式写入。
+
+要求：`score` 与 `position` 在整个流程中的最终输出均为整数（取整后 clamp 到 [0,1000]）。
 
 ## 请求上下文构造
 
@@ -73,9 +95,9 @@ flowchart TB
 
 #### 系统占位符
 
-{{relationship_prompt}} 关系提示词，通过ai_relationship_indexes表获取ai_relationship.prompt_fragment得到。
+{{relationship_prompt}} 关系提示词，通过ai_dimension_relationship_mappings表获取ai_relationship.prompt_fragment得到。
 
-{{score:dimension_name}} dimension_name值为ai_relationship_dimensions.name的值，通过position和偏移算法反向计算得出。
+{{score:dimension_name}} dimension_name值为ai_style_dimensions.name的值，通过position和位置映射算法反向计算得出。
 
 {{self_profile}} 自身资料描述。来自profiles表。
 
@@ -105,20 +127,25 @@ flowchart TB
 
 回复消息后移动ai_contexts中时间超过x或条数超过y条以外的数据到ai_contexts_archive表。x和y使用sysytem_config控制。
 
-### 分数偏移算法 V1
+### 位置映射算法 V1
 
-基于ai_relationship_dimensions.initial_position作为原点进行精细化的独立双向偏移。类似于Photoshop的曲线调整，算法本身保证不会超出[0, 1000]范围。
+基于ai_style_dimensions.initial_position作为原点，将LLM输出的score映射到最终position。算法支持独立双向偏移控制，偏移幅度与分数段长度成比例，算法本身保证不会超出[0, 1000]范围。
+
+**核心特性**：
+- 偏移量与分数段长度成比例：更大的分数段产生更大的绝对偏移
+- 独立的左右侧控制：可分别调整左侧和右侧的映射曲线
+- 双向偏移：支持向原点压缩或向端点拉伸
 
 Python实现示例：
 
 ```python
-def calculate_v1_offset(score, initial_position, params):
+def calculate_v1_mapping(score, initial_position, params):
     """
-    V1独立双向偏移算法
-    :param score: 映射后的分数 (0-1000)
+    V1位置映射算法
+    :param score: LLM输出分数 (0-1000)
     :param initial_position: 初始位置 (0-1000)
     :param params: dict，参数配置
-    :return: 偏移后 position (0-1000)
+    :return: 最终 position (0-1000)
     """
 
     # 获取偏移参数
@@ -143,18 +170,18 @@ def calculate_v1_offset(score, initial_position, params):
         # 计算相对位置 [0, 1]
         relative_pos = score / initial_position
 
-        # 应用左侧偏移曲线
+        # 应用左侧映射曲线
         if left_bias == 0:
             # 线性，不调整
             adjusted_pos = relative_pos
         elif left_bias < 0:
             # 向原点偏移：压缩到initial_position附近
             compression_factor = abs(left_bias) / 100.0
-            adjusted_pos = 1.0 - (1.0 - relative_pos) * (1.0 - compression_factor)
+            adjusted_pos = relative_pos * (1.0 - compression_factor)
         else:
             # 向两端偏移：拉伸到0附近
             stretch_factor = left_bias / 100.0
-            adjusted_pos = relative_pos * (1.0 - stretch_factor)
+            adjusted_pos = max(0.0, relative_pos * (1.0 - stretch_factor))
 
         return adjusted_pos * initial_position
 
@@ -166,7 +193,7 @@ def calculate_v1_offset(score, initial_position, params):
         right_range = 1000.0 - initial_position
         relative_pos = (score - initial_position) / right_range
 
-        # 应用右侧偏移曲线
+        # 应用右侧映射曲线
         if right_bias == 0:
             # 线性，不调整
             adjusted_pos = relative_pos
@@ -177,12 +204,12 @@ def calculate_v1_offset(score, initial_position, params):
         else:
             # 向两端偏移：拉伸到1000附近
             stretch_factor = right_bias / 100.0
-            adjusted_pos = relative_pos + (1.0 - relative_pos) * stretch_factor
+            adjusted_pos = min(1.0, relative_pos * (1.0 + stretch_factor))
 
         return initial_position + adjusted_pos * right_range
 ```
 
-ai_characters.score_offset_params示例
+ai_characters.position_mapping_params示例
 
 ```json
 {
@@ -193,31 +220,36 @@ ai_characters.score_offset_params示例
 
 参数说明：
 
-- left_bias: 左侧偏移控制 (-100到100)
-  - 负值: 向原点偏移（压缩到initial_position附近）
-  - 0: 线性映射（无偏移）
-  - 正值: 向两端偏移（拉伸到0附近）
-- right_bias: 右侧偏移控制 (-100到100)
-  - 负值: 向原点偏移（压缩到initial_position附近）
-  - 0: 线性映射（无偏移）
-  - 正值: 向两端偏移（拉伸到1000附近）
+- left_bias: 左侧映射控制 (-100到100)
+  - 负值: 向原点压缩（压缩到initial_position附近）
+  - 0: 线性映射（无调整）
+  - 正值: 向端点拉伸（拉伸到0附近）
+- right_bias: 右侧映射控制 (-100到100)
+  - 负值: 向原点压缩（压缩到initial_position附近）
+  - 0: 线性映射（无调整）
+  - 正值: 向端点拉伸（拉伸到1000附近）
+
+**重要特性**：偏移量与分数段长度成比例
+- 分数段长度 = 右侧为 (1000 - initial_position)，左侧为 initial_position
+- 相同的bias值在更大的分数段会产生更大的绝对偏移
+- 这确保了算法在不同initial_position下的一致性
 
 性格模拟示例：
 
 ```json
-// 难以相处的人 - 强烈向原点偏移，关系难以改变
+// 难以相处的人 - 强烈向原点压缩，关系难以改变
 {"left_bias": -80, "right_bias": -80}
 
-// 容易发展关系的人 - 强烈向两端偏移，关系容易极化
+// 容易发展关系的人 - 强烈向端点拉伸，关系容易极化
 {"left_bias": 80, "right_bias": 80}
 
-// 容易产生好感但难以深入 - 右侧向两端，左侧向原点
+// 容易产生好感但难以深入 - 右侧向端点，左侧向原点
 {"left_bias": -30, "right_bias": 70}
 
-// 难以产生好感但容易深入 - 左侧向两端，右侧向原点
+// 难以产生好感但容易深入 - 左侧向端点，右侧向原点
 {"left_bias": 70, "right_bias": -30}
 
-// 标准线性行为 - 无特殊偏移
+// 标准线性行为 - 无特殊调整
 {"left_bias": 0, "right_bias": 0}
 ```
 
@@ -378,7 +410,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ### `attack_detected`
 
-意味着用户发送的内容存在提示词攻击，将processing状态的ai_context.is_attack标记为1，并记录suser_security_logs。
+意味着用户发送的内容存在提示词攻击，将processing状态的ai_context.is_attack标记为1，并记录suser_violation_logs。
 
 ### `should_reply`
 
@@ -390,7 +422,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ### `score`
 
-按照规则更新ai_relationship_score表。
+按照规则更新ai_character_dimension表。
 
 ### `followup_messages`
 

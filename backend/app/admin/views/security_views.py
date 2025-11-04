@@ -7,12 +7,13 @@ This module contains Starlette-Admin views for managing user security logs and s
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, IntegerField, TextAreaField, DateTimeField
+from starlette_admin import StringField, IntegerField, TextAreaField
 from admin.views.base import IntegerEnumField
+from admin.fields import LocalDateTimeField
 from starlette_admin.exceptions import FormValidationError
 
 # Import security models
-from models.security import UserSecurityLog, UserSecurityStats
+from models.security import UserViolationLog, UserRiskStats
 
 # Import enums
 from enums import (
@@ -24,8 +25,8 @@ from enums import (
 )
 
 
-class UserSecurityLogView(ModelView):
-    """Enhanced User Security Log view for violation monitoring."""
+class UserViolationLogView(ModelView):
+    """Enhanced User Violation Log view for violation monitoring."""
 
     label = "Violation Logs"
     name = "Violation Logs"
@@ -40,7 +41,7 @@ class UserSecurityLogView(ModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    exclude_fields_from_list = ["original_message", "ai_detection_result", "review_notes"]
+    exclude_fields_from_list = []
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["user_qiao_id", "character_qiao_id"]
     sortable_fields = [
@@ -49,10 +50,10 @@ class UserSecurityLogView(ModelView):
         "character_qiao_id",
         "violation_type",
         "severity_level",
-        "confidence_score",
         "auto_action_taken",
         "manual_review_status",
         "created_at",
+        "updated_at",
     ]
 
     fields = [
@@ -76,12 +77,6 @@ class UserSecurityLogView(ModelView):
             help_text="Severity level of the violation",
         ),
         TextAreaField("original_message", label="Original Message", help_text="User's original message"),
-        "ai_detection_result",
-        IntegerField(
-            "confidence_score",
-            label="Confidence Score",
-            help_text="AI detection confidence score (0-100)",
-        ),
         IntegerEnumField(
             "auto_action_taken",
             enum=AutoAction,
@@ -98,20 +93,20 @@ class UserSecurityLogView(ModelView):
             "reviewer_id", label="Reviewer ID", help_text="Admin snowflake ID who reviewed this record"
         ),
         TextAreaField("review_notes", label="Review Notes", help_text="Manual review notes"),
-        DateTimeField("created_at", label="Created At", help_text="When violation was detected"),
-        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        LocalDateTimeField("created_at", label="Created At", help_text="When violation was detected"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
-class UserSecurityStatsView(ModelView):
-    """Enhanced User Security Stats view for risk assessment."""
+class UserRiskStatsView(ModelView):
+    """Enhanced User Risk Stats view for risk assessment."""
 
     label = "User Risk Stats"
     name = "User Risk Stats"
 
     exclude_fields_from_create = ["id", "user_id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "user_id", "created_at", "updated_at"]
-    exclude_fields_from_list = ["violation_by_type"]
+    exclude_fields_from_list = []
 
     fields_default_sort = [("current_risk_level", True), ("total_violations", True)]
     searchable_fields = ["user_qiao_id"]
@@ -126,6 +121,8 @@ class UserSecurityStatsView(ModelView):
         "suspension_count",
         "last_violation_at",
         "last_action_at",
+        "created_at",
+        "updated_at",
     ]
 
     fields = [
@@ -134,7 +131,7 @@ class UserSecurityStatsView(ModelView):
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         IntegerField("total_violations", label="Total Violations", help_text="Total violation count"),
         "violation_by_type",
-        DateTimeField("last_violation_at", label="Last Violation", help_text="Time of last violation"),
+        LocalDateTimeField("last_violation_at", label="Last Violation", help_text="Time of last violation"),
         IntegerEnumField(
             "current_risk_level",
             enum=RiskLevel,
@@ -153,11 +150,11 @@ class UserSecurityStatsView(ModelView):
         IntegerField(
             "suspension_count", label="Suspension Count", help_text="Number of suspensions applied"
         ),
-        DateTimeField(
+        LocalDateTimeField(
             "last_action_at", label="Last Action", help_text="Time of last administrative action"
         ),
-        DateTimeField("created_at", label="Created At", help_text="Record creation time"),
-        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Record creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
@@ -172,16 +169,19 @@ class UserSecurityStatsView(ModelView):
 
 
 # Create view instances
-user_security_log_view = UserSecurityLogView(
-    UserSecurityLog, name="Violation Logs", icon="fa fa-exclamation-triangle", identity="user_security_log"
+user_violation_log_view = UserViolationLogView(
+    UserViolationLog,
+    name="Violation Logs",
+    icon="fa fa-exclamation-triangle",
+    identity="user_violation_log",
 )
 
-user_security_stats_view = UserSecurityStatsView(
-    UserSecurityStats, name="User Risk Stats", icon="fa fa-shield", identity="user_security_stats"
+user_risk_stats_view = UserRiskStatsView(
+    UserRiskStats, name="User Risk Stats", icon="fa fa-shield", identity="user_risk_stats"
 )
 
 # Export security views
 SECURITY_MODEL_VIEWS = [
-    user_security_log_view,
-    user_security_stats_view,
+    user_violation_log_view,
+    user_risk_stats_view,
 ]

@@ -41,8 +41,10 @@ class AICharacterChatTestService:
         self,
         db: AsyncSession,
         character_id: int,
-        llm_config_key: str,
+        llm_config_name: str,
         test_message: str,
+        mock_overrides: Optional[Dict[str, Any]] = None,
+        persist: bool = True,
     ) -> Dict[str, Any]:
         """
         Complete test flow: validate prerequisites, match test user, and execute test.
@@ -50,7 +52,7 @@ class AICharacterChatTestService:
         Args:
             db: Database session
             character_id: AI character ID
-            llm_config_key: LLM configuration key
+            llm_config_name: LLM configuration name
             test_message: Test message content
 
         Returns:
@@ -82,11 +84,34 @@ class AICharacterChatTestService:
                 db=db,
                 character_qiao_id=validation_result["character"]["qiao_id"],
                 user_qiao_id=user_match_result["test_user"]["qiao_id"],
-                llm_config_key=llm_config_key,
+                llm_config_name=llm_config_name,
                 test_message=test_message,
+                request_overrides={"provider_overrides": mock_overrides} if mock_overrides else None,
+                persist=persist,
             )
 
             # Combine all results for comprehensive response
+            # Get latest relationship scores after execution
+            try:
+                from services.ai.relationship import get_relationship_scores
+                latest_scores = await get_relationship_scores(
+                    db=db, character_qiao_id=validation_result["character"]["qiao_id"], auto_initialize=False
+                ) or []
+            except Exception:
+                latest_scores = []
+
+            # Also compute selected relationship after update for immediate feedback
+            try:
+                from services.ai.relationship import determine_relationship_type as _determine
+                selected_rel = None
+                if latest_scores:
+                    rel_info = await _determine(db, validation_result["character"], latest_scores)
+                    if rel_info and rel_info.get("relationship"):
+                        r = rel_info["relationship"]
+                        selected_rel = {"id": r.id, "name": getattr(r, "name", None), "display_name": getattr(r, "display_name", None)}
+            except Exception:
+                selected_rel = None
+
             complete_result = {
                 "test_execution": execution_result,
                 "validation_info": {
@@ -101,6 +126,8 @@ class AICharacterChatTestService:
                     "test_user_profile": user_match_result["test_user_profile"],
                 },
                 "available_llm_configs": validation_result["llm_configs"],
+                "relationship_scores_after": latest_scores,
+                "selected_relationship_after": selected_rel,
             }
 
             logger.info(
@@ -168,6 +195,20 @@ class AICharacterChatTestService:
                 db=db, character_info=validation_result["character"]
             )
 
+            # Get response JSON schema for this character (used by main flow)
+            try:
+                from services.ai.prompt import get_response_schema
+                response_schema = await get_response_schema(db, validation_result["character"]["qiao_id"])
+            except Exception:
+                response_schema = None
+
+            # Fetch character dimensions for detailed display (score/position/offsets)
+            try:
+                from crud.ai.character_dimension import get_by_character as _get_char_dims
+                character_dimensions = await _get_char_dims(db, validation_result["character"]["id"])
+            except Exception:
+                character_dimensions = []
+
             return {
                 "ready": True,
                 "character_info": {
@@ -176,6 +217,19 @@ class AICharacterChatTestService:
                     "style": validation_result["style"]["display_name"],
                     "personality": validation_result["personality"]["display_name"],
                 },
+                # Full profiles for richer UI (non-breaking addition)
+                "character_profile": validation_result["character_profile"],
+                "test_user_profile": user_match_result["test_user_profile"],
+                # Raw style/personality objects for advanced info panel
+                "style": validation_result["style"],
+                "personality": validation_result["personality"],
+                # Current relationship from character table
+                "current_relationship": validation_result.get("current_relationship"),
+                # Character settings snapshot needed by UI
+                "character_settings": {
+                    "memory": validation_result["character"].get("memory"),
+                    "prompt_variables": validation_result["character"].get("prompt_variables"),
+                },
                 "test_user_info": {
                     "qiao_id": user_match_result["test_user"]["qiao_id"],
                     "username": user_match_result["test_user"]["username"],
@@ -183,6 +237,8 @@ class AICharacterChatTestService:
                 },
                 "relationship_scores": validation_result["relationship_scores"],
                 "available_llm_configs": validation_result["llm_configs"],
+                "response_schema": response_schema,
+                "character_dimensions": character_dimensions,
             }
 
         except (ValidationError, UserMatcherError) as e:

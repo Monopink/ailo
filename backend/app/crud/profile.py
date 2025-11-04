@@ -5,7 +5,6 @@ Profile CRUD operations
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_
-from sqlalchemy.orm import selectinload
 
 from crud.base import CRUDBase
 from models.profile import Profile
@@ -62,6 +61,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         owner_id: int,
         owner_qiao_id: str,
         owner_type: ProfileOwnerType,
+        commit: bool = True,
     ) -> Profile:
         """Create profile with owner information"""
         try:
@@ -76,8 +76,11 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
 
             db_obj = self.model(**obj_data)
             db.add(db_obj)
-            await db.commit()
-            await db.refresh(db_obj)
+            if commit:
+                await db.commit()
+                await db.refresh(db_obj)
+            else:
+                await db.flush()
             logger.info(
                 "profile_created",
                 profile_id=db_obj.id,
@@ -104,6 +107,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         owner_id: int,
         owner_type: ProfileOwnerType,
         obj_in: ProfileUpdate,
+        commit: bool = True,
     ) -> Optional[Profile]:
         """Update profile by owner ID and type"""
         try:
@@ -115,21 +119,28 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             # Update profile
             update_data = obj_in.model_dump(exclude_unset=True)
             if update_data:
-                stmt = (
-                    update(self.model)
-                    .where(and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type))
-                    .values(**update_data)
-                )
-                await db.execute(stmt)
-                await db.commit()
-                await db.refresh(db_obj)
+                if commit:
+                    stmt = (
+                        update(self.model)
+                        .where(and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type))
+                        .values(**update_data)
+                    )
+                    await db.execute(stmt)
+                    await db.commit()
+                    await db.refresh(db_obj)
+                else:
+                    for k, v in update_data.items():
+                        setattr(db_obj, k, v)
+                    db.add(db_obj)
+                    await db.flush()
                 logger.info(
                     "profile_updated", profile_id=db_obj.id, owner_id=owner_id, owner_type=owner_type
                 )
 
             return db_obj
         except Exception as e:
-            await db.rollback()
+            if commit:
+                await db.rollback()
             logger.error("update_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type)
             raise
 
@@ -161,7 +172,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         try:
             stmt = select(self.model).where(self.model.gender == gender).offset(skip).limit(limit)
             result = await db.execute(stmt)
-            return result.scalars().all()
+            return list(result.scalars().all())
         except Exception as e:
             logger.error("get_profiles_by_gender_error", error=str(e), gender=gender)
             raise
@@ -174,21 +185,8 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> List[Profile]:
-        """Get profiles by age range"""
-        try:
-            stmt = select(self.model)
-
-            if min_age is not None:
-                stmt = stmt.where(self.model.age >= min_age)
-            if max_age is not None:
-                stmt = stmt.where(self.model.age <= max_age)
-
-            stmt = stmt.offset(skip).limit(limit)
-            result = await db.execute(stmt)
-            return result.scalars().all()
-        except Exception as e:
-            logger.error("get_profiles_by_age_range_error", error=str(e), min_age=min_age, max_age=max_age)
-            raise
+        """Get profiles by age range - DEPRECATED: age field does not exist in Profile model"""
+        raise NotImplementedError("age field does not exist in Profile model")
 
     async def search_profiles(
         self,
@@ -197,8 +195,6 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         nickname: Optional[str] = None,
         bio: Optional[str] = None,
         gender: Optional[str] = None,
-        min_age: Optional[int] = None,
-        max_age: Optional[int] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[Profile]:
@@ -212,14 +208,10 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                 stmt = stmt.where(self.model.bio.ilike(f"%{bio}%"))
             if gender:
                 stmt = stmt.where(self.model.gender == gender)
-            if min_age is not None:
-                stmt = stmt.where(self.model.age >= min_age)
-            if max_age is not None:
-                stmt = stmt.where(self.model.age <= max_age)
 
             stmt = stmt.offset(skip).limit(limit)
             result = await db.execute(stmt)
-            return result.scalars().all()
+            return list(result.scalars().all())
         except Exception as e:
             logger.error("search_profiles_error", error=str(e))
             raise
@@ -237,23 +229,11 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             # Gender distribution
             gender_stmt = select(self.model.gender, func.count(self.model.id)).group_by(self.model.gender)
             gender_result = await db.execute(gender_stmt)
-            gender_distribution = dict(gender_result.all())
-
-            # Age statistics
-            age_stmt = select(
-                func.min(self.model.age), func.max(self.model.age), func.avg(self.model.age)
-            ).where(self.model.age.is_not(None))
-            age_result = await db.execute(age_stmt)
-            age_stats = age_result.first()
+            gender_distribution = {k: v for k, v in gender_result.all()}
 
             return {
                 "total_profiles": total_profiles,
                 "gender_distribution": gender_distribution,
-                "age_stats": {
-                    "min_age": age_stats[0] if age_stats else None,
-                    "max_age": age_stats[1] if age_stats else None,
-                    "avg_age": float(age_stats[2]) if age_stats and age_stats[2] else None,
-                },
             }
         except Exception as e:
             logger.error("get_profile_stats_error", error=str(e))

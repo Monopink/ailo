@@ -13,6 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.ai.conversation import process_conversation
+from services.ai.data import save_context_entry
+from services.ai.data.mutations import finalize_context_if_locked
+from enums import AIContextRole, AIAggregateState
 from models.ai.character import AICharacter
 from models.ai.log import AIRequestLog
 from models.user import User
@@ -38,8 +41,10 @@ class ExecutorService:
         db: AsyncSession,
         character_qiao_id: str,
         user_qiao_id: str,
-        llm_config_key: str,
+        llm_config_name: str,
         test_message: str,
+        request_overrides: dict | None = None,
+        persist: bool = True,
     ) -> Dict[str, Any]:
         """
         Execute AI character chat test by calling main conversation logic.
@@ -54,7 +59,7 @@ class ExecutorService:
             db: Database session
             character_qiao_id: Character's qiao_id
             user_qiao_id: Test user's qiao_id
-            llm_config_key: LLM configuration key
+            llm_config_name: LLM configuration name
             test_message: Test message content
 
         Returns:
@@ -84,7 +89,7 @@ class ExecutorService:
                 style_id=character.style_id,
                 personality_id=character.personality_id,
                 request_type="test",
-                request={"message": test_message, "config_key": llm_config_key},
+                request={"message": test_message, "config_name": llm_config_name},
                 status=1,  # pending
             )
             db.add(log_entry)
@@ -98,7 +103,40 @@ class ExecutorService:
                 log_id=log_id,
             )
 
-            # Execute main conversation logic - 100% reuse
+            # Optionally create a LOCKED user context to follow buffer/state machine behavior
+            locked_context_id = None
+            if persist:
+                try:
+                    context_data = {
+                        "character_qiao_id": character_qiao_id,
+                        "user_qiao_id": user_qiao_id,
+                        "role": AIContextRole.USER,
+                        "content": test_message,
+                        "aggregate_state": AIAggregateState.LOCKED,
+                    }
+                    locked_context_id = await save_context_entry(db, context_data)
+                    if locked_context_id:
+                        logger.debug(
+                            "test_user_context_locked",
+                            character_qiao_id=character_qiao_id,
+                            user_qiao_id=user_qiao_id,
+                            context_id=locked_context_id,
+                        )
+                    else:
+                        logger.warning(
+                            "test_user_context_save_failed",
+                            character_qiao_id=character_qiao_id,
+                            user_qiao_id=user_qiao_id,
+                        )
+                except Exception as e:
+                    logger.error(
+                        "test_user_context_lock_error",
+                        error=str(e),
+                        character_qiao_id=character_qiao_id,
+                        user_qiao_id=user_qiao_id,
+                    )
+
+            # Execute main conversation logic - 100% reuse，传入 locked_context_id 以复用完整业务路径
             start_time = time.time()
 
             conversation_result = await process_conversation(
@@ -106,7 +144,10 @@ class ExecutorService:
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
                 message_content=test_message,
-                config_key=llm_config_key,
+                config_name=llm_config_name,
+                request_overrides=request_overrides,
+                locked_context_id=locked_context_id,
+                persist=persist,
             )
 
             end_time = time.time()
@@ -121,7 +162,7 @@ class ExecutorService:
                 # Fallback to basic info if payload not available
                 log_entry.request = {
                     "message": test_message,
-                    "config_key": llm_config_key,
+                    "config_name": llm_config_name,
                     "error": "request_payload not available",
                 }
 
@@ -171,6 +212,22 @@ class ExecutorService:
                 "request_payload": conversation_result.get("request_payload"),
                 "log_id": log_id,
             }
+
+            # Finalize user context window to COMPLETE when persist enabled
+            if persist and locked_context_id:
+                try:
+                    updated = await finalize_context_if_locked(db, locked_context_id)
+                    logger.debug(
+                        "test_user_context_finalize",
+                        context_id=locked_context_id,
+                        updated=updated,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "test_user_context_finalize_failed",
+                        error=str(e),
+                        context_id=locked_context_id,
+                    )
 
             logger.info(
                 "ai_character_test_completed",

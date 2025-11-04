@@ -32,7 +32,7 @@ async def chat_completion(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     enable_thinking: Optional[bool] = None,
-    config_key: Optional[str] = None,
+    name: Optional[str] = None,
     character_request_params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
@@ -45,7 +45,7 @@ async def chat_completion(
         temperature: Override temperature setting
         max_tokens: Override max tokens setting
         enable_thinking: Override thinking mode setting
-        config_key: Specific config to use (defaults to primary)
+        name: Specific config to use (defaults to primary)
         character_request_params: Character-specific request parameters override
 
     Returns:
@@ -53,10 +53,10 @@ async def chat_completion(
     """
     try:
         # Get configurations to try (primary first, then fallbacks)
-        configs_to_try = await _get_configs_to_try(db, config_key)
+        configs_to_try = await _get_configs_to_try(db, name)
 
         if not configs_to_try:
-            raise LLMNoConfigError(config_key=config_key, details={"requested_key": config_key})
+            raise LLMNoConfigError(config_name=name, details={"requested_name": name})
 
         # Try each configuration until one succeeds
         last_error = None
@@ -78,7 +78,7 @@ async def chat_completion(
                 if result["success"]:
                     # Add configuration info to result
                     result["config_used"] = {
-                        "config_key": config.config_key,
+                        "name": config.name,
                         "provider_name": provider.name,
                         "model": config.model_name or provider.default_model,
                     }
@@ -91,7 +91,7 @@ async def chat_completion(
                     last_error_code = result.get("error_code", "UNKNOWN")
                     logger.warn(
                         "llm_config_failed",
-                        config_key=config.config_key,
+                        config_name=config.name,
                         provider=provider.name,
                         error=last_error,
                         error_code=last_error_code,
@@ -102,7 +102,7 @@ async def chat_completion(
                 last_error_code = getattr(e, "error_code", "EXCEPTION")
                 logger.error(
                     "llm_config_exception",
-                    config_key=config.config_key,
+                    config_name=config.name,
                     provider=provider.name,
                     error=str(e),
                     exc_info=True,
@@ -119,7 +119,7 @@ async def chat_completion(
         }
 
     except LLMNoConfigError as e:
-        logger.error("no_llm_config", config_key=config_key)
+        logger.error("no_llm_config", config_name=name)
         return {
             "success": False,
             "error": str(e),
@@ -157,14 +157,14 @@ async def get_primary_llm_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, 
 
 
 async def _get_configs_to_try(
-    db: AsyncSession, config_key: Optional[str]
+    db: AsyncSession, name: Optional[str]
 ) -> List[Tuple[LLMConfig, LLMProvider]]:
     """Get list of configurations to try in order of priority."""
-    if config_key:
+    if name:
         # Use specific configuration
         from .config import get_llm_config
 
-        config_result = await get_llm_config(db, config_key)
+        config_result = await get_llm_config(db, name)
         return [config_result] if config_result else []
     else:
         # Use all active configurations ordered by priority
@@ -222,6 +222,7 @@ async def _call_provider(
             temperature=final_temperature,
             max_tokens=final_max_tokens,
             enable_thinking=final_enable_thinking,
+            provider_overrides=merged_params.get("provider_overrides"),
         )
 
         # Wrap result in success format
@@ -238,6 +239,7 @@ async def _call_provider(
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "enable_thinking": enable_thinking,
+                "provider_overrides": merged_params.get("provider_overrides"),
             },
         }
 
@@ -290,7 +292,7 @@ async def chat_completion_with_provider(
 
 
 async def select_config_for_ai(
-    db: AsyncSession, config_key: Optional[str] = None
+    db: AsyncSession, name: Optional[str] = None
 ) -> Tuple[LLMConfig, LLMProvider]:
     """
     Select and validate LLM config for AI Character usage.
@@ -300,7 +302,7 @@ async def select_config_for_ai(
 
     Args:
         db: Database session
-        config_key: Specific config to use (defaults to primary)
+        name: Specific config to use (defaults to primary)
 
     Returns:
         Tuple of (config, provider)
@@ -313,35 +315,35 @@ async def select_config_for_ai(
     from .config import get_llm_config, get_primary_config
 
     # Get configuration
-    if config_key:
-        config_result = await get_llm_config(db, config_key)
+    if name:
+        config_result = await get_llm_config(db, name)
         if not config_result:
             raise LLMNoConfigError(
-                config_key=config_key,
-                message=f"配置 '{config_key}' 不存在或未激活",
-                details={"requested_key": config_key},
+                config_name=name,
+                message=f"配置 '{name}' 不存在或未激活",
+                details={"requested_name": name},
             )
     else:
         config_result = await get_primary_config(db)
         if not config_result:
             raise LLMNoConfigError(
                 message="没有可用的主配置",
-                details={"requested_key": "primary"},
+                details={"requested_name": "primary"},
             )
 
     config, provider = config_result
 
     # Check JSON Schema support
     if config.json_schema_mode == "auto":
-        raise ConfigNotVerifiedError(config_key=config.config_key)
+        raise ConfigNotVerifiedError(config_name=config.name)
 
     if config.json_schema_mode == "disabled":
-        raise JSONSchemaNotSupportedError(config_key=config.config_key)
+        raise JSONSchemaNotSupportedError(config_name=config.name)
 
     # json_schema_mode == 'strict' - can be used
     logger.info(
         "config_selected_for_ai",
-        config_key=config.config_key,
+        config_name=config.name,
         provider=provider.name,
         json_schema_mode=config.json_schema_mode,
     )
@@ -375,7 +377,7 @@ async def validate_ai_response(
         # Response is not JSON - config status is incorrect
         logger.error(
             "ai_response_format_error",
-            config_key=config.config_key,
+            config_name=config.name,
             json_schema_mode=config.json_schema_mode,
             response_preview=response_content[:200],
             allow_auto_update=allow_auto_update,
@@ -389,13 +391,13 @@ async def validate_ai_response(
 
             logger.warning(
                 "config_auto_updated_to_disabled",
-                config_key=config.config_key,
+                config_name=config.name,
                 old_mode=old_mode,
                 new_mode="disabled",
             )
 
         raise LLMResponseFormatError(
-            config_key=config.config_key,
+            config_name=config.name,
             details={
                 "response_preview": response_content[:200],
                 "old_json_schema_mode": old_mode,

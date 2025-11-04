@@ -5,6 +5,8 @@ Main Starlette-Admin configuration.
 import json
 from pathlib import Path
 from starlette_admin.contrib.sqla import Admin
+from starlette_admin import CustomView
+from starlette.responses import RedirectResponse
 from starlette_admin import DropDown
 
 from core.database import engine
@@ -22,9 +24,10 @@ from .views import (
     ai_personality_placeholder_view,
     ai_style_view,
     ai_relationship_view,
-    ai_relationship_dimension_view,
-    ai_relationship_index_view,
-    ai_info_template_view,
+    ai_dimension_view,
+    ai_style_dimension_view,
+    ai_dimension_relationship_mapping_view,
+    ai_character_template_view,
     ai_profile_template_view,
     ai_request_log_view,
     # Message Management
@@ -43,18 +46,19 @@ from .views import (
     llm_config_view,
     llm_test_log_view,
     # Security Management
-    user_security_log_view,
-    user_security_stats_view,
+    user_violation_log_view,
+    user_risk_stats_view,
     # Token Management
     user_token_view,
     login_record_view,
+    user_auth_view,
     # Business Management
     contact_request_view,
     message_delivery_failure_view,
     # AI Extended Management
     ai_context_view,
     ai_context_archive_view,
-    ai_relationship_score_view,
+    ai_character_dimension_view,
     # Statistics Management
     stats_user_daily_view,
     stats_user_weekly_view,
@@ -70,20 +74,17 @@ from .views import (
     stats_ai_monthly_view,
     # AI Testing (for routing only, not in menu)
     ai_character_chat_test_view,
-    ai_score_algorithm_test_view,
-    ai_relationship_index_api_view,
+    ai_style_test_view,
     # LLM Testing (for routing only, not in menu)
     llm_config_test_view,
 )
-from .views.custom_views import (
-    DashboardView,
-    SystemSettingsView,
-)
-from .views.ai_json_edit_views import (
-    character_json_edit_view,
-    info_template_json_edit_view,
-    personality_complete_edit_view,
-    style_complete_edit_view,
+from .views.dashboard_view import DashboardView
+from .views.system_settings_view import SystemSettingsView
+from .views.ai_advanced_edit_views import (
+    character_advanced_edit_view,
+    character_template_advanced_edit_view,
+    personality_advanced_edit_view,
+    style_advanced_edit_view,
 )
 
 # Create admin instance with authentication and dashboard as index
@@ -101,6 +102,28 @@ admin = Admin(
 # Configure Jinja2 tojson filter to display Chinese characters correctly
 # Override starlette-admin's default tojson filter which uses ensure_ascii=True
 admin.templates.env.filters["tojson"] = lambda data: json.dumps(data, default=str, ensure_ascii=False)
+
+# Ensure templates pick up changes without full restarts (dev-friendly)
+# Enable auto reload and clear template cache so newly added overrides are used.
+try:
+    admin.templates.env.auto_reload = True
+    # Clear any existing compiled template cache
+    if hasattr(admin.templates.env, "cache") and isinstance(admin.templates.env.cache, dict):
+        admin.templates.env.cache.clear()
+except Exception:
+    pass
+
+
+# Add pretty JSON filter for structured display in detail/list views
+def _pretty_json(data):
+    try:
+        return json.dumps(data, default=str, ensure_ascii=False, indent=2)
+    except Exception:
+        # Fallback to string if serialization fails
+        return str(data)
+
+
+admin.templates.env.filters["prettyjson"] = _pretty_json
 
 # Menu groups with English labels (removed "Management" suffix and fixed "AI" spacing)
 # Set always_open=False to make menus collapsed by default
@@ -134,19 +157,20 @@ ai_group = DropDown(
     "AI",
     icon="fa fa-robot",
     views=[
-        ai_info_template_view,
         ai_profile_template_view,
-        ai_context_view,
-        ai_relationship_score_view,
-        ai_request_log_view,
+        ai_character_template_view,
         ai_character_view,
+        ai_character_dimension_view,
         ai_style_view,
         ai_personality_view,
         ai_relationship_view,
-        ai_context_archive_view,
+        ai_dimension_view,
+        ai_style_dimension_view,
         ai_personality_placeholder_view,
-        ai_relationship_dimension_view,
-        ai_relationship_index_view,
+        ai_dimension_relationship_mapping_view,
+        ai_context_view,
+        ai_context_archive_view,
+        ai_request_log_view,
     ],
     always_open=False,
 )
@@ -154,8 +178,7 @@ admin.add_view(ai_group)
 
 # Register test views separately (not in menu, accessed via row actions only)
 admin.add_view(ai_character_chat_test_view)
-admin.add_view(ai_score_algorithm_test_view)
-admin.add_view(ai_relationship_index_api_view)
+admin.add_view(ai_style_test_view)
 admin.add_view(llm_config_test_view)
 
 llm_group = DropDown(
@@ -174,23 +197,24 @@ security_group = DropDown(
     "Security",
     icon="fa fa-shield",
     views=[
-        user_security_stats_view,
-        user_security_log_view,
+        user_risk_stats_view,
+        user_violation_log_view,
     ],
     always_open=False,
 )
 admin.add_view(security_group)
 
-session_group = DropDown(
-    "Tokens",
+auth_group = DropDown(
+    "Authorization",
     icon="fa fa-key",
     views=[
+        user_auth_view,
         user_token_view,
         login_record_view,
     ],
     always_open=False,
 )
-admin.add_view(session_group)
+admin.add_view(auth_group)
 
 media_group = DropDown(
     "Media",
@@ -241,12 +265,37 @@ system_group = DropDown(
 )
 admin.add_view(system_group)
 
-# Register JSON editing custom views (not in menu, accessed via buttons)
-admin.add_view(character_json_edit_view)
-admin.add_view(info_template_json_edit_view)
-admin.add_view(personality_complete_edit_view)
-admin.add_view(style_complete_edit_view)
+# Register advanced editing custom views (not in menu, accessed via buttons)
+admin.add_view(character_advanced_edit_view)
+admin.add_view(character_template_advanced_edit_view)
+admin.add_view(personality_advanced_edit_view)
+admin.add_view(style_advanced_edit_view)
 
 # Test views are now included in AI group with add_to_menu=False
 
 # Development tools and testing functionality are now integrated into respective list views
+
+
+class ThemeSwitchView(CustomView):
+    """
+    Lightweight view to switch admin theme (SSR): sets cookie and redirects back.
+    """
+
+    async def render(self, request, templates):
+        mode = str(request.path_params.get("mode", "light")).lower()
+        if mode not in ("light", "dark", "auto"):
+            mode = "light"
+        referer = request.headers.get("referer") or str(request.url_for(admin.route_name + ":index"))
+        response = RedirectResponse(url=referer, status_code=303)
+        # Persist for 1 year
+        response.set_cookie("qiao_admin_theme", mode, max_age=60 * 60 * 24 * 365, path="/", samesite="lax")
+        return response
+
+
+theme_switch_view = ThemeSwitchView(
+    label="Theme Switch",
+    name="theme_switch",
+    path="/theme/{mode:str}",
+    add_to_menu=False,
+)
+admin.add_view(theme_switch_view)

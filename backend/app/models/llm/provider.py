@@ -70,3 +70,18 @@ class LLMProvider(AutoIncrementModel):
         back_populates="provider",
         primaryjoin="LLMProvider.id == foreign(LLMConfig.provider_id)",
     )
+
+    @property
+    def supports_streaming_display(self) -> str:
+        """Display value for supports_streaming."""
+        return "Yes" if self.supports_streaming == 1 else "No"
+
+    @property
+    def supports_json_schema_display(self) -> str:
+        """Display value for supports_json_schema."""
+        return "Yes" if self.supports_json_schema == 1 else "No"
+
+    @property
+    def supports_thinking_display(self) -> str:
+        """Display value for supports_thinking."""
+        return "Yes" if self.supports_thinking == 1 else "No"

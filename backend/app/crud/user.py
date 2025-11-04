@@ -9,9 +9,9 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBaseWithQiaoId, CRUDBase
-from models.user import User, UserToken, LoginRecord
+from models.user import User, UserToken, LoginRecord, UserAuth
 from schemas.user import UserCreate, UserUpdate, TokenCreate
-from enums import UserStatus, DeviceType
+from enums import UserStatus, DeviceType, AuthType
 
 
 class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
@@ -229,3 +229,50 @@ class CRUDLoginRecord(CRUDBase[LoginRecord, dict, dict]):
 user = CRUDUser(User)
 user_token = CRUDUserToken(UserToken)
 login_record = CRUDLoginRecord(LoginRecord)
+
+
+class CRUDUserAuth(CRUDBase[UserAuth, dict, dict]):
+    """CRUD operations for UserAuth model (third-party identity bindings)."""
+
+    async def get_by_provider_uid(
+        self, db: AsyncSession, *, auth_type: AuthType | int, provider_uid: str
+    ) -> Optional[UserAuth]:
+        result = await db.execute(
+            select(self.model).where(
+                and_(self.model.auth_type == int(auth_type), self.model.provider_uid == provider_uid)
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def create_binding(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: int,
+        user_qiao_id: str,
+        auth_type: AuthType | int,
+        provider_uid: str,
+        unionid: Optional[str] = None,
+        app_id: Optional[str] = None,
+        extra_data: Optional[dict] = None,
+    ) -> UserAuth:
+        from utils.snowflake import generate_snowflake_id
+
+        binding = self.model(
+            id=generate_snowflake_id(),
+            user_id=user_id,
+            user_qiao_id=user_qiao_id,
+            auth_type=int(auth_type),
+            provider_uid=provider_uid,
+            unionid=unionid,
+            app_id=app_id,
+            extra_data=extra_data,
+            status=1,
+        )
+        db.add(binding)
+        await db.commit()
+        await db.refresh(binding)
+        return binding
+
+
+user_auth = CRUDUserAuth(UserAuth)

@@ -1,13 +1,13 @@
 """
-Score offset algorithm implementations.
+Position mapping algorithm implementations.
 
-This module provides pure functions for calculating score offsets
-based on relationship scores using various algorithms.
+This module provides pure functions for mapping LLM output scores to final position values
+with optional offset adjustments using various algorithms.
 All algorithms are stateless and maintain initial position as origin.
 """
 
 from typing import Dict, Any, Optional
-from enums.common import ScoreOffsetAlgorithm
+from enums.common import PositionMappingAlgorithm
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -15,30 +15,30 @@ logger = get_logger(__name__)
 
 # Default parameters for different algorithms
 DEFAULT_ALGORITHM_PARAMS = {
-    ScoreOffsetAlgorithm.NONE: {},
-    ScoreOffsetAlgorithm.V1: {
+    PositionMappingAlgorithm.NONE: {},
+    PositionMappingAlgorithm.V1: {
         "left_bias": 0,  # -100 to 100, left side offset control
         "right_bias": 0,  # -100 to 100, right side offset control
     },
 }
 
 
-def apply_score_algorithm(
+def map_score_to_position(
     algorithm: int, score: float, initial_position: float, params: Optional[Dict[str, Any]] = None
 ) -> float:
     """
-    Apply score offset algorithm to calculate new position.
+    Map LLM output score to final position value using specified algorithm.
 
-    This is the main entry point for score calculation.
+    This is the main entry point for position mapping.
 
     Args:
-        algorithm: Algorithm type from ScoreOffsetAlgorithm enum
+        algorithm: Algorithm type from PositionMappingAlgorithm enum
         score: LLM response score value (0-1000)
-        initial_position: Initial position from ai_relationship_dimensions (0-1000)
+        initial_position: Initial position from ai_style_dimensions (0-1000)
         params: Algorithm-specific parameters
 
     Returns:
-        New score position (0-1000)
+        Final position value (0-1000)
 
     Raises:
         ValueError: If algorithm is unknown or parameters are invalid
@@ -53,7 +53,7 @@ def apply_score_algorithm(
         raise ValueError(f"Initial position must be between 0 and 1000, got: {initial_position}")
 
     try:
-        algorithm_enum = ScoreOffsetAlgorithm(algorithm)
+        algorithm_enum = PositionMappingAlgorithm(algorithm)
     except ValueError:
         raise ValueError(f"Unknown algorithm: {algorithm}")
 
@@ -62,16 +62,16 @@ def apply_score_algorithm(
     merged_params = {**default_params, **params}
 
     try:
-        if algorithm_enum == ScoreOffsetAlgorithm.NONE:
-            return calculate_none_offset(score, initial_position, merged_params)
-        elif algorithm_enum == ScoreOffsetAlgorithm.V1:
-            return calculate_v1_offset(score, initial_position, merged_params)
+        if algorithm_enum == PositionMappingAlgorithm.NONE:
+            return calculate_none_mapping(score, initial_position, merged_params)
+        elif algorithm_enum == PositionMappingAlgorithm.V1:
+            return calculate_v1_mapping(score, initial_position, merged_params)
         else:
             raise ValueError(f"Algorithm not implemented: {algorithm}")
 
     except Exception as e:
         logger.error(
-            "score_algorithm_calculation_failed",
+            "position_mapping_calculation_failed",
             algorithm=algorithm,
             score=score,
             initial_position=initial_position,
@@ -82,7 +82,7 @@ def apply_score_algorithm(
         raise
 
 
-def calculate_none_offset(score: float, initial_position: float, params: Dict[str, Any]) -> float:
+def calculate_none_mapping(score: float, initial_position: float, params: Dict[str, Any]) -> float:
     """
     Direct mapping without any offset - returns LLM score directly.
 
@@ -97,7 +97,7 @@ def calculate_none_offset(score: float, initial_position: float, params: Dict[st
     return max(0.0, min(1000.0, score))
 
 
-def calculate_v1_offset(score: float, initial_position: float, params: Dict[str, Any]) -> float:
+def calculate_v1_mapping(score: float, initial_position: float, params: Dict[str, Any]) -> float:
     """
     V1 algorithm with independent bidirectional offset control.
 
@@ -106,16 +106,17 @@ def calculate_v1_offset(score: float, initial_position: float, params: Dict[str,
     - Bidirectional offset (both towards endpoints and towards origin)
     - Similar to Photoshop curve adjustment
     - Algorithm itself guarantees staying within 0-1000 range
+    - Mapping magnitude is proportional to segment length
 
     Args:
-        score: Mapped score (0-1000) after range mapping
+        score: LLM output score (0-1000)
         initial_position: Initial position from dimension config (0-1000)
         params: Algorithm parameters
             - left_bias: -100 to 100, left side offset control
             - right_bias: -100 to 100, right side offset control
 
     Returns:
-        New score position (0-1000)
+        Final position value (0-1000)
 
     Raises:
         ValueError: If parameters are invalid
@@ -151,11 +152,11 @@ def calculate_v1_offset(score: float, initial_position: float, params: Dict[str,
             elif left_bias < 0:
                 # Towards origin: compress towards initial_position
                 compression_factor = abs(left_bias) / 100.0
-                adjusted_pos = 1.0 - (1.0 - relative_pos) * (1.0 - compression_factor)
+                adjusted_pos = relative_pos * (1.0 - compression_factor)
             else:
                 # Towards endpoints: stretch towards 0
                 stretch_factor = left_bias / 100.0
-                adjusted_pos = relative_pos * (1.0 - stretch_factor)
+                adjusted_pos = max(0.0, relative_pos * (1.0 - stretch_factor))
 
             return adjusted_pos * initial_position
 
@@ -178,20 +179,20 @@ def calculate_v1_offset(score: float, initial_position: float, params: Dict[str,
             else:
                 # Towards endpoints: stretch towards 1000
                 stretch_factor = right_bias / 100.0
-                adjusted_pos = relative_pos + (1.0 - relative_pos) * stretch_factor
+                adjusted_pos = min(1.0, relative_pos * (1.0 + stretch_factor))
 
             return initial_position + adjusted_pos * right_range
 
     except (ValueError, OverflowError, ZeroDivisionError) as e:
         logger.error(
-            "v1_algorithm_calculation_error",
+            "v1_mapping_calculation_error",
             score=score,
             initial_position=initial_position,
             left_bias=left_bias,
             right_bias=right_bias,
             error=str(e),
         )
-        raise ValueError(f"V1 algorithm calculation failed: {str(e)}")
+        raise ValueError(f"V1 mapping calculation failed: {str(e)}")
 
 
 def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
@@ -199,13 +200,13 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
     Get information about a specific algorithm.
 
     Args:
-        algorithm: Algorithm type from ScoreOffsetAlgorithm enum
+        algorithm: Algorithm type from PositionMappingAlgorithm enum
 
     Returns:
         Dictionary containing algorithm information
     """
     try:
-        algorithm_enum = ScoreOffsetAlgorithm(algorithm)
+        algorithm_enum = PositionMappingAlgorithm(algorithm)
     except ValueError:
         return {
             "name": "Unknown",
@@ -214,19 +215,19 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
             "formula": "N/A",
         }
 
-    if algorithm_enum == ScoreOffsetAlgorithm.NONE:
+    if algorithm_enum == PositionMappingAlgorithm.NONE:
         return {
-            "name": "Direct Mapping",
+            "name": "None (direct)",
             "version": "1.0",
-            "description": "No offset applied, direct score mapping",
+            "description": "Direct score to position mapping without offset",
             "parameters": [],
-            "formula": "output = input",
+            "formula": "position = score",
         }
-    elif algorithm_enum == ScoreOffsetAlgorithm.V1:
+    elif algorithm_enum == PositionMappingAlgorithm.V1:
         return {
-            "name": "V1 Independent Bidirectional Offset",
+            "name": "V1",
             "version": "1.0",
-            "description": "Independent bidirectional offset control similar to Photoshop curve adjustment",
+            "description": "Independent bidirectional offset control with proportional segment-based adjustment",
             "parameters": [
                 {
                     "name": "left_bias",
@@ -243,7 +244,7 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
                     "description": "Right side offset control: negative (towards origin), 0 (linear), positive (towards endpoints)",
                 },
             ],
-            "formula": "curve-based mapping with independent left/right control",
+            "formula": "curve-based mapping with independent left/right control and proportional offsets",
         }
     else:
         return {
@@ -260,21 +261,21 @@ def validate_algorithm_params(algorithm: int, params: Dict[str, Any]) -> bool:
     Validate parameters for a specific algorithm.
 
     Args:
-        algorithm: Algorithm type from ScoreOffsetAlgorithm enum
+        algorithm: Algorithm type from PositionMappingAlgorithm enum
         params: Parameters to validate
 
     Returns:
         True if parameters are valid, False otherwise
     """
     try:
-        algorithm_enum = ScoreOffsetAlgorithm(algorithm)
+        algorithm_enum = PositionMappingAlgorithm(algorithm)
     except ValueError:
         return False
 
-    if algorithm_enum == ScoreOffsetAlgorithm.NONE:
+    if algorithm_enum == PositionMappingAlgorithm.NONE:
         # No parameters needed
         return True
-    elif algorithm_enum == ScoreOffsetAlgorithm.V1:
+    elif algorithm_enum == PositionMappingAlgorithm.V1:
         required_params = ["left_bias", "right_bias"]
         for param in required_params:
             if param not in params:

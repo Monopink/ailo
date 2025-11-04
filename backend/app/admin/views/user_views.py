@@ -1,5 +1,5 @@
 """
-User and admin-related model views for Starlette-Admin.
+User-related model views for Starlette-Admin.
 Creates ModelView instances for user management and admin system models.
 """
 
@@ -7,192 +7,27 @@ from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from .base import BaseRoleAwareModelView
+from admin.fields import LocalDateTimeField
 from starlette_admin import StringField, TextAreaField, HasOne
 from admin.views.base import IntegerEnumField
 from starlette_admin.exceptions import FormValidationError
 
-# Import user and admin models
-from models.admin import AdminUser, AdminOperationLog, AdminLoginLog
 from models.user import User
 from models.profile import Profile, UserProfileLog
 from models.contact import Contact
 
-# Import enums
+from models.contact import ContactRequest
+
 from enums import (
     UserStatus,
     UserType,
-    AdminRole,
-    AdminStatus,
     Gender,
     ProfileOwnerType,
     ProfileModifierType,
     ContactType,
+    ContactRequestSource,
+    ContactRequestStatus,
 )
-
-
-class AdminUserView(BaseRoleAwareModelView):
-    """Enhanced AdminUser view with proper field configuration."""
-
-    def can_delete(self, request):
-        return False
-
-    def can_create(self, request):  # type: ignore[override]
-        from enums import AdminRole
-
-        admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
-        role = admin_user.get("role") if admin_user else None
-        try:
-            role_val = int(role) if role is not None else None
-        except Exception:
-            role_val = None
-        return role_val == AdminRole.SUPER_ADMIN
-
-    def can_edit(self, request):  # type: ignore[override]
-        from enums import AdminRole
-
-        admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
-        role = admin_user.get("role") if admin_user else None
-        try:
-            role_val = int(role) if role is not None else None
-        except Exception:
-            role_val = None
-        return role_val == AdminRole.SUPER_ADMIN
-
-    fields = [
-        StringField("username", label="Username", help_text="Administrator username", required=True),
-        StringField(
-            "password",
-            label="Password",
-            help_text="Administrator password (plain text, leave blank to keep current password when editing)",
-            required=False,
-        ),
-        IntegerEnumField(
-            "role",
-            enum=AdminRole,
-            label="Role",
-            help_text="Administrator role level (required selection: Super Admin, Admin, or Viewer)",
-            required=True,
-        ),
-        IntegerEnumField(
-            "status",
-            enum=AdminStatus,
-            label="Status",
-            help_text="Account status (default: Active)",
-            required=True,
-        ),
-        "last_login",
-        "login_count",
-        "created_by",
-        "created_at",
-        "updated_at",
-    ]
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["username"]
-    sortable_fields = ["id", "username", "role", "status", "created_at", "last_login"]
-    exclude_fields_from_list = ["password_hash", "password"]
-    exclude_fields_from_detail = ["password_hash", "password"]
-    exclude_fields_from_create = [
-        "id",
-        "password_hash",
-        "created_at",
-        "updated_at",
-        "last_login",
-        "login_count",
-        "created_by",
-    ]
-    exclude_fields_from_edit = [
-        "id",
-        "password_hash",
-        "created_at",
-        "updated_at",
-        "last_login",
-        "login_count",
-        "created_by",
-    ]
-
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
-        """Validate admin user data."""
-        password = data.get("password")
-
-        # For create operation, password is required
-        if request.url.path.endswith("/create"):
-            if not password:
-                raise FormValidationError({"password": "Password is required when creating admin user"})
-
-        # Validate password length if provided
-        if password and len(password) < 8:
-            raise FormValidationError({"password": "Password must be at least 8 characters long"})
-
-        await super().validate(request, data)
-
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Hash password before creating admin user."""
-        from core.security import get_password_hash
-
-        password = data.pop("password", None)
-
-        if password:
-            obj.password_hash = get_password_hash(password)
-
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Hash password before updating admin user if password is changed."""
-        from core.security import get_password_hash
-
-        password = data.pop("password", None)
-
-        # Only update password if a new one is provided
-        if password:
-            obj.password_hash = get_password_hash(password)
-
-
-class AdminOperationLogView(ModelView):
-    """Enhanced Admin Operation Log view - read-only for monitoring."""
-
-    def can_create(self, request):
-        return False
-
-    def can_edit(self, request):
-        return False
-
-    def can_delete(self, request):
-        return False
-
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["resource_name", "operation_desc"]
-    sortable_fields = ["id", "admin_user_id", "resource_type", "created_at"]
-
-    fields = [
-        "id",
-        "admin_user_id",
-        StringField("operation_type_display", label="Operation Type"),
-        "resource_type",
-        "resource_id",
-        "resource_name",
-        "operation_desc",
-        "ip_address",
-        "user_agent",
-        "created_at",
-    ]
-
-    exclude_fields_from_create = ["operation_type_display"]
-    exclude_fields_from_edit = ["operation_type_display"]
-
-
-class AdminLoginLogView(ModelView):
-    """Enhanced Admin Login Log view - read-only for monitoring."""
-
-    def can_create(self, request):
-        return False
-
-    def can_edit(self, request):
-        return False
-
-    def can_delete(self, request):
-        return False
-
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["username", "ip_address"]
-    sortable_fields = ["id", "admin_user_id", "username", "result", "created_at"]
 
 
 class UserView(BaseRoleAwareModelView):
@@ -210,12 +45,21 @@ class UserView(BaseRoleAwareModelView):
         "last_login",
     ]
     exclude_fields_from_edit = ["id", "qiao_id", "password_hash", "created_at", "updated_at", "last_login"]
-    exclude_fields_from_list = ["password_hash", "password", "wechat_openid", "apple_id"]
+    exclude_fields_from_list = ["password_hash", "password"]
     exclude_fields_from_detail = ["password_hash", "password"]
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["username", "phone", "email", "qiao_id"]
-    sortable_fields = ["id", "username", "qiao_id", "status", "user_type", "created_at", "last_login"]
+    sortable_fields = [
+        "id",
+        "username",
+        "qiao_id",
+        "status",
+        "user_type",
+        "created_at",
+        "updated_at",
+        "last_login",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Internal user ID"),
@@ -237,15 +81,29 @@ class UserView(BaseRoleAwareModelView):
             required=True,
         ),
         IntegerEnumField(
+            "is_verified",
+            choices=[(0, "No"), (1, "Yes")],
+            label="Verified",
+            help_text="Real-name verification status",
+            required=True,
+        ),
+        StringField("verify_source", label="Verify Source", help_text="Verification source/provider"),
+        TextAreaField(
+            "verification_info",
+            label="Verification Info",
+            help_text="Verification extra information (JSON/text)",
+        ),
+        LocalDateTimeField("verified_at", label="Verified At", help_text="Verification approval time"),
+        IntegerEnumField(
             "user_type",
             enum=UserType,
             label="User Type",
             help_text="User classification (default: Normal)",
             required=True,
         ),
-        "last_login",
-        "created_at",
-        "updated_at",
+        LocalDateTimeField("last_login", label="Last Login", help_text="Last login time"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Account creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
@@ -274,7 +132,7 @@ class UserView(BaseRoleAwareModelView):
             obj.password_hash = get_password_hash(password)
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
-        convert_empty_strings_to_none(obj, ["phone", "email", "wechat_openid", "apple_id"])
+        convert_empty_strings_to_none(obj, ["phone", "email"])
 
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Hash password before updating user if password is changed. Convert empty unique fields to NULL."""
@@ -288,7 +146,7 @@ class UserView(BaseRoleAwareModelView):
             obj.password_hash = get_password_hash(password)
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
-        convert_empty_strings_to_none(obj, ["phone", "email", "wechat_openid", "apple_id"])
+        convert_empty_strings_to_none(obj, ["phone", "email"])
 
 
 class ProfileView(BaseRoleAwareModelView):
@@ -317,7 +175,7 @@ class ProfileView(BaseRoleAwareModelView):
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["nickname", "owner_qiao_id"]
-    sortable_fields = ["id", "owner_type", "nickname", "gender", "created_at"]
+    sortable_fields = ["id", "owner_type", "nickname", "gender", "created_at", "updated_at"]
 
     fields = [
         StringField("id", label="ID", help_text="Internal profile ID"),
@@ -348,6 +206,8 @@ class ProfileView(BaseRoleAwareModelView):
         ),
         TextAreaField("bio", label="Bio", help_text="Profile biography"),
         StringField("region", label="Region", help_text="Location/region information"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Profile creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
@@ -427,6 +287,82 @@ class ProfileView(BaseRoleAwareModelView):
             obj.owner_qiao_id = owner_character.qiao_id
 
 
+class UserProfileLogView(ModelView):
+    """User Profile Log view for viewing profile change history."""
+
+    label = "Profile Logs"
+    name = "Profile Logs"
+
+    # Read-only view
+    def can_create(self, request):
+        return False
+
+    def can_edit(self, request):
+        return False
+
+    def can_delete(self, request):
+        return False
+
+    exclude_fields_from_create = [
+        "id",
+        "owner_id",
+        "owner_qiao_id",
+        "owner_type",
+        "modified_by_type",
+        "field_name",
+        "old_value",
+        "new_value",
+        "change_reason",
+        "created_at",
+    ]
+    exclude_fields_from_edit = [
+        "id",
+        "owner_id",
+        "owner_qiao_id",
+        "owner_type",
+        "modified_by_type",
+        "field_name",
+        "old_value",
+        "new_value",
+        "change_reason",
+        "created_at",
+    ]
+
+    fields_default_sort = [("created_at", True)]
+    searchable_fields = ["owner_qiao_id", "field_name"]
+    sortable_fields = [
+        "id",
+        "owner_qiao_id",
+        "owner_type",
+        "modified_by_type",
+        "field_name",
+        "created_at",
+    ]
+
+    fields = [
+        StringField("id", label="ID", help_text="Internal log ID"),
+        StringField("owner_id", label="Owner ID", help_text="Owner internal ID"),
+        StringField("owner_qiao_id", label="Owner Qiao ID", help_text="Owner external ID"),
+        IntegerEnumField(
+            "owner_type",
+            enum=ProfileOwnerType,
+            label="Owner Type",
+            help_text="Owner type: 1=user, 2=ai, 3=official",
+        ),
+        IntegerEnumField(
+            "modified_by_type",
+            enum=ProfileModifierType,
+            label="Modified By",
+            help_text="Modifier type: 1=user, 2=admin, 3=system",
+        ),
+        StringField("field_name", label="Field Name", help_text="Modified field name"),
+        TextAreaField("old_value", label="Old Value", help_text="Old value"),
+        TextAreaField("new_value", label="New Value", help_text="New value"),
+        StringField("change_reason", label="Change Reason", help_text="Reason for change"),
+        "created_at",
+    ]
+
+
 class ContactView(BaseRoleAwareModelView):
     """Enhanced Contact view with proper field configuration."""
 
@@ -455,14 +391,24 @@ class ContactView(BaseRoleAwareModelView):
         "updated_at",
         "deleted_at",
     ]
-    exclude_fields_from_list = ["tags", "remark"]
+    exclude_fields_from_list = []
 
     def can_delete(self, request):
         return False
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["conv_id", "user_qiao_id", "contact_qiao_id", "alias"]
-    sortable_fields = ["id", "contact_type", "alias", "is_pinned", "is_muted", "is_blocked", "created_at"]
+    sortable_fields = [
+        "id",
+        "contact_type",
+        "alias",
+        "is_pinned",
+        "is_muted",
+        "is_blocked",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Internal contact ID"),
@@ -492,7 +438,7 @@ class ContactView(BaseRoleAwareModelView):
         ),
         StringField("contact_qiao_id", label="Contact Qiao ID", help_text="Contact external ID"),
         StringField("alias", label="Alias", help_text="Custom name for this contact"),
-        StringField("avatar_alias_url", label="Custom Avatar", help_text="Custom avatar URL"),
+        StringField("custom_avatar_url", label="Custom Avatar", help_text="Custom avatar URL"),
         "tags",
         TextAreaField("remark", label="Remark", help_text="Additional notes about this contact"),
         IntegerEnumField(
@@ -523,6 +469,9 @@ class ContactView(BaseRoleAwareModelView):
             help_text="Soft delete status (default: No)",
             required=True,
         ),
+        LocalDateTimeField("created_at", label="Created At", help_text="Contact creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        LocalDateTimeField("deleted_at", label="Deleted At", help_text="Soft delete time"),
     ]
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
@@ -644,104 +593,232 @@ class ContactView(BaseRoleAwareModelView):
             obj.contact_qiao_id = contact_character.qiao_id
 
 
-class UserProfileLogView(ModelView):
-    """User Profile Log view for viewing profile change history."""
+class ContactRequestView(ModelView):
+    """Enhanced Contact Request view for application management."""
 
-    label = "Profile Logs"
-    name = "Profile Logs"
-
-    # Read-only view
-    def can_create(self, request):
-        return False
-
-    def can_edit(self, request):
-        return False
-
-    def can_delete(self, request):
-        return False
+    label = "Contact Requests"
+    name = "Contact Requests"
 
     exclude_fields_from_create = [
         "id",
-        "owner_id",
-        "owner_qiao_id",
-        "owner_type",
-        "modified_by_type",
-        "field_name",
-        "old_value",
-        "new_value",
-        "change_reason",
+        "from_qiao_id",  # Auto-filled
+        "from_type",  # Auto-inferred from selected from entity
+        "from_id",  # Auto-filled
+        "to_qiao_id",  # Auto-filled
+        "to_type",  # Auto-inferred from selected to entity
+        "to_id",  # Auto-filled
+        "source",  # Auto-filled as ADMIN for admin panel creations
+        "status",  # Auto-filled as PENDING
+        "expires_at",  # Auto-calculated based on system config
         "created_at",
+        "updated_at",
     ]
     exclude_fields_from_edit = [
         "id",
-        "owner_id",
-        "owner_qiao_id",
-        "owner_type",
-        "modified_by_type",
-        "field_name",
-        "old_value",
-        "new_value",
-        "change_reason",
+        "from_qiao_id",  # Auto-filled
+        "from_type",  # Auto-inferred from selected from entity
+        "from_id",  # Auto-filled
+        "to_qiao_id",  # Auto-filled
+        "to_type",  # Auto-inferred from selected to entity
+        "to_id",  # Auto-filled
+        "source",  # Cannot change source after creation
+        "expires_at",  # Cannot change expiration after creation
         "created_at",
+        "updated_at",
     ]
+    exclude_fields_from_list = []
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["owner_qiao_id", "field_name"]
+    searchable_fields = ["from_qiao_id", "to_qiao_id"]
     sortable_fields = [
         "id",
-        "owner_qiao_id",
-        "owner_type",
-        "modified_by_type",
-        "field_name",
+        "from_qiao_id",
+        "to_qiao_id",
+        "source",
+        "status",
+        "expires_at",
         "created_at",
+        "updated_at",
     ]
 
     fields = [
-        StringField("id", label="ID", help_text="Internal log ID"),
-        StringField("owner_id", label="Owner ID", help_text="Owner internal ID"),
-        StringField("owner_qiao_id", label="Owner Qiao ID", help_text="Owner external ID"),
-        IntegerEnumField(
-            "owner_type",
-            enum=ProfileOwnerType,
-            label="Owner Type",
-            help_text="Owner type: 1=user, 2=ai, 3=official",
+        StringField("id", label="ID", help_text="Internal contact request ID"),
+        # Polymorphic from fields - select one, from_type is auto-inferred
+        HasOne(
+            "_from_user",
+            identity="user",
+            label="From (User)",
+            help_text="Select a user as applicant",
+            required=False,
         ),
-        IntegerEnumField(
-            "modified_by_type",
-            enum=ProfileModifierType,
-            label="Modified By",
-            help_text="Modifier type: 1=user, 2=admin, 3=system",
+        HasOne(
+            "_from_character",
+            identity="ai_character",
+            label="From (AI Character)",
+            help_text="Select an AI character as applicant",
+            required=False,
         ),
-        StringField("field_name", label="Field Name", help_text="Modified field name"),
-        TextAreaField("old_value", label="Old Value", help_text="Old value"),
-        TextAreaField("new_value", label="New Value", help_text="New value"),
-        StringField("change_reason", label="Change Reason", help_text="Reason for change"),
-        "created_at",
+        StringField("from_qiao_id", label="From Qiao ID", help_text="Applicant external identifier"),
+        # Polymorphic to fields - select one, to_type is auto-inferred
+        HasOne(
+            "_to_user",
+            identity="user",
+            label="To (User)",
+            help_text="Select a user as target",
+            required=False,
+        ),
+        HasOne(
+            "_to_character",
+            identity="ai_character",
+            label="To (AI Character)",
+            help_text="Select an AI character as target",
+            required=False,
+        ),
+        StringField("to_qiao_id", label="To Qiao ID", help_text="Target external identifier"),
+        IntegerEnumField(
+            "source",
+            enum=ContactRequestSource,
+            label="Request Source",
+            help_text="How the contact request was initiated",
+        ),
+        TextAreaField("message", label="Request Message", help_text="Message from applicant"),
+        IntegerEnumField(
+            "status",
+            enum=ContactRequestStatus,
+            label="Status",
+            help_text="Current status of the request",
+        ),
+        LocalDateTimeField("expires_at", label="Expires At", help_text="Request expiration time"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Request creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
+
+    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+        """Custom validation for contact requests."""
+        from_user = data.get("_from_user")
+        from_character = data.get("_from_character")
+        to_user = data.get("_to_user")
+        to_character = data.get("_to_character")
+
+        # Must select exactly one from entity
+        if not from_user and not from_character:
+            raise FormValidationError(
+                {"_from_user": "Please select either From (User) or From (AI Character)"}
+            )
+        if from_user and from_character:
+            raise FormValidationError({"_from_user": "Please select only one from entity"})
+
+        # Must select exactly one to entity
+        if not to_user and not to_character:
+            raise FormValidationError({"_to_user": "Please select either To (User) or To (AI Character)"})
+        if to_user and to_character:
+            raise FormValidationError({"_to_user": "Please select only one to entity"})
+
+        # Validate status changes
+        if "status" in data:
+            status = data["status"]
+            valid_statuses = [status.value for status in ContactRequestStatus]
+            if status not in valid_statuses:
+                raise FormValidationError({"status": "Invalid request status"})
+
+        return await super().validate(request, data)
+
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Set auto-filled fields before database commit."""
+        from models.user import User
+        from models.ai.character import AICharacter
+
+        # Auto-fill source as ADMIN for admin panel creations
+        obj.source = ContactRequestSource.ADMIN
+
+        # Auto-infer from_type and fill from_id, from_qiao_id
+        from_user = data.get("_from_user")
+        from_character = data.get("_from_character")
+
+        if from_user and isinstance(from_user, User):
+            obj.from_type = 1  # USER
+            obj.from_id = from_user.id
+            obj.from_qiao_id = from_user.qiao_id
+        elif from_character and isinstance(from_character, AICharacter):
+            obj.from_type = 2  # AI
+            obj.from_id = from_character.id
+            obj.from_qiao_id = from_character.qiao_id
+
+        # Auto-infer to_type and fill to_id, to_qiao_id
+        to_user = data.get("_to_user")
+        to_character = data.get("_to_character")
+
+        if to_user and isinstance(to_user, User):
+            obj.to_type = 1  # USER
+            obj.to_id = to_user.id
+            obj.to_qiao_id = to_user.qiao_id
+        elif to_character and isinstance(to_character, AICharacter):
+            obj.to_type = 2  # AI
+            obj.to_id = to_character.id
+            obj.to_qiao_id = to_character.qiao_id
+
+        # Auto-set status to PENDING
+        obj.status = ContactRequestStatus.PENDING
+
+        # Auto-calculate expires_at from system config
+        from datetime import datetime, timedelta
+        from services.system_config import get_config
+
+        # Get expiration time from config (default: 259200 seconds = 72 hours = 3 days)
+        expiration_seconds = await get_config(request.state.session, "contact_request_expiration", 259200)
+        obj.expires_at = datetime.utcnow() + timedelta(seconds=int(expiration_seconds))
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Set auto-filled fields before database commit."""
+        from models.user import User
+        from models.ai.character import AICharacter
+
+        # Auto-infer from_type and fill from_id, from_qiao_id
+        from_user = data.get("_from_user")
+        from_character = data.get("_from_character")
+
+        if from_user and isinstance(from_user, User):
+            obj.from_type = 1  # USER
+            obj.from_id = from_user.id
+            obj.from_qiao_id = from_user.qiao_id
+        elif from_character and isinstance(from_character, AICharacter):
+            obj.from_type = 2  # AI
+            obj.from_id = from_character.id
+            obj.from_qiao_id = from_character.qiao_id
+
+        # Auto-infer to_type and fill to_id, to_qiao_id
+        to_user = data.get("_to_user")
+        to_character = data.get("_to_character")
+
+        if to_user and isinstance(to_user, User):
+            obj.to_type = 1  # USER
+            obj.to_id = to_user.id
+            obj.to_qiao_id = to_user.qiao_id
+        elif to_character and isinstance(to_character, AICharacter):
+            obj.to_type = 2  # AI
+            obj.to_id = to_character.id
+            obj.to_qiao_id = to_character.qiao_id
+
+    def can_delete(self, request: Request) -> bool:
+        """Contact requests should not be deleted for audit purposes."""
+        return False
 
 
 # Create view instances
-admin_user_view = AdminUserView(AdminUser, name="Admin Users", icon="fa fa-users", identity="admin_user")
-admin_operation_log_view = AdminOperationLogView(
-    AdminOperationLog, name="Operation Logs", icon="fa fa-list", identity="admin_operation_log"
-)
-admin_login_log_view = AdminLoginLogView(
-    AdminLoginLog, name="Login Logs", icon="fa fa-sign-in", identity="admin_login_log"
-)
 user_view = UserView(User, name="Users", icon="fa fa-user", identity="user")
 profile_view = ProfileView(Profile, name="Profiles", icon="fa fa-id-card", identity="profile")
 user_profile_log_view = UserProfileLogView(
     UserProfileLog, name="Profile Logs", icon="fa fa-history", identity="user_profile_log"
 )
 contact_view = ContactView(Contact, name="Contacts", icon="fa fa-address-book", identity="contact")
-
-# Export all user and admin views
-USER_ADMIN_MODEL_VIEWS = [
-    admin_user_view,
-    admin_operation_log_view,
-    admin_login_log_view,
+contact_request_view = ContactRequestView(
+    ContactRequest, name="Contact Requests", icon="fa fa-user-plus", identity="contact_request"
+)
+# Export all user views
+USER_MODEL_VIEWS = [
     user_view,
     profile_view,
     user_profile_log_view,
     contact_view,
+    contact_request_view,
 ]

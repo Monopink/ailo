@@ -30,6 +30,7 @@ async def chat_completion(
     max_tokens: Optional[int] = None,
     enable_thinking: Optional[bool] = None,
     timeout: Optional[int] = None,
+    provider_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Send chat completion request using OpenAI SDK.

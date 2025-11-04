@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from models.ai.character import AICharacter
 from models.ai.personality import AIPersonality
-from models.ai.style import AIStyle
+from models.ai.style import AIStyle, AIRelationship
 from models.profile import Profile
 from services.llm.config import get_active_configs
 from utils.logging import get_logger
@@ -61,13 +61,16 @@ class ValidationService:
             # Step 3: Validate AI style and personality configuration
             style_info, personality_info = await self._validate_ai_configuration(db, character_info)
 
-            # Step 4: Validate relationship scores exist
+            # Step 4: Get current relationship info if set
+            current_relationship = await self._get_current_relationship(db, character_info)
+
+            # Step 5: Validate relationship scores exist
             relationship_scores = await self._validate_relationship_scores(db, character_info, style_info)
 
-            # Step 5: Validate LLM configurations available
+            # Step 6: Validate LLM configurations available
             llm_configs = await self._validate_llm_configs(db)
 
-            # Step 6: Validate prompt variables completeness
+            # Step 7: Validate prompt variables completeness
             await self._validate_prompt_variables(character_info, personality_info)
 
             logger.info(
@@ -82,6 +85,7 @@ class ValidationService:
                 "character_profile": character_profile,
                 "style": style_info,
                 "personality": personality_info,
+                "current_relationship": current_relationship,
                 "relationship_scores": relationship_scores,
                 "llm_configs": llm_configs,
             }
@@ -123,12 +127,38 @@ class ValidationService:
             "category": character.category,
             "style_id": character.style_id,
             "personality_id": character.personality_id,
+            "relationship_id": character.relationship_id,
             "memory": character.memory,
             "prompt_variables": character.prompt_variables,
-            "score_offset_algorithm": character.score_offset_algorithm,
-            "score_offset_params": character.score_offset_params,
             "user_id": character.user_id,
             "user_qiao_id": character.user_qiao_id,
+        }
+
+    async def _get_current_relationship(
+        self, db: AsyncSession, character_info: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Get current relationship info if character has relationship_id set"""
+        relationship_id = character_info.get("relationship_id")
+        if not relationship_id:
+            return None
+
+        stmt = select(AIRelationship).where(AIRelationship.id == relationship_id)
+        result = await db.execute(stmt)
+        relationship = result.scalar_one_or_none()
+
+        if not relationship:
+            logger.warning(
+                "relationship_not_found",
+                relationship_id=relationship_id,
+                character_qiao_id=character_info["qiao_id"],
+            )
+            return None
+
+        return {
+            "id": relationship.id,
+            "name": relationship.name,
+            "display_name": relationship.display_name,
+            "prompt_fragment": relationship.prompt_fragment,
         }
 
     async def _validate_character_profile(
@@ -156,6 +186,8 @@ class ValidationService:
             "bio": profile.bio,
             "gender": profile.gender,
             "avatar_url": profile.avatar_url,
+            "avatar_prompt": profile.avatar_prompt,
+            "region": profile.region,
         }
 
     async def _validate_ai_configuration(
@@ -221,17 +253,18 @@ class ValidationService:
         """
         from services.ai.relationship import get_relationship_scores
 
-        # Use main logic to get scores (with auto-initialization)
-        scores = await get_relationship_scores(db, character_info["qiao_id"], auto_initialize=True)
+        # Do not auto-initialize in validation. Missing scores is an error by design.
+        scores = await get_relationship_scores(db, character_info["qiao_id"], auto_initialize=False)
 
         if not scores:
-            # This should not happen after auto-initialization, but handle gracefully
-            logger.warning(
-                "no_scores_after_initialization",
-                character_id=character_info["id"],
-                character_qiao_id=character_info["qiao_id"],
+            raise ValidationError(
+                f"Relationship scores missing for character '{character_info['qiao_id']}'",
+                error_code="RELATIONSHIP_SCORES_MISSING",
+                suggestions=[
+                    "Ensure character is created via template so scores are initialized",
+                    "Check ai_character_dimensions records for this character",
+                ],
             )
-            return []
 
         # Convert to expected format
         return [
@@ -262,7 +295,7 @@ class ValidationService:
         # configs is a list of (LLMConfig, LLMProvider) tuples
         return [
             {
-                "config_key": config.config_key,
+                "name": config.name,
                 "model_name": config.model_name or provider.default_model,
                 "provider_name": provider.name,
             }

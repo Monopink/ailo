@@ -62,7 +62,7 @@
 - 基本信息: 用户账户信息、资料信息
 - 登录记录: 显示login_records表数据
 - 联系人: 显示contacts表数据，用户的AI联系人列表
-- 会话记录: 显示user_sessions表数据
+- 会话记录: 显示数据
 - 订阅信息: （未来功能）
 - 交易记录: （未来功能）
 
@@ -107,7 +107,7 @@
 - 角色列表: 显示所有AI角色，支持按用户、状态筛选
 - 对话测试：对指定AI角色发起。选定用户和模型配置后可以进行对话测试。
 - 角色详情: 查看角色配置、关联的风格和人格
-- 查看分数: 显示ai_relationship_score表数据
+- 查看分数: 显示ai_character_dimensions表数据
 - 查看上下文: 显示ai_contexts表数据，AI对话历史
 - 发送联系人申请: 管理员可以为无归属的AI角色向用户发送好友申请（2.0功能）
 - 新增角色: 管理员可以创建新的AI角色（2.0功能）
@@ -149,7 +149,7 @@
 
 - 风格列表: 显示所有AI风格
 - 风格配置: 管理评分维度和评分名称
-- 关系管理: 专门页面管理ai_relationship_indexes，在分数轴上直观显示关系位置
+- 关系管理: 专门页面管理ai_dimension_relationship_mappings，在分数轴上直观显示关系位置
 - 使用统计: 显示usage_count统计
 
 ##### 分数算法测试
@@ -171,15 +171,13 @@
 4. ai_relationship.display_name
 5. ai_relationship.prompt_fragment
 
-注：测试时忽略ai_relationship_indexes.limit_count的影响
-
 #### ai_relationship（AI关系管理）
 
 - 关系类型列表: 显示所有关系类型
 - 关系编辑: 编辑关系名称和提示词片段
 - 使用统计: 显示usage_count，被引用数量
 
-#### ai_info_templates（AI信息模板管理）
+#### ai_character_templates（AI信息模板管理）
 
 - 模板列表: 显示所有信息模板
 - 关联人格: 读取ai_personalities的占位符，手工录入覆盖数据，转为JSON存储
@@ -190,7 +188,7 @@
 
 - 模板列表: 显示所有社交资料模板
 - 模板编辑: 编辑昵称、性别、头像、简介等信息
-- 关联管理: 关联ai_info_templates表数据
+- 关联管理: 关联ai_character_templates表数据
 - 复用设置: 管理is_reusable字段，控制模板复用
 
 #### ai_request_logs（AI请求记录）
@@ -375,7 +373,7 @@ API Key 管理：
 
 ### 安全监控
 
-基于user_security_logs和user_security_stats表的用户安全管理。
+基于user_violation_logs和user_risk_stats表的用户安全管理。
 
 #### 实时安全监控
 
@@ -383,14 +381,14 @@ API Key 管理：
 - 实时告警: 严重违规行为实时提醒
 - 风险趋势: 违规行为趋势图表，按类型和严重程度分析
 
-#### user_security_logs（违规记录管理）
+#### user_violation_logs（违规记录管理）
 
 - 违规列表: 显示所有用户违规记录，支持按用户、类型、严重程度筛选
 - 记录详情: 查看原始消息、AI检测结果、置信度分数
 - 人工审核: 对AI检测结果进行人工确认或标记为误报
 - 批量处理: 批量审核相似违规记录
 
-#### user_security_stats（用户风险评估）
+#### user_risk_stats（用户风险评估）
 
 - 高风险用户: 显示当前风险等级为high/banned的用户列表
 - 用户风险详情: 查看用户完整的违规历史和统计数据

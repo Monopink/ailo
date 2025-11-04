@@ -14,6 +14,7 @@ from models.ai import AICharacter
 from schemas.ai import AICharacterCreate, AICharacterUpdate
 from services.ai.usage_tracking import increment_usage_count, decrement_usage_count
 from utils.logging import get_logger
+from enums import AICharacterCreator
 
 logger = get_logger(__name__)
 
@@ -66,7 +67,7 @@ class CRUDAICharacter(CRUDBase[AICharacter, AICharacterCreate, AICharacterUpdate
                 .limit(limit)
             )
 
-            characters = result.scalars().all()
+            characters = list(result.scalars().all())
 
             logger.debug("user_characters_retrieved", user_qiao_id=user_qiao_id, count=len(characters))
 
@@ -77,7 +78,9 @@ class CRUDAICharacter(CRUDBase[AICharacter, AICharacterCreate, AICharacterUpdate
             # Non-fatal error: return empty list
             return []
 
-    async def create(self, db: AsyncSession, *, obj_in: AICharacterCreate) -> AICharacter:
+    async def create(
+        self, db: AsyncSession, *, obj_in: AICharacterCreate, commit: bool = True
+    ) -> AICharacter:
         """
         Create a new AI character and update usage counts.
 
@@ -92,8 +95,26 @@ class CRUDAICharacter(CRUDBase[AICharacter, AICharacterCreate, AICharacterUpdate
             Exception: If creation or usage tracking fails
         """
         try:
-            # Create character using base class method
-            character = await super().create(db, obj_in=obj_in)
+            # Map schema fields to model fields to avoid invalid kwargs
+            data = obj_in.model_dump()
+            # placeholder_overrides -> prompt_variables
+            if "placeholder_overrides" in data:
+                data["prompt_variables"] = data.pop("placeholder_overrides")
+            # Remove schema-only fields not present in model
+            data.pop("position_mapping_coefficient", None)
+            # Ensure created_by exists (DB requires non-null)
+            data.setdefault("created_by", int(AICharacterCreator.USER))
+
+            # Create character explicitly (bypass base create for field mapping)
+            db_obj = AICharacter(**data)
+            db.add(db_obj)
+            if commit:
+                await db.commit()
+                await db.refresh(db_obj)
+            else:
+                # Inside outer transaction: flush to get PKs without closing transaction
+                await db.flush()
+            character = db_obj
 
             # Update usage counts for personality and style
             await increment_usage_count(db, "personality", character.personality_id)

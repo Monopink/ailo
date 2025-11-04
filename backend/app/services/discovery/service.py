@@ -9,6 +9,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.system import system_configs
+from enums import PROFILE_CATEGORY_DB_TO_API
 from schemas.discovery import SquareContactResponse, SquareContactListResponse, StrangerProfileResponse
 from services.discovery import data as discovery_data
 from services.security.rate_limiter import check_rate_limit
@@ -74,10 +75,14 @@ async def get_square_contacts(
         # Transform to response format
         items = []
         for template in templates:
+            # Convert DB string category to API integer (Profile category)
+            api_enum = PROFILE_CATEGORY_DB_TO_API.get(template.category) if template.category else None
+            category_api = api_enum.value if api_enum is not None else None
+
             items.append(
                 SquareContactResponse(
                     qiao_id=template.qiao_id,
-                    category=template.category,
+                    category=category_api,
                     nickname=template.nickname,
                     gender=template.gender,
                     avatar_url=template.avatar_url,
@@ -137,6 +142,10 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[Stran
             return None
 
         # Transform to response format
+        # Convert DB string category to API integer (Profile category)
+        api_enum = PROFILE_CATEGORY_DB_TO_API.get(template.category) if template.category else None
+        category_api = api_enum.value if api_enum is not None else None
+
         profile = StrangerProfileResponse(
             qiao_id=template.qiao_id,
             nickname=template.nickname,
@@ -144,7 +153,7 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[Stran
             avatar_url=template.avatar_url,
             bio=template.bio,
             region=template.region,
-            category=template.category,
+            category=category_api,
         )
 
         logger.info("stranger_profile_retrieved", qiao_id=qiao_id)

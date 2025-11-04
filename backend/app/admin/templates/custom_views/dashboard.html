@@ -1,396 +1,451 @@
-{% extends "layout.html" %}
-
-{% block title %}<title>Dashboard</title>{% endblock %}
-
-{% block content %}
+{% extends "layout.html" %} {% block title %}<title>Dashboard</title>{% endblock
+%} {% block content %}
 <div class="page-header d-print-none">
-    <div class="container-xl">
-        <div class="row g-2 align-items-center">
-            <div class="col">
-                <h2 class="page-title">
-                    <i class="fa fa-dashboard me-2"></i>Dashboard
-                </h2>
-            </div>
-        </div>
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <h2 class="page-title">
+          <i class="fa fa-dashboard me-2"></i>Dashboard
+        </h2>
+      </div>
     </div>
+  </div>
 </div>
 
 <div class="page-body">
-    <div class="container-xl">
-        <!-- System Status Cards -->
-        <div class="row row-deck row-cards mb-4">
-            <div class="col-12">
-                <h3 class="mb-3">System Status</h3>
-            </div>
+  <div class="container-xl">
+    <!-- System Status Cards -->
+    <div class="row row-deck row-cards mb-4">
+      <div class="col-12">
+        <h3 class="mb-3">System Status</h3>
+      </div>
 
-            <!-- LeanCloud Status Card -->
-            <div class="col-sm-6 col-lg-4">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center justify-content-between mb-3">
-                            <div class="subheader">LeanCloud Service</div>
-                            <button class="btn btn-sm btn-icon" onclick="location.reload()" title="Refresh">
-                                <i class="fa fa-refresh"></i>
-                            </button>
-                        </div>
-                        <div class="h3 mb-2">
-                            {% if leancloud_config.configured %}
-                            <i class="fa fa-check-circle text-success me-1"></i><span
-                                class="text-success">Configured</span>
-                            {% else %}
-                            <i class="fa fa-exclamation-triangle text-warning me-1"></i><span class="text-warning">Not
-                                Configured</span>
-                            {% endif %}
-                        </div>
-                        <div class="text-muted small">
-                            {% if conversation_id %}
-                            ID: {{ conversation_id }}
-                            {% else %}
-                            Not created
-                            {% endif %}
-                        </div>
-                        <div class="text-muted small mt-1">
-                            {% if leancloud_config.has_app_id %}App ID ✓{% endif %}
-                            {% if leancloud_config.has_master_key %}{% if leancloud_config.has_app_id %} | {% endif
-                            %}Master Key ✓{% endif %}
-                            {% if leancloud_config.has_base_url %}{% if leancloud_config.has_app_id or
-                            leancloud_config.has_master_key %} | {% endif %}Base URL ✓{% endif %}
-                        </div>
-                    </div>
-                </div>
+      <!-- LeanCloud Status Card -->
+      <div class="col-sm-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="subheader">LeanCloud Service</div>
+              <button
+                class="btn btn-sm btn-icon"
+                onclick="location.reload()"
+                title="Refresh"
+              >
+                <i class="fa fa-refresh"></i>
+              </button>
             </div>
-
-            <!-- Webhook Status Card -->
-            <div class="col-sm-6 col-lg-4">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center justify-content-between mb-3">
-                            <div class="subheader">Webhook Configuration</div>
-                            <button class="btn btn-sm btn-icon" onclick="location.reload()" title="Refresh">
-                                <i class="fa fa-refresh"></i>
-                            </button>
-                        </div>
-                        <div class="h3 mb-2">
-                            {% if webhook_token %}
-                            <i class="fa fa-check-circle text-success me-1"></i><span
-                                class="text-success">Configured</span>
-                            {% else %}
-                            <i class="fa fa-exclamation-triangle text-warning me-1"></i><span class="text-warning">Not
-                                Configured</span>
-                            {% endif %}
-                        </div>
-                        <div class="text-muted small">
-                            {% if webhook_token %}
-                            Token: {{ token_length }} chars
-                            {% else %}
-                            No token generated
-                            {% endif %}
-                        </div>
-                        {% if webhook_url %}
-                        <div class="mt-2">
-                            <button class="btn btn-sm btn-primary" onclick="copyWebhookUrl()">
-                                <i class="fa fa-copy me-1"></i>Copy URL
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
+            <div class="h3 mb-2">
+              {% if leancloud_config.configured %}
+              <i class="fa fa-check-circle text-success me-1"></i
+              ><span class="text-success">Configured</span>
+              {% else %}
+              <i class="fa fa-exclamation-triangle text-warning me-1"></i
+              ><span class="text-warning">Not Configured</span>
+              {% endif %}
             </div>
-
-            <!-- Service Health Card -->
-            <div class="col-sm-6 col-lg-4">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center justify-content-between mb-3">
-                            <div class="subheader">Message Service Health</div>
-                            <button class="btn btn-sm btn-icon" onclick="location.reload()" title="Refresh">
-                                <i class="fa fa-refresh"></i>
-                            </button>
-                        </div>
-                        <div class="h3 mb-2">
-                            {% if message_service_health.healthy %}
-                            <i class="fa fa-check-circle text-success me-1"></i><span
-                                class="text-success">Healthy</span>
-                            {% else %}
-                            <i class="fa fa-times-circle text-danger me-1"></i><span
-                                class="text-danger">Unhealthy</span>
-                            {% endif %}
-                        </div>
-                        <div class="text-muted small">
-                            Provider: {{ message_service_health.provider }}
-                        </div>
-                        {% if message_service_health.error %}
-                        <div class="text-danger small mt-1">
-                            {{ message_service_health.error }}
-                        </div>
-                        {% endif %}
-                        {% if message_service_health.details %}
-                        <div class="text-muted small mt-2">
-                            {% if message_service_health.details.config_complete %}Config ✓{% else %}Config ✗{% endif %}
-                            | {% if message_service_health.details.service_initialized %}Init ✓{% else %}Init ✗{% endif
-                            %}
-                            | {% if message_service_health.details.api_accessible %}API ✓{% else %}API ✗{% endif %}
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
+            <div class="text-muted small">
+              {% if conversation_id %} ID: {{ conversation_id }} {% else %} Not
+              created {% endif %}
             </div>
+            <div class="text-muted small mt-1">
+              {% if leancloud_config.has_app_id %}App ID ✓{% endif %} {% if
+              leancloud_config.has_master_key %}{% if
+              leancloud_config.has_app_id %} | {% endif %}Master Key ✓{% endif
+              %} {% if leancloud_config.has_base_url %}{% if
+              leancloud_config.has_app_id or leancloud_config.has_master_key %}
+              | {% endif %}Base URL ✓{% endif %}
+            </div>
+          </div>
         </div>
+      </div>
 
-        <!-- Core Metrics Cards -->
-        <div class="row row-deck row-cards" id="metrics-cards">
-            <div class="col-sm-6 col-lg-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="subheader">Total Users</div>
-                        </div>
-                        <div class="h1 mb-3" id="total-users-value">
-                            <span class="spinner-border spinner-border-sm" role="status"></span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div id="total-users-change" class="text-muted">
-                                <span class="spinner-border spinner-border-sm" role="status"></span>
-                            </div>
-                        </div>
-                        <div class="text-muted">vs last week</div>
-                    </div>
-                </div>
+      <!-- Webhook Status Card -->
+      <div class="col-sm-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="subheader">Webhook Configuration</div>
+              <button
+                class="btn btn-sm btn-icon"
+                onclick="location.reload()"
+                title="Refresh"
+              >
+                <i class="fa fa-refresh"></i>
+              </button>
             </div>
-
-            <div class="col-sm-6 col-lg-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="subheader">AI Characters</div>
-                        </div>
-                        <div class="h1 mb-3" id="ai-characters-value">
-                            <span class="spinner-border spinner-border-sm" role="status"></span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div id="ai-characters-change" class="text-muted">
-                                <span class="spinner-border spinner-border-sm" role="status"></span>
-                            </div>
-                        </div>
-                        <div class="text-muted">vs last week</div>
-                    </div>
-                </div>
+            <div class="h3 mb-2">
+              {% if webhook_token %}
+              <i class="fa fa-check-circle text-success me-1"></i
+              ><span class="text-success">Configured</span>
+              {% else %}
+              <i class="fa fa-exclamation-triangle text-warning me-1"></i
+              ><span class="text-warning">Not Configured</span>
+              {% endif %}
             </div>
-
-            <div class="col-sm-6 col-lg-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="subheader">Total Messages</div>
-                        </div>
-                        <div class="h1 mb-3" id="total-messages-value">
-                            <span class="spinner-border spinner-border-sm" role="status"></span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div id="total-messages-change" class="text-muted">
-                                <span class="spinner-border spinner-border-sm" role="status"></span>
-                            </div>
-                        </div>
-                        <div class="text-muted">vs yesterday</div>
-                    </div>
-                </div>
+            <div class="text-muted small">
+              {% if webhook_token %} Token: {{ token_length }} chars {% else %}
+              No token generated {% endif %}
             </div>
-
-            <div class="col-sm-6 col-lg-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="subheader">Active Sessions</div>
-                        </div>
-                        <div class="h1 mb-3" id="active-sessions-value">
-                            <span class="spinner-border spinner-border-sm" role="status"></span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div id="active-sessions-change" class="text-muted">
-                                <span class="spinner-border spinner-border-sm" role="status"></span>
-                            </div>
-                        </div>
-                        <div class="text-muted">vs 1 hour ago</div>
-                    </div>
-                </div>
+            {% if webhook_url %}
+            <div class="mt-2">
+              <button class="btn btn-sm btn-primary" onclick="copyWebhookUrl()">
+                <i class="fa fa-copy me-1"></i>Copy URL
+              </button>
             </div>
+            {% endif %}
+          </div>
         </div>
+      </div>
 
-        <!-- Trend Charts -->
-        <div class="row row-deck row-cards mt-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">User Growth (Last 7 Days)</h3>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="user-growth-chart" height="200"></canvas>
-                    </div>
-                </div>
+      <!-- Service Health Card -->
+      <div class="col-sm-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="subheader">Message Service Health</div>
+              <button
+                class="btn btn-sm btn-icon"
+                onclick="location.reload()"
+                title="Refresh"
+              >
+                <i class="fa fa-refresh"></i>
+              </button>
             </div>
-
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Message Volume (Last 7 Days)</h3>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="message-volume-chart" height="200"></canvas>
-                    </div>
-                </div>
+            <div class="h3 mb-2">
+              {% if message_service_health.healthy %}
+              <i class="fa fa-check-circle text-success me-1"></i
+              ><span class="text-success">Healthy</span>
+              {% else %}
+              <i class="fa fa-times-circle text-danger me-1"></i
+              ><span class="text-danger">Unhealthy</span>
+              {% endif %}
             </div>
+            <div class="text-muted small">
+              Provider: {{ message_service_health.provider }}
+            </div>
+            {% if message_service_health.error %}
+            <div class="text-danger small mt-1">
+              {{ message_service_health.error }}
+            </div>
+            {% endif %} {% if message_service_health.details %}
+            <div class="text-muted small mt-2">
+              {% if message_service_health.details.config_complete %}Config ✓{%
+              else %}Config ✗{% endif %} | {% if
+              message_service_health.details.service_initialized %}Init ✓{% else
+              %}Init ✗{% endif %} | {% if
+              message_service_health.details.api_accessible %}API ✓{% else %}API
+              ✗{% endif %}
+            </div>
+            {% endif %}
+          </div>
         </div>
-
+      </div>
     </div>
+
+    <!-- Core Metrics Cards -->
+    <div class="row row-deck row-cards" id="metrics-cards">
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">Total Users</div>
+            </div>
+            <div class="h1 mb-3" id="total-users-value">
+              <span
+                class="spinner-border spinner-border-sm"
+                role="status"
+              ></span>
+            </div>
+            <div class="d-flex align-items-center">
+              <div id="total-users-change" class="text-muted">
+                <span
+                  class="spinner-border spinner-border-sm"
+                  role="status"
+                ></span>
+              </div>
+            </div>
+            <div class="text-muted">vs last week</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">AI Characters</div>
+            </div>
+            <div class="h1 mb-3" id="ai-characters-value">
+              <span
+                class="spinner-border spinner-border-sm"
+                role="status"
+              ></span>
+            </div>
+            <div class="d-flex align-items-center">
+              <div id="ai-characters-change" class="text-muted">
+                <span
+                  class="spinner-border spinner-border-sm"
+                  role="status"
+                ></span>
+              </div>
+            </div>
+            <div class="text-muted">vs last week</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">Total Messages</div>
+            </div>
+            <div class="h1 mb-3" id="total-messages-value">
+              <span
+                class="spinner-border spinner-border-sm"
+                role="status"
+              ></span>
+            </div>
+            <div class="d-flex align-items-center">
+              <div id="total-messages-change" class="text-muted">
+                <span
+                  class="spinner-border spinner-border-sm"
+                  role="status"
+                ></span>
+              </div>
+            </div>
+            <div class="text-muted">vs yesterday</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">Active Sessions</div>
+            </div>
+            <div class="h1 mb-3" id="active-sessions-value">
+              <span
+                class="spinner-border spinner-border-sm"
+                role="status"
+              ></span>
+            </div>
+            <div class="d-flex align-items-center">
+              <div id="active-sessions-change" class="text-muted">
+                <span
+                  class="spinner-border spinner-border-sm"
+                  role="status"
+                ></span>
+              </div>
+            </div>
+            <div class="text-muted">vs 1 hour ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trend Charts -->
+    <div class="row row-deck row-cards mt-4">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">User Growth (Last 7 Days)</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="user-growth-chart" height="200"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Message Volume (Last 7 Days)</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="message-volume-chart" height="200"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
-    // Copy webhook URL to clipboard
-    async function copyWebhookUrl() {
-        try {
-            const url = '{{ webhook_url }}';
-            await navigator.clipboard.writeText(url);
-            alert('Webhook URL copied to clipboard!');
-        } catch (error) {
-            console.error('Failed to copy:', error);
-            alert('Failed to copy URL');
-        }
+  // Copy webhook URL to clipboard
+  async function copyWebhookUrl() {
+    try {
+      const url = "{{ webhook_url }}";
+      await navigator.clipboard.writeText(url);
+      alert("Webhook URL copied to clipboard!");
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      alert("Failed to copy URL");
     }
+  }
 
+  // Fetch dashboard stats
+  async function loadDashboardStats() {
+    try {
+      const response = await fetch("/admin-api/dashboard/stats");
+      const data = await response.json();
 
+      // Update metrics
+      updateMetrics(data.metrics);
 
-    // Fetch dashboard stats
-    async function loadDashboardStats() {
-        try {
-            const response = await fetch('/admin-api/dashboard/stats');
-            const data = await response.json();
-
-            // Update metrics
-            updateMetrics(data.metrics);
-
-            // Update charts
-            updateCharts(data.charts);
-        } catch (error) {
-            console.error('Failed to load dashboard stats:', error);
-        }
+      // Update charts
+      updateCharts(data.charts);
+    } catch (error) {
+      console.error("Failed to load dashboard stats:", error);
     }
+  }
 
-    function updateMetrics(metrics) {
-        // Total Users
-        document.getElementById('total-users-value').textContent = metrics.total_users.value.toLocaleString();
-        const usersChange = document.getElementById('total-users-change');
-        usersChange.innerHTML = getTrendHTML(metrics.total_users.change, metrics.total_users.trend);
+  function updateMetrics(metrics) {
+    // Total Users
+    document.getElementById("total-users-value").textContent =
+      metrics.total_users.value.toLocaleString();
+    const usersChange = document.getElementById("total-users-change");
+    usersChange.innerHTML = getTrendHTML(
+      metrics.total_users.change,
+      metrics.total_users.trend
+    );
 
-        // AI Characters
-        document.getElementById('ai-characters-value').textContent = metrics.ai_characters.value.toLocaleString();
-        const aiChange = document.getElementById('ai-characters-change');
-        aiChange.innerHTML = getTrendHTML(metrics.ai_characters.change, metrics.ai_characters.trend);
+    // AI Characters
+    document.getElementById("ai-characters-value").textContent =
+      metrics.ai_characters.value.toLocaleString();
+    const aiChange = document.getElementById("ai-characters-change");
+    aiChange.innerHTML = getTrendHTML(
+      metrics.ai_characters.change,
+      metrics.ai_characters.trend
+    );
 
-        // Total Messages
-        document.getElementById('total-messages-value').textContent = metrics.total_messages.value.toLocaleString();
-        const messagesChange = document.getElementById('total-messages-change');
-        messagesChange.innerHTML = getTrendHTML(metrics.total_messages.change, metrics.total_messages.trend);
+    // Total Messages
+    document.getElementById("total-messages-value").textContent =
+      metrics.total_messages.value.toLocaleString();
+    const messagesChange = document.getElementById("total-messages-change");
+    messagesChange.innerHTML = getTrendHTML(
+      metrics.total_messages.change,
+      metrics.total_messages.trend
+    );
 
-        // Active Sessions
-        document.getElementById('active-sessions-value').textContent = metrics.active_sessions.value.toLocaleString();
-        const sessionsChange = document.getElementById('active-sessions-change');
-        sessionsChange.innerHTML = getTrendHTML(metrics.active_sessions.change, metrics.active_sessions.trend);
+    // Active Sessions
+    document.getElementById("active-sessions-value").textContent =
+      metrics.active_sessions.value.toLocaleString();
+    const sessionsChange = document.getElementById("active-sessions-change");
+    sessionsChange.innerHTML = getTrendHTML(
+      metrics.active_sessions.change,
+      metrics.active_sessions.trend
+    );
+  }
+
+  function getTrendHTML(change, trend) {
+    const icon = trend === "up" ? "↑" : trend === "down" ? "↓" : "→";
+    const color =
+      trend === "up"
+        ? "text-success"
+        : trend === "down"
+        ? "text-danger"
+        : "text-muted";
+    const sign = change > 0 ? "+" : "";
+    return `<span class="${color}">${icon} ${sign}${change}%</span>`;
+  }
+
+  let userGrowthChart = null;
+  let messageVolumeChart = null;
+
+  function updateCharts(charts) {
+    // User Growth Chart
+    const userGrowthCtx = document
+      .getElementById("user-growth-chart")
+      .getContext("2d");
+    if (userGrowthChart) {
+      userGrowthChart.destroy();
     }
-
-    function getTrendHTML(change, trend) {
-        const icon = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
-        const color = trend === 'up' ? 'text-success' : trend === 'down' ? 'text-danger' : 'text-muted';
-        const sign = change > 0 ? '+' : '';
-        return `<span class="${color}">${icon} ${sign}${change}%</span>`;
-    }
-
-    let userGrowthChart = null;
-    let messageVolumeChart = null;
-
-    function updateCharts(charts) {
-        // User Growth Chart
-        const userGrowthCtx = document.getElementById('user-growth-chart').getContext('2d');
-        if (userGrowthChart) {
-            userGrowthChart.destroy();
-        }
-        userGrowthChart = new Chart(userGrowthCtx, {
-            type: 'line',
-            data: {
-                labels: charts.user_growth.labels,
-                datasets: [{
-                    label: 'New Users',
-                    data: charts.user_growth.data,
-                    borderColor: 'rgb(75, 192, 192)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    tension: 0.1
-                }]
+    userGrowthChart = new Chart(userGrowthCtx, {
+      type: "line",
+      data: {
+        labels: charts.user_growth.labels,
+        datasets: [
+          {
+            label: "New Users",
+            data: charts.user_growth.data,
+            borderColor: "rgb(75, 192, 192)",
+            backgroundColor: "rgba(75, 192, 192, 0.2)",
+            tension: 0.1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                }
-            }
-        });
-
-        // Message Volume Chart
-        const messageVolumeCtx = document.getElementById('message-volume-chart').getContext('2d');
-        if (messageVolumeChart) {
-            messageVolumeChart.destroy();
-        }
-        messageVolumeChart = new Chart(messageVolumeCtx, {
-            type: 'bar',
-            data: {
-                labels: charts.message_volume.labels,
-                datasets: [{
-                    label: 'Messages',
-                    data: charts.message_volume.data,
-                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                    borderColor: 'rgb(54, 162, 235)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // Load stats on page load
-    document.addEventListener('DOMContentLoaded', function () {
-        // Load dashboard stats
-        loadDashboardStats();
-
-        // Refresh every 30 seconds
-        setInterval(loadDashboardStats, 30000);
+          },
+        },
+      },
     });
+
+    // Message Volume Chart
+    const messageVolumeCtx = document
+      .getElementById("message-volume-chart")
+      .getContext("2d");
+    if (messageVolumeChart) {
+      messageVolumeChart.destroy();
+    }
+    messageVolumeChart = new Chart(messageVolumeCtx, {
+      type: "bar",
+      data: {
+        labels: charts.message_volume.labels,
+        datasets: [
+          {
+            label: "Messages",
+            data: charts.message_volume.data,
+            backgroundColor: "rgba(54, 162, 235, 0.5)",
+            borderColor: "rgb(54, 162, 235)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Load stats on page load
+  document.addEventListener("DOMContentLoaded", function () {
+    // Load dashboard stats
+    loadDashboardStats();
+
+    // Refresh every 30 seconds
+    setInterval(loadDashboardStats, 30000);
+  });
 </script>
 {% endblock %}

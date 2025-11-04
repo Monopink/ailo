@@ -9,7 +9,7 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.ai.template import AIProfileTemplate
-from models.contact import Contact
+from models.ai.character import AICharacter
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,18 +31,26 @@ async def get_random_templates(
         List of random AIProfileTemplate objects
     """
     try:
-        # Subquery: get contact_qiao_ids already added by user
-        added_contacts_subquery = select(Contact.contact_qiao_id).where(
-            and_(Contact.user_qiao_id == user_qiao_id, Contact.deleted_at.is_(None))
+        # 1) Find templates already used by this user (via character.request_params)
+        result_used = await db.execute(
+            select(AICharacter.request_params).where(AICharacter.user_qiao_id == user_qiao_id)
         )
+        rows_used = result_used.scalars().all()
+        used_template_qiao_ids = [
+            params.get("created_from_profile_qiao_id")
+            for params in rows_used
+            if params and isinstance(params, dict) and params.get("created_from_profile_qiao_id")
+        ]
 
-        # Main query: get random templates
-        # Note: is_reusable controls whether template is deleted after adding,
-        # not whether it should be displayed in square
+        # 2) Main query: random active templates excluding those already used by this user
         query = select(AIProfileTemplate).where(
             and_(
                 AIProfileTemplate.status == 1,  # active
-                AIProfileTemplate.qiao_id.notin_(added_contacts_subquery),
+                (
+                    AIProfileTemplate.qiao_id.notin_(used_template_qiao_ids)
+                    if used_template_qiao_ids
+                    else True
+                ),
             )
         )
 

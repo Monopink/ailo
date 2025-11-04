@@ -48,6 +48,14 @@ class LoginType(IntEnum):
     APPLE = 4  # Apple ID login
 
 
+class AuthType(IntEnum):
+    """Third-party identity provider type (user_auths.auth_type)."""
+
+    APPLE = 1
+    QQ = 2
+    WECHAT = 3
+
+
 class LoginResult(IntEnum):
     """Login attempt result (login_records.result)"""
 
@@ -80,9 +88,9 @@ class ContactRequestStatus(IntEnum):
 
     PENDING = 1  # Pending approval
     ACCEPTED = 2  # Accepted
-    IGNORED = 3  # Ignored (no response, no notification)
-    EXPIRED = 4  # Expired
-    REJECTED = 5  # Rejected (future: explicit rejection with notification)
+    IGNORED = 3  # Ignored (AI decided not to accept, or user actively ignored)
+    PROCESSING = 8  # Processing by worker (prevents duplicate processing)
+    FAILED = 9  # Processing failed due to system error  # Processing by worker (prevents duplicate processing)  # Rejected (future: explicit rejection with notification)
 
 
 # Message System Related Enums
@@ -107,8 +115,8 @@ class MessageParticipantType(IntEnum):
 class ServiceProvider(IntEnum):
     """Message service provider (message_history.service_provider)"""
 
-    LEANCLOUD = 1  # LeanCloud service
-    INTERNAL = 2  # Internal system
+    INTERNAL = 1  # Internal system
+    LEANCLOUD = 2  # LeanCloud service
 
 
 class MessageType(IntEnum):
@@ -244,6 +252,18 @@ class AIProfileCategory(IntEnum):
     HOBBY = 5  # 同好
 
 
+# Profile category conversion mapping between API (integer) and DB (string)
+PROFILE_CATEGORY_API_TO_DB = {
+    AIProfileCategory.FRIEND: "friend",
+    AIProfileCategory.LOVE: "love",
+    AIProfileCategory.TALK: "talk",
+    AIProfileCategory.BESTIE: "bestie",
+    AIProfileCategory.HOBBY: "hobby",
+}
+
+PROFILE_CATEGORY_DB_TO_API = {v: k for k, v in PROFILE_CATEGORY_API_TO_DB.items()}
+
+
 class AICharacterStatus(IntEnum):
     """AI character status (ai_characters.status)"""
 
@@ -273,12 +293,13 @@ class AIRelationshipStatus(IntEnum):
     INACTIVE = 2  # Inactive relationship
 
 
-class AIContextReplyStatus(IntEnum):
-    """AI context reply status (ai_contexts.reply_status)"""
+class AIAggregateState(IntEnum):
+    """AI context aggregate state (ai_contexts.aggregate_state)"""
 
-    PENDING = 1  # Message pending for processing
-    PROCESSING = 2  # Message being processed
-    DONE = 3  # Message processing completed
+    OPEN = 1  # Waiting for merge/timer
+    LOCKED = 2  # Processing (only one per conversation)
+    COMPLETE = 3  # Processing completed
+    CANCELLED = 4  # Preempted by new window or explicitly terminated
 
 
 class AICharacterCreator(IntEnum):
@@ -297,14 +318,6 @@ class AIContextRole(IntEnum):
     ASSISTANT = 3  # Assistant response
 
 
-class AIContextSourceType(IntEnum):
-    """AI context source type (ai_contexts.source_type)"""
-
-    ORIGINAL = 1  # Original message
-    MERGED = 2  # Merged message
-    SUMMARIZED = 3  # Summarized message
-
-
 class AIRequestStatus(IntEnum):
     """AI request status (ai_request_logs.status)"""
 
@@ -313,8 +326,11 @@ class AIRequestStatus(IntEnum):
     TIMEOUT = 3  # Request timeout
 
 
-class ScoreOffsetAlgorithm(IntEnum):
-    """Score offset algorithm type (ai_characters.score_offset_algorithm, etc.)"""
+class PositionMappingAlgorithm(IntEnum):
+    """Position mapping algorithm type (ai_character_dimensions.position_mapping_algorithm, etc.)
+
+    Maps LLM output score to final position value with optional offset adjustments.
+    """
 
     NONE = 1  # No algorithm - direct score mapping (直接映射)
     V1 = 2  # Version 1 algorithm
@@ -346,7 +362,7 @@ class ReusableStatus(IntEnum):
 
 
 class ViolationType(IntEnum):
-    """Security violation type (user_security_logs.violation_type)"""
+    """Security violation type (user_violation_logs.violation_type)"""
 
     PROMPT_INJECTION = 1  # Prompt injection attack
     ABUSE_CONTENT = 2  # Abusive content
@@ -356,7 +372,7 @@ class ViolationType(IntEnum):
 
 
 class SeverityLevel(IntEnum):
-    """Violation severity level (user_security_logs.severity_level)"""
+    """Violation severity level (user_violation_logs.severity_level)"""
 
     LOW = 1  # Low severity
     MEDIUM = 2  # Medium severity
@@ -365,7 +381,7 @@ class SeverityLevel(IntEnum):
 
 
 class AutoAction(IntEnum):
-    """Automatic action taken (user_security_logs.auto_action_taken)"""
+    """Automatic action taken (user_violation_logs.auto_action_taken)"""
 
     NONE = 1  # No action
     WARNING = 2  # Warning issued
@@ -374,7 +390,7 @@ class AutoAction(IntEnum):
 
 
 class ManualReviewStatus(IntEnum):
-    """Manual review status (user_security_logs.manual_review_status)"""
+    """Manual review status (user_violation_logs.manual_review_status)"""
 
     PENDING = 1  # Pending review
     CONFIRMED = 2  # Violation confirmed
@@ -383,7 +399,7 @@ class ManualReviewStatus(IntEnum):
 
 
 class RiskLevel(IntEnum):
-    """User risk level (user_security_stats.current_risk_level)"""
+    """User risk level (user_risk_stats.current_risk_level)"""
 
     LOW = 1  # Low risk
     MEDIUM = 2  # Medium risk

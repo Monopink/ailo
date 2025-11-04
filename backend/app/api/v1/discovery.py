@@ -13,7 +13,7 @@ from api.deps import get_current_user
 from models.user import User
 from schemas.discovery import SquareContactListResponse, StrangerProfileResponse
 from services.discovery import service as discovery_service
-from enums import AIProfileCategory
+from enums import AIProfileCategory, PROFILE_CATEGORY_API_TO_DB
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,29 +33,20 @@ async def get_square_contacts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SquareContactListResponse:
-    """Get square page random contacts.
-
-    Category values:
-    - 1: 交友 (Friend)
-    - 2: 恋爱 (Love)
-    - 3: 倾诉 (Talk)
-    - 4: 闺蜜 (Bestie)
-    - 5: 同好 (Hobby)
-    """
+    """Get square page random contacts."""
     try:
-        # Validate category enum
+        # Validate and convert category (API integer -> DB string) using Profile category mapping
+        category_db = None
         if category is not None:
             try:
-                AIProfileCategory(category)
+                api_enum = AIProfileCategory(category)
+                category_db = PROFILE_CATEGORY_API_TO_DB[api_enum]
             except ValueError:
                 logger.warning("invalid_category", user_qiao_id=current_user.qiao_id, category=category)
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的分类参数")
 
-        # Convert category to string for service layer
-        category_str = str(category) if category is not None else None
-
         return await discovery_service.get_square_contacts(
-            db=db, user_qiao_id=current_user.qiao_id, category=category_str, force_refresh=force_refresh
+            db=db, user_qiao_id=current_user.qiao_id, category=category_db, force_refresh=force_refresh
         )
     except ValueError as e:
         # Rate limit error

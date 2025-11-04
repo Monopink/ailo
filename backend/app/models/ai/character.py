@@ -13,7 +13,7 @@ from models.base import SnowflakeModel, SnowflakeQiaoModel
 
 if TYPE_CHECKING:
     from models.user import User
-    from models.ai.style import AIStyle
+    from models.ai.style import AIStyle, AIRelationship
     from models.ai.personality import AIPersonality
 
 
@@ -60,25 +60,21 @@ class AICharacter(SnowflakeQiaoModel):
         comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
-    score_offset_algorithm: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        nullable=True,
-        default=1,
-        server_default=text("1"),
-        comment="Score offset algorithm (enum int)",
-    )
-
-    score_offset_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
-        nullable=True,
-        server_default=text('\'{"left_bias": 0, "right_bias": 0}\''),
-        comment="Score offset parameters (JSONB for better performance)",
-    )
-
     request_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
         comment="AI character request parameters configuration (can override default LLM settings)",
+    )
+
+    relationship_id: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Current relationship type ID"
+    )
+
+    relationship_counts: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        server_default=text("'{}'::jsonb"),
+        comment="Relationship usage counts (JSONB)",
     )
 
     created_by: Mapped[int] = mapped_column(
@@ -104,6 +100,19 @@ class AICharacter(SnowflakeQiaoModel):
         "AIPersonality",
         primaryjoin="AICharacter.personality_id == AIPersonality.id",
         foreign_keys=[personality_id],
+        lazy="select",
+        viewonly=True,
+    )
+    dimensions: Mapped[List["AICharacterDimension"]] = relationship(
+        "AICharacterDimension",
+        primaryjoin="AICharacter.id == foreign(AICharacterDimension.character_id)",
+        lazy="select",
+        viewonly=True,
+    )
+    relationship: Mapped[Optional["AIRelationship"]] = relationship(
+        "AIRelationship",
+        primaryjoin="AICharacter.relationship_id == AIRelationship.id",
+        foreign_keys=[relationship_id],
         lazy="select",
         viewonly=True,
     )
@@ -144,16 +153,12 @@ class AIContext(SnowflakeModel):
 
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="Message content")
 
-    source_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Source type: 1=original, 2=summary, 3=generated"
+    first_msg_id_client: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, comment="First message client ID (for dedup/tracing)"
     )
 
-    source_message_ids: Mapped[Optional[List[str]]] = mapped_column(
-        JSONB, nullable=True, comment="Source message ID list (JSONB for better performance)"
-    )
-
-    context_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="Context metadata (JSONB for better performance)"
+    last_msg_id_client: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, comment="Last message client ID"
     )
 
     token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Token count")
@@ -166,12 +171,18 @@ class AIContext(SnowflakeModel):
         comment="Is attack message: 1=yes, 0=no",
     )
 
-    reply_status: Mapped[int] = mapped_column(
+    last_msg_time_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Last aggregated message arrival time (milliseconds)"
+    )
+
+    buffer_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Aggregation window expiration time (milliseconds)"
+    )
+
+    aggregate_state: Mapped[Optional[int]] = mapped_column(
         Integer,
-        nullable=False,
-        default=1,
-        server_default=text("1"),
-        comment="Reply status: 1=pending, 2=processing, 3=done",
+        nullable=True,
+        comment="Aggregation state (user only): 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED",
     )
 
     # Indexes - Only essential indexes for MVP
@@ -179,8 +190,22 @@ class AIContext(SnowflakeModel):
         Index("idx_ai_contexts_character_qiao_id", "character_qiao_id"),
         Index("idx_ai_contexts_user_qiao_id", "user_qiao_id"),
         Index("idx_ai_contexts_created_at", "created_at"),
-        Index("idx_ai_contexts_reply_status", "reply_status"),
         Index("idx_ai_contexts_character_id", "character_id"),
+        Index(
+            "idx_ai_contexts_unique_locked",
+            "user_qiao_id",
+            "character_qiao_id",
+            unique=True,
+            postgresql_where=text("role=2 AND aggregate_state=2"),
+        ),
+        Index(
+            "idx_ai_contexts_expire_scan",
+            "user_qiao_id",
+            "character_qiao_id",
+            "buffer_expires_at_ms",
+            postgresql_where=text("role=2 AND aggregate_state=1"),
+        ),
+        {"comment": "AI conversation context and history"},
     )
 
 
@@ -211,25 +236,15 @@ class AIContextArchive(SnowflakeModel):
 
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="Message content")
 
-    source_type: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=1,
-        server_default=text("1"),
-        comment="Source type: 1=original, 2=merged, 3=summarized",
+    first_msg_id_client: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, comment="First message client ID (for dedup/tracing)"
     )
 
-    source_message_ids: Mapped[Optional[List[str]]] = mapped_column(
-        JSONB, nullable=True, comment="Source message ID list (JSONB for better performance)"
+    last_msg_id_client: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, comment="Last message client ID"
     )
 
-    context_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="Context metadata (JSONB for better performance)"
-    )
-
-    token_count: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Token count for this context"
-    )
+    token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Token count")
 
     is_attack: Mapped[int] = mapped_column(
         Integer,
@@ -239,10 +254,16 @@ class AIContextArchive(SnowflakeModel):
         comment="Is attack message: 1=yes, 0=no",
     )
 
-    reply_status: Mapped[int] = mapped_column(
+    last_msg_time_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Last aggregated message arrival time (milliseconds)"
+    )
+
+    buffer_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Aggregation window expiration time (milliseconds)"
+    )
+
+    aggregate_state: Mapped[Optional[int]] = mapped_column(
         Integer,
-        nullable=False,
-        default=1,
-        server_default=text("1"),
-        comment="Reply status: 1=pending, 2=processing, 3=done",
+        nullable=True,
+        comment="Aggregation state (user only): 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED",
     )

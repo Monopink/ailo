@@ -73,7 +73,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Message content")
 
     service_provider: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Service provider: 1=leancloud, 2=internal"
+        Integer, nullable=False, comment="Service provider: 1=internal, 2=leancloud"
     )
 
     status: Mapped[int] = mapped_column(
@@ -139,7 +139,7 @@ class MessageDeliveryFailure(SnowflakeModel):
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Message content")
 
     service_provider: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Service provider: 1=leancloud, 2=internal"
+        Integer, nullable=False, comment="Service provider: 1=internal, 2=leancloud"
     )
 
     fail_reason_code: Mapped[Optional[str]] = mapped_column(

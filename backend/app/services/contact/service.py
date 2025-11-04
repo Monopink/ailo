@@ -94,7 +94,7 @@ def _build_contact_list_response(
         contact_qiao_id=contact.contact_qiao_id,
         contact_type=ContactType(contact.contact_type),
         alias=contact.alias,
-        avatar_alias_url=contact.avatar_alias_url,
+        custom_avatar_url=contact.custom_avatar_url,
         is_pinned=bool(contact.is_pinned),
         is_muted=bool(contact.is_muted),
         is_blocked=bool(contact.is_blocked),
@@ -128,7 +128,7 @@ def _build_contact_response(
         contact_type=ContactType(contact.contact_type),
         contact_qiao_id=contact.contact_qiao_id,
         alias=contact.alias,
-        avatar_alias_url=contact.avatar_alias_url,
+        custom_avatar_url=contact.custom_avatar_url,
         tags=contact.tags,
         remark=contact.remark,
         is_pinned=bool(contact.is_pinned),
@@ -338,8 +338,8 @@ async def update_contact(
     update_dict = {}
     if update_data.alias is not None:
         update_dict["alias"] = update_data.alias
-    if update_data.avatar_alias_url is not None:
-        update_dict["avatar_alias_url"] = update_data.avatar_alias_url
+    if update_data.custom_avatar_url is not None:
+        update_dict["custom_avatar_url"] = update_data.custom_avatar_url
     if update_data.tags is not None:
         update_dict["tags"] = update_data.tags
     if update_data.remark is not None:

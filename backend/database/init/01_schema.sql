@@ -35,8 +35,10 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(20) UNIQUE,
     email VARCHAR(100) UNIQUE,
     password_hash VARCHAR(255),
-    wechat_openid VARCHAR(64) UNIQUE,
-    apple_id VARCHAR(128) UNIQUE,
+    is_verified INTEGER NOT NULL DEFAULT 0,
+    verified_at TIMESTAMP WITH TIME ZONE,
+    verify_source VARCHAR(100),
+    verification_info JSONB,
     status INTEGER NOT NULL DEFAULT 1,
     user_type INTEGER NOT NULL DEFAULT 1,
     last_login TIMESTAMP WITH TIME ZONE,
@@ -70,6 +72,33 @@ CREATE TABLE IF NOT EXISTS user_tokens (
 -- Create indexes for user_tokens table
 CREATE INDEX idx_user_tokens_user_qiao_id ON user_tokens(user_qiao_id);
 
+-- User auths table - Third-party identity bindings (WeChat/Apple/etc.)
+CREATE TABLE IF NOT EXISTS user_auths (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    user_qiao_id VARCHAR(32) NOT NULL,
+    auth_type INTEGER NOT NULL,
+    provider_uid VARCHAR(128) NOT NULL,
+    unionid VARCHAR(64),
+    app_id VARCHAR(64),
+    extra_data JSONB,
+    status INTEGER NOT NULL DEFAULT 1,
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Constraints and indexes for user_auths
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_user_auths_type_provider'
+    ) THEN
+        ALTER TABLE user_auths ADD CONSTRAINT uq_user_auths_type_provider UNIQUE (auth_type, provider_uid);
+    END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_user_auths_user_qiao_id ON user_auths(user_qiao_id);
+
 -- Login records table - Login attempt tracking
 CREATE TABLE IF NOT EXISTS login_records (
     id BIGINT PRIMARY KEY,
@@ -89,7 +118,7 @@ CREATE TABLE IF NOT EXISTS login_records (
 
 
 -- ============================================================================
--- Contact and Relationship Management Tables
+-- Contact Tables
 -- ============================================================================
 
 -- Contacts table - Contact relationships between users and AI
@@ -102,7 +131,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     contact_id BIGINT NOT NULL,
     contact_qiao_id VARCHAR(32) NOT NULL,
     alias VARCHAR(100),
-    avatar_alias_url VARCHAR(500),
+    custom_avatar_url VARCHAR(500),
     tags JSONB,
     remark TEXT,
     is_pinned INTEGER NOT NULL DEFAULT 0,
@@ -139,6 +168,8 @@ CREATE TABLE IF NOT EXISTS contact_requests (
 
 -- Create indexes for contact_requests table
 CREATE INDEX idx_contact_requests_expires_at ON contact_requests(expires_at);
+-- Composite index for worker query (status + to_type + expires_at for AI requests)
+CREATE INDEX idx_contact_requests_worker_query ON contact_requests(status, to_type, expires_at) WHERE status IN (1, 8);  -- PENDING=1, PROCESSING=8
 
 
 -- ============================================================================
@@ -347,26 +378,39 @@ CREATE TABLE IF NOT EXISTS ai_relationships (
 -- Note: No additional indexes needed for MVP
 
 
--- AI relationship dimensions table - Score dimension definitions
-CREATE TABLE IF NOT EXISTS ai_relationship_dimensions (
+-- AI dimensions table - Global dimension definitions
+CREATE TABLE IF NOT EXISTS ai_dimensions (
     id SERIAL PRIMARY KEY,
-    style_id INTEGER NOT NULL,
-    name VARCHAR(50) NOT NULL,
+    name VARCHAR(50) NOT NULL UNIQUE,
     display_name VARCHAR(100),
-    initial_position INTEGER NOT NULL,
+    description TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(style_id, name)
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for ai_relationship_dimensions table
+-- Create indexes for ai_dimensions table
 -- Note: No additional indexes needed for MVP
 
 
--- AI relationship indexes table - Score to relationship mapping
-CREATE TABLE IF NOT EXISTS ai_relationship_indexes (
+-- AI style dimensions table - Style-specific dimension configurations
+CREATE TABLE IF NOT EXISTS ai_style_dimensions (
     id SERIAL PRIMARY KEY,
     style_id INTEGER NOT NULL,
+    dimension_id INTEGER NOT NULL,
+    initial_position INTEGER NOT NULL CHECK (initial_position >= 0 AND initial_position <= 1000),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE(style_id, dimension_id)
+);
+
+-- Create indexes for ai_style_dimensions table
+CREATE INDEX idx_ai_style_dimensions_style_id ON ai_style_dimensions(style_id);
+CREATE INDEX idx_ai_style_dimensions_dimension_id ON ai_style_dimensions(dimension_id);
+
+
+-- AI dimension relationship mappings table - Dimension to relationship mapping
+CREATE TABLE IF NOT EXISTS ai_dimension_relationship_mappings (
+    id SERIAL PRIMARY KEY,
     dimension_id INTEGER NOT NULL,
     start_position INTEGER NOT NULL,
     end_position INTEGER NOT NULL,
@@ -377,8 +421,9 @@ CREATE TABLE IF NOT EXISTS ai_relationship_indexes (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for ai_relationship_indexes table
--- Note: No additional indexes needed for MVP
+-- Create indexes for ai_dimension_relationship_mappings table
+CREATE INDEX idx_ai_dim_rel_mappings_dimension_id ON ai_dimension_relationship_mappings(dimension_id);
+CREATE INDEX idx_ai_dim_rel_mappings_relationship_id ON ai_dimension_relationship_mappings(relationship_id);
 
 
 -- AI personalities table - Personality templates
@@ -416,15 +461,15 @@ CREATE TABLE IF NOT EXISTS ai_personality_placeholders (
 -- Note: No additional indexes needed for MVP
 
 
--- AI info templates table - AI core configuration templates
-CREATE TABLE IF NOT EXISTS ai_info_templates (
+-- AI character templates table - AI core configuration templates
+CREATE TABLE IF NOT EXISTS ai_character_templates (
     id SERIAL PRIMARY KEY,
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
     memory TEXT,
     prompt_variables JSONB,
-    score_offset_algorithm INTEGER DEFAULT 1,
-    score_offset_params JSONB DEFAULT '{"left_bias": 0, "right_bias": 0}',
+    display_name VARCHAR(100),
+    position_mapping_config JSONB,
     is_reusable INTEGER NOT NULL DEFAULT 1,
     profile_count INTEGER NOT NULL DEFAULT 0,
     profile_id INTEGER,
@@ -433,7 +478,7 @@ CREATE TABLE IF NOT EXISTS ai_info_templates (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for ai_info_templates table
+-- Create indexes for ai_character_templates table
 -- Note: No additional indexes needed for MVP
 
 
@@ -442,7 +487,7 @@ CREATE TABLE IF NOT EXISTS ai_profile_templates (
     id BIGINT PRIMARY KEY,  -- Changed from SERIAL to BIGINT for Snowflake ID
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
     category VARCHAR(50),
-    info_id INTEGER NOT NULL,  -- Changed from nullable to NOT NULL (matches model)
+    character_template_id INTEGER NOT NULL,  -- Changed from nullable to NOT NULL (matches model)
     nickname VARCHAR(100),
     gender INTEGER,
     avatar_url VARCHAR(500),
@@ -470,8 +515,8 @@ CREATE TABLE IF NOT EXISTS ai_characters (
     status INTEGER NOT NULL DEFAULT 1,
     memory TEXT,
     prompt_variables JSONB,
-    score_offset_algorithm INTEGER DEFAULT 1,
-    score_offset_params JSONB DEFAULT '{"left_bias": 0, "right_bias": 0}',
+    relationship_id INTEGER,
+    relationship_counts JSONB,
     request_params JSONB,
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -495,22 +540,24 @@ CREATE TABLE IF NOT EXISTS ai_contexts (
     user_qiao_id VARCHAR(32) NOT NULL,
     role INTEGER NOT NULL,
     content TEXT NOT NULL,
-    source_type INTEGER NOT NULL,
-    source_message_ids JSONB,
-    context_metadata JSONB,
+    first_msg_id_client VARCHAR(64),
+    last_msg_id_client VARCHAR(64),
     token_count INTEGER,
     is_attack INTEGER NOT NULL DEFAULT 0,
-    reply_status INTEGER NOT NULL DEFAULT 1,
+    last_msg_time_ms BIGINT,
+    buffer_expires_at_ms BIGINT,
+    aggregate_state INTEGER,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 );
 
 -- Create indexes for ai_contexts table
 CREATE INDEX idx_ai_contexts_character_qiao_id ON ai_contexts(character_qiao_id);
 CREATE INDEX idx_ai_contexts_user_qiao_id ON ai_contexts(user_qiao_id);
 CREATE INDEX idx_ai_contexts_created_at ON ai_contexts(created_at);
-CREATE INDEX idx_ai_contexts_reply_status ON ai_contexts(reply_status);
 CREATE INDEX idx_ai_contexts_character_id ON ai_contexts(character_id);
+CREATE UNIQUE INDEX idx_ai_contexts_unique_locked ON ai_contexts(user_qiao_id, character_qiao_id) WHERE role=2 AND aggregate_state=2;
+CREATE INDEX idx_ai_contexts_expire_scan ON ai_contexts(user_qiao_id, character_qiao_id, buffer_expires_at_ms) WHERE role=2 AND aggregate_state=1;
 
 
 -- AI contexts archive table - Archived AI conversation contexts
@@ -522,12 +569,13 @@ CREATE TABLE IF NOT EXISTS ai_contexts_archive (
     user_qiao_id VARCHAR(32) NOT NULL,
     role INTEGER NOT NULL,
     content TEXT NOT NULL,
-    source_type INTEGER NOT NULL DEFAULT 1,
-    source_message_ids JSONB,
-    context_metadata JSONB,
+    first_msg_id_client VARCHAR(64),
+    last_msg_id_client VARCHAR(64),
     token_count INTEGER,
     is_attack INTEGER NOT NULL DEFAULT 0,
-    reply_status INTEGER NOT NULL DEFAULT 1,
+    last_msg_time_ms BIGINT,
+    buffer_expires_at_ms BIGINT,
+    aggregate_state INTEGER,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -536,24 +584,23 @@ CREATE TABLE IF NOT EXISTS ai_contexts_archive (
 -- Note: No additional indexes needed for MVP
 
 
--- AI relationship scores table - AI relationship scoring data
-CREATE TABLE IF NOT EXISTS ai_relationship_scores (
+-- AI character dimensions table - AI character dimension scoring data
+CREATE TABLE IF NOT EXISTS ai_character_dimensions (
     id BIGINT PRIMARY KEY,
     character_id BIGINT NOT NULL,
     dimension_id INTEGER NOT NULL,
     score INTEGER NOT NULL,
     position INTEGER NOT NULL,
-    relationship_id INTEGER,
-    relationship_display_name VARCHAR(100),
-    relationship_counts JSONB NOT NULL DEFAULT '{}',
+    position_mapping_algorithm INTEGER DEFAULT 1,
+    position_mapping_params JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     UNIQUE(character_id, dimension_id)
 );
 
--- Create indexes for ai_relationship_scores table
-CREATE INDEX idx_ai_relationship_scores_character_id ON ai_relationship_scores(character_id);
-CREATE INDEX idx_ai_relationship_scores_dimension_id ON ai_relationship_scores(dimension_id);
+-- Create indexes for ai_character_dimensions table
+CREATE INDEX idx_ai_character_dimensions_character_id ON ai_character_dimensions(character_id);
+CREATE INDEX idx_ai_character_dimensions_dimension_id ON ai_character_dimensions(dimension_id);
 
 
 -- AI request logs table - AI request and response logging
@@ -583,8 +630,8 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
 -- Security Monitoring Tables
 -- ============================================================================
 
--- User security logs table - User security violation tracking
-CREATE TABLE IF NOT EXISTS user_security_logs (
+-- User violation logs table - User security violation tracking
+CREATE TABLE IF NOT EXISTS user_violation_logs (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
@@ -593,8 +640,6 @@ CREATE TABLE IF NOT EXISTS user_security_logs (
     violation_type INTEGER NOT NULL,
     severity_level INTEGER NOT NULL,
     original_message TEXT NOT NULL,
-    ai_detection_result JSONB,
-    confidence_score INTEGER,
     auto_action_taken INTEGER NOT NULL DEFAULT 1,
     manual_review_status INTEGER NOT NULL DEFAULT 1,
     reviewer_id INTEGER,
@@ -603,12 +648,12 @@ CREATE TABLE IF NOT EXISTS user_security_logs (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for user_security_logs table
+-- Create indexes for user_violation_logs table
 -- Note: No additional indexes needed for MVP
 
 
--- User security stats table - User security statistics aggregation
-CREATE TABLE IF NOT EXISTS user_security_stats (
+-- User risk stats table - User security statistics aggregation
+CREATE TABLE IF NOT EXISTS user_risk_stats (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE,
     user_qiao_id VARCHAR(32) NOT NULL UNIQUE,
@@ -625,7 +670,7 @@ CREATE TABLE IF NOT EXISTS user_security_stats (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for user_security_stats table
+-- Create indexes for user_risk_stats table
 -- Note: No additional indexes needed for MVP
 
 
@@ -896,7 +941,7 @@ COMMENT ON COLUMN llm_providers.api_key_env IS 'Environment variable name for AP
 CREATE TABLE IF NOT EXISTS llm_configs (
     id SERIAL PRIMARY KEY,
     provider_id INTEGER NOT NULL,
-    config_key VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(50) NOT NULL UNIQUE,
     model_name VARCHAR(100),
     temperature DECIMAL(3,2),
     max_tokens INTEGER,
@@ -921,7 +966,7 @@ CREATE INDEX idx_llm_configs_provider_id ON llm_configs(provider_id);
 CREATE TABLE IF NOT EXISTS llm_test_logs (
     id BIGINT PRIMARY KEY,
     config_id INTEGER NOT NULL,
-    config_key VARCHAR(100) NOT NULL,
+    config_name VARCHAR(100) NOT NULL,
     provider_name VARCHAR(50) NOT NULL,
     model_name VARCHAR(100),
     test_message TEXT NOT NULL,
@@ -963,6 +1008,7 @@ $$ language 'plpgsql';
 -- Drop existing triggers first to ensure idempotency
 DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 DROP TRIGGER IF EXISTS update_user_tokens_updated_at ON user_tokens;
+DROP TRIGGER IF EXISTS update_user_auths_updated_at ON user_auths;
 DROP TRIGGER IF EXISTS update_contacts_updated_at ON contacts;
 DROP TRIGGER IF EXISTS update_contact_requests_updated_at ON contact_requests;
 DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
@@ -970,18 +1016,19 @@ DROP TRIGGER IF EXISTS update_message_delivery_failures_updated_at ON message_de
 DROP TRIGGER IF EXISTS update_media_files_updated_at ON media_files;
 DROP TRIGGER IF EXISTS update_ai_styles_updated_at ON ai_styles;
 DROP TRIGGER IF EXISTS update_ai_relationships_updated_at ON ai_relationships;
-DROP TRIGGER IF EXISTS update_ai_relationship_dimensions_updated_at ON ai_relationship_dimensions;
-DROP TRIGGER IF EXISTS update_ai_relationship_indexes_updated_at ON ai_relationship_indexes;
+DROP TRIGGER IF EXISTS update_ai_dimensions_updated_at ON ai_dimensions;
+DROP TRIGGER IF EXISTS update_ai_style_dimensions_updated_at ON ai_style_dimensions;
+DROP TRIGGER IF EXISTS update_ai_dimension_relationship_mappings_updated_at ON ai_dimension_relationship_mappings;
 DROP TRIGGER IF EXISTS update_ai_personalities_updated_at ON ai_personalities;
 DROP TRIGGER IF EXISTS update_ai_personality_placeholders_updated_at ON ai_personality_placeholders;
-DROP TRIGGER IF EXISTS update_ai_info_templates_updated_at ON ai_info_templates;
+DROP TRIGGER IF EXISTS update_ai_character_templates_updated_at ON ai_character_templates;
 DROP TRIGGER IF EXISTS update_ai_profile_templates_updated_at ON ai_profile_templates;
 DROP TRIGGER IF EXISTS update_ai_characters_updated_at ON ai_characters;
 DROP TRIGGER IF EXISTS update_ai_contexts_updated_at ON ai_contexts;
 DROP TRIGGER IF EXISTS update_ai_contexts_archive_updated_at ON ai_contexts_archive;
-DROP TRIGGER IF EXISTS update_ai_relationship_scores_updated_at ON ai_relationship_scores;
-DROP TRIGGER IF EXISTS update_user_security_logs_updated_at ON user_security_logs;
-DROP TRIGGER IF EXISTS update_user_security_stats_updated_at ON user_security_stats;
+DROP TRIGGER IF EXISTS update_ai_character_dimensions_updated_at ON ai_character_dimensions;
+DROP TRIGGER IF EXISTS update_user_violation_logs_updated_at ON user_violation_logs;
+DROP TRIGGER IF EXISTS update_user_risk_stats_updated_at ON user_risk_stats;
 DROP TRIGGER IF EXISTS update_system_configs_updated_at ON system_configs;
 DROP TRIGGER IF EXISTS update_admin_users_updated_at ON admin_users;
 DROP TRIGGER IF EXISTS update_llm_providers_updated_at ON llm_providers;
@@ -990,6 +1037,7 @@ DROP TRIGGER IF EXISTS update_llm_configs_updated_at ON llm_configs;
 -- Create triggers
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_tokens_updated_at BEFORE UPDATE ON user_tokens FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_auths_updated_at BEFORE UPDATE ON user_auths FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contacts_updated_at BEFORE UPDATE ON contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contact_requests_updated_at BEFORE UPDATE ON contact_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -997,18 +1045,19 @@ CREATE TRIGGER update_message_delivery_failures_updated_at BEFORE UPDATE ON mess
 CREATE TRIGGER update_media_files_updated_at BEFORE UPDATE ON media_files FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_styles_updated_at BEFORE UPDATE ON ai_styles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_relationships_updated_at BEFORE UPDATE ON ai_relationships FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_relationship_dimensions_updated_at BEFORE UPDATE ON ai_relationship_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_relationship_indexes_updated_at BEFORE UPDATE ON ai_relationship_indexes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_dimensions_updated_at BEFORE UPDATE ON ai_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_style_dimensions_updated_at BEFORE UPDATE ON ai_style_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_dimension_relationship_mappings_updated_at BEFORE UPDATE ON ai_dimension_relationship_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personalities_updated_at BEFORE UPDATE ON ai_personalities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personality_placeholders_updated_at BEFORE UPDATE ON ai_personality_placeholders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_info_templates_updated_at BEFORE UPDATE ON ai_info_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_character_templates_updated_at BEFORE UPDATE ON ai_character_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_profile_templates_updated_at BEFORE UPDATE ON ai_profile_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_characters_updated_at BEFORE UPDATE ON ai_characters FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_contexts_updated_at BEFORE UPDATE ON ai_contexts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_contexts_archive_updated_at BEFORE UPDATE ON ai_contexts_archive FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_relationship_scores_updated_at BEFORE UPDATE ON ai_relationship_scores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_user_security_logs_updated_at BEFORE UPDATE ON user_security_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_user_security_stats_updated_at BEFORE UPDATE ON user_security_stats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_character_dimensions_updated_at BEFORE UPDATE ON ai_character_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_violation_logs_updated_at BEFORE UPDATE ON user_violation_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_risk_stats_updated_at BEFORE UPDATE ON user_risk_stats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_system_configs_updated_at BEFORE UPDATE ON system_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_admin_users_updated_at BEFORE UPDATE ON admin_users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_llm_providers_updated_at BEFORE UPDATE ON llm_providers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

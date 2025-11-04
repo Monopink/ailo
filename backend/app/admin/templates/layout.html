@@ -1,0 +1,6 @@
+{% extends "@starlette-admin/layout.html" %}
+{# Minimal override: remove forced dark theme on sidebar to inherit root theme and avoid flicker #}
+{% block sidebar %}
+  {{ super() | replace('data-bs-theme="dark"', '') | safe }}
+{% endblock %}
+

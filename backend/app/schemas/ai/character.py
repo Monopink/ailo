@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
-from enums import AICharacterCreator, AIContextRole, AIContextSourceType
+from enums import AICharacterCreator, AIContextRole, AIAggregateState
 from schemas.common import BaseSchema
 
 
@@ -36,10 +36,6 @@ class AICharacterCreate(BaseModel):
     personality_id: int = Field(..., description="Personality ID")
     memory: Optional[str] = Field(None, description="Character memory settings")
     placeholder_overrides: Optional[Dict[str, Any]] = Field(None, description="Placeholder overrides")
-    score_offset_algorithm: Optional[str] = Field(
-        None, max_length=100, description="Score offset algorithm"
-    )
-    score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
     request_params: Optional[Dict[str, Any]] = Field(
         None,
         description="LLM request parameters override",
@@ -60,10 +56,6 @@ class AICharacterUpdate(BaseModel):
     category: Optional[str] = Field(None, max_length=50, description="Character category")
     memory: Optional[str] = Field(None, description="Character memory settings")
     placeholder_overrides: Optional[Dict[str, Any]] = Field(None, description="Placeholder overrides")
-    score_offset_algorithm: Optional[str] = Field(
-        None, max_length=100, description="Score offset algorithm"
-    )
-    score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
     request_params: Optional[Dict[str, Any]] = Field(None, description="LLM request parameters override")
 
 
@@ -73,8 +65,6 @@ class AICharacterResponse(AICharacterBase):
     qiao_id: str = Field(..., description="Character external ID")
     user_id: Optional[int] = Field(None, description="Owner user ID")
     user_qiao_id: Optional[str] = Field(None, description="Owner user external ID")
-    score_offset_algorithm: Optional[str] = Field(None, description="Score offset algorithm")
-    score_offset_params: Optional[Dict[str, Any]] = Field(None, description="Score offset parameters")
     created_by: AICharacterCreator = Field(..., description="Creator type")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
@@ -110,10 +100,12 @@ class AIContextCreate(BaseModel):
     user_qiao_id: str = Field(..., max_length=32, description="User external ID")
     role: AIContextRole = Field(..., description="Role type")
     content: str = Field(..., min_length=1, description="Message content")
-    source_type: AIContextSourceType = Field(AIContextSourceType.ORIGINAL, description="Source type")
-    source_message_ids: Optional[List[str]] = Field(None, description="Source message ID list")
-    context_metadata: Optional[Dict[str, Any]] = Field(None, description="Context metadata")
+    first_msg_id_client: Optional[str] = Field(None, max_length=64, description="First message client ID")
+    last_msg_id_client: Optional[str] = Field(None, max_length=64, description="Last message client ID")
     token_count: Optional[int] = Field(None, description="Token count")
+    last_msg_time_ms: Optional[int] = Field(None, description="Last message time (milliseconds)")
+    buffer_expires_at_ms: Optional[int] = Field(None, description="Buffer expiration time (milliseconds)")
+    aggregate_state: Optional[int] = Field(None, description="Aggregate state (user only)")
 
 
 class AIContextUpdate(BaseModel):
@@ -121,9 +113,14 @@ class AIContextUpdate(BaseModel):
 
     role: Optional[AIContextRole] = Field(default=None, description="Role type")
     content: Optional[str] = Field(default=None, description="Message content")
-    source_type: Optional[AIContextSourceType] = Field(default=None, description="Source type")
-    context_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Context metadata")
-    reply_status: Optional[int] = Field(default=None, description="Reply status")
+    first_msg_id_client: Optional[str] = Field(default=None, description="First message client ID")
+    last_msg_id_client: Optional[str] = Field(default=None, description="Last message client ID")
+    token_count: Optional[int] = Field(default=None, description="Token count")
+    last_msg_time_ms: Optional[int] = Field(default=None, description="Last message time (milliseconds)")
+    buffer_expires_at_ms: Optional[int] = Field(
+        default=None, description="Buffer expiration time (milliseconds)"
+    )
+    aggregate_state: Optional[int] = Field(default=None, description="Aggregate state")
 
 
 class AIContextResponse(AIContextBase):
@@ -131,10 +128,12 @@ class AIContextResponse(AIContextBase):
 
     character_id: int = Field(..., description="Character internal ID")
     user_id: int = Field(..., description="User internal ID")
-    source_type: AIContextSourceType = Field(..., description="Source type")
-    source_message_ids: Optional[List[str]] = Field(None, description="Source message ID list")
-    context_metadata: Optional[Dict[str, Any]] = Field(None, description="Context metadata")
+    first_msg_id_client: Optional[str] = Field(None, description="First message client ID")
+    last_msg_id_client: Optional[str] = Field(None, description="Last message client ID")
     token_count: Optional[int] = Field(None, description="Token count")
+    last_msg_time_ms: Optional[int] = Field(None, description="Last message time (milliseconds)")
+    buffer_expires_at_ms: Optional[int] = Field(None, description="Buffer expiration time (milliseconds)")
+    aggregate_state: Optional[int] = Field(None, description="Aggregate state")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
 

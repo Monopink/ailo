@@ -24,9 +24,7 @@ class NotificationPushHistory(SnowflakeModel):
 
     __tablename__ = "notification_push_history"
 
-    to_qiao_id: Mapped[str] = mapped_column(
-        String(32), nullable=False, comment="Receiver qiao_id"
-    )
+    to_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Receiver qiao_id")
 
     notification_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Notification type: 1=contact_request"
@@ -56,7 +54,4 @@ class NotificationPushHistory(SnowflakeModel):
         comment="Last update time",
     )
 
-    __table_args__ = (
-        Index("idx_notification_push_created_at", "created_at"),
-    )
-
+    __table_args__ = (Index("idx_notification_push_created_at", "created_at"),)

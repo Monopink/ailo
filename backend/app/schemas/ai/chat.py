@@ -34,29 +34,5 @@ class AIChatResponse(BaseSchema):
     context_used: int = Field(..., description="Number of context messages used")
 
 
-# AI Relationship Score Schemas
-
-
-class AIRelationshipScoreResponse(BaseSchema):
-    """Schema for AI relationship score data."""
-
-    character_qiao_id: str = Field(..., description="Character external ID")
-    dimension_id: int = Field(..., description="Dimension ID")
-    dimension_name: str = Field(..., description="Dimension name")
-    score: int = Field(..., description="Current score value")
-    position: int = Field(..., description="Per mille position (0-1000)")
-    relationship_id: Optional[int] = Field(None, description="Current relationship type ID")
-    relationship_display_name: Optional[str] = Field(None, description="Relationship display name")
-    relationship_counts: Optional[Dict[str, Any]] = Field(None, description="Relationship usage counts")
-    created_at: datetime = Field(..., description="Creation time")
-    updated_at: datetime = Field(..., description="Last update time")
-
-
-class AIRelationshipScoreUpdate(BaseModel):
-    """Schema for updating AI relationship score."""
-
-    score: Optional[int] = Field(None, ge=0, le=1000, description="New score value")
-    position: Optional[int] = Field(None, ge=0, le=1000, description="New position value")
-    relationship_id: Optional[int] = Field(None, description="New relationship type ID")
-    relationship_display_name: Optional[str] = Field(None, description="New relationship display name")
-    relationship_counts: Optional[Dict[str, Any]] = Field(None, description="Updated relationship counts")
+# Note: Character dimension schemas removed - these are internal implementation details
+# and should not be exposed through public APIs

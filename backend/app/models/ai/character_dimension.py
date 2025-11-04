@@ -1,76 +1,69 @@
 """
-AI relationship score related models.
+AI character dimension related models.
 
-This module contains SQLAlchemy models for AI relationship scoring and statistics.
+This module contains SQLAlchemy models for AI character dimension scores.
 """
 
 from sqlalchemy import BigInteger, Integer, String, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Dict, Any
 
 from models.base import SnowflakeModel
 
 if TYPE_CHECKING:
     from models.ai.character import AICharacter
-    from models.ai.style import AIRelationshipDimension, AIRelationship
+    from models.ai.style import AIDimension, AIStyleDimension, AIRelationship
 
 
-class AIRelationshipScore(SnowflakeModel):
+class AICharacterDimension(SnowflakeModel):
     """
-    AI relationship score model.
+    AI character dimension score model.
 
-    AI relationship scoring for each character.
+    Dimension scoring for each character.
     """
 
-    __tablename__ = "ai_relationship_scores"
+    __tablename__ = "ai_character_dimensions"
 
     character_id: Mapped[int] = mapped_column(
         BigInteger, nullable=False, comment="Character ID, references ai_characters.id"
     )
 
     dimension_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Dimension ID, references ai_relationship_dimensions.id"
+        Integer, nullable=False, comment="Dimension ID, references ai_dimensions.id"
     )
 
     score: Mapped[int] = mapped_column(Integer, nullable=False, comment="Current score value")
 
     position: Mapped[int] = mapped_column(Integer, nullable=False, comment="Per mille position (0-1000)")
 
-    relationship_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Current relationship type ID"
+    position_mapping_algorithm: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        default=1,
+        server_default=text("1"),
+        comment="Position mapping algorithm: 1=direct, 2=V1",
     )
 
-    relationship_display_name: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Relationship display name"
-    )
-
-    relationship_counts: Mapped[Dict[str, Any]] = mapped_column(
+    position_mapping_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
-        nullable=False,
+        nullable=True,
         server_default=text("'{}'::jsonb"),
-        comment="Relationship usage counts (JSONB)",
+        comment="Position mapping parameters (JSONB)",
     )
 
     # Relationships
     character: Mapped["AICharacter"] = relationship(
         "AICharacter",
-        primaryjoin="AIRelationshipScore.character_id == AICharacter.id",
+        primaryjoin="AICharacterDimension.character_id == AICharacter.id",
         foreign_keys=[character_id],
         lazy="select",
         viewonly=True,
     )
-    dimension: Mapped["AIRelationshipDimension"] = relationship(
-        "AIRelationshipDimension",
-        primaryjoin="AIRelationshipScore.dimension_id == AIRelationshipDimension.id",
+    dimension: Mapped["AIDimension"] = relationship(
+        "AIDimension",
+        primaryjoin="AICharacterDimension.dimension_id == AIDimension.id",
         foreign_keys=[dimension_id],
-        lazy="select",
-        viewonly=True,
-    )
-    relationship: Mapped[Optional["AIRelationship"]] = relationship(
-        "AIRelationship",
-        primaryjoin="AIRelationshipScore.relationship_id == AIRelationship.id",
-        foreign_keys=[relationship_id],
         lazy="select",
         viewonly=True,
     )
@@ -78,8 +71,8 @@ class AIRelationshipScore(SnowflakeModel):
     # Indexes and constraints - Only essential indexes for MVP
     __table_args__ = (
         UniqueConstraint(
-            "character_id", "dimension_id", name="ai_relationship_scores_character_id_dimension_id_key"
+            "character_id", "dimension_id", name="ai_character_dimensions_character_id_dimension_id_key"
         ),
-        Index("idx_ai_relationship_scores_character_id", "character_id"),
-        Index("idx_ai_relationship_scores_dimension_id", "dimension_id"),
+        Index("idx_ai_character_dimensions_character_id", "character_id"),
+        Index("idx_ai_character_dimensions_dimension_id", "dimension_id"),
     )

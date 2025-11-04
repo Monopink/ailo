@@ -48,7 +48,7 @@ class LLMEndpointNotFoundError(LLMServiceError):
         details: Optional[Dict[str, Any]] = None,
     ):
         if not message:
-            message = f"LLM Endpoint不存在或无权限访问: {endpoint}"
+            message = f"LLM endpoint not found or not accessible: {endpoint}"
 
         error_details = details or {}
         error_details["endpoint"] = endpoint
@@ -70,7 +70,7 @@ class LLMAuthenticationError(LLMServiceError):
     def __init__(
         self,
         provider: Optional[str] = None,
-        message: str = "LLM API Key无效或已过期",
+        message: str = "LLM API key is invalid or expired",
         details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
@@ -155,14 +155,17 @@ class LLMConfigurationError(ConfigurationError):
 
     def __init__(
         self,
-        config_key: Optional[str] = None,
+        config_name: Optional[str] = None,
         message: str = "LLM配置错误",
         details: Optional[Dict[str, Any]] = None,
     ):
+        error_details = details or {}
+        if config_name:
+            error_details["config_name"] = config_name
+        # Do not pass config_key to base class to avoid old naming
         super().__init__(
             message=message,
-            config_key=config_key,
-            details=details,
+            details=error_details,
         )
         self.error_code = "LLM_CONFIGURATION_ERROR"
 
@@ -172,12 +175,12 @@ class LLMNoConfigError(LLMConfigurationError):
 
     def __init__(
         self,
-        config_key: Optional[str] = None,
+        config_name: Optional[str] = None,
         message: str = "没有可用的LLM配置",
         details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
-            config_key=config_key,
+            config_name=config_name,
             message=message,
             details=details,
         )
@@ -209,18 +212,18 @@ class ConfigNotVerifiedError(LLMConfigurationError):
 
     def __init__(
         self,
-        config_key: str,
+        config_name: str,
         message: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
         if not message:
             message = (
-                f"配置 '{config_key}' 未经过测试验证。"
+                f"配置 '{config_name}' 未经过测试验证。"
                 f"请先在配置测试页面进行测试，系统会自动检测JSON Schema支持情况。"
             )
 
         super().__init__(
-            config_key=config_key,
+            config_name=config_name,
             message=message,
             details=details,
         )
@@ -232,19 +235,19 @@ class JSONSchemaNotSupportedError(LLMConfigurationError):
 
     def __init__(
         self,
-        config_key: str,
+        config_name: str,
         message: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
         if not message:
             message = (
-                f"配置 '{config_key}' 不支持JSON Schema，无法用于AI Character功能。"
+                f"配置 '{config_name}' 不支持JSON Schema，无法用于AI Character功能。"
                 f"此配置只能用于查看测试响应。"
                 f"建议使用其他支持JSON Schema的配置。"
             )
 
         super().__init__(
-            config_key=config_key,
+            config_name=config_name,
             message=message,
             details=details,
         )
@@ -256,20 +259,20 @@ class LLMResponseFormatError(LLMServiceError):
 
     def __init__(
         self,
-        config_key: str,
+        config_name: str,
         provider: Optional[str] = None,
         message: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
     ):
         if not message:
             message = (
-                f"配置 '{config_key}' 返回了非JSON格式的响应。"
+                f"配置 '{config_name}' 返回了非JSON格式的响应。"
                 f"配置状态已自动更新为'disabled'。"
                 f"请检查endpoint是否发生变化，或使用其他配置。"
             )
 
         error_details = details or {}
-        error_details["config_key"] = config_key
+        error_details["config_name"] = config_name
 
         super().__init__(
             message=message,

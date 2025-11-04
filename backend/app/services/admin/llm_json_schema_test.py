@@ -30,6 +30,7 @@ async def test_json_schema_compatibility(
         Dictionary with test results and updated mode
     """
     from utils.logging import get_logger
+
     logger = get_logger(__name__)
 
     # Load configuration
@@ -48,24 +49,14 @@ async def test_json_schema_compatibility(
     # Define fixed test schema
     test_schema = {
         "type": "object",
-        "properties": {
-            "test_field": {
-                "type": "string",
-                "description": "A test field"
-            }
-        },
+        "properties": {"test_field": {"type": "string", "description": "A test field"}},
         "required": ["test_field"],
-        "additionalProperties": False
+        "additionalProperties": False,
     }
 
     # Test message
     test_message = "Please respond with a JSON object containing a test_field with value 'success'"
-    test_messages = [
-        {
-            "role": "user",
-            "content": test_message
-        }
-    ]
+    test_messages = [{"role": "user", "content": test_message}]
 
     start_time = time.time()
     llm_result = None
@@ -80,7 +71,7 @@ async def test_json_schema_compatibility(
             temperature=0.7,
             max_tokens=100,
             enable_thinking=False,
-            config_key=config.config_key,
+            name=config.name,
         )
 
         # Calculate response time
@@ -102,7 +93,7 @@ async def test_json_schema_compatibility(
             # Create test log record
             test_log = LLMTestLog(
                 config_id=config.id,
-                config_key=config.config_key,
+                config_name=config.name,
                 provider_name=provider.name,
                 model_name=llm_result.get("model") or config.model_name,
                 test_message=test_message,
@@ -143,7 +134,7 @@ async def test_json_schema_compatibility(
             # Create test log record for failure
             test_log = LLMTestLog(
                 config_id=config.id,
-                config_key=config.config_key,
+                config_name=config.name,
                 provider_name=provider.name,
                 model_name=llm_result.get("model") or config.model_name,
                 test_message=test_message,
@@ -181,7 +172,9 @@ async def test_json_schema_compatibility(
 
         # Check if it's a known JSON Schema incompatibility error
         error_str = str(e).lower()
-        if "json" in error_str and ("schema" in error_str or "format" in error_str or "structured" in error_str):
+        if "json" in error_str and (
+            "schema" in error_str or "format" in error_str or "structured" in error_str
+        ):
             # Likely JSON Schema not supported - update to disabled
             old_mode = config.json_schema_mode
             config.json_schema_mode = "disabled"
@@ -189,7 +182,7 @@ async def test_json_schema_compatibility(
             # Create test log record for incompatibility
             test_log = LLMTestLog(
                 config_id=config.id,
-                config_key=config.config_key,
+                config_name=config.name,
                 provider_name=provider.name,
                 model_name=config.model_name,
                 test_message=test_message,
@@ -197,7 +190,11 @@ async def test_json_schema_compatibility(
                 override_max_tokens=100,
                 enable_thinking=0,
                 enable_json_schema=1,
-                request={"error": "Exception before request", "messages": test_messages, "json_schema": test_schema},
+                request={
+                    "error": "Exception before request",
+                    "messages": test_messages,
+                    "json_schema": test_schema,
+                },
                 response=None,
                 status=2,  # failed
                 error_message=str(e),
@@ -224,7 +221,7 @@ async def test_json_schema_compatibility(
             # Create test log record for error
             test_log = LLMTestLog(
                 config_id=config.id,
-                config_key=config.config_key,
+                config_name=config.name,
                 provider_name=provider.name,
                 model_name=config.model_name,
                 test_message=test_message,
@@ -232,7 +229,11 @@ async def test_json_schema_compatibility(
                 override_max_tokens=100,
                 enable_thinking=0,
                 enable_json_schema=1,
-                request={"error": "Exception before request", "messages": test_messages, "json_schema": test_schema},
+                request={
+                    "error": "Exception before request",
+                    "messages": test_messages,
+                    "json_schema": test_schema,
+                },
                 response=None,
                 status=2,  # failed
                 error_message=str(e),

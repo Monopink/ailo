@@ -93,7 +93,7 @@ async def execute_llm_config_test(
         logger.info(
             "llm_config_test_started",
             config_id=config_id,
-            config_key=config.config_key,
+            config_name=config.name,
             provider=provider.name,
         )
 
@@ -108,7 +108,7 @@ async def execute_llm_config_test(
             temperature=override_temperature,
             max_tokens=override_max_tokens,
             enable_thinking=enable_thinking,
-            config_key=config.config_key,
+            name=config.name,
         )
 
         # Step 4: Calculate response time
@@ -136,7 +136,7 @@ async def execute_llm_config_test(
         log_data = {
             "id": generate_snowflake_id(),
             "config_id": config_id,
-            "config_key": config.config_key,
+            "config_name": config.name,
             "provider_name": provider.name,
             "model_name": llm_result.get("model") or config.model_name or provider.default_model,
             "test_message": test_message,

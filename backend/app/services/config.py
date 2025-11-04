@@ -66,6 +66,14 @@ class ConfigService:
         }
         return config
 
+    async def get_int(self, db: AsyncSession, key: str, default: int = 0) -> int:
+        """Get configuration as integer with safe coercion."""
+        try:
+            value = await self.get_config(db, key, default)
+            return int(value)
+        except (TypeError, ValueError):
+            return int(default)
+
     def clear_cache(self, key: Optional[str] = None) -> None:
         """
         Clear configuration cache.

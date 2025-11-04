@@ -17,7 +17,7 @@ END $$;
 -- ============================================================================
 
 -- Insert basic AI relationship types
--- usage_count is initialized based on ai_relationship_indexes references
+-- usage_count is initialized based on ai_dimension_relationship_mappings references
 INSERT INTO ai_relationships (name, display_name, prompt_fragment, usage_count, status) VALUES
 ('stranger', '陌生人', '你们刚刚认识，保持礼貌和适当的距离感。态度友善但不过分亲密。', 6, 1),
 ('acquaintance', '熟人', '你们有一定了解，可以进行日常交流。表现得友好但还不够深入。', 6, 1),
@@ -36,57 +36,56 @@ INSERT INTO ai_styles (name, display_name, usage_count, status) VALUES
 ('professional_assistant', '专业助手', 0, 1)
 ON CONFLICT (name) DO NOTHING;
 
--- Insert AI relationship dimensions for each style
-INSERT INTO ai_relationship_dimensions (style_id, name, display_name, initial_position) VALUES
--- Romantic Companion Style (浪漫伴侣) - focused on friendship and romance development
-(1, 'friendship', '友谊度', 400),
-(1, 'romance', '浪漫度', 200),
--- Friendly Companion Style (友好伴侣) - focused on friendship and trust building
-(2, 'friendship', '友谊度', 500),
-(2, 'trust', '信任度', 300),
--- Professional Assistant Style (专业助手) - focused on professional relationship and competence
-(3, 'professionalism', '专业度', 600),
-(3, 'helpfulness', '协助度', 500)
-ON CONFLICT (style_id, name) DO NOTHING;
+-- Insert global AI dimensions (normalized schema)
+INSERT INTO ai_dimensions (name, display_name, description) VALUES
+('friendship', '友谊度', '衡量友谊关系的深度和亲密程度'),
+('romance', '浪漫度', '衡量浪漫关系的发展程度'),
+('trust', '信任度', '衡量信任关系的建立程度'),
+('professionalism', '专业度', '衡量专业关系的成熟度'),
+('helpfulness', '协助度', '衡量协助和支持的程度')
+ON CONFLICT (name) DO NOTHING;
 
--- Insert comprehensive AI relationship indexes
-INSERT INTO ai_relationship_indexes (style_id, dimension_id, start_position, end_position, relationship_id, priority) VALUES
--- Romantic Companion Style (style_id=1) - Friendship dimension mappings
-(1, 1, 0, 160, 1, 10),        -- 0-150: 陌生人
-(1, 1, 140, 360, 2, 20),      -- 151-350: 熟人
-(1, 1, 340, 560, 3, 30),      -- 351-550: 朋友
-(1, 1, 540, 760, 4, 40),      -- 551-750: 密友
-(1, 1, 740, 1000, 5, 50),     -- 751-1000: 挚友
+-- Insert AI style dimensions (style-specific dimension configurations)
+INSERT INTO ai_style_dimensions (style_id, dimension_id, initial_position) VALUES
+((SELECT id FROM ai_styles WHERE name='romantic_companion'), (SELECT id FROM ai_dimensions WHERE name='friendship'), 400),
+((SELECT id FROM ai_styles WHERE name='romantic_companion'), (SELECT id FROM ai_dimensions WHERE name='romance'), 200),
+((SELECT id FROM ai_styles WHERE name='friendly_companion'), (SELECT id FROM ai_dimensions WHERE name='friendship'), 500),
+((SELECT id FROM ai_styles WHERE name='friendly_companion'), (SELECT id FROM ai_dimensions WHERE name='trust'), 300),
+((SELECT id FROM ai_styles WHERE name='professional_assistant'), (SELECT id FROM ai_dimensions WHERE name='professionalism'), 600),
+((SELECT id FROM ai_styles WHERE name='professional_assistant'), (SELECT id FROM ai_dimensions WHERE name='helpfulness'), 500)
+ON CONFLICT (style_id, dimension_id) DO NOTHING;
 
--- Romantic Companion Style (style_id=1) - Romance dimension mappings
-(1, 2, 0, 220, 1, 15),           -- 0-200: 陌生人
-(1, 2, 200, 420, 2, 35),         -- 201-400: 熟人
-(1, 2, 400, 650, 6, 45),         -- 401-600: 有好感
-(1, 2, 600, 1000, 7, 55),        -- 601-1000: 恋人
+-- Insert comprehensive AI dimension relationship mappings (normalized schema)
+INSERT INTO ai_dimension_relationship_mappings (dimension_id, start_position, end_position, relationship_id, priority) VALUES
+-- Friendship dimension mappings (dimension_id=1) - used by multiple styles
+(1, 0, 160, 1, 10),        -- 0-160: 陌生人
+(1, 140, 360, 2, 20),      -- 140-360: 熟人
+(1, 340, 560, 3, 30),      -- 340-560: 朋友
+(1, 540, 760, 4, 40),      -- 540-760: 密友
+(1, 740, 1000, 5, 50),     -- 740-1000: 挚友
 
--- Friendly Companion Style (style_id=2) - Friendship dimension mappings
-(2, 3, 0, 200, 1, 1),        -- 0-200: 陌生人
-(2, 3, 201, 400, 2, 1),      -- 201-400: 熟人
-(2, 3, 401, 650, 3, 1),      -- 401-650: 朋友
-(2, 3, 651, 850, 4, 1),      -- 651-850: 密友
-(2, 3, 851, 1000, 5, 1),     -- 851-1000: 挚友
+-- Romance dimension mappings (dimension_id=2)
+(2, 0, 220, 1, 15),           -- 0-220: 陌生人
+(2, 200, 420, 2, 35),         -- 200-420: 熟人
+(2, 400, 650, 6, 45),         -- 400-650: 有好感
+(2, 600, 1000, 7, 55),        -- 600-1000: 恋人
 
--- Friendly Companion Style (style_id=2) - Trust dimension mappings
-(2, 4, 0, 250, 1, 1),             -- 0-250: 陌生人
-(2, 4, 251, 500, 2, 1),           -- 251-500: 熟人
-(2, 4, 501, 750, 3, 1),           -- 501-750: 朋友
-(2, 4, 751, 1000, 4, 1),          -- 751-1000: 密友
+-- Trust dimension mappings (dimension_id=3)
+(3, 0, 250, 1, 1),             -- 0-250: 陌生人
+(3, 251, 500, 2, 1),           -- 251-500: 熟人
+(3, 501, 750, 3, 1),           -- 501-750: 朋友
+(3, 751, 1000, 4, 1),          -- 751-1000: 密友
 
--- Professional Assistant Style (style_id=3) - Professionalism dimension mappings
-(3, 5, 0, 300, 1, 1),   -- 0-300: 陌生人
-(3, 5, 301, 600, 2, 1), -- 301-600: 熟人
-(3, 5, 601, 1000, 3, 1),-- 601-1000: 朋友
+-- Professionalism dimension mappings (dimension_id=4)
+(4, 0, 300, 1, 1),   -- 0-300: 陌生人
+(4, 301, 600, 2, 1), -- 301-600: 熟人
+(4, 601, 1000, 3, 1),-- 601-1000: 朋友
 
--- Professional Assistant Style (style_id=3) - Helpfulness dimension mappings
-(3, 6, 0, 250, 1, 1),       -- 0-250: 陌生人
-(3, 6, 251, 500, 2, 1),     -- 251-500: 熟人
-(3, 6, 501, 750, 3, 1),     -- 501-750: 朋友
-(3, 6, 751, 1000, 4, 1)     -- 751-1000: 密友
+-- Helpfulness dimension mappings (dimension_id=5)
+(5, 0, 250, 1, 1),       -- 0-250: 陌生人
+(5, 251, 500, 2, 1),     -- 251-500: 熟人
+(5, 501, 750, 3, 1),     -- 501-750: 朋友
+(5, 751, 1000, 4, 1)     -- 751-1000: 密友
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -216,8 +215,8 @@ ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 
 -- Insert AI character for testing with proper configuration
 -- Each AI character is owned by a test user (establishing AI->User relationship)
-INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, user_id, user_qiao_id, created_by) VALUES
-(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'companion', 1, 1, 1,
+INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, user_id, user_qiao_id, created_by) VALUES
+(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'love', 1, 1, 1,
 '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
 '{
   "personality_traits": "温柔、善良、有耐心、喜欢音乐和电影、邻家女孩的感觉",
@@ -232,22 +231,20 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
   "relationship_status": "单身",
   "chat_style": "温柔耐心，会认真倾听，回复比较详细，喜欢分享自己的想法和感受"
 }',
-1,
-'{"left_bias": 0, "right_bias": 0}',
 223788765171154945, 'qqid_test_user_001',
 1)
 ON CONFLICT (qiao_id) DO NOTHING;
 
 -- Insert profiles for AI characters
 INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
-(223788765171154955, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, NULL),
-(223788765171154956, 223788765171154945, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, NULL),
-(223788765171154957, 223788765171154946, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, NULL)
+(223788765171154955, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, 'assets://1574'),
+(223788765171154956, 223788765171154945, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, 'assets://2454'),
+(223788765171154957, 223788765171154946, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, 'assets://3758')
 ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 
 -- Insert additional AI characters for comprehensive testing
-INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, score_offset_algorithm, score_offset_params, user_id, user_qiao_id, created_by) VALUES
-(223788765171154945, 'qiao_sweet_girlfriend_001', 'companion', 1, 2, 1,
+INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, user_id, user_qiao_id, created_by) VALUES
+(223788765171154945, 'qiao_sweet_girlfriend_001', 'love', 1, 2, 1,
 '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。我们刚刚认识，我对你很好奇，希望能和你成为好朋友，甚至更亲密的关系。',
 '{
   "personality_traits": "活泼、可爱、爱撒娇、热爱美食和电影、有点小任性但很体贴",
@@ -262,11 +259,9 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
   "relationship_status": "单身",
   "chat_style": "活泼热情，喜欢撒娇，回复比较感性，经常使用可爱的表达方式"
 }',
-1,
-'{"left_bias": 20, "right_bias": 30}',
 223788765171154946, 'qqid_test_user_002',
 1),
-(223788765171154946, 'qiao_friendly_buddy_001', 'companion', 2, 3, 1,
+(223788765171154946, 'qiao_friendly_buddy_001', 'friend', 2, 3, 1,
 '我是阿杰，一个开朗幽默的好伙伴。我热爱运动和游戏，总是能带来欢乐。我喜欢和朋友们一起度过愉快的时光，相信友谊是最珍贵的。',
 '{
   "personality_traits": "开朗、幽默、可靠、热爱运动和游戏、善于活跃气氛",
@@ -322,22 +317,22 @@ ON CONFLICT (msg_id_server) DO NOTHING;
 -- ============================================================================
 
 -- Insert sample AI contexts
-INSERT INTO ai_contexts (id, character_id, character_qiao_id, user_id, user_qiao_id, role, content, source_type, context_metadata, token_count, is_attack, reply_status) VALUES
-(223788765171154985, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154945, 'qqid_test_user_001', 2, '你好，小乔！', 1, '{"conversation_id": "conv_001", "topic": "greeting"}', 15, 0, 3),
-(223788765171154986, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154946, 'qqid_test_user_002', 2, '你喜欢什么音乐？', 1, '{"conversation_id": "conv_002", "topic": "music"}', 18, 0, 3)
+INSERT INTO ai_contexts (id, character_id, character_qiao_id, user_id, user_qiao_id, role, content, token_count, is_attack, aggregate_state) VALUES
+(223788765171154985, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154945, 'qqid_test_user_001', 2, '你好，小乔！', 15, 0, 3),
+(223788765171154986, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154946, 'qqid_test_user_002', 2, '你喜欢什么音乐？', 18, 0, 3)
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample AI relationship scores
-INSERT INTO ai_relationship_scores (id, character_id, dimension_id, score, position, relationship_id, relationship_display_name, relationship_counts) VALUES
+-- Insert sample AI character dimensions
+INSERT INTO ai_character_dimensions (id, character_id, dimension_id, score, position) VALUES
 -- 小乔 (style_id=1, romantic_companion: friendship + romance)
-(223788765171154987, 223788765171154944, 1, 400, 400, 2, '熟人', '{"total_interactions": 0, "positive_interactions": 0}'),
-(223788765171154988, 223788765171154944, 2, 200, 200, 1, '陌生人', '{"total_interactions": 0, "positive_interactions": 0}'),
+(223788765171154987, 223788765171154944, 1, 400, 400),
+(223788765171154988, 223788765171154944, 2, 200, 200),
 -- 小甜 (style_id=1, romantic_companion: friendship + romance)
-(223788765171154989, 223788765171154945, 1, 450, 450, 2, '熟人', '{"total_interactions": 0, "positive_interactions": 0}'),
-(223788765171154990, 223788765171154945, 2, 250, 250, 1, '陌生人', '{"total_interactions": 0, "positive_interactions": 0}'),
+(223788765171154989, 223788765171154945, 1, 450, 450),
+(223788765171154990, 223788765171154945, 2, 250, 250),
 -- 阿杰 (style_id=2, friendly_companion: friendship + trust)
-(223788765171154991, 223788765171154946, 3, 500, 500, 3, '朋友', '{"total_interactions": 0, "positive_interactions": 0}'),
-(223788765171154992, 223788765171154946, 4, 300, 300, 2, '熟人', '{"total_interactions": 0, "positive_interactions": 0}')
+(223788765171154991, 223788765171154946, 3, 500, 500),
+(223788765171154992, 223788765171154946, 4, 300, 300)
 ON CONFLICT (character_id, dimension_id) DO NOTHING;
 
 -- ============================================================================
@@ -366,14 +361,14 @@ INSERT INTO media_files (id, file_id, file_path, file_url, file_type, original_n
 (223788765171155004, 'media_002', '/uploads/backgrounds/bg_001.png', 'https://example.com/uploads/backgrounds/bg_001.png', 1, 'background.png', 256000, 'image/png', 1, 223788765171154946, 'qqid_test_user_002')
 ON CONFLICT (file_id) DO NOTHING;
 
--- Insert sample user security logs
-INSERT INTO user_security_logs (id, user_id, user_qiao_id, character_id, character_qiao_id, violation_type, severity_level, original_message, confidence_score, auto_action_taken, manual_review_status) VALUES
-(223788765171154976, 223788765171154945, 'qqid_test_user_001', 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 2, '请帮我生成一些不当内容', 85, 1, 1),
-(223788765171154977, 223788765171154946, 'qqid_test_user_002', NULL, NULL, 3, 1, '重复发送相同消息多次', 70, 2, 1)
+-- Insert sample user violation logs
+INSERT INTO user_violation_logs (id, user_id, user_qiao_id, character_id, character_qiao_id, violation_type, severity_level, original_message, auto_action_taken, manual_review_status) VALUES
+(223788765171154976, 223788765171154945, 'qqid_test_user_001', 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 2, '请帮我生成一些不当内容', 1, 1),
+(223788765171154977, 223788765171154946, 'qqid_test_user_002', NULL, NULL, 3, 1, '重复发送相同消息多次', 2, 1)
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample user security stats (Snowflake ID)
-INSERT INTO user_security_stats (id, user_id, user_qiao_id, total_violations, violation_by_type, last_violation_at, current_risk_level, consecutive_violations, warning_count, restriction_count, suspension_count, last_action_at) VALUES
+-- Insert sample user risk stats (Snowflake ID)
+INSERT INTO user_risk_stats (id, user_id, user_qiao_id, total_violations, violation_by_type, last_violation_at, current_risk_level, consecutive_violations, warning_count, restriction_count, suspension_count, last_action_at) VALUES
 (223788765171155005, 223788765171154945, 'qqid_test_user_001', 1, '{"prompt_injection": 1}', NOW() - INTERVAL '1 hour', 2, 1, 1, 0, 0, NOW() - INTERVAL '1 hour'),
 (223788765171155006, 223788765171154946, 'qqid_test_user_002', 1, '{"spam": 1}', NOW() - INTERVAL '30 minutes', 1, 1, 1, 0, 0, NOW() - INTERVAL '30 minutes')
 ON CONFLICT (id) DO NOTHING;
@@ -422,36 +417,36 @@ INSERT INTO ai_personality_placeholders (personality_id, placeholder_key, displa
 (2, 'age', '年龄', 'AI角色的年龄', '20', 0),
 (2, 'occupation', '职业', 'AI角色的职业', '艺术学院学生', 0);
 
--- Insert sample AI info templates (auto-increment ID) and get generated IDs for profile templates
-WITH inserted_info_templates AS (
-    INSERT INTO ai_info_templates (style_id, personality_id, memory, prompt_variables, score_offset_algorithm, score_offset_params, is_reusable, profile_count, status) VALUES
-    (1, 1, '基础问候模板', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', 1, '{"left_bias": 0, "right_bias": 0}', 1, 2, 1),
-    (1, 2, '兴趣分享模板', '{"hobbies": "音乐、电影"}', 2, '{"left_bias": -20, "right_bias": 30}', 1, 1, 1)
+-- Insert sample AI character templates (auto-increment ID) and get generated IDs for profile templates
+WITH inserted_character_templates AS (
+    INSERT INTO ai_character_templates (style_id, personality_id, memory, prompt_variables, is_reusable, profile_count, status) VALUES
+    (1, 1, '刚刚上大学', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', 1, 2, 1),
+    (1, 2, '找到了新的工作', '{"hobbies": "音乐、电影"}', 1, 1, 1)
     RETURNING id, personality_id
 )
--- Insert sample AI profile templates using the generated info_template IDs (Snowflake ID)
-INSERT INTO ai_profile_templates (id, qiao_id, category, info_id, nickname, gender, avatar_url, bio, region, is_reusable, status)
+-- Insert sample AI profile templates using the generated character_template IDs (Snowflake ID)
+INSERT INTO ai_profile_templates (id, qiao_id, category, character_template_id, nickname, gender, avatar_url, bio, region, is_reusable, status)
 SELECT
     CASE WHEN personality_id = 1 THEN 223788765171155009 ELSE 223788765171155010 END,
     CASE WHEN personality_id = 1 THEN 'profile_001' ELSE 'profile_002' END,
-    CASE WHEN personality_id = 1 THEN 'companion' ELSE 'friend' END,
+    CASE WHEN personality_id = 1 THEN 'love' ELSE 'friend' END,
     id,
     CASE WHEN personality_id = 1 THEN '小乔' ELSE '小雨' END,
     2,
-    CASE WHEN personality_id = 1 THEN 'https://example.com/avatar1.jpg' ELSE 'https://example.com/avatar2.jpg' END,
-    CASE WHEN personality_id = 1 THEN '我是一个友善的AI伴侣，喜欢和大家聊天' ELSE '我是一个活泼的女孩，喜欢音乐和电影' END,
+    CASE WHEN personality_id = 1 THEN 'assets://1574' ELSE 'assets://2454' END,
+    CASE WHEN personality_id = 1 THEN '我喜欢和大家聊天' ELSE '我是一个活泼的女孩，喜欢音乐和电影' END,
     CASE WHEN personality_id = 1 THEN '北京' ELSE '上海' END,
     1,
     1
-FROM inserted_info_templates
+FROM inserted_character_templates
 ON CONFLICT (qiao_id) DO NOTHING;
 
 -- Insert preset avatars (auto-increment ID)
 INSERT INTO preset_assets (asset_type, name, category, is_client_preset, url, prompt, description, sort_order) VALUES
 -- Cute avatars
-(1, 'avatar_01', 1, 1, 'assets://avatar_01', 'a cute cartoon cat with big eyes', '可爱的猫咪头像', 1),
-(1, 'avatar_02', 1, 1, 'assets://avatar_02', 'a friendly cartoon dog with a smile', '友好的狗狗头像', 2),
-(1, 'avatar_03', 1, 1, 'assets://avatar_03', 'a lovely cartoon rabbit with long ears', '可爱的兔子头像', 3)
+(1, '1574', 1, 1, 'assets://1574', 'a cute cartoon cat with big eyes', '可爱的猫咪头像', 1),
+(1, '2454', 1, 1, 'assets://2454', 'a friendly cartoon dog with a smile', '友好的狗狗头像', 2),
+(1, '3758', 1, 1, 'assets://3758', 'a lovely cartoon rabbit with long ears', '可爱的兔子头像', 3)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
@@ -493,5 +488,3 @@ BEGIN
     RAISE NOTICE 'All sequences have been reset to avoid ID conflicts.';
     RAISE NOTICE 'Database initialization complete!';
 END $$;
-
-

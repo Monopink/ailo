@@ -58,7 +58,7 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('message_buffer_no_typing_wait', '2000', '2000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
 
 -- AI context archive configurations
-('ai_context_archive_time_hours', '168', '168', 2, 'Archive AI contexts older than this many hours (7 days)', 'ai_context', NULL),
+('ai_context_archive_time', '604800', '604800', 2, 'Archive AI contexts older than this many seconds (7 days)', 'ai_context', NULL),
 ('ai_context_archive_max_count', '50', '50', 2, 'Archive AI contexts when count exceeds this limit', 'ai_context', NULL),
 ('ai_context_archive_min_count', '10', '10', 2, 'Minimum contexts to keep, do not archive if below this count', 'ai_context', NULL),
 ('ai_context_archive_threshold', '80', '80', 2, 'Trigger immediate archive when count exceeds this threshold', 'ai_context', NULL),
@@ -76,10 +76,10 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('admin_auth_whitelist', '127.0.0.1,::1', '127.0.0.1,::1', 1, 'Admin whitelist IPs (comma separated)', 'security', NULL),
 
 -- User authentication rate limit and security
-('user_auth_rate_limit_requests', '10', '10', 2, 'User auth requests per window', 'rate_limit', NULL),
-('user_auth_rate_limit_window', '3600', '3600', 2, 'User auth window (seconds)', 'rate_limit', NULL),
-('user_auth_max_failures', '5', '5', 2, 'Max user failures before lockout', 'security', NULL),
-('user_auth_lockout_duration', '900', '900', 2, 'User lockout duration (seconds)', 'security', NULL),
+('auth_rate_limit_requests', '10', '10', 2, 'User auth requests per window', 'rate_limit', NULL),
+('auth_rate_limit_window', '3600', '3600', 2, 'User auth window (seconds)', 'rate_limit', NULL),
+('auth_max_failures', '5', '5', 2, 'Max user failures before lockout', 'security', NULL),
+('auth_lockout_duration', '900', '900', 2, 'User lockout duration (seconds)', 'security', NULL),
 
 -- SMS rate limit configuration
 ('sms_rate_limit_requests', '1', '1', 2, 'SMS requests per window', 'rate_limit', NULL),
@@ -92,17 +92,18 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('sms_code_length', '6', '6', 2, 'SMS code length', 'sms', NULL),
 
 -- Admin CAPTCHA configuration
-('admin_captcha_provider', 'turnstile', 'turnstile', 1, 'Admin captcha provider', 'captcha', '["none","turnstile"]'::jsonb),
+('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'captcha', '["none","turnstile","aliyun"]'::jsonb),
 ('admin_captcha_threshold', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'captcha', NULL),
 ('admin_captcha_mode', 'strict', 'strict', 5, 'Admin CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'captcha', '["strict", "fallback"]'::jsonb),
-('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '', 1, 'Admin Turnstile site key', 'captcha', NULL),
-('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '', 1, 'Admin Turnstile secret key', 'captcha', NULL),
+('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '1x00000000000000000000AA', 1, 'Admin Turnstile site key', 'captcha', NULL),
+('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '1x0000000000000000000000000000000AA', 1, 'Admin Turnstile secret key', 'captcha', NULL),
 
 -- User CAPTCHA configuration
-('user_captcha_provider', 'turnstile', 'turnstile', 1, 'User captcha provider', 'captcha', '["none","turnstile"]'::jsonb),
-('user_captcha_threshold', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
-('user_turnstile_site_key', '', '', 1, 'User Turnstile site key', 'captcha', NULL),
-('user_turnstile_secret_key', '', '', 1, 'User Turnstile secret key', 'captcha', NULL),
+('wxminipg_captcha_provider', 'aliyun', 'none', 5, 'User captcha provider', 'captcha', '["none","turnstile","aliyun"]'::jsonb),
+('captcha_threshold', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
+('turnstile_site_key', '', '1x00000000000000000000AA', 1, 'User Turnstile site key', 'captcha', NULL),
+('turnstile_secret_key', '', '1x0000000000000000000000000000000AA', 1, 'User Turnstile secret key', 'captcha', NULL),
+('wxminipg_aliyun_captcha_scene_id', '', '', 1, 'Aliyun Captcha SceneId for user verification', 'captcha', NULL),
 
 -- Message rate limit configuration (dual constraints)
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
@@ -141,10 +142,10 @@ ON CONFLICT (display_name) DO UPDATE SET
     updated_at = NOW();
 
 -- Insert basic LLM configs
-INSERT INTO llm_configs (provider_id, config_key, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
+INSERT INTO llm_configs (provider_id, name, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
 (1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
 (2, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'strict', 1, 999)
-ON CONFLICT (config_key) DO NOTHING;
+ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
 -- Data Loading Complete
@@ -156,4 +157,3 @@ BEGIN
     RAISE NOTICE 'Required system data loaded successfully!';
     RAISE NOTICE 'Admin users, system configs, and LLM configurations have been initialized.';
 END $$;
-

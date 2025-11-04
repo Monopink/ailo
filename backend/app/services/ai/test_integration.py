@@ -21,7 +21,7 @@ async def test_ai_conversation_flow(
     db: AsyncSession,
     character_qiao_id: str,
     user_qiao_id: str,
-    test_message: str = "Hello, how are you today?"
+    test_message: str = "Hello, how are you today?",
 ) -> Dict[str, Any]:
     """
     Test the complete AI conversation flow.
@@ -58,7 +58,7 @@ async def test_ai_conversation_flow(
                 "user_qiao_id": user_qiao_id,
                 "test_message": test_message,
                 "test_type": "full_conversation_flow",
-            }
+            },
         }
 
         logger.info(
@@ -85,14 +85,12 @@ async def test_ai_conversation_flow(
                 "user_qiao_id": user_qiao_id,
                 "test_message": test_message,
                 "test_type": "full_conversation_flow",
-            }
+            },
         }
 
 
 async def test_score_calculation(
-    db: AsyncSession,
-    character_qiao_id: str,
-    test_scores: Dict[str, int] = None
+    db: AsyncSession, character_qiao_id: str, test_scores: Dict[str, int] = None
 ) -> Dict[str, Any]:
     """
     Test the score calculation and update system.
@@ -128,7 +126,7 @@ async def test_score_calculation(
                 "test_metadata": {
                     "character_qiao_id": character_qiao_id,
                     "test_type": "score_calculation",
-                }
+                },
             }
 
         # Test score calculation
@@ -150,7 +148,7 @@ async def test_score_calculation(
                 "character_qiao_id": character_qiao_id,
                 "character_id": character_id,
                 "test_type": "score_calculation",
-            }
+            },
         }
 
         logger.info(
@@ -174,14 +172,12 @@ async def test_score_calculation(
             "test_metadata": {
                 "character_qiao_id": character_qiao_id,
                 "test_type": "score_calculation",
-            }
+            },
         }
 
 
 async def test_prompt_building(
-    db: AsyncSession,
-    character_qiao_id: str,
-    user_qiao_id: str
+    db: AsyncSession, character_qiao_id: str, user_qiao_id: str
 ) -> Dict[str, Any]:
     """
     Test the prompt building system.
@@ -211,7 +207,7 @@ async def test_prompt_building(
                     "character_qiao_id": character_qiao_id,
                     "user_qiao_id": user_qiao_id,
                     "test_type": "prompt_building",
-                }
+                },
             }
 
         # Test system prompt building
@@ -230,7 +226,7 @@ async def test_prompt_building(
                 "character_qiao_id": character_qiao_id,
                 "user_qiao_id": user_qiao_id,
                 "test_type": "prompt_building",
-            }
+            },
         }
 
         logger.info(
@@ -257,15 +253,11 @@ async def test_prompt_building(
                 "character_qiao_id": character_qiao_id,
                 "user_qiao_id": user_qiao_id,
                 "test_type": "prompt_building",
-            }
+            },
         }
 
 
-async def run_all_tests(
-    db: AsyncSession,
-    character_qiao_id: str,
-    user_qiao_id: str
-) -> Dict[str, Any]:
+async def run_all_tests(db: AsyncSession, character_qiao_id: str, user_qiao_id: str) -> Dict[str, Any]:
     """
     Run all AI integration tests.
 
@@ -299,7 +291,7 @@ async def run_all_tests(
             "total_tests": len(results),
             "passed_tests": sum(1 for result in results.values() if result.get("success", False)),
             "failed_tests": sum(1 for result in results.values() if not result.get("success", False)),
-        }
+        },
     }
 
     logger.info(

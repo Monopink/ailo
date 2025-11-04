@@ -11,6 +11,8 @@ class VerifySendCodeRequest(BaseModel):
 
     verify_type: Literal["phone", "email"] = Field(..., description="Verification type: phone or email")
     target: str | None = Field(None, description="Target phone/email, defaults to current user's")
+    # For phone verification flows, CAPTCHA is required on each send
+    captcha_token: str | None = Field(None, description="CAPTCHA verification token (Turnstile)")
 
 
 class VerifySendCodeResponse(BaseModel):
@@ -31,4 +33,3 @@ class OperationTokenResponse(BaseModel):
 
     operation_token: str = Field(..., description="Operation token for sensitive operations")
     expires_in: int = Field(..., description="Token expiration time in seconds")
-

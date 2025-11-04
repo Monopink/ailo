@@ -6,11 +6,11 @@ This module contains SQLAlchemy models for user accounts, tokens, and login reco
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, Integer, String, Text, Index, text
+from sqlalchemy import BigInteger, Integer, String, Text, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, INET, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
-from enums import UserType
+from enums import UserType, AuthType
 from models.base import SnowflakeQiaoModel, SnowflakeModel, StatusMixin, Base, SnowflakeIDMixin
 
 
@@ -39,12 +39,24 @@ class User(SnowflakeQiaoModel, StatusMixin):
         String(255), nullable=True, comment="Password hash"
     )
 
-    wechat_openid: Mapped[Optional[str]] = mapped_column(
-        String(64), nullable=True, unique=True, comment="WeChat OpenID"
+    is_verified: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Real-name verification status: 1=verified, 0=unverified",
     )
 
-    apple_id: Mapped[Optional[str]] = mapped_column(
-        String(128), nullable=True, unique=True, comment="Apple ID"
+    verified_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Verification approval time"
+    )
+
+    verify_source: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, comment="Verification source (e.g., public_security, alipay, wechat, tencentcloud)"
+    )
+
+    verification_info: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True, comment="Verification extra info (JSON)"
     )
 
     user_type: Mapped[int] = mapped_column(
@@ -60,7 +72,7 @@ class User(SnowflakeQiaoModel, StatusMixin):
     )
 
     # Indexes - Only essential indexes for MVP
-    # Note: phone, email, wechat_openid, apple_id already have unique indexes
+    # Note: phone, email already have unique indexes
     __table_args__ = tuple()
 
 
@@ -120,6 +132,47 @@ class UserToken(SnowflakeModel):
     # Indexes - Only essential indexes for MVP
     # Note: token already has unique index
     __table_args__ = (Index("idx_user_tokens_user_qiao_id", "user_qiao_id"),)
+
+
+class UserAuth(SnowflakeModel, StatusMixin):
+    """
+    Third-party identity binding model.
+
+    Stores stable mapping between internal users and external identity providers
+    (WeChat/Apple/QQ etc.). Does NOT store login sessions/tokens.
+    """
+
+    __tablename__ = "user_auths"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="User internal ID")
+
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="User external ID (redundant for query optimization)"
+    )
+
+    auth_type: Mapped[int] = mapped_column(Integer, nullable=False, comment="Auth provider type")
+
+    provider_uid: Mapped[str] = mapped_column(
+        String(128), nullable=False, comment="Provider user unique ID (openid/sub/open_id/user_id)"
+    )
+
+    unionid: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, comment="WeChat unionid (optional)"
+    )
+
+    app_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, comment="Provider app ID")
+
+    extra_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True, comment="Extra info")
+
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Unbind time"
+    )
+
+    # Indexes and constraints
+    __table_args__ = (
+        UniqueConstraint("auth_type", "provider_uid", name="uq_user_auths_type_provider"),
+        Index("idx_user_auths_user_qiao_id", "user_qiao_id"),
+    )
 
 
 class LoginRecord(Base, SnowflakeIDMixin):

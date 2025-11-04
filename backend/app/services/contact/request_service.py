@@ -5,7 +5,7 @@ This module provides business logic for contact request processing.
 """
 
 from typing import List, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
@@ -13,6 +13,7 @@ from fastapi import HTTPException, status
 from crud.contact import contact as contact_crud
 from crud.contact import contact_request as contact_request_crud
 from crud.user import user as user_crud
+from crud.ai import ai_profile_template as ai_profile_template_crud
 from crud.profile import profile as profile_crud
 from crud.system import system_configs
 from models.contact import Contact, ContactRequest
@@ -93,7 +94,7 @@ async def _create_contact_record(
         contact_type=contact_type,
         contact_qiao_id=contact_qiao_id,
         alias=alias,
-        avatar_alias_url=None,
+        custom_avatar_url=None,
         tags={"tags": tags} if tags else None,
         remark=None,
     )
@@ -143,6 +144,9 @@ async def _process_ai_contact_request(
     Raises:
         HTTPException: If AI validation fails or processing error occurs
     """
+    # Capture for logging across transaction boundaries
+    _req_id = contact_request.id
+    _to_qiao_id = contact_request.to_qiao_id
     try:
         # Call AI module to handle request
         decision = await handle_ai_contact_request(
@@ -153,34 +157,31 @@ async def _process_ai_contact_request(
             message=contact_request.message or "",
         )
 
-        # AI explicitly ignored (no response)
+        # AI explicitly ignored (no response). Silent handling: keep pending, do not error out
         if not decision.accepted:
-            contact_request.status = ContactRequestStatus.IGNORED
-            await db.commit()
-
             logger.info(
                 "ai_contact_request_ignored",
-                request_id=contact_request.id,
+                request_id=_req_id,
                 user_qiao_id=user_qiao_id,
-                to_qiao_id=contact_request.to_qiao_id,
+                to_qiao_id=_to_qiao_id,
                 reason=decision.reason,
             )
-
-            # User receives no notification (similar to no response)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="添加失败，请稍后再试",
-            )
+            return {"message": "请求已发送"}
 
         # AI accepted - create AI character and contact
         async with db.begin_nested():
             # Create AI character from template
             ai_character = await create_character_from_template(
-                db=db, template_qiao_id=contact_request.to_qiao_id, user_qiao_id=user_qiao_id
+                db=db,
+                template_qiao_id=contact_request.to_qiao_id,
+                user_qiao_id=user_qiao_id,
+                user_id=user_id,
             )
 
-            # Get conversation ID
-            conv_id = await _get_im_conv_id(db)
+            # Generate internal conversation ID
+            from utils.snowflake import generate_snowflake_id
+
+            conv_id = f"conv_{generate_snowflake_id()}"
 
             # Create contact record
             contact = await _create_contact_record(
@@ -199,17 +200,24 @@ async def _process_ai_contact_request(
             contact_request.status = ContactRequestStatus.ACCEPTED
             contact_request.to_id = ai_character.id
 
-            await db.commit()
+            # Capture values before commit to avoid attribute expiration reloads
+            _request_id = _req_id
+            _ai_qiao_id = ai_character.qiao_id
+            _contact_id = contact.id
 
-            logger.info(
-                "ai_contact_added",
-                request_id=contact_request.id,
-                user_qiao_id=user_qiao_id,
-                ai_qiao_id=ai_character.qiao_id,
-                contact_id=contact.id,
-            )
+        # Commit outer transaction once nested operations are done
+        await db.commit()
 
-            # Send CHAT_INFO message
+        logger.info(
+            "ai_contact_added",
+            request_id=_request_id,
+            user_qiao_id=user_qiao_id,
+            ai_qiao_id=_ai_qiao_id,
+            contact_id=_contact_id,
+        )
+
+        # Send CHAT_INFO message (best-effort; not in the same transaction)
+        try:
             content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
             await send_chat_info(
                 db=db,
@@ -217,44 +225,63 @@ async def _process_ai_contact_request(
                 conv_id=conv_id,
                 content=content,
             )
+        except Exception as e:
+            logger.error("send_chat_info_failed", request_id=_request_id, error=str(e))
+            # Non-critical
 
-            # Return success message
-            return {"message": "请求已发送"}
+        # Return success message
+        return {"message": "请求已发送"}
 
     except ValueError as e:
-        # AI validation failed - AI module already logged error
-        # Do not update contact_request status (let it expire naturally)
+        # Business validation failed (e.g., template unavailable, inactive, etc.)
+        # Mark as IGNORED - this is expected business logic, not a system error
         await db.rollback()
 
-        logger.error(
-            "ai_contact_request_validation_failed",
-            request_id=contact_request.id,
+        try:
+            contact_request.status = ContactRequestStatus.IGNORED
+            await db.commit()
+        except Exception as commit_error:
+            logger.error(
+                "failed_to_mark_ignored",
+                request_id=_req_id,
+                error=str(commit_error),
+            )
+
+        logger.info(
+            "ai_contact_request_ignored_validation_failed",
+            request_id=_req_id,
             user_qiao_id=user_qiao_id,
-            to_qiao_id=contact_request.to_qiao_id,
-            error=str(e),
+            to_qiao_id=_to_qiao_id,
+            reason=str(e),
         )
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="添加失败，请稍后再试",
-        )
+        return {"message": "请求已发送"}
 
     except Exception as e:
-        # Unexpected error
+        # Unexpected system error (database error, network error, code bug, etc.)
+        # Mark as FAILED - this needs investigation and monitoring
         await db.rollback()
 
+        try:
+            contact_request.status = ContactRequestStatus.FAILED
+            await db.commit()
+        except Exception as commit_error:
+            logger.error(
+                "failed_to_mark_failed",
+                request_id=_req_id,
+                error=str(commit_error),
+            )
+
         logger.error(
-            "ai_contact_request_processing_error",
-            request_id=contact_request.id,
+            "ai_contact_request_failed_system_error",
+            request_id=_req_id,
             user_qiao_id=user_qiao_id,
-            to_qiao_id=contact_request.to_qiao_id,
+            to_qiao_id=_to_qiao_id,
             error=str(e),
+            exc_info=True,
         )
 
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统错误，请稍后再试",
-        )
+        return {"message": "请求已发送"}
 
 
 async def _process_user_contact_request(
@@ -319,6 +346,291 @@ async def _process_user_contact_request(
     return {"message": "请求已发送"}
 
 
+async def _check_and_restore_contact(
+    db: AsyncSession,
+    user_qiao_id: str,
+    request: ContactRequestCreate,
+) -> Optional[dict]:
+    """
+    Check if contact already exists and restore if soft-deleted.
+
+    Returns:
+        Success message if contact exists/restored, None if should continue processing
+    """
+    existing = await contact_crud.get_user_contact_including_deleted(
+        db, user_qiao_id=user_qiao_id, contact_qiao_id=request.to_qiao_id
+    )
+
+    if not existing:
+        return None
+
+    if existing.is_deleted == 1:
+        # Restore deleted contact
+        tags_dict = {"tags": request.tags} if request.tags else None
+        restored_contact = await contact_crud.restore_contact(
+            db,
+            contact=existing,
+            alias=request.alias,
+            tags=tags_dict,
+        )
+        logger.info(
+            "contact_restored",
+            user_qiao_id=user_qiao_id,
+            contact_qiao_id=request.to_qiao_id,
+            contact_id=restored_contact.id,
+        )
+        return {"message": "请求已发送"}
+    else:
+        # Contact already exists and not deleted
+        logger.error(
+            "contact_already_exists",
+            user_qiao_id=user_qiao_id,
+            to_qiao_id=request.to_qiao_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="已添加该联系人",
+        )
+
+
+async def _check_ai_template_duplicate(
+    db: AsyncSession,
+    user_qiao_id: str,
+    request: ContactRequestCreate,
+) -> Optional[dict]:
+    """
+    Check if user already created AI from this template.
+
+    Returns:
+        Success message if duplicate found and handled, None if should continue
+    """
+    try:
+        result_ai = await db.execute(
+            select(AICharacter.qiao_id, AICharacter.request_params).where(
+                AICharacter.user_qiao_id == user_qiao_id
+            )
+        )
+        rows = result_ai.all()
+        created_from_map = {}
+        for qid, params in rows:
+            if params and isinstance(params, dict):
+                src = params.get("created_from_profile_qiao_id")
+                if src:
+                    created_from_map[src] = qid
+
+        if request.to_qiao_id in created_from_map:
+            # Check if contact exists via character qiao_id
+            existing_via_char = await contact_crud.get_user_contact_including_deleted(
+                db,
+                user_qiao_id=user_qiao_id,
+                contact_qiao_id=created_from_map[request.to_qiao_id],
+            )
+            if existing_via_char:
+                if existing_via_char.is_deleted == 1:
+                    # Restore
+                    restored_contact = await contact_crud.restore_contact(
+                        db,
+                        contact=existing_via_char,
+                        alias=request.alias,
+                        tags={"tags": request.tags} if request.tags else None,
+                    )
+                    logger.info(
+                        "contact_restored_via_template",
+                        user_qiao_id=user_qiao_id,
+                        template_qiao_id=request.to_qiao_id,
+                        contact_id=restored_contact.id,
+                    )
+                    return {"message": "请求已发送"}
+                else:
+                    logger.error(
+                        "contact_already_exists_via_template",
+                        user_qiao_id=user_qiao_id,
+                        template_qiao_id=request.to_qiao_id,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="已添加该联系人",
+                    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "template_dup_check_failed",
+            user_qiao_id=user_qiao_id,
+            to_qiao_id=request.to_qiao_id,
+            error=str(e),
+        )
+
+    return None
+
+
+async def _check_and_update_pending_request(
+    db: AsyncSession,
+    user_qiao_id: str,
+    request: ContactRequestCreate,
+) -> Optional[dict]:
+    """
+    Check if pending/processing request exists and update it (idempotency).
+
+    Returns:
+        Success message if pending request updated, None if should create new
+    """
+    existing_request = await contact_request_crud.get_pending_request(
+        db, from_qiao_id=user_qiao_id, to_qiao_id=request.to_qiao_id
+    )
+
+    if not existing_request:
+        return None
+
+    # Update existing pending/processing request
+    try:
+        existing_request.message = request.message
+        existing_request.source = request.source
+        # Extend expiry window
+        expiry_days_config = await system_configs.get_config_value(
+            db, config_key="contact_request_expiry_days"
+        )
+        expiry_days = int(expiry_days_config) if expiry_days_config else 3
+        existing_request.expires_at = datetime.now() + timedelta(days=expiry_days)
+        db.add(existing_request)
+        await db.commit()
+
+        logger.info(
+            "pending_request_updated",
+            user_qiao_id=user_qiao_id,
+            to_qiao_id=request.to_qiao_id,
+            request_id=existing_request.id,
+            status=existing_request.status,
+            expires_at=existing_request.expires_at,
+        )
+    except Exception as e:
+        logger.error(
+            "pending_request_update_failed",
+            user_qiao_id=user_qiao_id,
+            to_qiao_id=request.to_qiao_id,
+            request_id=existing_request.id,
+            error=str(e),
+        )
+
+    return {"message": "请求已发送"}
+
+
+async def _determine_target_type(
+    db: AsyncSession,
+    to_qiao_id: str,
+) -> ContactType:
+    """
+    Determine if target is USER or AI by querying database.
+
+    Returns:
+        ContactType.USER or ContactType.AI
+
+    Raises:
+        HTTPException: If target not found
+    """
+    # Try user first
+    target_user = await user_crud.get_by_qiao_id(db, qiao_id=to_qiao_id)
+    if target_user:
+        return ContactType.USER
+
+    # Try AI profile template
+    template = await ai_profile_template_crud.get_by_qiao_id(db, qiao_id=to_qiao_id)
+    if template and int(template.status) == 1:
+        return ContactType.AI
+
+    logger.error("target_not_found", to_qiao_id=to_qiao_id)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="目标用户不存在",
+    )
+
+
+async def _validate_ai_contact_limit(
+    db: AsyncSession,
+    user_qiao_id: str,
+    target_type: ContactType,
+) -> None:
+    """
+    Validate AI contact limit if target is AI.
+
+    Raises:
+        HTTPException: If limit exceeded
+    """
+    if target_type != ContactType.AI:
+        return
+
+    limit = await get_ai_contact_limit(db, user_qiao_id)
+    current_count = await contact_crud.count_user_contacts(
+        db, user_qiao_id=user_qiao_id, contact_type=ContactType.AI
+    )
+
+    if current_count >= limit:
+        logger.error(
+            "ai_contact_limit_exceeded",
+            user_qiao_id=user_qiao_id,
+            current_count=current_count,
+            limit=limit,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="联系人数量已达上限",
+        )
+
+
+async def _create_request_record(
+    db: AsyncSession,
+    user_qiao_id: str,
+    request: ContactRequestCreate,
+    target_type: ContactType,
+) -> ContactRequest:
+    """
+    Create contact request record in database.
+
+    Returns:
+        Created ContactRequest object
+    """
+    # Get user info
+    user = await user_crud.get_by_qiao_id(db, qiao_id=user_qiao_id)
+    if not user:
+        logger.error("user_not_found", user_qiao_id=user_qiao_id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="用户不存在",
+        )
+
+    # Calculate expiration time
+    expiry_days_config = await system_configs.get_config_value(db, config_key="contact_request_expiry_days")
+    expiry_days = int(expiry_days_config) if expiry_days_config else 3
+    expires_at = datetime.now() + timedelta(days=expiry_days)
+
+    # Create contact request record
+    contact_request_obj = ContactRequest(
+        from_qiao_id=user_qiao_id,
+        from_type=ContactType.USER,
+        from_id=user.id,
+        to_qiao_id=request.to_qiao_id,
+        to_type=target_type,
+        to_id=None,
+        message=request.message,
+        source=request.source,
+        status=ContactRequestStatus.PENDING,
+        expires_at=expires_at,
+    )
+
+    db.add(contact_request_obj)
+    await db.flush()  # Get request ID
+
+    logger.info(
+        "contact_request_created",
+        request_id=contact_request_obj.id,
+        user_qiao_id=user_qiao_id,
+        to_qiao_id=request.to_qiao_id,
+        target_type=target_type,
+    )
+
+    return contact_request_obj
+
+
 async def create_contact_request_service(
     db: AsyncSession,
     user_qiao_id: str,
@@ -342,169 +654,46 @@ async def create_contact_request_service(
     Raises:
         HTTPException: If validation fails or request cannot be processed
     """
-    # ========== Stage 1: Pre-validation ==========
+    # Stage 1: Check if contact already exists (including soft-deleted)
+    if result := await _check_and_restore_contact(db, user_qiao_id, request):
+        return result
 
-    # 1.1 Check if contact already exists (including deleted)
-    existing = await contact_crud.get_user_contact_including_deleted(
-        db, user_qiao_id=user_qiao_id, contact_qiao_id=request.to_qiao_id
-    )
+    # Stage 2: Check if user already created AI from this template
+    if result := await _check_ai_template_duplicate(db, user_qiao_id, request):
+        return result
 
-    if existing:
-        if existing.is_deleted == 1:
-            # Restore deleted contact with new settings
-            # Convert tags from List[str] to dict format
-            tags_dict = {"tags": request.tags} if request.tags else None
+    # Stage 3: Check if pending/processing request exists (idempotency)
+    if result := await _check_and_update_pending_request(db, user_qiao_id, request):
+        return result
 
-            restored_contact = await contact_crud.restore_contact(
-                db,
-                contact=existing,
-                alias=request.alias,
-                tags=tags_dict,
-            )
+    # Stage 4: Determine target type and validate
+    target_type = await _determine_target_type(db, request.to_qiao_id)
+    await _validate_ai_contact_limit(db, user_qiao_id, target_type)
 
-            logger.info(
-                "contact_restored",
-                user_qiao_id=user_qiao_id,
-                contact_qiao_id=request.to_qiao_id,
-                contact_id=restored_contact.id,
-            )
+    # Stage 5: Create request record
+    contact_request = await _create_request_record(db, user_qiao_id, request, target_type)
 
-            # Return success message
-            return {"message": "请求已发送"}
-        else:
-            # Contact already exists and not deleted
-            logger.error(
-                "contact_already_exists",
-                user_qiao_id=user_qiao_id,
-                to_qiao_id=request.to_qiao_id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="已添加该联系人",
-            )
-
-    # 1.1.5 Check if pending request already exists
-    existing_request = await contact_request_crud.get_pending_request(
-        db, from_qiao_id=user_qiao_id, to_qiao_id=request.to_qiao_id
-    )
-    if existing_request:
-        # Check if request is still valid (not expired)
-        now = datetime.now(timezone.utc)
-        if existing_request.expires_at and existing_request.expires_at > now:
-            logger.info(
-                "pending_request_already_exists",
-                user_qiao_id=user_qiao_id,
-                to_qiao_id=request.to_qiao_id,
-                request_id=existing_request.id,
-                expires_at=existing_request.expires_at,
-            )
-            # Return success but don't create new request
-            return {"message": "请求已发送"}
-        else:
-            # Request expired, can create new one
-            logger.info(
-                "previous_request_expired",
-                user_qiao_id=user_qiao_id,
-                to_qiao_id=request.to_qiao_id,
-                request_id=existing_request.id,
-            )
-
-    # 1.2 Determine target type by querying database
-    # Try user first
-    target_user = await user_crud.get_by_qiao_id(db, qiao_id=request.to_qiao_id)
-    if target_user:
-        target_type = ContactType.USER
-    else:
-        # Try AI character
-        result = await db.execute(select(AICharacter).where(AICharacter.qiao_id == request.to_qiao_id))
-        character = result.scalar_one_or_none()
-        if character:
-            target_type = ContactType.AI
-        else:
-            logger.error("target_not_found", to_qiao_id=request.to_qiao_id)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="目标用户不存在",
-            )
-
-    # 1.3 AI contact: Check limit
+    # Stage 6: Route to appropriate handler
     if target_type == ContactType.AI:
-        limit = await get_ai_contact_limit(db, user_qiao_id)
-        current_count = await contact_crud.count_user_contacts(
-            db, user_qiao_id=user_qiao_id, contact_type=ContactType.AI
-        )
-        if current_count >= limit:
-            logger.error(
-                "ai_contact_limit_exceeded",
-                user_qiao_id=user_qiao_id,
-                current_count=current_count,
-                limit=limit,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="联系人数量已达上限",
-            )
-
-    # ========== Stage 2: Create request record ==========
-
-    # Get user info
-    user = await user_crud.get_by_qiao_id(db, qiao_id=user_qiao_id)
-    if not user:
-        logger.error("user_not_found", user_qiao_id=user_qiao_id)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="用户不存在",
-        )
-
-    # Calculate expiration time
-    expiry_days_config = await system_configs.get_config_value(db, config_key="contact_request_expiry_days")
-    expiry_days = int(expiry_days_config) if expiry_days_config else 3
-    expires_at = datetime.now() + timedelta(days=expiry_days)
-
-    # Create contact request record
-    contact_request_obj = ContactRequest(
-        from_qiao_id=user_qiao_id,
-        from_type=ContactType.USER,
-        from_id=user.id,
-        to_qiao_id=request.to_qiao_id,
-        to_type=target_type,
-        to_id=None,  # Leave empty
-        message=request.message,
-        source=request.source,
-        status=ContactRequestStatus.PENDING,
-        expires_at=expires_at,
-    )
-
-    db.add(contact_request_obj)
-    await db.flush()  # Get request ID
-
-    logger.info(
-        "contact_request_created",
-        request_id=contact_request_obj.id,
-        user_qiao_id=user_qiao_id,
-        to_qiao_id=request.to_qiao_id,
-        target_type=target_type,
-    )
-
-    # ========== Stage 3: Process request ==========
-
-    if target_type == ContactType.AI:
-        # AI contact request processing
-        return await _process_ai_contact_request(
-            db=db,
+        # Enqueue for background worker
+        await db.commit()
+        logger.info(
+            "ai_contact_request_enqueued",
+            request_id=contact_request.id,
             user_qiao_id=user_qiao_id,
-            user_id=user.id,
-            contact_request=contact_request_obj,
-            alias=request.alias,
-            tags=request.tags,
+            to_qiao_id=request.to_qiao_id,
         )
+        return {"message": "请求已发送"}
     else:
-        # User contact request processing
+        # Process user contact request immediately
         return await _process_user_contact_request(
             db=db,
             user_qiao_id=user_qiao_id,
-            contact_request=contact_request_obj,
+            contact_request=contact_request,
         )
+
+
+# Background processing moved to services.contact.request_worker
 
 
 async def get_contact_requests_service(
@@ -673,7 +862,7 @@ async def accept_contact_request_service(
             contact_type=ContactType(contact_request.from_type),
             contact_qiao_id=contact_request.from_qiao_id,
             alias=accept_data.alias,
-            avatar_alias_url=None,
+            custom_avatar_url=None,
             tags=tags_dict,
             remark=None,
         )
@@ -780,9 +969,9 @@ async def reject_contact_request_service(
                 detail="请求状态不正确",
             )
 
-        # Update request status to rejected
+        # Update request status to ignored (user rejected)
         await contact_request_crud.update_request_status(
-            db, request_id=request_id, status=ContactRequestStatus.REJECTED
+            db, request_id=request_id, status=ContactRequestStatus.IGNORED
         )
 
         logger.info(

@@ -81,99 +81,85 @@ class UserMatcherService:
         self, db: AsyncSession, character_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Find test user associated with this AI character.
-        Uses main validation logic from services.message.validation to ensure
-        consistency with production message processing.
+        Find test user (owner) for this AI character.
+
+        For chat testing, the character owner MUST be a virtual user (user_type=3).
+        Contact relationship is NOT required for testing.
         """
-        from models.ai.character import AICharacter
-        from services.message.validation import message_validation_service
+        from enums import UserType
 
-        # Step 1: Find contact relationship (User->AI direction)
-        stmt = (
-            select(Contact, User)
-            .where(
-                Contact.contact_qiao_id == character_info["qiao_id"],
-                Contact.contact_type == 2,  # AI character
+        # Step 1: Validate character has owner
+        owner_qiao_id = character_info.get("user_qiao_id")
+        if not owner_qiao_id:
+            raise UserMatcherError(
+                f"AI character '{character_info['qiao_id']}' has no owner",
+                error_code="NO_OWNER",
+                suggestions=[
+                    "Set AI character's Owner User to a virtual user (user_type=3)",
+                    "Check AI Characters management to assign an owner",
+                ],
             )
-            .join(User, Contact.user_id == User.id)
-            .where(User.user_type == 3)  # Test user
+
+        # Step 2: Get owner user and validate it's a virtual user
+        owner_stmt = select(User).where(User.qiao_id == owner_qiao_id)
+        owner_result = await db.execute(owner_stmt)
+        owner_user = owner_result.scalar_one_or_none()
+
+        if not owner_user:
+            raise UserMatcherError(
+                f"Owner user '{owner_qiao_id}' not found",
+                error_code="OWNER_NOT_FOUND",
+                suggestions=[
+                    "Check if the owner user exists in Users management",
+                    "Verify the user_qiao_id in AI character settings",
+                ],
+            )
+
+        # Step 3: Validate owner is virtual user
+        if owner_user.user_type != UserType.VIRTUAL:
+            raise UserMatcherError(
+                f"Character owner '{owner_qiao_id}' is not a virtual user (user_type={owner_user.user_type}). "
+                f"Only characters owned by virtual users (user_type=3) can be tested.",
+                error_code="OWNER_NOT_VIRTUAL",
+                suggestions=[
+                    "Change the character owner to a virtual user (user_type=3)",
+                    "Create a new virtual user and assign it as the character owner",
+                    "Check Users management to verify user types",
+                ],
+            )
+
+        # Step 4: Validate owner user status
+        if owner_user.status != 1:  # ACTIVE
+            raise UserMatcherError(
+                f"Owner user '{owner_user.qiao_id}' is not active (status={owner_user.status})",
+                error_code="OWNER_INACTIVE",
+                suggestions=["Activate the owner user", "Check user status in Users management"],
+            )
+
+        logger.info(
+            "test_user_validated",
+            character_qiao_id=character_info["qiao_id"],
+            owner_qiao_id=owner_qiao_id,
+            owner_user_type=owner_user.user_type,
         )
 
-        result = await db.execute(stmt)
-        row = result.one_or_none()
-
-        if not row:
-            # Check if AI character has owner but no contact relationship
-            if character_info.get("user_qiao_id"):
-                raise UserMatcherError(
-                    f"Missing contact relationship: AI character '{character_info['qiao_id']}' has owner "
-                    f"(user_qiao_id={character_info['user_qiao_id']}), but no test user has added this character as contact",
-                    error_code="CONTACT_RELATIONSHIP_MISSING",
-                    suggestions=[
-                        f"Create a test user (user_type=3) with qiao_id={character_info['user_qiao_id']}",
-                        "Or add this AI character to an existing test user's contact list",
-                        "Check Contacts management to establish User->AI relationship",
-                    ],
-                )
-            else:
-                raise UserMatcherError(
-                    f"No test user relationship found: AI character '{character_info['qiao_id']}' has no owner "
-                    f"and no test user has added this character as contact",
-                    error_code="NO_TEST_USER_RELATIONSHIP",
-                    suggestions=[
-                        "Set AI character's Owner User to a test user (user_type=3)",
-                        "Create a test user and add this AI character to their contact list",
-                        "Both User->AI (contact) and AI->User (owner) relationships are required for testing",
-                    ],
-                )
-
-        contact, test_user = row
-
-        # Step 2: Validate test user status
-        if test_user.status != 1:  # ACTIVE
-            raise UserMatcherError(
-                f"Test user '{test_user.qiao_id}' is not active",
-                error_code="TEST_USER_INACTIVE",
-                suggestions=["Activate the test user", "Check user status in Users management"],
-            )
-
-        # Step 3: Get AI character instance for validation
-        character_stmt = select(AICharacter).where(AICharacter.qiao_id == character_info["qiao_id"])
-        character_result = await db.execute(character_stmt)
-        character = character_result.scalar_one_or_none()
-
-        if not character:
-            raise UserMatcherError(
-                f"AI character '{character_info['qiao_id']}' not found",
-                error_code="CHARACTER_NOT_FOUND",
-                suggestions=["Check AI Characters management"],
-            )
-
-        # Step 4: Use main validation logic to check permissions
-        validation_result = await message_validation_service.validate_test_user_permission(
-            db=db, test_user_qiao_id=test_user.qiao_id, character=character, contact=contact
-        )
-
-        if not validation_result.allowed:
-            raise UserMatcherError(
-                validation_result.reason or "Permission validation failed",
-                error_code=validation_result.error_code or "PERMISSION_DENIED",
-                suggestions=validation_result.suggestions or [],
-            )
-
+        # Return owner as test user (no contact relationship needed for testing)
         return {
-            "id": test_user.id,
-            "qiao_id": test_user.qiao_id,
-            "username": test_user.username,
-            "user_type": test_user.user_type,
-            "contact_id": contact.id,
-            "conversation_id": contact.conv_id,
+            "id": owner_user.id,
+            "qiao_id": owner_user.qiao_id,
+            "username": owner_user.username,
+            "user_type": owner_user.user_type,
+            "contact_id": None,  # No contact relationship needed for testing
+            "conversation_id": None,  # No conversation needed for testing
         }
 
     async def _validate_test_user_profile(
         self, db: AsyncSession, test_user_info: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Validate test user profile exists"""
+        """
+        Validate test user profile exists.
+        For virtual users without profile, returns default values.
+        """
         stmt = select(Profile).where(
             Profile.owner_qiao_id == test_user_info["qiao_id"], Profile.owner_type == 1  # User
         )
@@ -181,6 +167,21 @@ class UserMatcherService:
         profile = result.scalar_one_or_none()
 
         if not profile:
+            # For virtual users, profile is optional for testing
+            from enums import UserType
+
+            if test_user_info.get("user_type") == UserType.VIRTUAL:
+                logger.info(
+                    "virtual_user_without_profile",
+                    test_user_qiao_id=test_user_info["qiao_id"],
+                )
+                return {
+                    "nickname": test_user_info.get("username", "Test User"),
+                    "bio": None,
+                    "gender": None,
+                    "avatar_url": None,
+                }
+
             raise UserMatcherError(
                 f"Profile not found for test user '{test_user_info['qiao_id']}'",
                 error_code="TEST_USER_PROFILE_MISSING",
@@ -195,6 +196,7 @@ class UserMatcherService:
             "bio": profile.bio,
             "gender": profile.gender,
             "avatar_url": profile.avatar_url,
+            "region": profile.region,
         }
 
     async def get_all_test_users(self, db: AsyncSession) -> list[Dict[str, Any]]:

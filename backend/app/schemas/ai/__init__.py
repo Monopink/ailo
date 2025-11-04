@@ -22,8 +22,6 @@ from .character import (
 from .chat import (
     AIChatRequest,
     AIChatResponse,
-    AIRelationshipScoreResponse,
-    AIRelationshipScoreUpdate,
 )
 
 # Style schemas
@@ -32,18 +30,26 @@ from .style import (
     AIStyleCreate,
     AIStyleUpdate,
     AIStyleResponse,
-    AIRelationshipDimensionBase,
-    AIRelationshipDimensionCreate,
-    AIRelationshipDimensionUpdate,
-    AIRelationshipDimensionResponse,
+    # Dimensions
+    AIDimensionBase,
+    AIDimensionCreate,
+    AIDimensionUpdate,
+    AIDimensionResponse,
+    # Style-dimension junction
+    AIStyleDimensionBase,
+    AIStyleDimensionCreate,
+    AIStyleDimensionUpdate,
+    AIStyleDimensionResponse,
+    # Relationships
     AIRelationshipBase,
     AIRelationshipCreate,
     AIRelationshipUpdate,
     AIRelationshipResponse,
-    AIRelationshipIndexBase,
-    AIRelationshipIndexCreate,
-    AIRelationshipIndexUpdate,
-    AIRelationshipIndexResponse,
+    # Dimension relationship mappings
+    AIDimensionRelationshipMappingBase,
+    AIDimensionRelationshipMappingCreate,
+    AIDimensionRelationshipMappingUpdate,
+    AIDimensionRelationshipMappingResponse,
 )
 
 # Personality schemas
@@ -56,14 +62,16 @@ from .personality import (
     AIPersonalityPlaceholderCreate,
     AIPersonalityPlaceholderUpdate,
     AIPersonalityPlaceholderResponse,
-    AIInfoTemplateBase,
-    AIInfoTemplateCreate,
-    AIInfoTemplateUpdate,
-    AIInfoTemplateResponse,
     AIProfileTemplateBase,
     AIProfileTemplateCreate,
     AIProfileTemplateUpdate,
     AIProfileTemplateResponse,
+)
+from .template import (
+    AICharacterTemplateBase,
+    AICharacterTemplateCreate,
+    AICharacterTemplateUpdate,
+    AICharacterTemplate as AICharacterTemplateResponse,
 )
 
 # Log schemas
@@ -93,25 +101,27 @@ __all__ = [
     # Chat
     "AIChatRequest",
     "AIChatResponse",
-    "AIRelationshipScoreResponse",
-    "AIRelationshipScoreUpdate",
     # Style
     "AIStyleBase",
     "AIStyleCreate",
     "AIStyleUpdate",
     "AIStyleResponse",
-    "AIRelationshipDimensionBase",
-    "AIRelationshipDimensionCreate",
-    "AIRelationshipDimensionUpdate",
-    "AIRelationshipDimensionResponse",
+    "AIDimensionBase",
+    "AIDimensionCreate",
+    "AIDimensionUpdate",
+    "AIDimensionResponse",
+    "AIStyleDimensionBase",
+    "AIStyleDimensionCreate",
+    "AIStyleDimensionUpdate",
+    "AIStyleDimensionResponse",
     "AIRelationshipBase",
     "AIRelationshipCreate",
     "AIRelationshipUpdate",
     "AIRelationshipResponse",
-    "AIRelationshipIndexBase",
-    "AIRelationshipIndexCreate",
-    "AIRelationshipIndexUpdate",
-    "AIRelationshipIndexResponse",
+    "AIDimensionRelationshipMappingBase",
+    "AIDimensionRelationshipMappingCreate",
+    "AIDimensionRelationshipMappingUpdate",
+    "AIDimensionRelationshipMappingResponse",
     # Personality
     "AIPersonalityBase",
     "AIPersonalityCreate",
@@ -121,10 +131,10 @@ __all__ = [
     "AIPersonalityPlaceholderCreate",
     "AIPersonalityPlaceholderUpdate",
     "AIPersonalityPlaceholderResponse",
-    "AIInfoTemplateBase",
-    "AIInfoTemplateCreate",
-    "AIInfoTemplateUpdate",
-    "AIInfoTemplateResponse",
+    "AICharacterTemplateBase",
+    "AICharacterTemplateCreate",
+    "AICharacterTemplateUpdate",
+    "AICharacterTemplateResponse",
     "AIProfileTemplateBase",
     "AIProfileTemplateCreate",
     "AIProfileTemplateUpdate",

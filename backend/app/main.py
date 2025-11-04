@@ -6,7 +6,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 
 from core.config import settings
@@ -82,6 +82,14 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error("message_service_initialization_error", error=str(e), exc_info=True)
 
+        # Start background worker for contact requests (MVP)
+        try:
+            from services.contact.request_worker import start_contact_request_worker
+
+            start_contact_request_worker(app)
+        except Exception as e:
+            logger.error("contact_request_worker_start_failed", error=str(e), exc_info=True)
+
         logger.info("application_startup_complete")
         yield
 
@@ -92,6 +100,10 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("shutting_down_application")
     try:
+        # Stop background worker if running
+        worker = getattr(app.state, "contact_request_worker", None)
+        if worker:
+            worker.cancel()
         await close_database()
         logger.info("application_shutdown_complete")
     except Exception as e:
@@ -219,7 +231,9 @@ logger.info("mounting_admin_interface", admin_title=admin.title, admin_base_url=
 logger.info("admin_models_before_mount", models=[model.identity for model in admin._models])
 logger.info(
     "admin_models_detailed",
-    models=[(model.identity, type(model).__name__, model.model) for model in admin._models],
+    models=[
+        (model.identity, type(model).__name__, getattr(model, "model", None)) for model in admin._models
+    ],
 )
 
 admin.mount_to(app)
@@ -245,6 +259,22 @@ async def debug_api_requests(request: Request, call_next):
 
 # Debug: Print all routes
 logger.info("app_routes", routes=[str(route) for route in app.routes])
+
+
+# Theme switch (SSR): set cookie and redirect back
+@app.get("/qiao-dash/theme/{mode}")
+async def set_theme(mode: str, request: Request):
+    mode = mode.lower()
+    if mode not in ("light", "dark", "auto"):
+        mode = "light"
+    referer = request.headers.get("referer")
+    fallback = "/qiao-dash/"
+    target = referer if referer and referer.startswith(("http://", "https://")) else fallback
+    response = RedirectResponse(url=target, status_code=303)
+    # Persist for a year
+    response.set_cookie("qiao_admin_theme", mode, max_age=60 * 60 * 24 * 365, path="/", samesite="lax")
+    return response
+
 
 # TODO: Add webhook endpoint when message service implemented
 

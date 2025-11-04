@@ -23,9 +23,10 @@ username -- 用户名，初始默认为qiao_id
 phone -- 手机号(E.164格式)，用于登录验证，必填，唯一
 email -- 邮箱地址
 password_hash -- 密码哈希值
-wechat_openid -- 微信授权登录标识，唯一
-wechat_unionid -- 微信开放平台unionid
-apple_id -- Apple授权登录标识
+is_verified -- 是否实名验证：1=yes, 0=no
+verified_at -- 实名认证通过时间
+verify_source -- 实名验证来源（如公安三要素、支付宝、微信、腾讯云等）
+verification_info -- 实名验证详细信息JSON存储
 status -- 账户状态：1=active, 2=inactive, 3=suspended
 user_type -- 用户类型：1=normal, 2=official, 3=virtual
 last_login -- 最后登录时间
@@ -33,23 +34,43 @@ created_at
 updated_at
 ```
 
-## user_sessions
+## user_tokens
 
-用户会话管理表，管理登录状态和设备限制。
+用户令牌表（Hybrid 架构）：管理 JWT 登录令牌、设备限制与吊销。
 
 ```txt
 id -- Snowflake ID
 user_id -- 关联users.id
 user_qiao_id -- 关联users.qiao_id，冗余字段便于查询
-session_token -- 会话令牌，唯一
+token -- JWT令牌（唯一）
 device_type -- 设备类型：1=ios, 2=android, 3=web, 4=mini_program
 device_id -- 设备唯一标识
-platform_info -- 平台信息JSON
+platform_info -- 平台信息（JSONB，可选）
 ip_address -- 登录IP地址
-user_agent -- 用户代理信息
-expires_at -- 会话过期时间
-is_active -- 是否活跃：1=active, 0=inactive
+user_agent -- UA信息
+expires_at -- 过期时间
+status -- 令牌状态：1=active, 2=revoked
 last_activity_at -- 最后活动时间
+revoked_at -- 吊销时间
+created_at
+updated_at
+```
+
+## user_auths
+
+第三方身份绑定表（仅存储身份映射，不保存登录会话与第三方长期令牌）。
+
+```txt
+id -- Snowflake ID
+user_id -- 关联users.id
+user_qiao_id -- 关联users.qiao_id，冗余字段便于查询
+auth_type -- 授权平台类型：1=apple, 2=qq, 3=wechat
+provider_uid -- 平台用户唯一ID（WeChat openid / Apple sub / 抖音 open_id / 支付宝 user_id）
+unionid -- 跨应用统一ID（仅微信，可选）
+app_id -- 平台应用标识（可选，用于多应用区分）
+extra_data -- 附加信息（JSONB）
+status -- 状态：1=active, 2=revoked
+revoked_at -- 解绑时间（可选）
 created_at
 updated_at
 ```
@@ -67,7 +88,7 @@ contact_type -- 联系人类型：1=user, 2=ai, 3=official
 contact_id -- 联系人内部ID
 contact_qiao_id -- 联系人外部ID
 alias -- 备注名称
-avatar_alias_url -- 备注头像URL
+custom_avatar_url -- 备注头像URL
 tags -- 标签JSON数组：["tag1","tag2"]
 remark -- 备注描述
 source -- 添加来源：discovery=发现页, search=搜索, recommend=推荐等
@@ -96,7 +117,7 @@ ip_address -- 登录IP（兼容IPv6）
 user_agent -- 浏览器/设备UA信息
 result -- 登录结果：1=success, 2=fail
 fail_reason -- 失败原因
-session_token -- 关联的会话令牌
+token -- 关联的会话令牌
 created_at
 ```
 
@@ -119,7 +140,7 @@ from_qiao_id -- 发送方外部ID
 to_type -- 接收方类型：1=user, 2=ai, 3=admin, 4=system
 to_id -- 接收方内部ID
 to_qiao_id -- 接收方外部ID
-service_provider -- 服务提供商：1=leancloud, 2=internal
+service_provider -- 服务提供商：1=internal, 2=leancloud
 message_type -- 消息类型：1=text, 2=typing, 3=typing_end, 4=chat_info, 9=notification
 content -- 消息内容
 status -- 消息状态：1=sent, 2=delivered, 3=read, 4=failed
@@ -178,7 +199,7 @@ from_type -- 发送方类型：1=user, 2=ai, 3=admin, 4=system
 to_id -- 接收方内部ID
 to_qiao_id -- 接收方外部ID
 to_type -- 接收方类型：1=user, 2=ai, 3=admin, 4=system
-service_provider -- 服务提供商：1=leancloud, 2=internal
+service_provider -- 服务提供商：1=internal, 2=leancloud 
 message_type -- 消息类型：1=text, 2=typing, 3=typing_end, 4=system
 content -- 消息内容
 fail_reason_code -- 失败原因代码
@@ -202,13 +223,17 @@ user_id -- 关联users.id
 user_qiao_id -- 关联users.qiao_id
 role -- 角色类型：1=system, 2=user, 3=assistant
 content -- 消息内容
-source_type -- 来源类型：1=original, 2=merged, 3=summarized
-source_message_ids -- 源消息ID列表，JSON数组
-context_metadata -- 上下文元数据，JSON
-position -- 上下文在会话中的顺序位置(删除)
+first_msg_id_client -- 首条消息的 client 侧 msg_id（便于去重/回溯），VARCHAR(64)
+last_msg_id_client  -- 末条消息的 client 侧 msg_id，VARCHAR(64)
 token_count -- 消息token数量
 is_attack -- 是否为攻击消息：1=yes, 0=no
-reply_status -- 回复状态：1=pending 2=processing 3=done
+last_msg_time_ms    -- 最近一条聚合消息的到达时间，BIGINT（毫秒）
+buffer_expires_at_ms -- 聚合窗口到期时间，BIGINT（毫秒），到点触发处理
+aggregate_state     -- 聚合/处理状态（仅 role=user 使用）：
+  1=OPEN（等待合并/计时）
+  2=LOCKED（进入处理；同会话仅允许一个）
+  3=COMPLETE（处理完成）
+  4=CANCELLED（被新窗口抢占或显式终止）
 created_at
 updated_at
 ```
@@ -305,30 +330,40 @@ created_at
 updated_at
 ```
 
-## ai_relationship_dimensions
+## ai_dimensions
 
 ```txt
 id -- 自增ID
 style_id
 name -- 用于通过llm响应查询的名称
 display_name -- 用于显示的名称
-initial_position -- 起始位置，0-1000千分比
+description -- 用于管理后台参考
 created_at
 updated_at
 ```
 
-## ai_relationship_indexes
+## ai_style_dimensions
 
-AI关系索引表，定义风格评分与关系类型的映射关系。
+```txt
+id
+style_id  -- 关联 ai_styles.id
+dimension_id  -- 关联 ai_dimensions.id
+initial_position -- 该风格下的初始位置
+created_at
+```
+
+## ai_dimension_relationship_mappings
+
+AI关系映射表，定义风格评分与关系类型的映射关系。
 
 ```txt
 id -- 自增ID
-style_id -- 关联ai_styles.id
-dimension_id -- 关联ai_relationship_dimensions.id
+dimension_id -- 关联ai_dimensions.id
 start_position -- 起始位置，0-1000千分比
 end_position -- 结束位置，0-1000千分比
 relationship_id -- 关联ai_relationships.id
 priority -- 优先级，数字越小优先级越高
+limit_count -- 出现的次数限制
 created_at
 updated_at
 ```
@@ -340,6 +375,7 @@ AI人格表，定义AI角色的人格特征和提示词模板。
 ```txt
 id -- 自增ID
 name -- 人格名称
+desplay_name -- 显示名称
 prompt -- 人格提示词模板
 json_schema -- JSON模式定义
 typing_speed -- 打字速度，每分钟词数
@@ -373,30 +409,34 @@ AI资料模板表，存储AI角色的资料模板。索引nickname字段。is_re
 id -- 自增ID
 qiao_id -- qiao_+随机字符，外部使用
 category -- 分类，可选项写死
-info_id -- 绑定的ai_info_templates.id
+character_template_id -- 绑定的ai_character_templates.id
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
 avatar_url -- 头像URL（客户端预设：assets://1234；云端：https://...）
 bio -- 个人简介
 region -- 地区
-is_reusable -- 是否可以复用：1=reusable, 0=single_use（不可复用使用完后删除）
+is_reusable -- 是否可以复用：1=reusable, 0=single_use（不可复用使用完后改为inactive）
 status -- 状态：1=active, 2=inactive
 created_at
 updated_at
 ```
 
-## ai_info_templates
+## ai_character_templates
 
-AI信息模板表，存储AI角色的核心配置信息。
+AI角色信息模板表，存储AI角色的核心配置信息。
 
 ```txt
 id -- 自增ID
+display_name -- 显示名称
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
 memory -- 记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
-score_offset_algorithm -- 分数偏移算法
-score_offset_coefficient -- 分数偏移系数
+position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
+{
+  "foo": {"algorithm": 1, "params": {}},
+  "bar": {"algorithm": 2, "params": {"left_bias": 5, "right_bias": -3}}
+}
 is_reusable -- 是否可以复用：1=reusable, 0=single_use
 profile_count -- 统计关联的资料模板数量
 profile_id -- 如果不可复用则存入对应资料模板id
@@ -418,10 +458,10 @@ user_qiao_id -- 关联users.qiao_id，所属用户外部ID
 status -- 状态：1=active, 2=inactive，3=blocked
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
+relationship_id -- 当前的关系ID
+relationship_counts -- 各关系类型使用次数统计，JSON格式：{"friend":5,"lover":2}
 memory -- 角色记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
-score_offset_algorithm -- 分数偏移算法：1=直接映射, 2=V1独立双向偏移
-score_offset_params -- 分数偏移参数，JSON格式：{"left_bias": 0, "right_bias": 0}
 request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
   示例：{"temperature": 0.8, "max_tokens": 2000, "top_p": 0.9, "frequency_penalty": 0.5}
   参数优先级：显式调用参数 > request_params > LLM配置默认值
@@ -430,20 +470,18 @@ created_at
 updated_at
 ```
 
-## ai_relationship_scores
+## ai_character_dimensions
 
 AI关系评分表，存储AI角色的关系评分数据和关系使用统计。
 
 ```txt
 id -- Snowflake ID
 character_id -- 关联ai_characters.id
-dimension_id -- 关联ai_relationship_dimensions.id
-dimension_name -- 维度名称
+dimension_id -- 关联ai_dimensions.id
 score -- 当前分数值
 position -- 千分比位置（0-1000）
-relationship_id -- 当前匹配的关系类型ID
-relationship_display_name -- 关系类型显示名称
-relationship_counts -- 各关系类型使用次数统计，JSON格式：{"friend":5,"lover":2}
+position_mapping_algorithm -- 位置映射算法：1=直接映射, 2=V1独立双向偏移
+position_mapping_params -- 位置映射参数，JSON格式(V1算法)：{"left_bias": 0, "right_bias": 0}
 created_at
 updated_at
 ```
@@ -473,7 +511,7 @@ LLM运行时配置表，管理具体的模型配置参数。
 ```txt
 id -- 自增ID
 provider_id -- 关联llm_providers.id
-config_key -- 配置标识，如primary、backup、test等，唯一
+name -- 配置标识，如primary、backup、test等，唯一
 model_name -- 具体模型名称，可选
 temperature -- 温度参数，0.0-2.0
 max_tokens -- 最大token数
@@ -521,13 +559,14 @@ LLM配置测试日志表，专门记录通过管理后台进行的LLM配置测�
 ```txt
 id -- Snowflake ID
 config_id -- 关联llm_configs.id
-config_key -- 配置key（冗余字段，便于查询）
+config_name -- 配置名（冗余字段，便于查询）
 provider_name -- Provider名称（冗余字段）
 model_name -- 使用的模型名称
 test_message -- 测试消息内容，TEXT类型
 override_temperature -- 覆盖的温度参数（0.0-2.0）
 override_max_tokens -- 覆盖的最大token数
 enable_thinking -- 是否启用思考模式：0=no, 1=yes
+enable_json_schema -- 是否启用json_schema
 request -- 完整请求payload，JSONB格式
 response -- 完整响应数据，JSONB格式
 status -- 状态：1=success, 2=failed, 3=timeout
@@ -561,7 +600,7 @@ created_at
 updated_at
 ```
 
-## user_security_logs
+## user_violation_logs
 
 用户安全日志表，记录用户恶意行为检测结果。
 
@@ -574,8 +613,6 @@ character_qiao_id -- 关联ai_characters.qiao_id
 violation_type -- 违规类型：1=prompt_injection, 2=abuse_content, 3=spam, 4=harassment, 5=other
 severity_level -- 严重程度：1=low, 2=medium, 3=high, 4=critical
 original_message -- 原始用户消息
-ai_detection_result -- AI检测结果，JSON格式
-confidence_score -- 置信度分数（0-100）
 auto_action_taken -- 自动处理动作：1=none, 2=warning, 3=restrict, 4=suspend
 manual_review_status -- 人工审核状态：1=pending, 2=confirmed, 3=false_positive, 4=ignored
 reviewer_id -- 审核管理员ID
@@ -584,7 +621,7 @@ created_at
 updated_at
 ```
 
-## user_security_stats
+## user_risk_stats
 
 用户安全统计表，汇总用户的违规行为统计。
 
@@ -618,9 +655,9 @@ config_type -- 配置类型：1=string, 2=number, 3=boolean, 4=json
 description -- 配置描述
 group_name -- 分组名称，用于显示分组
 allowed_values -- 用于枚举类型的可选项存储（JSONB）
+updated_by -- 更新者ID
 created_at
 updated_at
-updated_by -- 更新者ID
 ```
 
 ## stats_user_daily/weekly/monthly
@@ -883,172 +920,3 @@ status -- pending,paid,failed,refunded
 created_at
 paid_at
 ```
-
-## 核心架构设计
-
-### 用户管理模块
-
-#### users - 用户账户表
-
-- 主键：id (Snowflake ID)
-- 外部标识：qiao_id (qiao_+随机字符)
-- 登录方式：支持手机号、微信、Apple ID多种登录
-- 状态管理：账户状态、用户类型分级管理
-- 关键索引：qiao_id、phone、email、status等
-
-#### user_sessions - 用户会话表
-
-- 会话管理：支持多设备登录，每种设备类型限制一个活跃会话
-- 安全控制：记录设备信息、IP地址、用户代理
-- 过期机制：自动过期和活跃度跟踪
-
-#### contacts - 联系人关系表
-
-- 关系管理：用户与AI、用户与用户的联系关系
-- 对话标识：每个联系关系对应一个conv_id
-- 个性化设置：备注、标签、置顶、免打扰等功能
-- 软删除：支持删除标记和恢复
-
-### 消息系统模块
-
-#### message_history - 消息历史表
-
-- 消息方向：入站/出站消息区分
-- 多端支持：记录消息来源平台
-- 服务提供商：支持LeanCloud等第三方消息服务
-- 消息类型：文本、输入状态、系统消息、图片、表情等
-- 状态跟踪：发送、送达、已读、失败状态
-
-#### message_delivery_failures - 消息投递失败表
-
-- 重试机制：自动重试失败消息，支持指数退避
-- 失败分析：详细记录失败原因和错误信息
-- 清理机制：成功重发后自动删除记录
-
-### 资料管理模块
-
-#### profiles - 统一资料表
-
-- 多类型支持：用户、AI、官方账号统一管理
-- 头像管理：支持文件ID引用和URL冗余
-- 个性化信息：昵称、性别、简介、地区等
-
-#### media_files - 媒体文件表
-
-- 文件类型：头像、表情、图片、文档分类管理
-- 上传追踪：记录上传者信息和上传时间
-- 状态管理：活跃、非活跃、已删除状态
-
-### AI系统模块
-
-#### AI关系系统设计
-
-- ai_relationship：定义关系类型（陌生人、朋友、恋人等）
-- ai_styles：定义AI风格
-- ai_relationship_dimensions：定义评分维度配置
-- ai_relationship_indexes：映射评分区间到关系类型
-- ai_personalities：AI人格模板和提示词
-- ai_personality_placeholders：人格模板占位符定义
-
-#### AI实例管理
-
-- ai_characters：具体的AI角色实例
-- ai_contexts：AI对话上下文管理
-- ai_relationship_scores：AI关系评分数据和统计
-- ai_request_logs：AI服务请求日志
-
-### 安全监控模块
-
-#### user_security_logs - 用户安全日志
-
-- 违规检测：提示词注入、滥用内容、垃圾信息等
-- 严重程度：低、中、高、严重四级分类
-- 自动处理：警告、限制、停用等自动措施
-- 人工审核：支持管理员人工审核和标记
-
-#### user_security_stats - 用户安全统计
-
-- 风险评估：基于违规历史的用户风险等级
-- 统计数据：违规次数、类型分布、处理历史
-- 动态调整：连续违规计数和风险等级自动调整
-
-### 系统管理模块
-
-#### system_configs - 系统配置
-
-- 配置分类：字符串、数字、布尔值、JSON类型
-- 公开配置：区分公开和私有配置
-- 变更追踪：记录配置更新者和更新时间
-
-#### 统计报表系统
-
-- 多维度统计：用户、消息、AI、收入四个维度
-- 多时间粒度：日、周、月三种统计粒度
-- 自动生成：定时任务自动生成统计数据
-
-#### 管理员系统
-
-- 权限分级：超级管理员、管理员、查看者三级权限
-- 操作审计：完整记录管理员操作日志
-- 登录追踪：管理员登录历史和安全监控
-
-## 索引设计策略
-
-### 主要索引类型
-
-1. 唯一索引：外部标识符、用户名、邮箱等
-2. 复合索引：多字段组合查询优化
-3. 时间索引：按时间范围查询优化
-4. 状态索引：按状态筛选优化
-5. 外键索引：关联查询性能优化
-
-### 查询优化考虑
-
-- 聊天列表查询：按用户ID和时间排序
-- 消息历史查询：按对话ID和时间范围
-- 联系人搜索：按昵称和标签模糊匹配
-- 统计报表查询：按日期范围和维度聚合
-- 安全监控查询：按用户和违规类型筛选
-
-## 数据一致性保证
-
-### 应用层约束
-
-- 枚举值验证：在应用代码中定义和验证枚举值
-- 关联关系检查：在业务逻辑中维护数据关联一致性
-- 事务管理：关键操作使用数据库事务保证原子性
-
-### 数据清理策略
-
-- 过期会话清理：定期清理过期的用户会话
-- 失败消息清理：成功重试后删除失败记录
-- 日志归档：定期归档历史日志数据
-- 统计数据维护：定期更新和校验统计数据
-
-## 扩展性考虑
-
-### 水平扩展
-
-- Snowflake ID支持分布式环境
-- 无外键约束便于数据分片
-- 读写分离友好的索引设计
-
-### 功能扩展
-
-- 预留字段：JSON类型字段支持灵活扩展
-- 模块化设计：各功能模块相对独立
-- 版本兼容：向后兼容的数据结构设计
-
-## 安全性设计
-
-### 数据保护
-
-- 敏感信息加密：密码哈希、令牌加密
-- 访问控制：基于角色的权限管理
-- 审计日志：完整的操作审计追踪
-
-### 隐私保护
-
-- 数据脱敏：日志中不记录敏感信息
-- 用户控制：用户可控制个人信息可见性
-- 数据清理：支持用户数据删除和匿名化

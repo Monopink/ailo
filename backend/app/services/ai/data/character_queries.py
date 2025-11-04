@@ -15,8 +15,9 @@ from models.ai import (
     AIPersonalityPlaceholder,
     AIStyle,
     AIRelationship,
-    AIRelationshipIndex,
-    AIRelationshipDimension,
+    AIDimensionRelationshipMapping,
+    AIStyleDimension,
+    AIDimension,
 )
 from models.profile import Profile
 from models.user import User
@@ -59,18 +60,24 @@ async def get_character_with_relations(
 
         # Get dimensions for the style
         dimensions_result = await db.execute(
-            select(AIRelationshipDimension)
-            .where(AIRelationshipDimension.style_id == style.id)
-            .order_by(AIRelationshipDimension.name)
+            select(
+                AIDimension.id.label("id"),
+                AIDimension.name.label("name"),
+                AIDimension.display_name.label("display_name"),
+                AIStyleDimension.initial_position.label("initial_position"),
+            )
+            .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
+            .where(AIStyleDimension.style_id == style.id)
+            .order_by(AIDimension.name)
         )
         dimensions = [
             {
-                "id": dim.id,
-                "name": dim.name,
-                "display_name": dim.display_name,
-                "initial_position": dim.initial_position,
+                "id": row.id,
+                "name": row.name,
+                "display_name": row.display_name,
+                "initial_position": row.initial_position,
             }
-            for dim in dimensions_result.scalars().all()
+            for row in dimensions_result
         ]
 
         return {
@@ -161,25 +168,33 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optio
             logger.warning("style_not_found", style_id=style_id)
             return None
 
-        # Get relationship indexes
-        indexes_result = await db.execute(
-            select(AIRelationshipIndex, AIRelationship)
-            .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
-            .where(AIRelationshipIndex.style_id == style_id)
-            .order_by(AIRelationshipIndex.start_position)
+        # Get dimension relationship mappings with dimension names
+        mappings_result = await db.execute(
+            select(AIDimensionRelationshipMapping, AIRelationship, AIDimension)
+            .join(
+                AIRelationship,
+                AIDimensionRelationshipMapping.relationship_id == AIRelationship.id,
+            )
+            .join(AIDimension, AIDimensionRelationshipMapping.dimension_id == AIDimension.id)
+            .join(
+                AIStyleDimension,
+                AIStyleDimension.dimension_id == AIDimensionRelationshipMapping.dimension_id,
+            )
+            .where(AIStyleDimension.style_id == style_id)
+            .order_by(AIDimensionRelationshipMapping.start_position)
         )
 
         relationships = []
-        for index, relationship in indexes_result:
+        for mapping, relationship, dimension in mappings_result:
             relationships.append(
                 {
-                    "index": index,
+                    "mapping": mapping,
                     "relationship": relationship,
-                    "dimension_id": index.dimension_id,
-                    "dimension_name": index.dimension_name,
-                    "start_position": index.start_position,
-                    "end_position": index.end_position,
-                    "priority": index.priority,
+                    "dimension_id": mapping.dimension_id,
+                    "dimension_name": dimension.name,
+                    "start_position": mapping.start_position,
+                    "end_position": mapping.end_position,
+                    "priority": mapping.priority,
                 }
             )
 

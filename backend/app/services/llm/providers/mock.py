@@ -81,6 +81,7 @@ async def chat_completion(
     max_tokens: Optional[int] = None,
     enable_thinking: Optional[bool] = None,
     timeout: Optional[int] = None,
+    provider_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Mock chat completion for testing purposes.
@@ -125,6 +126,42 @@ async def chat_completion(
     # Generate mock response based on JSON schema or default
     if json_schema:
         response_content = _generate_structured_response(json_schema, user_message)
+
+        # Apply provider overrides when provided (structured only)
+        if provider_overrides and isinstance(provider_overrides, dict):
+            try:
+                # score override: only allow keys defined in schema
+                score_override = provider_overrides.get("score_override")
+                if isinstance(score_override, dict):
+                    score_schema = (json_schema.get("properties", {}).get("score", {}) or {}).get("properties", {})
+                    allowed_keys = set(score_schema.keys())
+                    if "score" not in response_content or not isinstance(response_content.get("score"), dict):
+                        response_content["score"] = {}
+                    for k, v in score_override.items():
+                        if k in allowed_keys:
+                            response_content["score"][k] = v
+
+                # generic structured response override (deep-merge)
+                def _deep_merge(a, b):
+                    for k, v in b.items():
+                        if k == "score" and isinstance(v, dict):
+                            # already handled, but still merge safe keys
+                            base = a.get(k, {}) if isinstance(a.get(k), dict) else {}
+                            for sk, sv in v.items():
+                                base[sk] = sv
+                            a[k] = base
+                        elif isinstance(v, dict) and isinstance(a.get(k), dict):
+                            _deep_merge(a[k], v)
+                        else:
+                            a[k] = v
+                    return a
+
+                structured_override = provider_overrides.get("structured_response_override")
+                if isinstance(structured_override, dict):
+                    response_content = _deep_merge(response_content, structured_override)
+            except Exception as e:
+                logger.warning("mock_provider_override_failed", error=str(e))
+
         # Convert to JSON string for structured output
         content = json.dumps(response_content, ensure_ascii=False)
     else:
@@ -138,11 +175,23 @@ async def chat_completion(
     }
     usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
 
+    # model override
+    model_name = payload["model"]
+    if provider_overrides and isinstance(provider_overrides, dict):
+        if isinstance(provider_overrides.get("model_override"), str):
+            model_name = provider_overrides["model_override"]
+        # usage override (partial)
+        if isinstance(provider_overrides.get("usage_override"), dict):
+            for k, v in provider_overrides["usage_override"].items():
+                usage[k] = v
+
     return {
         "content": content,
-        "model": payload["model"],
+        "model": model_name,
         "usage": usage,
         "finish_reason": "stop",
+        # Echo back key request params for debugging and log persistence
+        "request_params": {"payload": payload, "provider_overrides": provider_overrides} ,
     }
 
 

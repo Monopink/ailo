@@ -102,6 +102,14 @@ def main():
     elif command == "check":
         run_command("alembic check", backend_dir)
 
+    elif command == "stamp":
+        if not args:
+            print("Error: stamp command requires a revision id (e.g., heads or <rev>)")
+            print("Usage: python migrate.py stamp <revision>")
+            return
+        target = args[0]
+        run_command(f"alembic stamp {target}", backend_dir)
+
     elif command == "init":
         print("Generating initial migration and marking database as current...")
         if run_command('alembic revision --autogenerate -m "Initial database schema"', backend_dir):

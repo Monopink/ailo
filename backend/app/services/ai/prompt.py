@@ -600,7 +600,10 @@ def _get_base_response_schema(
 
 
 async def build_conversation_context(
-    db: AsyncSession, character_qiao_id: str, user_qiao_id: str, max_context_length: int = 10
+    db: AsyncSession,
+    character_qiao_id: str,
+    user_qiao_id: str,
+    max_context_length: Optional[int] = None,
 ) -> List[Dict[str, str]]:
     """
     Build conversation context from AI contexts table.
@@ -620,7 +623,7 @@ async def build_conversation_context(
     try:
         from .data import get_conversation_contexts
 
-        # Get conversation contexts
+        # Get conversation contexts; when max_context_length is None, include all
         contexts = await get_conversation_contexts(db, character_qiao_id, user_qiao_id, max_context_length)
 
         if not contexts:
@@ -634,7 +637,7 @@ async def build_conversation_context(
         # Convert contexts to message format
         messages = []
         for context in contexts:
-            role = _map_context_role_to_message_role(context.get("role", 1))
+            role = _map_context_role_to_message_role(context.get("role", AIContextRole.USER))
             content = context.get("content", "")
 
             if content.strip():  # Only include non-empty content
@@ -664,12 +667,12 @@ async def build_conversation_context(
         )
 
 
-def _map_context_role_to_message_role(role: int) -> str:
+def _map_context_role_to_message_role(role: AIContextRole) -> str:
     """
     Map context role enum to message role string.
 
     Args:
-        role: Role enum value (1=system, 2=user, 3=assistant)
+        role: Role enum value (AIContextRole.SYSTEM/USER/ASSISTANT)
 
     Returns:
         Message role string

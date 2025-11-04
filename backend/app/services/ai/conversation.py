@@ -14,16 +14,17 @@ from .relationship import (
     determine_relationship_type,
     calculate_new_scores,
     update_relationship_positions,
+    update_current_relationship,
 )
 from .prompt import build_system_prompt, get_response_schema, build_conversation_context
 from .memory import process_memory_operations, archive_old_contexts
 from .data import (
     get_conversation_history,
     save_context_entry,
-    update_context_status,
     mark_context_as_attack,
     update_character_status,
 )
+from .data.mutations import is_context_locked
 from .utils.validator import chat_completion_with_validation
 from services.llm.client import select_config_for_ai, validate_ai_response
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AIConversationError
@@ -41,7 +42,10 @@ async def process_conversation(
     character_qiao_id: str,
     message_content: str,
     message_type: str = "text",
-    config_key: Optional[str] = None,
+    config_name: Optional[str] = None,
+    request_overrides: Optional[Dict[str, Any]] = None,
+    locked_context_id: Optional[int] = None,
+    persist: bool = True,
 ) -> Dict[str, Any]:
     """
     Process AI conversation following the complete 11-step flow.
@@ -59,7 +63,7 @@ async def process_conversation(
     7. Get context and merge with system prompt
     8. Request LLM
     9. Validate with JSON Schema (done in LLM call)
-    10. Update ai_relationship_score and other related content
+    10. Update ai_character_dimension and other related content
     11. Reply message
 
     Args:
@@ -83,25 +87,9 @@ async def process_conversation(
             message_type=message_type,
         )
 
-        # Step 1: Store in ai_contexts table
-        # Note: Message buffering is handled by buffer.py before this function is called
-        context_data = {
-            "character_qiao_id": character_qiao_id,
-            "user_qiao_id": user_qiao_id,
-            "role": AIContextRole.USER,  # user role
-            "content": message_content,
-            "source_type": 1,  # original
-            "reply_status": 1,  # pending
-        }
-
-        # Save context entry - returns int (Snowflake ID) for internal use
-        context_id = await save_context_entry(db, context_data)
-        if not context_id:
-            raise AIConversationError(
-                conversation_step="save_context",
-                reason="context_save_failed",
-                message="Failed to save conversation context",
-            )
+        # Note: user context creation/aggregation is handled by message.buffer
+        # This function assumes, when called by buffer, that locked_context_id points
+        # to the currently LOCKED user window and message_content reflects its content.
 
         # Step 3: Find corresponding ai_character with relations
         character_info = await get_character_with_relations(db, character_qiao_id)
@@ -186,7 +174,7 @@ async def process_conversation(
 
         # Step 7: Get conversation context and prepare messages
         conversation_history = await build_conversation_context(
-            db, character_qiao_id, user_qiao_id, max_context_length=10
+            db, character_qiao_id, user_qiao_id, max_context_length=None
         )
 
         # Prepare messages for LLM
@@ -201,17 +189,24 @@ async def process_conversation(
 
         # Pre-check: Validate config supports JSON Schema
         # This will raise ConfigNotVerifiedError or JSONSchemaNotSupportedError if config is not suitable
-        config, provider = await select_config_for_ai(db, config_key)
+        config, provider = await select_config_for_ai(db, config_name)
 
         logger.info(
             "ai_conversation_config_validated",
-            config_key=config.config_key,
+            config_name=config.name,
             provider=provider.name,
             json_schema_mode=config.json_schema_mode,
         )
 
         # Extract character-specific request parameters
-        character_request_params = character_info.get("character", {}).request_params
+        character_request_params = character_info.get("character", {}).request_params or {}
+        # Apply test-time overrides (e.g., mock provider)
+        if request_overrides:
+            try:
+                character_request_params = {**(character_request_params or {}), **request_overrides}
+            except Exception:
+                # Ensure robustness even if types mismatch
+                pass
         if character_request_params:
             logger.debug(
                 "using_character_request_params",
@@ -225,7 +220,7 @@ async def process_conversation(
             messages=messages,
             json_schema=json_schema,
             enable_thinking=True,
-            config_key=config_key,
+            name=config_name,
             character_request_params=character_request_params,
         )
 
@@ -249,27 +244,28 @@ async def process_conversation(
             raw_content = json.dumps(ai_response, ensure_ascii=False)
         await validate_ai_response(db, config, raw_content, allow_auto_update=False)
 
-        # Step 10: Update ai_relationship_score and other related content
+        # Step 10: Update ai_character_dimension and other related content
         await process_ai_response_updates(
-            db, user_qiao_id, character_qiao_id, character_info, ai_response, context_id
+            db, user_qiao_id, character_qiao_id, character_info, ai_response, locked_context_id, persist=persist
         )
 
-        # Step 11: Reply message
-        await send_response_messages(db, user_qiao_id, character_qiao_id, ai_response)
+        # Step 11: Reply message (only when persist is enabled)
+        if persist:
+            await send_response_messages(db, user_qiao_id, character_qiao_id, ai_response, locked_context_id)
 
-        # Archive old contexts if needed
-        await archive_old_contexts(db, character_qiao_id)
+        # Archive old contexts if needed (per user-character conversation)
+        await archive_old_contexts(db, user_qiao_id, character_qiao_id)
 
         logger.info(
             "conversation_processing_completed",
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            context_id=context_id,
+            context_id=locked_context_id,
         )
 
         return {
             "success": True,
-            "context_id": context_id,
+            "context_id": locked_context_id,
             "response": ai_response,
             "usage": llm_result.get("usage", {}),
             "model": llm_result.get("model"),
@@ -371,7 +367,9 @@ async def process_ai_response_updates(
     character_qiao_id: str,
     character_info: Dict[str, Any],
     ai_response: Dict[str, Any],
-    context_id: int,  # Note: int type for internal Snowflake ID
+    context_id: Optional[int],  # Optional: only present when called by buffer
+    *,
+    persist: bool = True,
 ) -> None:
     """
     Process AI response and update related data.
@@ -385,11 +383,10 @@ async def process_ai_response_updates(
         context_id: Context ID (int - internal Snowflake ID)
     """
     try:
-        # Update context status to processing - using int ID internally
-        await update_context_status(db, context_id, 2)  # processing
+        # No state transition here; buffer controls OPEN -> LOCKED -> COMPLETE
 
         # Handle attack detection
-        if ai_response.get("attack_detected", False):
+        if persist and ai_response.get("attack_detected", False) and context_id is not None:
             await handle_attack_detection(db, user_qiao_id, character_qiao_id, context_id)
 
         # Update relationship scores
@@ -399,19 +396,31 @@ async def process_ai_response_updates(
 
             # Update relationship positions
             character_id = character_info["character_id"]
-            if character_id and new_scores:
+            if persist and character_id and new_scores:
                 await update_relationship_positions(db, character_id, new_scores)
 
+                # Re-evaluate and persist current relationship after score update
+                from .data import get_character_relationship_scores
+
+                latest_scores = await get_character_relationship_scores(db, character_id)
+                if persist and latest_scores:
+                    rel = await determine_relationship_type(db, character_info, latest_scores)
+                    if rel and rel.get("relationship"):
+                        relationship = rel["relationship"]
+                        display_name = getattr(
+                            relationship, "display_name", getattr(relationship, "name", "")
+                        )
+                        await update_current_relationship(db, character_id, relationship.id, display_name)
+
         # Process memory operations
-        if ai_response.get("should_update_memory", False) and ai_response.get("memory_operations"):
+        if persist and ai_response.get("should_update_memory", False) and ai_response.get("memory_operations"):
             await process_memory_operations(db, character_qiao_id, ai_response["memory_operations"])
 
         # Handle blocking
-        if ai_response.get("should_block", False):
+        if persist and ai_response.get("should_block", False):
             await handle_character_blocking(db, character_qiao_id)
 
-        # Update context status to done - using int ID internally
-        await update_context_status(db, context_id, 3)  # done
+        # Finalization to COMPLETE is handled by buffer after this function returns
 
         logger.debug(
             "ai_response_updates_completed",
@@ -432,7 +441,11 @@ async def process_ai_response_updates(
 
 
 async def send_response_messages(
-    db: AsyncSession, user_qiao_id: str, character_qiao_id: str, ai_response: Dict[str, Any]
+    db: AsyncSession,
+    user_qiao_id: str,
+    character_qiao_id: str,
+    ai_response: Dict[str, Any],
+    locked_context_id: Optional[int] = None,
 ) -> None:
     """
     Send response messages to user and save to ai_contexts.
@@ -448,7 +461,19 @@ async def send_response_messages(
             logger.debug("ai_chose_not_to_reply", character_qiao_id=character_qiao_id)
             return
 
-        # Send outgoing messages and save to ai_contexts
+        # Before sending, if we are tied to a locked window, ensure it is still LOCKED
+        if locked_context_id is not None:
+            still_locked = await is_context_locked(db, locked_context_id)
+            if not still_locked:
+                logger.warning(
+                    "result_discarded_due_to_preemption",
+                    character_qiao_id=character_qiao_id,
+                    user_qiao_id=user_qiao_id,
+                    context_id=locked_context_id,
+                )
+                return
+
+        # Send outgoing messages and save to ai_contexts (assistant rows use no state)
         outgoing_messages = ai_response.get("outgoing_messages", [])
         for message in outgoing_messages:
             # Send message (currently just logs)
@@ -458,10 +483,8 @@ async def send_response_messages(
             context_data = {
                 "character_qiao_id": character_qiao_id,
                 "user_qiao_id": user_qiao_id,
-                "role": AIContextRole.ASSISTANT,  # assistant role
+                "role": AIContextRole.ASSISTANT,  # assistant
                 "content": message,
-                "source_type": 1,  # original
-                "reply_status": 3,  # done
             }
             context_id = await save_context_entry(db, context_data)
 
@@ -551,7 +574,7 @@ async def handle_attack_detection(
         success = await mark_context_as_attack(db, context_id)
 
         if success:
-            # TODO: Log security incident to user_security_logs
+            # TODO: Log security incident to user_violation_logs
             logger.warning(
                 "attack_detected_and_handled",
                 user_qiao_id=user_qiao_id,

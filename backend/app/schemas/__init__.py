@@ -80,8 +80,6 @@ from .ai import (
     AIRequestLogResponse,
     AIChatRequest,
     AIChatResponse,
-    AIRelationshipScoreResponse,
-    AIRelationshipScoreUpdate,
     BatchAICharacterDelete,
 )
 
@@ -182,8 +180,6 @@ __all__ = [
     "AIRequestLogResponse",
     "AIChatRequest",
     "AIChatResponse",
-    "AIRelationshipScoreResponse",
-    "AIRelationshipScoreUpdate",
     "BatchAICharacterDelete",
     # Admin
     "AdminUserBase",

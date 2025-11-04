@@ -52,7 +52,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         String(100), nullable=True, comment="Contact alias/remark name"
     )
 
-    avatar_alias_url: Mapped[Optional[str]] = mapped_column(
+    custom_avatar_url: Mapped[Optional[str]] = mapped_column(
         String(500), nullable=True, comment="Custom avatar URL for this contact"
     )
 

@@ -7,17 +7,11 @@ This module contains Starlette-Admin views for managing LLM providers and config
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import (
-    StringField,
-    IntegerField,
-    FloatField,
-    JSONField,
-    HasOne,
-    EnumField,
-)
+from starlette_admin import StringField, IntegerField, FloatField, JSONField, HasOne, EnumField
 from starlette_admin.actions import link_row_action, row_action
 from starlette_admin.exceptions import FormValidationError
 from admin.views.base import IntegerEnumField
+from admin.fields import LocalDateTimeField
 from models.llm import LLMProvider, LLMConfig, LLMTestLog
 
 
@@ -27,12 +21,28 @@ class LLMProviderView(ModelView):
     label = "Providers"
     name = "Providers"
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create = [
+        "id",
+        "created_at",
+        "updated_at",
+        "supports_streaming_display",
+        "supports_json_schema_display",
+        "supports_thinking_display",
+    ]
+    exclude_fields_from_edit = [
+        "id",
+        "created_at",
+        "updated_at",
+        "supports_streaming_display",
+        "supports_json_schema_display",
+        "supports_thinking_display",
+    ]
+    exclude_fields_from_list = []
+    exclude_fields_from_detail = []
 
     fields_default_sort = [("display_name", False)]
     searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "name", "display_name", "created_at"]
+    sortable_fields = ["id", "name", "display_name", "created_at", "updated_at"]
 
     def can_delete(self, request: Request) -> bool:
         """Disable delete action for LLM providers."""
@@ -64,27 +74,17 @@ class LLMProviderView(ModelView):
         ),
         StringField("base_url", label="Base URL", help_text="API base URL", required=False),
         StringField("default_model", label="Default Model", help_text="Default model name", required=False),
-        IntegerEnumField(
-            "supports_streaming",
-            choices=[(0, "No"), (1, "Yes")],
-            label="Supports Streaming",
-            help_text="Supports streaming output",
-            required=True,
+        StringField(
+            "supports_streaming_display", label="Supports Streaming", help_text="Supports streaming output"
         ),
-        IntegerEnumField(
-            "supports_json_schema",
-            choices=[(0, "No"), (1, "Yes")],
-            label="Supports JSON Schema",
-            help_text="Supports JSON schema",
-            required=True,
+        StringField(
+            "supports_json_schema_display", label="Supports JSON Schema", help_text="Supports JSON schema"
         ),
-        IntegerEnumField(
-            "supports_thinking",
-            choices=[(0, "No"), (1, "Yes")],
-            label="Supports Thinking",
-            help_text="Supports thinking mode",
-            required=True,
+        StringField(
+            "supports_thinking_display", label="Supports Thinking", help_text="Supports thinking mode"
         ),
+        LocalDateTimeField("created_at", label="Created At", help_text="Provider creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
@@ -147,9 +147,19 @@ class LLMConfigView(ModelView):
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
 
-    fields_default_sort = [("config_key", False)]
-    searchable_fields = ["config_key", "model_name"]
-    sortable_fields = ["id", "config_key", "model_name", "status", "priority", "created_at"]
+    def is_active(self, request: Request) -> bool:
+        """Check if current page is related to this model (including test page)."""
+        # Standard identity check for list/edit/detail pages
+        if request.path_params.get("identity", None) == self.identity:
+            return True
+
+        # Check for test page with exact identity match
+        path = request.scope["path"]
+        return f"/{self.identity}/test/" in path
+
+    fields_default_sort = [("name", False)]
+    searchable_fields = ["name", "model_name"]
+    sortable_fields = ["id", "name", "model_name", "status", "priority", "created_at", "updated_at"]
 
     fields = [
         StringField("id", label="ID", help_text="Internal config ID"),
@@ -161,9 +171,9 @@ class LLMConfigView(ModelView):
             required=True,
         ),
         StringField(
-            "config_key",
-            label="Configuration Key",
-            help_text="Configuration key (primary, backup, test, etc.)",
+            "name",
+            label="Name",
+            help_text="Configuration name (primary, backup, test, etc.)",
             required=True,
         ),
         StringField("model_name", label="Model Name", help_text="Specific model name (optional)"),
@@ -222,6 +232,8 @@ class LLMConfigView(ModelView):
             label="Extra Parameters",
             help_text="Additional configuration parameters in JSON format (optional)",
         ),
+        LocalDateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     row_actions = ["view", "edit", "test_config", "test_json_schema"]
@@ -234,7 +246,7 @@ class LLMConfigView(ModelView):
     def test_config_row_action(self, request, pk):
         """Custom row action to test this LLM configuration."""
         # Redirect to test interface with RESTful path
-        return f"/qiao-dash/llm-config/{pk}/test"
+        return f"/qiao-dash/llm_config/test/{pk}"
 
     @row_action(
         name="test_json_schema",
@@ -300,7 +312,7 @@ class LLMTestLogView(ModelView):
     exclude_fields_from_create = [
         "id",
         "config_id",
-        "config_key",
+        "config_name",
         "provider_name",
         "model_name",
         "test_message",
@@ -322,7 +334,7 @@ class LLMTestLogView(ModelView):
     exclude_fields_from_edit = [
         "id",
         "config_id",
-        "config_key",
+        "config_name",
         "provider_name",
         "model_name",
         "test_message",
@@ -341,12 +353,12 @@ class LLMTestLogView(ModelView):
         "created_at",
         "completed_at",
     ]
-    exclude_fields_from_list = ["request", "response"]
+    exclude_fields_from_list = []
     exclude_fields_from_detail = []
 
     fields_default_sort = [("created_at", True)]  # Newest first
-    searchable_fields = ["config_key", "provider_name", "model_name", "test_message"]
-    sortable_fields = ["id", "config_id", "created_at", "status", "response_time_ms"]
+    searchable_fields = ["config_name", "provider_name", "model_name", "test_message"]
+    sortable_fields = ["id", "config_id", "created_at", "completed_at", "status", "response_time_ms"]
 
     def can_create(self, request: Request) -> bool:
         """Disable create action for test logs - logs are created automatically."""
@@ -363,7 +375,7 @@ class LLMTestLogView(ModelView):
     fields = [
         IntegerField("id", label="ID", help_text="Test log ID"),
         IntegerField("config_id", label="Config ID", help_text="LLM configuration ID"),
-        StringField("config_key", label="Config Key", help_text="Configuration key"),
+        StringField("config_name", label="Config Name", help_text="Configuration name"),
         StringField("provider_name", label="Provider", help_text="LLM provider name"),
         StringField("model_name", label="Model", help_text="Model name"),
         StringField("test_message", label="Test Message", help_text="Test message sent"),
@@ -403,6 +415,8 @@ class LLMTestLogView(ModelView):
         ),
         IntegerField("total_tokens", label="Total Tokens", help_text="Total tokens used"),
         StringField("reasoning_content", label="Reasoning Content", help_text="Thinking/reasoning content"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Test execution time"),
+        LocalDateTimeField("completed_at", label="Completed At", help_text="Test completion time"),
     ]
 
 

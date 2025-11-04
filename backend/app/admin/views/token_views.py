@@ -7,15 +7,16 @@ This module contains Starlette-Admin views for managing user tokens and login re
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, DateTimeField, TextAreaField
+from starlette_admin import StringField, TextAreaField
 from admin.views.base import IntegerEnumField
+from admin.fields import LocalDateTimeField
 from starlette_admin.exceptions import FormValidationError
 
 # Import token models
-from models.user import UserToken, LoginRecord
+from models.user import UserToken, LoginRecord, UserAuth
 
 # Import enums
-from enums import DeviceType, LoginType, LoginResult
+from enums import DeviceType, LoginType, LoginResult, AuthType
 
 
 class UserTokenView(ModelView):
@@ -26,7 +27,8 @@ class UserTokenView(ModelView):
 
     exclude_fields_from_create = ["id", "token", "created_at", "updated_at", "revoked_at"]
     exclude_fields_from_edit = ["id", "token", "created_at", "updated_at"]
-    exclude_fields_from_list = ["platform_info", "user_agent"]
+    exclude_fields_from_list = ["token"]
+    exclude_fields_from_detail = ["token"]
 
     def can_delete(self, request: Request) -> bool:
         return False
@@ -41,6 +43,7 @@ class UserTokenView(ModelView):
         "expires_at",
         "last_activity_at",
         "created_at",
+        "updated_at",
     ]
 
     fields = [
@@ -58,17 +61,17 @@ class UserTokenView(ModelView):
         "platform_info",
         StringField("ip_address", label="IP Address", help_text="Login IP address"),
         TextAreaField("user_agent", label="User Agent", help_text="Browser/device user agent"),
-        DateTimeField("expires_at", label="Expires At", help_text="Token expiration time"),
+        LocalDateTimeField("expires_at", label="Expires At", help_text="Token expiration time"),
         IntegerEnumField(
             "status",
             choices=[(1, "Active"), (2, "Revoked")],
             label="Status",
             help_text="Token status",
         ),
-        DateTimeField("revoked_at", label="Revoked At", help_text="Token revocation time"),
-        DateTimeField("last_activity_at", label="Last Activity", help_text="Last activity timestamp"),
-        DateTimeField("created_at", label="Created At", help_text="Token creation time"),
-        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        LocalDateTimeField("revoked_at", label="Revoked At", help_text="Token revocation time"),
+        LocalDateTimeField("last_activity_at", label="Last Activity", help_text="Last activity timestamp"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Token creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
@@ -98,7 +101,7 @@ class LoginRecordView(ModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    exclude_fields_from_list = ["user_agent", "fail_reason"]
+    exclude_fields_from_list = []
     fields_default_sort = [("login_time", True)]
     searchable_fields = ["user_qiao_id", "ip_address", "device_id"]
     sortable_fields = [
@@ -115,7 +118,7 @@ class LoginRecordView(ModelView):
         StringField("id", label="ID", help_text="Internal login record ID"),
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
-        DateTimeField("login_time", label="Login Time", help_text="Time of login attempt"),
+        LocalDateTimeField("login_time", label="Login Time", help_text="Time of login attempt"),
         IntegerEnumField(
             "login_type",
             enum=LoginType,
@@ -139,7 +142,7 @@ class LoginRecordView(ModelView):
         ),
         TextAreaField("fail_reason", label="Failure Reason", help_text="Reason for login failure"),
         StringField("token", label="JWT Token", help_text="Associated JWT token"),
-        DateTimeField("created_at", label="Created At", help_text="Record creation time"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Record creation time"),
     ]
 
 
@@ -155,3 +158,45 @@ TOKEN_MODEL_VIEWS = [
     user_token_view,
     login_record_view,
 ]
+
+
+class UserAuthView(ModelView):
+    """User third-party identity bindings management."""
+
+    label = "User Auths"
+    name = "User Auths"
+
+    def can_delete(self, request: Request) -> bool:
+        return False
+
+    fields_default_sort = [("created_at", True)]
+    searchable_fields = ["user_qiao_id", "provider_uid", "unionid", "app_id"]
+    sortable_fields = [
+        "id",
+        "user_qiao_id",
+        "auth_type",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
+
+    fields = [
+        StringField("id", label="ID"),
+        StringField("user_id", label="User ID"),
+        StringField("user_qiao_id", label="User Qiao ID"),
+        IntegerEnumField("auth_type", enum=AuthType, label="Auth Type"),
+        StringField("provider_uid", label="Provider UID"),
+        StringField("unionid", label="UnionID"),
+        StringField("app_id", label="App ID"),
+        IntegerEnumField("status", choices=[(1, "Active"), (2, "Revoked")], label="Status"),
+        TextAreaField("extra_data", label="Extra Data"),
+        LocalDateTimeField("revoked_at", label="Revoked At"),
+        LocalDateTimeField("created_at", label="Created At"),
+        LocalDateTimeField("updated_at", label="Updated At"),
+    ]
+
+
+user_auth_view = UserAuthView(UserAuth, name="User Auths", icon="fa fa-link", identity="user_auth")
+
+# Extend exported views to include user_auth
+TOKEN_MODEL_VIEWS.append(user_auth_view)

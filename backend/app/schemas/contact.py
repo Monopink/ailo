@@ -21,7 +21,7 @@ class ContactBase(BaseSchema):
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
     alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
-    avatar_alias_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
+    custom_avatar_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
     tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, max_length=500, description="Contact remark/notes")
 
@@ -32,7 +32,7 @@ class ContactCreate(BaseModel):
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
     alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
-    avatar_alias_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
+    custom_avatar_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
     tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, max_length=500, description="Contact remark/notes")
 
@@ -41,7 +41,7 @@ class ContactUpdate(BaseModel):
     """Schema for updating contact information."""
 
     alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
-    avatar_alias_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
+    custom_avatar_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
     tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, max_length=500, description="Contact remark/notes")
     is_pinned: Optional[bool] = Field(None, description="Is pinned")
@@ -71,7 +71,7 @@ class ContactListResponse(BaseSchema):
     contact_qiao_id: str = Field(..., description="Contact external ID")
     contact_type: ContactType = Field(..., description="Contact type")
     alias: Optional[str] = Field(None, description="Contact alias/remark name")
-    avatar_alias_url: Optional[str] = Field(None, description="Custom avatar URL")
+    custom_avatar_url: Optional[str] = Field(None, description="Custom avatar URL")
     is_pinned: bool = Field(..., description="Is pinned")
     is_muted: bool = Field(..., description="Is muted")
     is_blocked: bool = Field(..., description="Is blocked")

@@ -44,39 +44,71 @@ class AIStyleResponse(AIStyleBase):
     updated_at: datetime = Field(..., description="Last update time")
 
 
-# AI Relationship Dimension Schemas
+# Dimension Schemas
 
 
-class AIRelationshipDimensionBase(BaseSchema):
-    """Base AI relationship dimension schema."""
+class AIDimensionBase(BaseSchema):
+    """Base AI dimension schema (global)."""
+
+    name: str = Field(..., max_length=50, description="Dimension name (unique)")
+    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
+    description: Optional[str] = Field(None, description="Dimension description")
+
+
+class AIDimensionCreate(BaseModel):
+    """Schema for creating a global AI dimension."""
+
+    name: str = Field(..., max_length=50, description="Dimension name (unique)")
+    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
+    description: Optional[str] = Field(None, description="Dimension description")
+
+
+class AIDimensionUpdate(BaseModel):
+    """Schema for updating a global AI dimension."""
+
+    name: Optional[str] = Field(None, max_length=50, description="Dimension name (unique)")
+    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
+    description: Optional[str] = Field(None, description="Dimension description")
+
+
+class AIDimensionResponse(AIDimensionBase):
+    """Schema for AI dimension response data."""
+
+    id: int = Field(..., description="Dimension ID")
+    created_at: datetime = Field(..., description="Creation time")
+    updated_at: datetime = Field(..., description="Last update time")
+
+
+# AI Style Dimension Schemas (junction)
+
+
+class AIStyleDimensionBase(BaseSchema):
+    """Base AI style dimension schema (junction style<->dimension)."""
 
     style_id: int = Field(..., description="Style ID")
-    name: str = Field(..., max_length=50, description="Dimension name for LLM response")
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
+    dimension_id: int = Field(..., description="Dimension ID")
     initial_position: int = Field(..., ge=0, le=1000, description="Initial position, 0-1000 per mille")
 
 
-class AIRelationshipDimensionCreate(BaseModel):
-    """Schema for creating an AI relationship dimension."""
+class AIStyleDimensionCreate(BaseModel):
+    """Schema for creating an AI style dimension mapping."""
 
     style_id: int = Field(..., description="Style ID")
-    name: str = Field(..., max_length=50, description="Dimension name for LLM response")
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
+    dimension_id: int = Field(..., description="Dimension ID")
     initial_position: int = Field(..., ge=0, le=1000, description="Initial position, 0-1000 per mille")
 
 
-class AIRelationshipDimensionUpdate(BaseModel):
-    """Schema for updating an AI relationship dimension."""
+class AIStyleDimensionUpdate(BaseModel):
+    """Schema for updating an AI style dimension mapping."""
 
-    name: Optional[str] = Field(None, max_length=50, description="Dimension name for LLM response")
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
+    dimension_id: Optional[int] = Field(None, description="Dimension ID")
     initial_position: Optional[int] = Field(
         None, ge=0, le=1000, description="Initial position, 0-1000 per mille"
     )
 
 
-class AIRelationshipDimensionResponse(AIRelationshipDimensionBase):
-    """Schema for AI relationship dimension response data."""
+class AIStyleDimensionResponse(AIStyleDimensionBase):
+    """Schema for AI style dimension response data."""
 
     id: int = Field(..., description="Dimension ID")
     created_at: datetime = Field(..., description="Creation time")
@@ -117,13 +149,12 @@ class AIRelationshipResponse(AIRelationshipBase):
     updated_at: datetime = Field(..., description="Last update time")
 
 
-# AI Relationship Index Schemas
+# AI Dimension Relationship Mapping Schemas (global)
 
 
-class AIRelationshipIndexBase(BaseSchema):
-    """Base AI relationship index schema."""
+class AIDimensionRelationshipMappingBase(BaseSchema):
+    """Base AI dimension relationship mapping schema (global)."""
 
-    style_id: int = Field(..., description="Style ID")
     dimension_id: int = Field(..., description="Dimension ID")
     start_position: int = Field(..., ge=0, le=1000, description="Start position, 0-1000 per mille")
     end_position: int = Field(..., ge=0, le=1000, description="End position, 0-1000 per mille")
@@ -132,10 +163,9 @@ class AIRelationshipIndexBase(BaseSchema):
     limit_count: Optional[int] = Field(None, description="Maximum occurrence count")
 
 
-class AIRelationshipIndexCreate(BaseModel):
-    """Schema for creating an AI relationship index."""
+class AIDimensionRelationshipMappingCreate(BaseModel):
+    """Schema for creating an AI dimension relationship mapping."""
 
-    style_id: int = Field(..., description="Style ID")
     dimension_id: int = Field(..., description="Dimension ID")
     start_position: int = Field(..., ge=0, le=1000, description="Start position, 0-1000 per mille")
     end_position: int = Field(..., ge=0, le=1000, description="End position, 0-1000 per mille")
@@ -154,8 +184,8 @@ class AIRelationshipIndexCreate(BaseModel):
         return v
 
 
-class AIRelationshipIndexUpdate(BaseModel):
-    """Schema for updating an AI relationship index."""
+class AIDimensionRelationshipMappingUpdate(BaseModel):
+    """Schema for updating an AI dimension relationship mapping."""
 
     dimension_id: Optional[int] = Field(None, description="Dimension ID")
     start_position: Optional[int] = Field(
@@ -177,8 +207,8 @@ class AIRelationshipIndexUpdate(BaseModel):
         return v
 
 
-class AIRelationshipIndexResponse(AIRelationshipIndexBase):
-    """Schema for AI relationship index response data."""
+class AIDimensionRelationshipMappingResponse(AIDimensionRelationshipMappingBase):
+    """Schema for AI dimension relationship mapping response data."""
 
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")

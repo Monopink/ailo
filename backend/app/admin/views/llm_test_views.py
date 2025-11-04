@@ -102,7 +102,7 @@ class LLMConfigTestView(CustomView):
                     "request": request,
                     "config_id": config_id,
                     "llm_config": {
-                        "config_key": config.config_key,
+                        "name": config.name,
                         "provider_name": provider.display_name,
                         "model_name": config.model_name or provider.default_model,
                         "temperature": float(config.temperature) if config.temperature else None,
@@ -113,7 +113,7 @@ class LLMConfigTestView(CustomView):
                         "json_schema_mode": config.json_schema_mode,
                         "supports_thinking": provider.supports_thinking,
                     },
-                    "page_title": f"Test LLM Config: {config.config_key}",
+                    "page_title": f"Test LLM Config: {config.name}",
                 }
 
             # Return response AFTER async context to ensure all data is extracted
@@ -200,7 +200,7 @@ class LLMConfigTestView(CustomView):
 llm_config_test_view = LLMConfigTestView(
     label="LLM Config Test",
     icon="",
-    path="/llm-config/{id:int}/test",
+    path="/llm_config/test/{id:int}",
     methods=["GET", "POST"],
     add_to_menu=False,  # Accessed via row actions only
 )

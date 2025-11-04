@@ -35,7 +35,9 @@ class ChangeEmailRequest(BaseModel):
 
     operation_token: str = Field(..., description="Operation token from verification")
     new_email: str = Field(..., max_length=100, description="New email address")
-    email_code: str = Field(..., min_length=6, max_length=6, description="6-digit verification code for new email")
+    email_code: str = Field(
+        ..., min_length=6, max_length=6, description="6-digit verification code for new email"
+    )
 
 
 class ChangeEmailResponse(BaseModel):
@@ -48,4 +50,3 @@ class UnbindEmailRequest(BaseModel):
     """Request schema for unbinding email"""
 
     operation_token: str = Field(..., description="Operation token from verification")
-

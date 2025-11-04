@@ -7,17 +7,21 @@ with clear separation of concerns and pure function design.
 
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, desc, func
+from sqlalchemy import select, and_, or_, desc, func
 from datetime import datetime, timedelta
 
 from models.ai import AIContext
+from enums import AIAggregateState, AIContextRole
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 async def get_conversation_contexts(
-    db: AsyncSession, character_qiao_id: str, user_qiao_id: str, limit: int = 10
+    db: AsyncSession,
+    character_qiao_id: str,
+    user_qiao_id: str,
+    limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
     Get conversation contexts for prompt building.
@@ -32,18 +36,31 @@ async def get_conversation_contexts(
         List of context dictionaries with role and content
     """
     try:
-        result = await db.execute(
+        # Only user role requires COMPLETE state; assistant/system do not use aggregate_state
+        # Build base query
+        query = (
             select(AIContext)
             .where(
                 and_(
                     AIContext.user_qiao_id == user_qiao_id,
                     AIContext.character_qiao_id == character_qiao_id,
-                    AIContext.reply_status == 3,  # done
+                    or_(
+                        and_(
+                            AIContext.role == AIContextRole.USER,
+                            AIContext.aggregate_state == AIAggregateState.COMPLETE,
+                        ),
+                        AIContext.role != AIContextRole.USER,
+                    ),
                 )
             )
             .order_by(desc(AIContext.created_at), desc(AIContext.id))
-            .limit(limit)
         )
+
+        # Apply limit only when specified
+        if isinstance(limit, int) and limit > 0:
+            query = query.limit(limit)
+
+        result = await db.execute(query)
 
         contexts = result.scalars().all()
 
@@ -94,13 +111,20 @@ async def get_conversation_history(
         List of context dictionaries
     """
     try:
+        # Only user role requires COMPLETE state; assistant/system do not use aggregate_state
         result = await db.execute(
             select(AIContext)
             .where(
                 and_(
                     AIContext.user_qiao_id == user_qiao_id,
                     AIContext.character_qiao_id == character_qiao_id,
-                    AIContext.reply_status == 3,  # done
+                    or_(
+                        and_(
+                            AIContext.role == AIContextRole.USER,
+                            AIContext.aggregate_state == AIAggregateState.COMPLETE,
+                        ),
+                        AIContext.role != AIContextRole.USER,
+                    ),
                 )
             )
             .order_by(desc(AIContext.created_at))
@@ -117,7 +141,6 @@ async def get_conversation_history(
                     "id": context.id,
                     "role": context.role,
                     "content": context.content,
-                    "source_type": context.source_type,
                     "created_at": context.created_at,
                     "is_attack": context.is_attack,
                 }
@@ -167,8 +190,7 @@ async def get_context_by_id(db: AsyncSession, context_id: int) -> Optional[Dict[
             "user_qiao_id": context.user_qiao_id,
             "role": context.role,
             "content": context.content,
-            "source_type": context.source_type,
-            "reply_status": context.reply_status,
+            "aggregate_state": context.aggregate_state,
             "is_attack": context.is_attack,
             "created_at": context.created_at,
         }
@@ -179,7 +201,11 @@ async def get_context_by_id(db: AsyncSession, context_id: int) -> Optional[Dict[
 
 
 async def get_contexts_for_archiving(
-    db: AsyncSession, character_qiao_id: str, max_age_days: int = 30, max_count: int = 100
+    db: AsyncSession,
+    character_qiao_id: str,
+    user_qiao_id: str,
+    max_age_seconds: int = 604800,
+    max_count: int = 100,
 ) -> List[AIContext]:
     """
     Get contexts that should be archived.
@@ -196,15 +222,20 @@ async def get_contexts_for_archiving(
     try:
         from datetime import timezone
 
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+        # Compute cutoff by seconds for consistency with system config convention
+        cutoff_date = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
 
         # Get all done contexts for this character
         result = await db.execute(
             select(AIContext)
             .where(
-                and_(AIContext.character_qiao_id == character_qiao_id, AIContext.reply_status == 3)  # done
+                and_(
+                    AIContext.character_qiao_id == character_qiao_id,
+                    AIContext.user_qiao_id == user_qiao_id,
+                    AIContext.aggregate_state == 3,  # done
+                )
             )
-            .order_by(desc(AIContext.created_at))
+            .order_by(desc(AIContext.created_at), desc(AIContext.id))
         )
 
         all_contexts = result.scalars().all()

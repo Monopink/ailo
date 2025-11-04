@@ -27,8 +27,8 @@ class LLMTestLog(ImmutableSnowflakeModel):
         Integer, nullable=False, comment="Configuration ID, references llm_configs.id"
     )
 
-    config_key: Mapped[str] = mapped_column(
-        String(100), nullable=False, comment="Configuration key (redundant for query convenience)"
+    config_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, comment="Configuration name (redundant for query convenience)"
     )
 
     provider_name: Mapped[str] = mapped_column(

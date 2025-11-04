@@ -13,7 +13,7 @@ class SquareContactResponse(BaseModel):
     """Square page contact response."""
 
     qiao_id: str = Field(..., description="Contact qiao_id")
-    category: Optional[str] = Field(None, description="Category")
+    category: Optional[int] = Field(None, description="Category (1-5)")
     nickname: Optional[str] = Field(None, description="Nickname")
     gender: Optional[int] = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
     avatar_url: Optional[str] = Field(None, description="Avatar URL")
@@ -42,7 +42,7 @@ class StrangerProfileResponse(BaseModel):
     avatar_url: Optional[str] = Field(None, description="Avatar URL")
     bio: Optional[str] = Field(None, description="Bio/description")
     region: Optional[str] = Field(None, description="Region/location")
-    category: Optional[str] = Field(None, description="Category")
+    category: Optional[int] = Field(None, description="Category (1-5)")
 
     class Config:
         from_attributes = True

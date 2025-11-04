@@ -1,0 +1,11 @@
+{#
+  Override JSON display template from starlette-admin for structured view.
+  Only affects display (detail/list) pages; form templates remain untouched.
+  Keeps output safe and readable with indentation and escaping.
+#}
+<div id="{{ field.name }}" class="field-json">
+  <pre style="white-space:pre-wrap;word-break:break-word;margin:0;background:transparent;color:inherit;">
+{{ (data | prettyjson) | e }}
+  </pre>
+  {# Optional: copy/expand controls could be added later if needed #}
+</div>

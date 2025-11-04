@@ -14,7 +14,7 @@ class LLMTestLogCreate(BaseModel):
 
     id: int = Field(description="Snowflake ID")
     config_id: int = Field(description="Configuration ID")
-    config_key: str = Field(max_length=100, description="Configuration key")
+    config_name: str = Field(max_length=100, description="Configuration name")
     provider_name: str = Field(max_length=50, description="Provider name")
     model_name: Optional[str] = Field(default=None, max_length=100, description="Model name")
     test_message: str = Field(description="Test message content")

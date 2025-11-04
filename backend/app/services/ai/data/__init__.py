@@ -32,9 +32,9 @@ from .context_queries import (
 
 # Template-related query functions
 from .template_queries import (
-    get_profile_template_with_info,
+    get_profile_template_with_character_template,
     get_profile_template_by_id,
-    get_info_template_by_id,
+    get_character_template_by_id,
     check_template_reusability,
 )
 
@@ -79,9 +79,9 @@ __all__ = [
     "get_contexts_for_archiving",
     "get_recent_contexts_count",
     # Template queries
-    "get_profile_template_with_info",
+    "get_profile_template_with_character_template",
     "get_profile_template_by_id",
-    "get_info_template_by_id",
+    "get_character_template_by_id",
     "check_template_reusability",
     # Profile queries
     "get_user_profile",

@@ -3,23 +3,20 @@ Admin log models for operation and login tracking.
 Simplified logging system for admin activities.
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, func
+from sqlalchemy import Column, String, Integer, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import relationship
 
-from ..admin.models.base import AdminBaseModel
+from .base import ImmutableAutoIncrementModel
 
 
-class AdminOperationLog(AdminBaseModel):
+class AdminOperationLog(ImmutableAutoIncrementModel):
     """
     Admin operation log model.
     Records important operations performed by admin users.
     """
 
     __tablename__ = "admin_operation_logs"
-
-    # Only created_at for logs, no updates needed
-    created_at = Column(DateTime, default=func.now(), index=True, comment="Creation timestamp")
 
     admin_user_id = Column(
         Integer,
@@ -47,16 +44,13 @@ class AdminOperationLog(AdminBaseModel):
     admin_user = relationship("AdminUser", backref="operation_logs")
 
 
-class AdminLoginLog(AdminBaseModel):
+class AdminLoginLog(ImmutableAutoIncrementModel):
     """
     Admin login log model.
     Records all login attempts (successful and failed).
     """
 
     __tablename__ = "admin_login_logs"
-
-    # Only created_at for logs, no updates needed
-    created_at = Column(DateTime, default=func.now(), index=True, comment="Creation timestamp")
 
     admin_user_id = Column(
         Integer,

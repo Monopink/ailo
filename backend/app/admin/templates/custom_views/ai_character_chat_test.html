@@ -4,515 +4,682 @@
 
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
-    <div>
-        <h1>AI Character Chat Test</h1>
-    </div>
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
-        </li>
-        <li class="breadcrumb-item">
-            <a href="/qiao-dash/ai_character/list">AI Characters</a>
-        </li>
-        <li class="breadcrumb-item active">Chat Test</li>
-    </ol>
+  <div>
+    <h1>AI Character Chat Test</h1>
+  </div>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':index') }}">Admin</a></li>
+    <li class="breadcrumb-item"><a href="/qiao-dash/ai_character/list">Characters</a></li>
+    <li class="breadcrumb-item active">Chat Test</li>
+  </ol>
 </div>
 {% endblock %}
 
 {% block content %}
 <style>
-    .chat-test-container {
-        max-width: 1200px;
-        margin: 20px auto;
-        padding: 20px;
-    }
+/* Chat area height constraints - Bootstrap doesn't provide these specific utilities */
+.chat-area {
+  min-height: 360px;
+  max-height: 580px;
+}
 
-    .status-bar {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 20px;
-    }
+/* Message bubbles - use CSS variables for theme compatibility */
+.message {
+  max-width: 75%;
+}
+.message-user {
+  align-self: flex-end;
+  background-color: var(--tblr-primary-lt, rgba(var(--tblr-primary-rgb), 0.1));
+  border-color: var(--tblr-primary, rgba(var(--tblr-primary-rgb), 0.3));
+}
+.message-ai {
+  align-self: flex-start;
+  background-color: var(--tblr-bg-surface-secondary, var(--tblr-secondary-lt));
+  border-color: var(--tblr-border-color, var(--tblr-border-color-light));
+}
 
-    .status-bar h3 {
-        margin: 0 0 10px 0;
-        font-size: 16px;
-        font-weight: 600;
-        color: #333;
-    }
+/* LLM select responsive flex behavior */
+.llm-select-wrapper {
+  flex: 1 1 250px;
+  min-width: 200px;
+}
 
-    .status-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 15px;
-    }
+/* Loading state - pointer-events not available as utility class */
+.loading {
+  pointer-events: none;
+}
 
-    .status-item {
-        padding: 10px;
-        background: white;
-        border-radius: 6px;
-        border: 1px solid #e9ecef;
-    }
-
-    .status-label {
-        font-size: 12px;
-        color: #6c757d;
-        margin-bottom: 4px;
-    }
-
-    .status-value {
-        font-size: 14px;
-        color: #212529;
-        font-weight: 500;
-    }
-
-    .scores-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 10px;
-        margin-top: 10px;
-    }
-
-    .score-item {
-        padding: 8px;
-        background: white;
-        border-radius: 4px;
-        border: 1px solid #e9ecef;
-        text-align: center;
-    }
-
-    .score-name {
-        font-size: 11px;
-        color: #6c757d;
-        margin-bottom: 4px;
-    }
-
-    .score-value {
-        font-size: 14px;
-        font-weight: 600;
-        color: #0d6efd;
-    }
-
-    .chat-area {
-        background: white;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        min-height: 400px;
-        max-height: 600px;
-        overflow-y: auto;
-        padding: 20px;
-        margin-top: 20px;
-    }
-
-    .chat-area:empty::before {
-        content: "开始测试对话...";
-        color: #adb5bd;
-        font-size: 14px;
-    }
-
-    .message {
-        margin-bottom: 15px;
-        padding: 10px 15px;
-        border-radius: 8px;
-        max-width: 70%;
-        word-wrap: break-word;
-    }
-
-    .message-user {
-        background: #e3f2fd;
-        margin-left: auto;
-        text-align: right;
-    }
-
-    .message-ai {
-        background: #f5f5f5;
-        margin-right: auto;
-    }
-
-    .control-bar {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 15px;
-    }
-
-    .control-row {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 10px;
-    }
-
-    .control-row:last-child {
-        margin-bottom: 0;
-    }
-
-    .llm-select {
-        flex: 0 0 200px;
-        padding: 8px 12px;
-        border: 1px solid #ced4da;
-        border-radius: 6px;
-        font-size: 14px;
-    }
-
-    .message-input {
-        flex: 1;
-        padding: 8px 12px;
-        border: 1px solid #ced4da;
-        border-radius: 6px;
-        font-size: 14px;
-        resize: none;
-    }
-
-    .btn {
-        padding: 8px 20px;
-        border: none;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .btn-primary {
-        background: #0d6efd;
-        color: white;
-    }
-
-    .btn-primary:hover {
-        background: #0b5ed7;
-    }
-
-    .btn-primary:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
-    }
-
-    .btn-secondary {
-        background: #6c757d;
-        color: white;
-    }
-
-    .btn-secondary:hover {
-        background: #5c636a;
-    }
-
-    .debug-info {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 15px;
-        margin-top: 20px;
-        display: none;
-    }
-
-    .debug-info.show {
-        display: block;
-    }
-
-    .debug-info h4 {
-        margin: 0 0 10px 0;
-        font-size: 14px;
-        font-weight: 600;
-        color: #333;
-    }
-
-    .debug-content {
-        background: white;
-        padding: 10px;
-        border-radius: 4px;
-        font-family: monospace;
-        font-size: 12px;
-        max-height: 300px;
-        overflow-y: auto;
-    }
-
-    .error-message {
-        background: #f8d7da;
-        color: #721c24;
-        padding: 12px;
-        border-radius: 6px;
-        margin-bottom: 15px;
-        border: 1px solid #f5c6cb;
-    }
-
-    .loading {
-        opacity: 0.6;
-        pointer-events: none;
-    }
+/* Override Tabler's pre tag styles to remove background */
+pre {
+  background: transparent !important;
+  color: var(--tblr-body-color, var(--bs-body-color));
+}
 </style>
 
-<div class="chat-test-container">
-    <div id="errorDisplay" style="display: none;" class="error-message"></div>
-    <div class="status-bar">
-        <h3>测试状态</h3>
-        <div class="status-grid">
-            <div class="status-item">
-                <div class="status-label">角色ID</div>
-                <div class="status-value" id="characterQiaoId">-</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">分类</div>
-                <div class="status-value" id="characterCategory">-</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">风格</div>
-                <div class="status-value" id="characterStyle">-</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">性格</div>
-                <div class="status-value" id="characterPersonality">-</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">测试用户</div>
-                <div class="status-value" id="testUserNickname">-</div>
-            </div>
-        </div>
-        <div id="scoresContainer" style="display: none;">
-            <h4 style="margin: 15px 0 10px 0; font-size: 14px; font-weight: 600;">关系分数</h4>
-            <div class="scores-grid" id="scoresGrid"></div>
-        </div>
-    </div>
-    <div class="control-bar">
-        <div class="control-row">
-            <select class="llm-select" id="llmSelect">
-                <option value="">选择LLM配置...</option>
-            </select>
-            <textarea class="message-input" id="messageInput" placeholder="输入测试消息..." rows="2"></textarea>
-            <button class="btn btn-primary" id="sendBtn" disabled>发送</button>
-        </div>
-        <div class="control-row">
-            <button class="btn btn-secondary" id="toggleDebugBtn">显示调试信息</button>
-        </div>
-    </div>
-    <div class="debug-info" id="debugInfo">
-        <h4>调试信息</h4>
-        <div class="debug-content" id="debugContent"></div>
-    </div>
-    <div class="chat-area" id="chatArea"></div>
-</div>
+<div class="container-fluid px-3 py-4" style="max-width: 1400px;">
+  <div id="errorDisplay" style="display:none" class="alert alert-danger"></div>
 
-<script>
-    var messages = [];
+  <div class="row g-3">
+    <!-- Left column -->
+    <div class="col-12 col-lg-4">
+      <!-- Test Configuration Card -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h3 class="card-title">测试配置</h3>
+        </div>
+        <div class="card-body">
+          <h4 class="fw-bold mb-2">Character</h4>
+          <table class="table table-sm table-borderless mb-3">
+            <tbody>
+              <tr><td class="text-muted" style="width:40%">ID</td><td id="characterQiaoId">-</td></tr>
+              <tr><td class="text-muted">Nickname</td><td id="aiNickname">-</td></tr>
+              <tr><td class="text-muted">Gender</td><td id="aiGender">-</td></tr>
+              <tr><td class="text-muted">Region</td><td id="aiRegion">-</td></tr>
+              <tr><td class="text-muted">Bio</td><td id="aiBio">-</td></tr>
+              <tr><td class="text-muted">Avatar URL</td><td id="aiAvatarUrl" class="text-break small">-</td></tr>
+              <tr><td class="text-muted">Avatar Prompt</td><td id="aiAvatarPrompt" class="text-break small">-</td></tr>
+              <tr><td class="text-muted">Category</td><td id="characterCategory">-</td></tr>
+            </tbody>
+          </table>
+
+          <h4 class="fw-bold mb-2">Test User</h4>
+          <table class="table table-sm table-borderless mb-3">
+            <tbody>
+              <tr><td class="text-muted" style="width:40%">ID</td><td id="userQiaoId">-</td></tr>
+              <tr><td class="text-muted">Username</td><td id="userUsername">-</td></tr>
+              <tr><td class="text-muted">Nickname</td><td id="userNickname">-</td></tr>
+              <tr><td class="text-muted">Gender</td><td id="userGender">-</td></tr>
+              <tr><td class="text-muted">Region</td><td id="userRegion">-</td></tr>
+              <tr><td class="text-muted">Bio</td><td id="userBio">-</td></tr>
+              <tr><td class="text-muted">Avatar URL</td><td id="userAvatarUrl" class="text-break small">-</td></tr>
+              <tr><td class="text-muted">Avatar Prompt</td><td id="userAvatarPrompt" class="text-break small">-</td></tr>
+            </tbody>
+          </table>
+
+          <h4 class="fw-bold mb-2">AI Configuration</h4>
+          <table class="table table-sm table-borderless mb-3">
+            <tbody>
+              <tr><td class="text-muted" style="width:40%">Style</td><td id="aiStyleName">-</td></tr>
+              <tr><td class="text-muted">Personality</td><td id="aiPersonalityName">-</td></tr>
+            </tbody>
+          </table>
+
+          <h4 class="fw-bold mb-2">Current Relationship</h4>
+          <table class="table table-sm table-borderless mb-3">
+            <tbody>
+              <tr><td class="text-muted" style="width:40%">Name</td><td id="currentRelationshipName">-</td></tr>
+              <tr><td class="text-muted">Display Name</td><td id="currentRelationshipDisplay">-</td></tr>
+            </tbody>
+          </table>
+          <div class="mb-3">
+            <label class="form-label text-muted">Prompt Fragment</label>
+            <pre class="border rounded p-2 text-body small" id="currentRelationshipPrompt">-</pre>
+          </div>
+
+          <h4 class="fw-bold mb-2 mt-3">Dimensions</h4>
+          <div id="dimensionsList" class="mb-3"></div>
+
+          <h4 class="fw-bold mb-2 mt-3">Prompt Variables</h4>
+          <pre class="border rounded p-2 text-body" id="aiPromptVars"></pre>
+
+          <h4 class="fw-bold mb-2">Memory</h4>
+          <pre class="border rounded p-2 text-body" id="aiMemory"></pre>
+        </div>
+      </div>
+
+      
+    </div>
+
+    <!-- Right column -->
+    <div class="col-12 col-lg-8">
+      <!-- Chat Card -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h3 class="card-title">聊天</h3>
+        </div>
+        <div class="card-body">
+          <!-- Chat display area -->
+          <div class="chat-area border rounded p-3 overflow-auto d-flex flex-column gap-2" id="chatArea">
+            <div class="empty" id="chatEmptyState">
+              <p class="empty-subtitle text-secondary">Send a message to begin the conversation</p>
+            </div>
+          </div>
+
+          <!-- Message input -->
+          <div class="mt-3">
+            <textarea class="form-control" id="messageInput" rows="2" placeholder="Type test message..."></textarea>
+          </div>
+
+          <!-- Request configuration -->
+          <div class="mt-3" id="requestConfigSection">
+            <div class="d-flex flex-wrap gap-3 align-items-center">
+              <div class="llm-select-wrapper">
+                <select class="form-select" id="llmSelect">
+                  <option value="">Select LLM...</option>
+                </select>
+              </div>
+              <div class="form-check m-0">
+                <input class="form-check-input" type="checkbox" id="persistSwitch" checked>
+                <label class="form-check-label" for="persistSwitch">Persist test result</label>
+              </div>
+              <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
+            </div>
+
+            <!-- Mock score override section -->
+            <div class="mt-3" id="mockOverrideWrap" style="display:none;">
+              <div class="row g-2" id="scoreInputs"></div>
+              <div class="text-muted small mt-2">仅填写需要覆盖的维度（仅 Mock 有效）。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Response Analysis Card -->
+      <div class="card mb-3">
+        <div class="card-body">
+          <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tab-request-analysis" data-bs-toggle="tab" data-bs-target="#tabPaneRequestAnalysis" type="button" role="tab">请求解析</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="tab-parsed" data-bs-toggle="tab" data-bs-target="#tabPaneParsed" type="button" role="tab">响应解析</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tab-request" data-bs-toggle="tab" data-bs-target="#tabPaneRequest" type="button" role="tab">请求Payload</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tab-raw" data-bs-toggle="tab" data-bs-target="#tabPaneRaw" type="button" role="tab">原始响应</button>
+            </li>
+          </ul>
+            <div class="tab-content mt-3">
+            <div class="tab-pane fade" id="tabPaneRequestAnalysis" role="tabpanel">
+              <h4 class="fw-bold mb-2">System Prompt</h4>
+              <pre class="border rounded p-2 mb-3 text-body" id="respParsedSystemPrompt">-</pre>
+            </div>
+            <div class="tab-pane fade show active" id="tabPaneParsed" role="tabpanel">
+              <h4 class="fw-bold mb-2">Flags</h4>
+              <div id="respParsedFlags" class="text-muted mb-3">-</div>
+
+              <h4 class="fw-bold mb-2">Internal Thoughts</h4>
+              <div id="respParsedInternalThoughts" class="text-muted mb-3">-</div>
+
+              <h4 class="fw-bold mb-2">Outgoing Messages</h4>
+              <div id="respParsedOutgoing" class="text-muted mb-3">-</div>
+
+              <h4 class="fw-bold mb-2">Followup Messages</h4>
+              <div id="respParsedFollowup" class="text-muted mb-3">-</div>
+
+              <h4 class="fw-bold mb-2">Score Updates</h4>
+              <div id="respParsedScoreUpdates" class="text-muted mb-3">-</div>
+
+              <h4 class="fw-bold mb-2">Relationship Selection</h4>
+              <div id="respParsedRelationshipSelection" class="text-muted mb-3">-</div>
+
+              <h4 class="fw-bold mb-2">Memory Operations</h4>
+              <pre class="border rounded p-2 mb-3 text-body" id="respParsedMemoryOps">-</pre>
+
+              <h4 class="fw-bold mb-2">Performance</h4>
+              <div id="reqPerf" class="text-muted mb-3">-</div>
+            </div>
+            <div class="tab-pane fade" id="tabPaneRaw" role="tabpanel">
+              <pre class="border rounded p-2 text-body" id="respRawJsonPre">-</pre>
+            </div>
+            <div class="tab-pane fade" id="tabPaneRequest" role="tabpanel">
+              <pre class="border rounded p-2 text-body" id="reqPayloadPre">-</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+    </div>
+  </div>
+
+  <script>
     var characterId = "{{ character_id }}";
+    var llmConfigMap = {};
     var currentDebugInfo = null;
 
     document.addEventListener('DOMContentLoaded', function () {
-        loadReadinessInfo();
-        setupEventListeners();
+      loadReadinessInfo();
+      setupEventListeners();
     });
 
     function loadReadinessInfo() {
-        fetch('/qiao-dash/ai-character/' + characterId + '/chat-test?action=readiness')
-            .then(function (response) { return response.json(); })
-            .then(function (data) {
-                if (!data.ready) {
-                    showError('测试环境未就绪: ' + data.error_message);
-                    return;
-                }
-                document.getElementById('characterQiaoId').textContent = data.character_info.qiao_id;
-                document.getElementById('characterCategory').textContent = data.character_info.category;
-                document.getElementById('characterStyle').textContent = data.character_info.style;
-                document.getElementById('characterPersonality').textContent = data.character_info.personality;
-                document.getElementById('testUserNickname').textContent = data.test_user_info.nickname;
-                if (data.relationship_scores && data.relationship_scores.length > 0) {
-                    var scoresGrid = document.getElementById('scoresGrid');
-                    scoresGrid.innerHTML = data.relationship_scores.map(function (score) {
-                        return '<div class="score-item"><div class="score-name">' + score.dimension_name + '</div><div class="score-value">' + score.score + '</div></div>';
-                    }).join('');
-                    document.getElementById('scoresContainer').style.display = 'block';
-                }
-                var llmSelect = document.getElementById('llmSelect');
-                data.available_llm_configs.forEach(function (config) {
-                    var option = document.createElement('option');
-                    option.value = config.config_key;
-                    option.textContent = config.config_key + ' - ' + config.model_name + ' (' + config.provider_name + ')';
-                    llmSelect.appendChild(option);
-                });
-                llmSelect.addEventListener('change', function () {
-                    document.getElementById('sendBtn').disabled = !llmSelect.value;
-                });
-            })
-            .catch(function (error) {
-                showError('加载测试环境失败: ' + error.message);
-            });
+      fetch('/qiao-dash/ai_character/chat-test/' + characterId + '?action=readiness')
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ready) { showError('Not ready: ' + (data.error_message || '')); return; }
+          document.getElementById('characterQiaoId').textContent = data.character_info.qiao_id;
+          document.getElementById('characterCategory').textContent = data.character_info.category;
+          updateParticipantsAndSettings(data);
+
+          // Current relationship display (from character's current_relationship)
+          updateCurrentRelationship(data.current_relationship);
+
+          var llmSelect = document.getElementById('llmSelect');
+          data.available_llm_configs.forEach(function (config) {
+            var opt = document.createElement('option');
+            opt.value = config.name;
+            opt.textContent = config.name + ' - ' + config.model_name + ' (' + config.provider_name + ')';
+            llmSelect.appendChild(opt);
+            llmConfigMap[config.name] = config;
+          });
+
+          // Build ranges map from response schema
+          var dims = Array.from(new Set((data.relationship_scores || []).map(function (s) { return s.dimension_name; })));
+          var rangesMap = buildRangesMapFromSchema(data.response_schema || {});
+          renderScoreInputs(dims, rangesMap);
+
+          // Render dimensions table
+          renderDimensionsList(data.character_dimensions || [], rangesMap, data.relationship_scores || []);
+
+          function toggleMock() {
+            var cfg = llmConfigMap[llmSelect.value];
+            var isMock = cfg && cfg.provider_name && String(cfg.provider_name).toLowerCase() === 'mock';
+            var wrap = document.getElementById('mockOverrideWrap');
+            if (wrap) wrap.style.display = isMock ? 'block' : 'none';
+          }
+          llmSelect.addEventListener('change', function () {
+            document.getElementById('sendBtn').disabled = !llmSelect.value;
+            toggleMock();
+          });
+          toggleMock();
+        })
+        .catch(e => showError('Readiness failed: ' + e.message));
+    }
+
+    function buildRangesMapFromSchema(schema) {
+      var rangesMap = {};
+      try {
+        var scoreProps = (schema.properties && schema.properties.score && schema.properties.score.properties) || {};
+        Object.keys(scoreProps).forEach(function (name) {
+          var p = scoreProps[name] || {};
+          var min = (typeof p.minimum === 'number') ? p.minimum : 0;
+          var max = (typeof p.maximum === 'number') ? p.maximum : 1000;
+          rangesMap[name] = { min: min, max: max };
+        });
+      } catch (e) { }
+      return rangesMap;
+    }
+
+    function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function safeStringify(x) { try { return JSON.stringify(x); } catch (_) { try { return String(x); } catch (e) { return ''; } } }
+
+    function renderDimensionsList(charDimsList, rangesMap, relationshipScores) {
+      var container = document.getElementById('dimensionsList');
+      if (!container) return;
+      var byName = {};
+      (charDimsList || []).forEach(function (d) { if (d && d.dimension_name) byName[d.dimension_name] = d; });
+      var rsMap = {};
+      (relationshipScores || []).forEach(function (s) { if (s && s.dimension_name) rsMap[s.dimension_name] = s; });
+      var nameSet = new Set();
+      Object.keys(byName).forEach(function (n) { nameSet.add(n); });
+      Object.keys(rangesMap || {}).forEach(function (n) { nameSet.add(n); });
+      Object.keys(rsMap).forEach(function (n) { nameSet.add(n); });
+      var items = Array.from(nameSet).sort().map(function (name) {
+        var d = byName[name] || {};
+        var s = rsMap[name] || {};
+        var rng = (rangesMap || {})[name] || { min: 0, max: 1000 };
+        var alg = (d.position_mapping_algorithm !== undefined && d.position_mapping_algorithm !== null) ? d.position_mapping_algorithm : '-';
+        var params = d.position_mapping_params ? safeStringify(d.position_mapping_params) : '';
+        var scoreVal = (d.score !== undefined && d.score !== null) ? d.score : ((s.score !== undefined && s.score !== null) ? s.score : '-');
+        var posVal = (d.position !== undefined && d.position !== null) ? d.position : ((s.position !== undefined && s.position !== null) ? s.position : '-');
+        function row(label, value, mono) {
+          return '<div class="d-flex align-items-center mb-1"><span class="text-muted" style="min-width: 120px;">' + escHtml(label) + '</span><span' + (mono ? ' class="font-monospace text-break"' : '') + '>' + escHtml(value) + '</span></div>';
+        }
+        return '<div class="border rounded p-2 mb-2">' +
+          row('Name', String(name)) +
+          row('Score', String(scoreVal)) +
+          row('Range', String(rng.min) + ' ~ ' + String(rng.max)) +
+          row('Position', String(posVal)) +
+          row('Algorithm', String(alg)) +
+          row('Params', params, true) +
+        '</div>';
+      }).join('');
+      container.innerHTML = items || '<div class="text-muted">No dimensions</div>';
+    }
+
+    function renderScoreInputs(dimensions, ranges) {
+      var container = document.getElementById('scoreInputs');
+      container.innerHTML = '';
+      if (!dimensions || dimensions.length === 0) {
+        container.innerHTML = '<div class="text-muted">No dimensions available for score override.</div>';
+        return;
+      }
+      dimensions.forEach(function (name) {
+        var col = document.createElement('div');
+        col.className = 'col-6 col-md-4';
+        var label = document.createElement('label');
+        label.className = 'form-label text-muted';
+        var range = (ranges && ranges[name]) ? ranges[name] : { min: 0, max: 1000 };
+        label.textContent = name + ' (' + range.min + '~' + range.max + ')';
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.step = '1';
+        input.className = 'form-control';
+        input.id = 'score_' + name;
+        input.placeholder = range.min + ' ~ ' + range.max;
+        col.appendChild(label);
+        col.appendChild(input);
+        container.appendChild(col);
+      });
     }
 
     function setupEventListeners() {
-        document.getElementById('sendBtn').addEventListener('click', sendMessage);
-        document.getElementById('toggleDebugBtn').addEventListener('click', toggleDebug);
-        document.getElementById('messageInput').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && !e.ctrlKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
+      document.getElementById('sendBtn').addEventListener('click', sendMessage);
+      document.getElementById('messageInput').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.ctrlKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
     }
 
     function sendMessage() {
-        var messageInput = document.getElementById('messageInput');
-        var llmSelect = document.getElementById('llmSelect');
-        var sendBtn = document.getElementById('sendBtn');
-        var message = messageInput.value.trim();
-        var llmConfigKey = llmSelect.value;
-        if (!message || !llmConfigKey) return;
+      var messageInput = document.getElementById('messageInput');
+      var llmSelect = document.getElementById('llmSelect');
+      var sendBtn = document.getElementById('sendBtn');
+      var message = messageInput.value.trim();
+      var key = llmSelect.value;
+      if (!message || !key) return;
+      messageInput.value = '';
+      sendBtn.disabled = true;
+      document.querySelector('.container-fluid').classList.add('loading', 'opacity-50');
 
-        // User message will be displayed from request_payload after API response
-        messageInput.value = '';
-        sendBtn.disabled = true;
-        document.querySelector('.chat-test-container').classList.add('loading');
+      var formData = new FormData();
+      formData.append('character_id', characterId);
+      formData.append('llm_config_name', key);
+      formData.append('test_message', message);
 
-        var formData = new FormData();
-        formData.append('character_id', characterId);
-        formData.append('llm_config_key', llmConfigKey);
-        formData.append('test_message', message);
+      var cfg = llmConfigMap[key];
+      var isMock = cfg && cfg.provider_name && String(cfg.provider_name).toLowerCase() === 'mock';
+      if (isMock) {
+        var scoreOverride = {};
+        var inputs = document.querySelectorAll('#scoreInputs input');
+        inputs.forEach(function (inp) {
+          var v = inp.value.trim();
+          if (v !== '' && !isNaN(v)) {
+            var name = inp.id.replace('score_', '');
+            scoreOverride[name] = parseInt(v, 10);
+          }
+        });
+        if (Object.keys(scoreOverride).length > 0) {
+          var overrides = { score_override: scoreOverride };
+          formData.append('mock_overrides_json', JSON.stringify(overrides));
+        }
+      }
 
-        fetch('/qiao-dash/ai-character/' + characterId + '/chat-test', { method: 'POST', body: formData })
-            .then(function (response) { return response.json(); })
-            .then(function (data) {
-                if (!data.success) {
-                    showError(data.error || '测试请求失败');
-                    return;
-                }
+      var persist = document.getElementById('persistSwitch').checked ? '1' : '0';
+      formData.append('persist', persist);
+      fetch('/qiao-dash/ai_character/chat-test/' + characterId, { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(function (data) {
+          if (!data.success) { showError(data.error || 'Request failed'); return; }
 
-                // Clear chat area and display full conversation
-            document.getElementById('chatArea').innerHTML = '';
-            
-            // Display all messages from request payload (conversation context sent to LLM)
-            if (data.request_payload && data.request_payload.messages) {
-                data.request_payload.messages.forEach(function(msg) {
-                    if (msg.role === 'user') {
-                        appendMessage('user', msg.content);
-                    } else if (msg.role === 'assistant') {
-                        appendMessage('ai', msg.content);
-                    }
-                    // Skip system messages
-                });
-            }
-            
-            // Append current AI response
-            if (data.conversation && data.conversation.all_messages) {
-                data.conversation.all_messages.forEach(function(msg) {
-                    appendMessage('ai', msg);
-                });
-            }
-            
-            // Display request info (thinking and scores) in separate section
-            updateRequestInfo(data);
-
-                // Update relationship scores if changed
-                if (data.relationship_scores && data.relationship_scores.length > 0) {
-                    var scoresGrid = document.getElementById('scoresGrid');
-                    scoresGrid.innerHTML = data.relationship_scores.map(function (score) {
-                        return '<div class="score-item"><div class="score-name">' + score.dimension_name + '</div><div class="score-value">' + score.score + '</div></div>';
-                    }).join('');
-                }
-
-                currentDebugInfo = data;
-                updateDebugInfo();
-            })
-            .catch(function (error) {
-                showError('请求失败: ' + error.message);
-            })
-            .finally(function () {
-                document.querySelector('.chat-test-container').classList.remove('loading');
-                sendBtn.disabled = false;
+          // Display full conversation
+          var chatArea = document.getElementById('chatArea');
+          chatArea.innerHTML = '';
+          var reqMsgs = null;
+          if (data.request_payload && Array.isArray(data.request_payload.messages)) {
+            reqMsgs = data.request_payload.messages;
+          } else if (data.request_payload && data.request_payload.payload && Array.isArray(data.request_payload.payload.messages)) {
+            reqMsgs = data.request_payload.payload.messages;
+          }
+          if (reqMsgs) {
+            reqMsgs.forEach(function (m) {
+              if (m.role === 'system') {
+                appendMessage('system', m.content);
+              } else if (m.role === 'user') {
+                appendMessage('user', m.content);
+              } else if (m.role === 'assistant') {
+                appendMessage('ai', m.content);
+              }
             });
+          }
+
+          if (data.conversation && data.conversation.all_messages) {
+            data.conversation.all_messages.forEach(function (m) {
+              appendMessage('ai', m);
+            });
+          }
+
+          // Ensure scroll to bottom after all messages are displayed
+          scrollChatToBottom();
+
+          updateParticipantsAndSettings(data);
+          updateResponseDetails(data);
+          updateRelationshipAndDimensionsAfterTest(data);
+          currentDebugInfo = data;
+          updateDebugInfo();
+        })
+        .catch(function (e) { showError('Request failed: ' + e.message); })
+        .finally(function () {
+          document.querySelector('.container-fluid').classList.remove('loading', 'opacity-50');
+          sendBtn.disabled = false;
+        });
+    }
+
+    function updateRelationshipAndDimensionsAfterTest(data) {
+      // Refresh dimensions and current relationship with latest DB state
+      fetch('/qiao-dash/ai_character/chat-test/' + characterId + '?action=readiness')
+        .then(r => r.json())
+        .then(function (rd) {
+          if (!rd || !rd.ready) return;
+          // Update current relationship display
+          updateCurrentRelationship(rd.current_relationship);
+          // Update dimensions
+          var rangesMap = buildRangesMapFromSchema(rd.response_schema || {});
+          renderDimensionsList(rd.character_dimensions || [], rangesMap, rd.relationship_scores || []);
+        })
+        .catch(function () { /* ignore */ });
     }
 
     function appendMessage(type, content) {
-        var chatArea = document.getElementById('chatArea');
-        var messageDiv = document.createElement('div');
-        messageDiv.className = 'message message-' + type;
-        messageDiv.textContent = content;
-        messages.push({ type: type, content: content, timestamp: new Date() });
-        // Append at the end (chronological order)
-        chatArea.appendChild(messageDiv);
+      if (type === 'system') {
+        // Do not display system prompt in chat area; moved to analysis tab
+        return;
+      }
+      var area = document.getElementById('chatArea');
+      // Hide empty state on first message
+      var emptyState = document.getElementById('chatEmptyState');
+      if (emptyState) {
+        emptyState.remove();
+      }
+      var d = document.createElement('div');
+      d.className = 'message message-' + type + ' d-inline-block m-0 p-2 border rounded-2 text-break lh-base';
+      d.textContent = content;
+      area.appendChild(d);
+      // Auto-scroll to bottom
+      scrollChatToBottom();
     }
 
-    function updateRequestInfo(data) {
-        // Create or update request info section
-        var requestInfoDiv = document.getElementById('requestInfo');
-        if (!requestInfoDiv) {
-            requestInfoDiv = document.createElement('div');
-            requestInfoDiv.id = 'requestInfo';
-            requestInfoDiv.className = 'request-info';
-            requestInfoDiv.style.cssText = 'background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:15px;margin-top:20px;';
-            
-            // Insert after chat area
-            var chatArea = document.getElementById('chatArea');
-            chatArea.parentNode.insertBefore(requestInfoDiv, chatArea.nextSibling);
-        }
-        
-        var infoHTML = '<h4 style="margin:0 0 15px 0;font-size:16px;font-weight:600;">本次请求信息</h4>';
-        
-        // Display thinking/internal thoughts
-        if (data.conversation && data.conversation.internal_thoughts) {
-            infoHTML += '<div style="margin-bottom:15px;">' +
-                '<strong>🤔 思考过程：</strong><br>' +
-                '<div style="background:white;padding:10px;border-radius:6px;margin-top:8px;white-space:pre-wrap;">' +
-                data.conversation.internal_thoughts + '</div></div>';
-        }
-        
-        // Display score updates
-        if (data.conversation && data.conversation.score_updates) {
-            var scoreUpdates = data.conversation.score_updates;
-            var hasScores = Object.keys(scoreUpdates).length > 0;
-            if (hasScores) {
-                infoHTML += '<div style="margin-bottom:15px;">' +
-                    '<strong>📊 分数变化：</strong><br>' +
-                    '<div style="margin-top:8px;">';
-                for (var dim in scoreUpdates) {
-                    var change = scoreUpdates[dim];
-                    infoHTML += '<span style="display:inline-block;margin-right:10px;margin-top:5px;background:#e3f2fd;padding:6px 12px;border-radius:6px;">' +
-                        dim + ': ' + (change > 0 ? '+' : '') + change + '</span>';
-                }
-                infoHTML += '</div></div>';
-            }
-        }
-        
-        // Display performance metrics
-        if (data.performance) {
-            infoHTML += '<div>' +
-                '<strong>⏱️ 性能指标：</strong><br>' +
-                '<div style="background:white;padding:10px;border-radius:6px;margin-top:8px;">' +
-                '响应时间: ' + data.performance.response_time_ms + 'ms';
-            if (data.performance.llm_tokens) {
-                infoHTML += ' | Tokens: ' + data.performance.llm_tokens;
-            }
-            infoHTML += '</div></div>';
-        }
-        
-        requestInfoDiv.innerHTML = infoHTML;
-    }
-
-function toggleDebug() {
-        var debugInfo = document.getElementById('debugInfo');
-        var btn = document.getElementById('toggleDebugBtn');
-        if (debugInfo.classList.contains('show')) {
-            debugInfo.classList.remove('show');
-            btn.textContent = '显示调试信息';
-        } else {
-            debugInfo.classList.add('show');
-            btn.textContent = '隐藏调试信息';
-            updateDebugInfo();
-        }
+    function scrollChatToBottom() {
+      var area = document.getElementById('chatArea');
+      if (area) {
+        area.scrollTop = area.scrollHeight;
+      }
     }
 
     function updateDebugInfo() {
-        if (!currentDebugInfo) return;
-        var debugContent = document.getElementById('debugContent');
-        debugContent.textContent = JSON.stringify(currentDebugInfo, null, 2);
+      var dc = document.getElementById('debugContent');
+      if (!currentDebugInfo) return;
+      function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+      var html = '';
+      try {
+        var conv = currentDebugInfo.conversation || {};
+        var replies = Array.isArray(conv.all_messages) ? conv.all_messages : [];
+        if (replies.length) {
+          html += '<div><strong>AI Reply</strong></div>' +
+            '<pre class="bg-light border rounded p-2 mt-2">' + replies.map(esc).join('\n') + '</pre>';
+        }
+        var raw = esc(JSON.stringify(currentDebugInfo, null, 2));
+        html += '<div class="mt-3"><strong>Raw</strong></div>' +
+          '<pre class="bg-light border rounded p-2 mt-2">' + raw + '</pre>';
+        var preRaw = document.getElementById('respRawJsonPre');
+        if (preRaw) preRaw.textContent = JSON.stringify(currentDebugInfo, null, 2);
+        var reqPre = document.getElementById('reqPayloadPre');
+        if (reqPre) reqPre.textContent = currentDebugInfo.request_payload ? JSON.stringify(currentDebugInfo.request_payload, null, 2) : '';
+      } catch (e) {
+        html = '<pre class="bg-light border rounded p-2">' + esc(String(e)) + '</pre>';
+      }
+      if (dc) dc.innerHTML = html;
     }
 
-    function showError(message) {
-        var errorDisplay = document.getElementById('errorDisplay');
-        errorDisplay.textContent = message;
-        errorDisplay.style.display = 'block';
+    function updateCurrentRelationship(currentRel) {
+      function val(x) { return (x === undefined || x === null || x === '') ? '-' : String(x); }
+      if (currentRel) {
+        document.getElementById('currentRelationshipName').textContent = val(currentRel.name);
+        document.getElementById('currentRelationshipDisplay').textContent = val(currentRel.display_name);
+        document.getElementById('currentRelationshipPrompt').textContent = val(currentRel.prompt_fragment);
+      } else {
+        document.getElementById('currentRelationshipName').textContent = '-';
+        document.getElementById('currentRelationshipDisplay').textContent = '-';
+        document.getElementById('currentRelationshipPrompt').textContent = '-';
+      }
     }
 
-    function hideError() {
-        document.getElementById('errorDisplay').style.display = 'none';
+    function showError(m) {
+      var e = document.getElementById('errorDisplay');
+      e.textContent = m;
+      e.style.display = 'block';
     }
-</script>
+
+    function updateParticipantsAndSettings(data) {
+      function val(x) { return (x === undefined || x === null || x === '') ? '-' : String(x); }
+      function formatGender(g) {
+        if (g === undefined || g === null || g === '') return '-';
+        var genderMap = { 0: 'Unknown', 1: 'Male', 2: 'Female', 3: 'Other' };
+        return genderMap[g] || String(g);
+      }
+      try {
+        // User
+        var tui = data.test_user_info || {};
+        var tup = data.test_user_profile || {};
+        document.getElementById('userQiaoId').textContent = val(tui.qiao_id);
+        document.getElementById('userUsername').textContent = val(tui.username);
+        document.getElementById('userNickname').textContent = val(tup.nickname);
+        document.getElementById('userGender').textContent = formatGender(tup.gender);
+        document.getElementById('userRegion').textContent = val(tup.region);
+        document.getElementById('userBio').textContent = val(tup.bio);
+        document.getElementById('userAvatarUrl').textContent = val(tup.avatar_url);
+        document.getElementById('userAvatarPrompt').textContent = val(tup.avatar_prompt);
+
+        // AI
+        var ci = data.character_info || {};
+        var cp = data.character_profile || {};
+        document.getElementById('aiNickname').textContent = val(cp.nickname);
+        document.getElementById('aiGender').textContent = formatGender(cp.gender);
+        document.getElementById('aiRegion').textContent = val(cp.region);
+        document.getElementById('aiBio').textContent = val(cp.bio);
+        document.getElementById('aiAvatarUrl').textContent = val(cp.avatar_url);
+        document.getElementById('aiAvatarPrompt').textContent = val(cp.avatar_prompt);
+        document.getElementById('characterCategory').textContent = val(ci.category);
+
+        // Settings
+        var style = data.style || {};
+        var personality = data.personality || {};
+        document.getElementById('aiStyleName').textContent = val(style.display_name || ci.style);
+        document.getElementById('aiPersonalityName').textContent = val(personality.display_name || ci.personality);
+        var settings = data.character_settings || {};
+        document.getElementById('aiMemory').textContent = settings.memory ? String(settings.memory) : '';
+        try {
+          var pv = settings.prompt_variables;
+          var pvText = (typeof pv === 'string') ? pv : JSON.stringify(pv, null, 2);
+          document.getElementById('aiPromptVars').textContent = pvText || '';
+        } catch (e) {
+          document.getElementById('aiPromptVars').textContent = '';
+        }
+      } catch (_) { }
+    }
+
+    function updateResponseDetails(data) {
+      if (!data || !data.conversation) return;
+      var conv = data.conversation;
+      var toText = function (x) {
+        try { return (typeof x === 'string') ? x : JSON.stringify(x, null, 2); } catch (_) { return String(x); }
+      };
+      // System prompt (from request payload)
+      try {
+        var reqMsgs = null;
+        if (data.request_payload && Array.isArray(data.request_payload.messages)) {
+          reqMsgs = data.request_payload.messages;
+        } else if (data.request_payload && data.request_payload.payload && Array.isArray(data.request_payload.payload.messages)) {
+          reqMsgs = data.request_payload.payload.messages;
+        }
+        var sysTexts = [];
+        if (reqMsgs) {
+          reqMsgs.forEach(function (m) { if (m && m.role === 'system') sysTexts.push(String(m.content || '')); });
+        }
+        var sysPre = document.getElementById('respParsedSystemPrompt');
+        if (sysPre) sysPre.textContent = sysTexts.length > 0 ? sysTexts.join('\n\n') : '-';
+      } catch (_) { }
+
+      // Internal Thoughts
+      var internalThoughtsEl = document.getElementById('respParsedInternalThoughts');
+      internalThoughtsEl.textContent = conv.internal_thoughts ? String(conv.internal_thoughts) : '-';
+
+      // Outgoing Messages
+      var outgoingEl = document.getElementById('respParsedOutgoing');
+      outgoingEl.textContent = Array.isArray(conv.outgoing_messages) && conv.outgoing_messages.length > 0 ? conv.outgoing_messages.map(String).join(', ') : '-';
+
+      // Followup Messages
+      var followupEl = document.getElementById('respParsedFollowup');
+      followupEl.textContent = Array.isArray(conv.followup_messages) && conv.followup_messages.length > 0 ? conv.followup_messages.map(String).join(', ') : '-';
+
+      // Memory Operations (keep as pre tag for JSON formatting)
+      document.getElementById('respParsedMemoryOps').textContent = conv.memory_operations ? toText(conv.memory_operations) : '-';
+
+      // Score updates as plain text
+      var scoresEl = document.getElementById('respParsedScoreUpdates');
+      if (conv.score_updates && Object.keys(conv.score_updates).length > 0) {
+        var su = conv.score_updates;
+        var items = Object.keys(su).map(function (k) {
+          return k + ': ' + String(su[k]);
+        });
+        scoresEl.textContent = items.join(', ');
+      } else {
+        scoresEl.textContent = '-';
+      }
+
+      // Relationship Selection (inferred from dimension scores)
+      var relSelEl = document.getElementById('respParsedRelationshipSelection');
+      try {
+        var relSelText = '-';
+        if (data.selected_relationship_after && data.selected_relationship_after.display_name) {
+          relSelText = data.selected_relationship_after.display_name;
+          if (data.selected_relationship_after.name) {
+            relSelText += ' (' + data.selected_relationship_after.name + ')';
+          }
+        } else if (data.relationship_scores && Array.isArray(data.relationship_scores)) {
+          // Fallback: try to infer from relationship_scores
+          data.relationship_scores.some(function (s) {
+            if (s && s.relationship_display_name) {
+              relSelText = s.relationship_display_name;
+              return true;
+            }
+            return false;
+          });
+        }
+        relSelEl.textContent = relSelText;
+      } catch (_) {
+        relSelEl.textContent = '-';
+      }
+
+      // Performance
+      var perfEl = document.getElementById('reqPerf');
+      if (data.performance) {
+        var txt = 'Response time: ' + (data.performance.response_time_ms ?? 'N/A') + 'ms';
+        if (data.performance.llm_tokens) txt += ' | Tokens: ' + data.performance.llm_tokens;
+        perfEl.textContent = txt;
+      } else {
+        perfEl.textContent = '-';
+      }
+
+      var flags = [];
+      if (conv.should_reply !== undefined) flags.push('should_reply=' + String(conv.should_reply));
+      if (conv.attack_detected !== undefined) flags.push('attack_detected=' + String(conv.attack_detected));
+      document.getElementById('respParsedFlags').textContent = flags.length > 0 ? flags.join(' | ') : '-';
+    }
+  </script>
 {% endblock %}

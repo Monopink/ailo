@@ -7,10 +7,12 @@ This module handles creating AI character instances from templates.
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.ai import ai_character, ai_profile_template, ai_info_template
+from crud.ai import ai_character, ai_profile_template, ai_character_template
+from crud.profile import profile as profile_crud
 from models.ai import AICharacter
 from schemas.ai import AICharacterCreate
-from enums import AICharacterCreator
+from schemas.profile import ProfileCreate, ProfileUpdate
+from enums import ProfileOwnerType
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -44,33 +46,55 @@ async def create_character_from_template(
         logger.error("profile_template_inactive", template_qiao_id=template_qiao_id)
         raise ValueError("Profile template is inactive")
 
-    # 2. Query info template
-    info_template = await ai_info_template.get(db, id=profile_template.info_id)
-    if not info_template:
-        logger.error("info_template_not_found", info_id=profile_template.info_id)
-        raise ValueError("Info template not found")
+    # 2. Query character template
+    character_template = await ai_character_template.get(db, id=profile_template.character_template_id)
+    if not character_template:
+        logger.error(
+            "character_template_not_found",
+            character_template_id=profile_template.character_template_id,
+        )
+        raise ValueError("Character template not found")
 
-    if info_template.status != 1:
-        logger.error("info_template_inactive", info_id=profile_template.info_id)
-        raise ValueError("Info template is inactive")
+    if character_template.status != 1:
+        logger.error(
+            "character_template_inactive",
+            character_template_id=profile_template.character_template_id,
+        )
+        raise ValueError("Character template is inactive")
 
     # 3. Create AI character
+    # Note: Keep AICharacterCreate aligned with current schema definitions.
+    # - Use placeholder_overrides instead of prompt_variables
+    # - Do not pass position_mapping_* here to avoid schema/DB type mismatch; rely on DB defaults
     character_data = AICharacterCreate(
-        user_id=user_id,
-        user_qiao_id=user_qiao_id,
         category=profile_template.category,
-        style_id=info_template.style_id,
-        personality_id=info_template.personality_id,
-        status=1,  # active
-        memory=info_template.memory,
-        prompt_variables=info_template.prompt_variables,
-        score_offset_algorithm=info_template.score_offset_algorithm,
-        score_offset_params=info_template.score_offset_params,
-        request_params=None,
-        created_by=AICharacterCreator.USER,
+        style_id=character_template.style_id,
+        personality_id=character_template.personality_id,
+        memory=character_template.memory,
+        placeholder_overrides=character_template.prompt_variables,
+        # Persist source template for discovery de-duplication and audit trail
+        request_params={
+            "created_from_profile_qiao_id": template_qiao_id,
+            # Also persist owner identifiers for downstream queries if schema ignores extras
+            "owner_user_qiao_id": user_qiao_id,
+            "owner_user_id": user_id,
+        },
     )
 
-    character = await ai_character.create(db, obj_in=character_data)
+    character = await ai_character.create(db, obj_in=character_data, commit=False)
+
+    # Ensure ownership is set even if schema ignored extras
+    try:
+        if not getattr(character, "user_id", None):
+            character.user_id = user_id
+        if not getattr(character, "user_qiao_id", None):
+            character.user_qiao_id = user_qiao_id
+        # Set active status explicitly if model default differs
+        if int(getattr(character, "status", 1)) != 1:
+            character.status = 1
+        await db.flush()
+    except Exception as e:
+        logger.error("character_post_create_update_failed", error=str(e))
 
     logger.info(
         "character_created_from_template",
@@ -79,62 +103,106 @@ async def create_character_from_template(
         user_qiao_id=user_qiao_id,
     )
 
+    # 3.1 Ensure AI profile exists or update from profile template (overwrite with latest values)
+    try:
+        # Trim helper to satisfy schema length constraints
+        def _trim(value: Optional[str], max_len: int) -> Optional[str]:
+            if value is None:
+                return None
+            return value[:max_len]
+
+        nickname = _trim(profile_template.nickname, 10)
+        avatar_url = _trim(profile_template.avatar_url, 500)
+        bio = _trim(profile_template.bio, 70)
+        region = _trim(profile_template.region, 100)
+        gender = profile_template.gender
+
+        existing = await profile_crud.get_by_owner(
+            db, owner_id=character.id, owner_type=ProfileOwnerType.AI
+        )
+        if existing:
+            logger.warning(
+                "ai_profile_overwritten_from_template",
+                character_qiao_id=character.qiao_id,
+                template_qiao_id=template_qiao_id,
+                profile_id=existing.id,
+            )
+            await profile_crud.update_by_owner(
+                db,
+                owner_id=character.id,
+                owner_type=ProfileOwnerType.AI,
+                obj_in=ProfileUpdate(
+                    nickname=nickname,
+                    gender=gender,
+                    avatar_url=avatar_url,
+                    avatar_prompt=None,
+                    bio=bio,
+                    region=region,
+                ),
+                commit=False,
+            )
+        else:
+            await profile_crud.create_with_owner(
+                db,
+                obj_in=ProfileCreate(
+                    nickname=nickname,
+                    gender=gender,
+                    avatar_url=avatar_url,
+                    avatar_prompt=None,
+                    bio=bio,
+                    region=region,
+                ),
+                owner_id=character.id,
+                owner_qiao_id=character.qiao_id,
+                owner_type=ProfileOwnerType.AI,
+                commit=False,
+            )
+    except Exception as e:
+        # Non-fatal; character has been created. Log error for diagnostics.
+        logger.error(
+            "ai_profile_sync_from_template_failed",
+            error=str(e),
+            character_qiao_id=character.qiao_id,
+            template_qiao_id=template_qiao_id,
+        )
+
     # 4. Initialize relationship scores
-    await initialize_relationship_scores(db, character.id, info_template.style_id)
+    from services.ai.relationship import initialize_relationship_scores
+
+    await initialize_relationship_scores(
+        db,
+        character.id,
+        character_template.style_id,
+        character_template.position_mapping_config,
+    )
+
+    # 5. Handle single-use template deactivation (no physical delete in MVP)
+    try:
+        # Deactivate non-reusable profile template
+        if int(profile_template.is_reusable) == 0 and int(profile_template.status) == 1:
+            profile_template.status = 2  # inactive
+            logger.debug(
+                "profile_template_deactivated",
+                template_id=profile_template.id,
+                template_qiao_id=profile_template.qiao_id,
+            )
+
+        # Deactivate non-reusable character template
+        if int(character_template.is_reusable) == 0 and int(character_template.status) == 1:
+            character_template.status = 2  # inactive
+            logger.debug(
+                "character_template_deactivated",
+                character_template_id=character_template.id,
+            )
+
+        await db.flush()
+    except Exception as e:
+        # Non-fatal: log only, character already created
+        logger.error(
+            "template_deactivation_failed",
+            error=str(e),
+            template_qiao_id=template_qiao_id,
+            user_qiao_id=user_qiao_id,
+        )
 
     return character
-
-
-async def initialize_relationship_scores(db: AsyncSession, character_id: int, style_id: int) -> None:
-    """
-    Initialize relationship scores for a new character.
-
-    Args:
-        db: Database session
-        character_id: Character ID
-        style_id: Style ID
-
-    Raises:
-        ValueError: If style not found or has no dimensions
-    """
-    from crud.ai.style import ai_style
-    from models.ai import AIRelationshipScore
-
-    # Query style with dimensions
-    style = await ai_style.get(db, id=style_id)
-    if not style:
-        logger.error("style_not_found", style_id=style_id)
-        raise ValueError("AI style not found")
-
-    # Query dimensions for this style
-    from sqlalchemy import select
-    from models.ai.style import AIStyleDimension
-
-    result = await db.execute(select(AIStyleDimension).where(AIStyleDimension.style_id == style_id))
-    dimensions = result.scalars().all()
-
-    if not dimensions:
-        logger.error("style_has_no_dimensions", style_id=style_id)
-        raise ValueError("AI style has no dimensions configured")
-
-    # Create initial scores for each dimension
-    from utils.snowflake import generate_snowflake_id
-
-    for dimension in dimensions:
-        score_data = {
-            "id": generate_snowflake_id(),
-            "character_id": character_id,
-            "dimension_id": dimension.id,
-            "score": dimension.default_score,  # Use default score from dimension
-        }
-        score_obj = AIRelationshipScore(**score_data)
-        db.add(score_obj)
-
-    await db.flush()
-
-    logger.info(
-        "relationship_scores_initialized",
-        character_id=character_id,
-        style_id=style_id,
-        dimension_count=len(dimensions),
-    )

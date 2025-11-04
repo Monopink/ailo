@@ -1,587 +1,358 @@
 {% extends "layout.html" %}
 
-{% block title %}<title>AI Score Algorithm Test</title>{% endblock %}
+{% block title %}<title>Style Test</title>{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/admin-fixes.css') }}">
+{% endblock %}
 
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
-    <div>
-        <h1>
-            AI Score Algorithm Test
-            {% if selected_style_id %}
-            <small class="text-muted">- Style {{ selected_style_id }}</small>
-            {% endif %}
-        </h1>
-    </div>
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
-        </li>
-        <li class="breadcrumb-item">
-            <a href="/qiao-dash/ai_style/list">AI</a>
-        </li>
-        <li class="breadcrumb-item active">Score Algorithm Test</li>
-    </ol>
+  <div>
+    <h1>Style Score Algorithm Test</h1>
+  </div>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':index') }}">Admin</a></li>
+    <li class="breadcrumb-item"><a href="/qiao-dash/ai_style/list">Styles</a></li>
+    <li class="breadcrumb-item active">Test</li>
+  </ol>
 </div>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Algorithm Configuration</h3>
-                </div>
-                <div class="card-body">
-                    <form id="algorithmTestForm" method="post">
-                        <input type="hidden" name="action" value="test_algorithm">
-                        {% if selected_style_id %}
-                        <input type="hidden" name="style_id" value="{{ selected_style_id }}">
-                        {% endif %}
+  <style>
+    /* Subtle header background only for dimension cards on this page */
+    .dimension-card > .card-header {
+      background-color: var(--tblr-tertiary-bg, var(--bs-tertiary-bg));
+      border-bottom-color: var(--tblr-border-color, var(--bs-border-color)) !important;
+    }
 
-                        <!-- Algorithm Configuration -->
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="algorithm" class="form-label">Algorithm Type</label>
-                                <select class="form-select" id="algorithm" name="algorithm" required>
-                                    {% for algo_id, algo_info in algorithm_info.items() %}
-                                    <option value="{{ algo_id }}" {% if form_data and
-                                        form_data.get('algorithm')==algo_id|string %}selected{% endif %}>{{
-                                        algo_info.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="current_relationship" class="form-label">Current Relationship</label>
-                                <select class="form-select" id="current_relationship" name="current_relationship">
-                                    <option value="" {% if not form_data or not form_data.get('current_relationship')
-                                        %}selected{% endif %}>None (New Character)</option>
-                                    {% if relationships %}
-                                    {% for relationship in relationships %}
-                                    <option value="{{ relationship.id }}" {% if form_data and
-                                        form_data.get('current_relationship')==relationship.id|string %}selected{% endif
-                                        %}>{{ relationship.display_name }}</option>
-                                    {% endfor %}
-                                    {% endif %}
-                                </select>
-                                <div class="form-text">Current relationship for priority testing</div>
-                            </div>
-                        </div>
+    .rel-list .list-group-item {
+      border-left-width: 1px;
+      border-right-width: 1px;
+    }
 
-                        <!-- Bias Parameters (shown only for V1 algorithm) -->
-                        <div class="row mb-3 bias-field-container"
-                            style="display: {% if form_data and form_data.get('algorithm') == '2' %}flex{% else %}none{% endif %};">
-                            <div class="col-md-6">
-                                <label for="left_bias" class="form-label">Left Bias</label>
-                                <input type="number" class="form-control" id="left_bias" name="left_bias" min="-100"
-                                    max="100" step="1"
-                                    value="{% if form_data and form_data.get('left_bias') %}{{ form_data.get('left_bias') }}{% else %}0{% endif %}">
-                                <div class="form-text">Left side offset (-100 to 100, 0=linear)</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="right_bias" class="form-label">Right Bias</label>
-                                <input type="number" class="form-control" id="right_bias" name="right_bias" min="-100"
-                                    max="100" step="1"
-                                    value="{% if form_data and form_data.get('right_bias') %}{{ form_data.get('right_bias') }}{% else %}0{% endif %}">
-                                <div class="form-text">Right side offset (-100 to 100, 0=linear)</div>
-                            </div>
-                        </div>
+    .rel-list .list-group-item.list-group-item-success {
+      background-color: var(--tblr-success-bg-subtle) !important;
+      border-color: var(--tblr-success-border-subtle) !important;
+    }
 
-                        <!-- Dimension Configuration -->
-                        {% if dimensions %}
-                        <h5 class="mb-3">Dimension Configuration & Results</h5>
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Dimension</th>
-                                        <th>Range (Min - Max)</th>
-                                        <th>Score</th>
-                                        <th>Initial Pos</th>
-                                        {% if test_result and test_result.dimension_results %}
-                                        <th>Mapped</th>
-                                        <th>Final</th>
-                                        <th>Offset</th>
-                                        <th>Candidates</th>
-                                        {% endif %}
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for dimension in dimensions %}
-                                    {% set ns = namespace(result=None) %}
-                                    {% if test_result and test_result.dimension_results %}
-                                    {% for r in test_result.dimension_results %}
-                                    {% if r.dimension_name == dimension.name %}
-                                    {% set ns.result = r %}
-                                    {% endif %}
-                                    {% endfor %}
-                                    {% endif %}
-                                    <tr>
-                                        <td>
-                                            <strong>{{ dimension.display_name }}</strong>
-                                            <small class="text-muted d-block">{{ dimension.name }}</small>
-                                        </td>
-                                        <td>
-                                            <div class="input-group input-group-sm">
-                                                <input type="number" class="form-control"
-                                                    name="score_min_{{ dimension.name }}"
-                                                    value="{% if form_data and form_data.get('score_min_' + dimension.name) %}{{ form_data.get('score_min_' + dimension.name) }}{% else %}0{% endif %}"
-                                                    min="0" max="10000" required>
-                                                <span class="input-group-text">-</span>
-                                                <input type="number" class="form-control"
-                                                    name="score_max_{{ dimension.name }}"
-                                                    value="{% if form_data and form_data.get('score_max_' + dimension.name) %}{{ form_data.get('score_max_' + dimension.name) }}{% else %}1000{% endif %}"
-                                                    min="0" max="10000" required>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <input type="number" class="form-control form-control-sm"
-                                                name="score_{{ dimension.name }}"
-                                                value="{% if form_data and form_data.get('score_' + dimension.name) %}{{ form_data.get('score_' + dimension.name) }}{% else %}500{% endif %}"
-                                                min="0" max="10000" required>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-info text-white">{{ dimension.initial_position
-                                                }}</span>
-                                        </td>
-                                        {% if test_result and test_result.dimension_results %}
-                                        <td>{% if ns.result %}{{ ns.result.mapped_position|round(0)|int }}{% else %}-{%
-                                            endif
-                                            %}</td>
-                                        <td>{% if ns.result %}<strong class="text-primary">{{
-                                                ns.result.final_position|round(0)|int }}</strong>{% else %}-{% endif %}
-                                        </td>
-                                        <td>
-                                            {% if ns.result %}
-                                            <span
-                                                class="badge {% if ns.result.offset == 0 %}bg-secondary text-white{% elif ns.result.offset > 0 %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
-                                                {{ "+" if ns.result.offset > 0 else "" }}{{
-                                                ns.result.offset|round(0)|int }}
-                                            </span>
-                                            {% else %}-{% endif %}
-                                        </td>
-                                        <td>
-                                            {% if ns.result %}
-                                            <span class="badge bg-info text-white">{{ ns.result.candidates|length
-                                                }}</span>
-                                            {% else %}-{% endif %}
-                                        </td>
-                                        {% endif %}
-                                        <td>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                                onclick="resetDimension('{{ dimension.name }}')"
-                                                title="Reset to default values">
-                                                <i class="fas fa-undo"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% else %}
-                        <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Please access this page through the "Relationship Management" button on the AI Style page to
-                            load the corresponding dimension configuration.
-                        </div>
-                        {% endif %}
+    /* Remove hover background on non-selected items only */
+    .rel-list .list-group-item:not(.list-group-item-success):hover {
+      background-color: var(--bs-list-group-bg) !important;
+    }
 
-                        <div class="d-flex justify-content-end align-items-center mt-4">
-                            <div class="btn-group me-2" role="group">
-                                <button type="button" class="btn btn-outline-secondary" onclick="resetAllDimensions()"
-                                    title="Reset all dimensions to default values">
-                                    <i class="fas fa-undo me-1"></i>Reset All
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="setRandomValues()"
-                                    title="Set random score values for testing">
-                                    <i class="fas fa-dice me-1"></i>Random
-                                </button>
-                            </div>
-                            <button type="submit" class="btn btn-primary" {% if not dimensions %}disabled{% endif %}>
-                                <i class="fas fa-play me-2"></i>Start Test
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+    .rel-legend {
+      font-size: 12px;
+      color: var(--tblr-secondary-color, var(--bs-secondary-color));
+    }
 
-            <!-- Test Results -->
-            {% if test_result %}
-            {% if test_result.success %}
-            {% if test_result.dimension_results %}
+    .legend-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
 
-            <!-- All Candidate Relationships -->
-            {% if test_result.all_unique_candidates|length > 1 %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h3 class="card-title">All Candidate Relationships</h3>
-                </div>
-                <div class="card-body">
-                    <small class="text-muted d-block mb-3">
-                        All unique relationships from {{ test_result.dimension_results|length }}
-                        dimensions (deduplicated). The one with highest priority is selected.
-                    </small>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped mb-0">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Relationship</th>
-                                    <th>Priority</th>
-                                    <th>Dimensions</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for rel in
-                                test_result.all_unique_candidates|sort(attribute='max_priority',
-                                reverse=True) %}
-                                <tr {% if rel.relationship_id==test_result.selected_relationship.relationship_id
-                                    %}class="table-success" {% endif %}>
-                                    <td>{{ rel.relationship_id }}</td>
-                                    <td><strong>{{ rel.relationship_display_name }}</strong></td>
-                                    <td>{{ rel.max_priority }}</td>
-                                    <td>{{ rel.count }}/{{ test_result.dimension_results|length }}</td>
-                                    <td>
-                                        {% if rel.relationship_id ==
-                                        test_result.selected_relationship.relationship_id %}
-                                        <strong class="text-success">Selected</strong>
-                                        {% else %}
-                                        -
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-            {% else %}
-            <div class="alert alert-warning mt-4">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                {{ test_result.selection_reason }}
-            </div>
-            {% endif %}
-            {% else %}
-            <div class="alert alert-danger mt-4">
-                <div class="d-flex align-items-center">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <div>
-                        <strong>Test Failed</strong>
-                        <div class="text-muted">{{ test_result.message }}</div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-            {% endif %}
+    .legend-initial {
+      background: #d00101;
+      opacity: 0.4;
+    }
 
-            <!-- Relationship Indexes -->
-            {% if selected_style_id %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-sitemap me-2"></i>Relationship Indexes
-                        <span class="badge bg-primary text-white ms-2">Style {{ selected_style_id }}</span>
-                    </h3>
-                </div>
-                <div class="card-body">
-                    <!-- Visual Axis View -->
-                    <div id="visualIndexes">
-                        <div class="text-center py-4">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                            <span class="ms-2 text-muted">Loading relationship indexes...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
+    .legend-mapped {
+      background: #009fff;
+      opacity: 0.6;
+    }
+
+    .legend-final {
+      background: #00aa5b;
+      opacity: 0.5;
+    }
+  </style>
+
+  <!-- Style Information -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title">Style Information</h3>
     </div>
+    <div class="card-body">
+      {% if style_info %}
+      <div class="row g-3">
+        <div class="col-md-3"><span class="text-muted">ID:</span> <strong>{{ style_info.id }}</strong></div>
+        <div class="col-md-4"><span class="text-muted">Name:</span> <strong>{{ style_info.name or '-'
+            }}</strong></div>
+        <div class="col-md-5"><span class="text-muted">Display Name:</span> <strong>{{ style_info.display_name
+            or '-' }}</strong></div>
+      </div>
+      {% else %}
+      <div class="alert alert-warning mb-0" role="alert"><i class="fas fa-exclamation-triangle me-2"></i>Style not
+        found or unavailable.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Per-dimension Configuration -->
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3 class="card-title mb-0">Per-dimension Configuration</h3>
+      <div class="d-flex align-items-center">
+        <div class="btn-group me-2" role="group">
+          <button type="button" class="btn btn-outline-secondary" onclick="resetAllDimensions()" title="Reset all dimensions to default values"><i class="fas fa-undo me-1"></i>Reset All</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="setRandomValues()" title="Set random values for testing"><i class="fas fa-dice me-1"></i>Random</button>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('algorithmTestForm').submit();" {% if not dimensions %}disabled{% endif %}><i class="fas fa-play me-2"></i>Start Test</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <form id="algorithmTestForm" method="post">
+        <input type="hidden" name="action" value="test_algorithm">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="current_relationship" class="form-label">Current Relationship</label>
+            <select class="form-select" id="current_relationship" name="current_relationship">
+              <option value="" {% if not form_data or not form_data.get('current_relationship') %}selected{% endif %}>None (New Character)</option>
+              {% if relationships %}
+              {% for relationship in relationships %}
+              <option value="{{ relationship.id }}" {% if form_data and form_data.get('current_relationship')==relationship.id|string %}selected{% endif %}>{{
+                relationship.display_name }}</option>
+              {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+        </div>
+
+        {% if dimensions %}
+        <label class="form-label">Dimension Configuration & Results</label>
+        <div class="row g-3">
+          {% for dimension in dimensions %}
+          {% set ns = namespace(result=None) %}
+          {% if test_result and test_result.dimension_results %}
+          {% for r in test_result.dimension_results %}
+          {% if r.dimension_name == dimension.name %}{% set ns.result = r %}{% endif %}
+          {% endfor %}
+          {% endif %}
+          <div class="col-12 col-md-6">
+            <div class="card h-100 dimension-card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="text-secondary">
+                  <strong>{{ dimension.display_name }}</strong>
+                  <span class="text-muted"> ({{ dimension.name }})</span>
+                </div>
+                <button type="button" class="btn btn-outline-secondary" onclick="resetDimension('{{ dimension.name }}')" title="Reset this dimension"><i class="fas fa-undo"></i></button>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <div class="row g-2 align-items-end">
+                      <div class="col-12">
+                        <label class="form-label">Algorithm</label>
+                        <select class="form-select algo-select" data-dim="{{ dimension.name }}" name="algorithm_{{ dimension.name }}">
+                          {% for algo_id, algo in algorithm_info.items() %}
+                          <option value="{{ algo_id }}" {% if ns.result and ns.result.algorithm==algo_id %}selected{% endif %}>{{ algo.name
+                            }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-12 v1-params" data-for="{{ dimension.name }}">
+                        <div class="row g-2">
+                          <div class="col-6"><label class="form-label">Left Bias</label><input type="number" class="form-control" name="left_bias_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.left_bias|default(0) }}{% else %}0{% endif %}"></div>
+                          <div class="col-6"><label class="form-label">Right Bias</label><input type="number" class="form-control" name="right_bias_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.right_bias|default(0) }}{% else %}0{% endif %}"></div>
+                        </div>
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label">Initial Position</label>
+                        <div class="fw-bold">{{ dimension.initial_position }}</div>
+                      </div>
+                      <div class="col-12">
+                        <div class="row g-2">
+                          <div class="col-4"><label class="form-label">Score Min</label><input type="number" class="form-control" name="score_min_{{ dimension.name }}" value="{% if form_data and form_data.get('score_min_' + dimension.name) %}{{ form_data.get('score_min_' + dimension.name) }}{% else %}0{% endif %}" min="0" max="10000" required></div>
+                          <div class="col-4"><label class="form-label">Score Max</label><input type="number" class="form-control" name="score_max_{{ dimension.name }}" value="{% if form_data and form_data.get('score_max_' + dimension.name) %}{{ form_data.get('score_max_' + dimension.name) }}{% else %}1000{% endif %}" min="0" max="10000" required></div>
+                          <div class="col-4"><label class="form-label">Score</label><input type="number" class="form-control" name="score_{{ dimension.name }}" value="{% if form_data and form_data.get('score_' + dimension.name) %}{{ form_data.get('score_' + dimension.name) }}{% else %}500{% endif %}" min="0" max="10000" required></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Results</label>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                      <span class="text-muted small">Mapped</span>
+                      <span class="fw-bold">{% if ns.result %}{{ ns.result.mapped_position|round(0)|int }}{% endif %}</span>
+                      <span class="text-muted small">+ Position Mapping</span>
+                      {% if ns.result %}
+                      {% set _off = (ns.result.offset | round(0) | int) %}
+                      <span class="fw-bold {% if _off > 0 %}text-success{% elif _off < 0 %}text-danger{% endif %}">{{ _off }}</span>
+                      {% else %}
+                      <span class="fw-bold"></span>
+                      {% endif %}
+                      <span class="text-muted small">= Final</span>
+                      <span class="fw-bold">{% if ns.result %}{{ ns.result.final_position|round(0)|int }}{% endif %}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning" role="alert"><i class="fas fa-exclamation-triangle me-2"></i>No
+          dimensions configured for this style. Please add dimensions in AI Style settings first.</div>
+        {% endif %}
+
+
+      </form>
+    </div>
+  </div>
+
+  <!-- Test Results -->
+  {% macro reason_text(code) -%}
+  {%- if code == 'priority_tie' -%}Priority tie detected: multiple top-priority relationships.
+  {%- elif code == 'no_candidate' -%}No candidate available after filtering.
+  {%- elif code == 'current_relationship_kept' -%}Current relationship kept.
+  {%- elif code == 'selected_highest_priority' -%}Selected highest priority candidate.
+  {%- else -%}{{ code }}{%- endif -%}
+  {%- endmacro %}
+  <!-- All Candidate Relationships: always present -->
+  <div class="card mt-4">
+    <div class="card-header">
+      <h3 class="card-title">All Candidate Relationships</h3>
+    </div>
+    <div class="card-body rel-list">
+      {% if test_result and test_result.success and test_result.dimension_results %}
+      <small class="text-muted d-block mb-3">All unique relationships from {{ test_result.dimension_results|length }} dimensions (deduplicated). Highest priority wins.</small>
+      {% if test_result.selection_reason %}
+      <div class="alert alert-warning mb-3 d-flex align-items-center" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <span>{{ reason_text(test_result.selection_reason) }}</span>
+      </div>
+      {% endif %}
+      <div class="list-group">
+        {% for rel in test_result.all_unique_candidates|sort(attribute='max_priority', reverse=True) %}
+        <div class="list-group-item {% if test_result.selected_relationship and rel.relationship_id==test_result.selected_relationship.relationship_id %}list-group-item-success{% endif %}">
+          <div class="d-flex justify-content-between align-items-start w-100">
+            <div>
+              <div class="fw-semibold">{{ rel.relationship_display_name or rel.relationship_name }}</div>
+              <div class="text-muted mt-1">
+                <span class="me-3">Dimension: <strong>{{ (rel.dimension_display_names or []) | join(', ') }}</strong></span>
+                <span class="me-3">Priority: <strong>{{ rel.max_priority }}</strong></span>
+                <span class="me-3">Prompt: <strong>{{ (rel.prompt_fragment or '')[:80] }}{% if rel.prompt_fragment and (rel.prompt_fragment|length) > 120 %}...{% endif %}</strong></span>
+              </div>
+            </div>
+            {% if test_result.selected_relationship and rel.relationship_id == test_result.selected_relationship.relationship_id %}
+            <span class="badge text-bg-success">Selected</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-muted">No candidates yet. Run test to see results.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if test_result and not test_result.success %}
+  <div class="alert alert-danger mt-4 d-flex align-items-center">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <div>
+      <strong>Test Failed</strong>
+      <div class="text-muted">{{ test_result.message }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Dimension Relationship Mappings -->
+  <div class="card mt-4">
+    <div class="card-header">
+      <h3 class="card-title">Dimension Relationship Mappings</h3>
+    </div>
+    <div class="card-body">
+      <div id="visualMappings">
+        <div class="text-center py-4">
+          <div class="spinner-border spinner-border-sm text-primary" role="status"></div><span class="ms-2 text-muted">Loading dimension relationship mappings...</span>
+        </div>
+      </div>
+      <div class="rel-legend mt-2">
+        <span class="me-3"><span class="legend-dot legend-initial me-1"></span>Initial Position</span>
+        <span class="me-3"><span class="legend-dot legend-mapped me-1"></span>Mapped Position</span>
+        <span class="me-3"><span class="legend-dot legend-final me-1"></span>Final Position</span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-    // Handle algorithm selection change
-    document.addEventListener('DOMContentLoaded', function () {
-        const algorithmSelect = document.getElementById('algorithm');
-        const biasFields = document.querySelectorAll('.bias-field-container');
-
-        // Function to toggle bias fields visibility
-        function toggleBiasFields() {
-            const algorithm = parseInt(algorithmSelect.value);
-            // Algorithm 1 (NONE) = no bias, Algorithm 2 (V1) = needs bias
-            if (algorithm === 1) {
-                biasFields.forEach(field => field.style.display = 'none');
-            } else {
-                biasFields.forEach(field => field.style.display = 'flex');
-            }
-        }
-
-        // Initial state
-        toggleBiasFields();
-
-        // Listen for changes
-        algorithmSelect.addEventListener('change', toggleBiasFields);
-
-        {% if selected_style_id %}
-        // Load relationship indexes
-        loadRelationshipIndexes('{{ selected_style_id }}');
-        {% endif %}
+  function updateParamVisibility() {
+    document.querySelectorAll('.algo-select').forEach(sel => {
+      const dim = sel.getAttribute('data-dim');
+      const v1 = document.querySelector(`.v1-params[data-for="${dim}"]`);
+      if (!v1) return;
+      if (String(sel.value) === '2') {
+        v1.classList.remove('d-none');
+      } else {
+        v1.classList.add('d-none');
+      }
     });
+  }
 
-    let currentIndexData = [];
+  document.addEventListener('DOMContentLoaded', function () {
+    // Load mappings from server-side data instead of async fetch
+    currentMappingData = {{ dimension_relationship_mappings | tojson | safe }};
+    renderVisualMappings();
+    document.querySelectorAll('.algo-select').forEach(sel => sel.addEventListener('change', updateParamVisibility));
+    updateParamVisibility();
+  });
+  let currentMappingData = [];
+  function renderVisualMappings() {
+    const container = document.getElementById('visualMappings'); if (!currentMappingData || !currentMappingData.length) { container.innerHTML = `<div class="alert alert-warning mb-0"><i class="fas fa-info-circle me-2"></i>No relationship mapping data found for this style.</div>`; return; }
+    const dimensionGroups = {}; currentMappingData.forEach(it => { (dimensionGroups[it.dimension_name] ||= []).push(it) });
+    const colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6f42c1', '#e83e8c', '#fd7e14']; const relColors = {}; let idx = 0; Object.values(dimensionGroups).flat().forEach(it => { if (!relColors[it.relationship_id]) { relColors[it.relationship_id] = colors[idx % colors.length]; idx++; } });
+    const initialPos = {
+            {% for d in dimensions %}
+    "{{ d.name }}": {{ d.initial_position }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+  const results = {};
+  {% if test_result and test_result.dimension_results %}
+  {% for r in test_result.dimension_results %}
+  results['{{ r.dimension_name }}'] = { mapped: {{ r.mapped_position | round(0) | int }}, final: {{ r.final_position | round(0) | int }} };
+  {% endfor %}
+  {% endif %}
+  let html = '<div class="relationship-visual-container">';
+  Object.keys(dimensionGroups).forEach(name => {
+    const items = dimensionGroups[name].sort((a, b) => (b.priority - a.priority) || (a.start_position - b.start_position));
+    const groups = {}; items.forEach(it => (groups[it.priority] ||= []).push(it));
+    const positions = []; let row = 0; Object.keys(groups).map(p => parseInt(p)).sort((a, b) => b - a).forEach(p => { const gs = groups[p]; const base = row; gs.forEach(it => { const sp = it.start_position / 1000, ep = it.end_position / 1000, wp = ep - sp, color = relColors[it.relationship_id]; let r = base, ok = false; while (!ok) { ok = true; for (const pos of positions) { if (pos.row === r && !(it.end_position <= pos.start || it.start_position >= pos.end)) { ok = false; break; } } if (!ok) r++; } positions.push({ item: it, row: r, start: it.start_position, end: it.end_position, sp, wp, color, priority: p }); }); row = Math.max(...positions.filter(x => x.priority === p).map(x => x.row)) + 1; });
+    const maxRow = positions.length ? Math.max(...positions.map(p => p.row)) : 0; const h = 70 + maxRow * 26;
+    html += `<div class="dimension-axis mb-4"><div class="form-label">${name} <small class="text-muted"> (${items.length})</small></div>`;
 
-    async function loadRelationshipIndexes(styleId) {
-        try {
-            const response = await fetch(`/qiao-dash/api/relationship_indexes?style_id=${styleId}&limit=100`);
-            const data = await response.json();
-            currentIndexData = data.items || [];
-            renderVisualIndexes();
-        } catch (error) {
-            console.error('Failed to load relationship indexes:', error);
-            const errorHtml = `
-                <div class="alert alert-danger mb-0">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Failed to load relationship indexes: ${error.message}
-                </div>`;
-            document.getElementById('visualIndexes').innerHTML = errorHtml;
-        }
-    }
-
-    function renderVisualIndexes() {
-        const container = document.getElementById('visualIndexes');
-
-        if (currentIndexData.length === 0) {
-            container.innerHTML = `
-                <div class="alert alert-warning mb-0">
-                    <i class="fas fa-info-circle me-2"></i>
-                    No relationship index data found for this style.
-                </div>`;
-            return;
-        }
-
-        // Group by dimension
-        const dimensionGroups = {};
-        currentIndexData.forEach(item => {
-            if (!dimensionGroups[item.dimension_name]) {
-                dimensionGroups[item.dimension_name] = [];
-            }
-            dimensionGroups[item.dimension_name].push(item);
-        });
-
-        // Generate colors for relationships
-        const colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6f42c1', '#e83e8c', '#fd7e14'];
-        const relationshipColors = {};
-        let colorIndex = 0;
-        Object.values(dimensionGroups).flat().forEach(item => {
-            if (!relationshipColors[item.relationship_id]) {
-                relationshipColors[item.relationship_id] = colors[colorIndex % colors.length];
-                colorIndex++;
-            }
-        });
-
-        let html = '<div class="relationship-visual-container">';
-
-        Object.keys(dimensionGroups).forEach(dimensionName => {
-            // Sort by priority (higher priority first) for vertical positioning
-            const items = dimensionGroups[dimensionName].sort((a, b) => {
-                // Higher priority first, then by start_position
-                if (b.priority !== a.priority) {
-                    return b.priority - a.priority;
-                }
-                return a.start_position - b.start_position;
-            });
-
-            // Group items by priority and calculate positions
-            const priorityGroups = {};
-            items.forEach(item => {
-                if (!priorityGroups[item.priority]) {
-                    priorityGroups[item.priority] = [];
-                }
-                priorityGroups[item.priority].push(item);
-            });
-
-            const positions = [];
-            let currentRow = 0;
-
-            // Process priority groups from high to low
-            const sortedPriorities = Object.keys(priorityGroups).map(p => parseInt(p)).sort((a, b) => b - a);
-
-            sortedPriorities.forEach(priority => {
-                const groupItems = priorityGroups[priority];
-                const groupStartRow = currentRow;
-
-                // For items in the same priority, check overlaps
-                groupItems.forEach(item => {
-                    const startProportion = item.start_position / 1000;
-                    const endProportion = item.end_position / 1000;
-                    const widthProportion = endProportion - startProportion;
-                    const color = relationshipColors[item.relationship_id];
-
-                    // Find a row where this item doesn't overlap with existing items
-                    let row = groupStartRow;
-                    let overlaps = true;
-                    while (overlaps) {
-                        overlaps = false;
-                        for (let pos of positions) {
-                            if (pos.row === row) {
-                                // Check if ranges overlap
-                                if (!(item.end_position <= pos.start || item.start_position >= pos.end)) {
-                                    overlaps = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (overlaps) row++;
-                    }
-
-                    positions.push({
-                        item: item,
-                        row: row,
-                        start: item.start_position,
-                        end: item.end_position,
-                        startProportion: startProportion,
-                        widthProportion: widthProportion,
-                        color: color,
-                        priority: item.priority
-                    });
-                });
-
-                // Update currentRow for next priority group
-                const maxRowInGroup = Math.max(...positions.filter(p => p.priority === priority).map(p => p.row));
-                currentRow = maxRowInGroup + 1;
-            });
-
-            // Calculate container height based on max row
-            const maxRow = positions.length > 0 ? Math.max(...positions.map(p => p.row)) : 0;
-            const containerHeight = 70 + maxRow * 26; // 70px for axis + labels + spacing, 26px per row
-
-            // Generate HTML with calculated height
-            html += `
-                <div class="dimension-axis mb-4">
-                    <h5 class="mb-3">
-                        <strong>${dimensionName}</strong>
-                        <small class="text-muted">(${items.length} relationships)</small>
-                    </h5>
-                    <div class="axis-container position-relative" style="height: ${containerHeight}px; margin: 20px 60px; border: 1px solid #eee;">
-                        <!-- Axis line -->
-                        <div class="axis-line" style="position: absolute; top: 20px; left: 0; right: 0; height: 2px; background: #dee2e6;"></div>
-
-                        <!-- Scale markers -->
-                        <div class="scale-markers">`;
-
-            // Add scale markers (0, 250, 500, 750, 1000)
-            for (let i = 0; i <= 1000; i += 250) {
-                const proportion = i / 1000;
-                const leftPercent = proportion * 100;
-
-                html += `
-                    <div style="position: absolute; left: ${leftPercent}%; top: 15px;">
-                        <div style="width: 1px; height: 12px; background: #6c757d; margin: 0 auto;"></div>
-                        <small style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #6c757d;">${i}</small>
-                    </div>`;
-            }
-
-            html += '</div><!-- Relationship ranges -->';
-
-            // Render items
-            positions.forEach(pos => {
-                const item = pos.item;
-                const yOffset = 45 + pos.row * 26; // Start from 45px (below axis at 20px + 25px spacing)
-                const leftPercent = pos.startProportion * 100;
-                const widthPercent = pos.widthProportion * 100;
-
-                // Determine display text
-                let displayText = item.relationship_display_name || item.relationship_name || `R${item.relationship_id}`;
-                if (displayText.length > 10) {
-                    displayText = displayText.substring(0, 8) + '..';
-                }
-
-                html += `
-                    <div class="relationship-range"
-                         style="position: absolute;
-                                left: ${leftPercent}%;
-                                top: ${yOffset}px;
-                                width: ${widthPercent}%;
-                                height: 22px;
-                                background: ${pos.color};
-                                border-radius: 6px;
-                                opacity: 0.8;
-                                cursor: default;
-                                border: 1px solid ${pos.color};
-                                min-width: 20px;"
-                         title="Relationship: ${item.relationship_display_name || item.relationship_name || `ID ${item.relationship_id}`}&#10;Range: ${item.start_position}-${item.end_position}&#10;Priority: ${item.priority}">
-                        <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); color: white; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.7);">
-                            P${item.priority}
-                        </div>
-                        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: white; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.7);">
-                            ${displayText}
-                        </div>
-                        <div style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: white; font-size: 10px; text-shadow: 1px 1px 1px rgba(0,0,0,0.7);">
-                            ${item.start_position}-${item.end_position}
-                        </div>
-                    </div>`;
-            });
-
-            html += '</div></div>';
-        });
-
-        html += '</div>';
-
-        container.innerHTML = html;
-    }
-
-    // Utility functions
-    function resetDimension(dimensionName) {
-        document.querySelector(`input[name="score_min_${dimensionName}"]`).value = '0';
-        document.querySelector(`input[name="score_max_${dimensionName}"]`).value = '1000';
-        document.querySelector(`input[name="score_${dimensionName}"]`).value = '500';
-    }
-
-    function resetAllDimensions() {
-        const dimensionInputs = document.querySelectorAll('input[name^="score_"]');
-        dimensionInputs.forEach(input => {
-            if (input.name.includes('_min_')) {
-                input.value = '0';
-            } else if (input.name.includes('_max_')) {
-                input.value = '1000';
-            } else if (input.name.startsWith('score_') && !input.name.includes('_min_') && !input.name.includes('_max_')) {
-                input.value = '500';
-            }
-        });
-    }
-
-    function setRandomValues() {
-        // Random algorithm selection (1 or 2)
-        const algorithmSelect = document.getElementById('algorithm');
-        if (algorithmSelect) {
-            const randomAlgo = Math.random() < 0.5 ? '1' : '2';
-            algorithmSelect.value = randomAlgo;
-            // Trigger change event to show/hide bias fields
-            algorithmSelect.dispatchEvent(new Event('change'));
-        }
-
-        // Random bias parameters
-        const leftBiasInput = document.getElementById('left_bias');
-        const rightBiasInput = document.getElementById('right_bias');
-        if (leftBiasInput) {
-            leftBiasInput.value = Math.floor(Math.random() * 201) - 100; // -100 to 100
-        }
-        if (rightBiasInput) {
-            rightBiasInput.value = Math.floor(Math.random() * 201) - 100; // -100 to 100
-        }
-
-        // Random dimension scores
-        const scoreInputs = document.querySelectorAll('input[name^="score_"]:not([name*="_min_"]):not([name*="_max_"])');
-        scoreInputs.forEach(input => {
-            if (input.name.startsWith('score_') && !input.name.includes('_min_') && !input.name.includes('_max_')) {
-                input.value = Math.floor(Math.random() * 1000);
-            }
-        });
-    }
-
+    html += `<div class="axis-container position-relative" style="height:${h}px; margin:20px 60px; border:1px solid var(--tblr-border-color, var(--bs-border-color));"><div class="axis-line" style="position:absolute; top:20px; left:0; right:0; height:2px; background: var(--tblr-border-color, var(--bs-border-color));"></div><div class="scale-markers">`;
+    for (let i = 0; i <= 1000; i += 250) { const lp = (i / 1000) * 100; html += `<div style=\"position:absolute; left:${lp}%; top:15px;\"><div style=\"width:1px; height:12px; background: var(--tblr-secondary-color, var(--bs-secondary-color)); margin:0 auto;\"></div><small style=\"position:absolute; top:15px; left:50%; transform:translateX(-50%); font-size:10px; color: var(--tblr-secondary-color, var(--bs-secondary-color));\">${i}</small></div>`; }
+    const init = initialPos[name]; if (typeof init === 'number') { const lp = (init / 1000) * 100; html += `<div title=\"Initial: ${init}\" style=\"position:absolute; top:0; bottom:0; left:${lp}%; border-left:3px solid #d00101;opacity:0.4;\"></div>`; }
+    const r = results[name]; if (r) { if (typeof r.mapped === 'number') { const mp = (r.mapped / 1000) * 100; html += `<div title=\"Mapped: ${r.mapped}\" style=\"position:absolute; top:0; bottom:0; left:${mp}%; border-left:3px solid #009fff; opacity:0.6\"></div>`; } if (typeof r.final === 'number') { const fp = (r.final / 1000) * 100; html += `<div title=\"Final: ${r.final}\" style=\"position:absolute; top:0; bottom:0; left:${fp}%; border-left:3px solid #00aa5b; opacity:0.5\"></div>`; } }
+    html += '</div>'; positions.forEach(pos => { const y = 45 + pos.row * 26, lp = pos.sp * 100, wp = pos.wp * 100; let text = pos.item.relationship_display_name || pos.item.relationship_name || `R${pos.item.relationship_id}`; if (text.length > 12) text = text.substring(0, 10) + '..'; const rgb = (function (hex) { const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : { r: 0, g: 0, b: 0 }; })(pos.color); const bg = `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`; const border = `rgba(${rgb.r},${rgb.g},${rgb.b},0.4)`; html += `<div class=\"relationship-range\" style=\"position:absolute; left:${lp}%; top:${y}px; width:${wp}%; height:22px; background:${bg}; border-radius:6px; cursor:default; border:1px solid ${border}; min-width:20px;\" title=\"Relationship: ${text}&#10;Range: ${pos.start}-${pos.end}&#10;Priority: ${pos.priority}\"><div style=\"position:absolute; left:4px; top:50%; transform:translateY(-50%); color: var(--tblr-body-color, var(--bs-body-color)); font-size:11px; font-weight:600;\">P${pos.priority}</div><div style=\"position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color: var(--tblr-body-color, var(--bs-body-color)); font-size:11px; font-weight:600;\">${text}</div><div style=\"position:absolute; right:4px; top:50%; transform:translateY(-50%); color: var(--tblr-body-color, var(--bs-body-color)); font-size:10px;\">${pos.start}-${pos.end}</div></div>`; }); html += '</div></div>';
+  });
+  html += '</div>'; container.innerHTML = html;
+  }
+  function resetDimension(n) { const mi = document.querySelector(`input[name="score_min_${n}"]`); if (mi) mi.value = '0'; const ma = document.querySelector(`input[name="score_max_${n}"]`); if (ma) ma.value = '1000'; const s = document.querySelector(`input[name="score_${n}"]`); if (s) s.value = '500'; }
+  function resetAllDimensions() { document.querySelectorAll('input[name^="score_"]').forEach(inp => { if (inp.name.includes('_min_')) inp.value = '0'; else if (inp.name.includes('_max_')) inp.value = '1000'; else if (inp.name.startsWith('score_')) inp.value = '500'; }); }
+  function setRandomValues() {
+    document.querySelectorAll('select[name^="algorithm_"]').forEach(sel => {
+      sel.value = (Math.random() < 0.5 ? '1' : '2');
+    });
+    // Refresh parameter visibility after programmatic changes
+    updateParamVisibility();
+    document.querySelectorAll('input[name^="left_bias_"]').forEach(inp => {
+      inp.value = Math.floor(Math.random() * 201) - 100;
+    });
+    document.querySelectorAll('input[name^="right_bias_"]').forEach(inp => {
+      inp.value = Math.floor(Math.random() * 201) - 100;
+    });
+    document.querySelectorAll('input[name^="score_"]:not([name*="_min_"]):not([name*="_max_"])').forEach(inp => {
+      inp.value = Math.floor(Math.random() * 1000);
+    });
+  }
 </script>
 {% endblock %}

@@ -41,12 +41,20 @@ class Settings(BaseSettings):
     # LeanCloud settings (only sensitive master key in env)
     LEANCLOUD_MASTER_KEY: str
 
+    # WeChat Mini Program settings
+    WECHAT_APP_ID: str
+    WECHAT_APP_SECRET: str
+
     # Snowflake ID settings
     SNOWFLAKE_DATACENTER_ID: int
     SNOWFLAKE_MACHINE_ID: int
 
     # Admin settings
     ADMIN_SECRET_KEY: str  # For session middleware
+
+    # Aliyun Captcha credentials (server-side verification)
+    ALIYUN_CAPTCHA_ACCESS_KEY_ID: Optional[str] = None
+    ALIYUN_CAPTCHA_ACCESS_KEY_SECRET: Optional[str] = None
 
     @property
     def database_url(self) -> str:

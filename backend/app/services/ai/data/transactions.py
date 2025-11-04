@@ -12,7 +12,7 @@ from models.ai import AICharacter, AIContextArchive
 from models.profile import Profile
 from models.contact import Contact
 from .mutations import save_context_entry, update_relationship_scores, save_ai_response
-from .template_queries import get_profile_template_by_id, get_info_template_by_id
+from .template_queries import get_profile_template_by_id, get_character_template_by_id
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -43,8 +43,6 @@ async def create_character_with_relations(db: AsyncSession, character_data: Dict
             personality_id=character_data["personality_id"],
             memory=character_data.get("memory"),
             prompt_variables=character_data.get("prompt_variables", {}),
-            score_offset_algorithm=character_data.get("score_offset_algorithm"),
-            score_offset_params=character_data.get("score_offset_params"),
             created_by=character_data.get("created_by", 2),  # admin
         )
 
@@ -148,7 +146,7 @@ async def process_conversation_transaction(db: AsyncSession, conversation_data: 
 
 
 async def cleanup_single_use_templates(
-    db: AsyncSession, profile_template_id: int, info_template_id: int
+    db: AsyncSession, profile_template_id: int, character_template_id: int
 ) -> None:
     """
     Clean up single-use templates after character creation.
@@ -156,7 +154,7 @@ async def cleanup_single_use_templates(
     Args:
         db: Database session
         profile_template_id: Profile template ID
-        info_template_id: Info template ID
+        character_template_id: Character template ID
     """
     try:
         # Check and delete profile template if not reusable
@@ -166,12 +164,12 @@ async def cleanup_single_use_templates(
             await db.delete(profile_template)
             logger.debug("single_use_profile_template_deleted", template_id=profile_template_id)
 
-        # Check and delete info template if not reusable
-        info_template = await get_info_template_by_id(db, info_template_id)
+        # Check and delete character template if not reusable
+        character_template = await get_character_template_by_id(db, character_template_id)
 
-        if info_template and not info_template.is_reusable:
-            await db.delete(info_template)
-            logger.debug("single_use_info_template_deleted", template_id=info_template_id)
+        if character_template and not character_template.is_reusable:
+            await db.delete(character_template)
+            logger.debug("single_use_character_template_deleted", template_id=character_template_id)
 
         await db.flush()
 
@@ -180,7 +178,7 @@ async def cleanup_single_use_templates(
             "template_cleanup_failed",
             error=str(e),
             profile_template_id=profile_template_id,
-            info_template_id=info_template_id,
+            character_template_id=character_template_id,
         )
         # Non-fatal error: log but don't raise
 
@@ -210,12 +208,10 @@ async def archive_contexts_transaction(
                     user_qiao_id=context.user_qiao_id,
                     role=context.role,
                     content=context.content,
-                    source_type=context.source_type,
-                    context_metadata=context.context_metadata,
                     position=context.position,
                     token_count=context.token_count,
                     is_attack=context.is_attack,
-                    reply_status=context.reply_status,
+                    aggregate_state=context.aggregate_state,
                     created_at=context.created_at,
                     updated_at=context.updated_at,
                 )

@@ -81,7 +81,7 @@ class IntegerEnumField(EnumField):
 
         # Convert IntEnum to choices if provided
         if enum is not None:
-            choices = [(member.value, member.name) for member in enum]
+            choices = [(member.value, member.name.replace("_", " ").title()) for member in enum]
         elif choices is None:
             raise ValueError("Either 'enum' or 'choices' must be provided")
 
@@ -111,18 +111,18 @@ class IntegerEnumField(EnumField):
         # Convert string to integer - let exceptions propagate
         return int(value)
 
-    async def serialize_value(self, request: Request, value: Any, action: str) -> Any:
+    async def serialize_value(self, request: Request, value: Any, action: Any) -> Any:
         """
         Serialize database value for display.
 
         Args:
             request: Request object
             value: Database value (integer or string representation of integer)
-            action: Action type (list/detail/edit/create)
+            action: Action type (RequestAction enum: LIST/DETAIL/EDIT/CREATE)
 
         Returns:
-            For list/detail: enum name (e.g., "ACTIVE")
-            For edit/create: integer value for form selection (e.g., 1)
+            For LIST/DETAIL: enum name (e.g., "Male") or None for invalid values
+            For EDIT/CREATE: integer value for form selection (e.g., 1)
         """
         if value is None or value == "":
             return None
@@ -132,24 +132,83 @@ class IntegerEnumField(EnumField):
             try:
                 value = int(value)
             except (ValueError, TypeError):
-                return f"INVALID({value})"
+                # Invalid string value, return None to display as -null-
+                return None
 
-        # For list and detail views, show enum name
-        if action in ("list", "detail"):
-            if self._enum is not None:
-                try:
-                    return self._enum(value).name
-                except (ValueError, AttributeError):
-                    return f"UNKNOWN({value})"
-            # Fallback: search in choices
-            for choice_value, choice_label in self.choices:
-                if choice_value == value:
-                    return choice_label
-            return str(value)
+        # Import RequestAction for comparison
+        from starlette_admin._types import RequestAction
+
+        # For list and detail views, show friendly label from choices
+        # action is RequestAction enum, compare directly with enum values
+        if action in (RequestAction.LIST, RequestAction.DETAIL):
+            if self.choices is not None:
+                for choice_value, choice_label in self.choices:
+                    if choice_value == value:
+                        return choice_label
+            # Value not in enum definition, return None to display as -null-
+            return None
 
         # For edit/create forms, return integer value for form selection
         # This ensures the form correctly matches the value with select options
         return int(value) if value is not None else None
+
+
+class CategoryEnumField(IntegerEnumField):
+    """
+    Special IntegerEnumField for category fields that store string values in DB
+    but display as integer enums in the admin UI.
+
+    This field handles the conversion between:
+    - DB storage: string values (e.g., "friend", "love", "talk")
+    - API/UI: integer enum values (e.g., 1, 2, 3)
+
+    Usage:
+        CategoryEnumField(
+            "category",
+            enum=AIProfileCategory,
+            db_to_api_map=PROFILE_CATEGORY_DB_TO_API,
+            api_to_db_map=PROFILE_CATEGORY_API_TO_DB
+        )
+    """
+
+    def __init__(
+        self,
+        name: str,
+        enum: Any = None,
+        db_to_api_map: dict = None,
+        api_to_db_map: dict = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Initialize CategoryEnumField.
+
+        Args:
+            name: Field name
+            enum: IntEnum class
+            db_to_api_map: Mapping from DB string to API enum (e.g., {"friend": AIProfileCategory.FRIEND})
+            api_to_db_map: Mapping from API enum to DB string (e.g., {AIProfileCategory.FRIEND: "friend"})
+            **kwargs: Additional field arguments
+        """
+        super().__init__(name, enum=enum, **kwargs)
+        self.db_to_api_map = db_to_api_map or {}
+        self.api_to_db_map = api_to_db_map or {}
+
+    async def serialize_value(self, request: Request, value: Any, action: Any) -> Any:
+        """
+        Serialize database value for display.
+
+        Converts DB string (e.g., "love") to API integer (e.g., 2) for display.
+        """
+        if value is None or value == "":
+            return None
+
+        # If value is a DB string, convert to API integer
+        if isinstance(value, str) and value in self.db_to_api_map:
+            api_enum = self.db_to_api_map[value]
+            value = api_enum.value
+
+        # Now use parent's serialize_value with the integer value
+        return await super().serialize_value(request, value, action)
 
 
 class BaseRoleAwareModelView(ModelView):

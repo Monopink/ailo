@@ -99,47 +99,49 @@ class AIPersonalityPlaceholderResponse(AIPersonalityPlaceholderBase):
 # AI Template Schemas
 
 
-class AIInfoTemplateBase(BaseSchema):
-    """Base AI info template schema."""
+class AICharacterTemplateBase(BaseSchema):
+    """Base AI character template schema."""
 
     name: str = Field(..., max_length=100, description="Template name")
     prompt: str = Field(..., description="Core prompt template")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
 
 
-class AIInfoTemplateCreate(BaseModel):
-    """Schema for creating an AI info template."""
+class AICharacterTemplateCreate(BaseModel):
+    """Schema for creating an AI character template."""
 
     style_id: int = Field(..., description="Style ID, references ai_styles.id")
     personality_id: int = Field(..., description="Personality ID, references ai_personalities.id")
     memory: Optional[str] = Field(None, description="Memory settings")
+    display_name: Optional[str] = Field(None, max_length=100, description="Character template display name")
     prompt_variables: Optional[Dict[str, Any]] = Field(
         None, description="Prompt variables/placeholder overrides"
     )
-    score_offset_algorithm: Optional[str] = Field(
-        None, max_length=100, description="Score offset algorithm"
+    position_mapping_algorithm: Optional[str] = Field(
+        None, max_length=100, description="Position mapping algorithm"
     )
-    score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
+    position_mapping_coefficient: Optional[float] = Field(None, description="Position mapping coefficient")
     is_reusable: bool = Field(True, description="Is reusable: True=reusable, False=single_use")
     profile_id: Optional[int] = Field(None, description="Associated profile template ID (for single-use)")
     status: int = Field(1, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
-class AIInfoTemplateUpdate(BaseModel):
-    """Schema for updating an AI info template."""
+class AICharacterTemplateUpdate(BaseModel):
+    """Schema for updating an AI character template."""
 
     style_id: Optional[int] = Field(None, description="Style ID, references ai_styles.id")
     personality_id: Optional[int] = Field(
         None, description="Personality ID, references ai_personalities.id"
     )
     memory: Optional[str] = Field(None, description="Memory settings")
+    display_name: Optional[str] = Field(None, max_length=100, description="Character template display name")
     prompt_variables: Optional[Dict[str, Any]] = Field(
         None, description="Prompt variables/placeholder overrides"
     )
-    score_offset_algorithm: Optional[str] = Field(
-        None, max_length=100, description="Score offset algorithm"
+    position_mapping_algorithm: Optional[str] = Field(
+        None, max_length=100, description="Position mapping algorithm"
     )
-    score_offset_coefficient: Optional[float] = Field(None, description="Score offset coefficient")
+    position_mapping_coefficient: Optional[float] = Field(None, description="Position mapping coefficient")
     is_reusable: Optional[bool] = Field(None, description="Is reusable: True=reusable, False=single_use")
     profile_count: Optional[int] = Field(None, ge=0, description="Associated profile template count")
     profile_id: Optional[int] = Field(None, description="Associated profile template ID (for single-use)")
@@ -148,9 +150,10 @@ class AIInfoTemplateUpdate(BaseModel):
     )
 
 
-class AIInfoTemplateResponse(AIInfoTemplateBase):
-    """Schema for AI info template response data."""
+class AICharacterTemplateResponse(AICharacterTemplateBase):
+    """Schema for AI character template response data."""
 
+    display_name: Optional[str] = Field(None, description="Character template display name")
     usage_count: int = Field(..., description="Reference count")
     status: int = Field(..., description="Status")
     created_at: datetime = Field(..., description="Creation time")
@@ -178,7 +181,9 @@ class AIProfileTemplateCreate(BaseModel):
     """Schema for creating an AI profile template."""
 
     category: Optional[str] = Field(None, max_length=50, description="Category")
-    info_id: int = Field(..., description="Associated info template ID, references ai_info_templates.id")
+    character_template_id: int = Field(
+        ..., description="Associated character template ID, references ai_character_templates.id"
+    )
     nickname: Optional[str] = Field(None, max_length=100, description="Nickname")
     gender: Optional[int] = Field(
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
@@ -194,8 +199,8 @@ class AIProfileTemplateUpdate(BaseModel):
     """Schema for updating an AI profile template."""
 
     category: Optional[str] = Field(None, max_length=50, description="Category")
-    info_id: Optional[int] = Field(
-        None, description="Associated info template ID, references ai_info_templates.id"
+    character_template_id: Optional[int] = Field(
+        None, description="Associated character template ID, references ai_character_templates.id"
     )
     nickname: Optional[str] = Field(None, max_length=100, description="Nickname")
     gender: Optional[int] = Field(

@@ -14,14 +14,14 @@ from enums import AutoAction, ManualReviewStatus, RiskLevel
 from models.base import SnowflakeModel
 
 
-class UserSecurityLog(SnowflakeModel):
+class UserViolationLog(SnowflakeModel):
     """
-    User security log model.
+    User violation log model.
 
     User security violation records.
     """
 
-    __tablename__ = "user_security_logs"
+    __tablename__ = "user_violation_logs"
 
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="User ID, references users.id")
 
@@ -47,14 +47,6 @@ class UserSecurityLog(SnowflakeModel):
 
     original_message: Mapped[str] = mapped_column(Text, nullable=False, comment="Original user message")
 
-    ai_detection_result: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, comment="AI detection result (JSONB for better performance)"
-    )
-
-    confidence_score: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Confidence score (0-100)"
-    )
-
     auto_action_taken: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -76,14 +68,14 @@ class UserSecurityLog(SnowflakeModel):
     review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Review notes")
 
 
-class UserSecurityStats(SnowflakeModel):
+class UserRiskStats(SnowflakeModel):
     """
-    User security stats model.
+    User risk stats model.
 
     User security statistics summary.
     """
 
-    __tablename__ = "user_security_stats"
+    __tablename__ = "user_risk_stats"
 
     user_id: Mapped[int] = mapped_column(
         BigInteger, nullable=False, unique=True, comment="User ID, references users.id"

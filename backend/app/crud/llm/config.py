@@ -17,9 +17,9 @@ from crud.base import CRUDBase
 class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
     """CRUD operations for LLMConfig model."""
 
-    async def get_by_config_key(self, db: AsyncSession, *, config_key: str) -> Optional[LLMConfig]:
-        """Get LLM config by config key."""
-        result = await db.execute(select(self.model).where(self.model.config_key == config_key))
+    async def get_by_name(self, db: AsyncSession, *, name: str) -> Optional[LLMConfig]:
+        """Get LLM config by name."""
+        result = await db.execute(select(self.model).where(self.model.name == name))
         return result.scalar_one_or_none()
 
     async def get_by_provider(
@@ -29,7 +29,7 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
         result = await db.execute(
             select(self.model)
             .where(self.model.provider_id == provider_id)
-            .order_by(self.model.priority, self.model.config_key)
+            .order_by(self.model.priority, self.model.name)
             .offset(skip)
             .limit(limit)
         )
@@ -44,7 +44,7 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
             conditions.append(self.model.provider_id == provider_id)
 
         result = await db.execute(
-            select(self.model).where(and_(*conditions)).order_by(self.model.priority, self.model.config_key)
+            select(self.model).where(and_(*conditions)).order_by(self.model.priority, self.model.name)
         )
         return list(result.scalars().all())
 
@@ -77,7 +77,7 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
         if active_only:
             conditions.append(self.model.status == 1)
 
-        query = select(self.model).order_by(self.model.priority, self.model.config_key)
+        query = select(self.model).order_by(self.model.priority, self.model.name)
         if conditions:
             query = query.where(and_(*conditions))
 

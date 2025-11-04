@@ -1,12 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+{% set _mode = request.cookies.get('qiao_admin_theme', 'auto') %}
+<html lang="en"{% if _mode in ['light','dark'] %} data-bs-theme="{{ _mode }}"{% endif %}>
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark" />
     <title>Login - Qiao Dashboard</title>
-    <!-- Tabler CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet" />
+    {# SSR theme; if auto, set early via script before CSS #}
+    {% if _mode == 'auto' %}
+    <script>
+      (function(){
+        try{
+          var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.setAttribute('data-bs-theme', isDark ? 'dark' : 'light');
+        }catch(e){}
+      })();
+    </script>
+    {% endif %}
+    <!-- Tabler CSS (pinned to 1.1.0 to match admin) -->
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.0/dist/css/tabler.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/iconfont/tabler-icons.min.css" rel="stylesheet" />
     <!-- Cloudflare Turnstile Script -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
@@ -106,8 +119,8 @@
         </script>
     </div>
     </div>
-    <!-- Tabler JS -->
-    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
+    <!-- Tabler JS (pinned to 1.1.0 to match admin) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.0/dist/js/tabler.min.js"></script>
 </body>
 
 </html>

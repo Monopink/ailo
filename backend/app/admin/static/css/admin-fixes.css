@@ -1,0 +1,232 @@
+/* Alert variants: rely on theme variables only (no hardcoded fallbacks)
+   This preserves light/dark mode behavior and avoids masking misconfiguration. */
+.alert-warning {
+  background-color: var(--tblr-warning-bg-subtle) !important;
+  border-color: var(--tblr-warning-border-subtle) !important;
+  color: var(--tblr-warning-text-emphasis) !important;
+}
+
+.alert-info {
+  background-color: var(--tblr-info-bg-subtle) !important;
+  border-color: var(--tblr-info-border-subtle) !important;
+  color: var(--tblr-info-text-emphasis) !important;
+}
+
+.alert-success {
+  background-color: var(--tblr-success-bg-subtle) !important;
+  border-color: var(--tblr-success-border-subtle) !important;
+  color: var(--tblr-success-text-emphasis) !important;
+}
+
+.alert-danger {
+  background-color: var(--tblr-danger-bg-subtle) !important;
+  border-color: var(--tblr-danger-border-subtle) !important;
+  color: var(--tblr-danger-text-emphasis) !important;
+}
+
+/* Table variants: improve row contrast in dark mode
+   Use theme variables for proper dark mode support */
+
+/* Danger variant */
+html[data-bs-theme="dark"] tr.table-danger>th,
+html[data-bs-theme="dark"] tr.table-danger>td,
+html[data-bs-theme="dark"] .table-danger>th,
+html[data-bs-theme="dark"] .table-danger>td {
+  border-bottom-color: var(--tblr-danger-border-subtle, var(--bs-danger-border-subtle)) !important;
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>tr.table-danger {
+  --tblr-border-color: var(--tblr-danger-border-subtle, var(--bs-danger-border-subtle));
+  --bs-border-color: var(--bs-danger-border-subtle);
+  box-shadow: inset 0 -1px var(--tblr-danger-border-subtle, var(--bs-danger-border-subtle));
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>*>td.table-danger,
+html[data-bs-theme="dark"] .table> :not(caption)>*>th.table-danger {
+  box-shadow: inset 0 -1px var(--tblr-danger-border-subtle, var(--bs-danger-border-subtle));
+}
+
+.table> :not(caption)>*>.table-danger {
+  --tblr-table-bg: var(--tblr-danger-bg-subtle) !important;
+  background-color: var(--tblr-danger-bg-subtle) !important;
+  color: var(--tblr-danger-text-emphasis) !important;
+}
+
+/* Warning variant */
+html[data-bs-theme="dark"] tr.table-warning>th,
+html[data-bs-theme="dark"] tr.table-warning>td,
+html[data-bs-theme="dark"] .table-warning>th,
+html[data-bs-theme="dark"] .table-warning>td {
+  border-bottom-color: var(--tblr-warning-border-subtle, var(--bs-warning-border-subtle)) !important;
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>tr.table-warning {
+  --tblr-border-color: var(--tblr-warning-border-subtle, var(--bs-warning-border-subtle));
+  --bs-border-color: var(--bs-warning-border-subtle);
+  box-shadow: inset 0 -1px var(--tblr-warning-border-subtle, var(--bs-warning-border-subtle));
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>*>td.table-warning,
+html[data-bs-theme="dark"] .table> :not(caption)>*>th.table-warning {
+  box-shadow: inset 0 -1px var(--tblr-warning-border-subtle, var(--bs-warning-border-subtle));
+}
+
+.table> :not(caption)>*>.table-warning {
+  --tblr-table-bg: var(--tblr-warning-bg-subtle) !important;
+  background-color: var(--tblr-warning-bg-subtle) !important;
+  color: var(--tblr-warning-text-emphasis) !important;
+}
+
+/* Info variant */
+html[data-bs-theme="dark"] tr.table-info>th,
+html[data-bs-theme="dark"] tr.table-info>td,
+html[data-bs-theme="dark"] .table-info>th,
+html[data-bs-theme="dark"] .table-info>td {
+  border-bottom-color: var(--tblr-info-border-subtle, var(--bs-info-border-subtle)) !important;
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>tr.table-info {
+  --tblr-border-color: var(--tblr-info-border-subtle, var(--bs-info-border-subtle));
+  --bs-border-color: var(--bs-info-border-subtle);
+  box-shadow: inset 0 -1px var(--tblr-info-border-subtle, var(--bs-info-border-subtle));
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>*>td.table-info,
+html[data-bs-theme="dark"] .table> :not(caption)>*>th.table-info {
+  box-shadow: inset 0 -1px var(--tblr-info-border-subtle, var(--bs-info-border-subtle));
+}
+
+.table> :not(caption)>*>.table-info {
+  --tblr-table-bg: var(--tblr-info-bg-subtle) !important;
+  background-color: var(--tblr-info-bg-subtle) !important;
+  color: var(--tblr-info-text-emphasis) !important;
+}
+
+/* Success variant */
+html[data-bs-theme="dark"] tr.table-success>th,
+html[data-bs-theme="dark"] tr.table-success>td,
+html[data-bs-theme="dark"] .table-success>th,
+html[data-bs-theme="dark"] .table-success>td {
+  border-bottom-color: var(--tblr-success-border-subtle, var(--bs-success-border-subtle)) !important;
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>tr.table-success {
+  --tblr-border-color: var(--tblr-success-border-subtle, var(--bs-success-border-subtle));
+  --bs-border-color: var(--bs-success-border-subtle);
+  box-shadow: inset 0 -1px var(--tblr-success-border-subtle, var(--bs-success-border-subtle));
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>*>td.table-success,
+html[data-bs-theme="dark"] .table> :not(caption)>*>th.table-success {
+  box-shadow: inset 0 -1px var(--tblr-success-border-subtle, var(--bs-success-border-subtle));
+}
+
+.table> :not(caption)>*>.table-success {
+  --tblr-table-bg: var(--tblr-success-bg-subtle) !important;
+  background-color: var(--tblr-success-bg-subtle) !important;
+  color: var(--tblr-success-text-emphasis) !important;
+}
+
+/* Primary variant */
+html[data-bs-theme="dark"] tr.table-primary>th,
+html[data-bs-theme="dark"] tr.table-primary>td,
+html[data-bs-theme="dark"] .table-primary>th,
+html[data-bs-theme="dark"] .table-primary>td {
+  border-bottom-color: var(--tblr-primary-border-subtle, var(--bs-primary-border-subtle)) !important;
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>tr.table-primary {
+  --tblr-border-color: var(--tblr-primary-border-subtle, var(--bs-primary-border-subtle));
+  --bs-border-color: var(--bs-primary-border-subtle);
+  box-shadow: inset 0 -1px var(--tblr-primary-border-subtle, var(--bs-primary-border-subtle));
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>*>td.table-primary,
+html[data-bs-theme="dark"] .table> :not(caption)>*>th.table-primary {
+  box-shadow: inset 0 -1px var(--tblr-primary-border-subtle, var(--bs-primary-border-subtle));
+}
+
+.table> :not(caption)>*>.table-primary {
+  --tblr-table-bg: var(--tblr-primary-bg-subtle) !important;
+  background-color: var(--tblr-primary-bg-subtle) !important;
+  color: var(--tblr-primary-text-emphasis) !important;
+}
+
+/* Secondary variant */
+html[data-bs-theme="dark"] tr.table-secondary>th,
+html[data-bs-theme="dark"] tr.table-secondary>td,
+html[data-bs-theme="dark"] .table-secondary>th,
+html[data-bs-theme="dark"] .table-secondary>td {
+  border-bottom-color: var(--tblr-secondary-border-subtle, var(--bs-secondary-border-subtle)) !important;
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>tr.table-secondary {
+  --tblr-border-color: var(--tblr-secondary-border-subtle, var(--bs-secondary-border-subtle));
+  --bs-border-color: var(--bs-secondary-border-subtle);
+  box-shadow: inset 0 -1px var(--tblr-secondary-border-subtle, var(--bs-secondary-border-subtle));
+}
+
+html[data-bs-theme="dark"] .table> :not(caption)>*>td.table-secondary,
+html[data-bs-theme="dark"] .table> :not(caption)>*>th.table-secondary {
+  box-shadow: inset 0 -1px var(--tblr-secondary-border-subtle, var(--bs-secondary-border-subtle));
+}
+
+.table> :not(caption)>*>.table-secondary {
+  --tblr-table-bg: var(--tblr-secondary-bg-subtle) !important;
+  background-color: var(--tblr-secondary-bg-subtle) !important;
+  color: var(--tblr-secondary-text-emphasis) !important;
+}
+
+/* Top navbar: remove left/right margin and padding on content container */
+header.navbar>.container,
+header.navbar>.container-fluid,
+header.navbar>.container-xl,
+header.navbar>.container-lg,
+header.navbar>.container-md,
+header.navbar .container,
+header.navbar .container-fluid,
+header.navbar .container-xl,
+header.navbar .container-lg,
+header.navbar .container-md {
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Card header & utility backgrounds
+   Ensure headers using .bg-light do not stay light in dark theme. */
+html[data-bs-theme="dark"] .bg-light {
+  /* Fall back to tertiary surface in dark theme */
+  background-color: var(--tblr-tertiary-bg, var(--bs-tertiary-bg)) !important;
+  color: var(--tblr-body-color, var(--bs-body-color)) !important;
+}
+
+html[data-bs-theme="dark"] .card .card-header.bg-light {
+  /* Prefer card surface for headers inside cards */
+  background-color: var(--tblr-card-bg, var(--bs-body-bg)) !important;
+  border-bottom-color: var(--tblr-border-color, var(--bs-border-color)) !important;
+}
+
+/* Navbar and dropdown active item background - lighter with transparency
+   Override Tabler's default rgba(0, 0, 0, 0.2) which is too dark
+   Use primary color with low opacity for subtle highlight effect */
+:root {
+  --tblr-navbar-active-bg: rgba(6, 111, 209, 0.04) !important;
+  --tblr-dropdown-link-active-bg: rgba(6, 111, 209, 0.04) !important;
+}
+
+/* Direct override for dropdown items to ensure it takes effect */
+.dropdown-item.active,
+.dropdown-item:active {
+  background-color: rgba(6, 111, 209, 0.04) !important;
+}
+
+/* Navbar active items */
+.navbar-nav .nav-link.active {
+  background-color: rgba(6, 111, 209, 0.04) !important;
+}
+
+/* Text selection in dark mode - improve contrast */
+html[data-bs-theme="dark"] ::selection {
+  background-color: rgba(6, 111, 209, 0.5);
+}

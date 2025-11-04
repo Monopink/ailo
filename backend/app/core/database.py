@@ -18,7 +18,8 @@ echo_sql = getattr(settings, "POSTGRES_ECHO", False)
 engine = create_async_engine(
     settings.database_url,
     echo=echo_sql,
-    pool_pre_ping=True,
+    # Disable pre_ping to avoid async ping MissingGreenlet in background tasks
+    pool_pre_ping=False,
     pool_recycle=3600,  # Recycle connections every hour (PostgreSQL default)
     pool_size=20,  # Increase pool size for better concurrency
     max_overflow=30,  # Allow more overflow connections

@@ -1393,7 +1393,7 @@ Authorization: Bearer <token>
 **说明**:
 
 - 用于动态下发IM provider相关配置
-- provider: 1=LeanCloud, 2=其他
+- provider: 1=internal, 2=LeanCloud
 - 当前版本不实现，contacts接口的im_conv_id已满足基本需求
 
 ### 9. Webhook

@@ -10,13 +10,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
-from models.ai import AIStyle, AIRelationship, AIRelationshipIndex, AIRelationshipDimension
+from models.ai import (
+    AIStyle,
+    AIRelationship,
+    AIDimensionRelationshipMapping,
+    AIStyleDimension,
+    AIDimension,
+)
 from schemas.ai import (
     AIStyleCreate,
     AIStyleUpdate,
-    AIRelationshipIndexUpdate,
-    AIRelationshipDimensionCreate,
-    AIRelationshipDimensionUpdate,
+    AIStyleDimensionCreate,
+    AIStyleDimensionUpdate,
 )
 from utils.logging import get_logger
 
@@ -46,30 +51,32 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
                 logger.warning("style_not_found", style_id=style_id)
                 return None
 
-            # Get relationship indexes with dimension info
-            indexes_result = await db.execute(
-                select(AIRelationshipIndex, AIRelationship, AIRelationshipDimension)
-                .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
+            # Get relationship mappings with dimension info (normalized schema)
+            mappings_result = await db.execute(
+                select(AIDimensionRelationshipMapping, AIRelationship, AIDimension)
+                .join(AIRelationship, AIDimensionRelationshipMapping.relationship_id == AIRelationship.id)
+                .join(AIDimension, AIDimensionRelationshipMapping.dimension_id == AIDimension.id)
                 .join(
-                    AIRelationshipDimension, AIRelationshipIndex.dimension_id == AIRelationshipDimension.id
+                    AIStyleDimension,
+                    AIStyleDimension.dimension_id == AIDimensionRelationshipMapping.dimension_id,
                 )
-                .where(AIRelationshipIndex.style_id == style_id)
-                .order_by(AIRelationshipDimension.name, AIRelationshipIndex.priority)
+                .where(AIStyleDimension.style_id == style_id)
+                .order_by(AIDimension.name, AIDimensionRelationshipMapping.priority)
             )
 
-            indexes = indexes_result.all()
+            mappings = mappings_result.all()
 
             relationship_mappings = []
-            for index, relationship, dimension in indexes:
+            for mapping, relationship, dimension in mappings:
                 relationship_mappings.append(
                     {
-                        "dimension_id": index.dimension_id,
+                        "dimension_id": mapping.dimension_id,
                         "dimension_name": dimension.name,
-                        "start_position": index.start_position,
-                        "end_position": index.end_position,
+                        "start_position": mapping.start_position,
+                        "end_position": mapping.end_position,
                         "relationship": relationship,
-                        "priority": index.priority,
-                        "limit_count": index.limit_count,
+                        "priority": mapping.priority,
+                        "limit_count": mapping.limit_count,
                     }
                 )
 
@@ -95,28 +102,30 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
         """
         try:
             result = await db.execute(
-                select(AIRelationshipIndex, AIRelationship, AIRelationshipDimension)
-                .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
+                select(AIDimensionRelationshipMapping, AIRelationship, AIDimension)
+                .join(AIRelationship, AIDimensionRelationshipMapping.relationship_id == AIRelationship.id)
+                .join(AIDimension, AIDimensionRelationshipMapping.dimension_id == AIDimension.id)
                 .join(
-                    AIRelationshipDimension, AIRelationshipIndex.dimension_id == AIRelationshipDimension.id
+                    AIStyleDimension,
+                    AIStyleDimension.dimension_id == AIDimensionRelationshipMapping.dimension_id,
                 )
-                .where(AIRelationshipIndex.style_id == style_id)
-                .order_by(AIRelationshipDimension.name, AIRelationshipIndex.priority)
+                .where(AIStyleDimension.style_id == style_id)
+                .order_by(AIDimension.name, AIDimensionRelationshipMapping.priority)
             )
 
-            indexes = result.all()
+            mappings = result.all()
 
             mappings = []
-            for index, relationship, dimension in indexes:
+            for mapping, relationship, dimension in mappings:
                 mappings.append(
                     {
-                        "index_id": index.id,
-                        "dimension_id": index.dimension_id,
+                        "mapping_id": mapping.id,
+                        "dimension_id": mapping.dimension_id,
                         "dimension_name": dimension.name,
-                        "start_position": index.start_position,
-                        "end_position": index.end_position,
-                        "priority": index.priority,
-                        "limit_count": index.limit_count,
+                        "start_position": mapping.start_position,
+                        "end_position": mapping.end_position,
+                        "priority": mapping.priority,
+                        "limit_count": mapping.limit_count,
                         "relationship_id": relationship.id,
                         "relationship_name": relationship.name,
                         "relationship_prompt": relationship.prompt_fragment,
@@ -175,7 +184,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             style_id: Style ID
 
         Returns:
-            Dictionary mapping score_order to range info
+            Dictionary mapping dimension name to range info
         """
         try:
             style = await self.get(db, id=style_id)
@@ -184,18 +193,20 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
                 logger.warning("style_not_found_for_ranges", style_id=style_id)
                 return {}
 
-            # Get dimensions for the style
+            # Get dimensions for the style with dimension info
             dimensions_result = await db.execute(
-                select(AIRelationshipDimension).where(AIRelationshipDimension.style_id == style_id)
+                select(AIStyleDimension, AIDimension)
+                .join(AIDimension, AIDimension.id == AIStyleDimension.dimension_id)
+                .where(AIStyleDimension.style_id == style_id)
             )
             dimensions = dimensions_result.all()
 
             ranges = {}
-            for dimension in dimensions:
+            for style_dimension, dimension in dimensions:
                 ranges[dimension.name] = {
                     "name": dimension.name,
                     "display_name": dimension.display_name,
-                    "initial_position": dimension.initial_position,
+                    "initial_position": style_dimension.initial_position,
                     "start": 0,  # Full range
                     "end": 1000,
                 }
@@ -262,50 +273,53 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
             return []
 
 
-class CRUDAIRelationshipIndex(CRUDBase[AIRelationshipIndex, Any, AIRelationshipIndexUpdate]):
-    """AI Relationship Index CRUD operations."""
+class CRUDAIDimensionRelationshipMapping(CRUDBase[AIDimensionRelationshipMapping, Any, Any]):
+    """AI Dimension Relationship Mapping CRUD operations (normalized)."""
 
-    async def get_by_style(self, db: AsyncSession, *, style_id: int) -> List[AIRelationshipIndex]:
+    async def get_by_style(
+        self, db: AsyncSession, *, style_id: int
+    ) -> List[AIDimensionRelationshipMapping]:
         """
-        Get relationship indexes by style ID.
+        Get dimension relationship mappings by style ID.
 
         Args:
             db: Database session
             style_id: Style ID
 
         Returns:
-            List of relationship indexes
+            List of dimension relationship mappings
         """
         try:
             result = await db.execute(
-                select(AIRelationshipIndex)
+                select(AIDimensionRelationshipMapping)
                 .join(
-                    AIRelationshipDimension, AIRelationshipIndex.dimension_id == AIRelationshipDimension.id
+                    AIStyleDimension,
+                    AIStyleDimension.dimension_id == AIDimensionRelationshipMapping.dimension_id,
                 )
-                .where(AIRelationshipIndex.style_id == style_id)
-                .order_by(AIRelationshipDimension.name, AIRelationshipIndex.priority)
+                .where(AIStyleDimension.style_id == style_id)
+                .order_by(AIDimensionRelationshipMapping.priority.desc())
             )
 
-            indexes = result.scalars().all()
+            mappings = result.scalars().all()
 
-            logger.debug("relationship_indexes_retrieved", style_id=style_id, count=len(indexes))
+            logger.debug(
+                "dimension_relationship_mappings_retrieved", style_id=style_id, count=len(mappings)
+            )
 
-            return indexes
+            return mappings
 
         except Exception as e:
-            logger.error("relationship_indexes_query_failed", error=str(e), style_id=style_id)
+            logger.error("dimension_relationship_mappings_query_failed", error=str(e), style_id=style_id)
             # Non-fatal error: return empty list
             return []
 
 
-class CRUDAIRelationshipDimension(
-    CRUDBase[AIRelationshipDimension, AIRelationshipDimensionCreate, AIRelationshipDimensionUpdate]
-):
-    """AI Relationship Dimension CRUD operations."""
+class CRUDAIStyleDimension(CRUDBase[AIStyleDimension, AIStyleDimensionCreate, AIStyleDimensionUpdate]):
+    """AI Style Dimension CRUD operations."""
 
     async def get_by_style_and_name(
         self, db: AsyncSession, *, style_id: int, name: str
-    ) -> Optional[AIRelationshipDimension]:
+    ) -> Optional[AIStyleDimension]:
         """
         Get dimension by style ID and name.
 
@@ -319,9 +333,10 @@ class CRUDAIRelationshipDimension(
         """
         try:
             result = await db.execute(
-                select(AIRelationshipDimension)
-                .where(AIRelationshipDimension.style_id == style_id)
-                .where(AIRelationshipDimension.name == name)
+                select(AIStyleDimension)
+                .join(AIDimension, AIDimension.id == AIStyleDimension.dimension_id)
+                .where(AIStyleDimension.style_id == style_id)
+                .where(AIDimension.name == name)
             )
             return result.scalar_one_or_none()
 
@@ -329,7 +344,7 @@ class CRUDAIRelationshipDimension(
             logger.error("dimension_get_by_style_name_failed", error=str(e), style_id=style_id, name=name)
             return None
 
-    async def get_by_style(self, db: AsyncSession, *, style_id: int) -> List[AIRelationshipDimension]:
+    async def get_by_style(self, db: AsyncSession, *, style_id: int) -> List[AIStyleDimension]:
         """
         Get all dimensions for a style.
 
@@ -342,9 +357,10 @@ class CRUDAIRelationshipDimension(
         """
         try:
             result = await db.execute(
-                select(AIRelationshipDimension)
-                .where(AIRelationshipDimension.style_id == style_id)
-                .order_by(AIRelationshipDimension.name)
+                select(AIStyleDimension)
+                .join(AIDimension, AIDimension.id == AIStyleDimension.dimension_id)
+                .where(AIStyleDimension.style_id == style_id)
+                .order_by(AIDimension.name)
             )
             dimensions = result.scalars().all()
 
@@ -358,5 +374,5 @@ class CRUDAIRelationshipDimension(
 
 ai_style = CRUDAIStyle(AIStyle)
 ai_relationship = CRUDAIRelationship(AIRelationship)
-ai_relationship_index = CRUDAIRelationshipIndex(AIRelationshipIndex)
-ai_relationship_dimension = CRUDAIRelationshipDimension(AIRelationshipDimension)
+ai_dimension_relationship_mapping = CRUDAIDimensionRelationshipMapping(AIDimensionRelationshipMapping)
+ai_style_dimension = CRUDAIStyleDimension(AIStyleDimension)

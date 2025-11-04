@@ -150,9 +150,8 @@ class ContextManager:
             context_data = {
                 "character_qiao_id": character_qiao_id,
                 "user_qiao_id": user_qiao_id,
-                "role": AIContextRole.USER,  # user
+                "role": AIContextRole.USER,
                 "content": message_content,
-                "source_type": 2 if merge_with_recent else 1,  # merged or original
             }
             context_id = await save_context_entry(db, context_data)
 
@@ -208,9 +207,8 @@ class ContextManager:
             context_data = {
                 "character_qiao_id": character_qiao_id,
                 "user_qiao_id": user_qiao_id,
-                "role": AIContextRole.ASSISTANT,  # assistant
+                "role": AIContextRole.ASSISTANT,
                 "content": response_content,
-                "source_type": 1,  # original
             }
             context_id = await save_context_entry(db, context_data)
 
@@ -254,11 +252,8 @@ class ContextManager:
         Returns:
             Message role string
         """
-        role_mapping = {
-            1: "user",  # user
-            2: "assistant",  # ai
-            3: "system",  # system
-        }
+        # AIContextRole: 1=system, 2=user, 3=assistant
+        role_mapping = {1: "system", 2: "user", 3: "assistant"}
         return role_mapping.get(role, "user")
 
     async def _merge_with_recent_messages(

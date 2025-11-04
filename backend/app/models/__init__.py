@@ -24,15 +24,16 @@ from .profile import Profile, UserProfileLog
 from .ai import (
     AIRelationship,
     AIStyle,
-    AIRelationshipIndex,
-    AIRelationshipDimension,
+    AIDimension,
+    AIStyleDimension,
+    AIDimensionRelationshipMapping,
     AIPersonality,
     AIPersonalityPlaceholder,
-    AIInfoTemplate,
+    AICharacterTemplate,
     AIProfileTemplate,
     AICharacter,
     AIContext,
-    AIRelationshipScore,
+    AICharacterDimension,
     AIRequestLog,
 )
 from .system import (
@@ -51,7 +52,7 @@ from .system import (
     StatsAIMonthly,
 )
 from .admin import AdminUser, AdminOperationLog, AdminLoginLog
-from .security import UserSecurityLog, UserSecurityStats
+from .security import UserViolationLog, UserRiskStats
 from .llm import LLMProvider, LLMConfig, LLMTestLog
 
 # Export all models for easy importing
@@ -81,15 +82,16 @@ __all__ = [
     # AI system
     "AIRelationship",
     "AIStyle",
-    "AIRelationshipIndex",
-    "AIRelationshipDimension",
+    "AIDimension",
+    "AIStyleDimension",
+    "AIDimensionRelationshipMapping",
     "AIPersonality",
     "AIPersonalityPlaceholder",
-    "AIInfoTemplate",
+    "AICharacterTemplate",
     "AIProfileTemplate",
     "AICharacter",
     "AIContext",
-    "AIRelationshipScore",
+    "AICharacterDimension",
     "AIRequestLog",
     # System configuration and statistics
     "SystemConfig",
@@ -110,8 +112,8 @@ __all__ = [
     "AdminOperationLog",
     "AdminLoginLog",
     # Security monitoring
-    "UserSecurityLog",
-    "UserSecurityStats",
+    "UserViolationLog",
+    "UserRiskStats",
     # LLM management
     "LLMProvider",
     "LLMConfig",

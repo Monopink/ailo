@@ -8,7 +8,11 @@ with clear error handling and single responsibility principle.
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .data import get_character_with_relations, get_profile_template_with_info, check_template_reusability
+from .data import (
+    get_character_with_relations,
+    get_profile_template_with_character_template,
+    check_template_reusability,
+)
 from .data.transactions import create_character_with_relations
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AICharacterCreationError
 from utils.logging import get_logger
@@ -133,12 +137,12 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
 
     This implements the character creation flow from the prototype design:
     1. User selects ai_profile_template
-    2. Find corresponding ai_info_template
+    2. Find corresponding ai_character_template
     3. Write new information to ai_characters
     4. Write to profiles
     5. Write to contacts
     6. Delete ai_profile_templates if not reusable
-    7. Delete ai_info_templates if not reusable
+    7. Delete ai_character_templates if not reusable
     8. Build new contact message
     9. Send message flow
 
@@ -154,8 +158,8 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
         CharacterCreationError: If creation fails
     """
     try:
-        # Step 1 & 2: Get profile template with info template
-        template_data = await get_profile_template_with_info(db, template_id)
+        # Step 1 & 2: Get profile template with character template
+        template_data = await get_profile_template_with_character_template(db, template_id)
 
         if not template_data:
             raise AICharacterCreationError(
@@ -163,7 +167,7 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
             )
 
         profile_template = template_data["profile_template"]
-        info_template = template_data["info_template"]
+        character_template = template_data["character_template"]
 
         # Generate unique qiao_id for character
         from models.base import generate_qiao_id
@@ -176,12 +180,10 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
             "user_qiao_id": user_qiao_id,
             "category": profile_template.category,
             "status": 1,  # active
-            "style_id": info_template.style_id,
-            "personality_id": info_template.personality_id,
-            "memory": info_template.memory,
-            "prompt_variables": info_template.prompt_variables or {},
-            "score_offset_algorithm": info_template.score_offset_algorithm,
-            "score_offset_params": info_template.score_offset_params,
+            "style_id": character_template.style_id,
+            "personality_id": character_template.personality_id,
+            "memory": character_template.memory,
+            "prompt_variables": character_template.prompt_variables or {},
             "created_by": 1,  # user
             # Profile data
             "nickname": profile_template.nickname,
@@ -195,8 +197,12 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
         created_character_qiao_id = await create_character_with_relations(db, character_data)
 
         # Steps 6 & 7: Clean up single-use templates
-        reusability = await check_template_reusability(db, profile_template.id, info_template.id)
-        await _cleanup_single_use_templates(db, profile_template, info_template, reusability)
+        reusability = await check_template_reusability(
+            db, profile_template.id, character_template.id
+        )
+        await _cleanup_single_use_templates(
+            db, profile_template, character_template, reusability
+        )
 
         # Step 8: Build contact message
         contact_message = await _build_contact_message(profile_template)
@@ -230,7 +236,7 @@ async def create_character_from_template(db: AsyncSession, user_qiao_id: str, te
 async def _cleanup_single_use_templates(
     db: AsyncSession,
     profile_template: Any,
-    info_template: Any,
+    character_template: Any,
     reusability: Dict[str, bool],
 ) -> None:
     """
@@ -239,7 +245,7 @@ async def _cleanup_single_use_templates(
     Args:
         db: Database session
         profile_template: Profile template object
-        info_template: Info template object
+        character_template: Character template object
         reusability: Template reusability status
     """
     try:
@@ -251,11 +257,13 @@ async def _cleanup_single_use_templates(
             cleanup_count += 1
             logger.debug("profile_template_cleaned_up", template_id=profile_template.id)
 
-        # Delete non-reusable info template
-        if not reusability["info_reusable"]:
-            await db.delete(info_template)
+        # Delete non-reusable character template
+        if not reusability.get("character_template_reusable", False):
+            await db.delete(character_template)
             cleanup_count += 1
-            logger.debug("info_template_cleaned_up", template_id=info_template.id)
+            logger.debug(
+                "character_template_cleaned_up", template_id=character_template.id
+            )
 
         if cleanup_count > 0:
             await db.flush()

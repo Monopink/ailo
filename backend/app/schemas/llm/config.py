@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class LLMConfigBase(BaseSchema):
     """Base LLM configuration schema."""
 
-    config_key: str = Field(max_length=100, description="Configuration key")
+    name: str = Field(max_length=100, description="Configuration name")
     model_name: Optional[str] = Field(default=None, max_length=100, description="Specific model name")
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Temperature parameter")
     max_tokens: Optional[int] = Field(default=2000, gt=0, description="Maximum tokens")
@@ -34,7 +34,7 @@ class LLMConfigCreate(BaseModel):
     """Schema for creating an LLM configuration."""
 
     provider_id: int = Field(description="Provider ID")
-    config_key: str = Field(max_length=100, description="Configuration key")
+    name: str = Field(max_length=100, description="Configuration name")
     model_name: Optional[str] = Field(default=None, max_length=100, description="Specific model name")
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Temperature parameter")
     max_tokens: Optional[int] = Field(default=2000, gt=0, description="Maximum tokens")

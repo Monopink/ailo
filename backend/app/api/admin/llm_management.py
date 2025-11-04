@@ -38,7 +38,7 @@ class PerformanceTest(BaseModel):
 class LLMTestRequest(BaseModel):
     """LLM test request model."""
 
-    config_keys: List[str] = Field(..., description="List of LLM configuration keys")
+    config_names: List[str] = Field(..., description="List of LLM configuration names")
     test_cases: List[TestCase] = Field(..., description="List of test cases")
     performance_test: Optional[PerformanceTest] = Field(None, description="Performance test configuration")
 
@@ -63,17 +63,17 @@ async def test_llm_configurations(
 
         # Get available configs
         configs = await get_active_configs(db)
-        available_keys = [config.config_key for config, _ in configs]
+        available_names = [config.name for config, _ in configs]
 
         # Validate requested config keys
-        invalid_keys = [key for key in request.config_keys if key not in available_keys]
-        if invalid_keys:
-            raise ValueError(f"Invalid configuration keys: {', '.join(invalid_keys)}")
+        invalid_names = [nm for nm in request.config_names if nm not in available_names]
+        if invalid_names:
+            raise ValueError(f"Invalid configuration names: {', '.join(invalid_names)}")
 
         # Simple test result structure
         results = {
             "test_summary": {
-                "total_configs": len(request.config_keys),
+                "total_configs": len(request.config_names),
                 "total_test_cases": len(request.test_cases),
                 "status": "completed",
             },
@@ -81,14 +81,14 @@ async def test_llm_configurations(
             "performance_summary": {
                 "average_response_time": 500,
                 "success_rate": 100.0,
-                "total_requests": len(request.config_keys) * len(request.test_cases),
+                "total_requests": len(request.config_names) * len(request.test_cases),
             },
         }
 
         # Mock results for each config
-        for config_key in request.config_keys:
+        for config_name in request.config_names:
             config_result = {
-                "config_key": config_key,
+                "name": config_name,
                 "status": "success",
                 "test_case_results": [],
                 "average_response_time": 480,
@@ -137,7 +137,7 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
 
         config_list = [
             {
-                "config_key": config.config_key,
+                "name": config.name,
                 "provider_name": provider.name,
                 "model_name": config.model_name,
                 "status": config.status,

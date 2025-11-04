@@ -13,7 +13,7 @@ from .data import (
     get_character_id_by_qiao_id,
     get_style_with_relationships,
 )
-from .data.mutations import update_relationship_scores
+from .data.mutations import update_relationship_scores, set_current_relationship
 from exceptions import AIRelationshipError
 from utils.logging import get_logger
 
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 
 
 async def get_relationship_scores(
-    db: AsyncSession, character_qiao_id: str, auto_initialize: bool = True
+    db: AsyncSession, character_qiao_id: str, auto_initialize: bool = False
 ) -> Optional[List[Dict[str, Any]]]:
     """
     Get relationship scores for a character.
@@ -47,16 +47,14 @@ async def get_relationship_scores(
 
         scores = await get_character_relationship_scores(db, character_id)
 
+        # Do not auto-initialize here. Missing scores indicate a data inconsistency
+        # which should be handled by callers (typically as a validation error).
         if not scores and auto_initialize:
-            # Auto-initialize scores based on initial_position
-            logger.info(
-                "auto_initializing_relationship_scores",
+            logger.warning(
+                "relationship_scores_missing_but_auto_init_disabled",
                 character_qiao_id=character_qiao_id,
                 character_id=character_id,
             )
-            await initialize_relationship_scores(db, character_id)
-            # Re-query scores after initialization
-            scores = await get_character_relationship_scores(db, character_id)
 
         if not scores:
             logger.info(
@@ -83,13 +81,17 @@ async def get_relationship_scores(
         return None
 
 
-async def initialize_relationship_scores(db: AsyncSession, character_id: int) -> None:
+async def initialize_relationship_scores(
+    db: AsyncSession, character_id: int, style_id: int, position_mapping_config: Optional[Dict[str, Any]] = None
+) -> None:
     """
     Initialize relationship scores based on dimension initial_position.
 
     Args:
         db: Database session
         character_id: Character ID
+        style_id: Style ID
+        position_mapping_config: Per-dimension position mapping configuration from template
 
     Returns:
         None (scores are created and committed to database)
@@ -98,27 +100,12 @@ async def initialize_relationship_scores(db: AsyncSession, character_id: int) ->
         AIRelationshipError: If initialization fails
     """
     try:
-        from models.ai.character import AICharacter
-        from models.ai.score import AIRelationshipScore
-        from models.ai.style import AIRelationshipDimension, AIRelationshipIndex, AIRelationship
+        from models.ai.character_dimension import AICharacterDimension
+        from models.ai.style import AIStyleDimension
         from sqlalchemy import select
 
-        # Get character to find style_id
-        stmt = select(AICharacter).where(AICharacter.id == character_id)
-        result = await db.execute(stmt)
-        character = result.scalar_one_or_none()
-
-        if not character:
-            raise AIRelationshipError(
-                operation="initialize_relationship_scores",
-                reason="character_not_found",
-                message=f"Character {character_id} not found",
-            )
-
-        style_id = character.style_id
-
         # Get all dimensions for this style
-        stmt = select(AIRelationshipDimension).where(AIRelationshipDimension.style_id == style_id)
+        stmt = select(AIStyleDimension).where(AIStyleDimension.style_id == style_id)
         result = await db.execute(stmt)
         dimensions = result.scalars().all()
 
@@ -129,65 +116,25 @@ async def initialize_relationship_scores(db: AsyncSession, character_id: int) ->
                 message=f"No dimensions found for style {style_id}",
             )
 
-        # Get relationship indexes for this style to determine initial relationship
-        stmt = (
-            select(AIRelationshipIndex, AIRelationship)
-            .join(AIRelationship, AIRelationshipIndex.relationship_id == AIRelationship.id)
-            .where(AIRelationshipIndex.style_id == style_id)
-            .order_by(AIRelationshipIndex.priority)
-        )
-        result = await db.execute(stmt)
-        indexes_data = result.all()
+        # Get position mapping config from template
+        offset_config = position_mapping_config or {}
 
-        if not indexes_data:
-            logger.warning(
-                "no_relationship_indexes_found_for_initialization",
-                style_id=style_id,
-                character_id=character_id,
-            )
-
-        # Build dimension_id -> relationship mapping based on initial_position
-        dimension_relationships = {}
+        # Create dimension records
         for dimension in dimensions:
-            # Find matching relationship for this dimension's initial_position
-            for index, relationship in indexes_data:
-                if (
-                    index.dimension_id == dimension.id
-                    and index.start_position <= dimension.initial_position <= index.end_position
-                ):
-                    dimension_relationships[dimension.id] = {
-                        "relationship_id": relationship.id,
-                        "relationship_display_name": relationship.display_name,
-                    }
-                    break
+            # Get offset config for this dimension
+            dim_config = offset_config.get(dimension.name, {})
+            algorithm = dim_config.get("algorithm", 1)
+            params = dim_config.get("params", {})
 
-        # Create score records
-        for dimension in dimensions:
-            rel_info = dimension_relationships.get(dimension.id)
-            if not rel_info:
-                logger.error(
-                    "no_relationship_found_for_initial_position",
-                    dimension_id=dimension.id,
-                    dimension_name=dimension.name,
-                    initial_position=dimension.initial_position,
-                    style_id=style_id,
-                    character_id=character_id,
-                )
-                # Allow NULL relationship - this is an abnormal situation
-                rel_info = {
-                    "relationship_id": None,
-                    "relationship_display_name": None,
-                }
-
-            score = AIRelationshipScore(
+            dimension_record = AICharacterDimension(
                 character_id=character_id,
                 dimension_id=dimension.id,
-                score=dimension.initial_position,  # Use initial_position as initial score
+                score=dimension.initial_position,
                 position=dimension.initial_position,
-                relationship_id=rel_info["relationship_id"],
-                relationship_display_name=rel_info["relationship_display_name"],
+                position_mapping_algorithm=algorithm,
+                position_mapping_params=params,
             )
-            db.add(score)
+            db.add(dimension_record)
 
         await db.commit()
 
@@ -243,44 +190,35 @@ async def determine_relationship_type(
         relationships = style_data["relationships"]
 
         if not scores:
-            # Use default relationship (first one with lowest priority)
-            default_mapping = _get_default_relationship_mapping(relationships)
-            if default_mapping:
-                logger.info(
-                    "using_default_relationship_for_new_character",
-                    style_id=style_id,
-                    relationship_id=default_mapping["relationship"].id,
-                )
-                return {
-                    "relationship": default_mapping["relationship"],
-                    "mapping": default_mapping,
-                    "is_default": True,
-                }
-            else:
-                logger.error(
-                    "no_default_relationship_found",
-                    style_id=style_id,
-                    mappings_count=len(relationships),
-                )
-                raise AIRelationshipError(
-                    operation="get_default_relationship",
-                    reason="no_default_mapping",
-                    message=f"No default relationship mapping found for style {style_id}. "
-                    f"This indicates a configuration error in ai_relationship_indexes table.",
-                )
+            # No scores available => per spec return empty relationship and log error
+            logger.error(
+                "no_scores_for_relationship_selection",
+                style_id=style_id,
+            )
+            return None
 
         # Calculate score positions
         score_positions = _calculate_score_positions(scores)
 
         # Get current relationship ID from scores (if any)
         current_relationship_id = None
-        if scores:
-            # Use the relationship_id from the first score entry as current relationship
-            current_relationship_id = scores[0].get("relationship_id")
+        try:
+            character = character_info.get("character")
+            if character is not None:
+                current_relationship_id = getattr(character, "relationship_id", None)
+        except Exception:
+            current_relationship_id = None
 
-        # Find matching relationship with current relationship priority
+        # Find matching relationship with current relationship priority and limit_count
+        relationship_counts = {}
+        try:
+            if character is not None and getattr(character, "relationship_counts", None):
+                relationship_counts = getattr(character, "relationship_counts") or {}
+        except Exception:
+            relationship_counts = {}
+
         matching_relationship = _find_matching_relationship(
-            score_positions, relationships, current_relationship_id
+            score_positions, relationships, current_relationship_id, relationship_counts
         )
 
         if matching_relationship:
@@ -297,19 +235,14 @@ async def determine_relationship_type(
                 "is_default": False,
             }
         else:
-            # No matching relationship found - this indicates a configuration error
+            # No matching relationship found => return empty per spec
             logger.error(
                 "no_matching_relationship_found",
                 style_id=style_id,
                 score_positions=score_positions,
                 available_mappings=len(relationships),
             )
-            raise AIRelationshipError(
-                operation="find_matching_relationship",
-                reason="no_matching_mapping",
-                message=f"No relationship mapping found for style {style_id} with scores {score_positions}. "
-                f"This indicates a configuration error in ai_relationship_indexes table.",
-            )
+            return None
 
     except Exception as e:
         logger.error(
@@ -371,6 +304,48 @@ async def update_character_relationship_scores(
         )
 
 
+async def update_current_relationship(
+    db: AsyncSession, character_id: int, relationship_id: int, relationship_display_name: str
+) -> bool:
+    """Persist the selected current relationship across all score rows for a character."""
+    try:
+        success = await set_current_relationship(
+            db,
+            character_id=character_id,
+            relationship_id=relationship_id,
+            relationship_display_name=relationship_display_name,
+        )
+
+        if success:
+            logger.debug(
+                "current_relationship_persisted",
+                character_id=character_id,
+                relationship_id=relationship_id,
+                relationship_display_name=relationship_display_name,
+            )
+        else:
+            logger.warning(
+                "current_relationship_persist_failed",
+                character_id=character_id,
+                relationship_id=relationship_id,
+            )
+
+        return success
+
+    except Exception as e:
+        logger.error(
+            "update_current_relationship_failed",
+            error=str(e),
+            character_id=character_id,
+            relationship_id=relationship_id,
+        )
+        raise AIRelationshipError(
+            operation="update_current_relationship",
+            reason="update_failed",
+            message=f"Failed to update current relationship: {str(e)}",
+        )
+
+
 def _calculate_score_positions(scores: List[Dict[str, Any]]) -> Dict[int, int]:
     """
     Calculate score positions as percentiles (0-1000).
@@ -403,24 +378,26 @@ def _find_matching_relationship(
     score_positions: Dict[int, int],
     relationship_mappings: List[Dict[str, Any]],
     current_relationship_id: Optional[int] = None,
+    relationship_counts: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Find relationship mapping that matches the score positions.
 
-    Implements the special rule: if current relationship is among candidates,
-    it has the highest priority (relationship doesn't change).
+    Implements per-dimension current relationship filtering: within each dimension,
+    if current relationship is among candidates, filter out other relationships.
 
     Args:
-        score_positions: Dictionary of score_order -> position
+        score_positions: Dictionary of dimension_name -> position
         relationship_mappings: List of relationship mapping dictionaries
-        current_relationship_id: Current relationship ID for priority handling
+        current_relationship_id: Current relationship ID for per-dimension filtering
+        relationship_counts: Character-level relationship counts for limit_count enforcement
 
     Returns:
         Matching relationship mapping, or None if no match
     """
     try:
-        # Find all matching relationships first
-        matching_mappings = []
+        # Group matching mappings by dimension
+        dimension_matches: Dict[str, List[Dict[str, Any]]] = {}
 
         for mapping in relationship_mappings:
             dimension_name = mapping["dimension_name"]
@@ -432,7 +409,9 @@ def _find_matching_relationship(
 
                 # Check if position falls within range
                 if start_position <= position <= end_position:
-                    matching_mappings.append(mapping)
+                    if dimension_name not in dimension_matches:
+                        dimension_matches[dimension_name] = []
+                    dimension_matches[dimension_name].append(mapping)
                     logger.debug(
                         "relationship_mapping_candidate",
                         dimension_name=dimension_name,
@@ -442,31 +421,97 @@ def _find_matching_relationship(
                         relationship_id=mapping["relationship"].id,
                     )
 
-        if not matching_mappings:
+        if not dimension_matches:
             logger.debug("no_relationship_mapping_matched", score_positions=score_positions)
             return None
 
-        # Special rule: if current relationship is among candidates, prioritize it
-        if current_relationship_id:
-            for mapping in matching_mappings:
-                if mapping["relationship"].id == current_relationship_id:
-                    logger.info(
-                        "current_relationship_prioritized",
-                        current_relationship_id=current_relationship_id,
-                        relationship_name=mapping["relationship"].name,
-                        candidates_count=len(matching_mappings),
-                    )
-                    return mapping
+        # Per-dimension current relationship filtering
+        matching_mappings: List[Dict[str, Any]] = []
+        for dimension_name, dim_candidates in dimension_matches.items():
+            if current_relationship_id is not None:
+                current_in_dim = any(
+                    int(m["relationship"].id) == int(current_relationship_id) for m in dim_candidates
+                )
+                if current_in_dim:
+                    # Filter to keep only current relationship in this dimension
+                    dim_candidates = [
+                        m for m in dim_candidates if int(m["relationship"].id) == int(current_relationship_id)
+                    ]
+            matching_mappings.extend(dim_candidates)
 
-        # Sort by priority (higher number = higher priority) and return first
-        sorted_mappings = sorted(matching_mappings, key=lambda x: x.get("priority", 999))
-        selected_mapping = sorted_mappings[0]
+        if not matching_mappings:
+            logger.debug("no_mappings_after_dimension_filtering")
+            return None
+
+        # Build unique candidate set aggregated by relationship_id with max priority
+        unique: Dict[int, Dict[str, Any]] = {}
+        for m in matching_mappings:
+            rid = int(m["relationship"].id)
+            pr = int(m.get("priority", 0))
+            if rid not in unique:
+                unique[rid] = {
+                    "relationship": m["relationship"],
+                    "dimension_name": m["dimension_name"],
+                    "start_position": m["start_position"],
+                    "end_position": m["end_position"],
+                    "priority": pr,
+                    "limit_count": m.get("limit_count"),
+                }
+            else:
+                if pr > unique[rid]["priority"]:
+                    unique[rid]["priority"] = pr
+
+        if not unique:
+            logger.debug("no_unique_candidates_after_match")
+            return None
+
+        # Enforce limit_count using relationship_counts
+        if relationship_counts:
+            filtered: Dict[int, Dict[str, Any]] = {}
+            for rid, data in unique.items():
+                limit = int(data.get("limit_count") or 0)
+                if limit <= 0:
+                    filtered[rid] = data
+                    continue
+                cnt = relationship_counts.get(str(rid))
+                if cnt is None:
+                    cnt = relationship_counts.get(rid, 0)
+                try:
+                    cnt_int = int(cnt or 0)
+                except Exception:
+                    cnt_int = 0
+                if cnt_int > limit:
+                    logger.error(
+                        "relationship_count_anomaly_gt_limit",
+                        relationship_id=rid,
+                        count=cnt_int,
+                        limit=limit,
+                    )
+                    continue
+                if cnt_int >= limit:
+                    continue
+                filtered[rid] = data
+            unique = filtered
+
+        if not unique:
+            logger.error("no_candidate_after_limit_filter")
+            return None
+
+        # Select by priority: higher number = higher priority
+        top_priority = max(v["priority"] for v in unique.values())
+        top_relations = [v for v in unique.values() if v["priority"] == top_priority]
+
+        if len(top_relations) > 1:
+            logger.error("priority_tie_detected", top_priority=top_priority, candidates=len(top_relations))
+            return None
+
+        selected_mapping = top_relations[0]
 
         logger.debug(
             "relationship_mapping_selected",
             relationship_id=selected_mapping["relationship"].id,
-            priority=selected_mapping.get("priority", 999),
-            candidates_count=len(matching_mappings),
+            priority=selected_mapping.get("priority", 0),
+            candidates_count=len(unique),
             current_relationship_id=current_relationship_id,
         )
 
@@ -542,20 +587,55 @@ async def calculate_new_scores(
                 message="No character_id in character_info",
             )
 
-        # Get current scores
-        current_scores = await get_character_relationship_scores(db, character_id)
+        # Get all dimensions with offset config in one query
+        from crud.ai.character_dimension import get_by_character
+        current_scores = await get_by_character(db, character_id)
+
         if not current_scores:
             logger.warning(
                 "no_current_scores_for_calculation",
                 character_id=character_id,
             )
-            # Return LLM scores directly if no current scores exist
             return llm_response_scores
 
-        # Apply score offset algorithm for each dimension
-        new_scores = {}
-        character = character_info.get("character")
+        # Build dimension config map
+        from .utils.position_mapping import map_score_to_position
+        from .prompt import get_response_schema
+        from .utils.score_mapping import map_to_permille
 
+        # Load JSON Schema to get per-dimension min/max for mapping
+        character_qiao_id = None
+        try:
+            character_obj = character_info.get("character")
+            if character_obj is not None:
+                character_qiao_id = getattr(character_obj, "qiao_id", None)
+        except Exception:
+            character_qiao_id = None
+
+        if not character_qiao_id:
+            raise AIRelationshipError(
+                operation="calculate_new_scores",
+                reason="missing_character_qiao_id",
+                message="No character.qiao_id in character_info",
+            )
+
+        schema = await get_response_schema(db, character_qiao_id)
+        # Validate schema structure
+        try:
+            score_schema_props = (
+                schema.get("properties", {}).get("score", {}).get("properties", {})
+            )
+            if not isinstance(score_schema_props, dict) or not score_schema_props:
+                raise KeyError("invalid_score_schema")
+        except Exception as e:
+            logger.error("json_schema_invalid_for_mapping", error=str(e))
+            raise AIRelationshipError(
+                operation="calculate_new_scores",
+                reason="schema_invalid",
+                message="JSON Schema for score mapping is invalid",
+            )
+
+        new_scores = {}
         for score_data in current_scores:
             dimension_name = score_data["dimension_name"]
             current_score = score_data["score"]
@@ -564,13 +644,46 @@ async def calculate_new_scores(
             # Get LLM response score for this dimension
             llm_score = llm_response_scores.get(dimension_name)
             if llm_score is None:
-                # Keep current score if LLM didn't provide new value
                 new_scores[dimension_name] = current_score
                 continue
 
-            # Apply score offset algorithm
-            new_score = await apply_score_offset(character, current_score, llm_score, initial_position)
-            new_scores[dimension_name] = new_score
+            # Get dimension-specific offset config
+            algorithm = score_data.get("position_mapping_algorithm", 1)
+            params = score_data.get("position_mapping_params", {})
+
+            # Map raw score to 0-1000 using JSON Schema min/max
+            dim_schema = score_schema_props.get(dimension_name)
+            if not isinstance(dim_schema, dict):
+                raise AIRelationshipError(
+                    operation="calculate_new_scores",
+                    reason="schema_missing_dimension",
+                    message=f"Missing schema for dimension {dimension_name}",
+                )
+            min_v = dim_schema.get("minimum")
+            max_v = dim_schema.get("maximum")
+            try:
+                mapped = map_to_permille(float(llm_score), float(min_v), float(max_v))
+            except Exception as e:
+                raise AIRelationshipError(
+                    operation="calculate_new_scores",
+                    reason="schema_mapping_failed",
+                    message=f"Mapping failed for dimension {dimension_name}: {str(e)}",
+                )
+
+            # Apply position mapping algorithm on mapped value
+            new_pos = map_score_to_position(
+                algorithm=algorithm,
+                score=float(mapped),
+                initial_position=initial_position,
+                params=params or {},
+            )
+            # Final integer output for both score and position semantics (half-up rounding)
+            try:
+                # half-up: consistent with JS Math.round to avoid UI/backend mismatch
+                final_int = int(float(new_pos) + 0.5)
+            except Exception:
+                final_int = int(new_pos)
+            new_scores[dimension_name] = max(0, min(1000, final_int))
 
         logger.debug(
             "new_scores_calculated",
@@ -592,81 +705,6 @@ async def calculate_new_scores(
             operation="calculate_new_scores",
             reason="calculation_failed",
             message=f"Failed to calculate new scores: {str(e)}",
-        )
-
-
-async def apply_score_offset(
-    character: Any, current_score: int, llm_score: int, initial_position: float
-) -> int:
-    """
-    Apply character-specific score offset algorithm.
-
-    Args:
-        character: Character model instance
-        current_score: Current score value (0-1000) - not used in calculation but kept for logging
-        llm_score: LLM response score (0-1000)
-        initial_position: Initial position from dimension config (0-1000)
-
-    Returns:
-        New score value after applying offset
-
-    Raises:
-        AIRelationshipError: If offset calculation fails
-    """
-    try:
-        from .utils.score_algorithm import apply_score_algorithm
-
-        # Get character's score offset configuration
-        algorithm = character.score_offset_algorithm if character else None
-        params = character.score_offset_params if character else None
-
-        if not algorithm:
-            # No algorithm specified, use direct LLM score
-            logger.debug(
-                "no_offset_algorithm_using_direct_score",
-                character_id=getattr(character, "id", None),
-                current_score=current_score,
-                llm_score=llm_score,
-                initial_position=initial_position,
-            )
-            return max(0, min(1000, llm_score))
-
-        # Calculate new score using the specified algorithm
-        new_score = apply_score_algorithm(
-            algorithm=algorithm,
-            score=float(llm_score),
-            initial_position=initial_position,
-            params=params or {},
-        )
-
-        # Ensure score is within valid range
-        new_score = max(0, min(1000, int(new_score)))
-
-        logger.debug(
-            "score_offset_applied",
-            character_id=getattr(character, "id", None),
-            algorithm=algorithm,
-            current_score=current_score,
-            llm_score=llm_score,
-            initial_position=initial_position,
-            new_score=new_score,
-        )
-
-        return new_score
-
-    except Exception as e:
-        logger.error(
-            "score_offset_application_failed",
-            error=str(e),
-            character_id=getattr(character, "id", None),
-            current_score=current_score,
-            llm_score=llm_score,
-            initial_position=initial_position,
-        )
-        raise AIRelationshipError(
-            operation="apply_score_offset",
-            reason="calculation_failed",
-            message=f"Failed to apply score offset: {str(e)}",
         )
 
 

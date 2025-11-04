@@ -8,16 +8,16 @@ This module imports all AI-related SQLAlchemy models.
 from .character import AICharacter, AIContext, AIContextArchive
 
 # Template models
-from .template import AIInfoTemplate, AIProfileTemplate
+from .template import AICharacterTemplate, AIProfileTemplate
 
 # Personality models
 from .personality import AIPersonality, AIPersonalityPlaceholder
 
 # Style and relationship models
-from .style import AIStyle, AIRelationship, AIRelationshipIndex, AIRelationshipDimension
+from .style import AIStyle, AIRelationship, AIDimension, AIStyleDimension, AIDimensionRelationshipMapping
 
 # Score models
-from .score import AIRelationshipScore
+from .character_dimension import AICharacterDimension
 
 # Log models
 from .log import AIRequestLog
@@ -29,7 +29,7 @@ __all__ = [
     "AIContext",
     "AIContextArchive",
     # Templates
-    "AIInfoTemplate",
+    "AICharacterTemplate",
     "AIProfileTemplate",
     # Personality
     "AIPersonality",
@@ -37,10 +37,11 @@ __all__ = [
     # Style and relationship
     "AIStyle",
     "AIRelationship",
-    "AIRelationshipIndex",
-    "AIRelationshipDimension",
-    # Score
-    "AIRelationshipScore",
+    "AIDimension",
+    "AIStyleDimension",
+    "AIDimensionRelationshipMapping",
+    # Character Dimension
+    "AICharacterDimension",
     # Log
     "AIRequestLog",
 ]

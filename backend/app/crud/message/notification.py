@@ -110,4 +110,3 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, dict, dict])
 
 # Create instance
 notification_push_history = CRUDNotificationPushHistory(NotificationPushHistory)
-

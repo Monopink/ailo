@@ -47,7 +47,7 @@ class CRUDAIContext(CRUDBase[AIContext, AIContextCreate, AIContextUpdate]):
                 .where(
                     and_(
                         AIContext.character_qiao_id == character_qiao_id,
-                        AIContext.reply_status == 3,  # done
+                        AIContext.aggregate_state == 3,  # done
                     )
                 )
                 .order_by(desc(AIContext.created_at))
@@ -108,12 +108,10 @@ class CRUDAIContext(CRUDBase[AIContext, AIContextCreate, AIContextUpdate]):
                         user_qiao_id=context.user_qiao_id,
                         role=context.role,
                         content=context.content,
-                        source_type=context.source_type,
-                        context_metadata=context.context_metadata,
                         position=context.position,
                         token_count=context.token_count,
                         is_attack=context.is_attack,
-                        reply_status=context.reply_status,
+                        aggregate_state=context.aggregate_state,
                         created_at=context.created_at,
                         updated_at=context.updated_at,
                     )

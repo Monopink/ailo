@@ -37,8 +37,8 @@ class LLMConfig(AutoIncrementModel):
         primaryjoin="foreign(LLMConfig.provider_id) == LLMProvider.id",
     )
 
-    config_key: Mapped[str] = mapped_column(
-        String(50), nullable=False, unique=True, comment="Configuration key (primary, backup, test, etc.)"
+    name: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, comment="Configuration name (primary, backup, test, etc.)"
     )
 
     model_name: Mapped[Optional[str]] = mapped_column(
@@ -102,5 +102,5 @@ class LLMConfig(AutoIncrementModel):
     )
 
     # Indexes - Only essential indexes for MVP
-    # Note: config_key already has unique index
+    # Note: name already has unique index
     __table_args__ = (Index("idx_llm_configs_provider_id", "provider_id"),)

@@ -63,7 +63,7 @@ async def get_contacts(
     """
     try:
         # TODO: Implement cursor-based pagination
-        # For MVP, use simple offset pagination
+        # For MVP, use simple mapping pagination
         skip = 0
 
         contacts = await get_user_contacts_with_profiles(

@@ -1,145 +1,263 @@
 {% extends "layout.html" %}
 
-{% block title %}<title>Edit JSON Fields</title>{% endblock %}
+{% block title %}<title>Edit Character Template</title>{% endblock %}
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/admin-fixes.css') }}">
+{% endblock %}
 
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
-    <div>
-        <h1>Edit JSON Fields</h1>
-    </div>
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-            <a href="{{ url_for(__name__ ~ ':index') }}">Dashboard</a>
-        </li>
-        <li class="breadcrumb-item">
-            <a href="{{ url_for(__name__ ~ ':list', identity='ai_info_template') }}">AI Info Templates</a>
-        </li>
-        <li class="breadcrumb-item active">Edit JSON</li>
-    </ol>
+  <div>
+    <h1>Edit Character Template</h1>
+  </div>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item">
+      <a href="{{ url_for(__name__ ~ ':index') }}">Admin</a>
+    </li>
+    <li class="breadcrumb-item">
+      <a href="{{ url_for(__name__ ~ ':list', identity='ai_character_template') }}">Character Templates</a>
+    </li>
+    <li class="breadcrumb-item active">Advanced Edit</li>
+  </ol>
 </div>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <!-- Template Information Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Template Information</h3>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-2">
-                                <span class="text-muted">Template ID:</span>
-                                <strong>{{ template.id }}</strong>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-2">
-                                <span class="text-muted">Personality:</span>
-                                <strong>{{ template.personality_display_name }}</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Prompt Variables Card -->
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h3 class="card-title">Prompt Variables</h3>
-                </div>
-                <div class="card-body">
-                    {% if not placeholders %}
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i>
-                        No placeholders defined for this personality.
-                    </div>
-                    {% else %}
-                    <form id="variables-form">
-                        {% for placeholder in placeholders %}
-                        <div class="mb-3">
-                            <label for="var_{{ placeholder.placeholder_key }}" class="form-label">
-                                {{ placeholder.display_name or placeholder.placeholder_key }}
-                                {% if placeholder.is_required %}
-                                <span class="text-danger">*</span>
-                                {% endif %}
-                            </label>
-                            <input type="text" class="form-control" id="var_{{ placeholder.placeholder_key }}"
-                                name="var_{{ placeholder.placeholder_key }}"
-                                value="{{ current_values.get(placeholder.placeholder_key, '') }}" {% if
-                                placeholder.is_required %}required{% endif %}
-                                placeholder="{{ placeholder.example_value or '' }}">
-                            {% if placeholder.description %}
-                            <div class="form-text">{{ placeholder.description }}</div>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-2"></i>Save
-                            </button>
-                            <a href="{{ url_for(__name__ ~ ':list', identity='ai_info_template') }}"
-                                class="btn btn-secondary ms-2">
-                                <i class="fas fa-times me-2"></i>Cancel
-                            </a>
-                        </div>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
+  <div class="row">
+    <div class="col-12">
+      <!-- Template Information Card -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Template Information</h3>
         </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-2">
+                <span class="text-muted">Template ID:</span>
+                <strong>{{ template.id }}</strong>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-2">
+                <span class="text-muted">Personality:</span>
+                <strong>{{ template.personality_display_name }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <form id="main-form">
+        <!-- Prompt Variables Card -->
+        <div class="card mt-3">
+          <div class="card-header">
+            <h3 class="card-title">Prompt Variables</h3>
+          </div>
+          <div class="card-body">
+            {# Build placeholder key list for membership checks (works even if empty) #}
+            {% set placeholder_keys = placeholders | map(attribute='placeholder_key') | list %}
+
+            {% if not placeholders %}
+            <div class="alert alert-info d-flex align-items-center">
+              <i class="fas fa-info-circle me-2"></i>
+              <span>No placeholders defined for this personality.</span>
+            </div>
+            {% else %}
+            {# Detect and render extra variables that are not defined in placeholders #}
+            {% set ns = namespace(has_extra=false) %}
+            {% for k, v in (template.prompt_variables or {}).items() %}
+              {% if k not in placeholder_keys %}
+                {% set ns.has_extra = true %}
+              {% endif %}
+            {% endfor %}
+            {% if ns.has_extra %}
+            <div class="alert alert-warning py-1">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              有不在 Personality 的占位符列表中的字段，如果留空将被删除；填写非空则会被保留。
+            </div>
+            {% for k, v in (template.prompt_variables or {}).items() %}
+              {% if k not in placeholder_keys %}
+              <div class="mb-3">
+                <label for="var_{{ k }}" class="form-label text-warning">
+                  {{ k }}
+                </label>
+                <input type="text" class="form-control border-warning" id="var_{{ k }}" name="var_{{ k }}" value="{{ v }}" placeholder="Leave empty to delete">
+                <div class="form-text text-warning">字段不在占位符中，留空将删除，非空将保留</div>
+              </div>
+              {% endif %}
+            {% endfor %}
+            {% endif %}
+
+            {% for placeholder in placeholders %}
+            <div class="mb-3">
+              <label for="var_{{ placeholder.placeholder_key }}" class="form-label">
+                {{ placeholder.display_name or placeholder.placeholder_key }}
+                {% if placeholder.is_required %}
+                <span class="text-danger">*</span>
+                {% endif %}
+              </label>
+              <input type="text" class="form-control" id="var_{{ placeholder.placeholder_key }}" name="var_{{ placeholder.placeholder_key }}" value="{{ template.prompt_variables.get(placeholder.placeholder_key, '') }}" {% if placeholder.is_required %}required{% endif %} placeholder="{{ placeholder.example_value or '' }}">
+              {% if placeholder.description %}
+              <div class="form-text">{{ placeholder.description }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Dimension Position Mapping Configuration Card -->
+        <div class="card mt-3">
+          <div class="card-header">
+          <h3 class="card-title">Dimension Position Mapping Configuration</h3>
+          </div>
+          <div class="card-body">
+            {% if not dimension_configs %}
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              No dimensions found for this template's style.
+            </div>
+            {% else %}
+            {% for dim_config in dimension_configs %}
+            {% if not loop.first %}
+            <hr class="my-4">{% endif %}
+            <div class="dimension-config-section" data-dimension-name="{{ dim_config.dimension_name }}">
+              <h5 class="mb-3">{{ dim_config.display_name }} ({{ dim_config.dimension_name }})</h5>
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <label class="form-label">Algorithm</label>
+                    <select class="form-select algorithm-select" name="algorithm_{{ dim_config.dimension_name }}" data-dimension="{{ dim_config.dimension_name }}">
+                      <option value="1" {% if dim_config.algorithm==1 %}selected{% endif %}>None (direct)
+                      </option>
+                      <option value="2" {% if dim_config.algorithm==2 %}selected{% endif %}>V1
+                      </option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="algorithm-params" data-dimension="{{ dim_config.dimension_name }}" style="display: none;">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Left Bias</label>
+                      <input type="number" class="form-control" name="left_bias_{{ dim_config.dimension_name }}" value="{{ dim_config.params.left_bias if dim_config.params else 0 }}" min="-100" max="100" step="1">
+                      <div class="form-text">Range: -100 to 100 (0 = linear)</div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Right Bias</label>
+                      <input type="number" class="form-control" name="right_bias_{{ dim_config.dimension_name }}" value="{{ dim_config.params.right_bias if dim_config.params else 0 }}" min="-100" max="100" step="1">
+                      <div class="form-text">Range: -100 to 100 (0 = linear)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="card mt-3">
+          <div class="card-body text-black">
+            <div class="btn-list ms-auto justify-content-end">
+              <a href="{{ url_for(__name__ ~ ':list', identity='ai_character_template') }}" class="btn btn-danger">Cancel</a>
+              <button type="submit" data-action="continue" class="btn">Save and continue editing</button>
+              <button type="submit" data-action="save" class="btn btn-success">Save</button>
+            </div>
+          </div>
+        </div>
+      </form>
     </div>
+  </div>
 </div>
 
 <script>
-    document.getElementById('variables-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
+  // Toggle algorithm params visibility
+  document.querySelectorAll('.algorithm-select').forEach(select => {
+    const dimension = select.dataset.dimension;
+    const paramsDiv = document.querySelector(`.algorithm-params[data-dimension="${dimension}"]`);
 
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        const originalBtnHtml = submitBtn.innerHTML;
+    function toggleParams() {
+      if (select.value === '2') {
+        paramsDiv.style.display = 'block';
+      } else {
+        paramsDiv.style.display = 'none';
+      }
+    }
 
-        // Show loading state
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+    toggleParams();
+    select.addEventListener('change', toggleParams);
+  });
 
-        // Collect form data
-        const formData = new FormData(e.target);
-        const variables = {};
+  // Handle main form submission
+  document.getElementById('main-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = e.submitter || e.target.querySelector('button[type="submit"]');
+    const originalHtml = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
-        for (const [key, value] of formData.entries()) {
-            if (key.startsWith('var_')) {
-                const varName = key.substring(4);
-                if (value) {  // Only include non-empty values
-                    variables[varName] = value;
-                }
-            }
-        }
+    const formData = new FormData(e.target);
+    const action = (e.submitter && e.submitter.dataset && e.submitter.dataset.action) ? e.submitter.dataset.action : 'continue';
 
-        // Submit
-        try {
-            const response = await fetch('/admin-api/ai/ai-info-template/{{ template.id }}/save-json', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt_variables: variables }),
-            });
+    // Extract variables
+    const variables = {};
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('var_')) {
+        const varName = key.substring(4);
+        if (value) variables[varName] = value;
+      }
+    }
 
-            if (response.ok) {
-                window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_info_template') }}";
-            } else {
-                const error = await response.json();
-                alert('Save failed: ' + (error.detail || 'Unknown error'));
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnHtml;
-            }
-        } catch (error) {
-            alert('Save failed: ' + error.message);
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalBtnHtml;
-        }
+    // Extract position mapping config
+    const positionMappingConfig = {};
+    document.querySelectorAll('.dimension-config-section').forEach(section => {
+      const dimensionName = section.dataset.dimensionName;
+      const algorithm = parseInt(formData.get(`algorithm_${dimensionName}`));
+
+      positionMappingConfig[dimensionName] = { algorithm };
+
+      if (algorithm === 2) {
+        positionMappingConfig[dimensionName].params = {
+          left_bias: parseInt(formData.get(`left_bias_${dimensionName}`)),
+          right_bias: parseInt(formData.get(`right_bias_${dimensionName}`)),
+        };
+      }
     });
+
+    try {
+      const response = await fetch('/admin-api/ai/ai_character_template/{{ template.id }}/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt_variables: variables,
+          position_mapping_config: positionMappingConfig
+        }),
+      });
+
+      if (response.ok) {
+        if (action === 'save') {
+          window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_character_template') }}";
+        } else {
+          alert('Saved successfully');
+          location.reload();
+        }
+      } else {
+        const error = await response.json();
+        alert('Save failed: ' + (error.detail || 'Unknown error'));
+      }
+    } catch (error) {
+      alert('Save failed: ' + error.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalHtml;
+    }
+  });
 </script>
 {% endblock %}

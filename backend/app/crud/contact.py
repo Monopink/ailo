@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.contact import Contact, ContactRequest
-from schemas.contact import ContactCreate, ContactUpdate, ContactRequestCreate
+from schemas.contact import ContactCreate, ContactUpdate, ContactRequestCreate, ContactRequestUpdate
 from enums import ContactType, ContactRequestStatus
 
 
@@ -127,7 +127,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             "contact_id": 0,  # Will be set after querying contact
             "contact_qiao_id": obj_in.contact_qiao_id,
             "alias": obj_in.alias,
-            "avatar_alias_url": obj_in.avatar_alias_url,
+            "custom_avatar_url": obj_in.custom_avatar_url,
             "tags": obj_in.tags,
             "remark": obj_in.remark,
         }
@@ -252,20 +252,37 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         return count
 
 
-class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, dict]):
+class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactRequestUpdate]):
     """CRUD operations for ContactRequest model."""
 
-    async def get_pending_request(
+    async def get_latest_request(
         self, db: AsyncSession, *, from_qiao_id: str, to_qiao_id: str
     ) -> Optional[ContactRequest]:
-        """Get pending contact request between two users. Returns the most recent one if multiple exist."""
+        """Get the latest contact request between two parties regardless of status."""
         result = await db.execute(
             select(self.model)
             .where(
                 and_(
                     self.model.from_qiao_id == from_qiao_id,
                     self.model.to_qiao_id == to_qiao_id,
-                    self.model.status == ContactRequestStatus.PENDING,
+                )
+            )
+            .order_by(self.model.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_pending_request(
+        self, db: AsyncSession, *, from_qiao_id: str, to_qiao_id: str
+    ) -> Optional[ContactRequest]:
+        """Get pending or processing contact request between two users. Returns the most recent one if multiple exist."""
+        result = await db.execute(
+            select(self.model)
+            .where(
+                and_(
+                    self.model.from_qiao_id == from_qiao_id,
+                    self.model.to_qiao_id == to_qiao_id,
+                    self.model.status.in_([ContactRequestStatus.PENDING, ContactRequestStatus.PROCESSING]),
                 )
             )
             .order_by(self.model.created_at.desc())

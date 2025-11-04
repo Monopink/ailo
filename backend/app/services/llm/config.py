@@ -12,21 +12,21 @@ from models.llm import LLMConfig, LLMProvider
 
 
 async def get_llm_config(
-    db: AsyncSession, config_key: Optional[str] = None, config_id: Optional[int] = None
+    db: AsyncSession, name: Optional[str] = None, config_id: Optional[int] = None
 ) -> Optional[Tuple[LLMConfig, LLMProvider]]:
     """
     Get LLM configuration and provider by config key or ID.
 
     Args:
         db: Database session
-        config_key: Configuration key (e.g., 'primary', 'backup')
+        name: Configuration name (e.g., 'primary', 'backup')
         config_id: Configuration ID
 
     Returns:
         Tuple of (config, provider) or None if not found
     """
-    if config_key:
-        config = await llm_config.get_by_config_key(db, config_key=config_key)
+    if name:
+        config = await llm_config.get_by_name(db, name=name)
     elif config_id:
         config = await llm_config.get(db, id=config_id)
     else:

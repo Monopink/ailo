@@ -66,5 +66,16 @@
         "backend/app"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.autoTestDiscoverOnSaveEnabled": true
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    "files.encoding": "utf8",
+    "files.autoGuessEncoding": true,
+    "[html]": {
+        "editor.formatOnSave": false,
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false
+    },
+    "html.format.wrapLineLength": 0,
+    "html.format.indentInnerHtml": false,
+    "html.format.extraLiners": "",
 }

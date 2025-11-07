@@ -4,26 +4,8 @@
   background-color: #f5f5f5;
 }
 
-/* Search bar */
-.search-bar {
-  padding: 20rpx 40rpx;
-  background-color: #fff;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-
-.search-bar input {
-  padding: 20rpx 30rpx;
-  background-color: #f5f5f5;
-  border-radius: 16rpx;
-  font-size: 28rpx;
-}
-
-.search-bar.hide {
-  display: none;
-}
-
-/* Chat list */
-.chat-list {
+/* Contact list */
+.contact-list {
   height: 100vh;
 }
 
@@ -200,4 +182,3 @@
   font-size: 28rpx;
   color: #999;
 }
-

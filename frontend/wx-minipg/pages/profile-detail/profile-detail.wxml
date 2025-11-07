@@ -43,6 +43,15 @@
       </view>
     </view>
 
+    <!-- Phone -->
+    <view class="detail-item" bindtap="editPhone">
+      <text class="label">手机号</text>
+      <view class="value-with-arrow">
+        <text class="value">{{phoneMasked || '未绑定'}}</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
     <!-- Gender -->
     <view class="detail-item" bindtap="editGender">
       <text class="label">性别</text>
@@ -71,4 +80,3 @@
     </view>
   </view>
 </view>
-

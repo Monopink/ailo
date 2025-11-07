@@ -1,77 +1,75 @@
 <view class="square-container">
-  <!-- Filter bar -->
-  <view class="filter-bar {{filterExpanded ? 'expanded' : 'collapsed'}}">
-    <button
-      class="filter-btn {{currentFilter === 'friend' ? 'active' : ''}}"
-      bindtap="selectFilter"
-      data-filter="friend">
-      交友
-    </button>
-    <button
-      class="filter-btn {{currentFilter === 'love' ? 'active' : ''}}"
-      bindtap="selectFilter"
-      data-filter="love">
-      恋爱(限时免费)
-    </button>
-    <button
-      class="filter-btn {{currentFilter === 'talk' ? 'active' : ''}}"
-      bindtap="selectFilter"
-      data-filter="talk">
-      倾诉(限时免费)
-    </button>
-    <button
-      class="filter-btn {{currentFilter === 'bestie' ? 'active' : ''}}"
-      bindtap="selectFilter"
-      data-filter="bestie">
-      闺蜜(限时免费)
-    </button>
-    <button
-      class="filter-btn {{currentFilter === 'hobby' ? 'active' : ''}}"
-      bindtap="selectFilter"
-      data-filter="hobby">
-      同好(限时免费)
-    </button>
-  </view>
+  <!-- Category tabs -->
+  <scroll-view scroll-x class="category-tabs">
+    <view class="tabs-inner">
+      <view
+        wx:for="{{categories}}"
+        wx:key="key"
+        class="tab-item {{currentCategory === item.key ? 'active' : ''}}"
+        bindtap="selectCategory"
+        data-category="{{item.key}}">
+        <text>{{item.label}}</text>
+      </view>
+    </view>
+  </scroll-view>
 
-  <!-- Action bar -->
-  <view class="action-bar">
-    <button class="refresh-btn" bindtap="handleRefresh">
-      <text>刷新</text>
-    </button>
-  </view>
-
-  <!-- Result list -->
+  <!-- Contact list -->
   <scroll-view
     scroll-y
-    class="result-list"
-    bindscroll="onPageScroll">
+    class="contact-list"
+    bindscrolltolower="onReachBottom"
+    lower-threshold="100">
+
+    <!-- Contact cards -->
     <view
       wx:for="{{contacts}}"
       wx:key="id"
-      class="contact-item"
+      class="contact-card"
       bindtap="handleContactTap"
       data-id="{{item.id}}">
+
       <image src="{{item.avatar_url}}" class="avatar" mode="aspectFill" />
+
       <view class="info">
-        <view class="top-row">
+        <view class="name-row">
           <text class="nickname">{{item.nickname}}</text>
-          <text class="gender">{{item.gender === 1 ? '♂' : item.gender === 2 ? '♀' : ''}}</text>
+          <text class="gender" wx:if="{{item.gender}}">
+            {{item.gender === 1 ? '♂' : item.gender === 2 ? '♀' : ''}}
+          </text>
         </view>
-        <view class="tags" wx:if="{{item.tags && item.tags.length > 0}}">
-          <text wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag" class="tag">{{tag}}</text>
-        </view>
+
+        <text class="bio" wx:if="{{item.bio}}">{{item.bio}}</text>
+
+        <text class="region" wx:if="{{item.region}}">{{item.region}}</text>
       </view>
+
+      <button
+        class="add-btn"
+        catchtap="handleAddContact"
+        data-id="{{item.id}}">
+        添加
+      </button>
     </view>
 
     <!-- Empty state -->
     <view wx:if="{{contacts.length === 0 && !loading}}" class="empty-state">
-      <text>暂无联系人</text>
+      <text class="empty-text">暂无内容</text>
+      <text class="empty-hint">试试切换分类</text>
     </view>
 
     <!-- Loading state -->
     <view wx:if="{{loading}}" class="loading-state">
-      <text>加载中...</text>
+      <text class="loading-text">加载中...</text>
+    </view>
+
+    <!-- Load more indicator -->
+    <view wx:if="{{loadingMore}}" class="loading-more">
+      <text>加载更多...</text>
+    </view>
+
+    <!-- No more data -->
+    <view wx:if="{{!hasMore && contacts.length > 0}}" class="no-more">
+      <text>没有更多了</text>
     </view>
   </scroll-view>
 </view>
-

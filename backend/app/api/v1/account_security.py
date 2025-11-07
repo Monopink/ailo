@@ -29,14 +29,11 @@ from core.security import verify_password, get_password_hash
 from utils.logging import get_logger
 from utils.phone import normalize_phone, mask_phone
 from utils.email import validate_email, mask_email
+from api.v1.auth import _verify_operation_token
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/user", tags=["Account Security"])
-
-
-# Import operation token functions from auth module
-from api.v1.auth import _verify_operation_token
 
 
 @router.put("/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -321,7 +318,9 @@ async def change_phone(
     """
     Change user phone number.
 
-    Requires operation token for verification and SMS code for new phone.
+    If an operation token is provided it will be verified, otherwise the
+    authenticated session is treated as sufficient authorization. The request
+    still requires the SMS code flow handled by `/auth/send-sms`.
 
     Args:
         body: Change phone request
@@ -335,10 +334,10 @@ async def change_phone(
         HTTPException: 400/500 for various errors
     """
     try:
-        # Verify operation token
-        user_id = _verify_operation_token(body.operation_token)
-        if not user_id or user_id != current_user.id:
-            raise HTTPException(status_code=400, detail="验证失败，请重试")
+        if body.operation_token:
+            user_id = _verify_operation_token(body.operation_token)
+            if not user_id or user_id != current_user.id:
+                raise HTTPException(status_code=400, detail="验证失败，请重试")
 
         # Normalize new phone
         normalized_phone = normalize_phone(body.new_phone)
@@ -354,7 +353,12 @@ async def change_phone(
         # Change phone
         await user_crud.update(db, db_obj=current_user, obj_in={"phone": normalized_phone})
 
-        logger.info("phone_changed", user_id=current_user.id, new_phone=normalized_phone)
+        logger.info(
+            "phone_changed",
+            user_id=current_user.id,
+            new_phone=normalized_phone,
+            has_operation_token=bool(body.operation_token),
+        )
 
         return ChangePhoneResponse(phone=mask_phone(normalized_phone))
 

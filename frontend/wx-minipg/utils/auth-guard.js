@@ -1,83 +1,121 @@
+/**
+ * Authentication Guard
+ * Provides page-level authentication checks
+ * Waits for AuthService initialization before checking auth state
+ */
+
+import authService from './auth-service';
 import { getLogger } from './logger';
 
 const logger = getLogger('AuthGuard');
 
 /**
- * Check if user is authenticated
- * @returns {boolean} True if authenticated
+ * Require authentication for page
+ * Async function that waits for auth initialization
+ * Call this in page's onLoad or onShow
+ *
+ * @param {Object} page - Page instance
+ * @param {Object} options - Options
+ * @param {boolean} options.showModal - Whether to show login modal (default: true)
+ * @param {string} options.redirectUrl - URL to redirect if not authenticated
+ * @returns {Promise<boolean>} True if authenticated
  */
-export function isAuthenticated() {
-  const app = getApp();
-  return app.globalData.isAuthenticated || false;
+export async function requireAuth(page, options = {}) {
+  const {
+    showModal = true,
+    redirectUrl = null
+  } = options;
+
+  try {
+    // Wait for auth service initialization
+    logger.debug('Waiting for auth initialization', { route: page.route });
+    const isAuthenticated = await authService.waitForInit();
+
+    if (isAuthenticated) {
+      logger.debug('User authenticated', { route: page.route });
+      return true;
+    }
+
+    // User not authenticated
+    logger.info('User not authenticated, handling redirect', {
+      route: page.route,
+      showModal,
+      redirectUrl
+    });
+
+    if (showModal) {
+      // Show login prompt
+      wx.showModal({
+        title: '提示',
+        content: '请先登录后再访问此页面',
+        confirmText: '去登录',
+        cancelText: '取消',
+        success: (res) => {
+          if (res.confirm) {
+            wx.navigateTo({
+              url: '/pages/login/login'
+            });
+          } else {
+            // User cancelled, go back or to welcome
+            handleCancelRedirect(redirectUrl);
+          }
+        }
+      });
+    } else {
+      // Direct redirect without modal
+      if (redirectUrl) {
+        wx.reLaunch({ url: redirectUrl });
+      } else {
+        handleCancelRedirect(redirectUrl);
+      }
+    }
+
+    return false;
+  } catch (error) {
+    logger.error('Auth check failed', {
+      route: page.route,
+      error: error.message || error
+    });
+
+    // On error, assume not authenticated
+    wx.showToast({
+      title: '认证检查失败',
+      icon: 'none'
+    });
+
+    return false;
+  }
 }
 
 /**
- * Require authentication
- * If not authenticated, show login prompt and return false
+ * Require authentication for action (not page)
+ * Shows a simpler prompt for actions like "add contact"
+ *
  * @param {Object} options - Options
  * @param {string} options.title - Modal title
  * @param {string} options.content - Modal content
- * @returns {boolean} True if authenticated
+ * @returns {Promise<boolean>} True if authenticated
  */
-export function requireAuth(options = {}) {
-  if (isAuthenticated()) {
-    return true;
-  }
-
+export async function requireAuthForAction(options = {}) {
   const {
     title = '提示',
     content = '请先登录后再继续操作'
   } = options;
 
-  logger.info('User not authenticated, showing login prompt');
+  try {
+    // Wait for auth initialization
+    const isAuthenticated = await authService.waitForInit();
 
-  wx.showModal({
-    title,
-    content,
-    confirmText: '去登录',
-    cancelText: '取消',
-    success: (res) => {
-      if (res.confirm) {
-        wx.navigateTo({
-          url: '/pages/login/login'
-        });
-      }
+    if (isAuthenticated) {
+      return true;
     }
-  });
 
-  return false;
-}
+    // User not authenticated
+    logger.info('User not authenticated for action');
 
-/**
- * Require authentication for page
- * If not authenticated, redirect to login page
- * Call this in page's onLoad or onShow
- * @param {Object} page - Page instance
- * @param {Object} options - Options
- * @param {boolean} options.redirect - Whether to redirect to login (default: true)
- * @param {string} options.fallbackUrl - Fallback URL if not redirect
- * @returns {boolean} True if authenticated
- */
-export function requireAuthForPage(page, options = {}) {
-  if (isAuthenticated()) {
-    return true;
-  }
-
-  const {
-    redirect = true,
-    fallbackUrl = '/pages/welcome/welcome'
-  } = options;
-
-  logger.info('Page requires auth but user not authenticated', {
-    route: page.route,
-    redirect
-  });
-
-  if (redirect) {
-    // Show login prompt
     wx.showModal({
-      title: '提示',
-      content: '请先登录后再访问此页面',
+      title,
+      content,
       confirmText: '去登录',
       cancelText: '取消',
       success: (res) => {
@@ -85,26 +123,52 @@ export function requireAuthForPage(page, options = {}) {
           wx.navigateTo({
             url: '/pages/login/login'
           });
-        } else {
-          // User cancelled, go back or to fallback
-          const pages = getCurrentPages();
-          if (pages.length > 1) {
-            wx.navigateBack();
-          } else {
-            wx.reLaunch({
-              url: fallbackUrl
-            });
-          }
         }
       }
     });
-  } else {
-    // Just go to fallback
-    wx.reLaunch({
-      url: fallbackUrl
-    });
-  }
 
-  return false;
+    return false;
+  } catch (error) {
+    logger.error('Auth check for action failed', {
+      error: error.message || error
+    });
+
+    return false;
+  }
 }
 
+/**
+ * Check if user is authenticated (synchronous)
+ * WARNING: Only use this after auth initialization is complete
+ * For most cases, use requireAuth() instead
+ *
+ * @returns {boolean} True if authenticated
+ */
+export function isAuthenticated() {
+  return authService.isAuthenticated();
+}
+
+/**
+ * Handle cancel redirect
+ * Go back if possible, otherwise go to welcome page
+ * @private
+ */
+function handleCancelRedirect(redirectUrl) {
+  if (redirectUrl) {
+    wx.reLaunch({ url: redirectUrl });
+    return;
+  }
+
+  const pages = getCurrentPages();
+  if (pages.length > 1) {
+    wx.navigateBack();
+  } else {
+    wx.reLaunch({ url: '/pages/welcome/welcome' });
+  }
+}
+
+export default {
+  requireAuth,
+  requireAuthForAction,
+  isAuthenticated
+};

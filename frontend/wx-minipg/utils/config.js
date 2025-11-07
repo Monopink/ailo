@@ -60,7 +60,7 @@ export const STORAGE_KEYS = {
   USER_INFO: 'user_info',
 
   // Contacts list
-  CONTACTS: 'contacts',
+  CONTACTS: 'contact_list',
 
   // Messages (prefix, append conv_id)
   MESSAGES: 'messages_',
@@ -68,8 +68,6 @@ export const STORAGE_KEYS = {
   // Local settings
   SETTINGS: 'local_settings',
 
-  // Search history
-  SEARCH_HISTORY: 'search_history'
 };
 
 // App Configuration

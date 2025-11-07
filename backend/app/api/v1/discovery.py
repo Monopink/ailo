@@ -24,18 +24,19 @@ router = APIRouter(prefix="/discovery", tags=["Discovery"])
 @router.get(
     "/square",
     response_model=SquareContactListResponse,
-    summary="Get square random contacts",
-    description="Get random AI contacts for square page with rate limiting",
+    summary="Get square contacts with pagination",
+    description="Get AI contacts for square page with pagination support",
 )
 async def get_square_contacts(
-    category: Optional[int] = Query(None, ge=1, le=5, description="Category filter (1-5)"),
-    force_refresh: bool = Query(False, description="Force refresh (skip rate limit)"),
+    category: Optional[int] = Query(None, ge=1, le=5, description="Category filter (1-5, null for all)"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: Optional[int] = Query(None, ge=1, le=50, description="Items per page (default from config, max 50)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SquareContactListResponse:
-    """Get square page random contacts."""
+    """Get square page contacts with pagination."""
     try:
-        # Validate and convert category (API integer -> DB string) using Profile category mapping
+        # Validate and convert category
         category_db = None
         if category is not None:
             try:
@@ -46,26 +47,22 @@ async def get_square_contacts(
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的分类参数")
 
         return await discovery_service.get_square_contacts(
-            db=db, user_qiao_id=current_user.qiao_id, category=category_db, force_refresh=force_refresh
+            db=db,
+            user_qiao_id=current_user.qiao_id,
+            category=category_db,
+            page=page,
+            page_size=page_size,
         )
     except ValueError as e:
-        # Rate limit error
         error_msg = str(e)
-        if "Refresh too frequent" in error_msg:
-            logger.warning("square_refresh_rate_limit", user_qiao_id=current_user.qiao_id, error=error_msg)
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="刷新过于频繁，请稍后再试"
-            )
-        else:
-            logger.error(
-                "square_contacts_validation_error", user_qiao_id=current_user.qiao_id, error=error_msg
-            )
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请求参数错误")
+        if "too frequent" in error_msg.lower():
+            logger.warning("square_rate_limit", user_qiao_id=current_user.qiao_id, error=error_msg)
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+        logger.error("square_validation_error", user_qiao_id=current_user.qiao_id, error=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请求参数错误")
     except Exception as e:
         logger.error("square_contacts_error", user_qiao_id=current_user.qiao_id, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取内容失败，请稍后再试"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
 
 
 @router.get(

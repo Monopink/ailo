@@ -1,9 +1,9 @@
-import { fetchCaptchaConfig } from './utils/captcha';
 /**
  * MiniProgram App Entry
  */
 
-import { checkAuth, refreshToken } from './utils/auth';
+import authService from './utils/auth-service';
+import { fetchCaptchaConfig } from './utils/captcha';
 import { checkGlobalData, checkStorage } from './utils/debug';
 import { ENABLE_DEBUG_TOOLS } from './utils/env';
 import { getLogger } from './utils/logger';
@@ -16,10 +16,9 @@ App({
    * Global data
    */
   globalData: {
-    userInfo: null,
-    token: null,
     messageService: null,
-    systemInfo: null
+    systemInfo: null,
+    captchaConfig: null
   },
 
   /**
@@ -32,15 +31,8 @@ App({
     this.globalData.systemInfo = wx.getSystemInfoSync();
     logger.info('System info', { systemInfo: this.globalData.systemInfo });
 
-    // Preload and cache captcha config once
-    (async () => {
-      try {
-        const cfg = await fetchCaptchaConfig();
-        this.globalData.captchaConfig = cfg;
-      } catch (e) {
-        logger.error('Fetch captcha config failed', { error: e.message || String(e) });
-      }
-    })();
+    // Preload and cache captcha config
+    this.preloadCaptchaConfig();
 
     // Check storage status (debug) - only in development
     if (ENABLE_DEBUG_TOOLS) {
@@ -50,8 +42,8 @@ App({
       logger.info('========================');
     }
 
-    // Check auth status
-    this.checkAuthStatus();
+    // Initialize authentication service
+    this.initializeAuth();
   },
 
   /**
@@ -60,10 +52,8 @@ App({
   onShow(options) {
     logger.info('App shown', { options });
 
-    // Refresh token if needed
-    if (this.globalData.token) {
-      this.refreshTokenIfNeeded();
-    }
+    // Refresh token if authenticated
+    this.refreshTokenIfNeeded();
   },
 
   /**
@@ -81,42 +71,45 @@ App({
   },
 
   /**
-   * Check auth status
+   * Preload captcha config
    */
-  async checkAuthStatus() {
+  async preloadCaptchaConfig() {
     try {
-      logger.info('=== Checking Auth Status ===');
+      const cfg = await fetchCaptchaConfig();
+      this.globalData.captchaConfig = cfg;
+      logger.info('Captcha config preloaded');
+    } catch (error) {
+      logger.error('Fetch captcha config failed', { error: error.message || String(error) });
+    }
+  },
 
-      // Debug: check storage before auth check - only in development
-      if (ENABLE_DEBUG_TOOLS) {
-        checkStorage();
-      }
+  /**
+   * Initialize authentication service
+   */
+  async initializeAuth() {
+    try {
+      logger.info('=== Initializing Authentication ===');
 
-      const isAuthenticated = await checkAuth();
-      logger.info('Auth check result', { isAuthenticated });
+      const isAuthenticated = await authService.initialize();
 
-      // Store auth status in globalData
-      this.globalData.isAuthenticated = isAuthenticated;
+      logger.info('Authentication initialized', { isAuthenticated });
 
       if (isAuthenticated) {
-        logger.info('User is authenticated');
-
-        // Initialize message service
+        // Initialize message service for authenticated users
         await this.initMessageService();
 
-        // Check if user is on welcome page
+        // Check if user is on welcome page, redirect to chat
         const pages = getCurrentPages();
         const currentPage = pages[pages.length - 1];
 
         if (currentPage && currentPage.route === 'pages/welcome/welcome') {
-          // Redirect to chat tab
           logger.info('User on welcome page, redirecting to chat');
           wx.switchTab({
             url: '/pages/index/index'
           });
         }
       } else {
-        logger.info('User is not authenticated');
+        logger.info('User not authenticated');
 
         // Check if user has seen welcome page
         const hasSeenWelcome = wx.getStorageSync('hasSeenWelcome');
@@ -132,8 +125,7 @@ App({
         }
       }
     } catch (error) {
-      logger.error('Check auth status failed', { error });
-      this.globalData.isAuthenticated = false;
+      logger.error('Initialize auth failed', { error: error.message || String(error) });
     }
   },
 
@@ -142,10 +134,12 @@ App({
    */
   async refreshTokenIfNeeded() {
     try {
-      await refreshToken();
-      logger.info('Token refreshed');
+      if (authService.isAuthenticated()) {
+        await authService.refreshToken();
+        logger.info('Token refreshed');
+      }
     } catch (error) {
-      logger.error('Refresh token failed', { error });
+      logger.error('Refresh token failed', { error: error.message || String(error) });
     }
   },
 
@@ -164,7 +158,7 @@ App({
 
       logger.info('Message service initialized');
     } catch (error) {
-      logger.error('Initialize message service failed', { error });
+      logger.error('Initialize message service failed', { error: error.message || String(error) });
       throw error;
     }
   },
@@ -177,47 +171,55 @@ App({
   },
 
   /**
-   * Set user info
+   * Get auth service
+   * @returns {AuthService} Auth service instance
+   */
+  getAuthService() {
+    return authService;
+  },
+
+  /**
+   * Set user info (deprecated - use authService.updateUserInfo)
+   * @deprecated Use authService.updateUserInfo() instead
    */
   setUserInfo(userInfo) {
-    this.globalData.userInfo = userInfo;
-    logger.info('User info updated', { userInfo });
+    logger.warn('app.setUserInfo() is deprecated, use authService.updateUserInfo()');
+    authService.updateUserInfo(userInfo);
   },
 
   /**
-   * Get user info
+   * Get user info (deprecated - use authService.getUserInfo)
+   * @deprecated Use authService.getUserInfo() instead
    */
   getUserInfo() {
-    return this.globalData.userInfo;
+    logger.warn('app.getUserInfo() is deprecated, use authService.getUserInfo()');
+    return authService.getUserInfo();
   },
 
   /**
-   * Set token
+   * Set token (deprecated - use authService.login)
+   * @deprecated Use authService.login() instead
    */
   setToken(token) {
-    this.globalData.token = token;
-    wx.setStorageSync('auth_token', token);
-    logger.info('Token updated');
+    logger.warn('app.setToken() is deprecated, use authService.login()');
+    // Keep for backward compatibility but don't do anything
   },
 
   /**
-   * Get token
+   * Get token (deprecated - use authService.getToken)
+   * @deprecated Use authService.getToken() instead
    */
   getToken() {
-    if (!this.globalData.token) {
-      this.globalData.token = wx.getStorageSync('auth_token');
-    }
-    return this.globalData.token;
+    logger.warn('app.getToken() is deprecated, use authService.getToken()');
+    return authService.getToken();
   },
 
   /**
-   * Clear auth data
+   * Clear auth data (deprecated - use authService.logout)
+   * @deprecated Use authService.logout() instead
    */
   clearAuth() {
-    this.globalData.userInfo = null;
-    this.globalData.token = null;
-    wx.removeStorageSync('auth_token');
-    wx.removeStorageSync('user_info');
+    logger.warn('app.clearAuth() is deprecated, use authService.logout()');
 
     // Disconnect message service
     if (this.globalData.messageService) {
@@ -225,7 +227,8 @@ App({
       this.globalData.messageService = null;
     }
 
-    logger.info('Auth data cleared');
+    // Logout from auth service
+    authService.logout();
   },
 
   /**
@@ -273,5 +276,3 @@ App({
     }
   }
 });
-
-

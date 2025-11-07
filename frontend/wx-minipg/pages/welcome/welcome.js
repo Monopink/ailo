@@ -1,3 +1,4 @@
+import authService from '../../utils/auth-service';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
 
@@ -42,24 +43,18 @@ Page({
     sampleContacts: SAMPLE_CONTACTS
   },
 
-  onLoad() {
+  async onLoad() {
     logger.info('Welcome page loaded');
 
-    // Fast-path: if token exists in storage, go to chat tab to避免闪屏
+    // Wait for auth initialization and check if user is authenticated
     try {
-      const token = wx.getStorageSync('auth_token');
-      if (token) {
-        logger.info('Token present in storage, redirecting to chat');
+      const isAuthenticated = await authService.waitForInit();
+      if (isAuthenticated) {
+        logger.info('User already authenticated, redirecting to chat');
         wx.switchTab({ url: '/pages/index/index' });
-        return;
       }
-    } catch (_) {}
-
-    // Check if user is already logged in (global state)
-    const app = getApp();
-    if (app.globalData.isAuthenticated) {
-      logger.info('User already logged in, redirecting to chat');
-      wx.switchTab({ url: '/pages/index/index' });
+    } catch (error) {
+      logger.error('Auth check failed', { error });
     }
   },
 

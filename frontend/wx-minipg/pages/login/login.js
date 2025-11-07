@@ -1,8 +1,9 @@
 import { get, post } from '../../utils/api';
+import authService from '../../utils/auth-service';
 import { getCachedCaptchaConfig, ensureCaptchaConfig, initCaptcha, showCaptcha } from '../../utils/captcha';
 import { checkStorage } from '../../utils/debug';
 import logger from '../../utils/logger';
-import { saveContacts, saveUserInfo } from '../../utils/storage';
+import { saveContacts } from '../../utils/storage';
 
 Page({
   data: {
@@ -126,15 +127,10 @@ Page({
         return;
       }
 
-      // Login success
-      wx.setStorageSync('auth_token', result.user.token);
-      await saveUserInfo(result.user);
+      // Login success - use authService
+      await authService.login(result.user.token, result.user);
 
       logger.info('Login success', { user: result.user });
-
-      // Update app auth status
-      const app = getApp();
-      app.globalData.isAuthenticated = true;
 
       // Mark that user has seen welcome
       wx.setStorageSync('hasSeenWelcome', true);
@@ -154,6 +150,7 @@ Page({
         }
 
         // Initialize message service
+        const app = getApp();
         await app.initMessageService();
 
         // Redirect to square page
@@ -291,17 +288,10 @@ Page({
         this.setData({ bindLoading: false });
         wx.redirectTo({ url: '/pages/setup/setup' });
       } else {
-        // Existing user - save token and user info, redirect to chat list
-        logger.info('Saving token and user info', { qiao_id: result.user.qiao_id });
+        // Existing user - use authService to login
+        logger.info('Existing user login', { qiao_id: result.user.qiao_id });
 
-        wx.setStorageSync('auth_token', result.token);
-        await saveUserInfo(result.user);
-
-        // Update global data
-        const app = getApp();
-        app.setToken(result.token);
-        app.setUserInfo(result.user);
-        app.globalData.isAuthenticated = true;
+        await authService.login(result.token, result.user);
 
         // Mark that user has seen welcome
         wx.setStorageSync('hasSeenWelcome', true);
@@ -325,6 +315,7 @@ Page({
         }
 
         // Initialize message service
+        const app = getApp();
         await app.initMessageService();
 
         // Redirect to square page

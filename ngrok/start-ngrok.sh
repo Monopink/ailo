@@ -42,14 +42,13 @@ sleep 5
 echo "🔍 Getting ngrok public URL..."
 for i in {1..10}; do
     NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o '"public_url":"https://[^"]*' | cut -d'"' -f4 | head -1)
-    
+
     if [ ! -z "$NGROK_URL" ]; then
         echo ""
         echo "🎉 =================================="
         echo "🌐 Ngrok tunnel established!"
         echo "📝 Public URL: $NGROK_URL"
-        echo "🔗 Webhook URL: $NGROK_URL/webhook/leanmessage"
-        echo "🧪 Test URL: $NGROK_URL/test/send-message"
+        echo "🔗 Webhook URL: $NGROK_URL/api/v1/webhook/leancloud/{token}"
         echo "📊 Ngrok dashboard: http://localhost:4040"
         echo "=================================="
         echo ""

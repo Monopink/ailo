@@ -46,9 +46,9 @@
   <!-- Region -->
   <view class="form-section">
     <text>地区(可选)</text>
-    <picker mode="selector" range="{{regions}}" bindchange="onRegionChange">
+    <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
       <view class="picker">
-        {{selectedRegion || '请选择地区'}}
+        {{regionDisplay || '请选择地区'}}
       </view>
     </picker>
   </view>

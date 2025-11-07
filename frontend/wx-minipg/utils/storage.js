@@ -217,6 +217,15 @@ export async function saveContacts(contacts) {
 
   const key = buildUserKey(STORAGE_KEYS.CONTACTS, qiaoId);
   await setStorage(key, contacts);
+
+  const legacyKey = buildUserKey('contacts', qiaoId);
+  if (legacyKey !== key) {
+    try {
+      await removeStorage(legacyKey);
+    } catch (error) {
+      logger.debug('Legacy contacts key cleanup skipped', { legacyKey, error });
+    }
+  }
 }
 
 /**
@@ -230,7 +239,24 @@ export async function getContacts() {
   }
 
   const key = buildUserKey(STORAGE_KEYS.CONTACTS, qiaoId);
-  return await getStorage(key, []);
+  const contacts = await getStorage(key, null);
+  if (contacts !== null) {
+    return contacts;
+  }
+
+  const legacyKey = buildUserKey('contacts', qiaoId);
+  const legacyContacts = await getStorage(legacyKey, null);
+  if (legacyContacts !== null) {
+    await setStorage(key, legacyContacts);
+    try {
+      await removeStorage(legacyKey);
+    } catch (error) {
+      logger.debug('Legacy contacts key removal failed', { legacyKey, error });
+    }
+    return legacyContacts;
+  }
+
+  return [];
 }
 
 /**
@@ -281,23 +307,6 @@ export async function getSettings() {
   });
 }
 
-/**
- * Save search history
- * @param {Array} history - Search history array
- * @returns {Promise<void>}
- */
-export async function saveSearchHistory(history) {
-  await setStorage(STORAGE_KEYS.SEARCH_HISTORY, history);
-}
-
-/**
- * Get search history
- * @returns {Promise<Array>} Search history array
- */
-export async function getSearchHistory() {
-  return await getStorage(STORAGE_KEYS.SEARCH_HISTORY, []);
-}
-
 export default {
   setStorage,
   getStorage,
@@ -314,8 +323,5 @@ export default {
   saveUserInfo,
   getUserInfo,
   saveSettings,
-  getSettings,
-  saveSearchHistory,
-  getSearchHistory
+  getSettings
 };
-

@@ -1,7 +1,8 @@
-import { get } from '../../utils/api';
+import { get, del } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import logger from '../../utils/logger';
 import {
+  clearMessages,
   getContactByConvId,
   getContacts,
   saveContacts
@@ -37,7 +38,7 @@ Page({
         contact: {
           ...cachedContact,
           avatar_url: getAvatarUrl(cachedContact.avatar_url),
-          avatar_alias_url: cachedContact.avatar_alias_url ? getAvatarUrl(cachedContact.avatar_alias_url) : null
+          custom_avatar_url: cachedContact.custom_avatar_url ? getAvatarUrl(cachedContact.custom_avatar_url) : null
         },
         isPinned: cachedContact.is_pinned || false,
         isMuted: cachedContact.is_muted || false,
@@ -63,7 +64,7 @@ Page({
         contacts[index] = {
           ...contacts[index],
           alias: result.alias,
-          avatar_alias_url: result.avatar_alias_url,
+          custom_avatar_url: result.custom_avatar_url,
           remark: result.remark,
           nickname: result.contact_info?.nickname,
           avatar_url: result.contact_info?.avatar_url,
@@ -76,7 +77,7 @@ Page({
           contact: {
             ...contacts[index],
             avatar_url: getAvatarUrl(contacts[index].avatar_url),
-            avatar_alias_url: contacts[index].avatar_alias_url ? getAvatarUrl(contacts[index].avatar_alias_url) : null
+            custom_avatar_url: contacts[index].custom_avatar_url ? getAvatarUrl(contacts[index].custom_avatar_url) : null
           },
           loading: false
         });
@@ -161,34 +162,40 @@ Page({
     wx.showModal({
       title: '提示',
       content: '确定删除该联系人吗？删除后将从联系人列表移除。',
+      confirmColor: '#ff4d4f',
       success: async (res) => {
-        if (res.confirm) {
-          try {
-            // TODO: Call API to delete contact
+        if (!res.confirm) return;
 
-            // Clear messages
-            await clearMessages(this.data.convId);
+        wx.showLoading({ title: '正在删除', mask: true });
+        try {
+          await del(`/contacts/${this.data.convId}`);
 
-            wx.showToast({
-              title: '已删除',
-              icon: 'success'
-            });
+          const contacts = await getContacts();
+          const updatedContacts = (contacts || []).filter(contact => contact.conv_id !== this.data.convId);
+          await saveContacts(updatedContacts);
+          await clearMessages(this.data.convId);
 
-            logger.info('Contact deleted', { conv_id: this.data.convId });
+          wx.showToast({
+            title: '已删除',
+            icon: 'success'
+          });
 
-            // Navigate back to contact list
+          logger.info('Contact deleted', { conv_id: this.data.convId });
+
+          setTimeout(() => {
             wx.navigateBack();
-          } catch (error) {
-            logger.error('Failed to delete contact', { error });
+          }, 300);
+        } catch (error) {
+          logger.error('Failed to delete contact', { error: error.message || String(error) });
 
-            wx.showToast({
-              title: '删除失败',
-              icon: 'none'
-            });
-          }
+          wx.showToast({
+            title: error.message || '删除失败，请稍后重试',
+            icon: 'none'
+          });
+        } finally {
+          wx.hideLoading();
         }
       }
     });
   }
 });
-

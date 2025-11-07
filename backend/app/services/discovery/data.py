@@ -4,7 +4,7 @@ Discovery data layer.
 This module handles complex queries for discovery page operations.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,70 +16,89 @@ logger = get_logger(__name__)
 
 
 async def get_random_templates(
-    db: AsyncSession, user_qiao_id: str, count: int, category: Optional[str] = None
-) -> List[AIProfileTemplate]:
+    db: AsyncSession,
+    user_qiao_id: str,
+    category: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> Tuple[List[AIProfileTemplate], int]:
     """
-    Get random AI profile templates for square.
+    Get random AI profile templates with pagination.
 
     Args:
         db: Database session
         user_qiao_id: Current user's qiao_id
-        count: Number of templates to return
         category: Optional category filter
+        page: Page number (1-indexed)
+        page_size: Items per page
 
     Returns:
-        List of random AIProfileTemplate objects
+        Tuple of (templates list, total count)
     """
     try:
-        # 1) Find templates already used by this user (via character.request_params)
-        result_used = await db.execute(
-            select(AICharacter.request_params).where(AICharacter.user_qiao_id == user_qiao_id)
+        # Build subquery for excluded templates (optimized)
+        excluded_subquery = (
+            select(AICharacter.request_params["created_from_profile_qiao_id"].astext)
+            .where(
+                and_(
+                    AICharacter.user_qiao_id == user_qiao_id,
+                    AICharacter.request_params["created_from_profile_qiao_id"].isnot(None),
+                )
+            )
+            .scalar_subquery()
         )
-        rows_used = result_used.scalars().all()
-        used_template_qiao_ids = [
-            params.get("created_from_profile_qiao_id")
-            for params in rows_used
-            if params and isinstance(params, dict) and params.get("created_from_profile_qiao_id")
-        ]
 
-        # 2) Main query: random active templates excluding those already used by this user
-        query = select(AIProfileTemplate).where(
+        # Build base query
+        base_conditions = [AIProfileTemplate.status == 1]
+
+        if category is not None:
+            base_conditions.append(AIProfileTemplate.category == category)
+
+        # Count query
+        count_query = select(func.count()).select_from(AIProfileTemplate).where(
             and_(
-                AIProfileTemplate.status == 1,  # active
-                (
-                    AIProfileTemplate.qiao_id.notin_(used_template_qiao_ids)
-                    if used_template_qiao_ids
-                    else True
-                ),
+                *base_conditions,
+                AIProfileTemplate.qiao_id.notin_(excluded_subquery),
             )
         )
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
 
-        # Add category filter if provided
-        if category is not None:
-            query = query.where(AIProfileTemplate.category == category)
+        # Data query with pagination
+        offset = (page - 1) * page_size
+        data_query = (
+            select(AIProfileTemplate)
+            .where(
+                and_(
+                    *base_conditions,
+                    AIProfileTemplate.qiao_id.notin_(excluded_subquery),
+                )
+            )
+            .order_by(func.random())
+            .offset(offset)
+            .limit(page_size)
+        )
 
-        # Random order and limit
-        query = query.order_by(func.random()).limit(count)
-
-        result = await db.execute(query)
+        result = await db.execute(data_query)
         templates = list(result.scalars().all())
 
         logger.info(
             "random_templates_retrieved",
             user_qiao_id=user_qiao_id,
             count=len(templates),
-            requested_count=count,
+            total=total,
             category=category,
+            page=page,
         )
 
-        return templates
+        return templates, total
 
     except Exception as e:
         logger.error(
             "random_templates_query_failed",
             user_qiao_id=user_qiao_id,
-            count=count,
             category=category,
+            page=page,
             error=str(e),
         )
         raise

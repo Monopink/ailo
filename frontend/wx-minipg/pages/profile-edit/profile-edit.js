@@ -1,5 +1,6 @@
 import { put } from '../../utils/api';
 import { getLogger } from '../../utils/logger';
+import { formatRegion } from '../../utils/format';
 
 const logger = getLogger('ProfileEdit');
 
@@ -131,9 +132,24 @@ Page({
    */
   onRegionChange(e) {
     const regionArray = e.detail.value;
-    const regionDisplay = regionArray.join(' ');
+    const [province, city, district] = regionArray;
+
+    let actualCity = city;
+
+    // Handle special administrative divisions
+    if (city === '省直辖县级行政区划' || city === '自治区直辖县级行政区划') {
+      // For province/autonomous region-administered county-level divisions, use district as city
+      // e.g., "湖北省" "省直辖县级行政区划" "仙桃市" -> use "仙桃市" as city
+      actualCity = district;
+    } else if (city === '县') {
+      // For municipalities' counties, use only province (municipality) name
+      // e.g., "重庆市" "县" "丰都县" -> use only "重庆市"
+      actualCity = null;
+    }
+
+    const regionDisplay = actualCity ? formatRegion(province, actualCity) : formatRegion(province, province);
     this.setData({
-      regionValue: regionArray,
+      regionValue: actualCity ? [province, actualCity] : [province],
       regionDisplay
     });
   },

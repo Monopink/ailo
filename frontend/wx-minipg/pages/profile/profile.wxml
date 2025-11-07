@@ -28,9 +28,7 @@
 
     <!-- Actions -->
     <view class="profile-actions">
-      <button class="action-button" bindtap="navigateToContacts">通讯录</button>
-      <button class="action-button" bindtap="navigateToSettings">设置</button>
+      <button class="logout-button" bindtap="handleLogout">退出登录</button>
     </view>
   </view>
 </view>
-

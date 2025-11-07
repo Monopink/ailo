@@ -18,7 +18,7 @@
 import { LEANCLOUD_CONFIG } from '../config';
 import { ENABLE_LEANCLOUD_DEBUG } from '../env';
 import { getLogger } from '../logger';
-import { MESSAGE_STATUS } from './constants';
+import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
 
 // Import LeanCloud SDK from local files
 const IM = require('../../libs/im.min.js');
@@ -60,6 +60,9 @@ class BusinessMessage extends TypedMessage {
     this.message_type = data.message_type || 1;
     this.supports_typing = data.supports_typing !== undefined ? data.supports_typing : true;
     this.sent_time = data.sent_time || 0;
+    this.action = data.action || null;
+    this.notification_type = data.notification_type ?? null;
+    this.data = data.data ?? null;
   }
 }
 
@@ -72,7 +75,10 @@ messageField([
   'content',
   'message_type',
   'supports_typing',
-  'sent_time'
+  'sent_time',
+  'action',
+  'notification_type',
+  'data'
 ])(BusinessMessage);
 
 // Specify LeanCloud message type
@@ -228,7 +234,7 @@ export class LCAdapter {
   async sendMessage(messageData, imConvId) {
     try {
       if (!this.connected || !this.imClient) {
-        throw new Error('Not connected to LeanCloud');
+        throw new Error('MESSAGE_SERVICE_DISCONNECTED');
       }
 
       logger.debug('Sending message', {
@@ -240,6 +246,9 @@ export class LCAdapter {
       let conversation = this.conversations.get(imConvId);
       if (!conversation) {
         conversation = await this.imClient.getConversation(imConvId);
+        if (!conversation) {
+          throw new Error('CONVERSATION_NOT_FOUND');
+        }
         this.conversations.set(imConvId, conversation);
       }
 
@@ -347,7 +356,10 @@ export class LCAdapter {
           sent_time: message.sent_time,
           status: MESSAGE_STATUS.RECEIVED,
           lc_msg_id: message.id,
-          lc_timestamp: message.timestamp
+          lc_timestamp: message.timestamp,
+          action: message.action || null,
+          notification_type: message.notification_type ?? null,
+          data: message.data ?? null
         };
 
         // Check if it's a typing indicator
@@ -398,4 +410,3 @@ export class LCAdapter {
 
 // Export default instance
 export default new LCAdapter();
-

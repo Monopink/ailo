@@ -1,160 +1,297 @@
-/* Chat page styles */
+/* Chat Page - Complete Rewrite */
 
-.chat-container {
+/* ========== Page Container ========== */
+.chat-page {
+  width: 100%;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  height: 100vh;
   background-color: #EDEDED;
+  position: relative;
+  overflow: hidden;
 }
 
-/* Message list */
-.message-list {
+/* ========== Messages Container ========== */
+.messages-container {
   flex: 1;
-  padding: 24rpx 16rpx;
+  width: 100%;
+  height: 0;
+  overflow-y: auto;
 }
 
-/* Timestamp */
-.message-timestamp {
+.messages-list {
+  padding: 20rpx 24rpx;
+  padding-bottom: 40rpx;
+}
+
+/* ========== Timestamp ========== */
+.timestamp {
   text-align: center;
-  margin: 24rpx 0;
-}
-
-.message-timestamp text {
   font-size: 24rpx;
-  color: #888888;
+  color: #999999;
+  line-height: 40rpx;
+  margin: 20rpx 0;
 }
 
-/* System message */
-.system-message {
+/* ========== System Message ========== */
+.system-msg {
   text-align: center;
-  margin: 24rpx 0;
-}
-
-.system-message text {
   font-size: 24rpx;
-  color: #888888;
+  color: #999999;
+  line-height: 40rpx;
+  margin: 20rpx 0;
 }
 
-/* Message item */
-.message-item {
+/* ========== Message Row ========== */
+.msg-row {
   display: flex;
-  margin-bottom: 24rpx;
+  align-items: flex-start;
+  margin-bottom: 20rpx;
+  width: 100%;
 }
 
-.message-item.from-me {
+.msg-row-me {
   flex-direction: row-reverse;
 }
 
-.message-item.from-other {
+.msg-row-other {
   flex-direction: row;
 }
 
-/* Avatar */
-.avatar {
+/* ========== Avatar ========== */
+.msg-avatar {
   width: 80rpx;
   height: 80rpx;
   border-radius: 8rpx;
   flex-shrink: 0;
+  background-color: #F0F0F0;
 }
 
-.message-item.from-me .avatar {
+.msg-row-me .msg-avatar {
   margin-left: 16rpx;
 }
 
-.message-item.from-other .avatar {
+.msg-row-other .msg-avatar {
   margin-right: 16rpx;
 }
 
-/* Message content wrapper */
-.message-content {
-  max-width: 480rpx;
+/* ========== Message Wrapper (contains status icon + bubble) ========== */
+.msg-wrapper {
   display: flex;
   align-items: center;
+  max-width: calc(100% - 120rpx);
 }
 
-.message-item.from-me .message-content {
-  flex-direction: row-reverse;
-}
-
-.message-item.from-other .message-content {
+/* For messages from me: icon on left, bubble on right */
+.msg-row-me .msg-wrapper {
   flex-direction: row;
 }
 
-/* Text message bubble */
-.text-message {
-  padding: 20rpx 24rpx;
-  border-radius: 8rpx;
-  word-wrap: break-word;
-  word-break: break-all;
-  max-width: 100%;
+/* For messages from others: just bubble */
+.msg-row-other .msg-wrapper {
+  flex-direction: row;
 }
 
-/* Status indicator for failed messages */
-.status-indicator.failed {
-  width: 28rpx;
-  height: 28rpx;
+/* ========== Status Icon (Failed) ========== */
+.msg-status-icon {
+  width: 40rpx;
+  height: 40rpx;
   border-radius: 50%;
-  background-color: #FF4D4F;
+  background-color: #FF3B30;
   color: #FFFFFF;
-  font-size: 22rpx;
-  line-height: 28rpx;
-  text-align: center;
-  margin: 0 12rpx;
-}
-
-.message-item.from-me .text-message {
-  background-color: #95EC69;
-  color: #000000;
-}
-
-.message-item.from-other .text-message {
-  background-color: #FFFFFF;
-  color: #000000;
-}
-
-.text-message text {
-  font-size: 30rpx;
-  line-height: 1.5;
-}
-
-/* Input bar */
-.input-bar {
-  display: flex;
-  align-items: flex-end;
-  padding: 16rpx 24rpx;
-  background-color: #F7F7F7;
-  border-top: 1rpx solid #E5E5E5;
-}
-
-.input-wrapper {
-  flex: 1;
-  background-color: #FFFFFF;
-  border-radius: 8rpx;
-  padding: 16rpx 24rpx;
-  margin-right: 16rpx;
-  min-height: 72rpx;
-  max-height: 200rpx;
-}
-
-.input-text {
-  width: 100%;
-  font-size: 30rpx;
-  line-height: 1.5;
-}
-
-.send-button {
-  width: 120rpx;
-  height: 72rpx;
-  border-radius: 8rpx;
-  background-color: #E5E5E5;
-  color: #888888;
-  font-size: 28rpx;
+  font-size: 26rpx;
+  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  margin-right: 12rpx;
 }
 
-.send-button.active {
+/* ========== Message Bubble ========== */
+.msg-bubble {
+  padding: 18rpx 24rpx;
+  border-radius: 8rpx;
+  word-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  position: relative;
+}
+
+.msg-bubble-me {
+  background-color: #95EC69;
+}
+
+.msg-bubble-other {
+  background-color: #FFFFFF;
+}
+
+.msg-text {
+  font-size: 32rpx;
+  line-height: 1.5;
+  color: #000000;
+  white-space: pre-wrap;
+}
+
+/* ========== Typing Indicator ========== */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24rpx 32rpx;
+  min-width: 100rpx;
+}
+
+.typing-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background-color: #999999;
+  margin: 0 4rpx;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  30% {
+    transform: translateY(-10rpx);
+    opacity: 1;
+  }
+}
+
+/* ========== Input Area ========== */
+.input-area {
+  width: 100%;
+  background-color: #F7F7F7;
+  border-top: 1rpx solid #D9D9D9;
+  padding: 16rpx 24rpx;
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+/* ========== Input Box ========== */
+.input-box {
+  flex: 1;
+  background-color: #FFFFFF;
+  border-radius: 8rpx;
+  padding: 12rpx 20rpx;
+  margin-right: 12rpx;
+  min-height: 64rpx;
+  max-height: 200rpx;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.input-field {
+  width: 100%;
+  font-size: 32rpx;
+  line-height: 1.5;
+  min-height: 40rpx;
+}
+
+/* ========== Emoji Button ========== */
+.input-emoji-btn {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 12rpx;
+}
+
+/* Icon placeholder - will be replaced with iconfont */
+.input-emoji-btn .icon-placeholder {
+  font-size: 44rpx;
+  line-height: 1;
+}
+
+/* ========== Send Button ========== */
+.input-send-btn {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background-color: #D9D9D9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.input-send-btn-active {
   background-color: #07C160;
+}
+
+/* Icon placeholder - will be replaced with iconfont */
+.input-send-btn .icon-placeholder {
+  font-size: 36rpx;
+  line-height: 1;
+  color: #999999;
+  transition: color 0.2s ease;
+}
+
+.input-send-btn-active .icon-placeholder {
   color: #FFFFFF;
+}
+
+/* ========== Emoji Picker ========== */
+.emoji-picker {
+  width: 100%;
+  background-color: #F7F7F7;
+  border-top: 1rpx solid #D9D9D9;
+  height: 0;
+  overflow: hidden;
+  transition: height 0.3s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.emoji-picker-show {
+  height: 500rpx;
+}
+
+.emoji-scroll {
+  width: 100%;
+  height: 100%;
+}
+
+.emoji-grid {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 20rpx 16rpx;
+}
+
+.emoji-item {
+  width: 80rpx;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  line-height: 1;
+}
+
+.emoji-item:active {
+  background-color: #E5E5E5;
+  border-radius: 8rpx;
 }

@@ -24,13 +24,20 @@ class SquareContactResponse(BaseModel):
         from_attributes = True
 
 
+class PaginationInfo(BaseModel):
+    """Pagination information."""
+
+    page: int = Field(..., description="Current page number")
+    page_size: int = Field(..., description="Items per page")
+    total: int = Field(..., description="Total items count")
+    has_more: bool = Field(..., description="Whether there are more items")
+
+
 class SquareContactListResponse(BaseModel):
     """Square contact list response."""
 
-    items: List[SquareContactResponse] = Field(..., description="Random contact list")
-    refresh_available_at: Optional[datetime] = Field(
-        None, description="Next available refresh time (null if can refresh now)"
-    )
+    items: List[SquareContactResponse] = Field(..., description="Contact list")
+    pagination: PaginationInfo = Field(..., description="Pagination information")
 
 
 class StrangerProfileResponse(BaseModel):

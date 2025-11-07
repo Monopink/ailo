@@ -1,9 +1,9 @@
 import { get, post } from '../../utils/api';
+import authService from '../../utils/auth-service';
 import { getAvatarUrl } from '../../utils/avatar';
 import { APP_CONFIG } from '../../utils/config';
 import logger from '../../utils/logger';
-import { initMessageService } from '../../utils/message/service';
-import { saveUserInfo } from '../../utils/storage';
+import { formatRegion } from '../../utils/format';
 
 Page({
   data: {
@@ -21,8 +21,8 @@ Page({
     bio: '',
     phone: '',  // Display phone number
     verifiedPhoneToken: '',  // Temporary token for registration
-    regions: ['北京', '上海', '广州', '深圳', '杭州', '成都', '重庆', '武汉', '西安', '南京', '其他'],
-    selectedRegion: '',
+    regionValue: [],  // Region picker value [province, city, district]
+    regionDisplay: '',  // Display text for selected region
     maxNicknameLength: APP_CONFIG.maxNicknameLength || 20,
     maxBioLength: APP_CONFIG.maxBioLength || 200,
     loading: false
@@ -93,6 +93,30 @@ Page({
     this.setData({ bio: e.detail.value });
   },
 
+  onRegionChange(e) {
+    const regionArray = e.detail.value;
+    const [province, city, district] = regionArray;
+
+    let actualCity = city;
+
+    // Handle special administrative divisions
+    if (city === '省直辖县级行政区划' || city === '自治区直辖县级行政区划') {
+      // For province/autonomous region-administered county-level divisions, use district as city
+      // e.g., "湖北省" "省直辖县级行政区划" "仙桃市" -> use "仙桃市" as city
+      actualCity = district;
+    } else if (city === '县') {
+      // For municipalities' counties, use only province (municipality) name
+      // e.g., "重庆市" "县" "丰都县" -> use only "重庆市"
+      actualCity = null;
+    }
+
+    const regionDisplay = actualCity ? formatRegion(province, actualCity) : formatRegion(province, province);
+    this.setData({
+      regionValue: actualCity ? [province, actualCity] : [province],
+      regionDisplay
+    });
+  },
+
   async handleSubmit() {
     // Validate nickname (required, 2-20 characters)
     if (!this.data.nickname || this.data.nickname.trim().length < 2) {
@@ -129,18 +153,15 @@ Page({
       if (this.data.selectedAvatar) {
         data.avatar_url = `assets://${this.data.selectedAvatar}`;
       }
+      if (this.data.regionDisplay) {
+        data.region = this.data.regionDisplay;
+      }
 
       // Call complete registration API
       const result = await post('/auth/complete-registration', data, { auth: false });
 
-      // Save token and user info
-      wx.setStorageSync('auth_token', result.token);
-      await saveUserInfo(result.user);
-
-      // Update global data
-      const app = getApp();
-      app.setToken(result.token);
-      app.setUserInfo(result.user);
+      // Use authService to login
+      await authService.login(result.token, result.user);
 
       // Clear temporary credentials
       wx.removeStorageSync('verified_phone_token');
@@ -152,7 +173,8 @@ Page({
       wx.switchTab({ url: '/pages/index/index' });
 
       // Initialize message service in background (don't block registration)
-      initMessageService().catch(error => {
+      const app = getApp();
+      app.initMessageService().catch(error => {
         logger.warn('Message service initialization failed, will retry later', { error });
       });
     } catch (error) {

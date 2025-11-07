@@ -13,29 +13,13 @@ Page({
     cooldown: 0,
     sending: false,
     saving: false,
-    operationToken: '',
     // Aliyun captcha
     loadCaptcha: false,
     pluginProps: {},
     captchaSceneId: ''
   },
 
-  onLoad(options) {
-    const { operation_token } = options || {};
-
-    if (!operation_token) {
-      wx.showToast({
-        title: '参数错误',
-        icon: 'none'
-      });
-      setTimeout(() => {
-        wx.navigateBack();
-      }, 1500);
-      return;
-    }
-
-    this.setData({ operationToken: operation_token });
-
+  onLoad() {
     logger.info('Phone manage page loaded');
 
     // Initialize captcha active flag
@@ -85,7 +69,7 @@ Page({
   /** Handle new phone input */
   onNewPhoneInput(e) {
     this.setData({
-      newPhone: e.detail.value
+      newPhone: (e.detail.value || '').trim()
     });
   },
 
@@ -98,12 +82,14 @@ Page({
 
   /** Send SMS code */
   async sendSmsCode() {
+    const nextPhone = (this.data.newPhone || '').trim();
+
     // Basic validation
-    if (!this.data.newPhone) {
+    if (!nextPhone) {
       wx.showToast({ title: '请输入手机号', icon: 'none' });
       return;
     }
-    if (!/^1\d{10}$/.test(this.data.newPhone)) {
+    if (!/^1\d{10}$/.test(nextPhone)) {
       wx.showToast({ title: '手机号格式不正确', icon: 'none' });
       return;
     }
@@ -112,7 +98,7 @@ Page({
     try {
       this.setData({ sending: true });
       await post('/auth/send-sms', {
-        phone: `+86${this.data.newPhone}`
+        phone: `+86${nextPhone}`
       });
       wx.showToast({ title: '验证码已发送', icon: 'success' });
       this.startCooldown(60);
@@ -162,10 +148,11 @@ Page({
   async requestSmsWithCaptcha(captchaToken) {
     try {
       this.setData({ sending: true });
-      logger.info('Sending SMS code', { phone: this.data.newPhone });
+      const nextPhone = (this.data.newPhone || '').trim();
+      logger.info('Sending SMS code', { phone: nextPhone });
 
       await post('/auth/send-sms', {
-        phone: `+86${this.data.newPhone}`,
+        phone: `+86${nextPhone}`,
         captcha_token: captchaToken
       });
 
@@ -199,8 +186,10 @@ Page({
   /** Handle change phone */
   async handleChangePhone() {
     try {
+      const nextPhone = (this.data.newPhone || '').trim();
+
       // Validate input
-      if (!this.data.newPhone) {
+      if (!nextPhone) {
         wx.showToast({
           title: '请输入新手机号',
           icon: 'none'
@@ -218,11 +207,10 @@ Page({
 
       this.setData({ saving: true });
 
-      logger.info('Changing phone with operation token');
+      logger.info('Changing phone via profile detail');
 
       await put('/user/phone', {
-        operation_token: this.data.operationToken,
-        new_phone: this.data.newPhone,
+        new_phone: `+86${nextPhone}`,
         sms_code: this.data.smsCode
       });
 
@@ -233,9 +221,9 @@ Page({
 
       logger.info('Phone changed successfully');
 
-      // Navigate back to account security page
+      // Navigate back to profile detail page
       setTimeout(() => {
-        wx.navigateBack({ delta: 2 }); // Go back 2 pages (verify + phone-manage)
+        wx.navigateBack();
       }, 1500);
     } catch (error) {
       logger.error('Change phone failed', {
@@ -246,7 +234,7 @@ Page({
         title: error.message || '修改失败，请稍后再试',
         icon: 'none'
       });
-
+    } finally {
       this.setData({ saving: false });
     }
   }

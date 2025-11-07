@@ -8,6 +8,7 @@ Page({
   data: {
     loading: true,
     profile: null,
+    phoneMasked: '',
     error: null,
     genderText: '未设置'
   },
@@ -33,7 +34,15 @@ Page({
       });
 
       logger.info('Loading user profile');
-      const profile = await get('/user/profile');
+      const profilePromise = get('/user/profile');
+      const accountPromise = get('/user/account').catch(error => {
+        logger.error('Load account info failed', {
+          error: error.message || String(error)
+        });
+        return null;
+      });
+
+      const [profile, account] = await Promise.all([profilePromise, accountPromise]);
 
       // Get gender text
       const genderText = this.getGenderText(profile.gender);
@@ -43,6 +52,7 @@ Page({
           ...profile,
           avatar_url: getAvatarUrl(profile.avatar_url)
         },
+        phoneMasked: account?.phone || '',
         genderText,
         loading: false
       });
@@ -63,6 +73,15 @@ Page({
         icon: 'none'
       });
     }
+  },
+
+  /**
+   * Edit phone number
+   */
+  editPhone() {
+    wx.navigateTo({
+      url: '/pages/phone-manage/phone-manage'
+    });
   },
 
   /**
@@ -144,4 +163,3 @@ Page({
     return genderMap[gender] || '未设置';
   }
 });
-

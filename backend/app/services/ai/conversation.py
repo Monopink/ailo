@@ -29,6 +29,11 @@ from .utils.validator import chat_completion_with_validation
 from services.llm.client import select_config_for_ai, validate_ai_response
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AIConversationError
 from utils.logging import get_logger
+from crud.contact import contact as contact_crud
+from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
+from services.message.convenience import send_chat_info
+from services.message.sender import send_message
+from enums import MessageType
 
 logger = get_logger(__name__)
 
@@ -153,8 +158,23 @@ async def process_conversation(
                 reason=validation_result.reason,
                 error_code=validation_result.error_code,
             )
-            # TODO: Send system message to user (MESSAGE_BLOCKED or NOT_FRIEND)
-            # For now, just raise error to stop AI processing
+            try:
+                template_key = validation_result.chat_info_type or ChatInfoType.MESSAGE_BLOCKED
+                content = CHAT_INFO_TEMPLATES.get(template_key)
+                if content and contact.conv_id:
+                    await send_chat_info(
+                        db=db,
+                        to_qiao_id=user_qiao_id,
+                        conv_id=contact.conv_id,
+                        content=content,
+                    )
+            except Exception as send_error:
+                logger.error(
+                    "chat_info_send_failed",
+                    user_qiao_id=user_qiao_id,
+                    character_qiao_id=character_qiao_id,
+                    error=str(send_error),
+                )
             raise AIConversationError(
                 conversation_step="permission_validation",
                 reason=validation_result.error_code or "permission_denied",
@@ -541,14 +561,27 @@ async def send_single_message(db: AsyncSession, from_qiao_id: str, to_qiao_id: s
         content: Message content
     """
     try:
-        # TODO: Integrate with message service to actually send message
-        # For now, just log the message that would be sent
+        contact = await contact_crud.get_user_contact(
+            db,
+            user_qiao_id=to_qiao_id,
+            contact_qiao_id=from_qiao_id,
+        )
 
-        logger.info(
-            "message_would_be_sent",
+        if not contact:
+            logger.error(
+                "contact_not_found_for_sending",
+                from_qiao_id=from_qiao_id,
+                to_qiao_id=to_qiao_id,
+            )
+            return
+
+        await send_message(
+            db=db,
             from_qiao_id=from_qiao_id,
             to_qiao_id=to_qiao_id,
-            content=content[:100] + "..." if len(content) > 100 else content,
+            conv_id=contact.conv_id,
+            content=content,
+            message_type=MessageType.TEXT,
         )
 
     except Exception as e:

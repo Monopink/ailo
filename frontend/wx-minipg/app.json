@@ -10,16 +10,9 @@
     "pages/profile/profile",
     "pages/profile-detail/profile-detail",
     "pages/profile-edit/profile-edit",
-    "pages/search/search",
-    "pages/settings/settings",
-    "pages/account-security/account-security",
-    "pages/verify/verify",
-    "pages/password-manage/password-manage",
-    "pages/email-manage/email-manage",
     "pages/phone-manage/phone-manage",
     "pages/contact-info/contact-info",
     "pages/contact-requests/contact-requests",
-    "pages/contacts-list/contacts-list",
     "pages/stranger-info/stranger-info",
     "pages/avatar-selector/avatar-selector"
   ],
@@ -39,7 +32,7 @@
   },
   "tabBar": {
     "color": "#999999",
-    "selectedColor": "#42db5a",
+    "selectedColor": "#07C160",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [

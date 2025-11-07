@@ -11,7 +11,7 @@
       <!-- Avatar and basic info -->
       <view class="profile-header">
         <image
-          src="{{contact.avatar_alias_url || contact.avatar_url || '/assets/avatars/default.png'}}"
+          src="{{contact.custom_avatar_url || contact.avatar_url || '/assets/avatars/default.png'}}"
           class="avatar"
           mode="aspectFill"
         />

@@ -1,174 +1,228 @@
+/**
+ * Chat Page - Complete Rewrite
+ * A stable, modern chat interface following WeChat-like design
+ */
+
+import { get } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { MESSAGE_CONFIG } from '../../utils/config';
+import { getUserFriendlyError } from '../../utils/error-messages';
 import logger from '../../utils/logger';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from '../../utils/message/constants';
-import { addMessage, getContactByConvId, getMessages, getUserInfo } from '../../utils/storage';
+import { addMessage, getContactByConvId, getContacts, getMessages, getUserInfo, saveContacts } from '../../utils/storage';
+import typingManager from '../../utils/typing-manager';
+
+// Standard emoji list
+const EMOJI_LIST = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+  '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
+  '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔',
+  '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥',
+  '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮',
+  '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓',
+  '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺',
+  '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣',
+  '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈',
+  '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾',
+  '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾',
+  '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟',
+  '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎',
+  '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏',
+  '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻',
+  '👃', '🧠', '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '🩸',
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+  '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️',
+  '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐',
+  '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐',
+  '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳',
+  '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️',
+  '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️',
+  '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️',
+  '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓',
+  '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️',
+  '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠'
+];
 
 Page({
   data: {
+    // Conversation info
     convId: '',
     contactName: '',
     contactAvatar: '',
     contactQiaoId: '',
     imConvId: '',
     userAvatar: '',
+
+    // Messages
     messages: [],
-    inputText: '',
-    maxMessageLength: MESSAGE_CONFIG.maxLength || 1000,
     scrollToView: '',
-    loading: false
+
+    // Input
+    inputText: '',
+    inputPlaceholder: '请输入消息',
+    inputFocused: false,
+    maxMessageLength: MESSAGE_CONFIG.maxLength || 1000,
+    prevInputValue: '',
+
+    // Emoji
+    showEmojiPicker: false,
+    emojiList: EMOJI_LIST,
+
+    // Typing indicator
+    isContactTyping: false,
+    typingTimer: null
   },
 
+  /**
+   * Show error message as CHAT_INFO
+   */
+  showErrorMessage(error) {
+    const errorMsg = {
+      msg_id: `error_${Date.now()}`,
+      content: getUserFriendlyError(error),
+      message_type: MESSAGE_TYPE.CHAT_INFO,
+      sent_time: Date.now(),
+      from_me: false
+    };
+
+    const updatedMessages = [...this.data.messages, errorMsg];
+    const processedMessages = this.processMessages(updatedMessages);
+    this.setData({
+      messages: processedMessages,
+      scrollToView: `msg-${errorMsg.msg_id}`
+    });
+  },
+
+  /**
+   * Refresh contact info from backend
+   */
+  async refreshContactInfo(convId) {
+    // Fetch latest conversation info from backend
+    const result = await get(`/contacts/${convId}/conversation`);
+
+    if (!result || !result.conversation) {
+      throw new Error('CONVERSATION_NOT_FOUND');
+    }
+
+    const conversation = result.conversation;
+
+    // Update contact name and avatar
+    const contactName = conversation.alias || conversation.nickname || '';
+    if (contactName) {
+      wx.setNavigationBarTitle({ title: contactName });
+    }
+
+    this.setData({
+      contactName,
+      contactAvatar: getAvatarUrl(conversation.avatar_url),
+      contactQiaoId: conversation.contact_qiao_id,
+      imConvId: conversation.im_conv_id
+    });
+
+    // Update local cache with latest contact info
+    const contacts = await getContacts();
+    const contactIndex = contacts.findIndex(c => c.conv_id === convId);
+
+    if (contactIndex !== -1) {
+      contacts[contactIndex] = {
+        ...contacts[contactIndex],
+        im_conv_id: conversation.im_conv_id,
+        contact_qiao_id: conversation.contact_qiao_id,
+        avatar_url: conversation.avatar_url,
+        nickname: conversation.nickname,
+        alias: conversation.alias
+      };
+      await saveContacts(contacts);
+      logger.info('Contact info refreshed and cached', { convId });
+    }
+  },
+
+  handleChatInfoAction(message) {
+    if (!message.action) return;
+
+    if (message.action.type === 'mark_message_failed' && message.action.target_msg_id) {
+      this.updateMessageStatus(message.action.target_msg_id, MESSAGE_STATUS.FAILED);
+    }
+  },
+
+  /**
+   * Page lifecycle - Load
+   */
   async onLoad(options) {
     const convId = options.id;
     if (!convId) {
-      wx.showToast({
-        title: '参数错误',
-        icon: 'none'
-      });
+      wx.showToast({ title: '参数错误', icon: 'none' });
       wx.navigateBack();
       return;
     }
 
     this.setData({ convId });
 
-    // Load user info
-    const userInfo = await getUserInfo();
-    this.setData({
-      userAvatar: getAvatarUrl(userInfo.avatar_url)
-    });
+    try {
+      // Load user info
+      const userInfo = await getUserInfo();
+      this.setData({ userAvatar: getAvatarUrl(userInfo.avatar_url) });
 
-    // Load contact info from local storage
-    const contact = await getContactByConvId(convId);
-    if (contact) {
-      // Set navigation bar title
+      // Load contact info from cache
+      const contact = await getContactByConvId(convId);
+      if (!contact) {
+        logger.error('Contact not found', { convId });
+        wx.showToast({ title: '联系人不存在', icon: 'none' });
+        return;
+      }
+
       const contactName = contact.alias || contact.nickname || '';
       if (contactName) {
-        wx.setNavigationBarTitle({
-          title: contactName
-        });
+        wx.setNavigationBarTitle({ title: contactName });
       }
 
       this.setData({
-        contactName: contactName,
+        contactName,
         contactAvatar: getAvatarUrl(contact.avatar_url),
         contactQiaoId: contact.contact_qiao_id,
         imConvId: contact.im_conv_id
       });
-    } else {
-      // Contact not found in local storage
-      logger.error('Contact not found in local storage', { convId });
-      wx.showToast({
-        title: '联系人信息不存在',
-        icon: 'none'
-      });
+
+      // Load messages
+      await this.loadMessages();
+    } catch (error) {
+      logger.error('Failed to load chat page', { error });
+      wx.showToast({ title: '加载失败', icon: 'none' });
     }
-
-    // Load messages
-    await this.loadMessages();
-  },
-
-
-  /**
-   * Format timestamp for message display
-   */
-  formatMessageTime(timestamp) {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const date = new Date(timestamp);
-
-    // Within 1 minute: just now
-    if (diff < 60000) return '刚刚';
-
-    // Within 1 hour: X minutes ago
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
-
-    // Today: HH:MM
-    const today = new Date();
-    if (date.toDateString() === today.toDateString()) {
-      const hours = date.getHours();
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
-
-    // Yesterday: Yesterday HH:MM
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === yesterday.toDateString()) {
-      const hours = date.getHours();
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `昨天 ${hours}:${minutes}`;
-    }
-
-    // This week: WeekDay HH:MM
-    const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    if (diff < 7 * 24 * 3600000) {
-      const hours = date.getHours();
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${weekDays[date.getDay()]} ${hours}:${minutes}`;
-    }
-
-    // This year: MM-DD
-    if (date.getFullYear() === today.getFullYear()) {
-      const month = date.getMonth() + 1;
-      const day = date.getDate();
-      return `${month}-${day}`;
-    }
-
-    // Previous years: YYYY-MM-DD
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    return `${year}-${month}-${day}`;
   },
 
   /**
-   * Process messages for display
-   * Add timestamp display logic
+   * Page lifecycle - Unload
    */
-  processMessages(messages) {
-    const processed = [];
-    let previousMsg = null;
+  onUnload() {
+    // Clean up typing manager
+    typingManager.cleanup(this.data.convId);
 
-    for (const msg of messages) {
-      const processedMsg = Object.assign({}, msg);
-
-      // Determine if timestamp should be shown (>5 minutes gap)
-      if (!previousMsg || msg.sent_time - previousMsg.sent_time > 5 * 60 * 1000) {
-        processedMsg.showTimestamp = true;
-        processedMsg.timestampText = this.formatMessageTime(msg.sent_time);
-      } else {
-        processedMsg.showTimestamp = false;
-      }
-
-      processed.push(processedMsg);
-      previousMsg = msg;
+    // Clear typing timer
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer);
+      this.typingTimer = null;
     }
-
-    return processed;
   },
 
+  /**
+   * Load messages from storage
+   */
   async loadMessages() {
     try {
-      this.setData({ loading: true });
-
-      // Load messages from local storage
       const messages = await getMessages(this.data.convId);
-
       const userInfo = await getUserInfo();
-      const formattedMessages = messages.map(function (m) {
-        const obj = Object.assign({}, m);
-        obj.from_me = (m.from === userInfo.qiao_id);
-        return obj;
-      });
 
-      // Process messages to add timestamp display logic
-      const processedMessages = this.processMessages(formattedMessages);
+      // Mark messages as from_me
+      const markedMessages = messages.map(msg => ({
+        ...msg,
+        from_me: msg.from === userInfo.qiao_id
+      }));
 
-      this.setData({
-        messages: processedMessages,
-        loading: false
-      });
+      // Process messages for display
+      const processedMessages = this.processMessages(markedMessages);
+
+      this.setData({ messages: processedMessages });
 
       // Scroll to bottom
       if (processedMessages.length > 0) {
@@ -177,25 +231,208 @@ Page({
       }
     } catch (error) {
       logger.error('Failed to load messages', { error });
-      this.setData({ loading: false });
-      wx.showToast({
-        title: '加载消息失败',
-        icon: 'none'
-      });
+      wx.showToast({ title: '加载消息失败', icon: 'none' });
     }
   },
 
-  onInput(e) {
-    this.setData({ inputText: e.detail.value });
+  /**
+   * Process messages - add timestamp display logic
+   */
+  processMessages(messages) {
+    const processed = [];
+    let prevMsg = null;
+
+    for (const msg of messages) {
+      const processedMsg = { ...msg };
+      processedMsg.sent_time = processedMsg.sent_time || Date.now();
+
+      // Show timestamp if gap > 5 minutes
+      if (!prevMsg || processedMsg.sent_time - prevMsg.sent_time > 5 * 60 * 1000) {
+        processedMsg.showTimestamp = true;
+        processedMsg.timestampText = this.formatTimestamp(processedMsg.sent_time);
+      } else {
+        processedMsg.showTimestamp = false;
+      }
+
+      processedMsg.isSystemMessage = this.isSystemMessage(processedMsg);
+      processedMsg.systemContent = processedMsg.isSystemMessage
+        ? this.getSystemMessageContent(processedMsg)
+        : '';
+
+      processed.push(processedMsg);
+      prevMsg = processedMsg;
+    }
+
+    return processed;
   },
 
-  async sendMessage() {
-    const content = this.data.inputText.trim();
-    if (!content) {
+  isSystemMessage(message) {
+    return (
+      message.message_type === MESSAGE_TYPE.CHAT_INFO ||
+      message.message_type === MESSAGE_TYPE.NOTIFICATION
+    );
+  },
+
+  getSystemMessageContent(message) {
+    if (message.message_type === MESSAGE_TYPE.NOTIFICATION) {
+      const notificationMessage = message.data && message.data.message;
+      return notificationMessage || message.content || '系统通知';
+    }
+    return message.content || '';
+  },
+
+  /**
+   * Format timestamp for display
+   */
+  formatTimestamp(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const date = new Date(timestamp);
+
+    // Within 1 minute
+    if (diff < 60000) return '刚刚';
+
+    // Within 1 hour
+    if (diff < 3600000) {
+      const minutes = Math.floor(diff / 60000);
+      return `${minutes}分钟前`;
+    }
+
+    // Today
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) {
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+
+    // Yesterday
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `昨天 ${hours}:${minutes}`;
+    }
+
+    // This week
+    const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    if (diff < 7 * 24 * 3600000) {
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${weekDays[date.getDay()]} ${hours}:${minutes}`;
+    }
+
+    // This year
+    if (date.getFullYear() === today.getFullYear()) {
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      return `${month}-${day}`;
+    }
+
+    // Previous years
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${year}-${month}-${day}`;
+  },
+
+  /**
+   * Handle input change
+   */
+  onInputChange(e) {
+    const newValue = e.detail.value;
+    const oldValue = this.data.prevInputValue;
+
+    this.setData({
+      inputText: newValue,
+      prevInputValue: newValue
+    });
+
+    // Notify typing manager
+    typingManager.onInputChange(this.data.convId, newValue, oldValue);
+  },
+
+  /**
+   * Handle input focus
+   */
+  onInputFocus() {
+    this.setData({
+      inputFocused: true,
+      showEmojiPicker: false
+    });
+
+    // Notify typing manager
+    typingManager.onInputFocus(this.data.convId, this.data.inputText);
+  },
+
+  /**
+   * Handle input blur
+   */
+  onInputBlur() {
+    // Delay to allow emoji selection
+    setTimeout(() => {
+      this.setData({ inputFocused: false });
+    }, 200);
+
+    // Notify typing manager
+    typingManager.onInputBlur(this.data.convId);
+  },
+
+  onCompositionStart() {
+    typingManager.onCompositionStart(this.data.convId, this.data.inputText);
+  },
+
+  onCompositionEnd(e) {
+    const value = (e && e.detail && e.detail.value) || this.data.inputText;
+    typingManager.onCompositionEnd(this.data.convId, value);
+  },
+
+  /**
+   * Toggle emoji picker
+   */
+  onToggleEmoji() {
+    const show = !this.data.showEmojiPicker;
+    this.setData({
+      showEmojiPicker: show,
+      inputFocused: !show
+    });
+  },
+
+  /**
+   * Select emoji
+   */
+  onSelectEmoji(e) {
+    const emoji = e.currentTarget.dataset.emoji;
+    const newText = this.data.inputText + emoji;
+
+    // Check length
+    if (newText.length > this.data.maxMessageLength) {
+      wx.showToast({
+        title: `消息长度不能超过${this.data.maxMessageLength}字`,
+        icon: 'none'
+      });
       return;
     }
 
-    // Check message length
+    const oldValue = this.data.inputText;
+    this.setData({
+      inputText: newText,
+      prevInputValue: newText
+    });
+
+    // Notify typing manager
+    typingManager.onInputChange(this.data.convId, newText, oldValue);
+  },
+
+  /**
+   * Send message
+   */
+  async onSendMessage() {
+    const content = this.data.inputText.trim();
+    if (!content) return;
+
+    // Check length
     if (content.length > this.data.maxMessageLength) {
       wx.showToast({
         title: `消息长度不能超过${this.data.maxMessageLength}字`,
@@ -204,26 +441,28 @@ Page({
       return;
     }
 
-    // Check required data
+    // Check contact info
     if (!this.data.contactQiaoId || !this.data.imConvId) {
       logger.error('Missing contact info', {
         contactQiaoId: this.data.contactQiaoId,
         imConvId: this.data.imConvId
       });
-      wx.showToast({
-        title: '联系人信息不完整',
-        icon: 'none'
-      });
+      this.showErrorMessage('CONVERSATION_NOT_FOUND');
       return;
     }
 
+    // Stop typing state
+    typingManager.forceStopTyping(this.data.convId);
+    this.hideTypingIndicator();
+
+    let clientMsgId = '';
+
     try {
-      // Get user info
       const userInfo = await getUserInfo();
 
-      // Prepare optimistic local message
-      const clientMsgId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const localMessage = {
+      // Create optimistic message
+      clientMsgId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      const optimisticMsg = {
         msg_id: clientMsgId,
         from: userInfo.qiao_id,
         to: this.data.contactQiaoId,
@@ -232,30 +471,32 @@ Page({
         message_type: MESSAGE_TYPE.TEXT,
         supports_typing: true,
         sent_time: Date.now(),
-        status: MESSAGE_STATUS.SENDING
+        status: MESSAGE_STATUS.SENDING,
+        from_me: true
       };
 
-      // Push to UI immediately
-      const optimisticList = this.data.messages.concat([Object.assign({}, localMessage, { from_me: true })]);
+      // Add to UI immediately
+      const updatedMessages = [...this.data.messages, optimisticMsg];
+      const processedMessages = this.processMessages(updatedMessages);
       this.setData({
-        messages: optimisticList,
+        messages: processedMessages,
         inputText: '',
+        prevInputValue: '',
         scrollToView: `msg-${clientMsgId}`
       });
 
-      // Persist locally
-      await addMessage(this.data.convId, localMessage);
+      // Save to storage
+      await addMessage(this.data.convId, optimisticMsg);
 
-      // Get message service from app
+      // Send via message service
       const app = getApp();
       const messageService = app.getMessageService();
 
       if (!messageService) {
-        throw new Error('消息通道未连接');
+        throw new Error('MESSAGE_SERVICE_DISCONNECTED');
       }
 
-      // Send via service with client_msg_id to update same bubble
-      const sent = await messageService.sendMessage({
+      await messageService.sendMessage({
         client_msg_id: clientMsgId,
         from: userInfo.qiao_id,
         to: this.data.contactQiaoId,
@@ -266,218 +507,209 @@ Page({
         supports_typing: true
       });
 
-      // Update UI status to SENT
-      const updated = this.data.messages.map(function (m) {
-        if (m.msg_id === clientMsgId) {
-          return Object.assign({}, m, { status: MESSAGE_STATUS.SENT });
-        }
-        return m;
-      });
-      this.setData({
-        messages: updated,
-        scrollToView: `msg-${clientMsgId}`
-      });
+      // Update status to SENT
+      const sentMessages = this.data.messages.map(msg =>
+        msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+      );
+      this.setData({ messages: sentMessages });
 
-      logger.info('Message sent successfully', { msg_id: clientMsgId });
+      logger.info('Message sent', { msg_id: clientMsgId });
     } catch (error) {
-      logger.error('Failed to send message', {
-        error: error.message || String(error)
-      });
+      logger.error('Failed to send message', { error });
 
-      // Mark last optimistic message as FAILED
-      const last = this.data.messages[this.data.messages.length - 1];
-      if (last && last.from_me && last.status === MESSAGE_STATUS.SENDING) {
-        const failedList = this.data.messages.map(function (m, idx, arr) {
-          if (idx === arr.length - 1) {
-            return Object.assign({}, m, { status: MESSAGE_STATUS.FAILED });
-          }
-          return m;
-        });
-        // Append chat-info system message with reason
-        const infoMsg = {
-          msg_id: `sys_${Date.now()}`,
-          conv_id: this.data.convId,
-          content: `消息发送失败：${error.message || '未知错误'}`,
-          message_type: MESSAGE_TYPE.NOTIFICATION,
-          sent_time: Date.now(),
-          from_me: false
-        };
-        this.setData({
-          messages: [...failedList, infoMsg],
-          scrollToView: `msg-${last.msg_id}`
-        });
+      // If conversation not found, try to refresh contact info and retry once
+      if (error.message === 'CONVERSATION_NOT_FOUND' && !this._sendRetried) {
+        this._sendRetried = true;
+        logger.info('Refreshing contact info and retrying send', { convId: this.data.convId });
+
+        try {
+          await this.refreshContactInfo(this.data.convId);
+
+          // Retry send with updated im_conv_id
+          const app = getApp();
+          const messageService = app.getMessageService();
+          const userInfo = await getUserInfo();
+
+          await messageService.sendMessage({
+            client_msg_id: clientMsgId,
+            from: userInfo.qiao_id,
+            to: this.data.contactQiaoId,
+            conv_id: this.data.convId,
+            im_conv_id: this.data.imConvId,
+            content,
+            message_type: MESSAGE_TYPE.TEXT,
+            supports_typing: true
+          });
+
+          const sentMessages = this.data.messages.map(msg =>
+            msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+          );
+          this.setData({ messages: sentMessages });
+          this._sendRetried = false;
+          logger.info('Message sent after refresh', { msg_id: clientMsgId });
+          return;
+        } catch (retryError) {
+          logger.error('Retry send failed after refresh', { error: retryError });
+          this._sendRetried = false;
+        }
       }
 
-      wx.showToast({ title: error.message || '发送失败', icon: 'none' });
+      const failedMessages = this.data.messages.map(msg =>
+        msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.FAILED } : msg
+      );
+
+      this.setData({ messages: this.processMessages(failedMessages) });
+      this.showErrorMessage(error);
     }
   },
 
-  async retryMessage(e) {
-    const msgId = e.currentTarget.dataset.id;
+  /**
+   * Retry failed message
+   */
+  async onRetryMessage(e) {
+    const msgId = e.currentTarget.dataset.msgid;
     const message = this.data.messages.find(msg => msg.msg_id === msgId);
 
-    if (!message || message.status !== 3) {  // Only retry FAILED messages
+    if (!message || message.status !== MESSAGE_STATUS.FAILED) {
       return;
     }
 
     // Update status to SENDING
-    const messages = this.data.messages.map(msg =>
-      msg.msg_id === msgId ? { ...msg, status: 1 } : msg
+    const retryingMessages = this.data.messages.map(msg =>
+      msg.msg_id === msgId ? { ...msg, status: MESSAGE_STATUS.SENDING } : msg
     );
-    this.setData({ messages });
+    this.setData({ messages: retryingMessages });
 
     try {
-      // Get message service from app
       const app = getApp();
       const messageService = app.getMessageService();
 
       if (!messageService) {
-        throw new Error('Message service not initialized');
+        throw new Error('MESSAGE_SERVICE_DISCONNECTED');
       }
 
-      // Get user info
       const userInfo = await getUserInfo();
 
-      // Build message data (reuse original message data)
-      const messageData = {
+      await messageService.sendMessage({
         from: userInfo.qiao_id,
         to: this.data.contactQiaoId,
         conv_id: this.data.convId,
         im_conv_id: this.data.imConvId,
         content: message.content,
         message_type: message.message_type || MESSAGE_TYPE.TEXT,
-        supports_typing: message.supports_typing !== undefined ? message.supports_typing : true
-      };
-
-      // Retry sending
-      const sentMessage = await messageService.sendMessage(messageData);
-
-      // Update message in list
-      const updatedMessages = messages.map(function (msg) {
-        if (msg.msg_id === msgId) {
-          return Object.assign({}, sentMessage, { from_me: true });
-        }
-        return msg;
+        supports_typing: message.supports_typing !== false
       });
-      this.setData({ messages: updatedMessages });
 
-      logger.info('Message retry successful', { msg_id: sentMessage.msg_id });
+      // Update status to SENT
+      const sentMessages = this.data.messages.map(msg =>
+        msg.msg_id === msgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+      );
+      this.setData({ messages: sentMessages });
+
+      logger.info('Message retry successful', { msg_id: msgId });
     } catch (error) {
       logger.error('Failed to retry message', { error });
 
       // Mark as FAILED again
-      const updatedMessages = messages.map(function (m) {
-        if (m.msg_id === msgId) {
-          return Object.assign({}, m, { status: 3 });
-        }
-        return m;
-      });
-      this.setData({ messages: updatedMessages });
+      const failedMessages = this.data.messages.map(msg =>
+        msg.msg_id === msgId ? { ...msg, status: MESSAGE_STATUS.FAILED } : msg
+      );
+      this.setData({ messages: failedMessages });
 
-      wx.showToast({
-        title: error.message || '发送失败',
-        icon: 'none'
-      });
+      this.showErrorMessage(error);
     }
   },
 
   /**
-   * Handle incoming message
-   * Called by app.js when message is received
+   * Handle incoming message (called by app.js)
    */
   async onMessageReceived(message) {
     try {
-      // Check if message belongs to current conversation
       if (message.conv_id !== this.data.convId) {
         return;
       }
 
-      logger.info('Message received in chat page', {
-        msg_id: message.msg_id,
-        from: message.from
-      });
+      logger.info('Message received', { msg_id: message.msg_id });
 
-      // Get user info to determine if message is from me
       const userInfo = await getUserInfo();
 
-      // Add to message list
-      const messages = this.data.messages.concat([
-        Object.assign({}, message, { from_me: message.from === userInfo.qiao_id })
-      ]);
+      // Hide typing indicator
+      this.hideTypingIndicator();
 
+      // Add to messages
+      const newMessage = {
+        ...message,
+        from_me: message.from === userInfo.qiao_id
+      };
+
+      if (newMessage.message_type === MESSAGE_TYPE.CHAT_INFO) {
+        this.handleChatInfoAction(newMessage);
+      }
+
+      const updatedMessages = [...this.data.messages, newMessage];
+      const processedMessages = this.processMessages(updatedMessages);
       this.setData({
-        messages,
+        messages: processedMessages,
         scrollToView: `msg-${message.msg_id}`
       });
-
-      logger.debug('Message added to chat', {
-        msg_id: message.msg_id,
-        total_messages: messages.length
-      });
     } catch (error) {
-      logger.error('Handle received message failed', { error });
+      logger.error('Failed to handle received message', { error });
     }
   },
 
   /**
-   * Handle typing indicator
-   * Called by app.js when typing indicator is received
+   * Handle typing indicator (called by app.js)
    */
   onTypingReceived(typing) {
     try {
-      // Check if typing belongs to current conversation
       if (typing.conv_id !== this.data.convId) {
         return;
       }
 
-      logger.debug('Typing indicator received', {
-        from: typing.from,
-        isTyping: typing.isTyping
-      });
-
-      // Update navigation bar title
       if (typing.isTyping) {
-        wx.setNavigationBarTitle({
-          title: '对方正在输入...'
-        });
-
-        // Auto restore after 10 seconds
-        if (this.typingTimer) {
-          clearTimeout(this.typingTimer);
-        }
-        this.typingTimer = setTimeout(() => {
-          if (this.data.contactName) {
-            wx.setNavigationBarTitle({
-              title: this.data.contactName
-            });
-          }
-        }, 10000);
+        this.showTypingIndicator();
       } else {
-        // Restore contact name
-        if (this.data.contactName) {
-          wx.setNavigationBarTitle({
-            title: this.data.contactName
-          });
-        }
+        this.hideTypingIndicator();
       }
     } catch (error) {
-      logger.error('Handle typing indicator failed', { error });
+      logger.error('Failed to handle typing indicator', { error });
     }
   },
 
-  goBack() {
-    wx.navigateBack();
+  /**
+   * Show typing indicator
+   */
+  showTypingIndicator() {
+    // Clear existing timer
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer);
+    }
+
+    this.setData({ isContactTyping: true });
+
+    // Update title
+    wx.setNavigationBarTitle({ title: '对方正在输入...' });
+
+    // Auto hide after 30 seconds
+    this.typingTimer = setTimeout(() => {
+      this.hideTypingIndicator();
+    }, 30000);
   },
 
-  showContactInfo() {
-    wx.navigateTo({
-      url: `/pages/contact-info/contact-info?id=${this.data.convId}`
-    });
-  },
+  /**
+   * Hide typing indicator
+   */
+  hideTypingIndicator() {
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer);
+      this.typingTimer = null;
+    }
 
-  goToChatDetail() {
-    wx.navigateTo({
-      url: `/pages/chat-detail/chat-detail?id=${this.data.convId}`
-    });
+    this.setData({ isContactTyping: false });
+
+    // Restore title
+    if (this.data.contactName) {
+      wx.setNavigationBarTitle({ title: this.data.contactName });
+    }
   }
 });

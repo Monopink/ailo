@@ -1,5 +1,6 @@
 import { get } from '../../utils/api';
-import { requireAuthForPage } from '../../utils/auth-guard';
+import { requireAuth } from '../../utils/auth-guard';
+import authService from '../../utils/auth-service';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
 
@@ -12,22 +13,20 @@ Page({
     error: null
   },
 
-  onLoad() {
+  async onLoad() {
     logger.info('Profile page loaded');
 
     // Require authentication
-    if (!requireAuthForPage(this)) {
-      return;
-    }
+    const isAuth = await requireAuth(this);
+    if (!isAuth) return;
 
     this.loadProfile();
   },
 
-  onShow() {
+  async onShow() {
     // Check auth status
-    if (!requireAuthForPage(this)) {
-      return;
-    }
+    const isAuth = await requireAuth(this);
+    if (!isAuth) return;
 
     // Reload profile when page shows
     this.loadProfile();
@@ -82,21 +81,54 @@ Page({
   },
 
   /**
-   * Navigate to contacts
+   * Handle logout action
    */
-  navigateToContacts() {
-    wx.navigateTo({
-      url: '/pages/contacts-list/contacts-list'
-    });
-  },
+  async handleLogout() {
+    try {
+      const result = await wx.showModal({
+        title: '退出登录',
+        content: '确定要退出当前账号吗？',
+        confirmText: '退出',
+        cancelText: '取消'
+      });
 
-  /**
-   * Navigate to settings
-   */
-  navigateToSettings() {
-    wx.navigateTo({
-      url: '/pages/settings/settings'
-    });
+      if (!result.confirm) {
+        return;
+      }
+
+      wx.showLoading({
+        title: '正在退出',
+        mask: true
+      });
+
+      // Logout using authService
+      await authService.logout();
+
+      // Disconnect message service
+      const app = getApp();
+      if (app.globalData.messageService) {
+        app.globalData.messageService.disconnect();
+        app.globalData.messageService = null;
+      }
+
+      wx.hideLoading();
+
+      // Redirect to login page
+      wx.reLaunch({
+        url: '/pages/login/login'
+      });
+    } catch (error) {
+      logger.error('Logout failed', {
+        error: error.message || String(error)
+      });
+
+      wx.hideLoading();
+
+      wx.showToast({
+        title: '退出失败，请稍后重试',
+        icon: 'none'
+      });
+    }
   },
 
   /**
@@ -112,4 +144,3 @@ Page({
     return genderMap[gender] || '未设置';
   }
 });
-

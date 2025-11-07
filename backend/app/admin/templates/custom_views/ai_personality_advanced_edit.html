@@ -88,10 +88,7 @@
         </div>
         <div class="card-body">
           <div id="dimensions-display">
-            <div class="alert alert-info d-flex align-items-center mb-0 py-1">
-              <i class="fas fa-info-circle"></i>
-              <span>请点击"从Style获取Dimension"按钮选择style并加载dimension信息</span>
-            </div>
+            <p class="text-muted mb-0">请点击"从Style获取Dimension"按钮选择style并加载dimension信息</p>
           </div>
         </div>
       </div>
@@ -145,10 +142,7 @@
         </div>
         <div class="card-body">
           <div id="placeholders-list">
-            <div class="alert alert-info d-flex align-items-center mb-0 py-1">
-              <i class="fas fa-info-circle"></i>
-              <span>还没有定义placeholder，请先创建一个。</span>
-            </div>
+            <p class="text-muted mb-0">还没有定义placeholder，请先创建一个。</p>
           </div>
         </div>
       </div>
@@ -383,6 +377,7 @@ const SYSTEM_PLACEHOLDERS = [
 
     // Initial render
     this.renderSystemPlaceholders();
+    this.renderScorePlaceholders();
     this.renderCustomPlaceholders();
     this.renderPlaceholdersList();
     this.renderSchemaFieldsTable();
@@ -567,7 +562,7 @@ const SYSTEM_PLACEHOLDERS = [
   renderDimensions() {
     const container = document.getElementById('dimensions-display');
     if (this.state.dimensions.length === 0) {
-      container.innerHTML = '<div class="alert alert-info d-flex align-items-center mb-0 py-1"><i class="fas fa-info-circle"></i><span>请加载dimension信息</span></div>';
+      container.innerHTML = '<p class="text-muted mb-0">请点击"从Style获取Dimension"按钮选择style并加载dimension信息</p>';
       return;
     }
 
@@ -629,7 +624,7 @@ const SYSTEM_PLACEHOLDERS = [
   renderPlaceholdersList() {
     const container = document.getElementById('placeholders-list');
     if (this.state.placeholders.length === 0) {
-      container.innerHTML = '<div class="alert alert-info d-flex align-items-center mb-0 py-1"><i class="fas fa-info-circle"></i><span>还没有定义placeholder，请先创建一个。</span></div>';
+      container.innerHTML = '<p class="text-muted mb-0">还没有定义placeholder，请先创建一个。</p>';
       return;
     }
 

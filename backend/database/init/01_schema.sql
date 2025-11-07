@@ -378,7 +378,7 @@ CREATE TABLE IF NOT EXISTS ai_relationships (
 -- Note: No additional indexes needed for MVP
 
 
--- AI dimensions table - Global dimension definitions
+-- AI dimensions table - Dimension definitions
 CREATE TABLE IF NOT EXISTS ai_dimensions (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
@@ -548,7 +548,7 @@ CREATE TABLE IF NOT EXISTS ai_contexts (
     buffer_expires_at_ms BIGINT,
     aggregate_state INTEGER,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for ai_contexts table

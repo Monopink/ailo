@@ -230,3 +230,17 @@ html[data-bs-theme="dark"] .card .card-header.bg-light {
 html[data-bs-theme="dark"] ::selection {
   background-color: rgba(6, 111, 209, 0.5);
 }
+
+/* Fixed navbar at top */
+.navbar.sticky-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1030;
+}
+
+/* Adjust body padding to prevent content from hiding under fixed navbar */
+body {
+  padding-top: 3.5rem;
+}

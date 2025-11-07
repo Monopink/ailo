@@ -103,6 +103,9 @@ admin = Admin(
 # Override starlette-admin's default tojson filter which uses ensure_ascii=True
 admin.templates.env.filters["tojson"] = lambda data: json.dumps(data, default=str, ensure_ascii=False)
 
+# Inject settings into template context
+admin.templates.env.globals["settings"] = settings
+
 # Ensure templates pick up changes without full restarts (dev-friendly)
 # Enable auto reload and clear template cache so newly added overrides are used.
 try:

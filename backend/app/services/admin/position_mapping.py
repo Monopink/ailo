@@ -65,15 +65,15 @@ async def run_style_score_test(
         params: Dict[str, Any] = {}
         if algorithm == 2:
             try:
-                lb_raw = form_data.get(f"left_bias_{dim_name}")
-                rb_raw = form_data.get(f"right_bias_{dim_name}")
-                if lb_raw is None or rb_raw is None:
+                ls_raw = form_data.get(f"left_sensitivity_{dim_name}")
+                rs_raw = form_data.get(f"right_sensitivity_{dim_name}")
+                if ls_raw is None or rs_raw is None:
                     raise ValueError("missing_bias")
-                left_bias = int(str(lb_raw))
-                right_bias = int(str(rb_raw))
+                left_sensitivity = int(str(ls_raw))
+                right_sensitivity = int(str(rs_raw))
             except Exception:
                 return {"success": False, "message": f"Missing V1 parameters for {dim.display_name}"}
-            params = {"left_bias": left_bias, "right_bias": right_bias}
+            params = {"left_sensitivity": left_sensitivity, "right_sensitivity": right_sensitivity}
             if not validate_algorithm_params(algorithm, params):
                 return {"success": False, "message": f"Invalid V1 parameters for {dim.display_name}"}
 
@@ -119,7 +119,9 @@ async def run_style_score_test(
                 int(c.get("relationship_id")) == int(current_relationship_id) for c in candidates
             )
             if current_in_candidates:
-                candidates = [c for c in candidates if int(c.get("relationship_id")) == int(current_relationship_id)]
+                candidates = [
+                    c for c in candidates if int(c.get("relationship_id")) == int(current_relationship_id)
+                ]
 
         all_candidates.extend(candidates)
 
@@ -167,9 +169,9 @@ async def run_style_score_test(
                 "prompt_fragment": c.get("prompt_fragment"),
                 "count": 0,
                 "max_priority": pr,
-                "dimension_display_names": sorted(list(rel_to_dims.get(rid, set())))
-                if rel_to_dims.get(rid)
-                else [],
+                "dimension_display_names": (
+                    sorted(list(rel_to_dims.get(rid, set()))) if rel_to_dims.get(rid) else []
+                ),
             }
         unique[rid]["count"] += 1
         if pr > unique[rid]["max_priority"]:
@@ -225,10 +227,9 @@ async def generate_relationship_for_character(
 
     # Load character with style, personality and qiao_id
     result = await db.execute(
-        select(AICharacter).where(AICharacter.id == character_id).options(
-            selectinload(AICharacter.style),
-            selectinload(AICharacter.personality)
-        )
+        select(AICharacter)
+        .where(AICharacter.id == character_id)
+        .options(selectinload(AICharacter.style), selectinload(AICharacter.personality))
     )
     character = result.scalar_one_or_none()
     if not character:
@@ -242,7 +243,16 @@ async def generate_relationship_for_character(
         .order_by(AIDimension.name)
     )
     style_dims = [
-        type("_Tmp", (), {"id": dim.id, "name": dim.name, "display_name": dim.display_name, "initial_position": init_pos})
+        type(
+            "_Tmp",
+            (),
+            {
+                "id": dim.id,
+                "name": dim.name,
+                "display_name": dim.display_name,
+                "initial_position": init_pos,
+            },
+        )
         for dim, init_pos in dims_result.all()
     ]
     if not style_dims:

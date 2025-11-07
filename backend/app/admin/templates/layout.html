@@ -4,3 +4,51 @@
   {{ super() | replace('data-bs-theme="dark"', '') | safe }}
 {% endblock %}
 
+{% block navbar %}
+  {% set env = settings.ENVIRONMENT.lower() %}
+  {% if env in ['development', 'dev'] %}
+    {% set env_label = 'Dev' %}
+    {% set env_color = 'secondary' %}
+    {% set env_icon = 'code' %}
+  {% elif env in ['test', 'testing'] %}
+    {% set env_label = 'Test' %}
+    {% set env_color = 'success' %}
+    {% set env_icon = 'flask' %}
+  {% elif env in ['production', 'prod'] %}
+    {% set env_label = 'Prod' %}
+    {% set env_color = 'primary' %}
+    {% set env_icon = 'server' %}
+  {% else %}
+    {% set env_label = env|upper %}
+    {% set env_color = 'secondary' %}
+    {% set env_icon = 'circle' %}
+  {% endif %}
+
+  <header class="navbar navbar-expand-md d-print-none sticky-top">
+    <div class="container-xl">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="navbar-nav flex-row order-md-first">
+        <div class="nav-item d-flex flex-row align-items-center">
+          <i class="fa fa-{{ env_icon }} text-{{ env_color }} me-2"></i>
+          <span>{{ env_label }}</span>
+        </div>
+      </div>
+      <div class="navbar-nav flex-row order-md-last">
+        {% if current_user %}
+        <div class="nav-item dropdown">
+          <a href="#" class="nav-link px-2" data-bs-toggle="dropdown" aria-label="Open user menu">
+            <i class="fa fa-user fa-lg"></i>
+          </a>
+          <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+            <span class="dropdown-header">{{ current_user.username }}</span>
+            <a href="{{ url_for(__name__ ~ ':logout') }}" class="dropdown-item">Logout</a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+{% endblock %}
+

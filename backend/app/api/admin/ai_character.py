@@ -80,15 +80,15 @@ async def save_character(
                 params = dim_data.get("position_mapping_params", {})
                 if not isinstance(params, dict):
                     raise HTTPException(status_code=400, detail="position_mapping_params must be a dict")
-                left_bias = params.get("left_bias", 0)
-                right_bias = params.get("right_bias", 0)
-                if not isinstance(left_bias, (int, float)) or not isinstance(right_bias, (int, float)):
-                    raise HTTPException(status_code=400, detail="Bias values must be numbers")
-                if not (-100 <= left_bias <= 100) or not (-100 <= right_bias <= 100):
-                    raise HTTPException(status_code=400, detail="Bias values must be between -100 and 100")
+                left_sensitivity = params.get("left_sensitivity", 0)
+                right_sensitivity = params.get("right_sensitivity", 0)
+                if not isinstance(left_sensitivity, (int, float)) or not isinstance(right_sensitivity, (int, float)):
+                    raise HTTPException(status_code=400, detail="Sensitivity values must be numbers")
+                if not (-100 <= left_sensitivity <= 100) or not (-100 <= right_sensitivity <= 100):
+                    raise HTTPException(status_code=400, detail="Sensitivity values must be between -100 and 100")
                 cleaned["position_mapping_params"] = {
-                    "left_bias": int(left_bias),
-                    "right_bias": int(right_bias),
+                    "left_sensitivity": int(left_sensitivity),
+                    "right_sensitivity": int(right_sensitivity),
                 }
 
             cleaned_dimensions.append(cleaned)
@@ -203,14 +203,14 @@ async def update_character_dimension(
         if not isinstance(params, dict):
             raise HTTPException(status_code=400, detail="position_mapping_params must be a dict")
 
-        left_bias = params.get("left_bias", 0)
-        right_bias = params.get("right_bias", 0)
+        left_sensitivity = params.get("left_sensitivity", 0)
+        right_sensitivity = params.get("right_sensitivity", 0)
 
-        if not isinstance(left_bias, (int, float)) or not isinstance(right_bias, (int, float)):
-            raise HTTPException(status_code=400, detail="Bias values must be numbers")
+        if not isinstance(left_sensitivity, (int, float)) or not isinstance(right_sensitivity, (int, float)):
+            raise HTTPException(status_code=400, detail="Sensitivity values must be numbers")
 
-        if not (-100 <= left_bias <= 100) or not (-100 <= right_bias <= 100):
-            raise HTTPException(status_code=400, detail="Bias values must be between -100 and 100")
+        if not (-100 <= left_sensitivity <= 100) or not (-100 <= right_sensitivity <= 100):
+            raise HTTPException(status_code=400, detail="Sensitivity values must be between -100 and 100")
 
     # Update dimension - fix function call signature
     update_data = {

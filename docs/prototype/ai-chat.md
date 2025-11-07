@@ -129,129 +129,128 @@ flowchart TB
 
 ### 位置映射算法 V1
 
-基于ai_style_dimensions.initial_position作为原点，将LLM输出的score映射到最终position。算法支持独立双向偏移控制，偏移幅度与分数段长度成比例，算法本身保证不会超出[0, 1000]范围。
+基于 `ai_style_dimensions.initial_position` 作为原点，将 LLM 输出的 score 映射到最终 position。算法使用**非线性对数加速偏移**，通过 sensitivity 参数控制敏感度，在固定的 [0, 1000] 空间内进行映射计算。
 
 **核心特性**：
-- 偏移量与分数段长度成比例：更大的分数段产生更大的绝对偏移
-- 独立的左右侧控制：可分别调整左侧和右侧的映射曲线
-- 双向偏移：支持向原点压缩或向端点拉伸
+- **固定空间映射**：使用 [0, 1000] 固定空间进行计算
+- **镜像对称**：左右两段使用统一的计算逻辑，相对于原点完美镜像
+- **单调递增**：score 增加时 position 单调递增，保证关系发展的连续性
+- **非线性加速**：接近阈值时偏移加速增长，使用对数函数实现
+- **独立双向控制**：可分别调整左段和右段的敏感度
+- **原点无偏移**：initial_position 处偏移始终为 0
 
-Python实现示例：
+**算法步骤**：
 
-```python
-def calculate_v1_mapping(score, initial_position, params):
-    """
-    V1位置映射算法
-    :param score: LLM输出分数 (0-1000)
-    :param initial_position: 初始位置 (0-1000)
-    :param params: dict，参数配置
-    :return: 最终 position (0-1000)
-    """
-
-    # 获取偏移参数
-    left_bias = params.get("left_bias", 0)    # -100到100，左侧偏移控制
-    right_bias = params.get("right_bias", 0)  # -100到100，右侧偏移控制
-
-    # 参数验证
-    if not (-100 <= left_bias <= 100):
-        raise ValueError("left_bias must be between -100 and 100")
-    if not (-100 <= right_bias <= 100):
-        raise ValueError("right_bias must be between -100 and 100")
-
-    # initial_position永远映射到自己
-    if score == initial_position:
-        return initial_position
-
-    if score < initial_position:
-        # 左侧区间 [0, initial_position]
-        if initial_position == 0:
-            return score
-
-        # 计算相对位置 [0, 1]
-        relative_pos = score / initial_position
-
-        # 应用左侧映射曲线
-        if left_bias == 0:
-            # 线性，不调整
-            adjusted_pos = relative_pos
-        elif left_bias < 0:
-            # 向原点偏移：压缩到initial_position附近
-            compression_factor = abs(left_bias) / 100.0
-            adjusted_pos = relative_pos * (1.0 - compression_factor)
-        else:
-            # 向两端偏移：拉伸到0附近
-            stretch_factor = left_bias / 100.0
-            adjusted_pos = max(0.0, relative_pos * (1.0 - stretch_factor))
-
-        return adjusted_pos * initial_position
-
-    else:
-        # 右侧区间 [initial_position, 1000]
-        if initial_position == 1000:
-            return score
-
-        right_range = 1000.0 - initial_position
-        relative_pos = (score - initial_position) / right_range
-
-        # 应用右侧映射曲线
-        if right_bias == 0:
-            # 线性，不调整
-            adjusted_pos = relative_pos
-        elif right_bias < 0:
-            # 向原点偏移：压缩到initial_position附近
-            compression_factor = abs(right_bias) / 100.0
-            adjusted_pos = relative_pos * (1.0 - compression_factor)
-        else:
-            # 向两端偏移：拉伸到1000附近
-            stretch_factor = right_bias / 100.0
-            adjusted_pos = min(1.0, relative_pos * (1.0 + stretch_factor))
-
-        return initial_position + adjusted_pos * right_range
+```
+1. 限制 score 到 [0, 1000] 范围
+2. 计算阈值（统一公式）：
+   threshold = 1 - sensitivity / 100
+3. 计算归一化距离：
+   - 左段: normalized_distance = (ip - score) / ip
+   - 右段: normalized_distance = (score - ip) / (1000 - ip)
+4. 计算非线性偏移：
+   - 如果 threshold <= 0: offset_ratio = 1 (完全偏移)
+   - 如果 normalized_distance >= threshold: offset_ratio = 1 (超出阈值)
+   - 否则: offset_ratio = -K * ln(1 - normalized_distance/threshold) / 100
+5. 映射回原空间：
+   - 左段: position = ip - ip * offset_ratio
+   - 右段: position = ip + (1000 - ip) * offset_ratio
 ```
 
-ai_characters.position_mapping_params示例
+**算法公式**：
+
+```
+threshold = 1 - sensitivity / 100
+ratio = normalized_distance / threshold
+if ratio < 1:
+    offset_ratio = -K * ln(1 - ratio) / 100
+    offset_ratio = clamp(offset_ratio, 0, 1)
+position = ip ± space * offset_ratio
+```
+
+其中 K = 45（可调整的非线性系数）
+
+**实现位置**：`backend/app/services/ai/utils/position_mapping.py`
+
+**参数配置**：
+
+ai_character_dimensions.position_mapping_params 示例：
 
 ```json
 {
-  "left_bias": 0,
-  "right_bias": 0
+  "left_sensitivity": 0,
+  "right_sensitivity": 0
 }
 ```
 
 参数说明：
 
-- left_bias: 左侧映射控制 (-100到100)
-  - 负值: 向原点压缩（压缩到initial_position附近）
-  - 0: 线性映射（无调整）
-  - 正值: 向端点拉伸（拉伸到0附近）
-- right_bias: 右侧映射控制 (-100到100)
-  - 负值: 向原点压缩（压缩到initial_position附近）
-  - 0: 线性映射（无调整）
-  - 正值: 向端点拉伸（拉伸到1000附近）
+- **left_sensitivity**: 左段敏感度控制 (-100 到 100)
+  - 控制左段的偏移敏感度
+  - threshold = 1 - left_sensitivity / 100，范围 [0, 2]
 
-**重要特性**：偏移量与分数段长度成比例
-- 分数段长度 = 右侧为 (1000 - initial_position)，左侧为 initial_position
-- 相同的bias值在更大的分数段会产生更大的绝对偏移
-- 这确保了算法在不同initial_position下的一致性
+- **right_sensitivity**: 右段敏感度控制 (-100 到 100)
+  - 控制右段的偏移敏感度
+  - threshold = 1 - right_sensitivity / 100，范围 [0, 2]
 
-性格模拟示例：
+**sensitivity 参数含义**：
+
+- **sensitivity = 100**: 最敏感，threshold = 0，任何距离都触发完全偏移
+- **sensitivity = 0**: 标准敏感度，threshold = 1，标准行为
+- **sensitivity = -100**: 最不敏感，threshold = 2，几乎不触发偏移
+
+**threshold 阈值含义**：
+
+- **threshold > 1**: 阈值较高，需要更大的距离才能产生显著偏移（不敏感）
+- **threshold = 1**: 标准阈值，标准行为
+- **threshold < 1**: 阈值较低，较小的距离就会产生显著偏移（敏感）
+- **threshold ≈ 0**: 几乎任何距离都会产生完全偏移（极度敏感）
+
+**性格模拟示例**：
 
 ```json
-// 难以相处的人 - 强烈向原点压缩，关系难以改变
-{"left_bias": -80, "right_bias": -80}
+// 标准行为 - 无性格偏移
+{"left_sensitivity": 0, "right_sensitivity": 0}
 
-// 容易发展关系的人 - 强烈向端点拉伸，关系容易极化
-{"left_bias": 80, "right_bias": 80}
+// 非常敏感 - 两侧都容易触发偏移
+{"left_sensitivity": 50, "right_sensitivity": 50}
 
-// 容易产生好感但难以深入 - 右侧向端点，左侧向原点
-{"left_bias": -30, "right_bias": 70}
+// 非常迟钝 - 两侧都难以触发偏移
+{"left_sensitivity": -50, "right_sensitivity": -50}
 
-// 难以产生好感但容易深入 - 左侧向端点，右侧向原点
-{"left_bias": 70, "right_bias": -30}
+// 左侧敏感，右侧迟钝
+{"left_sensitivity": 30, "right_sensitivity": -30}
 
-// 标准线性行为 - 无特殊调整
-{"left_bias": 0, "right_bias": 0}
+// 左侧迟钝，右侧敏感
+{"left_sensitivity": -30, "right_sensitivity": 30}
 ```
+
+**调整非线性强度**：
+
+如果需要调整全局的非线性加速强度，可以修改 `position_mapping.py` 中的 K 常量：
+
+```python
+K = 45  # Nonlinear coefficient for V1 logarithmic mapping
+```
+
+- **增大 K**（如 50）→ 偏移加速更快，更激进
+- **减小 K**（如 40）→ 偏移加速更慢，更保守
+- **当前值**：45（经过调整的默认值）
+
+**边界情况处理**：
+
+1. **ip = 0 或 ip = 1000**：直接返回 score，不进行偏移计算
+2. **score = ip**：返回 ip，原点处无偏移
+3. **threshold <= 0**：完全偏移到边界（offset_ratio = 1）
+4. **normalized_distance >= threshold**：超出阈值，完全偏移（offset_ratio = 1）
+5. **数值稳定性**：使用 EPSILON (1e-10) 进行浮点数比较，避免除零和对数计算错误
+
+**重要特性**：
+
+1. **非线性加速**：使用对数函数实现，接近阈值时偏移快速增长
+2. **完美镜像**：左右两段使用统一的计算公式 `threshold = 1 - sensitivity`，完全对称
+3. **单调性保证**：score 增加时 position 单调递增，不会出现逆转
+4. **边界保护**：算法本身保证结果在 [0, 1000] 范围内，不会溢出
 
 ## JSON Schema
 

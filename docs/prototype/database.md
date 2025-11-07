@@ -435,7 +435,7 @@ prompt_variables -- 占位符覆盖值，JSON格式
 position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
 {
   "foo": {"algorithm": 1, "params": {}},
-  "bar": {"algorithm": 2, "params": {"left_bias": 5, "right_bias": -3}}
+  "bar": {"algorithm": 2, "params": {"left_sensitivity": 5, "right_sensitivity": -3}}
 }
 is_reusable -- 是否可以复用：1=reusable, 0=single_use
 profile_count -- 统计关联的资料模板数量
@@ -481,7 +481,7 @@ dimension_id -- 关联ai_dimensions.id
 score -- 当前分数值
 position -- 千分比位置（0-1000）
 position_mapping_algorithm -- 位置映射算法：1=直接映射, 2=V1独立双向偏移
-position_mapping_params -- 位置映射参数，JSON格式(V1算法)：{"left_bias": 0, "right_bias": 0}
+position_mapping_params -- 位置映射参数，JSON格式(V1算法)：{"left_sensitivity": 0, "right_sensitivity": 0}
 created_at
 updated_at
 ```

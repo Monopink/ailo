@@ -211,7 +211,6 @@ class Gender(IntEnum):
     MALE = 1  # Male
     FEMALE = 2  # Female
     OTHER = 3  # Other
-    UNKNOWN = 4  # Unknown/not specified
 
 
 class ProfileOwnerType(IntEnum):

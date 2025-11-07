@@ -95,15 +95,8 @@
 
   <!-- Per-dimension Configuration -->
   <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card-header">
       <h3 class="card-title mb-0">Per-dimension Configuration</h3>
-      <div class="d-flex align-items-center">
-        <div class="btn-group me-2" role="group">
-          <button type="button" class="btn btn-outline-secondary" onclick="resetAllDimensions()" title="Reset all dimensions to default values"><i class="fas fa-undo me-1"></i>Reset All</button>
-          <button type="button" class="btn btn-outline-secondary" onclick="setRandomValues()" title="Set random values for testing"><i class="fas fa-dice me-1"></i>Random</button>
-        </div>
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('algorithmTestForm').submit();" {% if not dimensions %}disabled{% endif %}><i class="fas fa-play me-2"></i>Start Test</button>
-      </div>
     </div>
     <div class="card-body">
       <form id="algorithmTestForm" method="post">
@@ -157,8 +150,16 @@
                       </div>
                       <div class="col-12 v1-params" data-for="{{ dimension.name }}">
                         <div class="row g-2">
-                          <div class="col-6"><label class="form-label">Left Bias</label><input type="number" class="form-control" name="left_bias_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.left_bias|default(0) }}{% else %}0{% endif %}"></div>
-                          <div class="col-6"><label class="form-label">Right Bias</label><input type="number" class="form-control" name="right_bias_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.right_bias|default(0) }}{% else %}0{% endif %}"></div>
+                          <div class="col-6">
+                            <label class="form-label">Left Sensitivity (%)</label>
+                            <input type="number" class="form-control" name="left_sensitivity_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.left_sensitivity|default(0) }}{% else %}0{% endif %}">
+                            <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
+                          </div>
+                          <div class="col-6">
+                            <label class="form-label">Right Sensitivity (%)</label>
+                            <input type="number" class="form-control" name="right_sensitivity_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.right_sensitivity|default(0) }}{% else %}0{% endif %}">
+                            <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
+                          </div>
                         </div>
                       </div>
                       <div class="col-12">
@@ -179,7 +180,7 @@
                     <div class="d-flex align-items-center flex-wrap gap-2">
                       <span class="text-muted small">Mapped</span>
                       <span class="fw-bold">{% if ns.result %}{{ ns.result.mapped_position|round(0)|int }}{% endif %}</span>
-                      <span class="text-muted small">+ Position Mapping</span>
+                      <span class="text-muted small">+ Position Offset</span>
                       {% if ns.result %}
                       {% set _off = (ns.result.offset | round(0) | int) %}
                       <span class="fw-bold {% if _off > 0 %}text-success{% elif _off < 0 %}text-danger{% endif %}">{{ _off }}</span>
@@ -216,13 +217,29 @@
   {%- endmacro %}
   <!-- All Candidate Relationships: always present -->
   <div class="card mt-4">
-    <div class="card-header">
-      <h3 class="card-title">All Candidate Relationships</h3>
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3 class="card-title mb-0">All Candidate Relationships</h3>
+      <div class="d-flex align-items-center">
+        <div class="btn-group me-2" role="group">
+          <button type="button" class="btn btn-outline-secondary" onclick="resetAllDimensions()" title="Reset all dimensions to default values"><i class="fas fa-undo me-1"></i>Reset All</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="setRandomValues()" title="Set random values for testing"><i class="fas fa-dice me-1"></i>Random</button>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('algorithmTestForm').submit();" {% if not dimensions %}disabled{% endif %}><i class="fas fa-play me-2"></i>Start Test</button>
+      </div>
     </div>
     <div class="card-body rel-list">
+      {% if test_result and not test_result.success %}
+      <div class="alert alert-danger mb-3 d-flex align-items-center" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <div>
+          <strong>Test Failed</strong>
+          <div class="text-muted">{{ test_result.message }}</div>
+        </div>
+      </div>
+      {% endif %}
       {% if test_result and test_result.success and test_result.dimension_results %}
       <small class="text-muted d-block mb-3">All unique relationships from {{ test_result.dimension_results|length }} dimensions (deduplicated). Highest priority wins.</small>
-      {% if test_result.selection_reason %}
+      {% if test_result.selection_reason and test_result.selection_reason in ['priority_tie', 'no_candidate'] %}
       <div class="alert alert-warning mb-3 d-flex align-items-center" role="alert">
         <i class="fas fa-exclamation-triangle me-2"></i>
         <span>{{ reason_text(test_result.selection_reason) }}</span>
@@ -252,16 +269,6 @@
       {% endif %}
     </div>
   </div>
-
-  {% if test_result and not test_result.success %}
-  <div class="alert alert-danger mt-4 d-flex align-items-center">
-    <i class="fas fa-exclamation-triangle me-2"></i>
-    <div>
-      <strong>Test Failed</strong>
-      <div class="text-muted">{{ test_result.message }}</div>
-    </div>
-  </div>
-  {% endif %}
 
   <!-- Dimension Relationship Mappings -->
   <div class="card mt-4">
@@ -344,10 +351,10 @@
     });
     // Refresh parameter visibility after programmatic changes
     updateParamVisibility();
-    document.querySelectorAll('input[name^="left_bias_"]').forEach(inp => {
+    document.querySelectorAll('input[name^="left_sensitivity_"]').forEach(inp => {
       inp.value = Math.floor(Math.random() * 201) - 100;
     });
-    document.querySelectorAll('input[name^="right_bias_"]').forEach(inp => {
+    document.querySelectorAll('input[name^="right_sensitivity_"]').forEach(inp => {
       inp.value = Math.floor(Math.random() * 201) - 100;
     });
     document.querySelectorAll('input[name^="score_"]:not([name*="_min_"]):not([name*="_max_"])').forEach(inp => {

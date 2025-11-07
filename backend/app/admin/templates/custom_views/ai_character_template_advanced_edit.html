@@ -142,16 +142,16 @@
                 <div class="row">
                   <div class="col-md-6">
                     <div class="mb-3">
-                      <label class="form-label">Left Bias</label>
-                      <input type="number" class="form-control" name="left_bias_{{ dim_config.dimension_name }}" value="{{ dim_config.params.left_bias if dim_config.params else 0 }}" min="-100" max="100" step="1">
-                      <div class="form-text">Range: -100 to 100 (0 = linear)</div>
+                      <label class="form-label">Left Sensitivity (%)</label>
+                      <input type="number" class="form-control" name="left_sensitivity_{{ dim_config.dimension_name }}" value="{{ dim_config.params.left_sensitivity if dim_config.params else 0 }}" min="-100" max="100" step="1">
+                      <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
                     </div>
                   </div>
                   <div class="col-md-6">
                     <div class="mb-3">
-                      <label class="form-label">Right Bias</label>
-                      <input type="number" class="form-control" name="right_bias_{{ dim_config.dimension_name }}" value="{{ dim_config.params.right_bias if dim_config.params else 0 }}" min="-100" max="100" step="1">
-                      <div class="form-text">Range: -100 to 100 (0 = linear)</div>
+                      <label class="form-label">Right Sensitivity (%)</label>
+                      <input type="number" class="form-control" name="right_sensitivity_{{ dim_config.dimension_name }}" value="{{ dim_config.params.right_sensitivity if dim_config.params else 0 }}" min="-100" max="100" step="1">
+                      <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
                     </div>
                   </div>
                 </div>
@@ -225,8 +225,8 @@
 
       if (algorithm === 2) {
         positionMappingConfig[dimensionName].params = {
-          left_bias: parseInt(formData.get(`left_bias_${dimensionName}`)),
-          right_bias: parseInt(formData.get(`right_bias_${dimensionName}`)),
+          left_sensitivity: parseInt(formData.get(`left_sensitivity_${dimensionName}`)),
+          right_sensitivity: parseInt(formData.get(`right_sensitivity_${dimensionName}`)),
         };
       }
     });

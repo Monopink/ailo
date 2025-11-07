@@ -271,7 +271,7 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
   "speaking_style": "轻松幽默，喜欢开玩笑，使用一些网络用语和表情，像好兄弟一样"
 }',
 1,
-'{"left_bias": -10, "right_bias": 10}',
+'{"left_sensitivity": -10, "right_sensitivity": 10}',
 223788765171154947, 'qqid_test_user_003',
 1)
 ON CONFLICT (qiao_id) DO NOTHING;

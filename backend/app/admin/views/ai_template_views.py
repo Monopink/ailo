@@ -7,7 +7,7 @@ This module contains Starlette-Admin views for AI character and profile template
 from typing import Any, Dict
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, TextAreaField, HasOne, IntegerField
+from starlette_admin import StringField, TextAreaField, HasOne, IntegerField, JSONField
 from admin.fields import LocalDateTimeField
 from starlette_admin.actions import link_row_action
 from starlette_admin.exceptions import FormValidationError
@@ -62,32 +62,6 @@ class _CharacterTemplateDisplayNameField(StringField):
         except Exception:
             return ""
 
-
-class _PositionMappingConfigField(StringField):
-    """Custom field to display position_mapping_config JSONB as readable summary."""
-
-    def __init__(self, name: str = "position_mapping_config", label: str = "Position Mapping Config"):
-        super().__init__(name=name, label=label)
-        self.read_only = True
-        self.searchable = False
-        self.orderable = False
-
-    async def parse_obj(self, request, obj):  # type: ignore[override]
-        try:
-            config = getattr(obj, "position_mapping_config", None)
-            if not config or not isinstance(config, dict):
-                return "Not configured"
-
-            # Format: "dimension1: algo1, dimension2: algo2"
-            parts = []
-            for dim_name, dim_config in config.items():
-                algo = dim_config.get("algorithm", 1)
-                algo_name = "None (direct)" if algo == 1 else "V1"
-                parts.append(f"{dim_name}: {algo_name}")
-
-            return ", ".join(parts) if parts else "Empty"
-        except Exception:
-            return "Error"
 
 
 class AICharacterTemplateView(ModelView):
@@ -170,7 +144,11 @@ class AICharacterTemplateView(ModelView):
             help_text="Default memory settings for characters using this template",
         ),
         "prompt_variables",
-        _PositionMappingConfigField(),
+        JSONField(
+            "position_mapping_config",
+            label="Position Mapping Config",
+            help_text="Raw JSON config per dimension",
+        ),
         IntegerEnumField(
             "is_reusable",
             enum=ReusableStatus,

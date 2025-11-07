@@ -54,17 +54,18 @@ async def save_character_template(
                 if not isinstance(params, dict):
                     raise HTTPException(status_code=400, detail=f"Params for {dim_name} must be a dict")
 
-                left_bias = params.get("left_bias", 0)
-                right_bias = params.get("right_bias", 0)
+                left_sensitivity = params.get("left_sensitivity", 0)
+                right_sensitivity = params.get("right_sensitivity", 0)
 
-                if not isinstance(left_bias, (int, float)) or not isinstance(right_bias, (int, float)):
+                if not isinstance(left_sensitivity, (int, float)) or not isinstance(right_sensitivity, (int, float)):
                     raise HTTPException(
-                        status_code=400, detail=f"Bias values for {dim_name} must be numbers"
+                        status_code=400, detail=f"Sensitivity values for {dim_name} must be numbers"
                     )
 
-                if not (-100 <= left_bias <= 100) or not (-100 <= right_bias <= 100):
+                if not (-100 <= left_sensitivity <= 100) or not (-100 <= right_sensitivity <= 100):
                     raise HTTPException(
-                        status_code=400, detail=f"Bias values for {dim_name} must be between -100 and 100"
+                        status_code=400,
+                        detail=f"Sensitivity values for {dim_name} must be between -100 and 100",
                     )
 
         update_data["position_mapping_config"] = position_mapping_config

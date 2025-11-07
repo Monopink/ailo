@@ -393,7 +393,7 @@ class AICharacterDimensionView(ModelView):
         JSONField(
             "position_mapping_params",
             label="Position Mapping Parameters",
-            help_text="Position mapping parameters (left_bias, right_bias for V1)",
+            help_text="Position mapping parameters (left_sensitivity, right_sensitivity for V1)",
         ),
         LocalDateTimeField("created_at", label="Created At", help_text="Score record creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),

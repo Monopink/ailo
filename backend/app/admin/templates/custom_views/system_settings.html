@@ -170,10 +170,14 @@
                       {{ config_key | replace('_', ' ') | title }}
                     </label>
 
-                    <!-- Use config.description from database -->
-                    {% if config.description %}
-                    <small class="text-muted d-block">{{ config.description }}</small>
-                    {% endif %}
+                    <!-- Use config.description from database, always show to maintain layout -->
+                    <small class="text-muted d-block">
+                      {% if config.description %}
+                      {{ config.description }}
+                      {% else %}
+                      &nbsp;
+                      {% endif %}
+                    </small>
                   </div>
 
                   <!-- Current & Default Value (30%) -->
@@ -185,8 +189,10 @@
                       {% elif config.config_value is sameas false or config.config_value ==
                       'false' %}
                       false
-                      {% else %}
+                      {% elif config.config_value is not none and config.config_value != '' %}
                       {{ config.config_value }}
+                      {% else %}
+                      <span class="text-muted fst-italic">(not set)</span>
                       {% endif %}
                     </strong>
 
@@ -200,8 +206,10 @@
                         {% elif config.default_value is sameas false or config.default_value ==
                         'false' %}
                         false
-                        {% else %}
+                        {% elif config.default_value %}
                         {{ config.default_value }}
+                        {% else %}
+                        <em>(not set)</em>
                         {% endif %}
                       </span>
                     </small>
@@ -331,25 +339,6 @@
             });
           })();
         </script>
-
-        <!-- Configuration Notes -->
-        <div class="card mt-4">
-          <div class="card-header">
-            <h3 class="card-title">Configuration Notes</h3>
-          </div>
-          <div class="card-body">
-            <div class="alert alert-info mb-0 d-flex align-items-center">
-              <i class="fa fa-info-circle me-2"></i>
-              <span><strong>Note:</strong> Some configuration changes may require a service restart to take
-              effect.
-              It is recommended to make important configuration changes during maintenance windows.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <script>
     // Copy conversation ID to clipboard
     async function copyConversationId() {

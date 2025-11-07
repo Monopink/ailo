@@ -86,13 +86,13 @@ pre {
           <table class="table table-sm table-borderless mb-3">
             <tbody>
               <tr><td class="text-muted" style="width:40%">ID</td><td id="userQiaoId">-</td></tr>
-              <tr><td class="text-muted">Username</td><td id="userUsername">-</td></tr>
               <tr><td class="text-muted">Nickname</td><td id="userNickname">-</td></tr>
               <tr><td class="text-muted">Gender</td><td id="userGender">-</td></tr>
               <tr><td class="text-muted">Region</td><td id="userRegion">-</td></tr>
               <tr><td class="text-muted">Bio</td><td id="userBio">-</td></tr>
               <tr><td class="text-muted">Avatar URL</td><td id="userAvatarUrl" class="text-break small">-</td></tr>
               <tr><td class="text-muted">Avatar Prompt</td><td id="userAvatarPrompt" class="text-break small">-</td></tr>
+              <tr><td class="text-muted">Username</td><td id="userUsername">-</td></tr>
             </tbody>
           </table>
 
@@ -549,8 +549,8 @@ pre {
       function val(x) { return (x === undefined || x === null || x === '') ? '-' : String(x); }
       function formatGender(g) {
         if (g === undefined || g === null || g === '') return '-';
-        var genderMap = { 0: 'Unknown', 1: 'Male', 2: 'Female', 3: 'Other' };
-        return genderMap[g] || String(g);
+        var genderMap = { 0: '-', 1: 'Male', 2: 'Female', 3: 'Other' };
+        return genderMap[g] !== undefined ? genderMap[g] : String(g);
       }
       try {
         // User

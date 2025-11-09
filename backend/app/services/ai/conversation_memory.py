@@ -118,12 +118,10 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
     """
     try:
         # Load archive configurations (seconds/count-based)
-        archive_time_seconds = await config_service.get_int(
-            db, "ai_context_archive_time", 604800
-        )  # default 7 days
-        archive_max_count = await config_service.get_int(db, "ai_context_archive_max_count", 50)
-        archive_min_count = await config_service.get_int(db, "ai_context_archive_min_count", 10)
-        archive_threshold = await config_service.get_int(db, "ai_context_archive_threshold", 80)
+        archive_time_seconds = await config_service.get_int(db, "ai_context_archive_time")
+        archive_max_count = await config_service.get_int(db, "ai_context_archive_max_count")
+        archive_min_count = await config_service.get_int(db, "ai_context_archive_min_count")
+        archive_threshold = await config_service.get_int(db, "ai_context_archive_threshold")
 
         # Query all DONE contexts for this user-character pair (newest first)
         from sqlalchemy import select, and_, desc

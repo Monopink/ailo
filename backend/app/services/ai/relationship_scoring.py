@@ -7,6 +7,7 @@ based on AI style configurations and score positions.
 
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from .data import (
     get_character_relationship_scores,
@@ -24,7 +25,7 @@ logger = get_logger(__name__)
 
 
 async def get_relationship_scores(
-    db: AsyncSession, character_qiao_id: str, auto_initialize: bool = False
+    db: AsyncSession, character_qiao_id: str, auto_initialize: bool = True
 ) -> Optional[List[Dict[str, Any]]]:
     """
     Get relationship scores for a character.
@@ -39,7 +40,6 @@ async def get_relationship_scores(
         List of score dictionaries, or None if not found
     """
     try:
-        # Get character ID first
         character_id = await get_character_id_by_qiao_id(db, character_qiao_id)
         if not character_id:
             logger.warning("character_not_found_for_scores", character_qiao_id=character_qiao_id)
@@ -47,14 +47,32 @@ async def get_relationship_scores(
 
         scores = await get_character_relationship_scores(db, character_id)
 
-        # Do not auto-initialize here. Missing scores indicate a data inconsistency
-        # which should be handled by callers (typically as a validation error).
         if not scores and auto_initialize:
-            logger.warning(
-                "relationship_scores_missing_but_auto_init_disabled",
-                character_qiao_id=character_qiao_id,
-                character_id=character_id,
-            )
+            style_id = await _get_character_style_id(db, character_id)
+            if not style_id:
+                logger.error(
+                    "character_style_missing_for_score_init",
+                    character_qiao_id=character_qiao_id,
+                    character_id=character_id,
+                )
+            else:
+                try:
+                    await initialize_relationship_scores(db, character_id, style_id)
+                    scores = await get_character_relationship_scores(db, character_id)
+                    if scores:
+                        logger.info(
+                            "relationship_scores_auto_initialized",
+                            character_qiao_id=character_qiao_id,
+                            style_id=style_id,
+                        )
+                except AIRelationshipError as init_error:
+                    logger.error(
+                        "relationship_score_autoinit_failed",
+                        error=str(init_error),
+                        character_qiao_id=character_qiao_id,
+                        character_id=character_id,
+                    )
+                    return None
 
         if not scores:
             logger.info(
@@ -81,6 +99,24 @@ async def get_relationship_scores(
         return None
 
 
+async def _get_character_style_id(db: AsyncSession, character_id: int) -> Optional[int]:
+    """
+    Fetch the style_id for a given character.
+    """
+    from models.ai import AICharacter
+
+    try:
+        result = await db.execute(select(AICharacter.style_id).where(AICharacter.id == character_id))
+        return result.scalar_one_or_none()
+    except Exception as e:
+        logger.error(
+            "character_style_lookup_failed",
+            error=str(e),
+            character_id=character_id,
+        )
+        return None
+
+
 async def initialize_relationship_scores(
     db: AsyncSession, character_id: int, style_id: int, position_mapping_config: Optional[Dict[str, Any]] = None
 ) -> None:
@@ -102,7 +138,6 @@ async def initialize_relationship_scores(
     try:
         from models.ai.character_dimension import AICharacterDimension
         from models.ai.style import AIStyleDimension
-        from sqlalchemy import select
 
         # Get all dimensions for this style
         stmt = select(AIStyleDimension).where(AIStyleDimension.style_id == style_id)
@@ -600,7 +635,7 @@ async def calculate_new_scores(
 
         # Build dimension config map
         from .utils.position_mapping import map_score_to_position
-        from .prompt import get_response_schema
+        from .conversation_prompt import get_response_schema
         from .utils.score_mapping import map_to_permille
 
         # Load JSON Schema to get per-dimension min/max for mapping

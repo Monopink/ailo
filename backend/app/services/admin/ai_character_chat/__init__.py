@@ -93,7 +93,7 @@ class AICharacterChatTestService:
             # Combine all results for comprehensive response
             # Get latest relationship scores after execution
             try:
-                from services.ai.relationship import get_relationship_scores
+                from services.ai.relationship_scoring import get_relationship_scores
                 latest_scores = await get_relationship_scores(
                     db=db, character_qiao_id=validation_result["character"]["qiao_id"], auto_initialize=False
                 ) or []
@@ -102,7 +102,7 @@ class AICharacterChatTestService:
 
             # Also compute selected relationship after update for immediate feedback
             try:
-                from services.ai.relationship import determine_relationship_type as _determine
+                from services.ai.relationship_scoring import determine_relationship_type as _determine
                 selected_rel = None
                 if latest_scores:
                     rel_info = await _determine(db, validation_result["character"], latest_scores)
@@ -197,7 +197,7 @@ class AICharacterChatTestService:
 
             # Get response JSON schema for this character (used by main flow)
             try:
-                from services.ai.prompt import get_response_schema
+                from services.ai.conversation_prompt import get_response_schema
                 response_schema = await get_response_schema(db, validation_result["character"]["qiao_id"])
             except Exception:
                 response_schema = None

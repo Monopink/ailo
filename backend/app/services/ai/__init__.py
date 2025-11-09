@@ -11,24 +11,24 @@ Main entry points:
 """
 
 # Main conversation functions
-from .conversation import (
+from .conversation_flow import (
     process_conversation,
 )
 
 # Character creation functions
-from .character import (
+from .character_creation import (
     create_character_from_template,
 )
 
 # Character management
-from .character import (
+from .character_retrieval import (
     get_character_info,
     validate_character_status,
     get_character_configuration,
 )
 
 # Relationship management
-from .relationship import (
+from .relationship_scoring import (
     get_relationship_scores,
     initialize_relationship_scores,
     determine_relationship_type,
@@ -36,14 +36,14 @@ from .relationship import (
 )
 
 # Prompt building
-from .prompt import (
+from .conversation_prompt import (
     build_system_prompt,
     replace_placeholders,
     get_response_schema,
 )
 
 # Memory management
-from .memory import (
+from .conversation_memory import (
     process_memory_operations,
     archive_old_contexts,
 )

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from services.ai.conversation import process_conversation
+from services.ai.conversation_flow import process_conversation
 from services.ai.data import save_context_entry
 from services.ai.data.mutations import finalize_context_if_locked
 from enums import AIContextRole, AIAggregateState

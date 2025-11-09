@@ -8,10 +8,10 @@ processing pipeline including score calculation and LLM integration.
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .conversation import process_conversation
-from .relationship import calculate_new_scores, update_relationship_positions
-from .prompt import build_system_prompt, build_response_schema
-from .data import get_character_with_relations
+from services.ai.conversation_flow import process_conversation
+from services.ai.relationship_scoring import calculate_new_scores, update_relationship_positions
+from services.ai.conversation_prompt import build_system_prompt, build_response_schema
+from services.ai.data import get_character_with_relations
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

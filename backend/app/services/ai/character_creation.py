@@ -73,12 +73,9 @@ async def create_character_from_template(
         memory=character_template.memory,
         placeholder_overrides=character_template.prompt_variables,
         # Persist source template for discovery de-duplication and audit trail
-        request_params={
-            "created_from_profile_qiao_id": template_qiao_id,
-            # Also persist owner identifiers for downstream queries if schema ignores extras
-            "owner_user_qiao_id": user_qiao_id,
-            "owner_user_id": user_id,
-        },
+        created_from_profile_qiao_id=template_qiao_id,
+        # request_params should only contain LLM parameter overrides (temperature, max_tokens, etc.)
+        request_params=None,
     )
 
     character = await ai_character.create(db, obj_in=character_data, commit=False)
@@ -167,7 +164,7 @@ async def create_character_from_template(
         )
 
     # 4. Initialize relationship scores
-    from services.ai.relationship import initialize_relationship_scores
+    from services.ai.relationship_scoring import initialize_relationship_scores
 
     await initialize_relationship_scores(
         db,

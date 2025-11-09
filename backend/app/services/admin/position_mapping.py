@@ -217,8 +217,8 @@ async def generate_relationship_for_character(
     from models.ai.character import AICharacter
     from models.ai.style import AIStyleDimension
     from crud.ai.character_dimension import get_by_character
-    from services.ai.prompt import get_response_schema
-    from services.ai.relationship import (
+    from services.ai.conversation_prompt import get_response_schema
+    from services.ai.relationship_scoring import (
         calculate_new_scores,
         update_relationship_positions,
         update_current_relationship,

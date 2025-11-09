@@ -43,7 +43,7 @@ async def save_personality_all(
     personality_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Save personality with auto-generated JSON schema from structured config."""
-    from services.ai.schema_generator import generate_json_schema
+    from services.ai.response_schema import generate_json_schema
 
     personality = await personality_crud.get(db, id=personality_id)
     if not personality:

@@ -107,9 +107,9 @@ async def chat_completion_with_validation(
     """
     try:
         # Get validation configuration from system_configs
-        max_retries = await config_service.get_config(db, "ai_json_schema_max_retries", 3)
-        retry_delay = await config_service.get_config(db, "ai_json_schema_retry_delay", 2)
-        validation_enabled = await config_service.get_config(db, "ai_json_schema_validation_enabled", True)
+        max_retries = await config_service.get_config(db, "ai_json_schema_max_retries")
+        retry_delay = await config_service.get_config(db, "ai_json_schema_retry_delay")
+        validation_enabled = await config_service.get_config(db, "ai_json_schema_validation_enabled")
 
         last_error = None
 

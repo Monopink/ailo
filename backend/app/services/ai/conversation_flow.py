@@ -10,14 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums.common import AIContextRole
 from .data import get_character_with_relations
-from .relationship import (
+from .relationship_scoring import (
     determine_relationship_type,
     calculate_new_scores,
     update_relationship_positions,
     update_current_relationship,
 )
-from .prompt import build_system_prompt, get_response_schema, build_conversation_context
-from .memory import process_memory_operations, archive_old_contexts
+from .conversation_prompt import build_system_prompt, get_response_schema, build_conversation_context
+from .conversation_memory import process_memory_operations, archive_old_contexts
 from .data import (
     get_conversation_history,
     save_context_entry,

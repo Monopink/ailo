@@ -251,7 +251,7 @@ class ValidationService:
         Validate relationship scores exist for this character.
         Uses main logic from services.ai.relationship for score retrieval and initialization.
         """
-        from services.ai.relationship import get_relationship_scores
+        from services.ai.relationship_scoring import get_relationship_scores
 
         # Do not auto-initialize in validation. Missing scores is an error by design.
         scores = await get_relationship_scores(db, character_info["qiao_id"], auto_initialize=False)

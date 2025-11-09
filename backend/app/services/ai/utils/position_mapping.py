@@ -15,7 +15,14 @@ logger = get_logger(__name__)
 
 
 # Algorithm constants
-K = 45  # Nonlinear coefficient for V1 logarithmic mapping, adjustable for tuning
+# Left segment coefficients
+V1_K_LEFT_POSITIVE = 45  # For left segment when sensitivity >= 0
+V1_K_LEFT_NEGATIVE = 39  # For left segment when sensitivity < 0
+
+# Right segment coefficients
+V1_K_RIGHT_POSITIVE = 45  # For right segment when sensitivity >= 0
+V1_K_RIGHT_NEGATIVE = 39  # For right segment when sensitivity < 0
+
 EPSILON = 1e-10  # Numerical stability threshold for floating-point comparisons
 
 
@@ -107,18 +114,9 @@ def calculate_v1_mapping(score: float, initial_position: float, params: Dict[str
     """
     V1 algorithm: Nonlinear position mapping with sensitivity-controlled offset.
 
-    Maps score to position space [0, 1000] with initial_position as origin.
+    Maps score to position distance [0, 1000] with initial_position as origin.
     Left and right segments use mirrored calculation with independent sensitivity control.
     Uses logarithmic function for nonlinear acceleration near threshold.
-
-    Algorithm steps:
-    0. Clamp score to [0, 1000] position axis
-    1. Calculate threshold based on sensitivity parameter
-    2. Handle special case: threshold <= 0 → full offset
-    3. Calculate normalized distance from origin
-    4. Handle special case: normalized_distance >= threshold → full offset
-    5. Calculate nonlinear offset using logarithmic function
-    6. Map back to original space
 
     Args:
         score: LLM output score (0-1000)
@@ -143,74 +141,104 @@ def calculate_v1_mapping(score: float, initial_position: float, params: Dict[str
         raise ValueError(f"right_sensitivity must be in [-100, 100], got: {right_sensitivity}")
 
     # Step 0: Clamp inputs to valid range (defensive programming)
-    score_clamped = max(0.0, min(1000.0, score))
-    ip = max(0.0, min(1000.0, initial_position))
+    _score = max(0.0, min(1000.0, score))
+    _initial_position = max(0.0, min(1000.0, initial_position))
 
-    # Handle edge cases where ip is at boundaries
-    # When ip=0, only right side exists; when ip=1000, only left side exists
+    # Handle edge cases where _initial_position is at boundaries
+    # When _initial_position=0, only right side exists; when _initial_position=1000, only left side exists
     # In these cases, no meaningful offset can be calculated, return original score
-    if ip <= EPSILON:
-        return score_clamped
-    if ip >= 1000.0 - EPSILON:
-        return score_clamped
+    if _initial_position <= EPSILON:
+        return _score
+    if _initial_position >= 1000.0 - EPSILON:
+        return _score
 
-    # Handle special case: score equals ip (at origin point)
-    # No offset needed, return ip directly
-    if abs(score_clamped - ip) < EPSILON:
-        return ip
+    # Handle special case: score equals _initial_position (at origin point)
+    # No offset needed, return _initial_position directly
+    if abs(_score - _initial_position) < EPSILON:
+        return _initial_position
 
-    # Step 1: Determine segment and calculate threshold
-    if score_clamped < ip:
-        # Left segment: [0, ip]
-        sensitivity = left_sensitivity
-        space = ip
-        is_left = True
-    else:
-        # Right segment: [ip, 1000]
-        sensitivity = right_sensitivity
-        space = 1000.0 - ip
-        is_left = False
+    # Step 1: Determine segment and calculate offset
+    if _score < _initial_position:
+        # Left segment: [0, _initial_position]
+        distance = _initial_position
 
-    # Calculate threshold from sensitivity (unified formula for both segments)
-    # sensitivity = 100 → threshold = 0.0 (most sensitive, any distance triggers full offset)
-    # sensitivity = 0 → threshold = 1.0 (standard behavior)
-    # sensitivity = -100 → threshold = 2.0 (least sensitive, rarely triggers offset)
-    threshold = 1.0 - sensitivity / 100.0
-
-    # Step 2: Handle threshold <= 0 case (full offset to boundary)
-    if threshold <= EPSILON:
-        offset_ratio = 1.0
-    else:
-        # Step 3: Calculate normalized distance from origin
-        if is_left:
-            normalized_distance = (ip - score_clamped) / ip
-        else:
-            normalized_distance = (score_clamped - ip) / (1000.0 - ip)
-
-        # Step 4: Handle normalized_distance >= threshold case (beyond threshold, full offset)
-        if normalized_distance >= threshold:
+        # Handle boundary cases for left_sensitivity
+        if left_sensitivity >= 100:
+            # Maximum sensitivity: always full offset
             offset_ratio = 1.0
+        elif left_sensitivity <= -100:
+            # Minimum sensitivity: no offset
+            offset_ratio = 0.0
         else:
-            # Step 5: Calculate nonlinear offset using logarithmic function
-            ratio = normalized_distance / threshold
+            # Calculate normalized distance from origin
+            relative_position = (_initial_position - _score) / _initial_position
 
-            # Numerical stability: avoid log(0) when ratio approaches 1
-            if ratio >= 1.0 - EPSILON:
-                offset_ratio = 1.0
+            # Different formulas based on sensitivity sign
+            if left_sensitivity >= 0:
+                # Positive sensitivity: standard logarithmic formula
+                # offset_ratio = -V1_K_LEFT_POSITIVE * LN(1 - ratio) / 100
+                offset_ratio = (
+                    -V1_K_LEFT_POSITIVE
+                    * math.log(
+                        max((1 - relative_position / (1.12 - left_sensitivity / 100) / 2.5), EPSILON)
+                    )
+                    / 100.0
+                )
             else:
-                # offset_ratio = -K * LN(1 - ratio) / 100
-                # As ratio → 1, LN(1-ratio) → -∞, so -LN(1-ratio) → +∞
-                # This creates acceleration effect near threshold
-                offset_ratio = -K * math.log(1.0 - ratio) / 100.0
+                # Negative sensitivity: alternative formula
+                # offset_ratio = -V1_K_LEFT_NEGATIVE * LN(1 - ratio / 2) / 100
+                offset_ratio = (
+                    -V1_K_LEFT_NEGATIVE
+                    * math.log(max((1 - relative_position / (1.12 - left_sensitivity / 100)), EPSILON))
+                    / 100.0
+                )
 
                 # Clamp offset_ratio to [0, 1] to prevent overflow
                 offset_ratio = max(0.0, min(1.0, offset_ratio))
 
-    # Step 6: Map back to original space
-    if is_left:
-        position = ip - space * offset_ratio
+        # Map back to original distance
+        position = _initial_position - distance * offset_ratio
+
     else:
-        position = ip + space * offset_ratio
+        # Right segment: [_initial_position, 1000]
+        distance = 1000.0 - _initial_position
+
+        # Handle boundary cases for right_sensitivity
+        if right_sensitivity >= 100:
+            # Maximum sensitivity: always full offset
+            offset_ratio = 1.0
+        elif right_sensitivity <= -100:
+            # Minimum sensitivity: no offset
+            offset_ratio = 0.0
+        else:
+            # Calculate normalized distance from origin
+            relative_position = (_score - _initial_position) / (1000.0 - _initial_position)
+
+            # Different formulas based on sensitivity sign
+            if right_sensitivity >= 0:
+                # Positive sensitivity: standard logarithmic formula
+                # offset_ratio = -V1_K_RIGHT_POSITIVE * LN(1 - ratio) / 100
+                offset_ratio = (
+                    -V1_K_RIGHT_POSITIVE
+                    * math.log(
+                        max((1 - relative_position / (1.12 - right_sensitivity / 100 / 2.5)), EPSILON)
+                    )
+                    / 100.0
+                )
+            else:
+                # Negative sensitivity: alternative formula
+                # offset_ratio = -V1_K_RIGHT_NEGATIVE * LN(1 - ratio / 2) / 100
+                offset_ratio = (
+                    -V1_K_RIGHT_NEGATIVE
+                    * math.log(max((1 - relative_position / (1.12 - right_sensitivity / 100)), EPSILON))
+                    / 100.0
+                )
+
+                # Clamp offset_ratio to [0, 1] to prevent overflow
+                offset_ratio = max(0.0, min(1.0, offset_ratio))
+
+        # Map back to original distance
+        position = _initial_position + distance * offset_ratio
 
     # Final safety clamp to ensure result is within valid range
     return max(0.0, min(1000.0, position))
@@ -231,7 +259,7 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
     except ValueError:
         return {
             "name": "Unknown",
-            "description": "Unknown algorithm",
+            "descr_initial_positiontion": "Unknown algorithm",
             "parameters": [],
             "formula": "N/A",
         }
@@ -240,7 +268,7 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
         return {
             "name": "None (direct)",
             "version": "1.0",
-            "description": "Direct score to position mapping without offset",
+            "descr_initial_positiontion": "Direct score to position mapping without offset",
             "parameters": [],
             "formula": "position = score",
         }
@@ -248,30 +276,30 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
         return {
             "name": "V1",
             "version": "5.0",
-            "description": "Nonlinear position mapping with sensitivity-controlled logarithmic offset. Uses fixed space mapping with mirrored left/right calculation, monotonically increasing, nonlinear acceleration near threshold.",
+            "descr_initial_positiontion": "Nonlinear position mapping with sensitivity-controlled logarithmic offset. Uses fixed distance mapping with mirrored left/right calculation, monotonically increasing, nonlinear acceleration near threshold.",
             "parameters": [
                 {
                     "name": "left_sensitivity",
                     "type": "integer",
                     "default": 0,
                     "range": [-100, 100],
-                    "description": "Left segment sensitivity control: 100 (most sensitive) to -100 (least sensitive)",
+                    "descr_initial_positiontion": "Left segment sensitivity control: 100 (most sensitive) to -100 (least sensitive)",
                 },
                 {
                     "name": "right_sensitivity",
                     "type": "integer",
                     "default": 0,
                     "range": [-100, 100],
-                    "description": "Right segment sensitivity control: 100 (most sensitive) to -100 (least sensitive)",
+                    "descr_initial_positiontion": "Right segment sensitivity control: 100 (most sensitive) to -100 (least sensitive)",
                 },
             ],
-            "formula": "threshold = 1 - sensitivity/100; ratio = normalized_distance / threshold; if ratio < 1: offset_ratio = -K*ln(1-ratio)/100; position = ip ± space*offset_ratio",
+            "formula": "if sensitivity=100: offset_ratio=1; elif sensitivity=-100: offset_ratio=0; else: threshold=1-sensitivity/100, ratio=relative_position/threshold, offset_ratio=-K*ln(1-ratio)/100; position=_initial_position±distance*offset_ratio",
         }
     else:
         return {
             "name": "Unknown",
             "version": "0.0",
-            "description": "Unknown algorithm",
+            "descr_initial_positiontion": "Unknown algorithm",
             "parameters": [],
             "formula": "N/A",
         }
@@ -304,11 +332,15 @@ def validate_algorithm_params(algorithm: int, params: Dict[str, Any]) -> bool:
                 return False
 
         # Validate left_sensitivity range
-        if not isinstance(params["left_sensitivity"], (int, float)) or not (-100 <= params["left_sensitivity"] <= 100):
+        if not isinstance(params["left_sensitivity"], (int, float)) or not (
+            -100 <= params["left_sensitivity"] <= 100
+        ):
             return False
 
         # Validate right_sensitivity range
-        if not isinstance(params["right_sensitivity"], (int, float)) or not (-100 <= params["right_sensitivity"] <= 100):
+        if not isinstance(params["right_sensitivity"], (int, float)) or not (
+            -100 <= params["right_sensitivity"] <= 100
+        ):
             return False
 
         return True

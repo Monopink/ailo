@@ -185,21 +185,28 @@ async def get_response_schema(db: AsyncSession, character_qiao_id: str) -> Dict[
 
         character_data = await get_character_with_relations(db, character_qiao_id)
         if not character_data:
-            logger.warning("character_not_found_for_schema", character_qiao_id=character_qiao_id)
-            return _get_default_response_schema()
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="character_not_found",
+                message=f"Character {character_qiao_id} not found for schema generation",
+            )
 
         style = character_data.get("style")
         if not style:
-            logger.warning("no_style_for_schema", character_qiao_id=character_qiao_id)
-            return _get_default_response_schema()
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="style_not_found",
+                message=f"Character {character_qiao_id} missing style configuration",
+            )
 
         # Get dimensions for the style
         dimensions = character_data.get("dimensions", [])
         if not dimensions:
-            logger.warning(
-                "no_dimensions_for_schema", character_qiao_id=character_qiao_id, style_id=style.id
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="dimensions_not_found",
+                message=f"No dimensions configured for style {style.id}",
             )
-            return _get_default_response_schema()
 
         # Build dynamic schema based on style and dimensions
         schema = _build_dynamic_response_schema(style, dimensions)
@@ -213,10 +220,15 @@ async def get_response_schema(db: AsyncSession, character_qiao_id: str) -> Dict[
 
         return schema
 
+    except AIServiceError:
+        raise
     except Exception as e:
         logger.error("response_schema_build_failed", error=str(e), character_qiao_id=character_qiao_id)
-        # Non-fatal error: return default schema
-        return _get_default_response_schema()
+        raise AIServiceError(
+            ai_service="schema_building",
+            reason="unexpected_error",
+            message=f"Failed to build response schema: {str(e)}",
+        ) from e
 
 
 async def _build_placeholder_values(
@@ -283,6 +295,21 @@ async def _build_placeholder_values(
             score_placeholders = await _build_score_placeholders(db, character_qiao_id)
             placeholder_values.update(score_placeholders)
 
+        # Fill in template-defined placeholders with defaults if not already provided
+        if available_placeholders:
+            for placeholder in available_placeholders:
+                if isinstance(placeholder, dict):
+                    key = placeholder.get("placeholder_key")
+                    example_value = placeholder.get("example_value")
+                else:
+                    key = getattr(placeholder, "placeholder_key", None)
+                    example_value = getattr(placeholder, "example_value", None)
+
+                if not key or key in placeholder_values:
+                    continue
+
+                placeholder_values[key] = ""
+
         logger.debug(
             "placeholder_values_built",
             user_qiao_id=user_qiao_id,
@@ -315,7 +342,7 @@ async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) ->
         Dictionary of score placeholders in format {"score:dimension_name": "value"}
     """
     try:
-        from .relationship import get_relationship_scores
+        from .relationship_scoring import get_relationship_scores
 
         # Get current scores for the character
         scores = await get_relationship_scores(db, character_qiao_id)
@@ -490,29 +517,6 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
             reason="build_failed",
             message=f"Failed to build dynamic schema: {str(e)}",
         )
-
-
-def _get_default_response_schema() -> Dict[str, Any]:
-    """
-    Get default JSON schema for AI responses.
-
-    Note: This function should only be used as a last resort fallback
-    when style configuration cannot be loaded. In normal operation,
-    all schemas should be built dynamically from style.score_name.
-    """
-    logger.warning(
-        "using_default_response_schema",
-        message="Using default schema instead of dynamic schema. This may indicate a configuration issue.",
-    )
-
-    # Use generic score names as absolute fallback
-    score_properties = {
-        "friend": {"type": "integer", "minimum": 0, "maximum": 1000},
-        "romance": {"type": "integer", "minimum": 0, "maximum": 1000},
-    }
-    score_required = ["friend", "romance"]
-
-    return _get_base_response_schema(score_properties, score_required)
 
 
 def _get_base_response_schema(
@@ -704,7 +708,7 @@ async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, te
         AIServiceError: If score formatting fails
     """
     try:
-        from .relationship import get_relationship_scores
+        from .relationship_scoring import get_relationship_scores
         import re
 
         # Find all score placeholders in format {{score:dimension_name}}

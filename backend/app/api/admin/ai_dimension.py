@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from services.admin.style_data import (
+from services.admin.data.style_dimensions import (
     get_dimension_relationship_mappings as admin_get_dimension_relationship_mappings,
 )
 from utils.logging import get_logger

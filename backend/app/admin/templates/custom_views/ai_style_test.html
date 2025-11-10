@@ -149,18 +149,31 @@
                         </select>
                       </div>
                       <div class="col-12 v1-params" data-for="{{ dimension.name }}">
+                        {% set v1_specs = algorithm_param_specs.get(2, []) %}
+                        {% if v1_specs %}
                         <div class="row g-2">
+                          {% for param in v1_specs %}
                           <div class="col-6">
-                            <label class="form-label">Left Sensitivity (%)</label>
-                            <input type="number" class="form-control" name="left_sensitivity_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.left_sensitivity|default(0) }}{% else %}0{% endif %}">
-                            <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
+                            <label class="form-label">{{ param.label }}{% if param.required %} <span class="text-danger">*</span>{% endif %}</label>
+                            <input
+                              type="number"
+                              class="form-control"
+                              name="{{ param.name }}_{{ dimension.name }}"
+                              value="{% if ns.result and ns.result.parameters and param.name in ns.result.parameters %}{{ ns.result.parameters[param.name] }}{% endif %}"
+                              {% if param.min is not none %}min="{{ param.min|int if param.input_type == 'integer' else param.min }}"{% endif %}
+                              {% if param.max is not none %}max="{{ param.max|int if param.input_type == 'integer' else param.max }}"{% endif %}
+                              {% if param.step is not none %}step="{{ param.step }}"{% endif %}
+                              {% if param.required %}required{% endif %}
+                            >
+                            <div class="form-text">{{ param.description }}</div>
                           </div>
-                          <div class="col-6">
-                            <label class="form-label">Right Sensitivity (%)</label>
-                            <input type="number" class="form-control" name="right_sensitivity_{{ dimension.name }}" min="-100" max="100" step="1" value="{% if ns.result and ns.result.parameters %}{{ ns.result.parameters.right_sensitivity|default(0) }}{% else %}0{% endif %}">
-                            <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
-                          </div>
+                          {% endfor %}
                         </div>
+                        {% else %}
+                        <div class="alert alert-warning mb-0">
+                          <i class="fas fa-exclamation-triangle me-2"></i>No parameter specification registered for V1.
+                        </div>
+                        {% endif %}
                       </div>
                       <div class="col-12">
                         <label class="form-label">Initial Position</label>
@@ -180,14 +193,14 @@
                     <div class="d-flex align-items-center flex-wrap gap-2">
                       <span class="text-muted small">Mapped</span>
                       <span class="fw-bold">{% if ns.result %}{{ ns.result.mapped_position|round(0)|int }}{% endif %}</span>
-                      <span class="text-muted small">+ Position Offset</span>
+                      <span class="text-muted small">+ Offset</span>
                       {% if ns.result %}
                       {% set _off = (ns.result.offset | round(0) | int) %}
                       <span class="fw-bold {% if _off > 0 %}text-success{% elif _off < 0 %}text-danger{% endif %}">{{ _off }}</span>
                       {% else %}
                       <span class="fw-bold"></span>
                       {% endif %}
-                      <span class="text-muted small">= Final</span>
+                      <span class="text-muted small">= Position</span>
                       <span class="fw-bold">{% if ns.result %}{{ ns.result.final_position|round(0)|int }}{% endif %}</span>
                     </div>
                   </div>
@@ -291,12 +304,19 @@
 </div>
 
 <script>
+  const V1_ALGORITHM = 2;
+  const algorithmParamSpecs = {{ (algorithm_param_specs or {}) | tojson | safe }};
+
+  function getSpecsForAlgorithm(algorithm) {
+    return algorithmParamSpecs[String(algorithm)] || [];
+  }
+
   function updateParamVisibility() {
     document.querySelectorAll('.algo-select').forEach(sel => {
       const dim = sel.getAttribute('data-dim');
       const v1 = document.querySelector(`.v1-params[data-for="${dim}"]`);
       if (!v1) return;
-      if (String(sel.value) === '2') {
+      if (String(sel.value) === String(V1_ALGORITHM)) {
         v1.classList.remove('d-none');
       } else {
         v1.classList.add('d-none');
@@ -347,15 +367,28 @@
   function resetAllDimensions() { document.querySelectorAll('input[name^="score_"]').forEach(inp => { if (inp.name.includes('_min_')) inp.value = '0'; else if (inp.name.includes('_max_')) inp.value = '1000'; else if (inp.name.startsWith('score_')) inp.value = '500'; }); }
   function setRandomValues() {
     document.querySelectorAll('select[name^="algorithm_"]').forEach(sel => {
-      sel.value = (Math.random() < 0.5 ? '1' : '2');
+      sel.value = (Math.random() < 0.5 ? '1' : String(V1_ALGORITHM));
     });
     // Refresh parameter visibility after programmatic changes
     updateParamVisibility();
-    document.querySelectorAll('input[name^="left_sensitivity_"]').forEach(inp => {
-      inp.value = Math.floor(Math.random() * 201) - 100;
-    });
-    document.querySelectorAll('input[name^="right_sensitivity_"]').forEach(inp => {
-      inp.value = Math.floor(Math.random() * 201) - 100;
+    const specs = getSpecsForAlgorithm(V1_ALGORITHM);
+    document.querySelectorAll('.v1-params').forEach(section => {
+      const dimensionName = section.getAttribute('data-for');
+      specs.forEach(spec => {
+        const input = document.querySelector(`input[name="${spec.name}_${dimensionName}"]`);
+        if (!input) return;
+        const min = typeof spec.min === 'number' ? spec.min : -100;
+        const max = typeof spec.max === 'number' ? spec.max : 100;
+        if (spec.input_type === 'integer') {
+          const minInt = Math.ceil(min);
+          const maxInt = Math.floor(max);
+          const value = Math.floor(Math.random() * (maxInt - minInt + 1)) + minInt;
+          input.value = value;
+        } else {
+          const value = Math.random() * (max - min) + min;
+          input.value = value.toFixed(2);
+        }
+      });
     });
     document.querySelectorAll('input[name^="score_"]:not([name*="_min_"]):not([name*="_max_"])').forEach(inp => {
       inp.value = Math.floor(Math.random() * 1000);

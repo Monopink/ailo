@@ -50,8 +50,8 @@ class LLMTestLog(ImmutableSnowflakeModel):
         Integer, nullable=True, comment="Override max tokens parameter"
     )
 
-    enable_thinking: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Enable thinking mode: 0=no, 1=yes"
+    thinking_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, comment="Thinking mode: enabled/disabled/auto"
     )
 
     enable_json_schema: Mapped[int] = mapped_column(

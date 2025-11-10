@@ -1,0 +1,215 @@
+"""
+Admin character relationship generation service.
+
+Provides functionality for generating and previewing character relationships
+based on dimension scores and mapping algorithms.
+"""
+
+from typing import Any, Dict, List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from models.ai.character import AICharacter
+from models.ai.style import AIDimension, AIStyleDimension
+from crud.ai.character_dimension import get_by_character
+from services.ai.utils.score_mapping import map_to_permille
+from services.ai.utils.position_mapping import map_score_to_position
+from services.ai.relationship_selection import collect_candidates, select_final_relationship
+from services.ai.relationship_scoring import (
+    calculate_new_scores,
+    update_relationship_positions,
+    update_current_relationship,
+)
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+async def generate_relationship_for_character(
+    db: AsyncSession,
+    *,
+    character_id: int,
+    overrides: Optional[Dict[str, Any]] = None,
+    preview: bool = True,
+) -> Dict[str, Any]:
+    """
+    Generate relationship for a character using current or overridden per-dimension inputs.
+
+    - Uses JSON Schema min/max for mapping to [0,1000].
+    - Applies per-dimension offset and collects candidates.
+    - Applies per-dimension current relationship filtering.
+    - Selects final relationship by priority (tie->empty).
+    - preview=True -> does not persist; preview=False -> persist positions and current relationship.
+    """
+    # Load character with style, personality and qiao_id
+    result = await db.execute(
+        select(AICharacter)
+        .where(AICharacter.id == character_id)
+        .options(selectinload(AICharacter.style), selectinload(AICharacter.personality))
+    )
+    character = result.scalar_one_or_none()
+    if not character:
+        return {"success": False, "message": "Character not found"}
+
+    # Load dimensions for style
+    dims_result = await db.execute(
+        select(AIDimension, AIStyleDimension.initial_position)
+        .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
+        .where(AIStyleDimension.style_id == character.style_id)
+        .order_by(AIDimension.name)
+    )
+    style_dims = [
+        type(
+            "_Tmp",
+            (),
+            {
+                "id": dim.id,
+                "name": dim.name,
+                "display_name": dim.display_name,
+                "initial_position": init_pos,
+            },
+        )
+        for dim, init_pos in dims_result.all()
+    ]
+    if not style_dims:
+        return {"success": False, "message": "No dimensions configured for this style"}
+
+    # Read JSON Schema for mapping ranges from personality
+    json_schema = character.personality.json_schema or {}
+    score_props = json_schema.get("properties", {}).get("score", {}).get("properties", {})
+
+    # Read current character dimensions
+    char_scores = await get_by_character(db, character_id)
+    score_map = {row["dimension_id"]: row for row in char_scores} if char_scores else {}
+
+    # Build override map for quick lookup by dimension_id
+    override_map: Dict[int, Dict[str, Any]] = {}
+    if overrides and isinstance(overrides.get("dimensions"), list):
+        for d in overrides["dimensions"]:
+            try:
+                override_map[int(d.get("dimension_id"))] = d
+            except Exception:
+                continue
+
+    # Process per-dimension mapping+offset and collect candidates
+    dimension_results: List[Dict[str, Any]] = []
+    all_candidates: List[Dict[str, Any]] = []
+
+    for dim in style_dims:
+        ov = override_map.get(dim.id, {})
+        # Score: override -> current -> fallback 500
+        score = ov.get("score")
+        if score is None:
+            base = score_map.get(dim.id, {})
+            score = base.get("score", 500)
+        try:
+            score = float(score)
+        except Exception:
+            score = 500.0
+
+        # Algorithm & params: override -> current -> defaults
+        algorithm = ov.get("position_mapping_algorithm")
+        if algorithm is None:
+            base = score_map.get(dim.id, {})
+            algorithm = base.get("position_mapping_algorithm", 1)
+        try:
+            algorithm = int(algorithm)
+        except Exception:
+            algorithm = 1
+
+        params = ov.get("position_mapping_params") or {}
+        if not params:
+            base = score_map.get(dim.id, {})
+            params = base.get("position_mapping_params", {}) or {}
+
+        # Map using JSON Schema ranges (fallback 0..1000)
+        dim_schema = score_props.get(dim.name, {}) if isinstance(score_props, dict) else {}
+        min_v = dim_schema.get("minimum", 0)
+        max_v = dim_schema.get("maximum", 1000)
+        try:
+            mapped = map_to_permille(score, float(min_v), float(max_v))
+        except Exception as e:
+            logger.error(
+                "character_generate_mapping_failed",
+                character_id=character_id,
+                dimension=dim.name,
+                error=str(e),
+            )
+            return {"success": False, "message": f"Mapping failed for {dim.display_name}"}
+
+        # Apply offset
+        final_pos = map_score_to_position(
+            algorithm=algorithm, score=float(mapped), initial_position=dim.initial_position, params=params
+        )
+
+        # half-up rounding to int
+        mapped_i = max(0, min(1000, int(float(mapped) + 0.5)))
+        final_i = max(0, min(1000, int(float(final_pos) + 0.5)))
+
+        # Collect candidates
+        candidates = await collect_candidates(
+            db, style_id=int(character.style_id), dimension_id=int(dim.id), position=final_i
+        )
+
+        # Per-dimension current relationship filtering
+        current_rel_id = getattr(character, "relationship_id", None)
+        if current_rel_id is not None and candidates:
+            current_in_candidates = any(
+                int(c.get("relationship_id")) == int(current_rel_id) for c in candidates
+            )
+            if current_in_candidates:
+                candidates = [c for c in candidates if int(c.get("relationship_id")) == int(current_rel_id)]
+
+        all_candidates.extend(candidates)
+
+        dimension_results.append(
+            {
+                "dimension_id": dim.id,
+                "dimension_name": dim.name,
+                "dimension_display_name": dim.display_name,
+                "input_score": score,
+                "score_min": min_v,
+                "score_max": max_v,
+                "mapped_position": mapped_i,
+                "initial_position": dim.initial_position,
+                "algorithm": algorithm,
+                "parameters": params,
+                "final_position": final_i,
+                "offset": final_i - mapped_i,
+                "candidates": candidates,
+            }
+        )
+
+    # Final selection
+    selection = select_final_relationship(all_candidates, higher_is_better=True)
+    selected = selection.get("relationship")
+    reason = selection.get("reason")
+
+    # Persist (optional): positions and current relationship
+    if not preview:
+        try:
+            # Use overrides.score as llm_response_scores; calculate_new_scores will map via schema again
+            llm_scores = {dr["dimension_name"]: int(dr["input_score"]) for dr in dimension_results}
+            character_info = {
+                "character_id": character_id,
+                "style_id": character.style_id,
+                "character": character,
+            }
+            new_scores = await calculate_new_scores(db, character_info, llm_scores)
+            await update_relationship_positions(db, character_id, new_scores)
+            if selected:
+                disp = selected.get("relationship_display_name") or selected.get("relationship_name") or ""
+                await update_current_relationship(
+                    db, character_id, int(selected.get("relationship_id")), disp
+                )
+        except Exception as e:
+            logger.error("character_generate_persist_failed", character_id=character_id, error=str(e))
+            return {"success": False, "message": f"Persist failed: {str(e)}"}
+
+    return {
+        "success": True,
+        "dimension_results": dimension_results,
+        "selected_relationship": selected,
+        "selection_reason": reason,
+    }

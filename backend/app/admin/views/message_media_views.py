@@ -63,7 +63,14 @@ class MessageHistoryView(ModelView):
         StringField("conversation_id", label="Conversation ID", help_text="Conversation identifier"),
         StringField("msg_id_server", label="Server Message ID", help_text="Server-generated message ID"),
         StringField(
-            "msg_id_provider", label="Provider Message ID", help_text="Third-party provider message ID"
+            "msg_id_provider_inbound",
+            label="Inbound Provider Message ID",
+            help_text="Third-party provider message ID for inbound messages",
+        ),
+        StringField(
+            "msg_id_provider_outbound",
+            label="Outbound Provider Message ID",
+            help_text="Third-party provider message ID for outbound messages",
         ),
         StringField("msg_id_client", label="Client Message ID", help_text="Client-generated message ID"),
         "client_sent_time",

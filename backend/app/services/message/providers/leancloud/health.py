@@ -13,10 +13,7 @@ logger = get_logger(__name__)
 
 
 async def check_leancloud_health(
-    app_id: str,
-    master_key: str,
-    base_url: str,
-    timeout: float = 5.0
+    app_id: str, master_key: str, base_url: str, timeout: float = 5.0
 ) -> tuple[bool, Optional[str]]:
     """
     Check LeanCloud service health.
@@ -51,7 +48,7 @@ async def check_leancloud_health(
         headers = {
             "X-LC-Id": app_id,
             "X-LC-Key": f"{master_key},master",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -65,7 +62,7 @@ async def check_leancloud_health(
                 logger.warning(
                     "leancloud_health_check_failed",
                     status=response.status_code,
-                    response_text=response.text[:200]  # Log first 200 chars
+                    response_text=response.text[:200],  # Log first 200 chars
                 )
                 return False, error_msg
 
@@ -87,10 +84,6 @@ async def check_leancloud_health(
     except Exception as e:
         error_msg = f"Unexpected error: {str(e)}"
         logger.error(
-            "leancloud_health_check_error",
-            error=str(e),
-            error_type=type(e).__name__,
-            exc_info=True
+            "leancloud_health_check_error", error=str(e), error_type=type(e).__name__, exc_info=True
         )
         return False, error_msg
-

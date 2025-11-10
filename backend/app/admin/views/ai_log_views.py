@@ -11,6 +11,7 @@ from starlette_admin.fields import JSONField
 
 from models.ai.log import AIRequestLog
 from admin.views.base import IntegerEnumField
+from admin.fields import LocalDateTimeField
 from enums import AIRequestStatus
 
 
@@ -83,8 +84,8 @@ class AIRequestLogView(ModelView):
         IntegerEnumField("status", enum=AIRequestStatus, label="Status"),
         IntegerField("token_count", label="Token Count"),
         IntegerField("response_time", label="Response Time (ms)"),
-        "created_at",
-        "completed_at",
+        LocalDateTimeField("created_at", label="Created At", help_text="Request creation time"),
+        LocalDateTimeField("completed_at", label="Completed At", help_text="Request completion time"),
     ]
 
 

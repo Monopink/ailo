@@ -4,8 +4,8 @@ LLM configuration model.
 This module contains the LLMConfig SQLAlchemy model.
 """
 
-from typing import Optional, TYPE_CHECKING
-from sqlalchemy import Integer, String, DECIMAL, Index, text
+from typing import Optional, TYPE_CHECKING, List
+from sqlalchemy import Integer, String, DECIMAL, Index, text, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,22 +57,44 @@ class LLMConfig(AutoIncrementModel):
         Integer, nullable=True, comment="Timeout in seconds"
     )
 
-    max_retries: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Maximum retry attempts"
+    thinking_mode: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="auto",
+        server_default=text("'auto'"),
+        comment="Thinking mode: enabled=force on, disabled=force off, auto=let model decide",
     )
 
-    enable_streaming: Mapped[int] = mapped_column(
-        Integer,
+    top_p: Mapped[float] = mapped_column(
+        DECIMAL(3, 2),
         nullable=False,
-        default=0,
-        comment="Enable streaming output: 1=yes, 0=no",
+        default=0.70,
+        server_default=text("0.70"),
+        comment="Nucleus sampling threshold [0, 1]. Controls diversity of output.",
     )
 
-    enable_thinking: Mapped[int] = mapped_column(
-        Integer,
+    frequency_penalty: Mapped[float] = mapped_column(
+        DECIMAL(3, 2),
         nullable=False,
-        default=0,
-        comment="Enable thinking mode: 1=yes, 0=no",
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Frequency penalty [-2, 2]. Reduces repetition based on token frequency.",
+    )
+
+    presence_penalty: Mapped[float] = mapped_column(
+        DECIMAL(3, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Presence penalty [-2, 2]. Encourages new topics based on token presence.",
+    )
+
+    stop_sequences: Mapped[List[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'::jsonb"),
+        comment="Stop sequences (max 4 strings). Model stops when encountering these strings.",
     )
 
     json_schema_mode: Mapped[Optional[str]] = mapped_column(
@@ -98,9 +120,14 @@ class LLMConfig(AutoIncrementModel):
     )
 
     extra_params: Mapped[Optional[dict]] = mapped_column(
-        JSONB, nullable=True, comment="Additional configuration parameters in JSON format"
+        JSONB, nullable=True, comment="Provider-specific parameters (e.g., max_completion_tokens, service_tier)"
     )
 
-    # Indexes - Only essential indexes for MVP
-    # Note: name already has unique index
-    __table_args__ = (Index("idx_llm_configs_provider_id", "provider_id"),)
+    # Indexes and constraints
+    __table_args__ = (
+        Index("idx_llm_configs_provider_id", "provider_id"),
+        CheckConstraint("thinking_mode IN ('enabled', 'disabled', 'auto')", name="check_thinking_mode"),
+        CheckConstraint("top_p >= 0 AND top_p <= 1", name="check_top_p"),
+        CheckConstraint("frequency_penalty >= -2 AND frequency_penalty <= 2", name="check_frequency_penalty"),
+        CheckConstraint("presence_penalty >= -2 AND presence_penalty <= 2", name="check_presence_penalty"),
+    )

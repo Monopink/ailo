@@ -271,7 +271,7 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
   "speaking_style": "轻松幽默，喜欢开玩笑，使用一些网络用语和表情，像好兄弟一样"
 }',
 1,
-'{"left_sensitivity": -10, "right_sensitivity": 10}',
+'{"left_sensitivity": -10, "right_sensitivity": 10, "left_positive_gain": 45, "left_negative_gain": 39, "right_positive_gain": 45, "right_negative_gain": 39}',
 223788765171154947, 'qqid_test_user_003',
 1)
 ON CONFLICT (qiao_id) DO NOTHING;
@@ -300,16 +300,33 @@ INSERT INTO contact_requests (id, from_qiao_id, from_type, from_id, to_qiao_id, 
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample message history for testing
-INSERT INTO message_history (id, msg_id_server, conversation_id, direction, from_type, from_id, from_qiao_id, to_type, to_id, to_qiao_id, message_type, content, service_provider, status) VALUES
+INSERT INTO message_history (
+    id,
+    msg_id_server,
+    msg_id_provider_inbound,
+    msg_id_provider_outbound,
+    conversation_id,
+    direction,
+    from_type,
+    from_id,
+    from_qiao_id,
+    to_type,
+    to_id,
+    to_qiao_id,
+    message_type,
+    content,
+    service_provider,
+    status
+) VALUES
 -- Conversation between test_user_001 and 小乔
-(223788765171154971, 'msg_001', 'conv_001', 2, 1, 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, '你好，小乔！', 2, 1),
-(223788765171154972, 'msg_002', 'conv_001', 1, 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 223788765171154945, 'qqid_test_user_001', 1, '你好！很高兴认识你～', 2, 1),
+(223788765171154971, 'msg_001', NULL, 'lc_out_001', 'conv_001', 2, 1, 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, '你好，小乔！', 2, 1),
+(223788765171154972, 'msg_002', 'lc_in_001', NULL, 'conv_001', 1, 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 223788765171154945, 'qqid_test_user_001', 1, '你好！很高兴认识你～', 2, 1),
 -- Conversation between test_user_002 and 小甜
-(223788765171154973, 'msg_003', 'conv_003', 2, 1, 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, '小甜，你在做什么呢？', 2, 1),
-(223788765171154974, 'msg_004', 'conv_003', 1, 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, 223788765171154946, 'qqid_test_user_002', 1, '嘻嘻，我在看电影呢～你呢？', 2, 1),
+(223788765171154973, 'msg_003', NULL, 'lc_out_002', 'conv_003', 2, 1, 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, '小甜，你在做什么呢？', 2, 1),
+(223788765171154974, 'msg_004', 'lc_in_002', NULL, 'conv_003', 1, 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, 223788765171154946, 'qqid_test_user_002', 1, '嘻嘻，我在看电影呢～你呢？', 2, 1),
 -- Conversation between test_user_003 and 阿杰
-(223788765171154975, 'msg_005', 'conv_004', 2, 1, 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, '阿杰，最近怎么样？', 2, 1),
-(223788765171154976, 'msg_006', 'conv_004', 1, 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, 223788765171154947, 'qqid_test_user_003', 1, '哈哈，挺好的！刚打完篮球，你呢兄弟？', 2, 1)
+(223788765171154975, 'msg_005', NULL, 'lc_out_003', 'conv_004', 2, 1, 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, '阿杰，最近怎么样？', 2, 1),
+(223788765171154976, 'msg_006', 'lc_in_003', NULL, 'conv_004', 1, 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, 223788765171154947, 'qqid_test_user_003', 1, '哈哈，挺好的！刚打完篮球，你呢兄弟？', 2, 1)
 ON CONFLICT (msg_id_server) DO NOTHING;
 
 -- ============================================================================

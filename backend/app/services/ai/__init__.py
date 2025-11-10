@@ -62,13 +62,12 @@ from services.llm import (
 )
 
 # Data access functions (for advanced usage)
-from .data import (
+from .queries import (
     get_character_with_relations,
     get_conversation_history,
     get_character_relationship_scores,
     save_context_entry,
     update_relationship_scores,
-    save_ai_response,
 )
 
 __all__ = [
@@ -104,7 +103,6 @@ __all__ = [
     "get_character_relationship_scores",
     "save_context_entry",
     "update_relationship_scores",
-    "save_ai_response",
     # Note: Exception classes moved to exceptions/business.py for consistency
     # Import from exceptions module: AICharacterNotFoundError, AICharacterInactiveError,
     # AICharacterCreationError, AIConversationError, AIRelationshipError, AIServiceError

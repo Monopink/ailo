@@ -123,6 +123,22 @@
                     <div class="fw-medium">{{ llm_config.timeout_seconds }}s</div>
                 </div>
                 <div class="p-2 bg-secondary-lt rounded">
+                    <div class="text-secondary small mb-1">Thinking Mode (Default)</div>
+                    <div class="fw-medium text-capitalize">{{ llm_config.thinking_mode }}</div>
+                </div>
+                <div class="p-2 bg-secondary-lt rounded">
+                    <div class="text-secondary small mb-1">Top P</div>
+                    <div class="fw-medium">{{ llm_config.top_p }}</div>
+                </div>
+                <div class="p-2 bg-secondary-lt rounded">
+                    <div class="text-secondary small mb-1">Frequency Penalty</div>
+                    <div class="fw-medium">{{ llm_config.frequency_penalty }}</div>
+                </div>
+                <div class="p-2 bg-secondary-lt rounded">
+                    <div class="text-secondary small mb-1">Presence Penalty</div>
+                    <div class="fw-medium">{{ llm_config.presence_penalty }}</div>
+                </div>
+                <div class="p-2 bg-secondary-lt rounded">
                     <div class="text-secondary small mb-1">JSON Schema Mode</div>
                     <div class="fw-medium">
                         {% if llm_config.json_schema_mode == 'strict' %}
@@ -131,6 +147,20 @@
                         <span class="text-danger">✗ Disabled (Not Supported)</span>
                         {% else %}
                         <span class="text-warning">⚠ Auto (Not Tested)</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="p-2 bg-secondary-lt rounded">
+                    <div class="text-secondary small mb-1">Stop Sequences</div>
+                    <div class="fw-medium text-monospace small">{{ llm_config.stop_sequences_display }}</div>
+                </div>
+                <div class="p-2 bg-secondary-lt rounded">
+                    <div class="text-secondary small mb-1">Extra Parameters</div>
+                    <div class="fw-medium text-monospace small">
+                        {% if llm_config.extra_params_display %}
+                        {{ llm_config.extra_params_display }}
+                        {% else %}
+                        {}
                         {% endif %}
                     </div>
                 </div>
@@ -178,13 +208,16 @@
                         value="{{ llm_config.max_tokens if llm_config.max_tokens else 2000 }}" disabled>
                 </div>
 
-                <!-- Enable Thinking Mode -->
+                <!-- Thinking Mode -->
                 {% if llm_config.supports_thinking %}
                 <div class="mb-3">
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="enable_thinking" name="enable_thinking" value="1">
-                        <label class="form-check-label" for="enable_thinking">Enable Thinking Mode</label>
-                    </div>
+                    <label for="thinking_mode" class="form-label">Thinking Mode</label>
+                    <select class="form-select" id="thinking_mode" name="thinking_mode" style="width: 200px;">
+                        <option value="auto" {% if llm_config.thinking_mode == 'auto' %}selected{% endif %}>Auto (Let Model Decide)</option>
+                        <option value="enabled" {% if llm_config.thinking_mode == 'enabled' %}selected{% endif %}>Enabled (Force On)</option>
+                        <option value="disabled" {% if llm_config.thinking_mode == 'disabled' %}selected{% endif %}>Disabled (Force Off)</option>
+                    </select>
+                    <div class="form-text">Override the thinking mode for this test. Default: {{ llm_config.thinking_mode }}</div>
                 </div>
                 {% endif %}
 

@@ -29,7 +29,7 @@ async def refresh_leancloud_conversation(
     admin_user: dict = Depends(verify_admin_session),
 ):
     """
-    Refresh LeanCloud system conversation.
+    Refresh LeanCloud IM system conversation.
 
     Creates a new system conversation and updates the stored conversation_id.
     This endpoint should be used when the old conversation needs to be replaced.
@@ -143,9 +143,9 @@ async def get_leancloud_service_status(
     admin_user: dict = Depends(verify_admin_session),
 ):
     """
-    Get LeanCloud service status.
+    Get LeanCloud IM service status.
 
-    Tests LeanCloud API connectivity and returns service reachability status.
+    Tests LeanCloud IM API connectivity and returns service reachability status.
 
     Returns:
         dict: Service status information
@@ -166,7 +166,7 @@ async def get_leancloud_service_status(
         from datetime import datetime, timezone
         from services.config import config_service
 
-        # Get LeanCloud configuration
+        # Get LeanCloud IM configuration
         leancloud_config = await config_service.get_leancloud_config(db)
 
         # Check if configuration is complete
@@ -182,7 +182,7 @@ async def get_leancloud_service_status(
                 "data": {
                     "service_reachable": False,
                     "last_check_time": datetime.now(timezone.utc).isoformat(),
-                    "error_message": "LeanCloud configuration incomplete",
+                    "error_message": "LeanCloud IM configuration incomplete",
                 },
             }
 
@@ -238,10 +238,10 @@ async def regenerate_webhook_token(
     admin_user: dict = Depends(verify_admin_session),
 ):
     """
-    Regenerate webhook security token.
+    Regenerate LeanCloud IM webhook security token.
 
     Generates a new random token and updates the database.
-    WARNING: After regenerating, you must update the webhook URL in LeanCloud console immediately.
+    WARNING: After regenerating, you must update the webhook URL in LeanCloud IM console immediately.
 
     Returns:
         dict: Success status and warning message
@@ -266,7 +266,7 @@ async def regenerate_webhook_token(
 
         # Update database
         updated_config = await system_configs.update_config_value(
-            db, config_key="leancloud_webhook_token", config_value=new_token, validate_enum=False
+            db, config_key="leancloud_im_webhook_token", config_value=new_token, validate_enum=False
         )
 
         if not updated_config:

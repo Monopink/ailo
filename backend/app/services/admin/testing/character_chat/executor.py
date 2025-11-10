@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.ai.conversation_flow import process_conversation
-from services.ai.data import save_context_entry
-from services.ai.data.mutations import finalize_context_if_locked
+from services.ai.queries import save_context_entry
+from services.ai.queries.updates import finalize_context_if_locked
 from enums import AIContextRole, AIAggregateState
 from models.ai.character import AICharacter
 from models.ai.log import AIRequestLog

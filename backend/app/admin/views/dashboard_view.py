@@ -36,13 +36,13 @@ class DashboardView(CustomView):
 
             from crud.system import system_configs
             from services.config import config_service
-            from services.message.health import get_message_service_status
+            from services.message.monitoring.health import get_message_service_status
 
             # Read initial data from database
-            webhook_token = await system_configs.get_config_value(db, config_key="leancloud_webhook_token")
+            webhook_token = await system_configs.get_config_value(db, config_key="leancloud_im_webhook_token")
             api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
             conversation_id = await system_configs.get_config_value(
-                db, config_key="leancloud_service_conversation_id"
+                db, config_key="leancloud_im_service_conversation_id"
             )
 
             # Get LeanCloud config

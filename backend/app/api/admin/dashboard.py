@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 
 from core.database import get_db
-from services.admin.dashboard_service import get_dashboard_stats
+from services.admin.data.dashboard import get_dashboard_stats
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

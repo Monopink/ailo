@@ -1062,6 +1062,12 @@
   function addMapping(dimensionId, dimensionName) {
     const tbody = document.getElementById('mappings-' + dimensionName);
 
+    // Check if relationships array is empty
+    if (!relationships || relationships.length === 0) {
+      alert('无法添加 Mapping：系统中没有可用的 Relationship 数据。\n\n请先在后台的 "AI > Relationships" 菜单中添加至少一个 Relationship，然后刷新此页面。');
+      return;
+    }
+
     const newMapping = {
       dimension_id: dimensionId,
       start_position: 0,

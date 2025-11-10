@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from services.system_config import SystemConfigService
+from exceptions import ConfigurationError, MissingConfigurationError
 
 
 class ConfigService:
@@ -24,13 +25,12 @@ class ConfigService:
         self._cache_enabled = True
 
     async def get_config(
-        self, db: AsyncSession, key: str, default: Any = None, use_cache: bool = True
+        self, db: AsyncSession, key: str, *, use_cache: bool = True, required: bool = True
     ) -> Any:
         """
         Get configuration value with fallback priority:
         1. Environment variable (if exists)
         2. Database configuration
-        3. Default value
         """
         # Check cache first
         if use_cache and self._cache_enabled and key in self._cache:
@@ -44,7 +44,7 @@ class ConfigService:
             return env_value
 
         # Check database configuration
-        db_value = await SystemConfigService.get_config(db, key, default)
+        db_value = await SystemConfigService.get_config(db, key, required=required)
 
         if use_cache and self._cache_enabled:
             self._cache[key] = db_value
@@ -52,27 +52,33 @@ class ConfigService:
         return db_value
 
     async def get_leancloud_config(self, db: AsyncSession) -> Dict[str, Any]:
-        """Get all LeanCloud configuration."""
+        """
+        Get all LeanCloud IM configuration.
+
+        Returns configuration values as-is (may contain None for missing configs).
+        Callers are responsible for validating completeness based on their needs.
+        """
         config = {
-            "app_id": await self.get_config(db, "leancloud_app_id", ""),
-            "app_key": await self.get_config(db, "leancloud_app_key", ""),
+            "app_id": await self.get_config(db, "leancloud_im_app_id", required=False),
+            "app_key": await self.get_config(db, "leancloud_im_app_key", required=False),
             "master_key": settings.LEANCLOUD_MASTER_KEY,  # Always from env
-            "server_url": await self.get_config(db, "leancloud_server_url", None),
-            "base_url": await self.get_config(db, "leancloud_base_url", "https://api.leancloud.cn"),
-            "webhook_enabled": await self.get_config(db, "leancloud_webhook_enabled", True),
-            "message_timeout_seconds": await self.get_config(db, "leancloud_message_timeout_seconds", 30),
-            "retry_max_count": await self.get_config(db, "leancloud_retry_max_count", 3),
-            "conversation_ttl_hours": await self.get_config(db, "leancloud_conversation_ttl_hours", 24),
+            "base_url": await self.get_config(db, "leancloud_im_server_url", required=False),
         }
         return config
 
-    async def get_int(self, db: AsyncSession, key: str, default: int = 0) -> int:
-        """Get configuration as integer with safe coercion."""
+    async def get_int(self, db: AsyncSession, key: str, *, required: bool = True) -> int:
+        """Get configuration as integer with strict coercion."""
         try:
-            value = await self.get_config(db, key, default)
+            value = await self.get_config(db, key, required=required)
+            if value is None:
+                raise MissingConfigurationError(config_key=key)
             return int(value)
-        except (TypeError, ValueError):
-            return int(default)
+        except (TypeError, ValueError) as exc:
+            raise ConfigurationError(
+                message=f"Configuration '{key}' must be an integer",
+                config_key=key,
+                details={"value": value},
+            ) from exc
 
     def clear_cache(self, key: Optional[str] = None) -> None:
         """

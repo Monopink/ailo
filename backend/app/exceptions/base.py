@@ -207,3 +207,13 @@ class ConfigurationError(BaseAppException):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             details=error_details,
         )
+
+
+class MissingConfigurationError(ConfigurationError):
+    """Exception raised when a required configuration value is missing."""
+
+    def __init__(self, config_key: str):
+        super().__init__(
+            message=f"Configuration '{config_key}' is required but not set",
+            config_key=config_key,
+        )

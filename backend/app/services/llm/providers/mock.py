@@ -23,7 +23,7 @@ def _build_mock_payload(
     json_schema: Optional[Dict[str, Any]],
     temperature: Optional[float],
     max_tokens: Optional[int],
-    enable_thinking: Optional[bool],
+    thinking_mode: Optional[str],
 ) -> Dict[str, Any]:
     """
     Build request payload matching Doubao API format for consistency.
@@ -66,8 +66,14 @@ def _build_mock_payload(
 
     # Add thinking mode support (matching Doubao format)
     if provider.supports_thinking:
-        thinking_enabled = enable_thinking if enable_thinking is not None else config.enable_thinking
-        payload["thinking"] = {"type": "enabled" if thinking_enabled else "disabled"}
+        # Determine final thinking mode
+        final_mode = thinking_mode if thinking_mode is not None else config.thinking_mode
+        # Convert to Doubao format
+        if final_mode == "enabled":
+            payload["thinking"] = {"type": "enabled"}
+        elif final_mode == "disabled":
+            payload["thinking"] = {"type": "disabled"}
+        # For "auto", don't include thinking parameter (let model decide)
 
     return payload
 
@@ -79,7 +85,7 @@ async def chat_completion(
     json_schema: Optional[Dict[str, Any]] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
-    enable_thinking: Optional[bool] = None,
+    thinking_mode: Optional[str] = None,
     timeout: Optional[int] = None,
     provider_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -93,7 +99,7 @@ async def chat_completion(
         json_schema: Optional JSON schema for structured output
         temperature: Override temperature setting
         max_tokens: Override max tokens setting
-        enable_thinking: Override thinking mode setting
+        thinking_mode: Override thinking mode setting (enabled/disabled/auto)
         timeout: Optional timeout override (not used in mock)
 
     Returns:
@@ -110,7 +116,7 @@ async def chat_completion(
     """
     # Build complete request payload (matching Doubao API format)
     payload = _build_mock_payload(
-        config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
+        config, provider, messages, json_schema, temperature, max_tokens, thinking_mode
     )
 
     # Simulate processing delay
@@ -203,7 +209,7 @@ async def mock_chat_completion(
     json_schema: Optional[Dict[str, Any]] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
-    enable_thinking: Optional[bool] = None,
+    thinking_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Legacy mock chat completion function.
@@ -213,7 +219,7 @@ async def mock_chat_completion(
     """
     try:
         result = await chat_completion(
-            config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
+            config, provider, messages, json_schema, temperature, max_tokens, thinking_mode
         )
 
         return {
@@ -224,7 +230,7 @@ async def mock_chat_completion(
             "model": result["model"],
             "finish_reason": result["finish_reason"],
             "request_payload": _build_mock_payload(
-                config, provider, messages, json_schema, temperature, max_tokens, enable_thinking
+                config, provider, messages, json_schema, temperature, max_tokens, thinking_mode
             ),
         }
 

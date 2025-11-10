@@ -50,15 +50,25 @@ class SystemSettingsView(CustomView):
 
             missing_configs = await SystemConfigService.check_missing_configs(db, displayed_keys)
 
-            # Get webhook and LeanCloud data for System Management section
-            webhook_token = await system_configs.get_config_value(db, config_key="leancloud_webhook_token")
+            # Get webhook and LeanCloud IM data for System Management section
+            webhook_token = await system_configs.get_config_value(db, config_key="leancloud_im_webhook_token")
             api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
             conversation_id = await system_configs.get_config_value(
-                db, config_key="leancloud_service_conversation_id"
+                db, config_key="leancloud_im_service_conversation_id"
             )
 
             # Get LeanCloud config
-            leancloud_config = await config_service.get_leancloud_config(db)
+            leancloud_raw_config = await config_service.get_leancloud_config(db)
+            leancloud_status = {
+                "configured": bool(
+                    leancloud_raw_config.get("app_id")
+                    and leancloud_raw_config.get("master_key")
+                    and leancloud_raw_config.get("base_url")
+                ),
+                "has_app_id": bool(leancloud_raw_config.get("app_id")),
+                "has_master_key": bool(leancloud_raw_config.get("master_key")),
+                "has_base_url": bool(leancloud_raw_config.get("base_url")),
+            }
 
             # Construct webhook URL
             webhook_url = None
@@ -76,16 +86,7 @@ class SystemSettingsView(CustomView):
                 "webhook_token": webhook_token,
                 "token_length": len(webhook_token) if webhook_token else 0,
                 "conversation_id": conversation_id,
-                "leancloud_config": {
-                    "configured": bool(
-                        leancloud_config.get("app_id")
-                        and leancloud_config.get("master_key")
-                        and leancloud_config.get("base_url")
-                    ),
-                    "has_app_id": bool(leancloud_config.get("app_id")),
-                    "has_master_key": bool(leancloud_config.get("master_key")),
-                    "has_base_url": bool(leancloud_config.get("base_url")),
-                },
+                "leancloud_config": leancloud_status,
             }
 
             # Handle POST request (save settings)
@@ -192,7 +193,19 @@ class SystemSettingsView(CustomView):
             context = {
                 "request": request,
                 "error": f"Failed to load settings: {str(e)}",
+                "success": None,
+                "warning": None,
                 "config_groups": {},
                 "missing_configs": [],
+                "webhook_url": None,
+                "webhook_token": None,
+                "token_length": 0,
+                "conversation_id": None,
+                "leancloud_config": {
+                    "configured": False,
+                    "has_app_id": False,
+                    "has_master_key": False,
+                    "has_base_url": False,
+                },
             }
             return templates.TemplateResponse("custom_views/system_settings.html", context)

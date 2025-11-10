@@ -435,7 +435,17 @@ prompt_variables -- 占位符覆盖值，JSON格式
 position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
 {
   "foo": {"algorithm": 1, "params": {}},
-  "bar": {"algorithm": 2, "params": {"left_sensitivity": 5, "right_sensitivity": -3}}
+  "bar": {
+    "algorithm": 2,
+    "params": {
+      "left_sensitivity": 5,
+      "right_sensitivity": -3,
+      "left_positive_gain": 45,
+      "left_negative_gain": 39,
+      "right_positive_gain": 45,
+      "right_negative_gain": 39
+    }
+  }
 }
 is_reusable -- 是否可以复用：1=reusable, 0=single_use
 profile_count -- 统计关联的资料模板数量
@@ -481,7 +491,8 @@ dimension_id -- 关联ai_dimensions.id
 score -- 当前分数值
 position -- 千分比位置（0-1000）
 position_mapping_algorithm -- 位置映射算法：1=直接映射, 2=V1独立双向偏移
-position_mapping_params -- 位置映射参数，JSON格式(V1算法)：{"left_sensitivity": 0, "right_sensitivity": 0}
+position_mapping_params -- 位置映射参数（V1 算法必须提供 6 个字段）：
+  {"left_sensitivity": 0, "right_sensitivity": 0, "left_positive_gain": 45, "left_negative_gain": 39, "right_positive_gain": 45, "right_negative_gain": 39}
 created_at
 updated_at
 ```
@@ -516,9 +527,11 @@ model_name -- 具体模型名称，可选
 temperature -- 温度参数，0.0-2.0
 max_tokens -- 最大token数
 timeout_seconds -- 超时时间（秒）
-max_retries -- 最大重试次数
-enable_streaming -- 是否启用流式输出：1=yes, 0=no
-enable_thinking -- 是否启用思考模式：1=yes, 0=no
+thinking_mode -- 思考模式：enabled（强制开启）/disabled（强制关闭）/auto（由模型决定）
+top_p -- Nucleus Sampling 阈值，[0,1]
+frequency_penalty -- 频率惩罚系数，[-2,2]
+presence_penalty -- 存在惩罚系数，[-2,2]
+stop_sequences -- 停止序列（JSONB，字符串数组）
 json_schema_mode -- JSON Schema支持状态
   - 'strict': 已验证支持JSON Schema（测试通过，可用于AI Character）
   - 'disabled': 已验证不支持JSON Schema（测试失败，仅供查看测试响应）
@@ -565,7 +578,7 @@ model_name -- 使用的模型名称
 test_message -- 测试消息内容，TEXT类型
 override_temperature -- 覆盖的温度参数（0.0-2.0）
 override_max_tokens -- 覆盖的最大token数
-enable_thinking -- 是否启用思考模式：0=no, 1=yes
+thinking_mode -- 思考模式：enabled / disabled / auto
 enable_json_schema -- 是否启用json_schema
 request -- 完整请求payload，JSONB格式
 response -- 完整响应数据，JSONB格式

@@ -7,7 +7,7 @@ Provides algorithm-agnostic functions for encrypting and decrypting content.
 
 import base64
 import secrets
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Optional, Tuple
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from enums import EncryptionType, EncryptionVersion
@@ -15,8 +15,13 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+DEFAULT_ENCRYPTION = EncryptionType.BASE64
+DEFAULT_VERSION = EncryptionVersion.V1
 
-def encrypt(content: str, algorithm: EncryptionType, key: bytes) -> Tuple[str, Dict[str, Any]]:
+
+def encrypt(
+    content: str, algorithm: EncryptionType, key: Optional[bytes] = None
+) -> Tuple[str, Dict[str, Any]]:
     """
     Encrypt content using specified algorithm and key.
 
@@ -37,9 +42,6 @@ def encrypt(content: str, algorithm: EncryptionType, key: bytes) -> Tuple[str, D
     if not isinstance(algorithm, EncryptionType):
         raise ValueError("Algorithm must be an EncryptionType enum")
 
-    if not isinstance(key, bytes):
-        raise ValueError("Key must be bytes")
-
     try:
         if algorithm == EncryptionType.BASE64:
             return _encode_base64(content)
@@ -53,7 +55,7 @@ def encrypt(content: str, algorithm: EncryptionType, key: bytes) -> Tuple[str, D
         raise ValueError(f"Encryption failed: {str(e)}")
 
 
-def decrypt(encrypted_content: str, metadata: Dict[str, Any], key: bytes) -> str:
+def decrypt(encrypted_content: str, metadata: Dict[str, Any], key: Optional[bytes] = None) -> str:
     """
     Decrypt content using metadata and key.
 
@@ -73,9 +75,6 @@ def decrypt(encrypted_content: str, metadata: Dict[str, Any], key: bytes) -> str
 
     if not isinstance(metadata, dict):
         raise ValueError("Metadata must be a dictionary")
-
-    if not isinstance(key, bytes):
-        raise ValueError("Key must be bytes")
 
     try:
         # Extract algorithm from metadata
@@ -114,7 +113,7 @@ def _encode_base64(content: str) -> Tuple[str, Dict[str, Any]]:
 
     metadata = {
         "encryption": EncryptionType.BASE64.value,
-        "enc_version": EncryptionVersion.V1.value,
+        "enc_version": DEFAULT_VERSION.value,
     }
 
     logger.debug(
@@ -148,7 +147,7 @@ def _decode_base64(encrypted_content: str) -> str:
     return decrypted_content
 
 
-def _encrypt_aes_256_gcm(content: str, key: bytes) -> Tuple[str, Dict[str, Any]]:
+def _encrypt_aes_256_gcm(content: str, key: Optional[bytes]) -> Tuple[str, Dict[str, Any]]:
     """
     Encrypt content using AES-256-GCM.
 
@@ -159,7 +158,7 @@ def _encrypt_aes_256_gcm(content: str, key: bytes) -> Tuple[str, Dict[str, Any]]
     Returns:
         Tuple of (encrypted_content, metadata)
     """
-    if len(key) != 32:
+    if not isinstance(key, bytes) or len(key) != 32:
         raise ValueError("AES-256 key must be 32 bytes")
 
     # Generate random IV (12 bytes for GCM)
@@ -178,7 +177,7 @@ def _encrypt_aes_256_gcm(content: str, key: bytes) -> Tuple[str, Dict[str, Any]]
 
     metadata = {
         "encryption": EncryptionType.AES_256_GCM.value,
-        "enc_version": EncryptionVersion.V1.value,
+        "enc_version": DEFAULT_VERSION.value,
         "iv": iv_b64,
     }
 
@@ -191,7 +190,7 @@ def _encrypt_aes_256_gcm(content: str, key: bytes) -> Tuple[str, Dict[str, Any]]
     return encrypted_content, metadata
 
 
-def _decrypt_aes_256_gcm(encrypted_content: str, metadata: Dict[str, Any], key: bytes) -> str:
+def _decrypt_aes_256_gcm(encrypted_content: str, metadata: Dict[str, Any], key: Optional[bytes]) -> str:
     """
     Decrypt content using AES-256-GCM.
 
@@ -203,7 +202,7 @@ def _decrypt_aes_256_gcm(encrypted_content: str, metadata: Dict[str, Any], key: 
     Returns:
         str: Decrypted plain text content
     """
-    if len(key) != 32:
+    if not isinstance(key, bytes) or len(key) != 32:
         raise ValueError("AES-256 key must be 32 bytes")
 
     # Extract IV from metadata
@@ -233,3 +232,28 @@ def _decrypt_aes_256_gcm(encrypted_content: str, metadata: Dict[str, Any], key: 
 
     except Exception as e:
         raise ValueError(f"AES-256-GCM decryption failed: {str(e)}")
+
+
+def encrypt_for_transport(content: str) -> Tuple[str, Dict[str, Any]]:
+    """
+    Encrypt content using the default transport algorithm.
+
+    Currently defaults to BASE64 so the transport pipeline is established
+    without requiring client key distribution. The returned metadata should be
+    attached to the outbound message payload.
+    """
+    encrypted, metadata = encrypt(content, DEFAULT_ENCRYPTION, None)
+    return encrypted, metadata
+
+
+def decrypt_from_transport(encrypted_content: str, metadata: Dict[str, Any]) -> str:
+    """
+    Decrypt transport payloads based on metadata.
+
+    If encryption metadata is absent, the content is returned as-is. Any
+    decryption failure bubbles up so callers can decide how to handle invalid
+    payloads.
+    """
+    if not metadata or not metadata.get("encryption"):
+        return encrypted_content
+    return decrypt(encrypted_content, metadata, None)

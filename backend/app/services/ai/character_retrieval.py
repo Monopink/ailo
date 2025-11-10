@@ -8,7 +8,7 @@ with clear error handling and single responsibility principle.
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .data import get_character_with_relations
+from .queries import get_character_with_relations
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError
 from utils.logging import get_logger
 

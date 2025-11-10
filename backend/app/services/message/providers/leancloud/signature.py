@@ -17,7 +17,7 @@ from core.config import settings
 def generate_nonce() -> str:
     """
     Generate a random nonce string.
-    
+
     Returns:
         Random base64-encoded string (16 bytes)
     """
@@ -29,63 +29,50 @@ def generate_nonce() -> str:
 def get_timestamp_ms() -> int:
     """
     Get current UTC timestamp in milliseconds.
-    
+
     Returns:
         Current UTC timestamp in milliseconds since Unix epoch
     """
     return int(time.time() * 1000)
 
 
-def generate_signature(
-    app_id: str,
-    client_id: str,
-    timestamp: int,
-    nonce: str,
-    master_key: str
-) -> str:
+def generate_signature(app_id: str, client_id: str, timestamp: int, nonce: str, master_key: str) -> str:
     """
     Generate HMAC-SHA1 signature for LeanCloud IM login.
-    
+
     Signature format: appid:clientid::timestamp:nonce
     Note: There are TWO colons between clientid and timestamp
-    
+
     Args:
         app_id: LeanCloud application ID
-        client_id: Client ID (user entity_id)
+        client_id: Client ID (user qiao_id)
         timestamp: UTC timestamp in milliseconds
         nonce: Random nonce string
         master_key: LeanCloud master key
-    
+
     Returns:
         Hex-encoded HMAC-SHA1 signature string
     """
     # Construct message with TWO colons between clientid and timestamp
     message = f"{app_id}:{client_id}::{timestamp}:{nonce}"
-    
+
     # Generate HMAC-SHA1 signature
-    signature_bytes = hmac.new(
-        master_key.encode('utf-8'),
-        message.encode('utf-8'),
-        hashlib.sha1
-    ).digest()
-    
+    signature_bytes = hmac.new(master_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha1).digest()
+
     # Convert to hex string
     signature_hex = signature_bytes.hex()
-    
+
     return signature_hex
 
 
-async def create_login_signature(
-    app_id: str,
-    client_id: str
-) -> Dict[str, any]:
+async def create_login_signature(app_id: str, client_id: str) -> Dict[str, any]:
     """
     Create a complete login signature package for LeanCloud IM.
-    
+
     Args:
         app_id: LeanCloud application ID
-        client_id: Client ID (user entity_id)
-    
+        client_id: Client ID (user qiao_id)
+
     Returns:
         Dictionary containing:
         - signature: HMAC-SHA1 signature
@@ -95,22 +82,13 @@ async def create_login_signature(
     # Generate timestamp and nonce
     timestamp = get_timestamp_ms()
     nonce = generate_nonce()
-    
+
     # Get master key from environment
     master_key = settings.LEANCLOUD_MASTER_KEY
-    
+
     # Generate signature
     signature = generate_signature(
-        app_id=app_id,
-        client_id=client_id,
-        timestamp=timestamp,
-        nonce=nonce,
-        master_key=master_key
+        app_id=app_id, client_id=client_id, timestamp=timestamp, nonce=nonce, master_key=master_key
     )
-    
-    return {
-        "signature": signature,
-        "timestamp": timestamp,
-        "nonce": nonce
-    }
 
+    return {"signature": signature, "timestamp": timestamp, "nonce": nonce}

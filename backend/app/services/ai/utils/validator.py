@@ -1,16 +1,13 @@
 """
 AI response validation utilities.
 
-This module provides functions for validating AI responses against JSON schemas
-with retry mechanisms and detailed error reporting.
+This module provides functions for validating AI responses against JSON schemas.
 """
 
-import asyncio
 import json
 from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.config import config_service
 from services.llm import chat_completion
 from utils.logging import get_logger
 
@@ -91,10 +88,10 @@ async def chat_completion_with_validation(
     db: AsyncSession, messages: List[Dict[str, str]], json_schema: Optional[Dict[str, Any]] = None, **kwargs
 ) -> Dict[str, Any]:
     """
-    LLM chat completion with JSON schema validation and retry.
+    LLM chat completion with optional JSON schema validation.
 
-    This function wraps the LLM service call with business-level validation
-    and retry logic specific to AI conversation needs.
+    This function wraps the LLM service call with validation support.
+    Relies on LLM provider's native JSON schema support (strict mode) for reliability.
 
     Args:
         db: Database session
@@ -103,91 +100,54 @@ async def chat_completion_with_validation(
         **kwargs: Additional arguments passed to chat_completion
 
     Returns:
-        Dictionary containing response data and metadata
+        Dictionary containing response data and metadata:
+        {
+            "success": bool,
+            "response": Any,
+            "error": Optional[str],
+            "usage": Optional[Dict]
+        }
     """
     try:
-        # Get validation configuration from system_configs
-        max_retries = await config_service.get_config(db, "ai_json_schema_max_retries")
-        retry_delay = await config_service.get_config(db, "ai_json_schema_retry_delay")
-        validation_enabled = await config_service.get_config(db, "ai_json_schema_validation_enabled")
+        # Call LLM service
+        llm_result = await chat_completion(
+            db=db, messages=messages, json_schema=json_schema, **kwargs
+        )
 
-        last_error = None
+        # Check if LLM call succeeded
+        if not llm_result.get("success", False):
+            logger.warning("llm_call_failed", error=llm_result.get("error"))
+            return llm_result
 
-        for attempt in range(int(max_retries) + 1):
-            try:
-                # Call LLM service
-                llm_result = await chat_completion(
-                    db=db, messages=messages, json_schema=json_schema, **kwargs
-                )
+        # Validate response if schema is provided
+        if json_schema:
+            validation_result = validate_ai_response(
+                response=llm_result.get("response"),
+                json_schema=json_schema,
+            )
 
-                # Check if LLM call succeeded
-                if not llm_result.get("success", False):
-                    last_error = llm_result.get("error", "Unknown LLM error")
-                    logger.warning("llm_call_failed", attempt=attempt + 1, error=last_error)
-
-                    # For LLM failures, don't retry - return immediately
-                    return llm_result
-
-                # Validate response if validation is enabled and schema is provided
-                if validation_enabled and json_schema:
-                    validation_result = validate_ai_response(
-                        response=llm_result.get("response"),
-                        json_schema=json_schema,
-                    )
-
-                    if validation_result["valid"]:
-                        logger.debug("ai_response_validated_successfully", attempt=attempt + 1)
-                        # Replace response with validated (parsed) data
-                        llm_result["response"] = validation_result["validated_data"]
-                        return llm_result
-                    else:
-                        last_error = validation_result["error"]
-                        logger.warning(
-                            "ai_response_validation_failed",
-                            attempt=attempt + 1,
-                            max_retries=max_retries,
-                            error=last_error,
-                        )
-
-                        # If this is not the last attempt, wait and retry
-                        if attempt < int(max_retries):
-                            await asyncio.sleep(float(retry_delay))
-                            continue
-                        else:
-                            # Last attempt failed
-                            return {
-                                "success": False,
-                                "error": f"AI response validation failed after {max_retries} retries: {last_error}",
-                                "response": None,
-                                "usage": llm_result.get("usage"),
-                            }
-                else:
-                    # No validation needed or disabled
-                    logger.debug("ai_response_validation_skipped")
-                    return llm_result
-
-            except Exception as e:
-                last_error = str(e)
-                logger.error("ai_validation_attempt_error", attempt=attempt + 1, error=last_error)
-
-                # For unexpected errors, don't retry
+            if validation_result["valid"]:
+                logger.debug("ai_response_validated_successfully")
+                # Replace response with validated (parsed) data
+                llm_result["response"] = validation_result["validated_data"]
+                return llm_result
+            else:
+                # Validation failed
+                error_msg = f"AI response validation failed: {validation_result['error']}"
+                logger.error("ai_response_validation_failed", error=validation_result["error"])
                 return {
                     "success": False,
-                    "error": f"AI validation error: {last_error}",
+                    "error": error_msg,
                     "response": None,
-                    "usage": None,
+                    "usage": llm_result.get("usage"),
                 }
-
-        # Should not reach here, but just in case
-        return {
-            "success": False,
-            "error": f"AI response validation failed after {max_retries} retries: {last_error}",
-            "response": None,
-            "usage": None,
-        }
+        else:
+            # No validation needed
+            logger.debug("ai_response_validation_skipped")
+            return llm_result
 
     except Exception as e:
-        logger.error("chat_completion_with_validation_error", error=str(e))
+        logger.error("chat_completion_with_validation_error", error=str(e), exc_info=True)
         return {
             "success": False,
             "error": f"Chat completion with validation error: {str(e)}",

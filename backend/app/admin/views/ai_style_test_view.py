@@ -13,7 +13,7 @@ from starlette_admin import CustomView
 from sqlalchemy import text
 
 from core.database import SessionLocal
-from services.ai.utils.position_mapping import get_algorithm_info
+from services.ai.utils.position_mapping import get_algorithm_info, get_algorithm_param_specs
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -52,6 +52,7 @@ class AIStyleTestView(CustomView):
                             1: get_algorithm_info(1),
                             2: get_algorithm_info(2),
                         },
+                        "algorithm_param_specs": get_algorithm_param_specs(),
                         "error": f"Invalid style_id: {style_id_raw}",
                         "selected_style_id": None,
                         "relationships": [],
@@ -73,6 +74,7 @@ class AIStyleTestView(CustomView):
             context = {
                 "request": request,
                 "algorithm_info": {},
+                "algorithm_param_specs": get_algorithm_param_specs(),
                 "test_result": None,
                 "error": None,
                 "selected_style_id": style_id,
@@ -167,7 +169,7 @@ class AIStyleTestView(CustomView):
                     ]
 
                     # Fetch dimension relationship mappings for visualization
-                    from services.admin.style_data import get_dimension_relationship_mappings
+                    from services.admin.data.style_dimensions import get_dimension_relationship_mappings
 
                     mappings = await get_dimension_relationship_mappings(
                         db, style_id=int(style_id), limit=100
@@ -211,7 +213,7 @@ class AIStyleTestView(CustomView):
         """Handle score algorithm testing via admin service layer."""
         try:
             async with SessionLocal() as db:
-                from services.admin.position_mapping import run_style_score_test
+                from services.admin.testing.style_algorithm import run_style_score_test
 
                 fd = dict(form_data)
                 result = await run_style_score_test(db, style_id=int(style_id), form_data=fd)

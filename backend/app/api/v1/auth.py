@@ -380,11 +380,11 @@ async def get_message_client_signature(
         HTTPException: 500 if LeanCloud configuration is missing
     """
     try:
-        # Get LeanCloud app_id from system_configs
-        app_id = await system_configs.get_config_value(db, config_key="leancloud_app_id")
+        # Get LeanCloud IM app_id from system_configs
+        app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
 
         if not app_id:
-            logger.error("leancloud_app_id_not_configured")
+            logger.error("leancloud_im_app_id_not_configured")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Message service not configured",

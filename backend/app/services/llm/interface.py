@@ -24,8 +24,14 @@ class LLMProviderInterface(Protocol):
         json_schema: Optional[Dict[str, Any]] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-        enable_thinking: Optional[bool] = None,
+        thinking_mode: Optional[str] = None,
+        top_p: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        stop_sequences: Optional[List[str]] = None,
+        extra_params: Optional[Dict[str, Any]] = None,
         timeout: Optional[int] = None,
+        provider_overrides: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Send chat completion request.
@@ -37,8 +43,14 @@ class LLMProviderInterface(Protocol):
             json_schema: Optional JSON schema for structured output
             temperature: Optional temperature override
             max_tokens: Optional max tokens override
-            enable_thinking: Optional thinking mode override
+            thinking_mode: Optional thinking mode override (enabled/disabled/auto)
+            top_p: Optional nucleus sampling override
+            frequency_penalty: Optional frequency penalty override
+            presence_penalty: Optional presence penalty override
+            stop_sequences: Optional stop sequences override
+            extra_params: Optional provider-specific JSON payload
             timeout: Optional timeout override
+            provider_overrides: Optional provider-specific overrides
 
         Returns:
             {
@@ -58,4 +70,3 @@ class LLMProviderInterface(Protocol):
             LLMTimeoutError: Timeout error
         """
         ...
-

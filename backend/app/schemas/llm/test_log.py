@@ -20,7 +20,7 @@ class LLMTestLogCreate(BaseModel):
     test_message: str = Field(description="Test message content")
     override_temperature: Optional[float] = Field(default=None, description="Override temperature")
     override_max_tokens: Optional[int] = Field(default=None, description="Override max tokens")
-    enable_thinking: int = Field(default=0, description="Enable thinking mode: 0=no, 1=yes")
+    thinking_mode: str = Field(description="Thinking mode: enabled/disabled/auto")
     request: Dict[str, Any] = Field(description="Complete request payload")
     response: Optional[Dict[str, Any]] = Field(default=None, description="Complete response data")
     status: int = Field(description="Status: 1=success, 2=failed, 3=timeout")

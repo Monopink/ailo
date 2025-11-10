@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 
@@ -49,23 +48,16 @@ async def lifespan(app: FastAPI):
 
         # Load rate limit configuration for middleware
         logger.info("loading_rate_limit_config")
-        try:
-            from services.system_config import get_config
+        from services.system_config import get_config
 
-            async with SessionLocal() as db:
-                api_requests = int(await get_config(db, key="api_rate_limit_requests", default=100))
-                api_window = int(await get_config(db, key="api_rate_limit_window", default=60))
+        async with SessionLocal() as db:
+            api_requests = int(await get_config(db, key="api_rate_limit_requests"))
+            api_window = int(await get_config(db, key="api_rate_limit_window"))
 
-            # Store in app state for middleware
-            app.state.api_rate_limit_requests = api_requests
-            app.state.api_rate_limit_window = api_window
+        app.state.api_rate_limit_requests = api_requests
+        app.state.api_rate_limit_window = api_window
 
-            logger.info("rate_limit_config_loaded", api_requests=api_requests, api_window=api_window)
-        except Exception as e:
-            logger.error("rate_limit_config_load_error", error=str(e), exc_info=True)
-            # Use defaults
-            app.state.api_rate_limit_requests = 100
-            app.state.api_rate_limit_window = 60
+        logger.info("rate_limit_config_loaded", api_requests=api_requests, api_window=api_window)
 
         # Initialize message service (LeanCloud)
         logger.info("initializing_message_service")
@@ -166,12 +158,6 @@ app.add_middleware(
     max_age=86400,  # 24 hours
 )
 
-# Static files (for media uploads)
-try:
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-except RuntimeError:
-    # Directory doesn't exist yet, will be created when needed
-    logger.warning("static_directory_not_found", directory="static")
 
 
 # Exception handlers

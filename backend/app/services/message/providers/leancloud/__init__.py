@@ -7,7 +7,7 @@ This module implements the MessageProvider protocol for LeanCloud messaging serv
 from typing import List, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..base import MessageProvider, MessageData, MessageResult
+from ..base import MessageProvider, MessageResult
 from . import service
 
 
@@ -34,10 +34,40 @@ class LeanCloudProvider:
         return await service.deinitialize_user(qiao_id, self.db)
 
     async def send_message(
-        self, conversation_id: str, from_qiao_id: str, to_qiao_id: str, content: str, message_type: int = 1
+        self,
+        from_qiao_id: str,
+        to_qiao_id: str,
+        conv_id: str,
+        content: str,
+        message_type: int = 1,
+        extra_fields: Optional[dict] = None,
     ) -> MessageResult:
-        """Send single message through LeanCloud."""
-        return await service.send_message(conversation_id, from_qiao_id, to_qiao_id, content, message_type)
+        """Send message through LeanCloud."""
+        return await service.send_message(
+            self.db, from_qiao_id, to_qiao_id, conv_id, content, message_type, extra_fields
+        )
+
+    async def send_message_as_system(
+        self,
+        to_qiao_id: str,
+        conv_id: str,
+        content: str,
+        message_type: int = 4,
+        action: Optional[dict] = None,
+        extra_fields: Optional[dict] = None,
+        msg_id: Optional[str] = None,
+    ) -> MessageResult:
+        """Send message as system through LeanCloud."""
+        return await service.send_message_as_system(
+            self.db,
+            to_qiao_id=to_qiao_id,
+            conv_id=conv_id,
+            content=content,
+            message_type=message_type,
+            action=action,
+            extra_fields=extra_fields,
+            msg_id=msg_id,
+        )
 
     async def broadcast_message(
         self,
@@ -59,7 +89,7 @@ class LeanCloudProvider:
         end_time: int,
         limit: int = 1000,
         include_start: bool = False,
-    ) -> List[MessageData]:
+    ) -> List[dict]:
         """Fetch messages by time range from LeanCloud."""
         return await service.fetch_messages_by_time_range(
             conversation_id, start_time, end_time, limit, include_start

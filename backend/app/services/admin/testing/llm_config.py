@@ -16,23 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.llm.client import chat_completion
 from services.llm.config import get_llm_config
-from services.llm.utils import is_valid_json
 from models.llm import LLMTestLog
 from utils.logging import get_logger
 from utils.snowflake import generate_snowflake_id
 from enums.common import LLMTestStatus
 
 logger = get_logger(__name__)
-
-# Simple test schema for detecting JSON Schema support
-TEST_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "response": {"type": "string", "description": "Response content"},
-        "status": {"type": "string", "description": "Response status"},
-    },
-    "required": ["response"],
-}
 
 
 async def execute_llm_config_test(
@@ -41,7 +30,7 @@ async def execute_llm_config_test(
     test_message: str,
     override_temperature: Optional[float] = None,
     override_max_tokens: Optional[int] = None,
-    enable_thinking: bool = False,
+    thinking_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute LLM configuration test.
@@ -58,23 +47,10 @@ async def execute_llm_config_test(
         test_message: Test message content
         override_temperature: Optional temperature override (0.0-2.0)
         override_max_tokens: Optional max tokens override
-        enable_thinking: Enable thinking mode if supported
+        thinking_mode: Optional thinking mode override (enabled/disabled/auto)
 
     Returns:
-        Dictionary containing test results and metadata:
-        {
-            "success": bool,
-            "log_id": int,
-            "response_content": Any,
-            "raw_content": str,
-            "reasoning_content": Optional[str],
-            "usage": dict,
-            "response_time_ms": int,
-            "model_used": str,
-            "finish_reason": str,
-            "request_payload": dict,
-            "error": Optional[str]
-        }
+        Dictionary containing test results and metadata
     """
     start_time = datetime.now()
 
@@ -107,7 +83,7 @@ async def execute_llm_config_test(
             json_schema=None,  # No JSON Schema for regular testing
             temperature=override_temperature,
             max_tokens=override_max_tokens,
-            enable_thinking=enable_thinking,
+            thinking_mode=thinking_mode,
             name=config.name,
         )
 
@@ -142,7 +118,7 @@ async def execute_llm_config_test(
             "test_message": test_message,
             "override_temperature": override_temperature,
             "override_max_tokens": override_max_tokens,
-            "enable_thinking": 1 if enable_thinking else 0,
+            "thinking_mode": thinking_mode or config.thinking_mode,  # Store actual thinking mode used
             "enable_json_schema": 0,  # Always 0 for regular testing
             "request": request_payload,  # Store full request parameters
             "response": llm_result.get("raw_response"),  # Store full OpenAI API response

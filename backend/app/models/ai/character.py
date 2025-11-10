@@ -66,6 +66,10 @@ class AICharacter(SnowflakeQiaoModel):
         comment="AI character request parameters configuration (can override default LLM settings)",
     )
 
+    created_from_profile_qiao_id: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True, comment="Source profile template qiao_id (if created from template)"
+    )
+
     relationship_id: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="Current relationship type ID"
     )

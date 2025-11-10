@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException
 from core.database import SessionLocal
 from crud.ai import ai_personality_placeholder as personality_crud
 from utils.logging import get_logger
+from services.ai.utils.position_mapping import get_algorithm_param_specs
 
 logger = get_logger(__name__)
 
@@ -203,6 +204,7 @@ class CharacterAdvancedEditView(CustomView):
                 "style_errors": style_errors,
                 "character_status": character_status,
                 "character_warnings": character_warnings,
+                "algorithm_param_specs": get_algorithm_param_specs(),
             }
 
             return templates.TemplateResponse("custom_views/ai_character_advanced_edit.html", context)
@@ -328,6 +330,7 @@ class CharacterTemplateAdvancedEditView(CustomView):
             "template": template_data,
             "dimension_configs": dimension_configs,
             "placeholders": placeholders,
+            "algorithm_param_specs": get_algorithm_param_specs(),
         }
 
         return templates.TemplateResponse("custom_views/ai_character_template_advanced_edit.html", context)

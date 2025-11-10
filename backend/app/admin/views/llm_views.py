@@ -182,20 +182,34 @@ class LLMConfigView(ModelView):
         IntegerField(
             "timeout_seconds", label="Timeout (seconds)", help_text="Timeout in seconds", required=True
         ),
-        IntegerField("max_retries", label="Max Retries", help_text="Maximum retry attempts", required=True),
-        IntegerEnumField(
-            "enable_streaming",
-            choices=[(0, "No"), (1, "Yes")],
-            label="Enable Streaming",
-            help_text="Enable streaming output",
+        EnumField(
+            "thinking_mode",
+            choices=[
+                ("enabled", "Enabled (Force On)"),
+                ("disabled", "Disabled (Force Off)"),
+                ("auto", "Auto (Let Model Decide)"),
+            ],
+            label="Thinking Mode",
+            help_text="Thinking mode: enabled=force on, disabled=force off, auto=let model decide",
             required=True,
         ),
-        IntegerEnumField(
-            "enable_thinking",
-            choices=[(0, "No"), (1, "Yes")],
-            label="Enable Thinking",
-            help_text="Enable thinking mode",
+        FloatField("top_p", label="Top P", help_text="Nucleus sampling threshold (0.0-1.0)", required=True),
+        FloatField(
+            "frequency_penalty",
+            label="Frequency Penalty",
+            help_text="Frequency penalty (-2.0 to 2.0). Reduces repetition based on token frequency.",
             required=True,
+        ),
+        FloatField(
+            "presence_penalty",
+            label="Presence Penalty",
+            help_text="Presence penalty (-2.0 to 2.0). Encourages new topics based on token presence.",
+            required=True,
+        ),
+        JSONField(
+            "stop_sequences",
+            label="Stop Sequences",
+            help_text="Stop sequences (max 4 strings). Model stops when encountering these strings. Example: [\"再见\", \"拜拜\"]",
         ),
         EnumField(
             "json_schema_mode",
@@ -230,7 +244,7 @@ class LLMConfigView(ModelView):
         JSONField(
             "extra_params",
             label="Extra Parameters",
-            help_text="Additional configuration parameters in JSON format (optional)",
+            help_text="Provider-specific parameters (e.g., max_completion_tokens, service_tier). Example: {\"max_completion_tokens\": 32000}",
         ),
         LocalDateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
@@ -259,7 +273,7 @@ class LLMConfigView(ModelView):
     async def test_json_schema_action(self, request: Request, pk: Any) -> str:
         """Test JSON Schema compatibility and update json_schema_mode."""
         from core.database import SessionLocal
-        from services.admin.llm_json_schema_test import test_json_schema_compatibility
+        from services.admin.testing.llm_json_schema import test_json_schema_compatibility
 
         async with SessionLocal() as session:
             result = await test_json_schema_compatibility(session, int(pk))
@@ -318,7 +332,7 @@ class LLMTestLogView(ModelView):
         "test_message",
         "override_temperature",
         "override_max_tokens",
-        "enable_thinking",
+        "thinking_mode",
         "request",
         "response",
         "status",
@@ -340,7 +354,7 @@ class LLMTestLogView(ModelView):
         "test_message",
         "override_temperature",
         "override_max_tokens",
-        "enable_thinking",
+        "thinking_mode",
         "request",
         "response",
         "status",
@@ -385,11 +399,15 @@ class LLMTestLogView(ModelView):
         IntegerField(
             "override_max_tokens", label="Override Max Tokens", help_text="Overridden max tokens value"
         ),
-        IntegerEnumField(
-            "enable_thinking",
-            choices=[(0, "No"), (1, "Yes")],
-            label="Enable Thinking",
-            help_text="Thinking mode enabled",
+        EnumField(
+            "thinking_mode",
+            choices=[
+                ("enabled", "Enabled"),
+                ("disabled", "Disabled"),
+                ("auto", "Auto"),
+            ],
+            label="Thinking Mode",
+            help_text="Thinking mode used in test",
         ),
         IntegerEnumField(
             "enable_json_schema",

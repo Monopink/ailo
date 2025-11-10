@@ -26,6 +26,9 @@ class AICharacterBase(BaseSchema):
     request_params: Optional[Dict[str, Any]] = Field(
         None, description="LLM request parameters override (temperature, max_tokens, etc.)"
     )
+    created_from_profile_qiao_id: Optional[str] = Field(
+        None, max_length=32, description="Source profile template qiao_id (if created from template)"
+    )
 
 
 class AICharacterCreate(BaseModel):
@@ -48,6 +51,9 @@ class AICharacterCreate(BaseModel):
             }
         ],
     )
+    created_from_profile_qiao_id: Optional[str] = Field(
+        None, max_length=32, description="Source profile template qiao_id (if created from template)"
+    )
 
 
 class AICharacterUpdate(BaseModel):
@@ -57,6 +63,9 @@ class AICharacterUpdate(BaseModel):
     memory: Optional[str] = Field(None, description="Character memory settings")
     placeholder_overrides: Optional[Dict[str, Any]] = Field(None, description="Placeholder overrides")
     request_params: Optional[Dict[str, Any]] = Field(None, description="LLM request parameters override")
+    created_from_profile_qiao_id: Optional[str] = Field(
+        None, max_length=32, description="Source profile template qiao_id (if created from template)"
+    )
 
 
 class AICharacterResponse(AICharacterBase):

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums.common import AIContextRole
-from .data import get_conversation_contexts, save_context_entry
+from .queries import get_conversation_contexts, save_context_entry
 from exceptions import AIServiceError
 from utils.logging import get_logger
 

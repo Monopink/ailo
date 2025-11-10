@@ -6,7 +6,7 @@ This module contains SQLAlchemy models for message history and delivery failures
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index, text
+from sqlalchemy import BigInteger, Integer, String, Text, DateTime, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,8 +28,12 @@ class MessageHistory(ImmutableSnowflakeModel):
         String(64), nullable=False, unique=True, comment="Server-generated message ID"
     )
 
-    msg_id_provider: Mapped[Optional[str]] = mapped_column(
-        String(128), nullable=True, comment="Third-party service message ID"
+    msg_id_provider_inbound: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True, comment="Inbound provider message ID"
+    )
+
+    msg_id_provider_outbound: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True, comment="Outbound provider message ID"
     )
 
     msg_id_client: Mapped[Optional[str]] = mapped_column(
@@ -48,6 +52,10 @@ class MessageHistory(ImmutableSnowflakeModel):
 
     client_sent_time: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Client-side sent time"
+    )
+
+    sent_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Original message sent time"
     )
 
     from_type: Mapped[int] = mapped_column(
@@ -93,6 +101,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     # Indexes - Only essential indexes for MVP
     # Note: msg_id_server already has unique index
     __table_args__ = (
+        UniqueConstraint("conversation_id", "msg_id_client", name="uq_message_history_conv_client_id"),
         Index("idx_message_history_from_qiao_id", "from_qiao_id"),
         Index("idx_message_history_to_qiao_id", "to_qiao_id"),
         Index("idx_message_history_conversation_id", "conversation_id"),

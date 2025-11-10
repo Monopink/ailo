@@ -28,6 +28,8 @@ from .common import (
     NotificationTarget,
     NotificationStatus,
     MessageStatus,
+    EncryptionType,
+    EncryptionVersion,
     # Media Files
     FileType,
     FileStatus,
@@ -95,6 +97,8 @@ __all__ = [
     "NotificationTarget",
     "NotificationStatus",
     "MessageStatus",
+    "EncryptionType",
+    "EncryptionVersion",
     "CHAT_INFO_TEMPLATES",
     # Media Files
     "FileType",

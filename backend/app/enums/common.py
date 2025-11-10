@@ -123,8 +123,8 @@ class MessageType(IntEnum):
     """Message type classification (message_history.message_type)"""
 
     TEXT = 1  # Text message
-    TYPING = 2  # Typing indicator
-    TYPING_END = 3  # Typing end indicator
+    TYPING_START = 2  # Typing indicator (user started typing)
+    TYPING_END = 3  # Typing stopped indicator
     CHAT_INFO = 4  # Chat interface informational message
     NOTIFICATION = 9  # Notification message
 
@@ -172,6 +172,19 @@ class MessageStatus(IntEnum):
     DELIVERED = 2  # Message delivered
     READ = 3  # Message read
     FAILED = 4  # Message failed
+
+
+class EncryptionType(str, Enum):
+    """Supported message encryption algorithms."""
+
+    BASE64 = "base64"
+    AES_256_GCM = "aes_256_gcm"
+
+
+class EncryptionVersion(str, Enum):
+    """Encryption schema version."""
+
+    V1 = "v1"
 
 
 # Media Files Related Enums

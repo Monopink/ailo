@@ -45,12 +45,11 @@ from .profile_queries import (
     get_profile_by_owner,
 )
 
-# Database mutations
-from .mutations import (
+# Database updates (simple operations)
+from .updates import (
     save_context_entry,
     update_context_status,
     update_relationship_scores,
-    save_ai_response,
     mark_context_as_attack,
     update_character_memory,
     update_character_status,
@@ -87,11 +86,10 @@ __all__ = [
     "get_user_profile",
     "get_character_profile",
     "get_profile_by_owner",
-    # Mutations
+    # Updates
     "save_context_entry",
     "update_context_status",
     "update_relationship_scores",
-    "save_ai_response",
     "mark_context_as_attack",
     "update_character_memory",
     "update_character_status",

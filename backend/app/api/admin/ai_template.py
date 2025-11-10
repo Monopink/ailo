@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from crud.ai import ai_character_template as character_template_crud
+from enums.common import PositionMappingAlgorithm
+from services.ai.utils.position_mapping import parse_algorithm_params
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -49,24 +51,15 @@ async def save_character_template(
             if algorithm not in [1, 2]:
                 raise HTTPException(status_code=400, detail=f"Invalid algorithm for {dim_name}")
 
-            if algorithm == 2:
+            if algorithm == PositionMappingAlgorithm.V1.value:
                 params = dim_config.get("params", {})
                 if not isinstance(params, dict):
                     raise HTTPException(status_code=400, detail=f"Params for {dim_name} must be a dict")
 
-                left_sensitivity = params.get("left_sensitivity", 0)
-                right_sensitivity = params.get("right_sensitivity", 0)
-
-                if not isinstance(left_sensitivity, (int, float)) or not isinstance(right_sensitivity, (int, float)):
-                    raise HTTPException(
-                        status_code=400, detail=f"Sensitivity values for {dim_name} must be numbers"
-                    )
-
-                if not (-100 <= left_sensitivity <= 100) or not (-100 <= right_sensitivity <= 100):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Sensitivity values for {dim_name} must be between -100 and 100",
-                    )
+                try:
+                    dim_config["params"] = parse_algorithm_params(PositionMappingAlgorithm.V1, params)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc))
 
         update_data["position_mapping_config"] = position_mapping_config
 

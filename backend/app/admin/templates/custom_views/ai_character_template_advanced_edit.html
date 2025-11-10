@@ -123,7 +123,7 @@
             {% for dim_config in dimension_configs %}
             {% if not loop.first %}
             <hr class="my-4">{% endif %}
-            <div class="dimension-config-section" data-dimension-name="{{ dim_config.dimension_name }}">
+            <div class="dimension-config-section" data-dimension-name="{{ dim_config.dimension_name }}" data-dimension-display="{{ dim_config.display_name }}">
               <h5 class="mb-3">{{ dim_config.display_name }} ({{ dim_config.dimension_name }})</h5>
               <div class="row">
                 <div class="col-md-4">
@@ -139,22 +139,33 @@
                 </div>
               </div>
               <div class="algorithm-params" data-dimension="{{ dim_config.dimension_name }}" style="display: none;">
+                {% set v1_specs = algorithm_param_specs.get(2, []) %}
+                {% if v1_specs %}
                 <div class="row">
+                  {% for param in v1_specs %}
                   <div class="col-md-6">
                     <div class="mb-3">
-                      <label class="form-label">Left Sensitivity (%)</label>
-                      <input type="number" class="form-control" name="left_sensitivity_{{ dim_config.dimension_name }}" value="{{ dim_config.params.left_sensitivity if dim_config.params else 0 }}" min="-100" max="100" step="1">
-                      <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
+                      <label class="form-label">{{ param.label }}{% if param.required %} <span class="text-danger">*</span>{% endif %}</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        name="{{ param.name }}_{{ dim_config.dimension_name }}"
+                        value="{% if dim_config.params and param.name in dim_config.params %}{{ dim_config.params[param.name] }}{% endif %}"
+                        {% if param.min is not none %}min="{{ param.min|int if param.input_type == 'integer' else param.min }}"{% endif %}
+                        {% if param.max is not none %}max="{{ param.max|int if param.input_type == 'integer' else param.max }}"{% endif %}
+                        {% if param.step is not none %}step="{{ param.step }}"{% endif %}
+                        {% if param.required %}required{% endif %}
+                      >
+                      <div class="form-text">{{ param.description }}</div>
                     </div>
                   </div>
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label">Right Sensitivity (%)</label>
-                      <input type="number" class="form-control" name="right_sensitivity_{{ dim_config.dimension_name }}" value="{{ dim_config.params.right_sensitivity if dim_config.params else 0 }}" min="-100" max="100" step="1">
-                      <div class="form-text">Range: -100 to 100 (percentage sensitivity, 0 = neutral)</div>
-                    </div>
-                  </div>
+                  {% endfor %}
                 </div>
+                {% else %}
+                <div class="alert alert-warning mb-0">
+                  <i class="fas fa-exclamation-triangle me-2"></i>No parameter specification registered for this algorithm.
+                </div>
+                {% endif %}
               </div>
             </div>
             {% endfor %}
@@ -178,6 +189,33 @@
 </div>
 
 <script>
+  const V1_ALGORITHM = 2;
+  const algorithmParamSpecs = {{ (algorithm_param_specs or {}) | tojson | safe }};
+
+  function getSpecsForAlgorithm(algorithm) {
+    return algorithmParamSpecs[String(algorithm)] || [];
+  }
+
+  function collectAlgorithmParams(specs, dimensionKey, dataSource) {
+    const params = {};
+    const missing = [];
+    specs.forEach(spec => {
+      const fieldName = `${spec.name}_${dimensionKey}`;
+      const raw = dataSource.get(fieldName);
+      if (raw === null || raw.toString().trim() === '') {
+        missing.push(spec.label);
+        return;
+      }
+      const numeric = spec.input_type === 'integer' ? parseInt(raw, 10) : parseFloat(raw);
+      if (Number.isNaN(numeric)) {
+        missing.push(spec.label);
+        return;
+      }
+      params[spec.name] = numeric;
+    });
+    return { params, missing };
+  }
+
   // Toggle algorithm params visibility
   document.querySelectorAll('.algorithm-select').forEach(select => {
     const dimension = select.dataset.dimension;
@@ -217,19 +255,31 @@
 
     // Extract position mapping config
     const positionMappingConfig = {};
+    const missingParamMessages = [];
     document.querySelectorAll('.dimension-config-section').forEach(section => {
       const dimensionName = section.dataset.dimensionName;
+      const dimensionDisplay = section.dataset.dimensionDisplay || dimensionName;
       const algorithm = parseInt(formData.get(`algorithm_${dimensionName}`));
 
       positionMappingConfig[dimensionName] = { algorithm };
 
-      if (algorithm === 2) {
-        positionMappingConfig[dimensionName].params = {
-          left_sensitivity: parseInt(formData.get(`left_sensitivity_${dimensionName}`)),
-          right_sensitivity: parseInt(formData.get(`right_sensitivity_${dimensionName}`)),
-        };
+      if (algorithm === V1_ALGORITHM) {
+        const specs = getSpecsForAlgorithm(algorithm);
+        const { params, missing } = collectAlgorithmParams(specs, dimensionName, formData);
+        if (missing.length) {
+          missingParamMessages.push(`${dimensionDisplay}: ${missing.join(', ')}`);
+        } else {
+          positionMappingConfig[dimensionName].params = params;
+        }
       }
     });
+
+    if (missingParamMessages.length) {
+      alert('请完善以下算法参数：\n' + missingParamMessages.join('\n'));
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalHtml;
+      return;
+    }
 
     try {
       const response = await fetch('/admin-api/ai/ai_character_template/{{ template.id }}/save', {

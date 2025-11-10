@@ -7,33 +7,213 @@ All algorithms are stateless and maintain initial position as origin.
 """
 
 import math
-from typing import Dict, Any, Optional
+from typing import Any, Dict, List, Literal, Optional, TypedDict, Union, cast
+
 from enums.common import PositionMappingAlgorithm
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-
-# Algorithm constants
-# Left segment coefficients
-V1_K_LEFT_POSITIVE = 45  # For left segment when sensitivity >= 0
-V1_K_LEFT_NEGATIVE = 39  # For left segment when sensitivity < 0
-
-# Right segment coefficients
-V1_K_RIGHT_POSITIVE = 45  # For right segment when sensitivity >= 0
-V1_K_RIGHT_NEGATIVE = 39  # For right segment when sensitivity < 0
-
 EPSILON = 1e-10  # Numerical stability threshold for floating-point comparisons
 
+Numeric = Union[int, float]
 
-# Default parameters for different algorithms
-DEFAULT_ALGORITHM_PARAMS = {
-    PositionMappingAlgorithm.NONE: {},
-    PositionMappingAlgorithm.V1: {
-        "left_sensitivity": 0,  # -100 to 100, left segment sensitivity control
-        "right_sensitivity": 0,  # -100 to 100, right segment sensitivity control
-    },
+
+class AlgorithmParameterSpec(TypedDict):
+    """UI/validation metadata for algorithm parameters."""
+
+    name: str
+    label: str
+    description: str
+    input_type: Literal["integer", "float"]
+    min: Optional[float]
+    max: Optional[float]
+    step: Optional[float]
+    required: bool
+
+
+class V1Params(TypedDict):
+    """Typed representation for V1 algorithm parameters."""
+
+    left_sensitivity: float
+    right_sensitivity: float
+    left_positive_gain: float
+    left_negative_gain: float
+    right_positive_gain: float
+    right_negative_gain: float
+
+
+ALGORITHM_PARAM_SPECS: Dict[PositionMappingAlgorithm, List[AlgorithmParameterSpec]] = {
+    PositionMappingAlgorithm.V1: [
+        {
+            "name": "left_sensitivity",
+            "label": "Left Sensitivity (%)",
+            "description": "Sensitivity factor for positions below the initial position (-100 to 100).",
+            "input_type": "integer",
+            "min": -100,
+            "max": 100,
+            "step": 1,
+            "required": True,
+        },
+        {
+            "name": "right_sensitivity",
+            "label": "Right Sensitivity (%)",
+            "description": "Sensitivity factor for positions above the initial position (-100 to 100).",
+            "input_type": "integer",
+            "min": -100,
+            "max": 100,
+            "step": 1,
+            "required": True,
+        },
+        {
+            "name": "left_positive_gain",
+            "label": "Left Positive Gain",
+            "description": "Logarithmic gain applied when the left segment sensitivity is ≥ 0.",
+            "input_type": "integer",
+            "min": 1,
+            "max": 10000,
+            "step": 1,
+            "required": True,
+        },
+        {
+            "name": "left_negative_gain",
+            "label": "Left Negative Gain",
+            "description": "Logarithmic gain applied when the left segment sensitivity is < 0.",
+            "input_type": "integer",
+            "min": 1,
+            "max": 10000,
+            "step": 1,
+            "required": True,
+        },
+        {
+            "name": "right_positive_gain",
+            "label": "Right Positive Gain",
+            "description": "Logarithmic gain applied when the right segment sensitivity is ≥ 0.",
+            "input_type": "integer",
+            "min": 1,
+            "max": 10000,
+            "step": 1,
+            "required": True,
+        },
+        {
+            "name": "right_negative_gain",
+            "label": "Right Negative Gain",
+            "description": "Logarithmic gain applied when the right segment sensitivity is < 0.",
+            "input_type": "integer",
+            "min": 1,
+            "max": 10000,
+            "step": 1,
+            "required": True,
+        },
+    ]
 }
+
+
+def _normalize_algorithm(algorithm: Union[int, PositionMappingAlgorithm]) -> PositionMappingAlgorithm:
+    """Coerce raw algorithm identifiers into enum values."""
+
+    if isinstance(algorithm, PositionMappingAlgorithm):
+        return algorithm
+    return PositionMappingAlgorithm(int(algorithm))
+
+
+def _clone_specs(specs: List[AlgorithmParameterSpec]) -> List[AlgorithmParameterSpec]:
+    """Return a shallow copy of specs to prevent accidental mutation."""
+
+    return [cast(AlgorithmParameterSpec, dict(spec)) for spec in specs]
+
+
+def _coerce_numeric_param(value: Any, spec: AlgorithmParameterSpec) -> Numeric:
+    """Convert a raw value into the numeric type required by the spec."""
+
+    raw_value: Any = value
+    if raw_value is None:
+        raise ValueError(f"{spec['label']} is required")
+
+    if isinstance(raw_value, str):
+        raw_value = raw_value.strip()
+        if raw_value == "":
+            raise ValueError(f"{spec['label']} is required")
+
+    try:
+        number = float(raw_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{spec['label']} must be a number")
+
+    if spec["input_type"] == "integer":
+        if not number.is_integer():
+            raise ValueError(f"{spec['label']} must be an integer")
+        coerced: Numeric = int(number)
+    else:
+        coerced = number
+
+    if spec["min"] is not None and coerced < spec["min"]:
+        raise ValueError(f"{spec['label']} must be ≥ {spec['min']}")
+    if spec["max"] is not None and coerced > spec["max"]:
+        raise ValueError(f"{spec['label']} must be ≤ {spec['max']}")
+
+    return coerced
+
+
+def get_algorithm_param_specs(
+    algorithm: Optional[Union[int, PositionMappingAlgorithm]] = None,
+) -> Dict[int, List[AlgorithmParameterSpec]]:
+    """
+    Return parameter specifications for algorithms.
+
+    Args:
+        algorithm: Optional algorithm identifier. When provided, only that algorithm's specs are returned.
+
+    Returns:
+        Mapping of algorithm enum value to its parameter specs.
+    """
+
+    if algorithm is None:
+        return {alg.value: _clone_specs(specs) for alg, specs in ALGORITHM_PARAM_SPECS.items()}
+
+    algorithm_enum = _normalize_algorithm(algorithm)
+    return {algorithm_enum.value: _clone_specs(ALGORITHM_PARAM_SPECS.get(algorithm_enum, []))}
+
+
+def parse_algorithm_params(
+    algorithm: Union[int, PositionMappingAlgorithm],
+    params: Dict[str, Any],
+) -> Dict[str, Numeric]:
+    """
+    Normalize and validate algorithm parameters according to the registered spec.
+
+    Args:
+        algorithm: Algorithm identifier
+        params: Raw parameter dictionary (e.g., from API payload)
+
+    Returns:
+        Dict containing normalized numeric parameters
+
+    Raises:
+        ValueError: If required parameters are missing or invalid
+    """
+
+    algorithm_enum = _normalize_algorithm(algorithm)
+    specs = ALGORITHM_PARAM_SPECS.get(algorithm_enum, [])
+    if not specs:
+        return {}
+
+    parsed: Dict[str, Numeric] = {}
+    missing_labels: List[str] = []
+
+    for spec in specs:
+        raw_value = params.get(spec["name"])
+        if raw_value is None or (isinstance(raw_value, str) and raw_value.strip() == ""):
+            if spec["required"]:
+                missing_labels.append(spec["label"])
+            continue
+
+        parsed[spec["name"]] = _coerce_numeric_param(raw_value, spec)
+
+    if missing_labels:
+        raise ValueError(f"Missing parameters: {', '.join(missing_labels)}")
+
+    return parsed
 
 
 def map_score_to_position(
@@ -48,7 +228,7 @@ def map_score_to_position(
         algorithm: Algorithm type from PositionMappingAlgorithm enum
         score: LLM response score value (0-1000)
         initial_position: Initial position from ai_style_dimensions (0-1000)
-        params: Algorithm-specific parameters
+        params: Algorithm-specific parameters (all required for V1)
 
     Returns:
         Final position value (0-1000)
@@ -56,39 +236,35 @@ def map_score_to_position(
     Raises:
         ValueError: If algorithm is unknown or parameters are invalid
     """
+
     if params is None:
         params = {}
 
-    # Validate inputs
     if not (0 <= score <= 1000):
         raise ValueError(f"Score must be between 0 and 1000, got: {score}")
     if not (0 <= initial_position <= 1000):
         raise ValueError(f"Initial position must be between 0 and 1000, got: {initial_position}")
 
     try:
-        algorithm_enum = PositionMappingAlgorithm(algorithm)
+        algorithm_enum = _normalize_algorithm(algorithm)
     except ValueError:
         raise ValueError(f"Unknown algorithm: {algorithm}")
 
-    # Merge with default parameters
-    default_params = DEFAULT_ALGORITHM_PARAMS.get(algorithm_enum, {})
-    merged_params = {**default_params, **params}
-
     try:
         if algorithm_enum == PositionMappingAlgorithm.NONE:
-            return calculate_none_mapping(score, initial_position, merged_params)
+            return calculate_none_mapping(score, initial_position, {})
         elif algorithm_enum == PositionMappingAlgorithm.V1:
-            return calculate_v1_mapping(score, initial_position, merged_params)
+            validated = parse_algorithm_params(algorithm_enum, params)
+            return calculate_v1_mapping(score, initial_position, cast(V1Params, validated))
         else:
             raise ValueError(f"Algorithm not implemented: {algorithm}")
-
     except Exception as e:
         logger.error(
             "position_mapping_calculation_failed",
             algorithm=algorithm,
             score=score,
             initial_position=initial_position,
-            params=merged_params,
+            params=params,
             error=str(e),
             exc_info=True,
         )
@@ -107,10 +283,11 @@ def calculate_none_mapping(score: float, initial_position: float, params: Dict[s
     Returns:
         The same score value, clamped to valid range
     """
+
     return max(0.0, min(1000.0, score))
 
 
-def calculate_v1_mapping(score: float, initial_position: float, params: Dict[str, Any]) -> float:
+def calculate_v1_mapping(score: float, initial_position: float, params: V1Params) -> float:
     """
     V1 algorithm: Nonlinear position mapping with sensitivity-controlled offset.
 
@@ -122,125 +299,81 @@ def calculate_v1_mapping(score: float, initial_position: float, params: Dict[str
         score: LLM output score (0-1000)
         initial_position: Initial position from dimension config (0-1000)
         params: Algorithm parameters
-            - left_sensitivity: -100 to 100, left segment sensitivity control
-            - right_sensitivity: -100 to 100, right segment sensitivity control
+            - left_sensitivity/right_sensitivity: [-100, 100], sensitivity controls
+            - left_positive_gain/left_negative_gain/right_positive_gain/right_negative_gain: [1, 100], logarithmic gains
 
     Returns:
-        Final position value (0-1000)
-
-    Raises:
-        ValueError: If parameters are invalid
+        Final mapped position (0-1000)
     """
-    # Extract and validate parameters
-    left_sensitivity = params.get("left_sensitivity", 0)
-    right_sensitivity = params.get("right_sensitivity", 0)
 
-    if not (-100 <= left_sensitivity <= 100):
-        raise ValueError(f"left_sensitivity must be in [-100, 100], got: {left_sensitivity}")
-    if not (-100 <= right_sensitivity <= 100):
-        raise ValueError(f"right_sensitivity must be in [-100, 100], got: {right_sensitivity}")
+    left_sensitivity = float(params["left_sensitivity"])
+    right_sensitivity = float(params["right_sensitivity"])
+    left_positive_gain = float(params["left_positive_gain"])
+    left_negative_gain = float(params["left_negative_gain"])
+    right_positive_gain = float(params["right_positive_gain"])
+    right_negative_gain = float(params["right_negative_gain"])
 
-    # Step 0: Clamp inputs to valid range (defensive programming)
-    _score = max(0.0, min(1000.0, score))
-    _initial_position = max(0.0, min(1000.0, initial_position))
+    # Determine distance from initial position
+    _initial_position = initial_position
+    distance = abs(score - _initial_position)
 
-    # Handle edge cases where _initial_position is at boundaries
-    # When _initial_position=0, only right side exists; when _initial_position=1000, only left side exists
-    # In these cases, no meaningful offset can be calculated, return original score
-    if _initial_position <= EPSILON:
-        return _score
-    if _initial_position >= 1000.0 - EPSILON:
-        return _score
-
-    # Handle special case: score equals _initial_position (at origin point)
-    # No offset needed, return _initial_position directly
-    if abs(_score - _initial_position) < EPSILON:
+    if distance == 0:
         return _initial_position
 
-    # Step 1: Determine segment and calculate offset
-    if _score < _initial_position:
-        # Left segment: [0, _initial_position]
-        distance = _initial_position
+    if score < _initial_position:
+        # Left segment calculations
+        relative_position = distance / max(_initial_position, EPSILON)
 
-        # Handle boundary cases for left_sensitivity
         if left_sensitivity >= 100:
-            # Maximum sensitivity: always full offset
-            offset_ratio = 1.0
+            position = 0.0
         elif left_sensitivity <= -100:
-            # Minimum sensitivity: no offset
-            offset_ratio = 0.0
+            position = _initial_position
         else:
-            # Calculate normalized distance from origin
-            relative_position = (_initial_position - _score) / _initial_position
-
-            # Different formulas based on sensitivity sign
             if left_sensitivity >= 0:
-                # Positive sensitivity: standard logarithmic formula
-                # offset_ratio = -V1_K_LEFT_POSITIVE * LN(1 - ratio) / 100
                 offset_ratio = (
-                    -V1_K_LEFT_POSITIVE
+                    -left_positive_gain
                     * math.log(
                         max((1 - relative_position / (1.12 - left_sensitivity / 100) / 2.5), EPSILON)
                     )
                     / 100.0
                 )
             else:
-                # Negative sensitivity: alternative formula
-                # offset_ratio = -V1_K_LEFT_NEGATIVE * LN(1 - ratio / 2) / 100
                 offset_ratio = (
-                    -V1_K_LEFT_NEGATIVE
+                    -left_negative_gain
                     * math.log(max((1 - relative_position / (1.12 - left_sensitivity / 100)), EPSILON))
                     / 100.0
                 )
-
-                # Clamp offset_ratio to [0, 1] to prevent overflow
                 offset_ratio = max(0.0, min(1.0, offset_ratio))
 
-        # Map back to original distance
-        position = _initial_position - distance * offset_ratio
-
+            position = _initial_position - distance * offset_ratio
     else:
-        # Right segment: [_initial_position, 1000]
-        distance = 1000.0 - _initial_position
+        # Right segment calculations
+        max_range = 1000 - _initial_position
+        relative_position = distance / max(max_range, EPSILON)
 
-        # Handle boundary cases for right_sensitivity
         if right_sensitivity >= 100:
-            # Maximum sensitivity: always full offset
-            offset_ratio = 1.0
+            position = 1000.0
         elif right_sensitivity <= -100:
-            # Minimum sensitivity: no offset
-            offset_ratio = 0.0
+            position = _initial_position
         else:
-            # Calculate normalized distance from origin
-            relative_position = (_score - _initial_position) / (1000.0 - _initial_position)
-
-            # Different formulas based on sensitivity sign
             if right_sensitivity >= 0:
-                # Positive sensitivity: standard logarithmic formula
-                # offset_ratio = -V1_K_RIGHT_POSITIVE * LN(1 - ratio) / 100
                 offset_ratio = (
-                    -V1_K_RIGHT_POSITIVE
+                    -right_positive_gain
                     * math.log(
                         max((1 - relative_position / (1.12 - right_sensitivity / 100 / 2.5)), EPSILON)
                     )
                     / 100.0
                 )
             else:
-                # Negative sensitivity: alternative formula
-                # offset_ratio = -V1_K_RIGHT_NEGATIVE * LN(1 - ratio / 2) / 100
                 offset_ratio = (
-                    -V1_K_RIGHT_NEGATIVE
+                    -right_negative_gain
                     * math.log(max((1 - relative_position / (1.12 - right_sensitivity / 100)), EPSILON))
                     / 100.0
                 )
-
-                # Clamp offset_ratio to [0, 1] to prevent overflow
                 offset_ratio = max(0.0, min(1.0, offset_ratio))
 
-        # Map back to original distance
-        position = _initial_position + distance * offset_ratio
+            position = _initial_position + distance * offset_ratio
 
-    # Final safety clamp to ensure result is within valid range
     return max(0.0, min(1000.0, position))
 
 
@@ -254,8 +387,9 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
     Returns:
         Dictionary containing algorithm information
     """
+
     try:
-        algorithm_enum = PositionMappingAlgorithm(algorithm)
+        algorithm_enum = _normalize_algorithm(algorithm)
     except ValueError:
         return {
             "name": "Unknown",
@@ -273,27 +407,27 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
             "formula": "position = score",
         }
     elif algorithm_enum == PositionMappingAlgorithm.V1:
+        specs = ALGORITHM_PARAM_SPECS.get(algorithm_enum, [])
         return {
             "name": "V1",
-            "version": "5.0",
-            "descr_initial_positiontion": "Nonlinear position mapping with sensitivity-controlled logarithmic offset. Uses fixed distance mapping with mirrored left/right calculation, monotonically increasing, nonlinear acceleration near threshold.",
+            "version": "6.0",
+            "descr_initial_positiontion": "Nonlinear position mapping with sensitivity-controlled logarithmic offset.",
             "parameters": [
                 {
-                    "name": "left_sensitivity",
-                    "type": "integer",
-                    "default": 0,
-                    "range": [-100, 100],
-                    "descr_initial_positiontion": "Left segment sensitivity control: 100 (most sensitive) to -100 (least sensitive)",
-                },
-                {
-                    "name": "right_sensitivity",
-                    "type": "integer",
-                    "default": 0,
-                    "range": [-100, 100],
-                    "descr_initial_positiontion": "Right segment sensitivity control: 100 (most sensitive) to -100 (least sensitive)",
-                },
+                    "name": spec["name"],
+                    "type": spec["input_type"],
+                    "label": spec["label"],
+                    "required": spec["required"],
+                    "range": (
+                        [spec["min"], spec["max"]]
+                        if spec["min"] is not None or spec["max"] is not None
+                        else None
+                    ),
+                    "descr_initial_positiontion": spec["description"],
+                }
+                for spec in specs
             ],
-            "formula": "if sensitivity=100: offset_ratio=1; elif sensitivity=-100: offset_ratio=0; else: threshold=1-sensitivity/100, ratio=relative_position/threshold, offset_ratio=-K*ln(1-ratio)/100; position=_initial_position±distance*offset_ratio",
+            "formula": "offset_ratio = -gain * ln(1 - ratio) / 100; position = initial ± distance * offset_ratio, using independent left/right sensitivities and gains.",
         }
     else:
         return {
@@ -316,33 +450,9 @@ def validate_algorithm_params(algorithm: int, params: Dict[str, Any]) -> bool:
     Returns:
         True if parameters are valid, False otherwise
     """
+
     try:
-        algorithm_enum = PositionMappingAlgorithm(algorithm)
-    except ValueError:
-        return False
-
-    if algorithm_enum == PositionMappingAlgorithm.NONE:
-        # No parameters needed
+        parse_algorithm_params(algorithm, params)
         return True
-    elif algorithm_enum == PositionMappingAlgorithm.V1:
-        # Validate left_sensitivity and right_sensitivity parameters
-        required_params = ["left_sensitivity", "right_sensitivity"]
-        for param in required_params:
-            if param not in params:
-                return False
-
-        # Validate left_sensitivity range
-        if not isinstance(params["left_sensitivity"], (int, float)) or not (
-            -100 <= params["left_sensitivity"] <= 100
-        ):
-            return False
-
-        # Validate right_sensitivity range
-        if not isinstance(params["right_sensitivity"], (int, float)) or not (
-            -100 <= params["right_sensitivity"] <= 100
-        ):
-            return False
-
-        return True
-    else:
+    except Exception:
         return False

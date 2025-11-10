@@ -1,5 +1,5 @@
 """
-Admin style data services.
+Admin style dimension data services.
 
 Provide data retrieval helpers for style-related admin endpoints.
 """

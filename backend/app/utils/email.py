@@ -54,4 +54,3 @@ def mask_email(email: str) -> str:
     except Exception as e:
         logger.error(f"Failed to mask email: {e}")
         return email
-

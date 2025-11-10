@@ -31,7 +31,7 @@ async def chat_completion(
     json_schema: Optional[Dict[str, Any]] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
-    enable_thinking: Optional[bool] = None,
+    thinking_mode: Optional[str] = None,
     name: Optional[str] = None,
     character_request_params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -44,7 +44,7 @@ async def chat_completion(
         json_schema: Optional JSON schema for structured output
         temperature: Override temperature setting
         max_tokens: Override max tokens setting
-        enable_thinking: Override thinking mode setting
+        thinking_mode: Override thinking mode setting (enabled/disabled/auto)
         name: Specific config to use (defaults to primary)
         character_request_params: Character-specific request parameters override
 
@@ -71,7 +71,7 @@ async def chat_completion(
                     json_schema,
                     temperature,
                     max_tokens,
-                    enable_thinking,
+                    thinking_mode,
                     character_request_params,
                 )
 
@@ -159,16 +159,22 @@ async def get_primary_llm_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, 
 async def _get_configs_to_try(
     db: AsyncSession, name: Optional[str]
 ) -> List[Tuple[LLMConfig, LLMProvider]]:
-    """Get list of configurations to try in order of priority."""
+    """
+    Get list of configurations to try in order of priority.
+
+    Applies fallback limit: only configs with priority <= 99 are considered
+    to prevent fallback to test/mock configurations in production.
+    """
     if name:
-        # Use specific configuration
+        # Use specific configuration (no limit when explicitly requested)
         from .config import get_llm_config
 
         config_result = await get_llm_config(db, name)
         return [config_result] if config_result else []
     else:
-        # Use all active configurations ordered by priority
-        return await get_active_configs(db)
+        # Use active configurations with priority limit
+        MAX_FALLBACK_PRIORITY = 99  # Exclude test configs (priority >= 100)
+        return await get_active_configs(db, max_priority=MAX_FALLBACK_PRIORITY)
 
 
 async def _call_provider(
@@ -178,14 +184,14 @@ async def _call_provider(
     json_schema: Optional[Dict[str, Any]],
     temperature: Optional[float],
     max_tokens: Optional[int],
-    enable_thinking: Optional[bool],
+    thinking_mode: Optional[str],
     character_request_params: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
     Call the appropriate provider function using factory.
 
     Parameter priority (highest to lowest):
-    1. Explicit parameters (temperature, max_tokens, enable_thinking)
+    1. Explicit parameters (temperature, max_tokens, thinking_mode)
     2. Character-specific overrides (character_request_params from AI Character)
     3. Config defaults (from LLMConfig)
     """
@@ -206,13 +212,13 @@ async def _call_provider(
             merged_params["temperature"] = temperature
         if max_tokens is not None:
             merged_params["max_tokens"] = max_tokens
-        if enable_thinking is not None:
-            merged_params["enable_thinking"] = enable_thinking
+        if thinking_mode is not None:
+            merged_params["thinking_mode"] = thinking_mode
 
         # Extract parameters for factory call
         final_temperature = merged_params.get("temperature")
         final_max_tokens = merged_params.get("max_tokens")
-        final_enable_thinking = merged_params.get("enable_thinking")
+        final_thinking_mode = merged_params.get("thinking_mode")
 
         result = await factory.chat_completion(
             config=config,
@@ -221,7 +227,7 @@ async def _call_provider(
             json_schema=json_schema,
             temperature=final_temperature,
             max_tokens=final_max_tokens,
-            enable_thinking=final_enable_thinking,
+            thinking_mode=final_thinking_mode,
             provider_overrides=merged_params.get("provider_overrides"),
         )
 
@@ -238,7 +244,7 @@ async def _call_provider(
                 "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
-                "enable_thinking": enable_thinking,
+                "thinking_mode": thinking_mode,
                 "provider_overrides": merged_params.get("provider_overrides"),
             },
         }

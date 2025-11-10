@@ -7,20 +7,85 @@ Functions orchestrate API calls and database operations.
 
 import secrets
 from typing import Optional, List, Dict
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.config import config_service
 from crud.system import system_configs
 from .client import (
+    check_service_conversation_exists,
     create_system_conversation,
     subscribe_user_to_conversation,
     unsubscribe_user_from_conversation,
+    send_service_message,
 )
 from .health import check_leancloud_health
-from ..base import MessageData, MessageResult
+from ..base import MessageResult
 from utils.logging import get_logger
+from utils.snowflake import generate_snowflake_id
+from enums import MessageType
 
 logger = get_logger(__name__)
+
+
+async def ensure_system_conversation(db: AsyncSession, existing_conv_id: Optional[str] = None) -> str:
+    """
+    Ensure system conversation exists and is valid.
+
+    Args:
+        db: Database session
+        existing_conv_id: Optional cached conversation ID
+
+    Returns:
+        Valid LeanCloud conversation ID
+
+    Raises:
+        ValueError: If conversation cannot be ensured
+    """
+    leancloud_config = await config_service.get_leancloud_config(db)
+    app_id = leancloud_config.get("app_id")
+    master_key = leancloud_config.get("master_key")
+    base_url = leancloud_config.get("base_url")
+
+    if not all([app_id, master_key, base_url]):
+        logger.error("leancloud_config_incomplete_for_ensure")
+        raise ValueError("LeanCloud configuration incomplete")
+
+    conversation_id = existing_conv_id or await system_configs.get_config_value(
+        db, config_key="leancloud_im_service_conversation_id"
+    )
+
+    if conversation_id:
+        try:
+            exists, error_message = await check_service_conversation_exists(
+                app_id=app_id,
+                master_key=master_key,
+                base_url=base_url,
+                conversation_id=conversation_id,
+            )
+        except Exception as error:  # pragma: no cover - defensive logging
+            logger.error(
+                "leancloud_conversation_check_error",
+                conversation_id=conversation_id,
+                error=str(error),
+            )
+            exists = False
+            error_message = str(error)
+
+        if exists:
+            return conversation_id
+
+        logger.warning(
+            "leancloud_conversation_invalid",
+            conversation_id=conversation_id,
+            error=error_message,
+        )
+
+    success, refreshed_conversation_id = await refresh_system_conversation(db)
+    if success and refreshed_conversation_id:
+        return refreshed_conversation_id
+
+    raise ValueError("Failed to ensure LeanCloud system conversation")
 
 
 async def initialize_service(db: AsyncSession) -> bool:
@@ -62,7 +127,7 @@ async def initialize_service(db: AsyncSession) -> bool:
 
         # Check if system conversation ID already exists
         existing_conv_id = await system_configs.get_config_value(
-            db, config_key="leancloud_service_conversation_id"
+            db, config_key="leancloud_im_service_conversation_id"
         )
 
         if existing_conv_id:
@@ -70,14 +135,14 @@ async def initialize_service(db: AsyncSession) -> bool:
 
             # Also check and generate webhook token if needed
             existing_webhook_token = await system_configs.get_config_value(
-                db, config_key="leancloud_webhook_token"
+                db, config_key="leancloud_im_webhook_token"
             )
 
             if not existing_webhook_token:
-                webhook_token = secrets.token_urlsafe(32)
+                webhook_token = secrets.token_urlsafe(18)
                 updated_token_config = await system_configs.update_config_value(
                     db,
-                    config_key="leancloud_webhook_token",
+                    config_key="leancloud_im_webhook_token",
                     config_value=webhook_token,
                     validate_enum=False,
                 )
@@ -102,7 +167,7 @@ async def initialize_service(db: AsyncSession) -> bool:
         # Store conversation_id in system_configs
         updated_config = await system_configs.update_config_value(
             db,
-            config_key="leancloud_service_conversation_id",
+            config_key="leancloud_im_service_conversation_id",
             config_value=conversation_id,
             validate_enum=False,
         )
@@ -115,16 +180,16 @@ async def initialize_service(db: AsyncSession) -> bool:
 
         # Generate webhook token if not exists
         existing_webhook_token = await system_configs.get_config_value(
-            db, config_key="leancloud_webhook_token"
+            db, config_key="leancloud_im_webhook_token"
         )
 
         if not existing_webhook_token:
-            # Generate 43-character URL-safe token
-            webhook_token = secrets.token_urlsafe(32)
+            # Generate 24-character URL-safe token
+            webhook_token = secrets.token_urlsafe(18)
 
             # Store token in system_configs
             updated_token_config = await system_configs.update_config_value(
-                db, config_key="leancloud_webhook_token", config_value=webhook_token, validate_enum=False
+                db, config_key="leancloud_im_webhook_token", config_value=webhook_token, validate_enum=False
             )
 
             if updated_token_config:
@@ -182,7 +247,7 @@ async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, Optional[
         # Update conversation_id in system_configs
         updated_config = await system_configs.update_config_value(
             db,
-            config_key="leancloud_service_conversation_id",
+            config_key="leancloud_im_service_conversation_id",
             config_value=conversation_id,
             validate_enum=False,
         )
@@ -223,7 +288,9 @@ async def initialize_user(qiao_id: str, db: AsyncSession) -> bool:
         app_id = leancloud_config.get("app_id")
         master_key = leancloud_config.get("master_key")
         base_url = leancloud_config.get("base_url")
-        conversation_id = leancloud_config.get("service_conversation_id")
+        conversation_id = await system_configs.get_config_value(
+            db, config_key="leancloud_im_service_conversation_id"
+        )
 
         if not all([app_id, master_key, base_url, conversation_id]):
             logger.error("leancloud_config_incomplete_for_user_init", qiao_id=qiao_id)
@@ -272,7 +339,9 @@ async def deinitialize_user(qiao_id: str, db: AsyncSession) -> bool:
         app_id = leancloud_config.get("app_id")
         master_key = leancloud_config.get("master_key")
         base_url = leancloud_config.get("base_url")
-        conversation_id = leancloud_config.get("service_conversation_id")
+        conversation_id = await system_configs.get_config_value(
+            db, config_key="leancloud_im_service_conversation_id"
+        )
 
         if not all([app_id, master_key, base_url, conversation_id]):
             logger.error("leancloud_config_incomplete_for_user_deinit", qiao_id=qiao_id)
@@ -305,14 +374,185 @@ async def deinitialize_user(qiao_id: str, db: AsyncSession) -> bool:
 
 
 async def send_message(
-    conversation_id: str, from_qiao_id: str, to_qiao_id: str, content: str, message_type: int = 1
+    db: AsyncSession,
+    from_qiao_id: str,
+    to_qiao_id: str,
+    conv_id: str,
+    content: str,
+    message_type: int = 1,
+    extra_fields: Optional[dict] = None,
 ) -> MessageResult:
-    """Send single message through LeanCloud (to be implemented)."""
-    return MessageResult(
-        success=False,
-        error_code="NOT_IMPLEMENTED",
-        error_message="LeanCloud send_message not yet implemented",
-    )
+    """
+    Send message through LeanCloud.
+
+    Args:
+        db: Database session for configuration access
+        from_qiao_id: Sender's qiao_id
+        to_qiao_id: Receiver's qiao_id
+        conv_id: Internal conversation ID (included in message)
+        content: Message content
+        message_type: Message type (default: 1=TEXT)
+
+    Returns:
+        MessageResult with success status and message ID
+    """
+    try:
+        # Get LeanCloud configuration
+        leancloud_config = await config_service.get_leancloud_config(db)
+        app_id = leancloud_config.get("app_id")
+        master_key = leancloud_config.get("master_key")
+        base_url = leancloud_config.get("base_url")
+
+        # Get LeanCloud IM system conversation ID
+        lc_conv_id = await system_configs.get_config_value(
+            db, config_key="leancloud_im_service_conversation_id"
+        )
+
+        if not all([app_id, master_key, base_url, lc_conv_id]):
+            return MessageResult(
+                success=False,
+                error_code="CONFIG_MISSING",
+                error_message="LeanCloud configuration incomplete",
+            )
+
+        # Construct message JSON
+        import json
+        import time
+
+        payload = {
+            "conv_id": conv_id,
+            "from": from_qiao_id,
+            "to": to_qiao_id,
+            "content": content,
+            "message_type": message_type,
+            "sent_time": int(time.time() * 1000),
+        }
+        if extra_fields:
+            payload.update(extra_fields)
+
+        message_json = json.dumps(payload)
+
+        # Send message through LeanCloud API
+        success, msg_id, error = await send_service_message(
+            app_id=app_id,
+            master_key=master_key,
+            base_url=base_url,
+            conversation_id=lc_conv_id,
+            from_client=from_qiao_id,
+            to_clients=[to_qiao_id],
+            message=message_json,
+        )
+
+        if success:
+            return MessageResult(success=True, msg_id_provider=msg_id)
+        else:
+            return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
+
+    except Exception as e:
+        logger.error(
+            "send_message_exception", error=str(e), from_qiao_id=from_qiao_id, to_qiao_id=to_qiao_id
+        )
+        return MessageResult(success=False, error_code="EXCEPTION", error_message=str(e))
+
+
+async def send_message_as_system(
+    db: AsyncSession,
+    to_qiao_id: str,
+    conv_id: str,
+    content: str,
+    message_type: int = MessageType.CHAT_INFO,
+    action: Optional[dict] = None,
+    extra_fields: Optional[dict] = None,
+    msg_id: Optional[str] = None,
+) -> MessageResult:
+    """
+    Send message as system through LeanCloud.
+
+    Messages sent as system use "system" as from_client.
+
+    Args:
+        db: Database session for configuration access
+        to_qiao_id: Receiver's qiao_id
+        conv_id: Internal conversation ID (included in message)
+        content: Message content (already mapped by business layer)
+
+    Returns:
+        MessageResult with success status and message ID
+    """
+    try:
+        # Get LeanCloud configuration
+        leancloud_config = await config_service.get_leancloud_config(db)
+        app_id = leancloud_config.get("app_id")
+        master_key = leancloud_config.get("master_key")
+        base_url = leancloud_config.get("base_url")
+
+        # Get LeanCloud IM system conversation ID
+        lc_conv_id = await system_configs.get_config_value(
+            db, config_key="leancloud_im_service_conversation_id"
+        )
+
+        if not all([app_id, master_key, base_url, lc_conv_id]):
+            return MessageResult(
+                success=False,
+                error_code="CONFIG_MISSING",
+                error_message="LeanCloud configuration incomplete",
+            )
+
+        # Construct message JSON
+        import json
+        import time
+
+        message_body = {
+            "msg_id": msg_id or str(generate_snowflake_id()),
+            "conv_id": conv_id,
+            "from": "system",
+            "to": to_qiao_id,
+            "content": content,
+            "message_type": message_type,
+            "supports_typing": False,
+            "sent_time": int(time.time() * 1000),
+        }
+
+        if action:
+            message_body["action"] = action
+
+        if extra_fields:
+            message_body.update(extra_fields)
+
+        message_json = json.dumps(message_body, ensure_ascii=False)
+
+        # Send message as system through LeanCloud API
+        success, msg_id, error = await send_service_message(
+            app_id=app_id,
+            master_key=master_key,
+            base_url=base_url,
+            conversation_id=lc_conv_id,
+            from_client="system",  # Messages sent as system use "system" as sender
+            to_clients=[to_qiao_id],
+            message=message_json,
+        )
+
+        if success:
+            return MessageResult(success=True, msg_id_provider=msg_id)
+        else:
+            return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
+
+    except Exception as e:
+        logger.error("send_message_as_system_exception", error=str(e), to_qiao_id=to_qiao_id)
+        return MessageResult(success=False, error_code="EXCEPTION", error_message=str(e))
+
+
+async def get_conversation_registry_state(db: AsyncSession) -> dict:
+    """
+    Get the current LeanCloud conversation registry state.
+
+    Returns:
+        dict with im_conv_id only
+    """
+    im_conv_id = await ensure_system_conversation(db)
+    return {
+        "im_conv_id": im_conv_id,
+    }
 
 
 async def broadcast_message(
@@ -328,7 +568,7 @@ async def broadcast_message(
 
 async def fetch_messages_by_time_range(
     conversation_id: str, start_time: int, end_time: int, limit: int = 1000, include_start: bool = False
-) -> List[MessageData]:
+) -> List[dict]:
     """Fetch messages by time range from LeanCloud (to be implemented)."""
     return []
 

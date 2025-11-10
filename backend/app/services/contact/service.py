@@ -25,12 +25,16 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def _get_im_conv_id(db: AsyncSession) -> str:
+from services.message.providers.leancloud.service import ensure_system_conversation
+
+
+async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
     """
     Get IM provider conversation ID from system config.
 
     Args:
         db: Database session
+        ensure_valid: Whether to validate the stored ID against LeanCloud
 
     Returns:
         IM conversation ID
@@ -38,10 +42,14 @@ async def _get_im_conv_id(db: AsyncSession) -> str:
     Raises:
         ValueError: If conversation ID is not configured
     """
-    conv_id = await system_configs.get_config_value(db, config_key="leancloud_service_conversation_id")
+    conv_id = await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+    if ensure_valid or not conv_id:
+        conv_id = await ensure_system_conversation(db, existing_conv_id=conv_id)
+
     if not conv_id:
         logger.error("im_conv_id_not_configured")
         raise ValueError("IM conversation ID not configured in system settings")
+
     return conv_id
 
 
@@ -160,8 +168,8 @@ async def get_user_contacts_with_profiles(
     Returns:
         List of ContactListResponse with im_conv_id populated
     """
-    # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db)
+    # Get IM conversation ID (validated for detail view)
+    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
 
     # Get contacts from database
     contacts = await contact_crud.get_user_contacts(
@@ -207,8 +215,8 @@ async def get_contact_with_profile(
     Returns:
         ContactResponse with im_conv_id or None if not found
     """
-    # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db)
+    # Get IM conversation ID (force validation for conversation entry)
+    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
 
     # Get contact from database
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
@@ -253,7 +261,7 @@ async def get_conversation_info(
         ConversationInfoResponse or None if not found
     """
     # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db)
+    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
 
     # Get contact
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
@@ -315,7 +323,7 @@ async def update_contact(
         ValueError: If validation fails
     """
     # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db)
+    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
 
     # Get contact
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
@@ -385,7 +393,7 @@ async def block_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> Op
         Updated ContactResponse or None if not found
     """
     # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db)
+    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
 
     # Get contact
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
@@ -433,7 +441,7 @@ async def unblock_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> 
         Updated ContactResponse or None if not found
     """
     # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db)
+    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
 
     # Get contact
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)

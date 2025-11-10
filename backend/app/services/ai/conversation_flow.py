@@ -9,8 +9,9 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums.common import AIContextRole
-from .data import get_character_with_relations
+from .queries import get_character_with_relations
 from .relationship_scoring import (
+    get_relationship_scores,
     determine_relationship_type,
     calculate_new_scores,
     update_relationship_positions,
@@ -18,21 +19,21 @@ from .relationship_scoring import (
 )
 from .conversation_prompt import build_system_prompt, get_response_schema, build_conversation_context
 from .conversation_memory import process_memory_operations, archive_old_contexts
-from .data import (
+from .queries import (
     get_conversation_history,
     save_context_entry,
     mark_context_as_attack,
     update_character_status,
 )
-from .data.mutations import is_context_locked
+from .queries.updates import is_context_locked
 from .utils.validator import chat_completion_with_validation
 from services.llm.client import select_config_for_ai, validate_ai_response
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AIConversationError
 from utils.logging import get_logger
 from crud.contact import contact as contact_crud
 from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
-from services.message.convenience import send_chat_info
-from services.message.sender import send_message
+from services.message.outbound.helpers import send_chat_info
+from services.message.outbound.sender import send_message
 from enums import MessageType
 
 logger = get_logger(__name__)
@@ -109,7 +110,7 @@ async def process_conversation(
         # Get contact relationship and AI character for validation
         from models.contact import Contact
         from models.ai.character import AICharacter
-        from services.message.validation import message_validation_service
+        from services.message.security.validation import message_validation_service
         from sqlalchemy import select
 
         # Find contact by user and character qiao_ids
@@ -182,8 +183,6 @@ async def process_conversation(
             )
 
         # Step 4: Get relationship scores
-        from .relationship import get_relationship_scores
-
         relationship_scores = await get_relationship_scores(db, character_qiao_id)
 
         # Step 5: Determine relationship type
@@ -235,11 +234,11 @@ async def process_conversation(
             )
 
         # Step 8: Request LLM with validation
+        # No hardcoded parameters - use config priority: character_request_params > config
         llm_result = await chat_completion_with_validation(
             db=db,
             messages=messages,
             json_schema=json_schema,
-            enable_thinking=True,
             name=config_name,
             character_request_params=character_request_params,
         )
@@ -264,14 +263,33 @@ async def process_conversation(
             raw_content = json.dumps(ai_response, ensure_ascii=False)
         await validate_ai_response(db, config, raw_content, allow_auto_update=False)
 
-        # Step 10: Update ai_character_dimension and other related content
-        await process_ai_response_updates(
-            db, user_qiao_id, character_qiao_id, character_info, ai_response, locked_context_id, persist=persist
-        )
-
-        # Step 11: Reply message (only when persist is enabled)
+        # Step 10 & 11: Save all conversation results in single atomic transaction
         if persist:
-            await send_response_messages(db, user_qiao_id, character_qiao_id, ai_response, locked_context_id)
+            from .queries.transactions import save_conversation_result
+
+            await save_conversation_result(
+                db=db,
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
+                character_info=character_info,
+                ai_response=ai_response,
+                new_scores=ai_response.get("score"),
+                memory_operations=ai_response.get("memory_operations"),
+                llm_result={
+                    "success": True,
+                    "model": llm_result.get("model"),
+                    "usage": llm_result.get("usage", {}),
+                    "config_used": llm_result.get("config_used"),
+                    "request_payload": llm_result.get("request_payload"),
+                    "response_time": llm_result.get("response_time", 0),
+                },
+                locked_context_id=locked_context_id,
+            )
+        else:
+            # Non-persist mode: only update scores/memory without sending messages
+            await process_ai_response_updates(
+                db, user_qiao_id, character_qiao_id, character_info, ai_response, locked_context_id, persist=False
+            )
 
         # Archive old contexts if needed (per user-character conversation)
         await archive_old_contexts(db, user_qiao_id, character_qiao_id)
@@ -420,7 +438,7 @@ async def process_ai_response_updates(
                 await update_relationship_positions(db, character_id, new_scores)
 
                 # Re-evaluate and persist current relationship after score update
-                from .data import get_character_relationship_scores
+                from .queries import get_character_relationship_scores
 
                 latest_scores = await get_character_relationship_scores(db, character_id)
                 if persist and latest_scores:

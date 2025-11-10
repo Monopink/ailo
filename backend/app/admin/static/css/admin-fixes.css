@@ -244,3 +244,642 @@ html[data-bs-theme="dark"] ::selection {
 body {
   padding-top: 3.5rem;
 }
+
+/* ============================================================================
+   Select2 Dark Mode Adaptation
+   ============================================================================ */
+
+/* Select2 Container - Main selection box */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--single {
+  background-color: var(--tblr-bg-forms) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--multiple {
+  background-color: var(--tblr-bg-forms) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+/* Select2 Selection text color */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--single .select2-selection__rendered {
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--multiple .select2-selection__rendered {
+  color: var(--tblr-body-color) !important;
+}
+
+/* Select2 Placeholder text */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--single .select2-selection__placeholder {
+  color: var(--tblr-secondary) !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--multiple .select2-selection__placeholder {
+  color: var(--tblr-secondary) !important;
+}
+
+/* Select2 Arrow icon */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--single .select2-selection__arrow b {
+  border-color: var(--tblr-body-color) transparent transparent transparent !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default.select2-container--open .select2-selection--single .select2-selection__arrow b {
+  border-color: transparent transparent var(--tblr-body-color) transparent !important;
+}
+
+/* Select2 Dropdown menu */
+html[data-bs-theme="dark"] .select2-container--default .select2-dropdown {
+  background-color: var(--tblr-bg-surface) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+/* Select2 Search input in dropdown */
+html[data-bs-theme="dark"] .select2-container--default .select2-search--dropdown .select2-search__field {
+  background-color: var(--tblr-bg-forms) !important;
+  border-color: var(--tblr-border-color) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default .select2-search--dropdown .select2-search__field::placeholder {
+  color: var(--tblr-secondary) !important;
+}
+
+/* Select2 Options in dropdown */
+html[data-bs-theme="dark"] .select2-container--default .select2-results__option {
+  color: var(--tblr-body-color) !important;
+  background-color: transparent !important;
+}
+
+/* Select2 Option hover state */
+html[data-bs-theme="dark"] .select2-container--default .select2-results__option--highlighted {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+/* Select2 Option selected state */
+html[data-bs-theme="dark"] .select2-container--default .select2-results__option--selected {
+  background-color: var(--tblr-active-bg) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+/* Select2 Option disabled state */
+html[data-bs-theme="dark"] .select2-container--default .select2-results__option--disabled {
+  color: var(--tblr-secondary) !important;
+  opacity: 0.5;
+}
+
+/* Select2 Multi-select tags */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--multiple .select2-selection__choice {
+  background-color: var(--tblr-primary) !important;
+  border-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+/* Select2 Multi-select tag remove button */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+  color: var(--tblr-primary-fg, #ffffff) !important;
+  border-right-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+  color: var(--tblr-primary-fg, #ffffff) !important;
+  background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Select2 Multi-select search input */
+html[data-bs-theme="dark"] .select2-container--default .select2-search--inline .select2-search__field {
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default .select2-search--inline .select2-search__field::placeholder {
+  color: var(--tblr-secondary) !important;
+}
+
+/* Select2 Focus state */
+html[data-bs-theme="dark"] .select2-container--default.select2-container--focus .select2-selection--single,
+html[data-bs-theme="dark"] .select2-container--default.select2-container--focus .select2-selection--multiple {
+  border-color: var(--tblr-primary) !important;
+  box-shadow: 0 0 0 0.25rem rgba(var(--tblr-primary-rgb), 0.25) !important;
+}
+
+/* Select2 Disabled state */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--single.select2-selection--disabled,
+html[data-bs-theme="dark"] .select2-container--default .select2-selection--multiple.select2-selection--disabled {
+  background-color: var(--tblr-bg-surface-tertiary) !important;
+  color: var(--tblr-secondary) !important;
+  opacity: 0.6;
+}
+
+/* Select2 Clear button */
+html[data-bs-theme="dark"] .select2-container--default .select2-selection__clear {
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--default .select2-selection__clear:hover {
+  color: var(--tblr-danger) !important;
+}
+
+/* Select2 Loading spinner */
+html[data-bs-theme="dark"] .select2-container--default .select2-results__option--loading {
+  color: var(--tblr-secondary) !important;
+}
+
+/* Select2 No results message */
+html[data-bs-theme="dark"] .select2-container--default .select2-results__message {
+  color: var(--tblr-secondary) !important;
+}
+
+/* Select2 Group labels */
+html[data-bs-theme="dark"] .select2-container--default .select2-results__group {
+  color: var(--tblr-body-color) !important;
+  font-weight: 600;
+  background-color: var(--tblr-bg-surface-secondary) !important;
+}
+
+/* ============================================================================
+   JSONEditor Dark Mode Adaptation
+   ============================================================================ */
+
+/* JSONEditor Main container */
+html[data-bs-theme="dark"] div.jsoneditor {
+  border-color: var(--tblr-border-color) !important;
+  background-color: var(--tblr-bg-surface) !important;
+}
+
+/* JSONEditor Tree view background */
+html[data-bs-theme="dark"] div.jsoneditor-tree {
+  background-color: var(--tblr-bg-surface) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+/* JSONEditor Text/Code view background */
+html[data-bs-theme="dark"] div.jsoneditor-text,
+html[data-bs-theme="dark"] textarea.jsoneditor-text {
+  background-color: var(--tblr-bg-surface) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+/* JSONEditor Menu bar */
+html[data-bs-theme="dark"] div.jsoneditor-menu {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  border-bottom-color: var(--tblr-border-color) !important;
+}
+
+/* JSONEditor Menu buttons */
+html[data-bs-theme="dark"] div.jsoneditor-menu > button,
+html[data-bs-theme="dark"] div.jsoneditor-menu > div.jsoneditor-modes > button {
+  background-color: transparent !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-menu > button:hover,
+html[data-bs-theme="dark"] div.jsoneditor-menu > div.jsoneditor-modes > button:hover {
+  background-color: var(--tblr-active-bg) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-menu > button:focus,
+html[data-bs-theme="dark"] div.jsoneditor-menu > button:active,
+html[data-bs-theme="dark"] div.jsoneditor-menu > div.jsoneditor-modes > button.jsoneditor-selected {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+/* JSONEditor Search box */
+html[data-bs-theme="dark"] div.jsoneditor-search {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-search input {
+  background-color: var(--tblr-bg-forms) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-search input::placeholder {
+  color: var(--tblr-secondary) !important;
+}
+
+/* JSONEditor Tree nodes */
+html[data-bs-theme="dark"] div.jsoneditor-tree button.jsoneditor-button {
+  background-color: transparent !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-tree button.jsoneditor-button:hover {
+  background-color: var(--tblr-active-bg) !important;
+}
+
+/* JSONEditor Field names */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-field,
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-readonly {
+  color: var(--tblr-primary) !important;
+}
+
+/* JSONEditor Values */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-value {
+  color: var(--tblr-body-color) !important;
+}
+
+/* JSONEditor String values */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-value.jsoneditor-string {
+  color: var(--tblr-success) !important;
+}
+
+/* JSONEditor Number values */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-value.jsoneditor-number {
+  color: var(--tblr-info) !important;
+}
+
+/* JSONEditor Boolean values */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-value.jsoneditor-boolean {
+  color: var(--tblr-warning) !important;
+}
+
+/* JSONEditor Null values */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-value.jsoneditor-null {
+  color: var(--tblr-secondary) !important;
+}
+
+/* JSONEditor Separator */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-separator {
+  color: var(--tblr-secondary) !important;
+}
+
+/* JSONEditor Context menu */
+html[data-bs-theme="dark"] div.jsoneditor-contextmenu {
+  background-color: var(--tblr-bg-surface) !important;
+  border-color: var(--tblr-border-color) !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-contextmenu ul li button {
+  background-color: transparent !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-contextmenu ul li button:hover,
+html[data-bs-theme="dark"] div.jsoneditor-contextmenu ul li button:focus {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-contextmenu ul li button.jsoneditor-selected {
+  background-color: var(--tblr-active-bg) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-contextmenu ul li.jsoneditor-separator {
+  border-top-color: var(--tblr-border-color) !important;
+}
+
+/* JSONEditor Modal dialogs */
+html[data-bs-theme="dark"] div.jsoneditor-modal {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content {
+  background-color: var(--tblr-bg-surface) !important;
+  border-color: var(--tblr-border-color) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content input,
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content textarea,
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content select {
+  background-color: var(--tblr-bg-forms) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content input::placeholder,
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content textarea::placeholder {
+  color: var(--tblr-secondary) !important;
+}
+
+/* JSONEditor Modal buttons */
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content button {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+  border-color: var(--tblr-primary) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content button:hover {
+  background-color: var(--tblr-primary-darken) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-modal div.jsoneditor-modal-content button.jsoneditor-button-cancel {
+  background-color: var(--tblr-secondary) !important;
+  border-color: var(--tblr-secondary) !important;
+}
+
+/* JSONEditor Error messages */
+html[data-bs-theme="dark"] div.jsoneditor-tree tr.jsoneditor-highlight,
+html[data-bs-theme="dark"] div.jsoneditor-tree tr.jsoneditor-selected {
+  background-color: var(--tblr-active-bg) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-tree tr.jsoneditor-highlight-error {
+  background-color: var(--tblr-danger-bg-subtle) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-validation-errors {
+  background-color: var(--tblr-danger-bg-subtle) !important;
+  border-color: var(--tblr-danger-border-subtle) !important;
+  color: var(--tblr-danger-text-emphasis) !important;
+}
+
+/* JSONEditor Status bar */
+html[data-bs-theme="dark"] div.jsoneditor-statusbar {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  border-top-color: var(--tblr-border-color) !important;
+  color: var(--tblr-secondary) !important;
+}
+
+/* JSONEditor Expand/collapse buttons */
+html[data-bs-theme="dark"] div.jsoneditor-tree button.jsoneditor-expand {
+  background-image: none !important;
+  color: var(--tblr-body-color) !important;
+}
+
+/* JSONEditor Drag area */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-dragarea {
+  background-color: var(--tblr-primary-bg-subtle) !important;
+  border-color: var(--tblr-primary) !important;
+}
+
+/* JSONEditor Insert area */
+html[data-bs-theme="dark"] div.jsoneditor-tree tr.jsoneditor-append,
+html[data-bs-theme="dark"] div.jsoneditor-tree td.jsoneditor-tree {
+  background-color: transparent !important;
+}
+
+/* JSONEditor Readonly fields */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-readonly {
+  color: var(--tblr-secondary) !important;
+}
+
+/* JSONEditor Color picker */
+html[data-bs-theme="dark"] div.jsoneditor-tree div.jsoneditor-color {
+  border-color: var(--tblr-border-color) !important;
+}
+
+/* JSONEditor Autocomplete dropdown */
+html[data-bs-theme="dark"] div.jsoneditor-autocomplete {
+  background-color: var(--tblr-bg-surface) !important;
+  border-color: var(--tblr-border-color) !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-autocomplete .jsoneditor-autocomplete-hint {
+  background-color: transparent !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-autocomplete .jsoneditor-autocomplete-hint:hover,
+html[data-bs-theme="dark"] div.jsoneditor-autocomplete .jsoneditor-autocomplete-hint.jsoneditor-autocomplete-selected {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+/* JSONEditor Code mode (ACE editor integration) */
+html[data-bs-theme="dark"] div.jsoneditor-text-mode {
+  background-color: var(--tblr-bg-surface) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .ace_editor {
+  background-color: var(--tblr-bg-surface) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .ace_gutter {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  color: var(--tblr-secondary) !important;
+}
+
+html[data-bs-theme="dark"] .ace_gutter-active-line {
+  background-color: var(--tblr-active-bg) !important;
+}
+
+/* JSONEditor Scrollbars */
+html[data-bs-theme="dark"] div.jsoneditor-tree::-webkit-scrollbar,
+html[data-bs-theme="dark"] div.jsoneditor-text::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-tree::-webkit-scrollbar-track,
+html[data-bs-theme="dark"] div.jsoneditor-text::-webkit-scrollbar-track {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-tree::-webkit-scrollbar-thumb,
+html[data-bs-theme="dark"] div.jsoneditor-text::-webkit-scrollbar-thumb {
+  background-color: var(--tblr-border-color) !important;
+  border-radius: 6px;
+}
+
+html[data-bs-theme="dark"] div.jsoneditor-tree::-webkit-scrollbar-thumb:hover,
+html[data-bs-theme="dark"] div.jsoneditor-text::-webkit-scrollbar-thumb:hover {
+  background-color: var(--tblr-secondary) !important;
+}
+
+/* ============================================================================
+   DataTables Dark Mode Adaptation
+   ============================================================================ */
+
+/* DataTables Button collection dropdown */
+html[data-bs-theme="dark"] div.dt-button-collection {
+  background-color: var(--tblr-bg-surface) !important;
+  border-color: var(--tblr-border-color) !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5) !important;
+}
+
+/* DataTables Button collection buttons */
+html[data-bs-theme="dark"] div.dt-button-collection button.dt-button,
+html[data-bs-theme="dark"] div.dt-button-collection a.dt-button {
+  background-color: transparent !important;
+  color: var(--tblr-body-color) !important;
+  border-color: transparent !important;
+}
+
+html[data-bs-theme="dark"] div.dt-button-collection button.dt-button:hover,
+html[data-bs-theme="dark"] div.dt-button-collection a.dt-button:hover {
+  background-color: var(--tblr-active-bg) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] div.dt-button-collection button.dt-button:active,
+html[data-bs-theme="dark"] div.dt-button-collection a.dt-button:active,
+html[data-bs-theme="dark"] div.dt-button-collection button.dt-button.active,
+html[data-bs-theme="dark"] div.dt-button-collection a.dt-button.active {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+/* DataTables Button collection background overlay - disable lightbox effect */
+html[data-bs-theme="dark"] div.dt-button-background {
+  display: none !important;
+}
+
+/* DataTables Main buttons */
+html[data-bs-theme="dark"] .dt-buttons button.dt-button,
+html[data-bs-theme="dark"] .dt-buttons a.dt-button {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] .dt-buttons button.dt-button:hover,
+html[data-bs-theme="dark"] .dt-buttons a.dt-button:hover {
+  background-color: var(--tblr-active-bg) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .dt-buttons button.dt-button:active,
+html[data-bs-theme="dark"] .dt-buttons a.dt-button:active,
+html[data-bs-theme="dark"] .dt-buttons button.dt-button.active,
+html[data-bs-theme="dark"] .dt-buttons a.dt-button.active {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+/* DataTables Search input */
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_filter input {
+  background-color: var(--tblr-bg-forms) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+/* DataTables Length select */
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_length select {
+  background-color: var(--tblr-bg-forms) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+/* DataTables Info text */
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_info {
+  color: var(--tblr-secondary) !important;
+}
+
+/* DataTables Processing indicator */
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_processing {
+  background-color: var(--tblr-bg-surface) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+/* DataTables Pagination */
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_paginate ul.pagination li a {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_paginate ul.pagination li a:hover {
+  background-color: var(--tblr-active-bg) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_paginate ul.pagination li.active a {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+  border-color: var(--tblr-primary) !important;
+}
+
+html[data-bs-theme="dark"] div.dataTables_wrapper div.dataTables_paginate ul.pagination li.disabled a {
+  background-color: var(--tblr-bg-surface-tertiary) !important;
+  color: var(--tblr-secondary) !important;
+  opacity: 0.6;
+}
+
+/* DataTables Row selection */
+html[data-bs-theme="dark"] table.dataTable tbody tr.selected {
+  background-color: var(--tblr-primary-bg-subtle) !important;
+  color: var(--tblr-body-color) !important;
+}
+
+html[data-bs-theme="dark"] table.dataTable tbody tr.selected:hover {
+  background-color: var(--tblr-primary-bg-subtle) !important;
+}
+
+/* DataTables FixedHeader */
+html[data-bs-theme="dark"] table.dataTable.fixedHeader-floating {
+  background-color: var(--tblr-bg-surface) !important;
+}
+
+html[data-bs-theme="dark"] table.dataTable thead {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+}
+
+/* DataTables SearchBuilder */
+html[data-bs-theme="dark"] div.dtsb-searchBuilder {
+  background-color: var(--tblr-bg-surface) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.dtsb-searchBuilder div.dtsb-group {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.dtsb-searchBuilder select,
+html[data-bs-theme="dark"] div.dtsb-searchBuilder input {
+  background-color: var(--tblr-bg-forms) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.dtsb-searchBuilder button {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}
+
+html[data-bs-theme="dark"] div.dtsb-searchBuilder button:hover {
+  background-color: var(--tblr-active-bg) !important;
+}
+
+/* DataTables ColReorder */
+html[data-bs-theme="dark"] table.DTCR_clonedTable {
+  background-color: var(--tblr-bg-surface) !important;
+}
+
+/* DataTables RowReorder */
+html[data-bs-theme="dark"] table.dt-rowReorder-float {
+  background-color: var(--tblr-bg-surface) !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5) !important;
+}
+
+/* DataTables Responsive child rows */
+html[data-bs-theme="dark"] table.dataTable.dtr-inline.collapsed > tbody > tr > td.child,
+html[data-bs-theme="dark"] table.dataTable.dtr-inline.collapsed > tbody > tr > th.child,
+html[data-bs-theme="dark"] table.dataTable.dtr-inline.collapsed > tbody > tr > td.dataTables_empty {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+}
+
+html[data-bs-theme="dark"] table.dataTable.dtr-inline.collapsed > tbody > tr.parent > td:first-child:before,
+html[data-bs-theme="dark"] table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th:first-child:before {
+  background-color: var(--tblr-primary) !important;
+  color: var(--tblr-primary-fg, #ffffff) !important;
+}
+
+/* DataTables KeyTable focus */
+html[data-bs-theme="dark"] table.dataTable tbody th.focus,
+html[data-bs-theme="dark"] table.dataTable tbody td.focus {
+  background-color: var(--tblr-primary-bg-subtle) !important;
+  box-shadow: inset 0 0 0 2px var(--tblr-primary) !important;
+}
+
+/* DataTables Scroller loading message */
+html[data-bs-theme="dark"] div.DTS div.dataTables_scrollBody table {
+  background-color: var(--tblr-bg-surface) !important;
+}
+
+html[data-bs-theme="dark"] div.DTS div.DTS_Loading {
+  background-color: var(--tblr-bg-surface) !important;
+  color: var(--tblr-body-color) !important;
+  border-color: var(--tblr-border-color) !important;
+}

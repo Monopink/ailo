@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from crud.ai import ai_character as character_crud
+from enums.common import PositionMappingAlgorithm
+from services.ai.utils.position_mapping import parse_algorithm_params
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -76,20 +78,16 @@ async def save_character(
                 "position_mapping_algorithm": int(algorithm),
             }
 
-            if algorithm == 2:
+            if algorithm == PositionMappingAlgorithm.V1.value:
                 params = dim_data.get("position_mapping_params", {})
                 if not isinstance(params, dict):
                     raise HTTPException(status_code=400, detail="position_mapping_params must be a dict")
-                left_sensitivity = params.get("left_sensitivity", 0)
-                right_sensitivity = params.get("right_sensitivity", 0)
-                if not isinstance(left_sensitivity, (int, float)) or not isinstance(right_sensitivity, (int, float)):
-                    raise HTTPException(status_code=400, detail="Sensitivity values must be numbers")
-                if not (-100 <= left_sensitivity <= 100) or not (-100 <= right_sensitivity <= 100):
-                    raise HTTPException(status_code=400, detail="Sensitivity values must be between -100 and 100")
-                cleaned["position_mapping_params"] = {
-                    "left_sensitivity": int(left_sensitivity),
-                    "right_sensitivity": int(right_sensitivity),
-                }
+                try:
+                    cleaned["position_mapping_params"] = parse_algorithm_params(
+                        PositionMappingAlgorithm.V1, params
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc))
 
             cleaned_dimensions.append(cleaned)
 
@@ -156,7 +154,7 @@ async def generate_character_relationship(
                 except Exception:
                     preview = True
 
-        from services.admin.position_mapping import generate_relationship_for_character
+        from services.admin.character_relationship import generate_relationship_for_character
 
         result = await generate_relationship_for_character(
             db, character_id=int(character_id), overrides=overrides, preview=preview
@@ -199,18 +197,14 @@ async def update_character_dimension(
         raise HTTPException(status_code=400, detail="Invalid algorithm")
 
     params = data.get("position_mapping_params", {})
-    if algorithm == 2:
+    if algorithm == PositionMappingAlgorithm.V1.value:
         if not isinstance(params, dict):
             raise HTTPException(status_code=400, detail="position_mapping_params must be a dict")
 
-        left_sensitivity = params.get("left_sensitivity", 0)
-        right_sensitivity = params.get("right_sensitivity", 0)
-
-        if not isinstance(left_sensitivity, (int, float)) or not isinstance(right_sensitivity, (int, float)):
-            raise HTTPException(status_code=400, detail="Sensitivity values must be numbers")
-
-        if not (-100 <= left_sensitivity <= 100) or not (-100 <= right_sensitivity <= 100):
-            raise HTTPException(status_code=400, detail="Sensitivity values must be between -100 and 100")
+        try:
+            params = parse_algorithm_params(PositionMappingAlgorithm.V1, params)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     # Update dimension - fix function call signature
     update_data = {

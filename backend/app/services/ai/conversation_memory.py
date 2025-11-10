@@ -8,8 +8,8 @@ context status updates, and context archiving.
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .data import get_character_with_relations, get_contexts_for_archiving
-from .data.mutations import update_character_memory
+from .queries import get_character_with_relations, get_contexts_for_archiving
+from .queries.updates import update_character_memory
 from services.config import config_service
 from crud.ai.context import ai_context as ai_context_crud
 from models.ai import AIContext

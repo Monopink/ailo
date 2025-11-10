@@ -13,6 +13,8 @@ from .base import (
     PermissionError,
     ConflictError,
     ExternalServiceError,
+    ConfigurationError,
+    MissingConfigurationError,
 )
 
 # Business exceptions
@@ -56,6 +58,8 @@ __all__ = [
     "PermissionError",
     "ConflictError",
     "ExternalServiceError",
+    "ConfigurationError",
+    "MissingConfigurationError",
     # Business exceptions
     "UserNotFoundError",
     "UserAlreadyExistsError",

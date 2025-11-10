@@ -47,12 +47,12 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('token_max_active_per_device', '1', '1', 2, 'Maximum active tokens per device type', 'auth', NULL),
 ('token_cleanup_after', '2592000', '2592000', 2, 'Clean up revoked tokens older than N seconds (30 days)', 'auth', NULL),
 
--- LeanCloud configurations
-('leancloud_app_id', 'KTrHvz9TVtSZX1fhIuVanHhH-gzGzoHsz', '', 1, 'LeanCloud App ID', 'leancloud', NULL),
-('leancloud_app_key', 'aBJfaLAFnVl1mna2hQ7jsff0', '', 1, 'LeanCloud App Key', 'leancloud', NULL),
-('leancloud_base_url', 'https://ktrhvz9t.lc-cn-n1-shared.com', '', 1, 'LeanCloud Base URL', 'leancloud', NULL),
-('leancloud_service_conversation_id', '', '', 1, 'LeanCloud system conversation ID for message routing', 'leancloud', NULL),
-('leancloud_webhook_token', '', '', 1, 'Webhook security token for LeanCloud message callbacks (24-character URL-safe string)', 'leancloud', NULL),
+-- LeanCloud IM configurations
+('leancloud_im_app_id', 'KTrHvz9TVtSZX1fhIuVanHhH-gzGzoHsz', '', 1, 'LeanCloud IM App ID', 'leancloud', NULL),
+('leancloud_im_app_key', 'aBJfaLAFnVl1mna2hQ7jsff0', '', 1, 'LeanCloud IM App Key', 'leancloud', NULL),
+('leancloud_im_server_url', 'https://ktrhvz9t.lc-cn-n1-shared.com', '', 1, 'LeanCloud IM server URL', 'leancloud', NULL),
+('leancloud_im_service_conversation_id', '', '', 1, 'LeanCloud IM system conversation ID for message routing', 'leancloud', NULL),
+('leancloud_im_webhook_token', '', '', 1, 'LeanCloud IM webhook security token (24-character URL-safe string)', 'leancloud', NULL),
 ('api_base_url', '', '', 1, 'Base URL for API (e.g., https://example.com)', 'system', NULL),
 
 -- Message buffer configurations
@@ -144,10 +144,25 @@ ON CONFLICT (display_name) DO UPDATE SET
     supports_thinking = EXCLUDED.supports_thinking,
     updated_at = NOW();
 
--- Insert basic LLM configs
-INSERT INTO llm_configs (provider_id, name, model_name, temperature, max_tokens, timeout_seconds, max_retries, enable_streaming, enable_thinking, json_schema_mode, status, priority) VALUES
-(1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 3, 1, 0, 'strict', 1, 1),
-(2, 'mock', 'mock-model-v1', 0.7, 2000, 5, 0, 0, 0, 'strict', 1, 999)
+INSERT INTO llm_configs (
+    provider_id,
+    name,
+    model_name,
+    temperature,
+    max_tokens,
+    timeout_seconds,
+    thinking_mode,
+    top_p,
+    frequency_penalty,
+    presence_penalty,
+    stop_sequences,
+    json_schema_mode,
+    status,
+    priority,
+    extra_params
+) VALUES
+(1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 'disabled', 0.70, 0.00, 0.00, '[]'::jsonb, 'strict', 1, 1, NULL),
+(2, 'mock', 'mock-model-v1', 0.7, 2000, 5, 'disabled', 0.70, 0.00, 0.00, '[]'::jsonb, 'strict', 1, 999, NULL)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================

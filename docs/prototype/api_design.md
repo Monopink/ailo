@@ -1024,7 +1024,7 @@ Authorization: Bearer <token>
 
 **说明**:
 
-- message_type: 1=文本, 2=图片, 3=语音, 4=视频, 5=系统消息
+- message_type: 1=TEXT, 2=TYPING_START, 3=TYPING_END, 4=CHAT_INFO, 9=NOTIFICATION
 - status: 1=已发送, 2=已送达, 3=已读, 4=失败
 
 ### 5. 联系人申请

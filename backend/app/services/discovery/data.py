@@ -38,11 +38,11 @@ async def get_random_templates(
     try:
         # Build subquery for excluded templates (optimized)
         excluded_subquery = (
-            select(AICharacter.request_params["created_from_profile_qiao_id"].astext)
+            select(AICharacter.created_from_profile_qiao_id)
             .where(
                 and_(
                     AICharacter.user_qiao_id == user_qiao_id,
-                    AICharacter.request_params["created_from_profile_qiao_id"].isnot(None),
+                    AICharacter.created_from_profile_qiao_id.isnot(None),
                 )
             )
             .scalar_subquery()

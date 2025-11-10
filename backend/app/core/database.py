@@ -40,10 +40,18 @@ SessionLocal = async_sessionmaker(
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency to get an async database session.
-    Used for FastAPI dependency injection.
+
+    Ensures each request either commits successfully or rolls back on error.
     """
     async with SessionLocal() as session:
-        yield session
+        try:
+            yield session
+            if session.in_transaction():
+                await session.commit()
+        except Exception:
+            if session.in_transaction():
+                await session.rollback()
+            raise
 
 
 async def init_database():

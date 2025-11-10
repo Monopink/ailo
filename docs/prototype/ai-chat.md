@@ -143,16 +143,18 @@ flowchart TB
 
 ```
 1. 限制 score 到 [0, 1000] 范围
-2. 计算阈值（统一公式）：
-   threshold = 1 - sensitivity / 100
+2. 判断边界情况：
+   - 如果 sensitivity >= 100: offset_ratio = 1 (完全偏移)
+   - 如果 sensitivity <= -100: offset_ratio = 0 (无偏移)
 3. 计算归一化距离：
    - 左段: normalized_distance = (ip - score) / ip
    - 右段: normalized_distance = (score - ip) / (1000 - ip)
-4. 计算非线性偏移：
-   - 如果 threshold <= 0: offset_ratio = 1 (完全偏移)
+4. 计算阈值：
+   threshold = 1 - sensitivity / 100
+5. 计算非线性偏移：
    - 如果 normalized_distance >= threshold: offset_ratio = 1 (超出阈值)
    - 否则: offset_ratio = -K * ln(1 - normalized_distance/threshold) / 100
-5. 映射回原空间：
+6. 映射回原空间：
    - 左段: position = ip - ip * offset_ratio
    - 右段: position = ip + (1000 - ip) * offset_ratio
 ```
@@ -160,15 +162,27 @@ flowchart TB
 **算法公式**：
 
 ```
-threshold = 1 - sensitivity / 100
-ratio = normalized_distance / threshold
-if ratio < 1:
-    offset_ratio = -K * ln(1 - ratio) / 100
-    offset_ratio = clamp(offset_ratio, 0, 1)
+# 边界情况
+if sensitivity >= 100:
+    offset_ratio = 1
+elif sensitivity <= -100:
+    offset_ratio = 0
+else:
+    # 正常计算
+    threshold = 1 - sensitivity / 100
+    ratio = normalized_distance / threshold
+    if ratio < 1:
+        offset_ratio = -gain * ln(1 - ratio) / 100  # gain 由左右段的正负增益参数提供
+        offset_ratio = clamp(offset_ratio, 0, 1)
+
 position = ip ± space * offset_ratio
 ```
 
-其中 K = 45（可调整的非线性系数）
+其中 `gain` 不再是硬编码常量，而是由以下四个参数动态提供：
+- `left_positive_gain`（左段 sensitivity >= 0）
+- `left_negative_gain`（左段 sensitivity < 0）
+- `right_positive_gain`（右段 sensitivity >= 0）
+- `right_negative_gain`（右段 sensitivity < 0）
 
 **实现位置**：`backend/app/services/ai/utils/position_mapping.py`
 
@@ -179,7 +193,11 @@ ai_character_dimensions.position_mapping_params 示例：
 ```json
 {
   "left_sensitivity": 0,
-  "right_sensitivity": 0
+  "right_sensitivity": 0,
+  "left_positive_gain": 45,
+  "left_negative_gain": 39,
+  "right_positive_gain": 45,
+  "right_negative_gain": 39
 }
 ```
 
@@ -192,58 +210,83 @@ ai_character_dimensions.position_mapping_params 示例：
 - **right_sensitivity**: 右段敏感度控制 (-100 到 100)
   - 控制右段的偏移敏感度
   - threshold = 1 - right_sensitivity / 100，范围 [0, 2]
+- **left_positive_gain**: 左段 sensitivity ≥ 0 时使用的对数增益系数 (1-100)
+- **left_negative_gain**: 左段 sensitivity < 0 时使用的对数增益系数 (1-100)
+- **right_positive_gain**: 右段 sensitivity ≥ 0 时使用的对数增益系数 (1-100)
+- **right_negative_gain**: 右段 sensitivity < 0 时使用的对数增益系数 (1-100)
 
 **sensitivity 参数含义**：
 
-- **sensitivity = 100**: 最敏感，threshold = 0，任何距离都触发完全偏移
+- **sensitivity >= 100**: 最敏感，offset_ratio 恒为 1，完全偏移到边界
 - **sensitivity = 0**: 标准敏感度，threshold = 1，标准行为
-- **sensitivity = -100**: 最不敏感，threshold = 2，几乎不触发偏移
+- **sensitivity <= -100**: 最不敏感，offset_ratio 恒为 0，完全不偏移
 
-**threshold 阈值含义**：
+**threshold 阈值含义**（仅在 -100 < sensitivity < 100 时使用）：
 
 - **threshold > 1**: 阈值较高，需要更大的距离才能产生显著偏移（不敏感）
 - **threshold = 1**: 标准阈值，标准行为
 - **threshold < 1**: 阈值较低，较小的距离就会产生显著偏移（敏感）
-- **threshold ≈ 0**: 几乎任何距离都会产生完全偏移（极度敏感）
 
-**性格模拟示例**：
+**性格模拟示例**（完整参数）：
 
 ```json
 // 标准行为 - 无性格偏移
-{"left_sensitivity": 0, "right_sensitivity": 0}
+{
+  "left_sensitivity": 0,
+  "right_sensitivity": 0,
+  "left_positive_gain": 45,
+  "left_negative_gain": 39,
+  "right_positive_gain": 45,
+  "right_negative_gain": 39
+}
 
 // 非常敏感 - 两侧都容易触发偏移
-{"left_sensitivity": 50, "right_sensitivity": 50}
+{
+  "left_sensitivity": 50,
+  "right_sensitivity": 50,
+  "left_positive_gain": 60,
+  "left_negative_gain": 50,
+  "right_positive_gain": 60,
+  "right_negative_gain": 50
+}
 
-// 非常迟钝 - 两侧都难以触发偏移
-{"left_sensitivity": -50, "right_sensitivity": -50}
-
-// 左侧敏感，右侧迟钝
-{"left_sensitivity": 30, "right_sensitivity": -30}
-
-// 左侧迟钝，右侧敏感
-{"left_sensitivity": -30, "right_sensitivity": 30}
+// 左侧敏感右侧迟钝 + 自定义增益
+{
+  "left_sensitivity": 30,
+  "right_sensitivity": -30,
+  "left_positive_gain": 70,
+  "left_negative_gain": 55,
+  "right_positive_gain": 35,
+  "right_negative_gain": 25
+}
 ```
 
-**调整非线性强度**：
+**增益参数含义**：
+- **增大 gain**（接近 100）→ 偏移加速更快，更激进
+- **减小 gain**（接近 1）→ 偏移加速更慢，更保守
 
-如果需要调整全局的非线性加速强度，可以修改 `position_mapping.py` 中的 K 常量：
+所有参数均为必填项，不再提供默认值，任何缺失都会抛出配置错误，确保算法行为可预期。
 
-```python
-K = 45  # Nonlinear coefficient for V1 logarithmic mapping
-```
+**对数公式差异**（K -> 对应的 gain 参数）：
+- 左段 sensitivity >= 0：`offset_ratio = -left_positive_gain * ln(1.12 - ratio) / 100`
+- 左段 sensitivity < 0：`offset_ratio = -left_negative_gain * ln(1.12 - ratio) / 100`
+- 右段 sensitivity >= 0：`offset_ratio = -right_positive_gain * ln(1.12 - ratio / 2.5) / 100`
+- 右段 sensitivity < 0：`offset_ratio = -right_negative_gain * ln(1.12 - ratio) / 100`
 
-- **增大 K**（如 50）→ 偏移加速更快，更激进
-- **减小 K**（如 40）→ 偏移加速更慢，更保守
-- **当前值**：45（经过调整的默认值）
+**独立调整能力**：
+- 左右两段可配置不同的增益系数
+- 正负 sensitivity 可配置不同的增益系数
+- 不同情况可以使用不同的对数公式（如 `1.12 - ratio` 或 `1.12 - ratio/2.5`）
+- 提供了极高的灵活性来调整不同场景下的偏移行为
 
 **边界情况处理**：
 
 1. **ip = 0 或 ip = 1000**：直接返回 score，不进行偏移计算
 2. **score = ip**：返回 ip，原点处无偏移
-3. **threshold <= 0**：完全偏移到边界（offset_ratio = 1）
-4. **normalized_distance >= threshold**：超出阈值，完全偏移（offset_ratio = 1）
-5. **数值稳定性**：使用 EPSILON (1e-10) 进行浮点数比较，避免除零和对数计算错误
+3. **sensitivity >= 100**：offset_ratio = 1，完全偏移到边界
+4. **sensitivity <= -100**：offset_ratio = 0，完全不偏移
+5. **normalized_distance >= threshold**：超出阈值，完全偏移（offset_ratio = 1）
+6. **数值稳定性**：使用 EPSILON (1e-10) 进行浮点数比较，避免除零和对数计算错误
 
 **重要特性**：
 

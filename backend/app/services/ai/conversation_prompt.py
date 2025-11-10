@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums.common import AIContextRole
-from .data import get_personality_with_placeholders
+from .queries import get_personality_with_placeholders
 from exceptions import AIServiceError
 from utils.logging import get_logger
 
@@ -181,7 +181,7 @@ async def get_response_schema(db: AsyncSession, character_qiao_id: str) -> Dict[
     """
     try:
         # Get character info to determine style
-        from .data import get_character_with_relations
+        from .queries import get_character_with_relations
 
         character_data = await get_character_with_relations(db, character_qiao_id)
         if not character_data:
@@ -433,7 +433,7 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Any
         User profile or None
     """
     try:
-        from .data import get_user_profile
+        from .queries import get_user_profile
 
         return await get_user_profile(db, user_qiao_id)
 
@@ -625,7 +625,7 @@ async def build_conversation_context(
         AIServiceError: If context building fails
     """
     try:
-        from .data import get_conversation_contexts
+        from .queries import get_conversation_contexts
 
         # Get conversation contexts; when max_context_length is None, include all
         contexts = await get_conversation_contexts(db, character_qiao_id, user_qiao_id, max_context_length)

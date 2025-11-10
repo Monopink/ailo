@@ -30,7 +30,7 @@ from schemas.contact import (
 from schemas.contact import ContactInfoBase
 from services.ai.character_creation import create_character_from_template
 from services.ai.contact_handler import handle_ai_contact_request
-from services.message.convenience import send_chat_info, send_contact_request_notification
+from services.message.outbound.helpers import send_chat_info, send_contact_request_notification
 from services.contact.service import _get_im_conv_id, _get_contact_profile, _build_contact_response
 from enums.templates import CHAT_INFO_TEMPLATES
 from utils.logging import get_logger
@@ -406,17 +406,15 @@ async def _check_ai_template_duplicate(
     """
     try:
         result_ai = await db.execute(
-            select(AICharacter.qiao_id, AICharacter.request_params).where(
+            select(AICharacter.qiao_id, AICharacter.created_from_profile_qiao_id).where(
                 AICharacter.user_qiao_id == user_qiao_id
             )
         )
         rows = result_ai.all()
         created_from_map = {}
-        for qid, params in rows:
-            if params and isinstance(params, dict):
-                src = params.get("created_from_profile_qiao_id")
-                if src:
-                    created_from_map[src] = qid
+        for qid, src in rows:
+            if src:
+                created_from_map[src] = qid
 
         if request.to_qiao_id in created_from_map:
             # Check if contact exists via character qiao_id
@@ -855,7 +853,7 @@ async def accept_contact_request_service(
             )
 
         # Create contact
-        conv_id = await _get_im_conv_id(db)
+        conv_id = await _get_im_conv_id(db, ensure_valid=True)
         tags_dict = {"tags": accept_data.tags} if accept_data.tags else None
 
         contact_data = ContactCreate(

@@ -1,15 +1,15 @@
 """
-AI data access layer - mutation functions.
+AI business query layer - simple update operations.
 
-This module provides all write/update functions for AI services with clear
-separation of concerns and pure function design.
+This module provides simple update operations that typically call crud layer
+or perform single-entity updates.
 """
 
 from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
-from models.ai import AIContext, AICharacterDimension, AIRequestLog, AICharacter
+from models.ai import AIContext, AICharacterDimension, AICharacter
 from utils.logging import get_logger
 from .character_queries import get_character_id_by_qiao_id, get_user_id_by_qiao_id
 
@@ -339,52 +339,6 @@ async def increment_relationship_count(db: AsyncSession, character_id: int, rela
             character_id=character_id,
             relationship_id=relationship_id,
         )
-        return False
-
-
-async def save_ai_response(db: AsyncSession, response_data: Dict[str, Any]) -> bool:
-    """
-    Save AI response and update related data.
-
-    Args:
-        db: Database session
-        response_data: Response data dictionary
-
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        # Update context status to COMPLETE - context_id is int internally
-        if response_data.get("context_id"):
-            await update_context_status(db, response_data["context_id"], 3)  # COMPLETE
-
-        # Save AI request log
-        request_log = AIRequestLog(
-            character_id=response_data.get("character_id"),
-            user_qiao_id=response_data.get("user_qiao_id"),
-            style_id=response_data.get("style_id"),
-            personality_id=response_data.get("personality_id"),
-            request=response_data.get("request", {}),
-            response=response_data.get("response", {}),
-            status=1 if response_data.get("success", False) else 2,
-            token_count=response_data.get("token_count", 0),
-            response_time=response_data.get("response_time", 0),
-        )
-
-        db.add(request_log)
-        await db.flush()
-
-        logger.debug(
-            "ai_response_saved",
-            character_id=response_data.get("character_id"),
-            user_qiao_id=response_data.get("user_qiao_id"),
-            success=response_data.get("success", False),
-        )
-
-        return True
-
-    except Exception as e:
-        logger.error("ai_response_save_failed", error=str(e), response_data=response_data)
         return False
 
 

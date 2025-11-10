@@ -8,13 +8,15 @@ Following the architectural pattern of separating concerns:
 - No business logic in views!
 """
 
+import json
+
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from core.database import SessionLocal
-from services.admin.llm_config_test import execute_llm_config_test
+from services.admin.testing.llm_config import execute_llm_config_test
 from services.llm.config import get_llm_config
 from utils.logging import get_logger
 from utils.form_helpers import get_int_field, get_text_field, get_float_field, FormFieldError
@@ -105,13 +107,27 @@ class LLMConfigTestView(CustomView):
                         "name": config.name,
                         "provider_name": provider.display_name,
                         "model_name": config.model_name or provider.default_model,
-                        "temperature": float(config.temperature) if config.temperature else None,
+                        "temperature": float(config.temperature) if config.temperature is not None else None,
                         "max_tokens": config.max_tokens,
                         "timeout_seconds": config.timeout_seconds,
-                        "enable_streaming": config.enable_streaming,
-                        "enable_thinking": config.enable_thinking,
+                        "thinking_mode": config.thinking_mode,
                         "json_schema_mode": config.json_schema_mode,
-                        "supports_thinking": provider.supports_thinking,
+                        "supports_thinking": bool(provider.supports_thinking),
+                        "top_p": float(config.top_p) if config.top_p is not None else None,
+                        "frequency_penalty": float(config.frequency_penalty)
+                        if config.frequency_penalty is not None
+                        else None,
+                        "presence_penalty": float(config.presence_penalty)
+                        if config.presence_penalty is not None
+                        else None,
+                        "stop_sequences": config.stop_sequences or [],
+                        "stop_sequences_display": json.dumps(
+                            config.stop_sequences or [], ensure_ascii=False
+                        ),
+                        "extra_params": config.extra_params or {},
+                        "extra_params_display": json.dumps(
+                            config.extra_params or {}, ensure_ascii=False
+                        ),
                     },
                     "page_title": f"Test LLM Config: {config.name}",
                 }
@@ -158,7 +174,10 @@ class LLMConfigTestView(CustomView):
                 if "override_max_tokens" in form_data and form_data.get("override_max_tokens"):
                     override_max_tokens = get_int_field(form_data, "override_max_tokens")
 
-                enable_thinking = form_data.get("enable_thinking") == "1"
+                # Get thinking_mode from form (enabled/disabled/auto)
+                thinking_mode = form_data.get("thinking_mode")
+                if thinking_mode not in ["enabled", "disabled", "auto"]:
+                    thinking_mode = None  # Use config default
 
             except FormFieldError as e:
                 logger.warning("llm_config_test_form_validation_error", error=str(e))
@@ -178,7 +197,7 @@ class LLMConfigTestView(CustomView):
                     test_message=test_message,
                     override_temperature=override_temperature,
                     override_max_tokens=override_max_tokens,
-                    enable_thinking=enable_thinking,
+                    thinking_mode=thinking_mode,
                 )
 
                 logger.info(

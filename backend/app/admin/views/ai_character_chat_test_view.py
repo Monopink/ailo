@@ -11,7 +11,7 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from core.database import SessionLocal
-from services.admin.ai_character_chat import ai_character_chat_test_service, AICharacterChatTestError
+from services.admin.testing.character_chat import ai_character_chat_test_service, AICharacterChatTestError
 from utils.logging import get_logger
 from utils.form_helpers import get_text_field, get_int_field, FormFieldError
 

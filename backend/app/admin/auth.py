@@ -46,7 +46,7 @@ class CustomAuthProvider(AuthProvider):
             # GET: Display login form
             if request.method == "GET":
                 # Get Turnstile site key
-                turnstile_site_key = await get_config(db, key="admin_turnstile_site_key", default="")
+                turnstile_site_key = await get_config(db, key="admin_turnstile_site_key", required=False)
 
                 # Check if should show CAPTCHA (only if site key configured)
                 show_captcha_raw = await should_require_captcha(client_ip, "admin_auth", db)

@@ -27,6 +27,17 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
         result = await db.execute(select(self.model).where(self.model.msg_id_client == msg_id_client))
         return result.scalar_one_or_none()
 
+    async def get_by_conversation_and_client_id(
+        self, db: AsyncSession, *, conversation_id: str, msg_id_client: str
+    ) -> Optional[MessageHistory]:
+        """Get message by conversation + client ID (idempotency check)."""
+        result = await db.execute(
+            select(self.model).where(
+                self.model.conversation_id == conversation_id, self.model.msg_id_client == msg_id_client
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_conversation_messages(
         self,
         db: AsyncSession,

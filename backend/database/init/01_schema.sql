@@ -231,9 +231,11 @@ CREATE TABLE IF NOT EXISTS message_history (
     platform INTEGER,
     conversation_id VARCHAR(32) NOT NULL,
     msg_id_server VARCHAR(64) NOT NULL UNIQUE,
-    msg_id_provider VARCHAR(128),
+    msg_id_provider_inbound VARCHAR(128),
+    msg_id_provider_outbound VARCHAR(128),
     msg_id_client VARCHAR(64),
     client_sent_time TIMESTAMP WITH TIME ZONE,
+    sent_at TIMESTAMP WITH TIME ZONE,
     from_type INTEGER NOT NULL,
     from_id BIGINT NOT NULL,
     from_qiao_id VARCHAR(32) NOT NULL,
@@ -245,7 +247,8 @@ CREATE TABLE IF NOT EXISTS message_history (
     content TEXT,
     status INTEGER NOT NULL DEFAULT 1,
     message_metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_message_history_conv_client_id UNIQUE (conversation_id, msg_id_client)
 );
 
 -- Create indexes for message_history table
@@ -946,18 +949,29 @@ CREATE TABLE IF NOT EXISTS llm_configs (
     temperature DECIMAL(3,2),
     max_tokens INTEGER,
     timeout_seconds INTEGER,
-    max_retries INTEGER,
-    enable_streaming INTEGER NOT NULL,
-    enable_thinking INTEGER NOT NULL,
+    thinking_mode VARCHAR(20) NOT NULL DEFAULT 'auto',
+    top_p DECIMAL(3,2) NOT NULL DEFAULT 0.70,
+    frequency_penalty DECIMAL(3,2) NOT NULL DEFAULT 0.00,
+    presence_penalty DECIMAL(3,2) NOT NULL DEFAULT 0.00,
+    stop_sequences JSONB NOT NULL DEFAULT '[]'::jsonb,
     json_schema_mode VARCHAR(20),
     status INTEGER NOT NULL DEFAULT 1,
     priority INTEGER NOT NULL DEFAULT 1,
     extra_params JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT check_thinking_mode CHECK (thinking_mode IN ('enabled', 'disabled', 'auto')),
+    CONSTRAINT check_top_p CHECK (top_p >= 0 AND top_p <= 1),
+    CONSTRAINT check_frequency_penalty CHECK (frequency_penalty >= -2 AND frequency_penalty <= 2),
+    CONSTRAINT check_presence_penalty CHECK (presence_penalty >= -2 AND presence_penalty <= 2)
 );
 
 COMMENT ON COLUMN llm_configs.json_schema_mode IS 'JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified (default)';
+COMMENT ON COLUMN llm_configs.thinking_mode IS 'Thinking mode: enabled=force on, disabled=force off, auto=let model decide';
+COMMENT ON COLUMN llm_configs.top_p IS 'Nucleus sampling threshold [0, 1]. Controls diversity of output.';
+COMMENT ON COLUMN llm_configs.frequency_penalty IS 'Frequency penalty [-2, 2]. Reduces repetition based on token frequency.';
+COMMENT ON COLUMN llm_configs.presence_penalty IS 'Presence penalty [-2, 2]. Encourages new topics based on token presence.';
+COMMENT ON COLUMN llm_configs.stop_sequences IS 'Stop sequences (max 4 strings). Model stops when encountering these strings.';
 
 -- Create indexes for llm_configs table
 CREATE INDEX idx_llm_configs_provider_id ON llm_configs(provider_id);
@@ -972,7 +986,7 @@ CREATE TABLE IF NOT EXISTS llm_test_logs (
     test_message TEXT NOT NULL,
     override_temperature DECIMAL(3,2),
     override_max_tokens INTEGER,
-    enable_thinking INTEGER NOT NULL,
+    thinking_mode VARCHAR(20) NOT NULL,
     enable_json_schema INTEGER NOT NULL,
     request JSONB NOT NULL,
     response JSONB,
@@ -986,6 +1000,11 @@ CREATE TABLE IF NOT EXISTS llm_test_logs (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE
 );
+
+ALTER TABLE llm_test_logs
+    ADD CONSTRAINT check_llm_test_logs_thinking_mode CHECK (thinking_mode IN ('enabled', 'disabled', 'auto'));
+
+COMMENT ON COLUMN llm_test_logs.thinking_mode IS 'Thinking mode: enabled/disabled/auto';
 
 -- Create indexes for llm_test_logs table
 -- Note: No additional indexes needed for MVP

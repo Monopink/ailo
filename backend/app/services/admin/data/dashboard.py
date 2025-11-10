@@ -25,7 +25,7 @@ async def get_total_users(db: AsyncSession) -> Dict[str, Any]:
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM users 
+                SELECT COUNT(*) FROM users
                 WHERE created_at >= date_trunc('week', CURRENT_DATE)
                   AND status = 1
             """
@@ -37,7 +37,7 @@ async def get_total_users(db: AsyncSession) -> Dict[str, Any]:
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM users 
+                SELECT COUNT(*) FROM users
                 WHERE created_at >= date_trunc('week', CURRENT_DATE - INTERVAL '7 days')
                   AND created_at < date_trunc('week', CURRENT_DATE)
                   AND status = 1
@@ -76,7 +76,7 @@ async def get_ai_characters_stats(db: AsyncSession) -> Dict[str, Any]:
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM ai_characters 
+                SELECT COUNT(*) FROM ai_characters
                 WHERE created_at >= date_trunc('week', CURRENT_DATE)
                   AND status = 1
             """
@@ -88,7 +88,7 @@ async def get_ai_characters_stats(db: AsyncSession) -> Dict[str, Any]:
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM ai_characters 
+                SELECT COUNT(*) FROM ai_characters
                 WHERE created_at >= date_trunc('week', CURRENT_DATE - INTERVAL '7 days')
                   AND created_at < date_trunc('week', CURRENT_DATE)
                   AND status = 1
@@ -220,7 +220,7 @@ async def get_user_growth_chart(db: AsyncSession) -> Dict[str, List]:
         result = await db.execute(
             text(
                 """
-                SELECT 
+                SELECT
                     DATE(created_at) as date,
                     COUNT(*) as new_users
                 FROM users
@@ -257,7 +257,7 @@ async def get_message_volume_chart(db: AsyncSession) -> Dict[str, List]:
         result = await db.execute(
             text(
                 """
-                SELECT 
+                SELECT
                     DATE(created_at) as date,
                     COUNT(*) as message_count
                 FROM message_history

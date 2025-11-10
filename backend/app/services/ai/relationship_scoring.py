@@ -9,12 +9,12 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from .data import (
+from .queries import (
     get_character_relationship_scores,
     get_character_id_by_qiao_id,
     get_style_with_relationships,
 )
-from .data.mutations import update_relationship_scores, set_current_relationship
+from .queries.updates import update_relationship_scores, set_current_relationship
 from exceptions import AIRelationshipError
 from utils.logging import get_logger
 
@@ -137,14 +137,19 @@ async def initialize_relationship_scores(
     """
     try:
         from models.ai.character_dimension import AICharacterDimension
-        from models.ai.style import AIStyleDimension
+        from models.ai.style import AIStyleDimension, AIDimension
+        from sqlalchemy.orm import selectinload
 
-        # Get all dimensions for this style
-        stmt = select(AIStyleDimension).where(AIStyleDimension.style_id == style_id)
+        # Get all dimensions for this style with dimension relationship loaded
+        stmt = (
+            select(AIStyleDimension)
+            .options(selectinload(AIStyleDimension.dimension))
+            .where(AIStyleDimension.style_id == style_id)
+        )
         result = await db.execute(stmt)
-        dimensions = result.scalars().all()
+        style_dimensions = result.scalars().all()
 
-        if not dimensions:
+        if not style_dimensions:
             raise AIRelationshipError(
                 operation="initialize_relationship_scores",
                 reason="dimensions_not_found",
@@ -155,17 +160,17 @@ async def initialize_relationship_scores(
         offset_config = position_mapping_config or {}
 
         # Create dimension records
-        for dimension in dimensions:
-            # Get offset config for this dimension
-            dim_config = offset_config.get(dimension.name, {})
+        for style_dimension in style_dimensions:
+            # Get offset config for this dimension using the dimension name
+            dim_config = offset_config.get(style_dimension.dimension.name, {})
             algorithm = dim_config.get("algorithm", 1)
             params = dim_config.get("params", {})
 
             dimension_record = AICharacterDimension(
                 character_id=character_id,
-                dimension_id=dimension.id,
-                score=dimension.initial_position,
-                position=dimension.initial_position,
+                dimension_id=style_dimension.dimension_id,
+                score=style_dimension.initial_position,
+                position=style_dimension.initial_position,
                 position_mapping_algorithm=algorithm,
                 position_mapping_params=params,
             )
@@ -176,7 +181,7 @@ async def initialize_relationship_scores(
         logger.info(
             "relationship_scores_initialized",
             character_id=character_id,
-            scores_count=len(dimensions),
+            scores_count=len(style_dimensions),
         )
 
     except AIRelationshipError:

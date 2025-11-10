@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.system import SystemConfig
 from utils.logging import get_logger
+from exceptions import MissingConfigurationError
 
 logger = get_logger(__name__)
 
@@ -27,14 +28,14 @@ class SystemConfigService:
     """System configuration service with caching support."""
 
     @staticmethod
-    async def get_config(db: AsyncSession, key: str, default: Any = None) -> Any:
+    async def get_config(db: AsyncSession, key: str, *, required: bool = True) -> Any:
         """
         Get configuration value by key.
 
         Args:
             db: Database session
             key: Configuration key
-            default: Default value if key not found
+            required: Whether to raise if configuration is missing
 
         Returns:
             Configuration value with proper type conversion
@@ -49,9 +50,13 @@ class SystemConfigService:
         if key in _config_cache:
             return _config_cache[key]
 
-        # Return default if not found
-        logger.warning("system_configs_not_found", key=key, default=default)
-        return default
+        # Missing configuration
+        if required:
+            logger.error("system_config_missing", key=key)
+            raise MissingConfigurationError(config_key=key)
+
+        logger.debug("system_config_optional_missing", key=key)
+        return None
 
     @staticmethod
     async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:
@@ -209,9 +214,9 @@ class SystemConfigService:
 
 
 # Convenience functions
-async def get_config(db: AsyncSession, key: str, default: Any = None) -> Any:
+async def get_config(db: AsyncSession, key: str, *, required: bool = True) -> Any:
     """Get configuration value."""
-    return await SystemConfigService.get_config(db, key, default)
+    return await SystemConfigService.get_config(db, key, required=required)
 
 
 async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:

@@ -63,19 +63,34 @@ async def get_primary_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, LLMP
     return config, provider
 
 
-async def get_active_configs(db: AsyncSession) -> List[Tuple[LLMConfig, LLMProvider]]:
+async def get_active_configs(
+    db: AsyncSession, max_priority: Optional[int] = None
+) -> List[Tuple[LLMConfig, LLMProvider]]:
     """
     Get all active LLM configurations ordered by priority.
 
     Args:
         db: Database session
+        max_priority: Maximum priority threshold (configs with priority > max_priority are excluded)
+                     Default: None (no limit)
+                     Recommended: 99 (excludes test/mock configs with priority >= 100)
 
     Returns:
         List of (config, provider) tuples ordered by priority
+
+    Priority Convention:
+        1-10:   Production primary configs
+        11-50:  Production backup configs
+        51-99:  Development/staging configs
+        100+:   Test/mock configs (excluded from automatic fallback when max_priority=99)
     """
     configs = await llm_config.get_configs_by_priority(db, active_only=True)
-    result = []
 
+    # Apply priority threshold
+    if max_priority is not None:
+        configs = [c for c in configs if c.priority <= max_priority]
+
+    result = []
     for config in configs:
         provider = await llm_provider.get(db, id=config.provider_id)
         if provider:

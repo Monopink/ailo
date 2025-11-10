@@ -1,2 +1,1 @@
 # CAPTCHA provider package
-

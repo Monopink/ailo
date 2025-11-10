@@ -70,7 +70,7 @@ async def test_json_schema_compatibility(
             json_schema=test_schema,
             temperature=0.7,
             max_tokens=100,
-            enable_thinking=False,
+            thinking_mode="disabled",
             name=config.name,
         )
 
@@ -99,7 +99,7 @@ async def test_json_schema_compatibility(
                 test_message=test_message,
                 override_temperature=0.7,
                 override_max_tokens=100,
-                enable_thinking=0,
+                thinking_mode="disabled",
                 enable_json_schema=1,
                 request=llm_result.get("request_payload", {}),
                 response=llm_result.get("raw_response", {}),
@@ -140,7 +140,7 @@ async def test_json_schema_compatibility(
                 test_message=test_message,
                 override_temperature=0.7,
                 override_max_tokens=100,
-                enable_thinking=0,
+                thinking_mode="disabled",
                 enable_json_schema=1,
                 request=llm_result.get("request_payload", {}),
                 response=llm_result.get("raw_response"),
@@ -188,7 +188,7 @@ async def test_json_schema_compatibility(
                 test_message=test_message,
                 override_temperature=0.7,
                 override_max_tokens=100,
-                enable_thinking=0,
+                thinking_mode="disabled",
                 enable_json_schema=1,
                 request={
                     "error": "Exception before request",
@@ -227,7 +227,7 @@ async def test_json_schema_compatibility(
                 test_message=test_message,
                 override_temperature=0.7,
                 override_max_tokens=100,
-                enable_thinking=0,
+                thinking_mode="disabled",
                 enable_json_schema=1,
                 request={
                     "error": "Exception before request",

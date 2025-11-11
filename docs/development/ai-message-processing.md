@@ -19,6 +19,8 @@
   `UNIQUE(user_qiao_id, character_qiao_id) WHERE role=2 AND aggregate_state=2`
 - 到期扫描索引：
   `(user_qiao_id, character_qiao_id, buffer_expires_at_ms) WHERE role=2 AND aggregate_state=1`
+- 计时状态字段：
+  `micro_expires_at_ms`（微计时器）、`macro_expires_at_ms`（宏计时器）以及 `last_message_category`（上一条消息类别）
 - 时间基准：聚合到期相关计算/比较统一使用数据库时钟
   `NOW()` → `(EXTRACT(EPOCH FROM NOW())*1000)::BIGINT`
 

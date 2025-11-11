@@ -217,6 +217,7 @@ class ExecutorService:
             if persist and locked_context_id:
                 try:
                     updated = await finalize_context_if_locked(db, locked_context_id)
+                    await db.commit()
                     logger.debug(
                         "test_user_context_finalize",
                         context_id=locked_context_id,

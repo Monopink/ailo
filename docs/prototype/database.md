@@ -228,7 +228,10 @@ last_msg_id_client  -- 末条消息的 client 侧 msg_id，VARCHAR(64)
 token_count -- 消息token数量
 is_attack -- 是否为攻击消息：1=yes, 0=no
 last_msg_time_ms    -- 最近一条聚合消息的到达时间，BIGINT（毫秒）
-buffer_expires_at_ms -- 聚合窗口到期时间，BIGINT（毫秒），到点触发处理
+buffer_expires_at_ms -- 当前有效计时器的到期时间（min(宏/微)），BIGINT（毫秒）
+micro_expires_at_ms -- 微计时器（普通消息等待）到期时间，BIGINT（毫秒）
+macro_expires_at_ms -- 宏计时器（typing_start 总时长）到期时间，BIGINT（毫秒）
+last_message_category -- 上一条消息的分类：1=支持 typing 的 TEXT，2=不支持 typing 的 TEXT，3=typing_start，4=typing_end
 aggregate_state     -- 聚合/处理状态（仅 role=user 使用）：
   1=OPEN（等待合并/计时）
   2=LOCKED（进入处理；同会话仅允许一个）

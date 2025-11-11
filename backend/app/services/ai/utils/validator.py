@@ -85,10 +85,14 @@ def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str
 
 
 async def chat_completion_with_validation(
-    db: AsyncSession, messages: List[Dict[str, str]], json_schema: Optional[Dict[str, Any]] = None, **kwargs
+    db: AsyncSession,
+    messages: List[Dict[str, str]],
+    json_schema: Optional[Dict[str, Any]] = None,
+    preemption_checker: Optional[Any] = None,
+    **kwargs
 ) -> Dict[str, Any]:
     """
-    LLM chat completion with optional JSON schema validation.
+    LLM chat completion with optional JSON schema validation and streaming early stop.
 
     This function wraps the LLM service call with validation support.
     Relies on LLM provider's native JSON schema support (strict mode) for reliability.
@@ -97,6 +101,7 @@ async def chat_completion_with_validation(
         db: Database session
         messages: List of message objects with 'role' and 'content'
         json_schema: Optional JSON schema for structured output validation
+        preemption_checker: Optional async callback to check if request should stop (for streaming)
         **kwargs: Additional arguments passed to chat_completion
 
     Returns:
@@ -105,14 +110,24 @@ async def chat_completion_with_validation(
             "success": bool,
             "response": Any,
             "error": Optional[str],
-            "usage": Optional[Dict]
+            "usage": Optional[Dict],
+            "preempted": Optional[bool]
         }
     """
     try:
-        # Call LLM service
+        # Call LLM service with preemption checker
         llm_result = await chat_completion(
-            db=db, messages=messages, json_schema=json_schema, **kwargs
+            db=db,
+            messages=messages,
+            json_schema=json_schema,
+            preemption_checker=preemption_checker,
+            **kwargs
         )
+
+        # Preemption means streaming was stopped intentionally (no validation needed)
+        if llm_result.get("preempted"):
+            logger.info("llm_call_preempted")
+            return llm_result
 
         # Check if LLM call succeeded
         if not llm_result.get("success", False):

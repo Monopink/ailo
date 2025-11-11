@@ -43,10 +43,14 @@ async def route_message(db: AsyncSession, event: InboundMessageEvent) -> None:
 
         # Determine if message is for AI
         is_for_ai = contact.contact_type == 2  # 2 = AI
-        is_text_message = event.message_type == MessageType.TEXT
+        is_buffer_event = event.message_type in (
+            MessageType.TEXT,
+            MessageType.TYPING_START,
+            MessageType.TYPING_END,
+        )
 
         # Route to AI handler if needed
-        if is_for_ai and is_text_message:
+        if is_for_ai and is_buffer_event:
             logger.info(
                 "routing_to_ai",
                 conv_id=contact.conv_id,

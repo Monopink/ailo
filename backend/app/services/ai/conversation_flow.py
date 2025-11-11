@@ -233,7 +233,18 @@ async def process_conversation(
                 params=character_request_params,
             )
 
-        # Step 8: Request LLM with validation
+        # Step 8: Request LLM with validation and streaming early stop
+        # Create preemption checker if we have a locked context
+        preemption_checker = None
+        if locked_context_id is not None:
+            # Create async callback to check if context has been cancelled
+            async def check_preemption() -> bool:
+                """Check if context has been cancelled during streaming."""
+                from services.message.processing.buffer import check_if_cancelled
+                return await check_if_cancelled(db, locked_context_id)
+
+            preemption_checker = check_preemption
+
         # No hardcoded parameters - use config priority: character_request_params > config
         llm_result = await chat_completion_with_validation(
             db=db,
@@ -241,7 +252,23 @@ async def process_conversation(
             json_schema=json_schema,
             name=config_name,
             character_request_params=character_request_params,
+            preemption_checker=preemption_checker,
         )
+
+        # Check if request was preempted
+        if llm_result.get("preempted", False):
+            logger.info(
+                "conversation_preempted_during_llm",
+                context_id=locked_context_id,
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
+            )
+            return {
+                "success": False,
+                "error": "Conversation preempted by new message",
+                "preempted": True,
+                "context_id": locked_context_id,
+            }
 
         if not llm_result["success"]:
             raise AIConversationError(

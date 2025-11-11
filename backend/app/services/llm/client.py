@@ -5,7 +5,7 @@ This module provides high-level functions for interacting with LLM providers
 with automatic failover and configuration management.
 """
 
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_active_configs
@@ -34,6 +34,7 @@ async def chat_completion(
     thinking_mode: Optional[str] = None,
     name: Optional[str] = None,
     character_request_params: Optional[Dict[str, Any]] = None,
+    preemption_checker: Optional[Callable[[], Awaitable[bool]]] = None,
 ) -> Dict[str, Any]:
     """
     Send chat completion request with automatic provider selection and failover.
@@ -47,6 +48,7 @@ async def chat_completion(
         thinking_mode: Override thinking mode setting (enabled/disabled/auto)
         name: Specific config to use (defaults to primary)
         character_request_params: Character-specific request parameters override
+        preemption_checker: Optional async callback to stop streaming requests early
 
     Returns:
         Dictionary containing response data and metadata
@@ -73,6 +75,7 @@ async def chat_completion(
                     max_tokens,
                     thinking_mode,
                     character_request_params,
+                    preemption_checker,
                 )
 
                 if result["success"]:
@@ -186,6 +189,7 @@ async def _call_provider(
     max_tokens: Optional[int],
     thinking_mode: Optional[str],
     character_request_params: Optional[Dict[str, Any]],
+    preemption_checker: Optional[Callable[[], Awaitable[bool]]],
 ) -> Dict[str, Any]:
     """
     Call the appropriate provider function using factory.
@@ -220,6 +224,8 @@ async def _call_provider(
         final_max_tokens = merged_params.get("max_tokens")
         final_thinking_mode = merged_params.get("thinking_mode")
 
+        use_streaming = preemption_checker is not None
+
         result = await factory.chat_completion(
             config=config,
             provider=provider,
@@ -229,24 +235,30 @@ async def _call_provider(
             max_tokens=final_max_tokens,
             thinking_mode=final_thinking_mode,
             provider_overrides=merged_params.get("provider_overrides"),
+            stream=use_streaming,
+            preemption_checker=preemption_checker if use_streaming else None,
         )
 
         # Wrap result in success format
+        preempted = bool(result.get("preempted", False))
+        request_payload = result.get("request_params") or {
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "thinking_mode": thinking_mode,
+            "provider_overrides": merged_params.get("provider_overrides"),
+        }
+
         return {
-            "success": True,
-            "response": result["content"],
+            "success": not preempted,
+            "response": None if preempted else result["content"],
+            "error": "LLM request preempted by new message" if preempted else None,
             "usage": result["usage"],
             "finish_reason": result.get("finish_reason"),
             "model": result.get("model"),
             "raw_response": result.get("raw_response"),  # Pass through raw API response
-            "request_payload": result.get("request_params")
-            or {
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "thinking_mode": thinking_mode,
-                "provider_overrides": merged_params.get("provider_overrides"),
-            },
+            "request_payload": request_payload,
+            "preempted": preempted,
         }
 
     except (LLMRequestError, LLMTimeoutError) as e:
@@ -256,6 +268,7 @@ async def _call_provider(
             "error_code": getattr(e, "error_code", "REQUEST_ERROR"),
             "response": None,
             "usage": None,
+            "preempted": False,
             "request_payload": None,
         }
 
@@ -267,6 +280,7 @@ async def _call_provider(
             "error_code": "SYSTEM_ERROR",
             "response": None,
             "usage": None,
+            "preempted": False,
             "request_payload": None,
         }
 

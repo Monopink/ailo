@@ -183,6 +183,20 @@ class AIContext(SnowflakeModel):
         BigInteger, nullable=True, comment="Aggregation window expiration time (milliseconds)"
     )
 
+    micro_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Micro timer expiration timestamp (ms)"
+    )
+
+    macro_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Macro timer expiration timestamp (ms)"
+    )
+
+    last_message_category: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Last inbound message category used for buffer state machine",
+    )
+
     aggregate_state: Mapped[Optional[int]] = mapped_column(
         Integer,
         nullable=True,
@@ -264,6 +278,20 @@ class AIContextArchive(SnowflakeModel):
 
     buffer_expires_at_ms: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, comment="Aggregation window expiration time (milliseconds)"
+    )
+
+    micro_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Micro timer expiration timestamp (ms)"
+    )
+
+    macro_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Macro timer expiration timestamp (ms)"
+    )
+
+    last_message_category: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Last inbound message category used for buffer state machine",
     )
 
     aggregate_state: Mapped[Optional[int]] = mapped_column(

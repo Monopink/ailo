@@ -11,7 +11,7 @@
   "to": "qiao_xm001",                       // 接收者qiao_id
   "conv_id": "conv_xyz789",                 // 对话ID（后端管理）
   "content": "你好",                         // 消息内容
-  "message_type": 1,                        // 消息类型：1=TEXT, 2=TYPING, 3=TYPING_END, 4=CHAT_INFO, 9=NOTIFICATION
+  "message_type": 1,                        // 消息类型：1=TEXT, 2=TYPING_START, 3=TYPING_END, 4=CHAT_INFO, 9=NOTIFICATION
   "supports_typing": true,                  // 客户端是否支持输入状态
   "sent_time": 1710001111222                // 发送时间戳（毫秒）
 }

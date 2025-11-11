@@ -50,10 +50,10 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('api_base_url', '', '', 1, 'Base URL for API (e.g., https://example.com)', 'system', NULL),
 
 -- Message buffer configurations
-('message_buffer_normal_wait', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
-('message_buffer_typing_wait', '10000', '10000', 2, 'Long wait time in milliseconds when user is typing', 'message_buffer', NULL),
-('message_buffer_typing_end_wait', '1000', '1000', 2, 'Short wait time in milliseconds after typing ends', 'message_buffer', NULL),
-('message_buffer_no_typing_wait', '2000', '2000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
+('message_buffer_normal_wait_ms', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
+('message_buffer_typing_total_wait_ms', '10000', '10000', 2, 'Typing session total wait in milliseconds after typing_start', 'message_buffer', NULL),
+('message_buffer_typing_end_wait_ms', '1000', '1000', 2, 'Short wait time in milliseconds after typing ends', 'message_buffer', NULL),
+('message_buffer_no_typing_wait_ms', '2000', '2000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
 
 -- AI context archive configurations
 ('ai_context_archive_time', '604800', '604800', 2, 'Archive AI contexts older than this many seconds (7 days)', 'ai_context', NULL),

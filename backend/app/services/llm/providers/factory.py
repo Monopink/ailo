@@ -4,7 +4,7 @@ LLM provider factory.
 This module provides SDK selection and routing logic.
 """
 
-from typing import Dict, Any, List
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from models.llm import LLMConfig, LLMProvider
 from utils.logging import get_logger
@@ -27,6 +27,9 @@ async def chat_completion(
     config: LLMConfig,
     provider: LLMProvider,
     messages: List[Dict[str, str]],
+    *,
+    stream: bool = False,
+    preemption_checker: Optional[Callable[[], Awaitable[bool]]] = None,
     **kwargs,
 ) -> Dict[str, Any]:
     """
@@ -71,13 +74,29 @@ async def chat_completion(
 
     # Import and call appropriate SDK implementation
     if sdk_name == "openai_sdk":
-        from .openai_sdk import chat_completion as sdk_chat
+        if stream:
+            from .openai_sdk import chat_completion_stream as sdk_chat
+        else:
+            from .openai_sdk import chat_completion as sdk_chat
     elif sdk_name == "anthropic_sdk":
         # Not implemented yet
         raise ValueError(f"SDK not implemented: {sdk_name}")
     elif sdk_name == "mock":
+        if stream:
+            raise ValueError("Streaming not supported for mock provider")
         from .mock import chat_completion as sdk_chat
     else:
         raise ValueError(f"Unsupported SDK: {sdk_name}")
 
+    if stream:
+        return await sdk_chat(
+            config,
+            provider,
+            messages,
+            preemption_checker=preemption_checker,
+            **kwargs,
+        )
+
+    # Drop checker if accidentally set without streaming
+    kwargs.pop("preemption_checker", None)
     return await sdk_chat(config, provider, messages, **kwargs)

@@ -75,6 +75,17 @@ class AIContextView(ModelView):
         IntegerField(
             "buffer_expires_at_ms", label="Buffer Expires", help_text="Buffer expiration time (ms)"
         ),
+        IntegerField(
+            "micro_expires_at_ms", label="Micro Timer", help_text="Micro timer expiration (ms)"
+        ),
+        IntegerField(
+            "macro_expires_at_ms", label="Macro Timer", help_text="Macro timer expiration (ms)"
+        ),
+        IntegerField(
+            "last_message_category",
+            label="Last Message Category",
+            help_text="1=typing text, 2=no typing text, 3=typing_start, 4=typing_end",
+        ),
         IntegerEnumField(
             "aggregate_state",
             enum=AIAggregateState,
@@ -146,6 +157,17 @@ class AIContextArchiveView(ModelView):
         IntegerField("last_msg_time_ms", label="Last Msg Time", help_text="Last message time (ms)"),
         IntegerField(
             "buffer_expires_at_ms", label="Buffer Expires", help_text="Buffer expiration time (ms)"
+        ),
+        IntegerField(
+            "micro_expires_at_ms", label="Micro Timer", help_text="Micro timer expiration (ms)"
+        ),
+        IntegerField(
+            "macro_expires_at_ms", label="Macro Timer", help_text="Macro timer expiration (ms)"
+        ),
+        IntegerField(
+            "last_message_category",
+            label="Last Message Category",
+            help_text="1=typing text, 2=no typing text, 3=typing_start, 4=typing_end",
         ),
         IntegerEnumField(
             "aggregate_state",

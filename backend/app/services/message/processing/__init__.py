@@ -4,9 +4,9 @@ Message processing layer.
 Handles buffering and rate limiting.
 """
 
-from .buffer import add_message_to_buffer, process_buffered_messages
+from .buffer import add_message_to_buffer, reset_open_conversation_windows
 
 __all__ = [
     "add_message_to_buffer",
-    "process_buffered_messages",
+    "reset_open_conversation_windows",
 ]

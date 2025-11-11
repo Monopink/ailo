@@ -33,7 +33,59 @@ flowchart TB
 
 ## 合并短时间消息流程 (buffer)
 
-收到消息后等待x秒，如果再次收到消息则合并，并循环等待，直到x秒后没有收到则存入ai_contexts表，并开始处理消息。
+收到消息后等待，如果再次收到消息则合并，并循环等待，直到等待结束没有收到消息，则开始后续处理流程。
+
+等待时间根据当前消息类型和上一条消息的类型关联判断，等待结束开始处理后，上一条消息类型清空，视为无上一条消息。并且有两个计时器，宏计时器和微计时器，计时器被覆盖后重新计时，任何一个计时器结束则等待结束，且两个计时器都取消。
+
+消息类型和对应的时长（时间配置从system_configs表获取）：
+
+- supports_typing=true的普通消息（文字、图片等）：message_buffer_normal_wait_ms
+- typing_start: 没有对应时间（转为宏计时器 message_buffer_typing_total_wait_ms）
+- typing_end: message_buffer_typing_end_wait_ms
+- 不包含supports_typing或supports_typing!=true的普通消息：message_buffer_no_typing_wait_ms
+
+### 无上一条消息类型
+
+- supports typing的普通消息：
+设置微计时器（时间为消息对应的时长）
+
+- not supports typing的普通消息：
+设置微计时器
+
+### 上一条消息类型为supports typing的普通消息
+
+- supports typing的普通消息：
+设置微计时器
+
+- typing_start：
+取消微计时器(取消不会导致立即开始处理)，并设置宏计时器时长为message_buffer_typing_total_wait_ms
+
+### 上一条消息类型为typing_start
+
+- supports typing的普通消息：
+取消宏计时器并设置微计时器
+
+- typing_end：
+设置微计时器
+
+### 上一条消息类型为typing_end
+
+- supports typing的普通消息：
+设置微计时器
+
+- typing_start：
+取消微计时器
+
+### 上一条消息类型为not supports typing的普通消息
+
+- not supports typing的普通消息：
+设置微计时器
+
+### 其他情况组合
+
+不影响计时器且不记录为上一条消息
+
+### 实施细节
 
 - 入站缓冲：用户消息到达即写入 `ai_contexts`，若存在最近 `role=user & state=OPEN` 窗口则合并，否则创建新窗口（OPEN）。
 - 等待策略：依据是否支持 typing 与消息类型设置 `buffer_expires_at_ms`（统一使用数据库时钟计算）。
@@ -132,6 +184,7 @@ flowchart TB
 基于 `ai_style_dimensions.initial_position` 作为原点，将 LLM 输出的 score 映射到最终 position。算法使用**非线性对数加速偏移**，通过 sensitivity 参数控制敏感度，在固定的 [0, 1000] 空间内进行映射计算。
 
 **核心特性**：
+
 - **固定空间映射**：使用 [0, 1000] 固定空间进行计算
 - **镜像对称**：左右两段使用统一的计算逻辑，相对于原点完美镜像
 - **单调递增**：score 增加时 position 单调递增，保证关系发展的连续性
@@ -179,6 +232,7 @@ position = ip ± space * offset_ratio
 ```
 
 其中 `gain` 不再是硬编码常量，而是由以下四个参数动态提供：
+
 - `left_positive_gain`（左段 sensitivity >= 0）
 - `left_negative_gain`（左段 sensitivity < 0）
 - `right_positive_gain`（右段 sensitivity >= 0）
@@ -262,18 +316,21 @@ ai_character_dimensions.position_mapping_params 示例：
 ```
 
 **增益参数含义**：
+
 - **增大 gain**（接近 100）→ 偏移加速更快，更激进
 - **减小 gain**（接近 1）→ 偏移加速更慢，更保守
 
 所有参数均为必填项，不再提供默认值，任何缺失都会抛出配置错误，确保算法行为可预期。
 
 **对数公式差异**（K -> 对应的 gain 参数）：
+
 - 左段 sensitivity >= 0：`offset_ratio = -left_positive_gain * ln(1.12 - ratio) / 100`
 - 左段 sensitivity < 0：`offset_ratio = -left_negative_gain * ln(1.12 - ratio) / 100`
 - 右段 sensitivity >= 0：`offset_ratio = -right_positive_gain * ln(1.12 - ratio / 2.5) / 100`
 - 右段 sensitivity < 0：`offset_ratio = -right_negative_gain * ln(1.12 - ratio) / 100`
 
 **独立调整能力**：
+
 - 左右两段可配置不同的增益系数
 - 正负 sensitivity 可配置不同的增益系数
 - 不同情况可以使用不同的对数公式（如 `1.12 - ratio` 或 `1.12 - ratio/2.5`）

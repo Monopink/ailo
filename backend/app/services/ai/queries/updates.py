@@ -70,6 +70,12 @@ async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> 
             context.last_msg_time_ms = context_data.get("last_msg_time_ms")
         if "buffer_expires_at_ms" in context_data:
             context.buffer_expires_at_ms = context_data.get("buffer_expires_at_ms")
+        if "micro_expires_at_ms" in context_data:
+            context.micro_expires_at_ms = context_data.get("micro_expires_at_ms")
+        if "macro_expires_at_ms" in context_data:
+            context.macro_expires_at_ms = context_data.get("macro_expires_at_ms")
+        if "last_message_category" in context_data:
+            context.last_message_category = context_data.get("last_message_category")
 
         db.add(context)
         await db.flush()
@@ -144,7 +150,7 @@ async def finalize_context_if_locked(db: AsyncSession, context_id: int) -> bool:
     """
     Atomically set context to COMPLETE iff it's currently LOCKED.
 
-    Returns True if updated, False otherwise.
+    Returns True if updated, False otherwise. Caller is responsible for committing.
     """
     try:
         result = await db.execute(
@@ -152,7 +158,6 @@ async def finalize_context_if_locked(db: AsyncSession, context_id: int) -> bool:
             .where(AIContext.id == context_id, AIContext.aggregate_state == 2)
             .values(aggregate_state=3)
         )
-        await db.commit()
         updated = (result.rowcount or 0) > 0
         logger.debug("context_finalize_attempt", context_id=context_id, updated=updated)
         return updated

@@ -16,6 +16,11 @@ from api.v1 import v1_router
 from api.admin import admin_api_router
 from admin import admin
 from middleware.rate_limit import APIRateLimitMiddleware
+from services.message.processing import reset_open_conversation_windows
+from services.message.processing.scanner import (
+    start_buffer_scanner,
+    stop_buffer_scanner,
+)
 
 configure_logging(
     log_level=settings.LOG_LEVEL,
@@ -45,6 +50,10 @@ async def lifespan(app: FastAPI):
         logger.info("initializing_database")
         await init_database()
         logger.info("database_initialized")
+
+        # Drop stale buffer timers so timers do not survive restarts
+        async with SessionLocal() as db:
+            await reset_open_conversation_windows(db)
 
         # Load rate limit configuration for middleware
         logger.info("loading_rate_limit_config")
@@ -82,6 +91,9 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error("contact_request_worker_start_failed", error=str(e), exc_info=True)
 
+        # Start buffer scanner for AI conversations
+        await start_buffer_scanner()
+
         logger.info("application_startup_complete")
         yield
 
@@ -92,6 +104,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("shutting_down_application")
     try:
+        # Stop buffer scanner first to avoid DB operations during shutdown
+        await stop_buffer_scanner()
         # Stop background worker if running
         worker = getattr(app.state, "contact_request_worker", None)
         if worker:

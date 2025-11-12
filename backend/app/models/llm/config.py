@@ -4,8 +4,8 @@ LLM configuration model.
 This module contains the LLMConfig SQLAlchemy model.
 """
 
-from typing import Optional, TYPE_CHECKING, List
-from sqlalchemy import Integer, String, DECIMAL, Index, text, CheckConstraint
+from typing import Optional, TYPE_CHECKING, List, Dict, Any
+from sqlalchemy import Integer, String, DECIMAL, Index, text, CheckConstraint, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -103,6 +103,62 @@ class LLMConfig(AutoIncrementModel):
         comment="JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified",
     )
 
+    default_tools: Mapped[List[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'::jsonb"),
+        comment="Default tool definitions (JSON array)",
+    )
+
+    default_tool_choice: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="auto",
+        server_default=text("'auto'"),
+        comment="Tool choice behavior for the provider (auto/none/required)",
+    )
+
+    parallel_tool_calls: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="Allow the provider to execute tools in parallel",
+    )
+
+    max_tool_calls: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Maximum number of tool calls per request",
+    )
+
+    default_extra_headers: Mapped[Dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        comment="Default extra headers passed to the provider",
+    )
+
+    default_extra_query: Mapped[Dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        comment="Default query parameters passed to the provider",
+    )
+
+    enable_streaming: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="Enable streaming output (experimental, default: false)",
+    )
+
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -130,4 +186,9 @@ class LLMConfig(AutoIncrementModel):
         CheckConstraint("top_p >= 0 AND top_p <= 1", name="check_top_p"),
         CheckConstraint("frequency_penalty >= -2 AND frequency_penalty <= 2", name="check_frequency_penalty"),
         CheckConstraint("presence_penalty >= -2 AND presence_penalty <= 2", name="check_presence_penalty"),
+        CheckConstraint(
+            "default_tool_choice IN ('auto', 'none', 'required')",
+            name="check_default_tool_choice",
+        ),
+        CheckConstraint("max_tool_calls >= 0", name="check_max_tool_calls"),
     )

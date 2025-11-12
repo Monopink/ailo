@@ -211,39 +211,86 @@ created_at
 updated_at
 ```
 
-## ai_contexts
+## ai_message_buffer
 
-AI对话上下文表，收到对AI消息立即写入。
+消息缓冲窗口表；将用户端多条消息聚合为一个窗口，驱动双计时器逻辑（micro/macro）并控制抢占。只在窗口级写入，真正的历史由 `ai_conversation_items` 存储。
 
 ```txt
 id -- Snowflake ID
-character_id -- 关联ai_characters.id
-character_qiao_id -- 关联ai_characters.qiao_id
-user_id -- 关联users.id
-user_qiao_id -- 关联users.qiao_id
-role -- 角色类型：1=system, 2=user, 3=assistant
-content -- 消息内容
-first_msg_id_client -- 首条消息的 client 侧 msg_id（便于去重/回溯），VARCHAR(64)
-last_msg_id_client  -- 末条消息的 client 侧 msg_id，VARCHAR(64)
-token_count -- 消息token数量
-is_attack -- 是否为攻击消息：1=yes, 0=no
-last_msg_time_ms    -- 最近一条聚合消息的到达时间，BIGINT（毫秒）
-buffer_expires_at_ms -- 当前有效计时器的到期时间（min(宏/微)），BIGINT（毫秒）
-micro_expires_at_ms -- 微计时器（普通消息等待）到期时间，BIGINT（毫秒）
-macro_expires_at_ms -- 宏计时器（typing_start 总时长）到期时间，BIGINT（毫秒）
-last_message_category -- 上一条消息的分类：1=支持 typing 的 TEXT，2=不支持 typing 的 TEXT，3=typing_start，4=typing_end
-aggregate_state     -- 聚合/处理状态（仅 role=user 使用）：
-  1=OPEN（等待合并/计时）
-  2=LOCKED（进入处理；同会话仅允许一个）
-  3=COMPLETE（处理完成）
-  4=CANCELLED（被新窗口抢占或显式终止）
+user_qiao_id -- 用户 external ID
+character_qiao_id -- AI external ID
+aggregate_state -- 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED
+micro_expires_at_ms -- 微计时器到期时间（毫秒）
+macro_expires_at_ms -- 宏计时器到期时间（毫秒，可为空）
+last_message_category -- VARCHAR(32)，CONTENT_TYPING / CONTENT_NO_TYPING / typing_start / typing_end
+first_msg_id_client -- 窗口内第一条客户端消息ID
+last_msg_id_client -- 窗口内最后一条客户端消息ID
+message_count -- 窗口内消息条数，默认1
+last_msg_time_ms -- 窗口最后一条消息的毫秒时间戳
+locked_at -- 进入 LOCKED 状态的时间（用于超时检测）
 created_at
 updated_at
 ```
 
-## ai_contexts_archive
+**约束 & 索引**
 
-参照ai_contexts表结构，用于归档。
+- `(user_qiao_id, character_qiao_id)` + `aggregate_state=2` 的部分唯一索引用于确保单会话仅有一个 LOCKED 窗口。
+- `micro_expires_at_ms`、`macro_expires_at_ms` 分别加条件索引（aggregate_state=1）以供扫描器按到期顺序拉取。
+- `idx_buffer_session`：`(user_qiao_id, character_qiao_id, aggregate_state)` 支撑状态查询。
+- 若后续需要完整消息 ID 列表，可增加 `ai_buffer_messages(buffer_id, client_msg_id, seq_no)`，MVP 暂不实现，保持 KISS。
+
+## ai_conversation_items
+
+对话历史表，完整记录多模态消息内容，直接映射 Doubao Responses API `content` 数组。所有系统、用户、助手消息都会双写到此表；`buffer_id` 仅对用户消息赋值，指向对应的 `ai_message_buffer` 记录。
+
+```txt
+id -- Snowflake ID
+user_qiao_id -- 用户 external ID
+character_qiao_id -- AI external ID
+role -- system / user / assistant
+content -- JSONB，直接存储 Responses API block 数组（[{"type": ...}, ...]）
+content_preview -- 纯文本预览，便于检索及后台展示
+buffer_id -- 关联 ai_message_buffer.id，仅 user 角色可填
+is_excluded_from_context -- 是否从 LLM 上下文中剔除（攻击/敏感内容），默认false
+created_at
+```
+
+**约束 & 索引**
+
+- 检查约束：`role='user'` 时必须携带 `buffer_id`，其他角色禁止填写。
+- `idx_conv_items_session (user_qiao_id, character_qiao_id, created_at DESC)`：上下文查询。
+- `idx_conv_items_buffer (buffer_id)`：逆向定位窗口。
+- `idx_conv_items_excluded`：标记攻击内容，构建上下文时直接过滤。
+
+**Block 类型约定**
+
+- 输入：`input_text`, `input_image`, `input_audio`, `input_video`
+- 输出：`output_text`, `output_audio`, `reasoning`
+- 工具：`tool_call`, `tool_result`
+
+直接使用官方 block 字段（如 `image_url` 内部再嵌 URL/分辨率），禁止再套 `{"blocks": [...]}`，以便与 Doubao Responses API 一一对应。
+
+## ai_conversation_items_archive
+
+`ai_conversation_items` 的冷数据归档表，结构保持一致，用于移动超出上下文窗口的历史（主表只保留近 14 天数据，定时作业将旧记录搬迁到 archive）。
+
+```txt
+id -- Snowflake ID
+user_qiao_id -- 用户 external ID
+character_qiao_id -- AI external ID
+role -- system / user / assistant
+content -- JSONB，完整 block 数组
+content_preview -- 预览文本
+buffer_id -- 原始缓冲窗口ID（仅 user 角色保留）
+is_excluded_from_context -- 是否排除上下文
+created_at -- 原始创建时间
+archived_at -- 归档时间
+```
+
+**归档策略**
+
+- 定期任务（pg_cron / APScheduler / 外部 Cron）每日搬迁 `created_at < NOW() - INTERVAL '14 days'` 的记录
+- 归档后立即从主表删除对应记录，并执行 `VACUUM ANALYZE ai_conversation_history` 保持索引健康
 
 ## preset_assets
 
@@ -315,9 +362,15 @@ display_name -- 显示名称
 prompt_fragment -- 提示词片段
 usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
+response_time_min_ms -- INT，微计时器下限，默认3000，CHECK >=500
+response_time_max_ms -- INT，微计时器上限，默认3000，CHECK >= response_time_min_ms
+response_time_bias -- VARCHAR(20)，balanced/centered/fast/slow/very_fast/very_slow
+no_reply_probability -- DECIMAL(3,2)，0.00-1.00，不回复概率
 created_at
 updated_at
 ```
+
+响应时间字段驱动关系化的微计时采样：缓冲服务根据 bias 采样到期时间，并结合 `no_reply_probability` 直接决定是否跳过回复。
 
 ## ai_styles
 
@@ -435,6 +488,7 @@ style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
 memory -- 记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
+request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
 position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
 {
   "foo": {"algorithm": 1, "params": {}},
@@ -522,6 +576,11 @@ updated_at
 
 LLM运行时配置表，管理具体的模型配置参数。
 
+**设计说明**：
+
+- 已移除 Doubao 上下文缓存相关字段（`enable_caching`, `cache_strategy`, `cache_ttl_seconds`）
+- 原因：系统采用动态裁剪上下文和实时生成系统提示词，与缓存机制冲突
+
 ```txt
 id -- 自增ID
 provider_id -- 关联llm_providers.id
@@ -539,6 +598,12 @@ json_schema_mode -- JSON Schema支持状态
   - 'strict': 已验证支持JSON Schema（测试通过，可用于AI Character）
   - 'disabled': 已验证不支持JSON Schema（测试失败，仅供查看测试响应）
   - 'auto': 未验证（默认值，需要先测试）
+default_tools -- 默认工具定义（JSONB数组），如[{"type": "web_search"}]
+default_tool_choice -- 工具选择策略：auto（自动）/none（不使用）/required（必须使用），默认auto
+parallel_tool_calls -- 是否允许并行工具调用：1=yes, 0=no，默认0
+max_tool_calls -- 单次请求最大工具调用次数，默认1
+default_extra_headers -- 默认额外请求头（JSONB），如{"ark-beta-web-search": "true"}
+default_extra_query -- 默认额外查询参数（JSONB）
 status -- 状态：1=active, 2=inactive
 priority -- 优先级，数字越小优先级越高，用于故障转移
 extra_params -- 其他的参数
@@ -549,6 +614,11 @@ updated_at
 ## ai_request_logs
 
 AI请求日志表，记录所有AI请求和响应（包括生产环境和测试环境）。
+
+**设计说明**：
+
+- 已移除缓存相关字段（`response_id`, `cache_hit`）
+- 更新关联字段名：`conversation_item_id` → `conversation_history_id`
 
 ```txt
 id -- Snowflake ID
@@ -564,6 +634,8 @@ response -- 响应内容，JSONB格式
 status -- 请求状态：1=success, 2=failed, 3=timeout
 token_count -- 消耗的token数量
 response_time -- 响应时间（毫秒）
+llm_config_id -- 使用的LLM配置ID
+conversation_history_id -- 关联的 ai_conversation_history.id（assistant 消息）
 created_at -- 请求创建时间
 completed_at -- 请求完成时间
 ```

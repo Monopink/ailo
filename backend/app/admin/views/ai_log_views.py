@@ -6,7 +6,7 @@ This module contains Starlette-Admin views for AI request logging.
 
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import IntegerField, StringField
+from starlette_admin import IntegerField, StringField, BooleanField
 from starlette_admin.fields import JSONField
 
 from models.ai.log import AIRequestLog
@@ -24,6 +24,10 @@ class AIRequestLogView(ModelView):
         "user_id",
         "style_id",
         "personality_id",
+        "llm_config_id",
+        "response_id",
+        "cache_hit",
+        "conversation_item_id",
         "request",
         "response",
         "status",
@@ -37,6 +41,10 @@ class AIRequestLogView(ModelView):
         "user_id",
         "style_id",
         "personality_id",
+        "llm_config_id",
+        "response_id",
+        "cache_hit",
+        "conversation_item_id",
         "request",
         "response",
         "status",
@@ -57,7 +65,7 @@ class AIRequestLogView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = []
+    searchable_fields = ["id", "character_id", "user_id", "provider_name", "model_name", "response_id"]
     sortable_fields = [
         "id",
         "character_id",
@@ -79,6 +87,14 @@ class AIRequestLogView(ModelView):
         StringField("request_type", label="Request Type", help_text="production or test"),
         StringField("provider_name", label="Provider", help_text="LLM provider name"),
         StringField("model_name", label="Model", help_text="Model name used"),
+        IntegerField("llm_config_id", label="LLM Config ID"),
+        StringField("response_id", label="Response ID", help_text="Provider response identifier"),
+        BooleanField("cache_hit", label="Cache Hit"),
+        StringField(
+            "conversation_item_id",
+            label="Conversation Item ID",
+            help_text="Associated ai_conversation_items ID",
+        ),
         JSONField("request", label="Request", help_text="Request content in JSON format"),
         JSONField("response", label="Response", help_text="Response content in JSON format"),
         IntegerEnumField("status", enum=AIRequestStatus, label="Status"),

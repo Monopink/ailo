@@ -5,11 +5,12 @@ This module handles system prompt construction, placeholder replacement,
 and JSON schema building for AI responses.
 """
 
-from typing import Dict, Any, Optional, List
+from copy import deepcopy
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from enums.common import AIContextRole
+from enums.common import ConversationRole
 from .queries import get_personality_with_placeholders
 from exceptions import AIServiceError
 from utils.logging import get_logger
@@ -608,7 +609,7 @@ async def build_conversation_context(
     character_qiao_id: str,
     user_qiao_id: str,
     max_context_length: Optional[int] = None,
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     """
     Build conversation context from AI contexts table.
 
@@ -638,14 +639,14 @@ async def build_conversation_context(
             )
             return []
 
-        # Convert contexts to message format
-        messages = []
+        # Convert contexts to Responses-compatible message format
+        messages: List[Dict[str, Any]] = []
         for context in contexts:
-            role = _map_context_role_to_message_role(context.get("role", AIContextRole.USER))
-            content = context.get("content", "")
+            role = _map_context_role_to_message_role(context.get("role", ConversationRole.USER.value))
+            content_blocks = _normalize_content_blocks(context.get("content"))
 
-            if content.strip():  # Only include non-empty content
-                messages.append({"role": role, "content": content})
+            if content_blocks:
+                messages.append({"role": role, "content": content_blocks})
 
         logger.debug(
             "conversation_context_built",
@@ -671,22 +672,39 @@ async def build_conversation_context(
         )
 
 
-def _map_context_role_to_message_role(role: AIContextRole) -> str:
+def _map_context_role_to_message_role(role: str) -> str:
     """
     Map context role enum to message role string.
 
     Args:
-        role: Role enum value (AIContextRole.SYSTEM/USER/ASSISTANT)
+        role: Role string value ("system"/"user"/"assistant")
 
     Returns:
         Message role string
     """
     role_mapping = {
-        AIContextRole.SYSTEM: "system",  # system
-        AIContextRole.USER: "user",  # user
-        AIContextRole.ASSISTANT: "assistant",  # assistant
+        ConversationRole.SYSTEM.value: "system",
+        ConversationRole.USER.value: "user",
+        ConversationRole.ASSISTANT.value: "assistant",
     }
     return role_mapping.get(role, "user")
+
+
+def _normalize_content_blocks(blocks: Any) -> List[Dict[str, Any]]:
+    """Ensure stored JSONB blocks are safe to send back to the LLM."""
+
+    normalized: List[Dict[str, Any]] = []
+
+    if isinstance(blocks, list):
+        for block in blocks:
+            if isinstance(block, dict) and block.get("type"):
+                normalized.append(deepcopy(block))
+            elif isinstance(block, str) and block.strip():
+                normalized.append({"type": "input_text", "text": block})
+    elif isinstance(blocks, str) and blocks.strip():
+        normalized.append({"type": "input_text", "text": blocks})
+
+    return normalized
 
 
 async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, template: str) -> str:

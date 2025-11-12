@@ -221,6 +221,62 @@
                 </div>
                 {% endif %}
 
+                <!-- Advanced Overrides -->
+                <div class="mb-3">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#advancedOverrides" aria-expanded="false" aria-controls="advancedOverrides">
+                        Advanced Overrides
+                    </button>
+                </div>
+                <div class="collapse" id="advancedOverrides">
+                    <div class="card card-body mb-3">
+                        <div class="mb-3">
+                            <label for="tools_json" class="form-label">Tools JSON</label>
+                            <textarea id="tools_json" name="tools_json" rows="3" class="form-control font-monospace"
+                                placeholder='[{"type": "web_search"}]'></textarea>
+                            <div class="form-text">Override default tools for this test. Leave empty to reuse config defaults.</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="tool_choice_override" class="form-label">Tool Choice</label>
+                                <select id="tool_choice_override" name="tool_choice_override" class="form-select">
+                                    <option value="inherit" selected>Use config default</option>
+                                    <option value="auto">Auto</option>
+                                    <option value="none">Never use tools</option>
+                                    <option value="required">Always use tools</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="max_tool_calls_override" class="form-label">Max Tool Calls</label>
+                                <input type="number" id="max_tool_calls_override" name="max_tool_calls_override"
+                                    class="form-control" placeholder="Leave empty to reuse config" min="0">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="extra_headers_json" class="form-label">Extra Headers (JSON)</label>
+                            <textarea id="extra_headers_json" name="extra_headers_json" rows="3"
+                                class="form-control font-monospace" placeholder='{"ark-beta-web-search": "true"}'></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="extra_query_json" class="form-label">Extra Query Params (JSON)</label>
+                            <textarea id="extra_query_json" name="extra_query_json" rows="3"
+                                class="form-control font-monospace" placeholder='{"search_mode": "fast"}'></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="extra_body_json" class="form-label">Extra Body (JSON)</label>
+                            <textarea id="extra_body_json" name="extra_body_json" rows="3"
+                                class="form-control font-monospace" placeholder='{"thinking": {"type": "enabled"}}'></textarea>
+                            <div class="form-text">Appended to `extra_body` for this request only. Note: stream_options is NOT supported by Doubao API.</div>
+                        </div>
+
+                        
+                    </div>
+                </div>
+
                 <button type="submit" class="btn btn-primary" id="submitBtn">Run Test</button>
                 <button type="button" class="btn btn-secondary ms-2" onclick="clearForm()">Clear</button>
             </form>
@@ -301,6 +357,10 @@
         document.getElementById('override_temperature_enabled').value = '0';
         document.getElementById('override_max_tokens_enabled').value = '0';
         document.getElementById('testResults').style.display = 'none';
+        const advanced = document.getElementById('advancedOverrides');
+        if (advanced) {
+            advanced.classList.remove('show');
+        }
     }
 
     // Handle form submission

@@ -88,13 +88,13 @@ flowchart TB
 ### 实施细节
 
 - 入站缓冲：用户消息到达即写入 `ai_contexts`，若存在最近 `role=user & state=OPEN` 窗口则合并，否则创建新窗口（OPEN）。
-- 等待策略：依据是否支持 typing 与消息类型设置 `buffer_expires_at_ms`（统一使用数据库时钟计算）。
-- 到期触发：调度器扫描 `OPEN 且到期` 窗口；事务内先取消同会话旧的 `OPEN/LOCKED`，再将“最新且到期”的窗口置 `LOCKED` 并开始处理。
+- 等待策略：依据是否支持 typing 与消息类型设置 `micro_expires_at_ms` 和 `macro_expires_at_ms`（统一使用数据库时钟计算）。
+- 到期触发：调度器扫描 `OPEN 且任一计时器到期` 的窗口；事务内先取消同会话旧的 `OPEN/LOCKED`，再将"最新且到期"的窗口置 `LOCKED` 并开始处理。
 - Doubao 流式：使用流式输出 + 早停。当出现新窗口抢占时立即停止读取，减少后续输出 tokens。
 - 结果落地：仅当窗口仍为 `LOCKED` 时写入一条 `assistant` 行并将窗口置 `COMPLETE`；否则丢弃（被抢占）。
 - 发送与重试：通过 LeanCloud 发送；失败写入 `message_delivery_failures` 并按策略重试。
 
-说明：本流程依赖 `ai_contexts` 的精简字段与 `aggregate_state` 状态机，确保“新消息可抢占旧处理”，且只在 `role=user` 的窗口使用状态字段。
+说明：本流程依赖 `ai_contexts` 的 `micro_expires_at_ms`、`macro_expires_at_ms`、`last_message_category` 字段与 `aggregate_state` 状态机，确保"新消息可抢占旧处理"，且只在 `role=user` 的窗口使用状态字段。
 
 实现细节请参见[技术文档](ai-message-processing.md)。
 

@@ -12,15 +12,16 @@ Design: Follows ai-message-processing.md specification
 
 import asyncio
 from typing import Optional, Set
-from sqlalchemy import select
+
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import SessionLocal
-from models.ai.character import AIContext
-from enums import AIContextRole, AIAggregateState
+from enums.common import AIMessageBufferState
+from models.ai.character import AIMessageBuffer
 from services.message.processing.buffer import (
-    lock_conversation_preemptively,
     get_locked_context,
+    lock_conversation_preemptively,
     _get_db_now_ms,
 )
 from services.ai.conversation_flow import process_conversation
@@ -119,13 +120,21 @@ async def _scan_and_process() -> None:
             # Query expired OPEN contexts (distinct conversations)
             result = await db.execute(
                 select(
-                    AIContext.user_qiao_id,
-                    AIContext.character_qiao_id
+                    AIMessageBuffer.user_qiao_id,
+                    AIMessageBuffer.character_qiao_id,
                 )
                 .where(
-                    AIContext.role == AIContextRole.USER,
-                    AIContext.aggregate_state == AIAggregateState.OPEN,
-                    AIContext.buffer_expires_at_ms <= now_ms
+                    AIMessageBuffer.aggregate_state == AIMessageBufferState.OPEN,
+                    or_(
+                        and_(
+                            AIMessageBuffer.micro_expires_at_ms.is_not(None),
+                            AIMessageBuffer.micro_expires_at_ms <= now_ms,
+                        ),
+                        and_(
+                            AIMessageBuffer.macro_expires_at_ms.is_not(None),
+                            AIMessageBuffer.macro_expires_at_ms <= now_ms,
+                        ),
+                    ),
                 )
                 .distinct()
             )
@@ -159,7 +168,7 @@ async def _process_conversation_async(
     Steps:
     1. Attempt preemptive lock (cancel old + lock new)
     2. If successful, get locked context content
-    3. Trigger AI processing with context_id
+    3. Trigger AI processing with buffer_id
     4. Handle errors gracefully (don't crash scanner)
 
     Args:
@@ -169,13 +178,13 @@ async def _process_conversation_async(
     try:
         async with SessionLocal() as db:
             # Step 1: Attempt preemptive lock
-            context_id = await lock_conversation_preemptively(
+            buffer_id = await lock_conversation_preemptively(
                 db=db,
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
             )
 
-            if not context_id:
+            if not buffer_id:
                 # Lock failed (conflict or no expired context)
                 logger.debug(
                     "lock_failed_for_conversation",
@@ -186,18 +195,18 @@ async def _process_conversation_async(
 
             logger.info(
                 "triggering_ai_processing",
-                context_id=context_id,
+                buffer_id=buffer_id,
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
             )
 
             # Step 2: Get locked context content
-            context = await get_locked_context(db, context_id)
+            context = await get_locked_context(db, buffer_id)
 
             if not context:
                 logger.warning(
                     "locked_context_not_found",
-                    context_id=context_id,
+                    buffer_id=buffer_id,
                 )
                 return
 
@@ -209,13 +218,15 @@ async def _process_conversation_async(
                 character_qiao_id=character_qiao_id,
                 message_content=context.content,
                 message_type="text",
-                locked_context_id=context_id,
+                locked_buffer_id=buffer_id,
+                user_message_item_id=context.conversation_item_id,
+                message_blocks=context.content_blocks,
                 persist=True,
             )
 
             logger.info(
                 "ai_processing_completed",
-                context_id=context_id,
+                buffer_id=buffer_id,
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
             )

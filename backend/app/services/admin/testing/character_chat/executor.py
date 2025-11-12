@@ -7,16 +7,16 @@ complete reuse of the core business logic.
 """
 
 import time
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from services.ai.conversation_flow import process_conversation
-from services.ai.queries import save_context_entry
-from services.ai.queries.updates import finalize_context_if_locked
-from enums import AIContextRole, AIAggregateState
-from models.ai.character import AICharacter
+from services.ai.queries.updates import create_conversation_item
+from services.message.processing.buffer import finalize_buffer_if_locked
+from enums.common import AIMessageBufferState, ConversationRole
+from models.ai.character import AICharacter, AIMessageBuffer
 from models.ai.log import AIRequestLog
 from models.user import User
 from utils.logging import get_logger
@@ -103,40 +103,56 @@ class ExecutorService:
                 log_id=log_id,
             )
 
-            # Optionally create a LOCKED user context to follow buffer/state machine behavior
-            locked_context_id = None
+            message_blocks = [{"type": "input_text", "text": test_message}]
+            locked_buffer_id: Optional[int] = None
+            user_message_item_id: Optional[int] = None
             if persist:
                 try:
-                    context_data = {
-                        "character_qiao_id": character_qiao_id,
-                        "user_qiao_id": user_qiao_id,
-                        "role": AIContextRole.USER,
-                        "content": test_message,
-                        "aggregate_state": AIAggregateState.LOCKED,
-                    }
-                    locked_context_id = await save_context_entry(db, context_data)
-                    if locked_context_id:
-                        logger.debug(
-                            "test_user_context_locked",
-                            character_qiao_id=character_qiao_id,
-                            user_qiao_id=user_qiao_id,
-                            context_id=locked_context_id,
-                        )
-                    else:
-                        logger.warning(
-                            "test_user_context_save_failed",
-                            character_qiao_id=character_qiao_id,
-                            user_qiao_id=user_qiao_id,
-                        )
+                    buffer_entry = AIMessageBuffer(
+                        user_qiao_id=user_qiao_id,
+                        character_qiao_id=character_qiao_id,
+                        aggregate_state=AIMessageBufferState.LOCKED,
+                        first_msg_id_client="admin_test",
+                        last_msg_id_client="admin_test",
+                        message_count=1,
+                        last_msg_time_ms=int(time.time() * 1000),
+                    )
+                    db.add(buffer_entry)
+                    await db.flush()
+                    locked_buffer_id = buffer_entry.id
+
+                    user_message_item_id = await create_conversation_item(
+                        db,
+                        {
+                            "user_qiao_id": user_qiao_id,
+                            "character_qiao_id": character_qiao_id,
+                            "role": ConversationRole.USER.value,
+                            "content": message_blocks,
+                            "content_preview": test_message[:180],
+                            "buffer_id": locked_buffer_id,
+                            "client_msg_ids": ["admin_test"],
+                        },
+                    )
+
+                    logger.debug(
+                        "test_user_context_locked",
+                        character_qiao_id=character_qiao_id,
+                        user_qiao_id=user_qiao_id,
+                        buffer_id=locked_buffer_id,
+                        conversation_item_id=user_message_item_id,
+                    )
                 except Exception as e:
+                    await db.rollback()
                     logger.error(
                         "test_user_context_lock_error",
                         error=str(e),
                         character_qiao_id=character_qiao_id,
                         user_qiao_id=user_qiao_id,
                     )
+                    locked_buffer_id = None
+                    user_message_item_id = None
 
-            # Execute main conversation logic - 100% reuse，传入 locked_context_id 以复用完整业务路径
+            # Execute main conversation logic - 100% reuse，传入 locked_buffer_id 以复用完整业务路径
             start_time = time.time()
 
             conversation_result = await process_conversation(
@@ -146,7 +162,9 @@ class ExecutorService:
                 message_content=test_message,
                 config_name=llm_config_name,
                 request_overrides=request_overrides,
-                locked_context_id=locked_context_id,
+                locked_buffer_id=locked_buffer_id,
+                user_message_item_id=user_message_item_id,
+                message_blocks=message_blocks,
                 persist=persist,
             )
 
@@ -169,7 +187,8 @@ class ExecutorService:
             # Store response without request_payload to avoid data duplication
             log_entry.response = {
                 "success": conversation_result.get("success"),
-                "context_id": conversation_result.get("context_id"),
+                "buffer_id": conversation_result.get("buffer_id"),
+                "assistant_item_id": conversation_result.get("assistant_item_id"),
                 "response": conversation_result.get("response"),
                 "usage": conversation_result.get("usage"),
                 "model": conversation_result.get("model"),
@@ -195,6 +214,8 @@ class ExecutorService:
             result = {
                 "success": True,
                 "test_mode": "immediate",
+                "buffer_id": conversation_result.get("buffer_id"),
+                "assistant_item_id": conversation_result.get("assistant_item_id"),
                 "conversation": {
                     "all_messages": all_messages,
                     "outgoing_messages": ai_response.get("outgoing_messages", []),
@@ -214,20 +235,20 @@ class ExecutorService:
             }
 
             # Finalize user context window to COMPLETE when persist enabled
-            if persist and locked_context_id:
+            if persist and locked_buffer_id:
                 try:
-                    updated = await finalize_context_if_locked(db, locked_context_id)
+                    updated = await finalize_buffer_if_locked(db, locked_buffer_id)
                     await db.commit()
                     logger.debug(
                         "test_user_context_finalize",
-                        context_id=locked_context_id,
+                        buffer_id=locked_buffer_id,
                         updated=updated,
                     )
                 except Exception as e:
                     logger.error(
                         "test_user_context_finalize_failed",
                         error=str(e),
-                        context_id=locked_context_id,
+                        buffer_id=locked_buffer_id,
                     )
 
             logger.info(

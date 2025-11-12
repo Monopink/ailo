@@ -471,6 +471,7 @@ CREATE TABLE IF NOT EXISTS ai_character_templates (
     personality_id INTEGER NOT NULL,
     memory TEXT,
     prompt_variables JSONB,
+    request_params JSONB,
     display_name VARCHAR(100),
     position_mapping_config JSONB,
     is_reusable INTEGER NOT NULL DEFAULT 1,
@@ -480,6 +481,9 @@ CREATE TABLE IF NOT EXISTS ai_character_templates (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+-- Add comment for request_params field
+COMMENT ON COLUMN ai_character_templates.request_params IS 'Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances';
 
 -- Create indexes for ai_character_templates table
 -- Note: No additional indexes needed for MVP
@@ -534,57 +538,79 @@ CREATE INDEX idx_ai_characters_personality_id ON ai_characters(personality_id);
 -- Add comment for new field
 COMMENT ON COLUMN ai_characters.request_params IS 'AI character request parameters configuration (JSON format) - can override default LLM settings';
 
--- AI contexts table - AI conversation contexts
-CREATE TABLE IF NOT EXISTS ai_contexts (
+-- AI message buffer table - aggregation windows for inbound messages
+CREATE TABLE IF NOT EXISTS ai_message_buffer (
     id BIGINT PRIMARY KEY,
-    character_id BIGINT NOT NULL,
-    character_qiao_id VARCHAR(32) NOT NULL,
-    user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
-    role INTEGER NOT NULL,
-    content TEXT NOT NULL,
+    character_qiao_id VARCHAR(32) NOT NULL,
+    aggregate_state SMALLINT NOT NULL,
+    micro_expires_at_ms BIGINT,
+    macro_expires_at_ms BIGINT,
+    buffer_expires_at_ms BIGINT,
+    last_message_category VARCHAR(32),
     first_msg_id_client VARCHAR(64),
     last_msg_id_client VARCHAR(64),
-    token_count INTEGER,
-    is_attack INTEGER NOT NULL DEFAULT 0,
+    message_count INTEGER NOT NULL DEFAULT 1,
     last_msg_time_ms BIGINT,
-    buffer_expires_at_ms BIGINT,
-    aggregate_state INTEGER,
+    locked_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for ai_contexts table
-CREATE INDEX idx_ai_contexts_character_qiao_id ON ai_contexts(character_qiao_id);
-CREATE INDEX idx_ai_contexts_user_qiao_id ON ai_contexts(user_qiao_id);
-CREATE INDEX idx_ai_contexts_created_at ON ai_contexts(created_at);
-CREATE INDEX idx_ai_contexts_character_id ON ai_contexts(character_id);
-CREATE UNIQUE INDEX idx_ai_contexts_unique_locked ON ai_contexts(user_qiao_id, character_qiao_id) WHERE role=2 AND aggregate_state=2;
-CREATE INDEX idx_ai_contexts_expire_scan ON ai_contexts(user_qiao_id, character_qiao_id, buffer_expires_at_ms) WHERE role=2 AND aggregate_state=1;
+CREATE INDEX idx_ai_message_buffer_session_state ON ai_message_buffer(user_qiao_id, character_qiao_id, aggregate_state);
+CREATE INDEX idx_ai_message_buffer_micro ON ai_message_buffer(micro_expires_at_ms) WHERE aggregate_state = 1 AND micro_expires_at_ms IS NOT NULL;
+CREATE INDEX idx_ai_message_buffer_macro ON ai_message_buffer(macro_expires_at_ms) WHERE aggregate_state = 1 AND macro_expires_at_ms IS NOT NULL;
+CREATE UNIQUE INDEX idx_ai_message_buffer_locked ON ai_message_buffer(user_qiao_id, character_qiao_id) WHERE aggregate_state = 2;
+CREATE INDEX idx_ai_message_buffer_expire_scan ON ai_message_buffer(user_qiao_id, character_qiao_id, buffer_expires_at_ms) WHERE aggregate_state = 1 AND buffer_expires_at_ms IS NOT NULL;
 
-
--- AI contexts archive table - Archived AI conversation contexts
-CREATE TABLE IF NOT EXISTS ai_contexts_archive (
+-- AI conversation items table - Responses API compatible blocks
+CREATE TABLE IF NOT EXISTS ai_conversation_items (
     id BIGINT PRIMARY KEY,
-    character_id BIGINT NOT NULL,
-    character_qiao_id VARCHAR(32) NOT NULL,
-    user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
-    role INTEGER NOT NULL,
-    content TEXT NOT NULL,
-    first_msg_id_client VARCHAR(64),
-    last_msg_id_client VARCHAR(64),
-    token_count INTEGER,
-    is_attack INTEGER NOT NULL DEFAULT 0,
-    last_msg_time_ms BIGINT,
-    buffer_expires_at_ms BIGINT,
-    aggregate_state INTEGER,
+    character_qiao_id VARCHAR(32) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    content JSONB NOT NULL,
+    content_preview TEXT,
+    client_msg_ids TEXT[] NOT NULL DEFAULT '{}',
+    buffer_id BIGINT,
+    llm_config_id INTEGER,
+    response_id VARCHAR(64),
+    is_excluded_from_context BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    CONSTRAINT ck_ai_conversation_items_user_buffer CHECK (
+        (role = 'user' AND buffer_id IS NOT NULL) OR (role <> 'user' AND buffer_id IS NULL)
+    )
 );
 
--- Create indexes for ai_contexts_archive table
--- Note: No additional indexes needed for MVP
+COMMENT ON COLUMN ai_conversation_items.buffer_id IS 'Associated buffer ID (references ai_message_buffer.id, no FK constraint)';
+COMMENT ON COLUMN ai_conversation_items.llm_config_id IS 'LLM config ID (references llm_configs.id, no FK constraint)';
+
+CREATE INDEX idx_ai_conv_items_session ON ai_conversation_items(user_qiao_id, character_qiao_id, created_at DESC);
+CREATE INDEX idx_ai_conv_items_buffer ON ai_conversation_items(buffer_id) WHERE buffer_id IS NOT NULL;
+CREATE INDEX idx_ai_conv_items_response ON ai_conversation_items(response_id) WHERE response_id IS NOT NULL;
+CREATE INDEX idx_ai_conv_items_excluded ON ai_conversation_items(user_qiao_id, character_qiao_id, created_at DESC) WHERE is_excluded_from_context = TRUE;
+
+-- AI conversation archive table - cold storage for history
+CREATE TABLE IF NOT EXISTS ai_conversation_items_archive (
+    id BIGINT PRIMARY KEY,
+    user_qiao_id VARCHAR(32) NOT NULL,
+    character_qiao_id VARCHAR(32) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    content JSONB NOT NULL,
+    content_preview TEXT,
+    client_msg_ids TEXT[] NOT NULL DEFAULT '{}',
+    buffer_id BIGINT,
+    llm_config_id INTEGER,
+    response_id VARCHAR(64),
+    is_excluded_from_context BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON COLUMN ai_conversation_items_archive.buffer_id IS 'Associated buffer ID (references ai_message_buffer.id, no FK constraint)';
+COMMENT ON COLUMN ai_conversation_items_archive.llm_config_id IS 'LLM config ID (references llm_configs.id, no FK constraint)';
+
+CREATE INDEX idx_ai_conv_items_archive_session ON ai_conversation_items_archive(user_qiao_id, character_qiao_id, created_at DESC);
 
 
 -- AI character dimensions table - AI character dimension scoring data
@@ -616,6 +642,10 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
     request_type VARCHAR(20) NOT NULL DEFAULT 'production',
     provider_name VARCHAR(50),
     model_name VARCHAR(100),
+    llm_config_id INTEGER,
+    response_id VARCHAR(64),
+    cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
+    conversation_item_id BIGINT,
     request JSONB NOT NULL,
     response JSONB,
     status INTEGER NOT NULL,
@@ -625,8 +655,10 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- Create indexes for ai_request_logs table
--- Note: No additional indexes needed for MVP
+CREATE INDEX idx_ai_request_logs_response_id ON ai_request_logs(response_id);
+CREATE INDEX idx_ai_request_logs_conversation_item_id ON ai_request_logs(conversation_item_id);
+
+-- llm_session_cache removed in refactor (Responses API session cache conflicts with dynamic prompts)
 
 
 -- ============================================================================
@@ -955,6 +987,13 @@ CREATE TABLE IF NOT EXISTS llm_configs (
     presence_penalty DECIMAL(3,2) NOT NULL DEFAULT 0.00,
     stop_sequences JSONB NOT NULL DEFAULT '[]'::jsonb,
     json_schema_mode VARCHAR(20),
+    default_tools JSONB NOT NULL DEFAULT '[]'::jsonb,
+    default_tool_choice VARCHAR(30) NOT NULL DEFAULT 'auto',
+    parallel_tool_calls BOOLEAN NOT NULL DEFAULT FALSE,
+    max_tool_calls SMALLINT NOT NULL DEFAULT 1,
+    default_extra_headers JSONB NOT NULL DEFAULT '{}'::jsonb,
+    default_extra_query JSONB NOT NULL DEFAULT '{}'::jsonb,
+    enable_streaming BOOLEAN NOT NULL DEFAULT FALSE,
     status INTEGER NOT NULL DEFAULT 1,
     priority INTEGER NOT NULL DEFAULT 1,
     extra_params JSONB,
@@ -963,7 +1002,9 @@ CREATE TABLE IF NOT EXISTS llm_configs (
     CONSTRAINT check_thinking_mode CHECK (thinking_mode IN ('enabled', 'disabled', 'auto')),
     CONSTRAINT check_top_p CHECK (top_p >= 0 AND top_p <= 1),
     CONSTRAINT check_frequency_penalty CHECK (frequency_penalty >= -2 AND frequency_penalty <= 2),
-    CONSTRAINT check_presence_penalty CHECK (presence_penalty >= -2 AND presence_penalty <= 2)
+    CONSTRAINT check_presence_penalty CHECK (presence_penalty >= -2 AND presence_penalty <= 2),
+    CONSTRAINT check_default_tool_choice CHECK (default_tool_choice IN ('auto', 'none', 'required')),
+    CONSTRAINT check_max_tool_calls CHECK (max_tool_calls >= 0)
 );
 
 COMMENT ON COLUMN llm_configs.json_schema_mode IS 'JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified (default)';
@@ -972,6 +1013,13 @@ COMMENT ON COLUMN llm_configs.top_p IS 'Nucleus sampling threshold [0, 1]. Contr
 COMMENT ON COLUMN llm_configs.frequency_penalty IS 'Frequency penalty [-2, 2]. Reduces repetition based on token frequency.';
 COMMENT ON COLUMN llm_configs.presence_penalty IS 'Presence penalty [-2, 2]. Encourages new topics based on token presence.';
 COMMENT ON COLUMN llm_configs.stop_sequences IS 'Stop sequences (max 4 strings). Model stops when encountering these strings.';
+COMMENT ON COLUMN llm_configs.default_tools IS 'Default tool definitions in JSON array form';
+COMMENT ON COLUMN llm_configs.default_tool_choice IS 'Tool choice behavior: auto/none/required';
+COMMENT ON COLUMN llm_configs.parallel_tool_calls IS 'Allow provider to execute tools in parallel';
+COMMENT ON COLUMN llm_configs.max_tool_calls IS 'Maximum number of tool calls allowed per request';
+COMMENT ON COLUMN llm_configs.default_extra_headers IS 'Default extra headers appended to each provider request';
+COMMENT ON COLUMN llm_configs.default_extra_query IS 'Default extra query parameters for each request';
+COMMENT ON COLUMN llm_configs.enable_streaming IS 'Enable streaming output (experimental, default: false)';
 
 -- Create indexes for llm_configs table
 CREATE INDEX idx_llm_configs_provider_id ON llm_configs(provider_id);
@@ -1043,8 +1091,7 @@ DROP TRIGGER IF EXISTS update_ai_personality_placeholders_updated_at ON ai_perso
 DROP TRIGGER IF EXISTS update_ai_character_templates_updated_at ON ai_character_templates;
 DROP TRIGGER IF EXISTS update_ai_profile_templates_updated_at ON ai_profile_templates;
 DROP TRIGGER IF EXISTS update_ai_characters_updated_at ON ai_characters;
-DROP TRIGGER IF EXISTS update_ai_contexts_updated_at ON ai_contexts;
-DROP TRIGGER IF EXISTS update_ai_contexts_archive_updated_at ON ai_contexts_archive;
+DROP TRIGGER IF EXISTS update_ai_message_buffer_updated_at ON ai_message_buffer;
 DROP TRIGGER IF EXISTS update_ai_character_dimensions_updated_at ON ai_character_dimensions;
 DROP TRIGGER IF EXISTS update_user_violation_logs_updated_at ON user_violation_logs;
 DROP TRIGGER IF EXISTS update_user_risk_stats_updated_at ON user_risk_stats;
@@ -1072,8 +1119,7 @@ CREATE TRIGGER update_ai_personality_placeholders_updated_at BEFORE UPDATE ON ai
 CREATE TRIGGER update_ai_character_templates_updated_at BEFORE UPDATE ON ai_character_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_profile_templates_updated_at BEFORE UPDATE ON ai_profile_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_characters_updated_at BEFORE UPDATE ON ai_characters FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_contexts_updated_at BEFORE UPDATE ON ai_contexts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_contexts_archive_updated_at BEFORE UPDATE ON ai_contexts_archive FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_message_buffer_updated_at BEFORE UPDATE ON ai_message_buffer FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_character_dimensions_updated_at BEFORE UPDATE ON ai_character_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_violation_logs_updated_at BEFORE UPDATE ON user_violation_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_risk_stats_updated_at BEFORE UPDATE ON user_risk_stats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

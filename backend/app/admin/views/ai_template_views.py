@@ -145,6 +145,11 @@ class AICharacterTemplateView(ModelView):
         ),
         "prompt_variables",
         JSONField(
+            "request_params",
+            label="Request Parameters",
+            help_text="LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
+        ),
+        JSONField(
             "position_mapping_config",
             label="Position Mapping Config",
             help_text="Raw JSON config per dimension",

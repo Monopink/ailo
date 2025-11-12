@@ -8,7 +8,7 @@ import json
 from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.llm import chat_completion
+from services.llm import LLMSessionContext, invoke_llm
 from utils.logging import get_logger
 
 import jsonschema
@@ -84,15 +84,16 @@ def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str
         return {"valid": False, "error": error_msg, "validated_data": None}
 
 
-async def chat_completion_with_validation(
+async def invoke_llm_with_validation(
     db: AsyncSession,
     messages: List[Dict[str, str]],
     json_schema: Optional[Dict[str, Any]] = None,
     preemption_checker: Optional[Any] = None,
+    session_context: Optional[LLMSessionContext] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
-    LLM chat completion with optional JSON schema validation and streaming early stop.
+    LLM invocation with optional JSON schema validation and streaming early stop.
 
     This function wraps the LLM service call with validation support.
     Relies on LLM provider's native JSON schema support (strict mode) for reliability.
@@ -102,7 +103,7 @@ async def chat_completion_with_validation(
         messages: List of message objects with 'role' and 'content'
         json_schema: Optional JSON schema for structured output validation
         preemption_checker: Optional async callback to check if request should stop (for streaming)
-        **kwargs: Additional arguments passed to chat_completion
+        **kwargs: Additional arguments passed to invoke_llm
 
     Returns:
         Dictionary containing response data and metadata:
@@ -116,11 +117,12 @@ async def chat_completion_with_validation(
     """
     try:
         # Call LLM service with preemption checker
-        llm_result = await chat_completion(
+        llm_result = await invoke_llm(
             db=db,
             messages=messages,
             json_schema=json_schema,
             preemption_checker=preemption_checker,
+            session_context=session_context,
             **kwargs
         )
 
@@ -162,7 +164,7 @@ async def chat_completion_with_validation(
             return llm_result
 
     except Exception as e:
-        logger.error("chat_completion_with_validation_error", error=str(e), exc_info=True)
+        logger.error("invoke_llm_with_validation_error", error=str(e), exc_info=True)
         return {
             "success": False,
             "error": f"Chat completion with validation error: {str(e)}",

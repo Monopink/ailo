@@ -1,17 +1,17 @@
 """
-AI conversation context query functions.
+AI conversation item query functions.
 
-This module provides conversation context and history query functions
-with clear separation of concerns and pure function design.
+Provides read-only helpers for retrieving buffered conversation history
+stored in ai_conversation_items.
 """
 
-from typing import Dict, Any, List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc, func
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
-from models.ai import AIContext
-from enums import AIAggregateState, AIContextRole
+from sqlalchemy import and_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models.ai import AIConversationItem
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,71 +24,52 @@ async def get_conversation_contexts(
     limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Get conversation contexts for prompt building.
-
-    Args:
-        db: Database session
-        character_qiao_id: Character's qiao_id
-        user_qiao_id: User's qiao_id
-        limit: Maximum number of contexts to return
-
-    Returns:
-        List of context dictionaries with role and content
+    Return conversation items (excluding flagged content) ordered for prompt building.
     """
     try:
-        # Only user role requires COMPLETE state; assistant/system do not use aggregate_state
-        # Build base query
         query = (
-            select(AIContext)
+            select(AIConversationItem)
             .where(
                 and_(
-                    AIContext.user_qiao_id == user_qiao_id,
-                    AIContext.character_qiao_id == character_qiao_id,
-                    or_(
-                        and_(
-                            AIContext.role == AIContextRole.USER,
-                            AIContext.aggregate_state == AIAggregateState.COMPLETE,
-                        ),
-                        AIContext.role != AIContextRole.USER,
-                    ),
+                    AIConversationItem.user_qiao_id == user_qiao_id,
+                    AIConversationItem.character_qiao_id == character_qiao_id,
+                    AIConversationItem.is_excluded_from_context.is_(False),
                 )
             )
-            .order_by(desc(AIContext.created_at), desc(AIContext.id))
+            .order_by(desc(AIConversationItem.created_at), desc(AIConversationItem.id))
         )
 
-        # Apply limit only when specified
         if isinstance(limit, int) and limit > 0:
             query = query.limit(limit)
 
         result = await db.execute(query)
+        items = list(result.scalars().all())
 
-        contexts = result.scalars().all()
-
-        # Convert to dictionaries and reverse order (oldest first for conversation flow)
-        context_list = []
-        for context in reversed(contexts):
-            context_list.append(
+        formatted: List[Dict[str, Any]] = []
+        for item in reversed(items):
+            formatted.append(
                 {
-                    "id": context.id,
-                    "role": context.role,
-                    "content": context.content,
-                    "created_at": context.created_at,
+                    "id": item.id,
+                    "role": item.role,
+                    "content": item.content,
+                    "content_preview": item.content_preview,
+                    "created_at": item.created_at,
                 }
             )
 
         logger.debug(
-            "conversation_contexts_retrieved",
+            "conversation_items_retrieved",
             character_qiao_id=character_qiao_id,
             user_qiao_id=user_qiao_id,
-            contexts_count=len(context_list),
+            item_count=len(formatted),
         )
 
-        return context_list
+        return formatted
 
-    except Exception as e:
+    except Exception as exc:
         logger.error(
-            "conversation_contexts_query_failed",
-            error=str(e),
+            "conversation_items_query_failed",
+            error=str(exc),
             character_qiao_id=character_qiao_id,
             user_qiao_id=user_qiao_id,
         )
@@ -96,53 +77,40 @@ async def get_conversation_contexts(
 
 
 async def get_conversation_history(
-    db: AsyncSession, user_qiao_id: str, character_qiao_id: str, limit: int = 20
+    db: AsyncSession,
+    user_qiao_id: str,
+    character_qiao_id: str,
+    limit: int = 20,
 ) -> List[Dict[str, Any]]:
     """
-    Get conversation history between user and character.
-
-    Args:
-        db: Database session
-        user_qiao_id: User's qiao_id
-        character_qiao_id: Character's qiao_id
-        limit: Maximum number of context entries to return
-
-    Returns:
-        List of context dictionaries
+    Return recent conversation items (including excluded entries) for audit UIs.
     """
     try:
-        # Only user role requires COMPLETE state; assistant/system do not use aggregate_state
         result = await db.execute(
-            select(AIContext)
+            select(AIConversationItem)
             .where(
                 and_(
-                    AIContext.user_qiao_id == user_qiao_id,
-                    AIContext.character_qiao_id == character_qiao_id,
-                    or_(
-                        and_(
-                            AIContext.role == AIContextRole.USER,
-                            AIContext.aggregate_state == AIAggregateState.COMPLETE,
-                        ),
-                        AIContext.role != AIContextRole.USER,
-                    ),
+                    AIConversationItem.user_qiao_id == user_qiao_id,
+                    AIConversationItem.character_qiao_id == character_qiao_id,
                 )
             )
-            .order_by(desc(AIContext.created_at))
+            .order_by(desc(AIConversationItem.created_at))
             .limit(limit)
         )
 
-        contexts = result.scalars().all()
-
-        # Convert to dictionaries and reverse order (oldest first)
-        history = []
-        for context in reversed(contexts):
+        items = list(result.scalars().all())
+        history: List[Dict[str, Any]] = []
+        for item in reversed(items):
             history.append(
                 {
-                    "id": context.id,
-                    "role": context.role,
-                    "content": context.content,
-                    "created_at": context.created_at,
-                    "is_attack": context.is_attack,
+                    "id": item.id,
+                    "role": item.role,
+                    "content": item.content,
+                    "content_preview": item.content_preview,
+                    "created_at": item.created_at,
+                    "is_excluded_from_context": item.is_excluded_from_context,
+                    "buffer_id": item.buffer_id,
+                    "response_id": item.response_id,
                 }
             )
 
@@ -155,155 +123,99 @@ async def get_conversation_history(
 
         return history
 
-    except Exception as e:
+    except Exception as exc:
         logger.error(
             "conversation_history_query_failed",
-            error=str(e),
+            error=str(exc),
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
         )
         return []
 
 
-async def get_context_by_id(db: AsyncSession, context_id: int) -> Optional[Dict[str, Any]]:
+async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> Optional[Dict[str, Any]]:
     """
-    Get context by ID.
-
-    Args:
-        db: Database session
-        context_id: Context ID
-
-    Returns:
-        Context dictionary or None if not found
+    Fetch a single conversation item by ID.
     """
     try:
-        result = await db.execute(select(AIContext).where(AIContext.id == context_id))
-
-        context = result.scalar_one_or_none()
-        if not context:
-            logger.warning("context_not_found", context_id=context_id)
+        result = await db.execute(select(AIConversationItem).where(AIConversationItem.id == item_id))
+        item = result.scalar_one_or_none()
+        if not item:
+            logger.warning("conversation_item_not_found", item_id=item_id)
             return None
 
         return {
-            "id": context.id,
-            "character_qiao_id": context.character_qiao_id,
-            "user_qiao_id": context.user_qiao_id,
-            "role": context.role,
-            "content": context.content,
-            "aggregate_state": context.aggregate_state,
-            "is_attack": context.is_attack,
-            "created_at": context.created_at,
+            "id": item.id,
+            "user_qiao_id": item.user_qiao_id,
+            "character_qiao_id": item.character_qiao_id,
+            "role": item.role,
+            "content": item.content,
+            "content_preview": item.content_preview,
+            "buffer_id": item.buffer_id,
+            "response_id": item.response_id,
+            "is_excluded_from_context": item.is_excluded_from_context,
+            "created_at": item.created_at,
         }
 
-    except Exception as e:
-        logger.error("context_by_id_query_failed", error=str(e), context_id=context_id)
+    except Exception as exc:
+        logger.error("conversation_item_by_id_query_failed", error=str(exc), item_id=item_id)
         return None
 
 
-async def get_contexts_for_archiving(
+async def get_items_for_archiving(
     db: AsyncSession,
     character_qiao_id: str,
     user_qiao_id: str,
     max_age_seconds: int = 604800,
     max_count: int = 100,
-) -> List[AIContext]:
+    archive_threshold: Optional[int] = None,
+) -> Tuple[List[AIConversationItem], int]:
     """
-    Get contexts that should be archived.
-
-    Args:
-        db: Database session
-        character_qiao_id: Character's qiao_id
-        max_age_days: Maximum age in days before archiving
-        max_count: Maximum number of contexts to keep
-
-    Returns:
-        List of contexts to archive
+    Determine which conversation items should be archived to cold storage.
     """
     try:
-        from datetime import timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
 
-        # Compute cutoff by seconds for consistency with system config convention
-        cutoff_date = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
-
-        # Get all done contexts for this character
         result = await db.execute(
-            select(AIContext)
+            select(AIConversationItem)
             .where(
                 and_(
-                    AIContext.character_qiao_id == character_qiao_id,
-                    AIContext.user_qiao_id == user_qiao_id,
-                    AIContext.aggregate_state == 3,  # done
+                    AIConversationItem.character_qiao_id == character_qiao_id,
+                    AIConversationItem.user_qiao_id == user_qiao_id,
                 )
             )
-            .order_by(desc(AIContext.created_at), desc(AIContext.id))
+            .order_by(desc(AIConversationItem.created_at), desc(AIConversationItem.id))
         )
 
-        all_contexts = result.scalars().all()
+        items = list(result.scalars().all())
+        to_archive: List[AIConversationItem] = []
 
-        contexts_to_archive = []
+        for item in items:
+            if item.created_at < cutoff:
+                to_archive.append(item)
 
-        # Archive contexts older than cutoff date
-        for context in all_contexts:
-            if context.created_at < cutoff_date:
-                contexts_to_archive.append(context)
-
-        # Archive excess contexts (keep only max_count newest)
-        if len(all_contexts) > max_count:
-            excess_contexts = all_contexts[max_count:]
-            for context in excess_contexts:
-                if context not in contexts_to_archive:
-                    contexts_to_archive.append(context)
+        overflow_enabled = archive_threshold is None or len(items) >= archive_threshold
+        if overflow_enabled and len(items) > max_count:
+            excess = items[max_count:]
+            for item in excess:
+                if item not in to_archive:
+                    to_archive.append(item)
 
         logger.debug(
-            "contexts_for_archiving_identified",
+            "conversation_items_for_archiving_identified",
             character_qiao_id=character_qiao_id,
-            total_contexts=len(all_contexts),
-            to_archive=len(contexts_to_archive),
+            user_qiao_id=user_qiao_id,
+            total_items=len(items),
+            to_archive=len(to_archive),
         )
 
-        return contexts_to_archive
+        return to_archive, len(items)
 
-    except Exception as e:
+    except Exception as exc:
         logger.error(
-            "contexts_for_archiving_query_failed", error=str(e), character_qiao_id=character_qiao_id
-        )
-        return []
-
-
-async def get_recent_contexts_count(db: AsyncSession, character_qiao_id: str, hours: int = 24) -> int:
-    """
-    Get count of recent contexts for a character.
-
-    Args:
-        db: Database session
-        character_qiao_id: Character's qiao_id
-        hours: Number of hours to look back
-
-    Returns:
-        Count of recent contexts
-    """
-    try:
-        cutoff_time = datetime.now() - timedelta(hours=hours)
-
-        result = await db.execute(
-            select(func.count(AIContext.id)).where(
-                and_(AIContext.character_qiao_id == character_qiao_id, AIContext.created_at >= cutoff_time)
-            )
-        )
-
-        count = result.scalar() or 0
-
-        logger.debug(
-            "recent_contexts_count_retrieved", character_qiao_id=character_qiao_id, hours=hours, count=count
-        )
-
-        return count
-
-    except Exception as e:
-        logger.error(
-            "recent_contexts_count_query_failed",
-            error=str(e),
+            "conversation_item_archiving_query_failed",
+            error=str(exc),
             character_qiao_id=character_qiao_id,
-            hours=hours,
+            user_qiao_id=user_qiao_id,
         )
-        return 0
+        return [], 0

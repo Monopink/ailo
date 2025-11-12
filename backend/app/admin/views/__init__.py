@@ -10,8 +10,8 @@ from .ai_personality_views import AI_PERSONALITY_VIEWS
 from .ai_character_views import AI_CHARACTER_VIEWS
 from .ai_style_views import AI_STYLE_VIEWS
 from .ai_template_views import AI_TEMPLATE_VIEWS
-from .ai_context_views import AI_CONTEXT_VIEWS
 from .ai_log_views import AI_LOG_VIEWS
+from .ai_conversation_views import AI_CONVERSATION_VIEWS
 from .user_views import USER_MODEL_VIEWS
 from .message_media_views import MESSAGE_MEDIA_MODEL_VIEWS
 from .llm_views import LLM_MODEL_VIEWS
@@ -48,13 +48,14 @@ from .ai_template_views import (
     ai_profile_template_view,
 )
 
-from .ai_context_views import (
-    ai_context_view,
-    ai_context_archive_view,
-)
-
 from .ai_log_views import (
     ai_request_log_view,
+)
+
+from .ai_conversation_views import (
+    ai_message_buffer_view,
+    ai_conversation_item_view,
+    ai_conversation_item_archive_view,
 )
 
 from .user_views import (
@@ -118,8 +119,8 @@ AI_MODEL_VIEWS = [
     *AI_CHARACTER_VIEWS,
     *AI_STYLE_VIEWS,
     *AI_TEMPLATE_VIEWS,
-    *AI_CONTEXT_VIEWS,
     *AI_LOG_VIEWS,
+    *AI_CONVERSATION_VIEWS,
 ]
 
 # Combine all model views for easy import
@@ -142,8 +143,8 @@ __all__ = [
     "AI_CHARACTER_VIEWS",
     "AI_STYLE_VIEWS",
     "AI_TEMPLATE_VIEWS",
-    "AI_CONTEXT_VIEWS",
     "AI_LOG_VIEWS",
+    "AI_CONVERSATION_VIEWS",
     "USER_MODEL_VIEWS",
     "MESSAGE_MEDIA_MODEL_VIEWS",
     "LLM_MODEL_VIEWS",
@@ -163,9 +164,10 @@ __all__ = [
     "ai_dimension_relationship_mapping_view",
     "ai_character_template_view",
     "ai_profile_template_view",
-    "ai_context_view",
-    "ai_context_archive_view",
     "ai_request_log_view",
+    "ai_message_buffer_view",
+    "ai_conversation_item_view",
+    "ai_conversation_item_archive_view",
     # Individual user/admin views
     "admin_user_view",
     "admin_operation_log_view",

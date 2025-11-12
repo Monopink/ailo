@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
-from enums import AICharacterCreator, AIContextRole, AIAggregateState
+from enums import AICharacterCreator
 from schemas.common import BaseSchema
 
 
@@ -88,63 +88,6 @@ class AICharacterListResponse(BaseSchema):
     personality_id: int = Field(..., description="Personality ID")
     created_by: AICharacterCreator = Field(..., description="Creator type")
     created_at: datetime = Field(..., description="Creation time")
-
-
-# AI Context Schemas
-
-
-class AIContextBase(BaseSchema):
-    """Base AI context schema."""
-
-    character_qiao_id: str = Field(..., max_length=32, description="Character external ID")
-    user_qiao_id: str = Field(..., max_length=32, description="User external ID")
-    role: AIContextRole = Field(..., description="Role type")
-    content: str = Field(..., description="Message content")
-
-
-class AIContextCreate(BaseModel):
-    """Schema for creating AI context."""
-
-    character_qiao_id: str = Field(..., max_length=32, description="Character external ID")
-    user_qiao_id: str = Field(..., max_length=32, description="User external ID")
-    role: AIContextRole = Field(..., description="Role type")
-    content: str = Field(..., min_length=1, description="Message content")
-    first_msg_id_client: Optional[str] = Field(None, max_length=64, description="First message client ID")
-    last_msg_id_client: Optional[str] = Field(None, max_length=64, description="Last message client ID")
-    token_count: Optional[int] = Field(None, description="Token count")
-    last_msg_time_ms: Optional[int] = Field(None, description="Last message time (milliseconds)")
-    buffer_expires_at_ms: Optional[int] = Field(None, description="Buffer expiration time (milliseconds)")
-    aggregate_state: Optional[int] = Field(None, description="Aggregate state (user only)")
-
-
-class AIContextUpdate(BaseModel):
-    """Schema for updating AI context."""
-
-    role: Optional[AIContextRole] = Field(default=None, description="Role type")
-    content: Optional[str] = Field(default=None, description="Message content")
-    first_msg_id_client: Optional[str] = Field(default=None, description="First message client ID")
-    last_msg_id_client: Optional[str] = Field(default=None, description="Last message client ID")
-    token_count: Optional[int] = Field(default=None, description="Token count")
-    last_msg_time_ms: Optional[int] = Field(default=None, description="Last message time (milliseconds)")
-    buffer_expires_at_ms: Optional[int] = Field(
-        default=None, description="Buffer expiration time (milliseconds)"
-    )
-    aggregate_state: Optional[int] = Field(default=None, description="Aggregate state")
-
-
-class AIContextResponse(AIContextBase):
-    """Schema for AI context response data."""
-
-    character_id: int = Field(..., description="Character internal ID")
-    user_id: int = Field(..., description="User internal ID")
-    first_msg_id_client: Optional[str] = Field(None, description="First message client ID")
-    last_msg_id_client: Optional[str] = Field(None, description="Last message client ID")
-    token_count: Optional[int] = Field(None, description="Token count")
-    last_msg_time_ms: Optional[int] = Field(None, description="Last message time (milliseconds)")
-    buffer_expires_at_ms: Optional[int] = Field(None, description="Buffer expiration time (milliseconds)")
-    aggregate_state: Optional[int] = Field(None, description="Aggregate state")
-    created_at: datetime = Field(..., description="Creation time")
-    updated_at: datetime = Field(..., description="Last update time")
 
 
 # Batch Operations

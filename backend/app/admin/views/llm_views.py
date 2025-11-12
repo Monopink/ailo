@@ -209,7 +209,7 @@ class LLMConfigView(ModelView):
         JSONField(
             "stop_sequences",
             label="Stop Sequences",
-            help_text="Stop sequences (max 4 strings). Model stops when encountering these strings. Example: [\"再见\", \"拜拜\"]",
+            help_text='Stop sequences (max 4 strings). Model stops when encountering these strings. Example: ["再见", "拜拜"]',
         ),
         EnumField(
             "json_schema_mode",
@@ -228,6 +228,52 @@ class LLMConfigView(ModelView):
             ),
             required=True,
         ),
+        JSONField(
+            "default_tools",
+            label="Default Tools",
+            help_text='Tool definitions sent with each request (e.g., [{"type": "web_search"}])',
+        ),
+        EnumField(
+            "default_tool_choice",
+            choices=[
+                ("auto", "Auto"),
+                ("none", "Never Use Tools"),
+                ("required", "Always Use Tools"),
+            ],
+            label="Tool Choice",
+            help_text="How the model decides whether to call tools",
+            required=True,
+        ),
+        EnumField(
+            "parallel_tool_calls",
+            choices=[(True, "Enabled"), (False, "Disabled")],
+            label="Parallel Tool Calls",
+            help_text="Allow the provider to execute tool calls in parallel",
+            required=True,
+        ),
+        IntegerField(
+            "max_tool_calls",
+            label="Max Tool Calls",
+            help_text="Maximum number of tool calls per request",
+            required=True,
+        ),
+        JSONField(
+            "default_extra_headers",
+            label="Default Extra Headers",
+            help_text='JSON object of extra headers (e.g., {"ark-beta-web-search": "true"})',
+        ),
+        JSONField(
+            "default_extra_query",
+            label="Default Extra Query Params",
+            help_text="JSON object of additional query parameters sent to the provider",
+        ),
+        IntegerEnumField(
+            "enable_streaming",
+            choices=[(0, "Disabled (Recommended)"), (1, "Enabled (Experimental)")],
+            label="Enable Streaming",
+            help_text="Enable streaming output (experimental, may have compatibility issues with Doubao)",
+            required=True,
+        ),
         IntegerEnumField(
             "status",
             choices=[(1, "Active"), (2, "Inactive")],
@@ -244,7 +290,7 @@ class LLMConfigView(ModelView):
         JSONField(
             "extra_params",
             label="Extra Parameters",
-            help_text="Provider-specific parameters (e.g., max_completion_tokens, service_tier). Example: {\"max_completion_tokens\": 32000}",
+            help_text='Provider-specific parameters (e.g., max_completion_tokens, service_tier). Example: {"max_completion_tokens": 32000}',
         ),
         LocalDateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),

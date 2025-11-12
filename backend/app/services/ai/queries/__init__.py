@@ -25,9 +25,8 @@ from .relationship_queries import (
 from .context_queries import (
     get_conversation_contexts,
     get_conversation_history,
-    get_context_by_id,
-    get_contexts_for_archiving,
-    get_recent_contexts_count,
+    get_conversation_item_by_id,
+    get_items_for_archiving,
 )
 
 # Template-related query functions
@@ -47,10 +46,9 @@ from .profile_queries import (
 
 # Database updates (simple operations)
 from .updates import (
-    save_context_entry,
-    update_context_status,
+    create_conversation_item,
     update_relationship_scores,
-    mark_context_as_attack,
+    mark_conversation_item_as_excluded,
     update_character_memory,
     update_character_status,
 )
@@ -74,9 +72,8 @@ __all__ = [
     # Conversation queries
     "get_conversation_contexts",
     "get_conversation_history",
-    "get_context_by_id",
-    "get_contexts_for_archiving",
-    "get_recent_contexts_count",
+    "get_conversation_item_by_id",
+    "get_items_for_archiving",
     # Template queries
     "get_profile_template_with_character_template",
     "get_profile_template_by_id",
@@ -87,10 +84,9 @@ __all__ = [
     "get_character_profile",
     "get_profile_by_owner",
     # Updates
-    "save_context_entry",
-    "update_context_status",
+    "create_conversation_item",
     "update_relationship_scores",
-    "mark_context_as_attack",
+    "mark_conversation_item_as_excluded",
     "update_character_memory",
     "update_character_status",
     # Transactions

@@ -4,8 +4,13 @@ AI system models module.
 This module imports all AI-related SQLAlchemy models.
 """
 
-# Character and context models
-from .character import AICharacter, AIContext, AIContextArchive
+# Character and conversation models
+from .character import (
+    AICharacter,
+    AIMessageBuffer,
+    AIConversationItem,
+    AIConversationItemArchive,
+)
 
 # Template models
 from .template import AICharacterTemplate, AIProfileTemplate
@@ -24,10 +29,11 @@ from .log import AIRequestLog
 
 # Export all AI models
 __all__ = [
-    # Character and context
+    # Character and conversation
     "AICharacter",
-    "AIContext",
-    "AIContextArchive",
+    "AIMessageBuffer",
+    "AIConversationItem",
+    "AIConversationItemArchive",
     # Templates
     "AICharacterTemplate",
     "AIProfileTemplate",

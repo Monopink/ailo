@@ -11,10 +11,6 @@ from .character import (
     AICharacterUpdate,
     AICharacterResponse,
     AICharacterListResponse,
-    AIContextBase,
-    AIContextCreate,
-    AIContextUpdate,
-    AIContextResponse,
     BatchAICharacterDelete,
 )
 
@@ -93,10 +89,6 @@ __all__ = [
     "AICharacterUpdate",
     "AICharacterResponse",
     "AICharacterListResponse",
-    "AIContextBase",
-    "AIContextCreate",
-    "AIContextUpdate",
-    "AIContextResponse",
     "BatchAICharacterDelete",
     # Chat
     "AIChatRequest",

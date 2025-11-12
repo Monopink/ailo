@@ -74,8 +74,8 @@ async def create_character_from_template(
         placeholder_overrides=character_template.prompt_variables,
         # Persist source template for discovery de-duplication and audit trail
         created_from_profile_qiao_id=template_qiao_id,
-        # request_params should only contain LLM parameter overrides (temperature, max_tokens, etc.)
-        request_params=None,
+        # Inherit request_params from character template (LLM parameter overrides)
+        request_params=character_template.request_params,
     )
 
     character = await ai_character.create(db, obj_in=character_data, commit=False)

@@ -1,32 +1,35 @@
 """
-Message buffer service (Database-driven implementation).
+Message buffer service backed by ai_message_buffer + ai_conversation_items.
 
-Buffers messages to reduce AI calls and improve response quality.
-Uses ai_contexts table with state machine for preemptive processing.
-
-Design: Follows ai-message-processing.md specification
-- Database-driven (no timer-based scheduling)
-- Preemptive locking (new messages cancel old processing)
-- Streaming early stop support
-- Concurrent-safe via unique partial index
+Implements the dual-timer aggregation window described in docs/development/ai-message-processing.md.
+All text content is persisted directly in ai_conversation_items using Responses API block arrays.
 """
 
+from __future__ import annotations
+
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
-from typing import Optional, Callable, Awaitable
-from sqlalchemy import select, update
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+
+from sqlalchemy import Select, and_, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from models.ai.character import AIContext
-from enums import AIContextRole, AIAggregateState, MessageType
-from services.ai.queries import save_context_entry
+from enums import MessageType
+from enums.common import AIMessageBufferState, ConversationRole
+from models.ai.character import AIMessageBuffer, AIConversationItem
+from services.ai.queries.updates import create_conversation_item
 from services.message.schemas import InboundMessageEvent
 from services.config import config_service
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Dataclasses
+# ---------------------------------------------------------------------------
 
 
 class BufferMessageCategory(IntEnum):
@@ -58,87 +61,78 @@ class TimerComputationResult:
     last_message_category: Optional[int]
 
 
+@dataclass
+class LockedConversationWindow:
+    """Snapshot of a locked buffer window."""
+
+    buffer_id: int
+    conversation_item_id: int
+    user_qiao_id: str
+    character_qiao_id: str
+    content: str
+    content_blocks: List[Dict[str, Any]]
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
 async def add_message_to_buffer(
     db: AsyncSession,
     event: InboundMessageEvent,
     character_qiao_id: str,
 ) -> None:
     """
-    Add message to buffer (database-driven).
-
-    Logic:
-    1. Query latest context for this conversation
-    2. If latest is USER role with OPEN state → merge into it
-    3. Otherwise → create new USER context with OPEN state
-    4. Set buffer_expires_at_ms using DB clock
-
-    Processing is triggered by periodic scanner, not timer.
+    Buffer inbound message according to dual-timer rules.
 
     Args:
         db: Database session
-        event: Standardized inbound message event
+        event: Inbound message payload
         character_qiao_id: Character external ID
     """
-    try:
-        category = _categorize_event(event)
-        if category is None:
+    category = _categorize_event(event)
+    if category is None:
+        logger.debug("buffer_event_ignored", reason="unsupported_category", type=event.message_type)
+        return
+
+    buffer_config = await _get_buffer_config(db)
+    current_time = await _get_db_now_ms(db)
+
+    buffer_obj, buffer_item = await _get_latest_open_buffer(
+        db, event.from_qiao_id, character_qiao_id, for_update=True
+    )
+
+    if buffer_obj is None:
+        if event.message_type != MessageType.TEXT:
             logger.debug(
-                "buffer_event_ignored",
-                reason="unsupported_category",
+                "typing_event_without_open_buffer",
+                user_qiao_id=event.from_qiao_id,
+                character_qiao_id=character_qiao_id,
                 message_type=event.message_type,
             )
             return
-
-        buffer_config = await _get_buffer_config(db)
-        current_time = await _get_db_now_ms(db)
-
-        latest_context = await _get_latest_open_user_context(
-            db, event.from_qiao_id, character_qiao_id
-        )
-
-        if latest_context is None:
-            if event.message_type != MessageType.TEXT:
-                logger.debug(
-                    "typing_event_without_open_context",
-                    user_qiao_id=event.from_qiao_id,
-                    character_qiao_id=character_qiao_id,
-                    message_type=event.message_type,
-                )
-                return
-
-            await _create_new_context(
-                db=db,
-                user_qiao_id=event.from_qiao_id,
-                character_qiao_id=character_qiao_id,
-                event=event,
-                category=category,
-                config=buffer_config,
-                current_time=current_time,
-            )
-        else:
-            await _update_context_with_event(
-                db=db,
-                context=latest_context,
-                event=event,
-                category=category,
-                config=buffer_config,
-                current_time=current_time,
-            )
-
-        await db.commit()
-
-        logger.info(
-            "buffer_event_applied",
+        await _create_new_buffer_window(
+            db=db,
             user_qiao_id=event.from_qiao_id,
             character_qiao_id=character_qiao_id,
-            category=category.name,
-            merged=latest_context is not None,
+            event=event,
+            category=category,
+            config=buffer_config,
+            current_time=current_time,
+        )
+    else:
+        await _update_buffer_window(
+            db=db,
+            buffer_obj=buffer_obj,
+            buffer_item=buffer_item,
+            event=event,
+            category=category,
+            config=buffer_config,
+            current_time=current_time,
         )
 
-    except Exception as e:
-        await db.rollback()
-        logger.error("add_message_to_buffer_error", error=str(e), exc_info=True)
-        raise
+    await db.commit()
 
 
 async def lock_conversation_preemptively(
@@ -147,105 +141,74 @@ async def lock_conversation_preemptively(
     character_qiao_id: str,
 ) -> Optional[int]:
     """
-    Preemptively lock conversation for processing.
-
-    Transaction steps:
-    1. Cancel all old OPEN/LOCKED contexts for this conversation
-    2. Find the latest expired OPEN context
-    3. Lock it (set to LOCKED state)
-
-    Concurrency safety:
-    - Relies on unique partial index: only one LOCKED context per conversation
-    - Concurrent attempts will fail with IntegrityError
-    - Failed attempts return None (graceful handling)
-
-    Args:
-        db: Database session
-        user_qiao_id: User external ID
-        character_qiao_id: Character external ID
-
-    Returns:
-        context_id if successfully locked, None otherwise
+    Lock the latest expired OPEN buffer window for processing.
     """
     try:
-        # Get current DB time
         now_ms = await _get_db_now_ms(db)
 
-        # Step 1: Cancel all old OPEN/LOCKED contexts
-        cancel_result = await db.execute(
-            update(AIContext)
+        await db.execute(
+            update(AIMessageBuffer)
             .where(
-                AIContext.user_qiao_id == user_qiao_id,
-                AIContext.character_qiao_id == character_qiao_id,
-                AIContext.role == AIContextRole.USER,
-                AIContext.aggregate_state.in_([
-                    AIAggregateState.OPEN,
-                    AIAggregateState.LOCKED
-                ])
+                AIMessageBuffer.user_qiao_id == user_qiao_id,
+                AIMessageBuffer.character_qiao_id == character_qiao_id,
+                AIMessageBuffer.aggregate_state.in_(
+                    [AIMessageBufferState.OPEN, AIMessageBufferState.LOCKED]
+                ),
             )
-            .values(aggregate_state=AIAggregateState.CANCELLED)
+            .values(aggregate_state=AIMessageBufferState.CANCELLED)
         )
 
-        cancelled_count = cancel_result.rowcount
-
-        # Step 2: Find latest expired OPEN context
-        # Note: We need to query again because we just cancelled all OPEN contexts
-        # But we want to lock the one that was OPEN and expired before cancellation
         result = await db.execute(
-            select(AIContext)
+            select(AIMessageBuffer)
             .where(
-                AIContext.user_qiao_id == user_qiao_id,
-                AIContext.character_qiao_id == character_qiao_id,
-                AIContext.role == AIContextRole.USER,
-                AIContext.aggregate_state == AIAggregateState.CANCELLED,
-                AIContext.buffer_expires_at_ms <= now_ms
+                AIMessageBuffer.user_qiao_id == user_qiao_id,
+                AIMessageBuffer.character_qiao_id == character_qiao_id,
+                AIMessageBuffer.aggregate_state == AIMessageBufferState.CANCELLED,
+                _buffer_expired_clause(now_ms),
             )
-            .order_by(AIContext.created_at.desc())
+            .order_by(AIMessageBuffer.created_at.desc())
             .limit(1)
-            .with_for_update()
+            .with_for_update(skip_locked=True)
         )
-        context = result.scalar_one_or_none()
+        buffer_obj = result.scalar_one_or_none()
 
-        if not context:
+        if not buffer_obj:
             await db.rollback()
             logger.debug(
-                "no_expired_context_to_lock",
+                "no_expired_buffer_to_lock",
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
-                cancelled_count=cancelled_count,
             )
             return None
 
-        # Step 3: Lock the context
-        context.aggregate_state = AIAggregateState.LOCKED
+        buffer_obj.aggregate_state = AIMessageBufferState.LOCKED
+        buffer_obj.locked_at = datetime.utcnow()
+        buffer_obj.micro_expires_at_ms = None
+        buffer_obj.macro_expires_at_ms = None
         await db.flush()
         await db.commit()
 
         logger.info(
-            "conversation_locked_preemptively",
-            context_id=context.id,
+            "buffer_locked",
+            buffer_id=buffer_obj.id,
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            cancelled_count=cancelled_count,
         )
+        return buffer_obj.id
 
-        return context.id
-
-    except IntegrityError as e:
-        # Unique constraint violation - another process locked first
+    except IntegrityError:
         await db.rollback()
         logger.debug(
-            "lock_conflict_detected",
+            "buffer_lock_conflict",
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            error=str(e),
         )
         return None
-    except Exception as e:
+    except Exception as exc:
         await db.rollback()
         logger.error(
-            "lock_preemptively_error",
-            error=str(e),
+            "buffer_lock_failed",
+            error=str(exc),
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
             exc_info=True,
@@ -253,167 +216,181 @@ async def lock_conversation_preemptively(
         raise
 
 
-async def check_if_cancelled(
-    db: AsyncSession,
-    context_id: int
-) -> bool:
+async def is_buffer_cancelled(db: AsyncSession, buffer_id: int) -> bool:
     """
-    Check if context has been cancelled (for streaming early stop).
+    Streaming cancellation hook. Returns True if buffer is no longer LOCKED.
+    """
+    locked = await is_buffer_locked(db, buffer_id)
+    return not locked
 
-    Used as preemption_checker callback in streaming LLM calls.
-    Checks if the context is still in LOCKED state.
 
-    Args:
-        db: Database session
-        context_id: Context ID to check
-
-    Returns:
-        True if context is no longer LOCKED (cancelled/preempted), False otherwise
+async def is_buffer_locked(db: AsyncSession, buffer_id: int) -> bool:
+    """
+    Check whether a message buffer is still locked.
     """
     try:
-        result = await db.execute(
-            select(AIContext.aggregate_state)
-            .where(AIContext.id == context_id)
-        )
-        state = result.scalar_one_or_none()
+        result = await db.execute(select(AIMessageBuffer).where(AIMessageBuffer.id == buffer_id))
+        buffer_obj = result.scalar_one_or_none()
+        if not buffer_obj:
+            logger.warning("buffer_not_found_for_lock_check", buffer_id=buffer_id)
+            return False
 
-        if state is None:
-            logger.warning("context_not_found_for_cancellation_check", context_id=context_id)
-            return True  # Context deleted - stop
+        return buffer_obj.aggregate_state == AIMessageBufferState.LOCKED
 
-        is_cancelled = state != AIAggregateState.LOCKED
-
-        if is_cancelled:
-            logger.info(
-                "context_cancelled_during_streaming",
-                context_id=context_id,
-                current_state=state.value if state else None,
-            )
-
-        return is_cancelled
-
-    except Exception as e:
-        logger.error(
-            "check_cancelled_error",
-            error=str(e),
-            context_id=context_id,
-            exc_info=True,
-        )
-        return True  # Fail-safe: stop on error
+    except Exception as exc:
+        logger.error("buffer_lock_check_failed", error=str(exc), buffer_id=buffer_id)
+        return False
 
 
 async def get_locked_context(
     db: AsyncSession,
-    context_id: int
-) -> Optional[AIContext]:
+    buffer_id: int,
+) -> Optional[LockedConversationWindow]:
     """
-    Get locked context by ID.
-
-    Args:
-        db: Database session
-        context_id: Context ID
-
-    Returns:
-        AIContext if found and still LOCKED, None otherwise
+    Fetch locked buffer snapshot containing aggregated user content.
     """
     try:
-        result = await db.execute(
-            select(AIContext)
-            .where(
-                AIContext.id == context_id,
-                AIContext.aggregate_state == AIAggregateState.LOCKED
-            )
+        buffer_obj, item_obj = await _get_buffer_and_item(db, buffer_id, require_locked=True)
+        if not buffer_obj or not item_obj:
+            return None
+
+        content_blocks = list(item_obj.content or [])
+        content_text = _blocks_to_text(content_blocks)
+        return LockedConversationWindow(
+            buffer_id=buffer_obj.id,
+            conversation_item_id=item_obj.id,
+            user_qiao_id=buffer_obj.user_qiao_id,
+            character_qiao_id=buffer_obj.character_qiao_id,
+            content=content_text,
+            content_blocks=content_blocks,
         )
-        return result.scalar_one_or_none()
-    except Exception as e:
-        logger.error("get_locked_context_error", error=str(e), context_id=context_id, exc_info=True)
+
+    except Exception as exc:
+        logger.error("locked_context_fetch_failed", error=str(exc), buffer_id=buffer_id)
         return None
 
 
-# Helper functions
-
-
-async def _get_latest_open_user_context(
+async def finalize_buffer_if_locked(
     db: AsyncSession,
-    user_qiao_id: str,
-    character_qiao_id: str
-) -> Optional[AIContext]:
+    buffer_id: int,
+    *,
+    target_state: AIMessageBufferState = AIMessageBufferState.COMPLETE,
+) -> bool:
     """
-    Get latest OPEN USER context for a conversation.
+    Transition a locked buffer to its terminal state (COMPLETE/CANCELLED).
+    """
+    try:
+        result = await db.execute(
+            select(AIMessageBuffer).where(
+                AIMessageBuffer.id == buffer_id,
+                AIMessageBuffer.aggregate_state == AIMessageBufferState.LOCKED,
+            )
+        )
+        buffer_obj = result.scalar_one_or_none()
 
-    Only returns contexts that are:
-    - USER role
-    - OPEN state (can be merged)
+        if not buffer_obj:
+            logger.debug("buffer_not_locked_on_finalize", buffer_id=buffer_id)
+            return False
+
+        buffer_obj.aggregate_state = target_state
+        await db.flush()
+
+        logger.info(
+            "buffer_finalized",
+            buffer_id=buffer_id,
+            new_state=target_state.name,
+        )
+        return True
+
+    except Exception as exc:
+        logger.error("buffer_finalize_failed", error=str(exc), buffer_id=buffer_id)
+        return False
+
+
+async def reset_open_conversation_windows(db: AsyncSession) -> int:
+    """
+    Cancel lingering OPEN/LOCKED windows (used on startup).
     """
     result = await db.execute(
-        select(AIContext)
-        .where(
-            AIContext.user_qiao_id == user_qiao_id,
-            AIContext.character_qiao_id == character_qiao_id,
-            AIContext.role == AIContextRole.USER,
-            AIContext.aggregate_state == AIAggregateState.OPEN,
+        update(AIMessageBuffer)
+        .where(AIMessageBuffer.aggregate_state.in_([AIMessageBufferState.OPEN, AIMessageBufferState.LOCKED]))
+        .values(
+            aggregate_state=AIMessageBufferState.CANCELLED,
+            micro_expires_at_ms=None,
+            macro_expires_at_ms=None,
+            last_message_category=None,
         )
-        .order_by(AIContext.created_at.desc())
+    )
+    await db.commit()
+    cancelled = result.rowcount or 0
+    if cancelled:
+        logger.info("buffer_windows_reset", cancelled=cancelled)
+    return cancelled
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+async def _get_latest_open_buffer(
+    db: AsyncSession,
+    user_qiao_id: str,
+    character_qiao_id: str,
+    *,
+    for_update: bool = False,
+) -> Tuple[Optional[AIMessageBuffer], Optional[AIConversationItem]]:
+    query: Select = (
+        select(AIMessageBuffer, AIConversationItem)
+        .join(
+            AIConversationItem,
+            AIConversationItem.buffer_id == AIMessageBuffer.id,
+            isouter=True,
+        )
+        .where(
+            AIMessageBuffer.user_qiao_id == user_qiao_id,
+            AIMessageBuffer.character_qiao_id == character_qiao_id,
+            AIMessageBuffer.aggregate_state == AIMessageBufferState.OPEN,
+        )
+        .order_by(AIMessageBuffer.created_at.desc())
         .limit(1)
     )
-    return result.scalar_one_or_none()
+    if for_update:
+        query = query.with_for_update(skip_locked=True)
+
+    result = await db.execute(query)
+    row = result.first()
+    if not row:
+        return None, None
+    return row[0], row[1]
 
 
-async def _update_context_with_event(
+async def _get_buffer_and_item(
     db: AsyncSession,
-    context: AIContext,
-    event: InboundMessageEvent,
-    category: BufferMessageCategory,
-    config: BufferTimerConfig,
-    current_time: int,
-) -> None:
-    """Apply inbound event to an existing OPEN context."""
-    prev_category = _category_from_value(context.last_message_category)
-
-    timer_state = _compute_timer_state(
-        prev_category=prev_category,
-        current_category=category,
-        current_micro=context.micro_expires_at_ms,
-        current_macro=context.macro_expires_at_ms,
-        now_ms=current_time,
-        config=config,
+    buffer_id: int,
+    *,
+    require_locked: bool = False,
+) -> Tuple[Optional[AIMessageBuffer], Optional[AIConversationItem]]:
+    query = select(AIMessageBuffer, AIConversationItem).join(
+        AIConversationItem,
+        AIConversationItem.buffer_id == AIMessageBuffer.id,
     )
-
-    if timer_state.buffer_expires_at_ms is None:
-        # Failsafe: never leave buffer_expires unset
-        timer_state.buffer_expires_at_ms = current_time
-
-    update_values = {
-        "micro_expires_at_ms": timer_state.micro_expires_at_ms,
-        "macro_expires_at_ms": timer_state.macro_expires_at_ms,
-        "buffer_expires_at_ms": timer_state.buffer_expires_at_ms,
-        "last_message_category": timer_state.last_message_category,
-        "aggregate_state": AIAggregateState.OPEN,
-    }
-
-    if event.message_type == MessageType.TEXT:
-        new_content = _append_message_content(context.content, event.content)
-        msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
-        update_values.update(
-            content=new_content,
-            last_msg_id_client=msg_id_client,
-            last_msg_time_ms=current_time,
+    if require_locked:
+        query = query.where(
+            AIMessageBuffer.id == buffer_id,
+            AIMessageBuffer.aggregate_state == AIMessageBufferState.LOCKED,
         )
+    else:
+        query = query.where(AIMessageBuffer.id == buffer_id)
 
-    await db.execute(
-        update(AIContext)
-        .where(AIContext.id == context.id)
-        .values(update_values)
-    )
-
-    logger.info(
-        "buffer_context_updated",
-        context_id=context.id,
-        category=category.name,
-    )
+    result = await db.execute(query)
+    row = result.first()
+    if not row:
+        return None, None
+    return row[0], row[1]
 
 
-async def _create_new_context(
+async def _create_new_buffer_window(
     db: AsyncSession,
     user_qiao_id: str,
     character_qiao_id: str,
@@ -422,10 +399,6 @@ async def _create_new_context(
     config: BufferTimerConfig,
     current_time: int,
 ) -> None:
-    """Create a new OPEN context initialized with timers."""
-    if event.message_type != MessageType.TEXT:
-        raise ValueError("New buffer contexts must start with a TEXT message")
-
     timer_state = _compute_timer_state(
         prev_category=None,
         current_category=category,
@@ -439,50 +412,144 @@ async def _create_new_context(
         timer_state.buffer_expires_at_ms = current_time
 
     msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
-    formatted_content = _format_message_with_timestamp(event.content, current_time)
+    client_msg_ids: List[str] = [msg_id_client] if msg_id_client else []
 
-    context_data = {
-        "character_qiao_id": character_qiao_id,
-        "user_qiao_id": user_qiao_id,
-        "role": AIContextRole.USER,
-        "content": formatted_content,
-        "first_msg_id_client": msg_id_client,
-        "last_msg_id_client": msg_id_client,
-        "last_msg_time_ms": current_time,
-        "micro_expires_at_ms": timer_state.micro_expires_at_ms,
-        "macro_expires_at_ms": timer_state.macro_expires_at_ms,
-        "buffer_expires_at_ms": timer_state.buffer_expires_at_ms,
-        "last_message_category": timer_state.last_message_category,
-        "aggregate_state": AIAggregateState.OPEN,
-    }
-
-    await save_context_entry(db, context_data)
-
-    logger.info(
-        "new_context_created",
+    buffer_obj = AIMessageBuffer(
         user_qiao_id=user_qiao_id,
         character_qiao_id=character_qiao_id,
+        aggregate_state=AIMessageBufferState.OPEN,
+        micro_expires_at_ms=timer_state.micro_expires_at_ms,
+        macro_expires_at_ms=timer_state.macro_expires_at_ms,
+        last_message_category=timer_state.last_message_category,
+        first_msg_id_client=msg_id_client,
+        last_msg_id_client=msg_id_client,
+        message_count=1,
+        last_msg_time_ms=current_time,
+    )
+
+    db.add(buffer_obj)
+    await db.flush()
+
+    content_blocks = _build_user_blocks(event.content)
+    preview = _build_preview(content_blocks)
+
+    await create_conversation_item(
+        db,
+        {
+            "user_qiao_id": user_qiao_id,
+            "character_qiao_id": character_qiao_id,
+            "role": ConversationRole.USER.value,
+            "content": content_blocks,
+            "content_preview": preview,
+            "buffer_id": buffer_obj.id,
+            "client_msg_ids": client_msg_ids,
+        },
+    )
+
+    logger.info(
+        "buffer_window_created",
+        user_qiao_id=user_qiao_id,
+        character_qiao_id=character_qiao_id,
+        buffer_id=buffer_obj.id,
     )
 
 
-def _append_message_content(existing: str, new_message: str) -> str:
-    if not existing:
-        return new_message
-    return f"{existing}\n{new_message}"
-
-
-def _format_message_with_timestamp(content: str, current_time: int) -> str:
-    timestamp_str = datetime.fromtimestamp(current_time / 1000.0).strftime("%Y-%m-%d %H:%M:%S")
-    return f"[{timestamp_str}] {content}"
-
-
-async def _get_buffer_config(db: AsyncSession) -> BufferTimerConfig:
-    return BufferTimerConfig(
-        normal_wait_ms=await config_service.get_int(db, "message_buffer_normal_wait_ms"),
-        typing_total_wait_ms=await config_service.get_int(db, "message_buffer_typing_total_wait_ms"),
-        typing_end_wait_ms=await config_service.get_int(db, "message_buffer_typing_end_wait_ms"),
-        no_typing_wait_ms=await config_service.get_int(db, "message_buffer_no_typing_wait_ms"),
+async def _update_buffer_window(
+    db: AsyncSession,
+    buffer_obj: AIMessageBuffer,
+    buffer_item: Optional[AIConversationItem],
+    event: InboundMessageEvent,
+    category: BufferMessageCategory,
+    config: BufferTimerConfig,
+    current_time: int,
+) -> None:
+    timer_state = _compute_timer_state(
+        prev_category=_category_from_value(buffer_obj.last_message_category),
+        current_category=category,
+        current_micro=buffer_obj.micro_expires_at_ms,
+        current_macro=buffer_obj.macro_expires_at_ms,
+        now_ms=current_time,
+        config=config,
     )
+
+    update_values: Dict[str, Any] = {
+        "micro_expires_at_ms": timer_state.micro_expires_at_ms,
+        "macro_expires_at_ms": timer_state.macro_expires_at_ms,
+        "last_message_category": timer_state.last_message_category,
+    }
+
+    if timer_state.buffer_expires_at_ms:
+        update_values["buffer_expires_at_ms"] = timer_state.buffer_expires_at_ms
+
+    if event.message_type == MessageType.TEXT:
+        update_values["message_count"] = buffer_obj.message_count + 1
+        update_values["last_msg_time_ms"] = current_time
+        update_values["last_msg_id_client"] = event.msg_id_client or event.msg_id_provider_inbound
+
+    await db.execute(
+        update(AIMessageBuffer)
+        .where(AIMessageBuffer.id == buffer_obj.id)
+        .values(update_values)
+    )
+
+    if event.message_type == MessageType.TEXT:
+        content_blocks = list(buffer_item.content if buffer_item and buffer_item.content else [])
+        content_blocks.append(_build_input_text_block(event.content))
+        preview = _build_preview(content_blocks)
+
+        msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
+
+        if buffer_item:
+            buffer_item.content = content_blocks
+            buffer_item.content_preview = preview
+            if msg_id_client:
+                existing_ids = list(buffer_item.client_msg_ids or [])
+                existing_ids.append(msg_id_client)
+                buffer_item.client_msg_ids = existing_ids
+        else:
+            await create_conversation_item(
+                db,
+                {
+                    "user_qiao_id": buffer_obj.user_qiao_id,
+                    "character_qiao_id": buffer_obj.character_qiao_id,
+                    "role": ConversationRole.USER.value,
+                    "content": content_blocks,
+                    "content_preview": preview,
+                    "buffer_id": buffer_obj.id,
+                    "client_msg_ids": [msg_id_client] if msg_id_client else [],
+                },
+            )
+
+    logger.info("buffer_window_updated", buffer_id=buffer_obj.id, category=category.name)
+
+
+def _build_input_text_block(content: str) -> Dict[str, Any]:
+    return {"type": "input_text", "text": content}
+
+
+def _build_user_blocks(content: str) -> List[Dict[str, Any]]:
+    return [_build_input_text_block(content)]
+
+
+def _build_preview(blocks: List[Dict[str, Any]], limit: int = 180) -> str:
+    accumulator: List[str] = []
+    for block in blocks:
+        text_value = block.get("text")
+        if text_value:
+            accumulator.append(text_value)
+        if len(" ".join(accumulator)) >= limit:
+            break
+    preview = " ".join(accumulator)
+    return preview[:limit]
+
+
+def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
+    texts = []
+    for block in blocks:
+        text_value = block.get("text")
+        if text_value:
+            texts.append(text_value)
+    return "\n".join(texts)
 
 
 def _categorize_event(event: InboundMessageEvent) -> Optional[BufferMessageCategory]:
@@ -510,13 +577,6 @@ def _category_from_value(value: Optional[int]) -> Optional[BufferMessageCategory
 
 def _category_to_value(category: Optional[BufferMessageCategory]) -> Optional[int]:
     return category.value if category is not None else None
-
-
-def _compute_buffer_expiration(
-    micro_expires_at_ms: Optional[int], macro_expires_at_ms: Optional[int]
-) -> Optional[int]:
-    candidates = [t for t in (micro_expires_at_ms, macro_expires_at_ms) if t is not None]
-    return min(candidates) if candidates else None
 
 
 def _compute_timer_state(
@@ -554,10 +614,13 @@ def _compute_timer_state(
             now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
         )
 
-    # Combination-specific adjustments
     if prev_category == BufferMessageCategory.TYPING_START:
-        if current_category in (BufferMessageCategory.SUPPORTS_TYPING, BufferMessageCategory.TYPING_END):
+        if current_category in (
+            BufferMessageCategory.SUPPORTS_TYPING,
+            BufferMessageCategory.TYPING_END,
+        ):
             new_macro = None
+
     if prev_category == BufferMessageCategory.TYPING_END and current_category == BufferMessageCategory.TYPING_START:
         new_micro = None
         new_macro = (
@@ -574,46 +637,43 @@ def _compute_timer_state(
     )
 
 
-async def reset_open_conversation_windows(db: AsyncSession) -> int:
-    """
-    Cancel any lingering OPEN/LOCKED windows (used on startup to drop timers).
-    """
-    result = await db.execute(
-        update(AIContext)
-        .where(
-            AIContext.role == AIContextRole.USER,
-            AIContext.aggregate_state.in_([AIAggregateState.OPEN, AIAggregateState.LOCKED]),
-        )
-        .values(
-            aggregate_state=AIAggregateState.CANCELLED,
-            buffer_expires_at_ms=None,
-            micro_expires_at_ms=None,
-            macro_expires_at_ms=None,
-            last_message_category=None,
-        )
-    )
-    await db.commit()
+def _compute_buffer_expiration(
+    micro_expires_at_ms: Optional[int], macro_expires_at_ms: Optional[int]
+) -> Optional[int]:
+    candidates = [t for t in (micro_expires_at_ms, macro_expires_at_ms) if t is not None]
+    return min(candidates) if candidates else None
 
-    cancelled = result.rowcount or 0
-    if cancelled:
-        logger.info("buffer_windows_reset", cancelled=cancelled)
-    return cancelled
+
+def _buffer_expired_clause(now_ms: int):
+    return or_(
+        and_(
+            AIMessageBuffer.micro_expires_at_ms.is_not(None),
+            AIMessageBuffer.micro_expires_at_ms <= now_ms,
+        ),
+        and_(
+            AIMessageBuffer.macro_expires_at_ms.is_not(None),
+            AIMessageBuffer.macro_expires_at_ms <= now_ms,
+        ),
+    )
+
+
+async def _get_buffer_config(db: AsyncSession) -> BufferTimerConfig:
+    return BufferTimerConfig(
+        normal_wait_ms=await config_service.get_int(db, "message_buffer_normal_wait_ms"),
+        typing_total_wait_ms=await config_service.get_int(db, "message_buffer_typing_total_wait_ms"),
+        typing_end_wait_ms=await config_service.get_int(db, "message_buffer_typing_end_wait_ms"),
+        no_typing_wait_ms=await config_service.get_int(db, "message_buffer_no_typing_wait_ms"),
+    )
 
 
 async def _get_db_now_ms(db: AsyncSession) -> int:
     """
     Get current timestamp in milliseconds from database clock.
-
-    Uses database clock for consistency across multiple instances.
     """
     try:
-        from sqlalchemy import text
-
         result = await db.execute(text("SELECT (EXTRACT(EPOCH FROM NOW())*1000)::BIGINT"))
         value = result.scalar_one()
         return int(value)
-    except Exception as e:
-        # Fallback to application clock to avoid blocking on DB
-        import time
-        logger.warning("db_clock_fallback", error=str(e))
+    except Exception as exc:
+        logger.warning("db_clock_fallback", error=str(exc))
         return int(time.time() * 1000)

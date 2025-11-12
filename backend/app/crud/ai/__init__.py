@@ -23,9 +23,6 @@ from .style import (
 # AI Template CRUD
 from .template import ai_character_template, ai_profile_template
 
-# AI Context CRUD
-from .context import ai_context
-
 # AI Request Log CRUD
 from .request_log import ai_request_log
 
@@ -42,7 +39,6 @@ __all__ = [
     # Template management
     "ai_character_template",
     "ai_profile_template",
-    # Context and logging
-    "ai_context",
+    # Logging
     "ai_request_log",
 ]

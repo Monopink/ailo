@@ -5,29 +5,33 @@ This module handles the complete conversation processing flow,
 coordinating all AI service components with clear error handling.
 """
 
-from typing import Dict, Any, Optional
+import json
+from copy import deepcopy
+from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from enums.common import AIContextRole
-from .queries import get_character_with_relations
-from .relationship_scoring import (
+from enums.common import ConversationRole
+from services.ai.queries.character_queries import get_character_with_relations
+from services.ai.queries.context_queries import get_conversation_history
+from services.ai.queries.updates import (
+    create_conversation_item,
+    update_character_status,
+    mark_conversation_item_as_excluded,
+)
+from services.ai.relationship_scoring import (
     get_relationship_scores,
     determine_relationship_type,
     calculate_new_scores,
     update_relationship_positions,
     update_current_relationship,
 )
-from .conversation_prompt import build_system_prompt, get_response_schema, build_conversation_context
-from .conversation_memory import process_memory_operations, archive_old_contexts
-from .queries import (
-    get_conversation_history,
-    save_context_entry,
-    mark_context_as_attack,
-    update_character_status,
-)
-from .queries.updates import is_context_locked
-from .utils.validator import chat_completion_with_validation
+from services.ai.conversation_prompt import build_system_prompt, get_response_schema, build_conversation_context
+from services.ai.conversation_memory import process_memory_operations, archive_old_contexts
+from services.message.processing.buffer import is_buffer_cancelled
+from services.ai.utils.validator import invoke_llm_with_validation
 from services.llm.client import select_config_for_ai, validate_ai_response
+from services.llm.types import LLMSessionContext
+from services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AIConversationError
 from utils.logging import get_logger
 from crud.contact import contact as contact_crud
@@ -50,7 +54,9 @@ async def process_conversation(
     message_type: str = "text",
     config_name: Optional[str] = None,
     request_overrides: Optional[Dict[str, Any]] = None,
-    locked_context_id: Optional[int] = None,
+    locked_buffer_id: Optional[int] = None,
+    user_message_item_id: Optional[int] = None,
+    message_blocks: Optional[List[Dict[str, Any]]] = None,
     persist: bool = True,
 ) -> Dict[str, Any]:
     """
@@ -61,7 +67,7 @@ async def process_conversation(
 
     Steps:
     1. Merge short-time messages (buffer) - simplified for now
-    2. Store in ai_contexts table
+    2. Persist user window into ai_conversation_items
     3. Find corresponding ai_character
     4. Find corresponding relationship_score
     5. Find relationship based on ai_style
@@ -76,8 +82,11 @@ async def process_conversation(
         db: Database session
         user_qiao_id: User's qiao_id
         character_qiao_id: Character's qiao_id
-        message_content: User's message content
+        message_content: User's message content (text fallback)
         message_type: Message type (text, image, etc.)
+        locked_buffer_id: Locked buffer ID (if triggered by buffer)
+        user_message_item_id: Conversation history row id tied to locked buffer
+        message_blocks: Structured content blocks (Responses API format)
 
     Returns:
         Dictionary containing conversation processing result
@@ -94,7 +103,7 @@ async def process_conversation(
         )
 
         # Note: user context creation/aggregation is handled by message.buffer
-        # This function assumes, when called by buffer, that locked_context_id points
+        # This function assumes, when called by buffer, that locked_buffer_id points
         # to the currently LOCKED user window and message_content reflects its content.
 
         # Step 3: Find corresponding ai_character with relations
@@ -197,11 +206,19 @@ async def process_conversation(
         )
 
         # Prepare messages for LLM
-        messages = []
+        messages: List[Dict[str, Any]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.extend(conversation_history)
-        messages.append({"role": "user", "content": message_content})
+
+        user_blocks: List[Dict[str, Any]] = []
+        if message_blocks:
+            user_blocks = _clone_blocks(message_blocks)
+        elif message_content:
+            user_blocks = _build_input_blocks(message_content)
+
+        if user_blocks:
+            messages.append({"role": "user", "content": user_blocks})
 
         # Get JSON schema for response validation
         json_schema = await get_response_schema(db, character_qiao_id)
@@ -219,6 +236,8 @@ async def process_conversation(
 
         # Extract character-specific request parameters
         character_request_params = character_info.get("character", {}).request_params or {}
+        if not isinstance(character_request_params, dict):
+            character_request_params = {}
         # Apply test-time overrides (e.g., mock provider)
         if request_overrides:
             try:
@@ -233,33 +252,50 @@ async def process_conversation(
                 params=character_request_params,
             )
 
+        stream_override = extract_stream_override(character_request_params)
+        if stream_override is not None:
+            character_request_params["enable_streaming"] = stream_override
+
         # Step 8: Request LLM with validation and streaming early stop
         # Create preemption checker if we have a locked context
         preemption_checker = None
-        if locked_context_id is not None:
-            # Create async callback to check if context has been cancelled
-            async def check_preemption() -> bool:
-                """Check if context has been cancelled during streaming."""
-                from services.message.processing.buffer import check_if_cancelled
-                return await check_if_cancelled(db, locked_context_id)
+        if locked_buffer_id is not None:
+            preview_decision = resolve_streaming_decision(
+                config=config,
+                provider=provider,
+                enable_override=stream_override,
+                has_preemption_checker=True,
+            )
 
-            preemption_checker = check_preemption
+            if preview_decision.should_stream:
+                async def check_preemption() -> bool:
+                    """Check if buffer has been cancelled during streaming."""
+                    return await is_buffer_cancelled(db, locked_buffer_id)
+
+                preemption_checker = check_preemption
+            else:
+                logger.debug(
+                    "streaming_disabled_for_context",
+                    buffer_id=locked_buffer_id,
+                    reason=preview_decision.reason,
+                )
 
         # No hardcoded parameters - use config priority: character_request_params > config
-        llm_result = await chat_completion_with_validation(
+        llm_result = await invoke_llm_with_validation(
             db=db,
             messages=messages,
             json_schema=json_schema,
             name=config_name,
             character_request_params=character_request_params,
             preemption_checker=preemption_checker,
+            session_context=LLMSessionContext(user_qiao_id=user_qiao_id, character_qiao_id=character_qiao_id),
         )
 
         # Check if request was preempted
         if llm_result.get("preempted", False):
             logger.info(
                 "conversation_preempted_during_llm",
-                context_id=locked_context_id,
+                buffer_id=locked_buffer_id,
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
             )
@@ -267,7 +303,7 @@ async def process_conversation(
                 "success": False,
                 "error": "Conversation preempted by new message",
                 "preempted": True,
-                "context_id": locked_context_id,
+                "buffer_id": locked_buffer_id,
             }
 
         if not llm_result["success"]:
@@ -279,22 +315,22 @@ async def process_conversation(
 
         # Step 9: JSON Schema validation (already done in LLM call)
         ai_response = llm_result["response"]
+        assistant_blocks = _extract_assistant_blocks(llm_result)
 
         # Post-check: Validate response format
         # Convert Python dict to JSON string for validation
         raw_content = llm_result.get("raw_content")
         if not raw_content:
             # If no raw_content, convert Python object to JSON string
-            import json
-
             raw_content = json.dumps(ai_response, ensure_ascii=False)
         await validate_ai_response(db, config, raw_content, allow_auto_update=False)
 
         # Step 10 & 11: Save all conversation results in single atomic transaction
+        assistant_item_id: Optional[int] = None
         if persist:
             from .queries.transactions import save_conversation_result
 
-            await save_conversation_result(
+            save_result = await save_conversation_result(
                 db=db,
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
@@ -309,13 +345,26 @@ async def process_conversation(
                     "config_used": llm_result.get("config_used"),
                     "request_payload": llm_result.get("request_payload"),
                     "response_time": llm_result.get("response_time", 0),
+                    "response_id": llm_result.get("response_id"),
+                    "cache_hit": llm_result.get("cache_hit"),
+                    "cache_strategy": llm_result.get("cache_strategy"),
+                    "output_blocks": assistant_blocks,
                 },
-                locked_context_id=locked_context_id,
+                locked_buffer_id=locked_buffer_id,
+                user_message_item_id=user_message_item_id,
             )
+            assistant_item_id = save_result.get("conversation_item_id")
         else:
             # Non-persist mode: only update scores/memory without sending messages
             await process_ai_response_updates(
-                db, user_qiao_id, character_qiao_id, character_info, ai_response, locked_context_id, persist=False
+                db,
+                user_qiao_id,
+                character_qiao_id,
+                character_info,
+                ai_response,
+                locked_buffer_id,
+                user_message_item_id,
+                persist=False,
             )
 
         # Archive old contexts if needed (per user-character conversation)
@@ -325,12 +374,13 @@ async def process_conversation(
             "conversation_processing_completed",
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            context_id=locked_context_id,
+            buffer_id=locked_buffer_id,
         )
 
         return {
             "success": True,
-            "context_id": locked_context_id,
+            "buffer_id": locked_buffer_id,
+            "assistant_item_id": assistant_item_id,
             "response": ai_response,
             "usage": llm_result.get("usage", {}),
             "model": llm_result.get("model"),
@@ -432,7 +482,8 @@ async def process_ai_response_updates(
     character_qiao_id: str,
     character_info: Dict[str, Any],
     ai_response: Dict[str, Any],
-    context_id: Optional[int],  # Optional: only present when called by buffer
+    buffer_id: Optional[int],  # Locked buffer id
+    user_message_item_id: Optional[int],
     *,
     persist: bool = True,
 ) -> None:
@@ -445,14 +496,21 @@ async def process_ai_response_updates(
         character_qiao_id: Character's qiao_id
         character_info: Character information
         ai_response: AI response dictionary
-        context_id: Context ID (int - internal Snowflake ID)
+        buffer_id: Buffer ID (used for logging only)
+        user_message_item_id: Conversation item identifier linked to buffer
     """
     try:
         # No state transition here; buffer controls OPEN -> LOCKED -> COMPLETE
 
         # Handle attack detection
-        if persist and ai_response.get("attack_detected", False) and context_id is not None:
-            await handle_attack_detection(db, user_qiao_id, character_qiao_id, context_id)
+        if (
+            persist
+            and ai_response.get("attack_detected", False)
+            and user_message_item_id is not None
+        ):
+            await handle_attack_detection(
+                db, user_qiao_id, character_qiao_id, user_message_item_id
+            )
 
         # Update relationship scores
         if ai_response.get("score"):
@@ -491,7 +549,7 @@ async def process_ai_response_updates(
             "ai_response_updates_completed",
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            context_id=context_id,
+            buffer_id=buffer_id,
         )
 
     except Exception as e:
@@ -500,7 +558,7 @@ async def process_ai_response_updates(
             error=str(e),
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            context_id=context_id,
+            buffer_id=buffer_id,
         )
         # Non-fatal error: log but continue
 
@@ -510,10 +568,11 @@ async def send_response_messages(
     user_qiao_id: str,
     character_qiao_id: str,
     ai_response: Dict[str, Any],
-    locked_context_id: Optional[int] = None,
+    locked_buffer_id: Optional[int] = None,
+    llm_metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
-    Send response messages to user and save to ai_contexts.
+    Send response messages to user and save to ai_conversation_items.
 
     Args:
         db: Database session
@@ -527,38 +586,50 @@ async def send_response_messages(
             return
 
         # Before sending, if we are tied to a locked window, ensure it is still LOCKED
-        if locked_context_id is not None:
-            still_locked = await is_context_locked(db, locked_context_id)
+        if locked_buffer_id is not None:
+            still_locked = not await is_buffer_cancelled(db, locked_buffer_id)
             if not still_locked:
                 logger.warning(
                     "result_discarded_due_to_preemption",
                     character_qiao_id=character_qiao_id,
                     user_qiao_id=user_qiao_id,
-                    context_id=locked_context_id,
+                    buffer_id=locked_buffer_id,
                 )
                 return
 
-        # Send outgoing messages and save to ai_contexts (assistant rows use no state)
+        # Send outgoing messages and save to conversation items (assistant rows use no state)
         outgoing_messages = ai_response.get("outgoing_messages", [])
-        for message in outgoing_messages:
+        assistant_blocks = _clone_blocks((llm_metadata or {}).get("output_blocks", []))
+        llm_config_id = (llm_metadata or {}).get("config_used", {}).get("id")
+        response_id = (llm_metadata or {}).get("response_id")
+
+        for idx, message in enumerate(outgoing_messages):
             # Send message (currently just logs)
             await send_single_message(db, character_qiao_id, user_qiao_id, message)
 
-            # Save AI response to ai_contexts table
-            context_data = {
-                "character_qiao_id": character_qiao_id,
-                "user_qiao_id": user_qiao_id,
-                "role": AIContextRole.ASSISTANT,  # assistant
-                "content": message,
-            }
-            context_id = await save_context_entry(db, context_data)
+            # Save AI response to ai_conversation_items table
+            content_blocks = assistant_blocks if assistant_blocks and idx == 0 else _build_output_blocks(message)
+            if assistant_blocks and idx == 0:
+                assistant_blocks = None
+            conversation_item_id = await create_conversation_item(
+                db,
+                {
+                    "character_qiao_id": character_qiao_id,
+                    "user_qiao_id": user_qiao_id,
+                    "role": ConversationRole.ASSISTANT.value,
+                    "content": content_blocks,
+                    "content_preview": message[:180],
+                    "llm_config_id": llm_config_id,
+                    "response_id": response_id,
+                },
+            )
 
-            if context_id:
+            if conversation_item_id:
                 logger.debug(
-                    "ai_response_saved_to_context",
+                    "ai_response_saved_to_conversation_item",
                     character_qiao_id=character_qiao_id,
                     user_qiao_id=user_qiao_id,
-                    context_id=context_id,
+                    conversation_item_id=conversation_item_id,
                 )
             else:
                 logger.error(
@@ -636,7 +707,7 @@ async def send_single_message(db: AsyncSession, from_qiao_id: str, to_qiao_id: s
 
 
 async def handle_attack_detection(
-    db: AsyncSession, user_qiao_id: str, character_qiao_id: str, context_id: int
+    db: AsyncSession, user_qiao_id: str, character_qiao_id: str, conversation_item_id: int
 ) -> None:
     """
     Handle detected prompt injection attack.
@@ -645,11 +716,11 @@ async def handle_attack_detection(
         db: Database session
         user_qiao_id: User's qiao_id
         character_qiao_id: Character's qiao_id
-        context_id: Context ID (int - internal Snowflake ID)
+        conversation_item_id: Conversation row tied to the suspicious message
     """
     try:
-        # Mark context as attack using data layer - using int ID internally
-        success = await mark_context_as_attack(db, context_id)
+        # Mark conversation item as excluded from context using data layer
+        success = await mark_conversation_item_as_excluded(db, conversation_item_id)
 
         if success:
             # TODO: Log security incident to user_violation_logs
@@ -657,14 +728,14 @@ async def handle_attack_detection(
                 "attack_detected_and_handled",
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
-                context_id=context_id,
+                conversation_item_id=conversation_item_id,
             )
         else:
             logger.error(
                 "failed_to_mark_attack",
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
-                context_id=context_id,
+                conversation_item_id=conversation_item_id,
             )
 
     except Exception as e:
@@ -673,7 +744,7 @@ async def handle_attack_detection(
             error=str(e),
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            context_id=context_id,
+            conversation_item_id=conversation_item_id,
         )
 
 
@@ -696,3 +767,42 @@ async def handle_character_blocking(db: AsyncSession, character_qiao_id: str) ->
 
     except Exception as e:
         logger.error("character_blocking_failed", error=str(e), character_qiao_id=character_qiao_id)
+
+
+def _build_input_blocks(content: str) -> List[Dict[str, Any]]:
+    """Convert user content into Responses API block format."""
+
+    return [{"type": "input_text", "text": content}]
+
+
+def _build_output_blocks(content: str) -> List[Dict[str, Any]]:
+    """Convert assistant content into Responses API block format."""
+
+    return [{"type": "output_text", "text": content}]
+
+
+def _clone_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Deep copy a block list to avoid mutating stored JSONB rows."""
+
+    return [deepcopy(block) for block in blocks if isinstance(block, dict)]
+
+
+def _extract_assistant_blocks(llm_result: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """Extract Responses block payload from provider result (if available)."""
+
+    raw_response = llm_result.get("raw_response")
+    if not isinstance(raw_response, dict):
+        return None
+
+    outputs = raw_response.get("output")
+    if not isinstance(outputs, list):
+        return None
+
+    for entry in outputs:
+        if isinstance(entry, dict) and entry.get("type") == "message":
+            content = entry.get("content")
+            if isinstance(content, list):
+                cloned = _clone_blocks(content)
+                if cloned:
+                    return cloned
+    return None

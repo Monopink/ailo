@@ -9,6 +9,7 @@ Following the architectural pattern of separating concerns:
 """
 
 import json
+from typing import Any, Dict, Optional
 
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -160,6 +161,21 @@ class LLMConfigTestView(CustomView):
         try:
             form_data = await request.form()
 
+            def parse_json_field(field_name: str, label: str, expected_type: Optional[type]) -> Optional[Any]:
+                raw_value = form_data.get(field_name)
+                if raw_value is None:
+                    return None
+                raw_value = raw_value.strip()
+                if not raw_value:
+                    return None
+                try:
+                    parsed_value = json.loads(raw_value)
+                except json.JSONDecodeError as exc:
+                    raise FormFieldError(f"{label} must be valid JSON: {str(exc)}")
+                if expected_type and not isinstance(parsed_value, expected_type):
+                    raise FormFieldError(f"{label} must be a {expected_type.__name__}")
+                return parsed_value
+
             # Extract and validate form data using type-safe helpers
             try:
                 config_id = get_int_field(form_data, "config_id")
@@ -167,17 +183,46 @@ class LLMConfigTestView(CustomView):
 
                 # Optional parameters
                 override_temperature = None
-                if "override_temperature" in form_data and form_data.get("override_temperature"):
+                if form_data.get("override_temperature_enabled") == "1":
                     override_temperature = get_float_field(form_data, "override_temperature")
 
                 override_max_tokens = None
-                if "override_max_tokens" in form_data and form_data.get("override_max_tokens"):
+                if form_data.get("override_max_tokens_enabled") == "1":
                     override_max_tokens = get_int_field(form_data, "override_max_tokens")
 
-                # Get thinking_mode from form (enabled/disabled/auto)
                 thinking_mode = form_data.get("thinking_mode")
                 if thinking_mode not in ["enabled", "disabled", "auto"]:
                     thinking_mode = None  # Use config default
+
+                request_overrides: Dict[str, Any] = {}
+
+                tools_json = parse_json_field("tools_json", "Tools JSON", list)
+                if tools_json is not None:
+                    request_overrides["tools"] = tools_json
+
+                extra_headers = parse_json_field("extra_headers_json", "Extra headers", dict)
+                if extra_headers is not None:
+                    request_overrides["default_extra_headers"] = extra_headers
+
+                extra_query = parse_json_field("extra_query_json", "Extra query parameters", dict)
+                if extra_query is not None:
+                    request_overrides["default_extra_query"] = extra_query
+
+                extra_body = parse_json_field("extra_body_json", "Extra body", dict)
+                if extra_body is not None:
+                    request_overrides["extra_body"] = extra_body
+
+                tool_choice_override = form_data.get("tool_choice_override")
+                if tool_choice_override and tool_choice_override != "inherit":
+                    request_overrides["tool_choice"] = tool_choice_override
+
+                max_tool_calls_override = form_data.get("max_tool_calls_override")
+                if max_tool_calls_override:
+                    try:
+                        request_overrides["max_tool_calls"] = int(max_tool_calls_override)
+                    except ValueError as exc:
+                        raise FormFieldError(f"Max tool calls must be an integer: {str(exc)}")
+
 
             except FormFieldError as e:
                 logger.warning("llm_config_test_form_validation_error", error=str(e))
@@ -198,6 +243,7 @@ class LLMConfigTestView(CustomView):
                     override_temperature=override_temperature,
                     override_max_tokens=override_max_tokens,
                     thinking_mode=thinking_mode,
+                    request_overrides=request_overrides or None,
                 )
 
                 logger.info(

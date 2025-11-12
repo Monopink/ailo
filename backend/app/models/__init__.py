@@ -32,7 +32,9 @@ from .ai import (
     AICharacterTemplate,
     AIProfileTemplate,
     AICharacter,
-    AIContext,
+    AIMessageBuffer,
+    AIConversationItem,
+    AIConversationItemArchive,
     AICharacterDimension,
     AIRequestLog,
 )
@@ -90,7 +92,9 @@ __all__ = [
     "AICharacterTemplate",
     "AIProfileTemplate",
     "AICharacter",
-    "AIContext",
+    "AIMessageBuffer",
+    "AIConversationItem",
+    "AIConversationItemArchive",
     "AICharacterDimension",
     "AIRequestLog",
     # System configuration and statistics

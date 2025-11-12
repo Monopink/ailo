@@ -305,8 +305,8 @@ class AIRelationshipStatus(IntEnum):
     INACTIVE = 2  # Inactive relationship
 
 
-class AIAggregateState(IntEnum):
-    """AI context aggregate state (ai_contexts.aggregate_state)"""
+class AIMessageBufferState(IntEnum):
+    """Message buffer aggregate state (ai_message_buffer.aggregate_state)"""
 
     OPEN = 1  # Waiting for merge/timer
     LOCKED = 2  # Processing (only one per conversation)
@@ -322,12 +322,12 @@ class AICharacterCreator(IntEnum):
     SYSTEM = 3  # Created by system
 
 
-class AIContextRole(IntEnum):
-    """AI context role type (ai_contexts.role)"""
+class ConversationRole(str, Enum):
+    """Conversation role type (ai_conversation_items.role)"""
 
-    SYSTEM = 1  # System message
-    USER = 2  # User message
-    ASSISTANT = 3  # Assistant response
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
 
 
 class AIRequestStatus(IntEnum):

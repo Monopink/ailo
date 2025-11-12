@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import time
 
 from models.llm import LLMConfig, LLMProvider, LLMTestLog
-from services.llm.client import chat_completion
+from services.llm.client import invoke_llm
 
 
 async def test_json_schema_compatibility(
@@ -64,7 +64,7 @@ async def test_json_schema_compatibility(
 
     try:
         # Attempt to call LLM with JSON Schema
-        llm_result = await chat_completion(
+        llm_result = await invoke_llm(
             db=db,
             messages=test_messages,
             json_schema=test_schema,

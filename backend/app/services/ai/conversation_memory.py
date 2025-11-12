@@ -8,11 +8,10 @@ context status updates, and context archiving.
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .queries import get_character_with_relations, get_contexts_for_archiving
+from .queries import get_character_with_relations, get_items_for_archiving
 from .queries.updates import update_character_memory
+from .queries.transactions import archive_contexts_transaction
 from services.config import config_service
-from crud.ai.context import ai_context as ai_context_crud
-from models.ai import AIContext
 
 # AIServiceError import removed - memory operations now use tolerant error handling
 from utils.logging import get_logger
@@ -106,7 +105,7 @@ async def process_memory_operations(
 
 async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qiao_id: str) -> int:
     """
-    Archive old contexts to ai_contexts_archive table.
+    Archive old conversation items to ai_conversation_items_archive table.
 
     Args:
         db: Database session
@@ -117,62 +116,40 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
         Number of contexts archived
     """
     try:
-        # Load archive configurations (seconds/count-based)
         archive_time_seconds = await config_service.get_int(db, "ai_context_archive_time")
         archive_max_count = await config_service.get_int(db, "ai_context_archive_max_count")
         archive_min_count = await config_service.get_int(db, "ai_context_archive_min_count")
         archive_threshold = await config_service.get_int(db, "ai_context_archive_threshold")
 
-        # Query all DONE contexts for this user-character pair (newest first)
-        from sqlalchemy import select, and_, desc
-
-        result = await db.execute(
-            select(AIContext)
-            .where(
-                and_(
-                    AIContext.user_qiao_id == user_qiao_id,
-                    AIContext.character_qiao_id == character_qiao_id,
-                    AIContext.aggregate_state == 3,
-                )
-            )
-            .order_by(desc(AIContext.created_at), desc(AIContext.id))
-        )
-        all_contexts: List[AIContext] = list(result.scalars().all())
-
-        total_count = len(all_contexts)
-        if total_count <= archive_min_count:
-            return 0
-
-        # Determine contexts eligible by age and count
-        age_based = await get_contexts_for_archiving(
+        items_to_archive, total_count = await get_items_for_archiving(
             db,
             character_qiao_id=character_qiao_id,
             user_qiao_id=user_qiao_id,
             max_age_seconds=int(archive_time_seconds),
             max_count=int(archive_max_count),
+            archive_threshold=int(archive_threshold),
         )
 
-        contexts_to_archive: List[AIContext] = list(age_based)
-
-        # If threshold is exceeded, ensure we trim to max_count (keep newest max_count)
-        if total_count >= archive_threshold and total_count > archive_max_count:
-            excess = all_contexts[archive_max_count:]
-            existing_ids = {c.id for c in contexts_to_archive}
-            for c in excess:
-                if c.id not in existing_ids:
-                    contexts_to_archive.append(c)
-
-        if not contexts_to_archive:
+        if total_count <= archive_min_count:
             logger.debug(
                 "no_contexts_to_archive",
                 character_qiao_id=character_qiao_id,
                 user_qiao_id=user_qiao_id,
+                reason="below_min_count",
             )
             return 0
 
-        # Perform archive: copy to archive table then delete originals
-        archived_count = await ai_context_crud.archive_contexts_batch(
-            db, contexts_to_archive=contexts_to_archive
+        if not items_to_archive:
+            logger.debug(
+                "no_contexts_to_archive",
+                character_qiao_id=character_qiao_id,
+                user_qiao_id=user_qiao_id,
+                reason="no_candidates",
+            )
+            return 0
+
+        archived_count = await archive_contexts_transaction(
+            db, contexts_to_archive=items_to_archive, character_qiao_id=character_qiao_id
         )
 
         logger.info(
@@ -180,7 +157,7 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
             character_qiao_id=character_qiao_id,
             user_qiao_id=user_qiao_id,
             archived_count=archived_count,
-            total_contexts=len(contexts_to_archive),
+            total_contexts=len(items_to_archive),
         )
 
         return archived_count

@@ -5,165 +5,58 @@ This module provides simple update operations that typically call crud layer
 or perform single-entity updates.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
 
-from models.ai import AIContext, AICharacterDimension, AICharacter
+from models.ai import AIConversationItem, AICharacterDimension, AICharacter
 from utils.logging import get_logger
-from .character_queries import get_character_id_by_qiao_id, get_user_id_by_qiao_id
 
 logger = get_logger(__name__)
 
 
-async def save_context_entry(db: AsyncSession, context_data: Dict[str, Any]) -> Optional[int]:
+async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) -> Optional[int]:
     """
-    Save a new context entry.
-
-    Args:
-        db: Database session
-        context_data: Context data dictionary
-
-    Returns:
-        Context ID (int) if successful, None if failed
+    Persist a new conversation item row.
     """
     try:
-        # Query character_id and user_id from qiao_ids
-        character_id = await get_character_id_by_qiao_id(db, context_data["character_qiao_id"])
-        user_id = await get_user_id_by_qiao_id(db, context_data["user_qiao_id"])
-
-        if character_id is None:
-            logger.error(
-                "character_id_not_found_for_context",
-                character_qiao_id=context_data["character_qiao_id"],
-            )
+        required_fields = {"user_qiao_id", "character_qiao_id", "role", "content"}
+        missing = required_fields - set(item_data.keys())
+        if missing:
+            logger.error("conversation_item_missing_fields", missing=list(missing))
             return None
 
-        if user_id is None:
-            logger.error(
-                "user_id_not_found_for_context",
-                user_qiao_id=context_data["user_qiao_id"],
-            )
-            return None
+        client_msg_ids = item_data.get("client_msg_ids") or []
 
-        context = AIContext(
-            character_id=character_id,
-            character_qiao_id=context_data["character_qiao_id"],
-            user_id=user_id,
-            user_qiao_id=context_data["user_qiao_id"],
-            role=context_data["role"],
-            content=context_data["content"],
-            aggregate_state=context_data.get("aggregate_state"),
+        item = AIConversationItem(
+            user_qiao_id=item_data["user_qiao_id"],
+            character_qiao_id=item_data["character_qiao_id"],
+            role=item_data["role"],
+            content=item_data["content"],
+            content_preview=item_data.get("content_preview"),
+            buffer_id=item_data.get("buffer_id"),
+            llm_config_id=item_data.get("llm_config_id"),
+            response_id=item_data.get("response_id"),
+            is_excluded_from_context=item_data.get("is_excluded_from_context", False),
+            client_msg_ids=client_msg_ids,
         )
 
-        # Optional aggregation/buffer fields
-        if "first_msg_id_client" in context_data:
-            context.first_msg_id_client = context_data.get("first_msg_id_client")
-        if "last_msg_id_client" in context_data:
-            context.last_msg_id_client = context_data.get("last_msg_id_client")
-        if "token_count" in context_data:
-            context.token_count = context_data.get("token_count")
-        if "is_attack" in context_data:
-            # keep explicit assignment only when provided
-            context.is_attack = 1 if context_data.get("is_attack") else 0
-        if "last_msg_time_ms" in context_data:
-            context.last_msg_time_ms = context_data.get("last_msg_time_ms")
-        if "buffer_expires_at_ms" in context_data:
-            context.buffer_expires_at_ms = context_data.get("buffer_expires_at_ms")
-        if "micro_expires_at_ms" in context_data:
-            context.micro_expires_at_ms = context_data.get("micro_expires_at_ms")
-        if "macro_expires_at_ms" in context_data:
-            context.macro_expires_at_ms = context_data.get("macro_expires_at_ms")
-        if "last_message_category" in context_data:
-            context.last_message_category = context_data.get("last_message_category")
-
-        db.add(context)
+        db.add(item)
         await db.flush()
 
-        context_id = context.id
-
         logger.debug(
-            "context_entry_saved",
-            context_id=context_id,
-            character_id=character_id,
-            user_id=user_id,
-            user_qiao_id=context_data["user_qiao_id"],
-            character_qiao_id=context_data["character_qiao_id"],
+            "conversation_item_saved",
+            item_id=item.id,
+            user_qiao_id=item.user_qiao_id,
+            character_qiao_id=item.character_qiao_id,
+            role=item.role,
         )
 
-        return context_id
+        return item.id
 
-    except Exception as e:
-        logger.error("context_save_failed", error=str(e), context_data=context_data)
+    except Exception as exc:
+        logger.error("conversation_item_save_failed", error=str(exc), item_data=item_data)
         return None
-
-
-async def update_context_status(db: AsyncSession, context_id: int, status: int) -> bool:
-    """
-    Update context aggregate state.
-
-    Args:
-        db: Database session
-        context_id: Context ID
-        status: New status (1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED)
-
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        result = await db.execute(select(AIContext).where(AIContext.id == context_id))
-        context = result.scalar_one_or_none()
-
-        if not context:
-            logger.warning("context_not_found_for_status_update", context_id=context_id)
-            return False
-
-        old_status = context.aggregate_state
-        context.aggregate_state = status
-        await db.flush()
-
-        logger.debug(
-            "context_status_updated", context_id=context_id, old_status=old_status, new_status=status
-        )
-
-        return True
-
-    except Exception as e:
-        logger.error("context_status_update_failed", error=str(e), context_id=context_id, status=status)
-        return False
-
-
-async def is_context_locked(db: AsyncSession, context_id: int) -> bool:
-    """
-    Check whether the given context is still LOCKED.
-    """
-    try:
-        result = await db.execute(select(AIContext.aggregate_state).where(AIContext.id == context_id))
-        state = result.scalar_one_or_none()
-        return state == 2  # AIAggregateState.LOCKED
-    except Exception as e:
-        logger.error("context_locked_check_failed", error=str(e), context_id=context_id)
-        return False
-
-
-async def finalize_context_if_locked(db: AsyncSession, context_id: int) -> bool:
-    """
-    Atomically set context to COMPLETE iff it's currently LOCKED.
-
-    Returns True if updated, False otherwise. Caller is responsible for committing.
-    """
-    try:
-        result = await db.execute(
-            update(AIContext)
-            .where(AIContext.id == context_id, AIContext.aggregate_state == 2)
-            .values(aggregate_state=3)
-        )
-        updated = (result.rowcount or 0) > 0
-        logger.debug("context_finalize_attempt", context_id=context_id, updated=updated)
-        return updated
-    except Exception as e:
-        logger.error("context_finalize_failed", error=str(e), context_id=context_id)
-        return False
 
 
 async def update_relationship_scores(
@@ -347,38 +240,39 @@ async def increment_relationship_count(db: AsyncSession, character_id: int, rela
         return False
 
 
-async def mark_context_as_attack(db: AsyncSession, context_id: int) -> bool:
+async def mark_conversation_item_as_excluded(
+    db: AsyncSession, conversation_item_id: int
+) -> bool:
     """
-    Mark context as containing attack/injection.
-
-    Args:
-        db: Database session
-        context_id: Context ID
-
-    Returns:
-        True if successful, False otherwise
+    Flag a conversation item so it is omitted from future LLM prompts.
     """
     try:
-        result = await db.execute(select(AIContext).where(AIContext.id == context_id))
-        context = result.scalar_one_or_none()
+        result = await db.execute(
+            select(AIConversationItem).where(AIConversationItem.id == conversation_item_id)
+        )
+        item = result.scalar_one_or_none()
 
-        if context:
-            context.is_attack = 1
-            await db.flush()
-
-            logger.warning(
-                "context_marked_as_attack",
-                context_id=context_id,
-                user_qiao_id=context.user_qiao_id,
-                character_qiao_id=context.character_qiao_id,
-            )
-            return True
-        else:
-            logger.warning("context_not_found_for_attack_marking", context_id=context_id)
+        if not item:
+            logger.warning("conversation_item_not_found_for_flagging", item_id=conversation_item_id)
             return False
 
-    except Exception as e:
-        logger.error("context_attack_marking_failed", error=str(e), context_id=context_id)
+        item.is_excluded_from_context = True
+        await db.flush()
+
+        logger.info(
+            "conversation_item_marked_excluded",
+            item_id=conversation_item_id,
+            user_qiao_id=item.user_qiao_id,
+            character_qiao_id=item.character_qiao_id,
+        )
+        return True
+
+    except Exception as exc:
+        logger.error(
+            "conversation_item_exclude_failed",
+            error=str(exc),
+            item_id=conversation_item_id,
+        )
         return False
 
 

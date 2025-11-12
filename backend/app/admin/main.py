@@ -30,6 +30,9 @@ from .views import (
     ai_character_template_view,
     ai_profile_template_view,
     ai_request_log_view,
+    ai_message_buffer_view,
+    ai_conversation_item_view,
+    ai_conversation_item_archive_view,
     # Message Management
     message_history_view,
     notification_push_history_view,
@@ -56,8 +59,6 @@ from .views import (
     contact_request_view,
     message_delivery_failure_view,
     # AI Extended Management
-    ai_context_view,
-    ai_context_archive_view,
     ai_character_dimension_view,
     # Statistics Management
     stats_user_daily_view,
@@ -171,8 +172,9 @@ ai_group = DropDown(
         ai_style_dimension_view,
         ai_personality_placeholder_view,
         ai_dimension_relationship_mapping_view,
-        ai_context_view,
-        ai_context_archive_view,
+        ai_message_buffer_view,
+        ai_conversation_item_view,
+        ai_conversation_item_archive_view,
         ai_request_log_view,
     ],
     always_open=False,

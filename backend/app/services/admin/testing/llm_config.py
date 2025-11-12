@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.llm.client import chat_completion
+from services.llm.client import invoke_llm
 from services.llm.config import get_llm_config
 from models.llm import LLMTestLog
 from utils.logging import get_logger
@@ -31,6 +31,7 @@ async def execute_llm_config_test(
     override_temperature: Optional[float] = None,
     override_max_tokens: Optional[int] = None,
     thinking_mode: Optional[str] = None,
+    request_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Execute LLM configuration test.
@@ -48,6 +49,7 @@ async def execute_llm_config_test(
         override_temperature: Optional temperature override (0.0-2.0)
         override_max_tokens: Optional max tokens override
         thinking_mode: Optional thinking mode override (enabled/disabled/auto)
+        request_overrides: Optional character_request_params overrides (tools, caching, headers, etc.)
 
     Returns:
         Dictionary containing test results and metadata
@@ -77,7 +79,7 @@ async def execute_llm_config_test(
         messages = [{"role": "user", "content": test_message}]
 
         # Step 3: Call LLM without JSON Schema - pure model testing
-        llm_result = await chat_completion(
+        llm_result = await invoke_llm(
             db=db,
             messages=messages,
             json_schema=None,  # No JSON Schema for regular testing
@@ -85,6 +87,7 @@ async def execute_llm_config_test(
             max_tokens=override_max_tokens,
             thinking_mode=thinking_mode,
             name=config.name,
+            character_request_params=request_overrides,
         )
 
         # Step 4: Calculate response time

@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for AI styles and relationship configurat
 """
 
 from typing import Optional, List
-from sqlalchemy import Integer, String, Text, UniqueConstraint, text, CheckConstraint
+from sqlalchemy import Integer, Numeric, String, Text, UniqueConstraint, text, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import AutoIncrementModel
@@ -153,12 +153,56 @@ class AIRelationship(AutoIncrementModel):
         Integer, nullable=False, default=1, server_default=text("1"), comment="Status: 1=active, 2=inactive"
     )
 
+    response_time_min_ms: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3000,
+        server_default=text("3000"),
+        comment="Lower bound for relationship-driven micro timer (ms)",
+    )
+
+    response_time_max_ms: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3000,
+        server_default=text("3000"),
+        comment="Upper bound for relationship-driven micro timer (ms)",
+    )
+
+    response_time_bias: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="balanced",
+        server_default=text("'balanced'"),
+        comment="Sampling bias for response timing distribution",
+    )
+
+    no_reply_probability: Mapped[float] = mapped_column(
+        Numeric(3, 2),
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Probability of intentionally skipping a reply",
+    )
+
     # Relationships
     relationship_mappings: Mapped[List["AIDimensionRelationshipMapping"]] = relationship(
         "AIDimensionRelationshipMapping",
         back_populates="relationship",
         primaryjoin="AIRelationship.id == foreign(AIDimensionRelationshipMapping.relationship_id)",
         cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        CheckConstraint("response_time_min_ms >= 500", name="ck_ai_relationships_response_time_min"),
+        CheckConstraint(
+            "response_time_max_ms >= response_time_min_ms",
+            name="ck_ai_relationships_response_time_bounds",
+        ),
+        CheckConstraint(
+            "no_reply_probability >= 0 AND no_reply_probability <= 1",
+            name="ck_ai_relationships_no_reply_probability",
+        ),
     )
 
 

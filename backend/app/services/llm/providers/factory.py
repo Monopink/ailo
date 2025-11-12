@@ -1,102 +1,57 @@
 """
-LLM provider factory.
+Provider adapter factory.
 
-This module provides SDK selection and routing logic.
+Resolves the correct adapter for a provider/config and dispatches requests.
 """
 
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from __future__ import annotations
+
+from typing import Awaitable, Callable, Dict, Optional
 
 from models.llm import LLMConfig, LLMProvider
+from services.llm.types import LLMRequestOptions, LLMProviderResult
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Provider to SDK mapping (code-level configuration)
-# This allows flexible switching between different SDK implementations
-PROVIDER_SDK_MAP = {
-    "doubao": "openai_sdk",  # Doubao uses OpenAI SDK (compatible)
-    "openai": "openai_sdk",  # OpenAI uses OpenAI SDK
-    "qwen": "openai_sdk",  # Qwen uses OpenAI SDK (compatible)
-    "deepseek": "openai_sdk",  # DeepSeek uses OpenAI SDK (compatible)
-    "claude": "anthropic_sdk",  # Claude uses Anthropic SDK (not implemented yet)
-    "mock": "mock",  # Mock uses mock implementation
+PROVIDER_ADAPTERS: Dict[str, str] = {
+    "doubao": "openai_sdk",
+    "qwen": "openai_sdk",
+    "deepseek": "openai_sdk",
+    "mock": "mock",
 }
 
 
-async def chat_completion(
+async def send_request(
     config: LLMConfig,
     provider: LLMProvider,
-    messages: List[Dict[str, str]],
+    options: LLMRequestOptions,
     *,
     stream: bool = False,
     preemption_checker: Optional[Callable[[], Awaitable[bool]]] = None,
-    **kwargs,
-) -> Dict[str, Any]:
+) -> LLMProviderResult:
     """
-    Route to appropriate SDK implementation.
-
-    SDK selection is based on PROVIDER_SDK_MAP configuration.
-
-    Args:
-        config: LLM configuration
-        provider: LLM provider
-        messages: List of messages in OpenAI format
-        **kwargs: Additional parameters
-
-    Returns:
-        {
-            "content": str,
-            "model": str,
-            "usage": {
-                "prompt_tokens": int,
-                "completion_tokens": int,
-                "total_tokens": int,
-            },
-            "finish_reason": str,
-        }
-
-    Raises:
-        ValueError: Unsupported SDK
-        LLMConfigurationError: Configuration error
-        LLMRequestError: Request error
-        LLMTimeoutError: Timeout error
+    Route the LLM request to the correct adapter.
     """
-    # Get SDK name from configuration
-    sdk_name = PROVIDER_SDK_MAP.get(provider.name, "openai_sdk")
+    adapter_name = PROVIDER_ADAPTERS.get(provider.name, "openai_sdk")
 
     logger.debug(
-        f"Routing request to SDK: {sdk_name}",
-        extra={
-            "provider": provider.name,
-            "sdk": sdk_name,
-        },
+        "llm_adapter_selected",
+        provider=provider.name,
+        adapter=adapter_name,
     )
 
-    # Import and call appropriate SDK implementation
-    if sdk_name == "openai_sdk":
-        if stream:
-            from .openai_sdk import chat_completion_stream as sdk_chat
-        else:
-            from .openai_sdk import chat_completion as sdk_chat
-    elif sdk_name == "anthropic_sdk":
-        # Not implemented yet
-        raise ValueError(f"SDK not implemented: {sdk_name}")
-    elif sdk_name == "mock":
-        if stream:
-            raise ValueError("Streaming not supported for mock provider")
-        from .mock import chat_completion as sdk_chat
+    if adapter_name == "mock":
+        from . import mock as adapter
+    elif adapter_name == "openai_sdk":
+        from . import openai_sdk as adapter
     else:
-        raise ValueError(f"Unsupported SDK: {sdk_name}")
+        raise ValueError(f"Unsupported adapter: {adapter_name}")
 
-    if stream:
-        return await sdk_chat(
-            config,
-            provider,
-            messages,
-            preemption_checker=preemption_checker,
-            **kwargs,
-        )
-
-    # Drop checker if accidentally set without streaming
-    kwargs.pop("preemption_checker", None)
-    return await sdk_chat(config, provider, messages, **kwargs)
+    return await adapter.send_request(
+        config=config,
+        provider=provider,
+        options=options,
+        stream=stream,
+        preemption_checker=preemption_checker,
+    )

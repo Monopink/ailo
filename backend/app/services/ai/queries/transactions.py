@@ -5,25 +5,24 @@ This module provides complex transaction operations that involve multiple
 database operations and require atomicity.
 """
 
+from copy import deepcopy
 from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.ai import AICharacter, AIContextArchive, AIRequestLog
+from models.ai import AICharacter, AIConversationItemArchive, AIRequestLog
 from models.profile import Profile
 from models.contact import Contact
-from enums import AIContextRole
+from enums.common import ConversationRole
 from .updates import (
-    save_context_entry,
+    create_conversation_item,
     update_relationship_scores,
     set_current_relationship,
-    mark_context_as_attack,
     update_character_status,
-    finalize_context_if_locked,
+    mark_conversation_item_as_excluded,
 )
 from .character_queries import get_user_id_by_qiao_id
 from .template_queries import get_profile_template_by_id, get_character_template_by_id
 from utils.logging import get_logger
-
 logger = get_logger(__name__)
 
 
@@ -117,7 +116,8 @@ async def save_conversation_result(
     new_scores: Optional[Dict[str, int]],
     memory_operations: Optional[List[Dict]],
     llm_result: Dict[str, Any],
-    locked_context_id: Optional[int],
+    locked_buffer_id: Optional[int],
+    user_message_item_id: Optional[int],
 ) -> Dict[str, Any]:
     """
     Save all conversation results in a single atomic transaction.
@@ -133,10 +133,11 @@ async def save_conversation_result(
         new_scores: New relationship scores (dimension_name -> score)
         memory_operations: Memory operations to process
         llm_result: LLM result with usage info
-        locked_context_id: Locked context ID (if any)
+        locked_buffer_id: Locked buffer ID (if any)
+        user_message_item_id: Conversation history row id linked to buffer
 
     Returns:
-        Dictionary with success status and context_id
+        Dictionary with success status and buffer_id
 
     Raises:
         Exception: If any operation fails (triggers rollback)
@@ -167,21 +168,26 @@ async def save_conversation_result(
             await process_memory_operations(db, character_qiao_id, memory_operations)
 
         # 3. Handle attack detection
-        if ai_response.get("attack_detected") and locked_context_id:
-            await mark_context_as_attack(db, locked_context_id)
+        if ai_response.get("attack_detected") and user_message_item_id:
+            await mark_conversation_item_as_excluded(db, user_message_item_id)
 
         # 4. Handle blocking
         if ai_response.get("should_block"):
             await update_character_status(db, character_qiao_id, status=3)  # blocked
 
         # 5. Send response messages and save to contexts
+        assistant_item_id: Optional[int] = None
         if ai_response.get("should_reply"):
             from services.message.outbound.sender import send_message
             from crud.contact import contact as contact_crud
             from enums import MessageType
 
             outgoing_messages = ai_response.get("outgoing_messages", [])
-            for message in outgoing_messages:
+            assistant_blocks = _clone_blocks(llm_result.get("output_blocks") or [])
+            response_id = llm_result.get("response_id")
+            llm_config_id = (llm_result.get("config_used") or {}).get("id")
+
+            for idx, message in enumerate(outgoing_messages):
                 # Get contact for conv_id
                 contact = await contact_crud.get_user_contact(
                     db, user_qiao_id=user_qiao_id, contact_qiao_id=character_qiao_id
@@ -198,21 +204,26 @@ async def save_conversation_result(
                         message_type=MessageType.TEXT,
                     )
 
-                    # Save AI response to ai_contexts table
-                    context_data = {
-                        "character_qiao_id": character_qiao_id,
-                        "user_qiao_id": user_qiao_id,
-                        "role": AIContextRole.ASSISTANT,
-                        "content": message,
-                    }
-                    context_id = await save_context_entry(db, context_data)
+                    # Save AI response to conversation items
+                    content_blocks = assistant_blocks if assistant_blocks and idx == 0 else _build_output_blocks(message)
+                    if assistant_blocks and idx == 0:
+                        assistant_blocks = None  # consume provider blocks once per response
 
-                    if not context_id:
-                        logger.error(
-                            "failed_to_save_ai_response_to_context",
-                            character_qiao_id=character_qiao_id,
-                            user_qiao_id=user_qiao_id,
-                        )
+                    conversation_item_id = await create_conversation_item(
+                        db,
+                        {
+                            "character_qiao_id": character_qiao_id,
+                            "user_qiao_id": user_qiao_id,
+                            "role": ConversationRole.ASSISTANT.value,
+                            "content": content_blocks,
+                            "content_preview": message[:180],
+                            "llm_config_id": llm_config_id,
+                            "response_id": response_id,
+                        },
+                    )
+
+                    if conversation_item_id:
+                        assistant_item_id = conversation_item_id
                 else:
                     logger.error(
                         "contact_not_found_for_sending",
@@ -227,11 +238,14 @@ async def save_conversation_result(
             user_qiao_id=user_qiao_id,
             ai_response=ai_response,
             llm_result=llm_result,
+            conversation_item_id=assistant_item_id,
         )
 
-        # 7. Update context status to COMPLETE
-        if locked_context_id:
-            await finalize_context_if_locked(db, locked_context_id)
+        # 7. Update buffer status to COMPLETE
+        if locked_buffer_id:
+            from services.message.processing.buffer import finalize_buffer_if_locked
+
+            await finalize_buffer_if_locked(db, locked_buffer_id)
 
         # Commit transaction
         await db.commit()
@@ -240,12 +254,13 @@ async def save_conversation_result(
             "conversation_result_saved",
             user_qiao_id=user_qiao_id,
             character_qiao_id=character_qiao_id,
-            context_id=locked_context_id,
+            buffer_id=locked_buffer_id,
         )
 
         return {
             "success": True,
-            "context_id": locked_context_id,
+            "buffer_id": locked_buffer_id,
+            "conversation_item_id": assistant_item_id,
         }
 
     except Exception as e:
@@ -266,6 +281,7 @@ async def _save_ai_request_log(
     user_qiao_id: str,
     ai_response: Dict[str, Any],
     llm_result: Dict[str, Any],
+    conversation_item_id: Optional[int],
 ) -> None:
     """
     Save AI request log with correct field mapping.
@@ -294,6 +310,10 @@ async def _save_ai_request_log(
             request_type="production",
             provider_name=llm_result.get("config_used", {}).get("provider_name"),
             model_name=llm_result.get("model"),
+            llm_config_id=(llm_result.get("config_used") or {}).get("id"),
+            response_id=llm_result.get("response_id"),
+            cache_hit=bool(llm_result.get("cache_hit")),
+            conversation_item_id=conversation_item_id,
             request=llm_result.get("request_payload", {}),
             response=ai_response,
             status=1 if llm_result.get("success") else 2,
@@ -314,6 +334,16 @@ async def _save_ai_request_log(
         logger.error("ai_request_log_save_failed", error=str(e), user_qiao_id=user_qiao_id, exc_info=True)
         # Don't raise - logging failure shouldn't break the conversation
         pass
+
+
+def _build_output_blocks(content: str) -> List[Dict[str, Any]]:
+    return [{"type": "output_text", "text": content}]
+
+
+def _clone_blocks(blocks: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
+    if not blocks:
+        return None
+    return [deepcopy(block) for block in blocks if isinstance(block, dict)]
 
 
 async def cleanup_single_use_templates(
@@ -374,17 +404,16 @@ async def archive_contexts_transaction(
         for context in contexts_to_archive:
             try:
                 # Create archive entry
-                archive_entry = AIContextArchive(
+                archive_entry = AIConversationItemArchive(
                     character_qiao_id=context.character_qiao_id,
                     user_qiao_id=context.user_qiao_id,
                     role=context.role,
                     content=context.content,
-                    position=context.position,
-                    token_count=context.token_count,
-                    is_attack=context.is_attack,
-                    aggregate_state=context.aggregate_state,
+                    content_preview=context.content_preview,
+                    buffer_id=context.buffer_id,
+                    response_id=context.response_id,
+                    is_excluded_from_context=context.is_excluded_from_context,
                     created_at=context.created_at,
-                    updated_at=context.updated_at,
                 )
 
                 db.add(archive_entry)
@@ -397,7 +426,7 @@ async def archive_contexts_transaction(
                 logger.error(
                     "single_context_archive_failed",
                     error=str(e),
-                    context_id=context.id,
+                    conversation_item_id=context.id,
                     character_qiao_id=character_qiao_id,
                 )
                 continue

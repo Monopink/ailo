@@ -6,7 +6,7 @@ This module contains SQLAlchemy models for AI service request logging.
 
 from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy import BigInteger, Integer, String, DateTime, text
+from sqlalchemy import BigInteger, Integer, String, DateTime, text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,6 +51,26 @@ class AIRequestLog(ImmutableSnowflakeModel):
 
     model_name: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True, comment="Model name used for the request"
+    )
+
+    llm_config_id: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="LLM config ID used for this request"
+    )
+
+    response_id: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, comment="Provider response ID (for caching trace)"
+    )
+
+    cache_hit: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="Whether the provider reported cached tokens",
+    )
+
+    conversation_item_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Related ai_conversation_items.id for assistant message"
     )
 
     request: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, comment="Request content")

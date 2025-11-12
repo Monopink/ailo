@@ -41,6 +41,12 @@ class AICharacterTemplate(AutoIncrementModel):
         comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
+    request_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
+    )
+
     # Display name for admin/UI list and association views
     display_name: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True, comment="Display name for character template"

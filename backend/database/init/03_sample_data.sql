@@ -330,14 +330,8 @@ INSERT INTO message_history (
 ON CONFLICT (msg_id_server) DO NOTHING;
 
 -- ============================================================================
--- AI Contexts and Relationship Scores
+-- Relationship Scores
 -- ============================================================================
-
--- Insert sample AI contexts
-INSERT INTO ai_contexts (id, character_id, character_qiao_id, user_id, user_qiao_id, role, content, token_count, is_attack, aggregate_state) VALUES
-(223788765171154985, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154945, 'qqid_test_user_001', 2, '你好，小乔！', 15, 0, 3),
-(223788765171154986, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 223788765171154946, 'qqid_test_user_002', 2, '你喜欢什么音乐？', 18, 0, 3)
-ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample AI character dimensions
 INSERT INTO ai_character_dimensions (id, character_id, dimension_id, score, position) VALUES

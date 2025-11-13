@@ -79,6 +79,8 @@
 - `typing_start`: 无对应时间，转为宏计时器 → `message_buffer_typing_total_wait_ms`（默认 32000ms）
 - `typing_end`: → `message_buffer_typing_end_wait_ms`（默认 3000ms）
 
+> ⚠️ 除非键名显式包含 `_ms`，`system_configs` 中的 AI conversation/archive 配置一律使用 **秒** 作为单位，禁止填入毫秒值。
+
 ### 状态转换规则
 
 #### 无上一条消息（last_message_category = NULL）

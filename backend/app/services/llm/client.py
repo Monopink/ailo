@@ -7,6 +7,7 @@ delegates transport details to provider adapters.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -323,9 +324,19 @@ async def _call_provider(
                 "streaming": _format_streaming_metadata(decision),
             }
 
+        # Parse JSON response if json_schema was provided
+        response_content = provider_result.content
+        if json_schema and isinstance(response_content, str):
+            try:
+                response_content = json.loads(response_content)
+            except (json.JSONDecodeError, ValueError):
+                # Keep as string if parsing fails (will be caught by validation)
+                pass
+
         return {
             "success": True,
-            "response": provider_result.content,
+            "response": response_content,
+            "raw_content": provider_result.content if isinstance(provider_result.content, str) else None,
             "usage": provider_result.usage,
             "finish_reason": provider_result.finish_reason,
             "model": provider_result.model,

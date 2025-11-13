@@ -46,25 +46,6 @@
         width: 150px;
     }
 
-    /* Details element styling - use CSS variables for theme compatibility */
-    details {
-        margin-top: 15px;
-        border: 1px solid var(--tblr-border-color);
-        border-radius: var(--tblr-border-radius);
-        padding: 10px;
-    }
-
-    details summary {
-        cursor: pointer;
-        font-weight: 500;
-        color: var(--tblr-primary);
-        user-select: none;
-    }
-
-    details[open] summary {
-        margin-bottom: 10px;
-    }
-
     /* Loading state - display control */
     .loading {
         display: none;
@@ -97,81 +78,129 @@
             <h3 class="card-title">Configuration Information</h3>
         </div>
         <div class="card-body">
-            <div class="info-grid">
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Name</div>
-                    <div class="fw-medium">{{ llm_config.name }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Provider</div>
-                    <div class="fw-medium">{{ llm_config.provider_name }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Model</div>
-                    <div class="fw-medium">{{ llm_config.model_name }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Temperature</div>
-                    <div class="fw-medium">{{ llm_config.temperature if llm_config.temperature else 'Not set' }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Max Tokens</div>
-                    <div class="fw-medium">{{ llm_config.max_tokens if llm_config.max_tokens else 'Not set' }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Timeout</div>
-                    <div class="fw-medium">{{ llm_config.timeout_seconds }}s</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Thinking Mode (Default)</div>
-                    <div class="fw-medium text-capitalize">{{ llm_config.thinking_mode }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Top P</div>
-                    <div class="fw-medium">{{ llm_config.top_p }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Frequency Penalty</div>
-                    <div class="fw-medium">{{ llm_config.frequency_penalty }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Presence Penalty</div>
-                    <div class="fw-medium">{{ llm_config.presence_penalty }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">JSON Schema Mode</div>
-                    <div class="fw-medium">
-                        {% if llm_config.json_schema_mode == 'strict' %}
-                        <span class="text-success">✓ Strict (AI Character Ready)</span>
-                        {% elif llm_config.json_schema_mode == 'disabled' %}
-                        <span class="text-danger">✗ Disabled (Not Supported)</span>
-                        {% else %}
-                        <span class="text-warning">⚠ Auto (Not Tested)</span>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Stop Sequences</div>
-                    <div class="fw-medium text-monospace small">{{ llm_config.stop_sequences_display }}</div>
-                </div>
-                <div class="p-2 bg-secondary-lt rounded">
-                    <div class="text-secondary small mb-1">Extra Parameters</div>
-                    <div class="fw-medium text-monospace small">
-                        {% if llm_config.extra_params_display %}
-                        {{ llm_config.extra_params_display }}
-                        {% else %}
-                        {}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
+            <table class="table table-sm">
+                <tbody>
+                    <tr>
+                        <td class="text-secondary" style="width: 200px;">Name</td>
+                        <td class="fw-medium">{{ llm_config.name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Provider</td>
+                        <td class="fw-medium">{{ llm_config.provider_name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Model</td>
+                        <td class="fw-medium">{{ llm_config.model_name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Status</td>
+                        <td class="fw-medium">
+                            {% if llm_config.status == 1 %}
+                            <span class="text-success">Active</span>
+                            {% else %}
+                            <span class="text-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Priority</td>
+                        <td class="fw-medium">{{ llm_config.priority }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Temperature</td>
+                        <td class="fw-medium">{{ llm_config.temperature if llm_config.temperature is not none else 'Not set' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Max Tokens</td>
+                        <td class="fw-medium">{{ llm_config.max_tokens if llm_config.max_tokens else 'Not set' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Timeout</td>
+                        <td class="fw-medium">{{ llm_config.timeout_seconds }}s</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Thinking Mode</td>
+                        <td class="fw-medium text-capitalize">{{ llm_config.thinking_mode }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Top P</td>
+                        <td class="fw-medium">{{ llm_config.top_p }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Frequency Penalty</td>
+                        <td class="fw-medium">{{ llm_config.frequency_penalty }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Presence Penalty</td>
+                        <td class="fw-medium">{{ llm_config.presence_penalty }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">JSON Schema Mode</td>
+                        <td class="fw-medium">
+                            {% if llm_config.json_schema_mode == 'strict' %}
+                            <span class="text-success">✓ Strict (AI Character Ready)</span>
+                            {% elif llm_config.json_schema_mode == 'disabled' %}
+                            <span class="text-danger">✗ Disabled (Not Supported)</span>
+                            {% else %}
+                            <span class="text-warning">⚠ Auto (Not Tested)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Stop Sequences</td>
+                        <td class="fw-medium text-monospace small">{{ llm_config.stop_sequences_display }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Default Tools</td>
+                        <td class="fw-medium text-monospace small">{{ llm_config.default_tools_display }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Default Tool Choice</td>
+                        <td class="fw-medium text-capitalize">{{ llm_config.default_tool_choice }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Parallel Tool Calls</td>
+                        <td class="fw-medium">{{ 'Yes' if llm_config.parallel_tool_calls else 'No' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Max Tool Calls</td>
+                        <td class="fw-medium">{{ llm_config.max_tool_calls }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Default Extra Headers</td>
+                        <td class="fw-medium text-monospace small">{{ llm_config.default_extra_headers_display }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Default Extra Query</td>
+                        <td class="fw-medium text-monospace small">{{ llm_config.default_extra_query_display }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Enable Streaming</td>
+                        <td class="fw-medium">{{ 'Yes' if llm_config.enable_streaming else 'No' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Extra Parameters</td>
+                        <td class="fw-medium text-monospace small">
+                            {% if llm_config.extra_params_display %}
+                            {{ llm_config.extra_params_display }}
+                            {% else %}
+                            {}
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
     <!-- Test Form Section -->
     <div class="card mb-3">
-        <div class="card-header">
-            <h3 class="card-title">Test Parameters</h3>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title mb-0">Test Parameters</h3>
+            <div>
+                <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
+                <button type="submit" class="btn btn-primary ms-2" id="submitBtn" form="testForm">Run Test</button>
+            </div>
         </div>
         <div class="card-body">
             <form id="testForm">
@@ -221,64 +250,50 @@
                 </div>
                 {% endif %}
 
-                <!-- Advanced Overrides -->
+                <!-- Tools Configuration -->
                 <div class="mb-3">
-                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#advancedOverrides" aria-expanded="false" aria-controls="advancedOverrides">
-                        Advanced Overrides
-                    </button>
+                    <label for="tools_json" class="form-label">Tools JSON</label>
+                    <textarea id="tools_json" name="tools_json" rows="3" class="form-control font-monospace"
+                        placeholder='[{"type": "web_search"}]'></textarea>
+                    <div class="form-text">Override default tools for this test. Leave empty to reuse config defaults.</div>
                 </div>
-                <div class="collapse" id="advancedOverrides">
-                    <div class="card card-body mb-3">
-                        <div class="mb-3">
-                            <label for="tools_json" class="form-label">Tools JSON</label>
-                            <textarea id="tools_json" name="tools_json" rows="3" class="form-control font-monospace"
-                                placeholder='[{"type": "web_search"}]'></textarea>
-                            <div class="form-text">Override default tools for this test. Leave empty to reuse config defaults.</div>
-                        </div>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="tool_choice_override" class="form-label">Tool Choice</label>
-                                <select id="tool_choice_override" name="tool_choice_override" class="form-select">
-                                    <option value="inherit" selected>Use config default</option>
-                                    <option value="auto">Auto</option>
-                                    <option value="none">Never use tools</option>
-                                    <option value="required">Always use tools</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="max_tool_calls_override" class="form-label">Max Tool Calls</label>
-                                <input type="number" id="max_tool_calls_override" name="max_tool_calls_override"
-                                    class="form-control" placeholder="Leave empty to reuse config" min="0">
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="extra_headers_json" class="form-label">Extra Headers (JSON)</label>
-                            <textarea id="extra_headers_json" name="extra_headers_json" rows="3"
-                                class="form-control font-monospace" placeholder='{"ark-beta-web-search": "true"}'></textarea>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="extra_query_json" class="form-label">Extra Query Params (JSON)</label>
-                            <textarea id="extra_query_json" name="extra_query_json" rows="3"
-                                class="form-control font-monospace" placeholder='{"search_mode": "fast"}'></textarea>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="extra_body_json" class="form-label">Extra Body (JSON)</label>
-                            <textarea id="extra_body_json" name="extra_body_json" rows="3"
-                                class="form-control font-monospace" placeholder='{"thinking": {"type": "enabled"}}'></textarea>
-                            <div class="form-text">Appended to `extra_body` for this request only. Note: stream_options is NOT supported by Doubao API.</div>
-                        </div>
-
-                        
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="tool_choice_override" class="form-label">Tool Choice</label>
+                        <select id="tool_choice_override" name="tool_choice_override" class="form-select">
+                            <option value="inherit" selected>Use config default</option>
+                            <option value="auto">Auto</option>
+                            <option value="none">Never use tools</option>
+                            <option value="required">Always use tools</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="max_tool_calls_override" class="form-label">Max Tool Calls</label>
+                        <input type="number" id="max_tool_calls_override" name="max_tool_calls_override"
+                            class="form-control" placeholder="Leave empty to reuse config" min="0">
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="submitBtn">Run Test</button>
-                <button type="button" class="btn btn-secondary ms-2" onclick="clearForm()">Clear</button>
+                <!-- Extra Request Parameters -->
+                <div class="mb-3">
+                    <label for="extra_headers_json" class="form-label">Extra Headers (JSON)</label>
+                    <textarea id="extra_headers_json" name="extra_headers_json" rows="3"
+                        class="form-control font-monospace" placeholder='{"ark-beta-web-search": "true"}'></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="extra_query_json" class="form-label">Extra Query Params (JSON)</label>
+                    <textarea id="extra_query_json" name="extra_query_json" rows="3"
+                        class="form-control font-monospace" placeholder='{"search_mode": "fast"}'></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="extra_body_json" class="form-label">Extra Body (JSON)</label>
+                    <textarea id="extra_body_json" name="extra_body_json" rows="3"
+                        class="form-control font-monospace" placeholder='{"thinking": {"type": "enabled"}}'></textarea>
+                    <div class="form-text">Appended to `extra_body` for this request only. Note: stream_options is NOT supported by Doubao API.</div>
+                </div>
             </form>
         </div>
     </div>
@@ -316,15 +331,15 @@
                 <div class="debug-info" id="debugInfo"></div>
             </div>
 
-            <details class="mb-3">
-                <summary>Request Payload</summary>
-                <pre class="border rounded p-3 mt-2" id="requestPayload"></pre>
-            </details>
+            <div class="mb-4">
+                <h4 class="fw-bold mb-2">Request Payload</h4>
+                <pre class="border rounded p-3" id="requestPayload"></pre>
+            </div>
 
-            <details>
-                <summary>Raw API Response</summary>
-                <pre class="border rounded p-3 mt-2" id="rawResponse"></pre>
-            </details>
+            <div class="mb-4">
+                <h4 class="fw-bold mb-2">Raw API Response</h4>
+                <pre class="border rounded p-3" id="rawResponse"></pre>
+            </div>
         </div>
     </div>
 
@@ -357,10 +372,6 @@
         document.getElementById('override_temperature_enabled').value = '0';
         document.getElementById('override_max_tokens_enabled').value = '0';
         document.getElementById('testResults').style.display = 'none';
-        const advanced = document.getElementById('advancedOverrides');
-        if (advanced) {
-            advanced.classList.remove('show');
-        }
     }
 
     // Handle form submission

@@ -15,9 +15,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 PROVIDER_ADAPTERS: Dict[str, str] = {
-    "doubao": "openai_sdk",
-    "qwen": "openai_sdk",
-    "deepseek": "openai_sdk",
+    "doubao": "doubao_responses",
     "mock": "mock",
 }
 
@@ -33,7 +31,7 @@ async def send_request(
     """
     Route the LLM request to the correct adapter.
     """
-    adapter_name = PROVIDER_ADAPTERS.get(provider.name, "openai_sdk")
+    adapter_name = PROVIDER_ADAPTERS.get(provider.name)
 
     logger.debug(
         "llm_adapter_selected",
@@ -41,10 +39,18 @@ async def send_request(
         adapter=adapter_name,
     )
 
+    if adapter_name is None:
+        raise ValueError(
+            f"Provider '{provider.name}' is not mapped to an adapter. "
+            "Add a dedicated provider adapter before enabling this provider."
+        )
+
     if adapter_name == "mock":
         from . import mock as adapter
-    elif adapter_name == "openai_sdk":
-        from . import openai_sdk as adapter
+    elif adapter_name == "doubao_responses":
+        from . import doubao_responses as adapter
+    elif adapter_name == "openai_chat":
+        from . import openai_chat as adapter
     else:
         raise ValueError(f"Unsupported adapter: {adapter_name}")
 

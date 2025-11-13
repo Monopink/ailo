@@ -116,10 +116,11 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
         Number of contexts archived
     """
     try:
-        archive_time_seconds = await config_service.get_int(db, "ai_context_archive_time")
-        archive_max_count = await config_service.get_int(db, "ai_context_archive_max_count")
-        archive_min_count = await config_service.get_int(db, "ai_context_archive_min_count")
-        archive_threshold = await config_service.get_int(db, "ai_context_archive_threshold")
+        # Archive configs are stored in **seconds** (see system_configs seed data).
+        archive_time_seconds = await config_service.get_int(db, "ai_conversation_archive_time")
+        archive_max_count = await config_service.get_int(db, "ai_conversation_archive_max_count")
+        archive_min_count = await config_service.get_int(db, "ai_conversation_archive_min_count")
+        archive_threshold = await config_service.get_int(db, "ai_conversation_archive_threshold")
 
         items_to_archive, total_count = await get_items_for_archiving(
             db,

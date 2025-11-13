@@ -76,8 +76,12 @@ class AIMessageBufferView(ModelView):
             label="State",
             help_text="Buffer state: OPEN/LOCKED/COMPLETE/CANCELLED",
         ),
-        StringField("micro_expires_at_ms", label="Micro Timer (ms)", help_text="Micro timer expiration timestamp"),
-        StringField("macro_expires_at_ms", label="Macro Timer (ms)", help_text="Macro timer expiration timestamp"),
+        StringField(
+            "micro_expires_at_ms", label="Micro Timer (ms)", help_text="Micro timer expiration timestamp"
+        ),
+        StringField(
+            "macro_expires_at_ms", label="Macro Timer (ms)", help_text="Macro timer expiration timestamp"
+        ),
         StringField(
             "buffer_expires_at_ms",
             label="Next Deadline (ms)",
@@ -104,7 +108,9 @@ class AIMessageBufferView(ModelView):
             label="Last Message Time (ms)",
             help_text="Timestamp of last message appended to buffer",
         ),
-        LocalDateTimeField("locked_at", label="Locked At", help_text="Timestamp when buffer entered LOCKED state"),
+        LocalDateTimeField(
+            "locked_at", label="Locked At", help_text="Timestamp when buffer entered LOCKED state"
+        ),
         LocalDateTimeField("created_at", label="Created At", help_text="Buffer creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
@@ -125,16 +131,20 @@ class AIConversationItemView(ModelView):
         "buffer_id",
         "created_at",
     ]
-    exclude_fields_from_list = [
-        "content",
-        "client_msg_ids",
-    ]
+    exclude_fields_from_list = []
 
     def can_delete(self, request: Request) -> bool:
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["id", "user_qiao_id", "character_qiao_id", "role", "content_preview", "response_id"]
+    searchable_fields = [
+        "id",
+        "user_qiao_id",
+        "character_qiao_id",
+        "role",
+        "content_preview",
+        "response_id",
+    ]
     sortable_fields = [
         "id",
         "user_qiao_id",
@@ -152,12 +162,22 @@ class AIConversationItemView(ModelView):
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
         StringField("character_qiao_id", label="Character Qiao ID", help_text="Character external ID"),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
+        TextAreaField(
+            "content_preview", label="Content Preview", help_text="Text preview for admin display"
+        ),
         JSONField("content", label="Content", help_text="Responses API content blocks array (JSONB)"),
-        TextAreaField("content_preview", label="Content Preview", help_text="Text preview for admin display"),
-        JSONField("client_msg_ids", label="Client Message IDs", help_text="Client message IDs merged into this row"),
+        JSONField(
+            "client_msg_ids",
+            label="Client Message IDs",
+            help_text="Client message IDs merged into this row",
+        ),
         StringField("buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"),
-        IntegerField("llm_config_id", label="LLM Config ID", help_text="LLM configuration used (assistant only)"),
-        StringField("response_id", label="Response ID", help_text="Provider response identifier (assistant only)"),
+        IntegerField(
+            "llm_config_id", label="LLM Config ID", help_text="LLM configuration used (assistant only)"
+        ),
+        StringField(
+            "response_id", label="Response ID", help_text="Provider response identifier (assistant only)"
+        ),
         BooleanField(
             "is_excluded_from_context",
             label="Excluded from Context",
@@ -200,10 +220,7 @@ class AIConversationItemArchiveView(ModelView):
         "created_at",
         "archived_at",
     ]
-    exclude_fields_from_list = [
-        "content",
-        "client_msg_ids",
-    ]
+    exclude_fields_from_list = []
 
     def can_create(self, request: Request) -> bool:
         return False
@@ -215,7 +232,14 @@ class AIConversationItemArchiveView(ModelView):
         return False
 
     fields_default_sort = [("archived_at", True)]
-    searchable_fields = ["id", "user_qiao_id", "character_qiao_id", "role", "content_preview", "response_id"]
+    searchable_fields = [
+        "id",
+        "user_qiao_id",
+        "character_qiao_id",
+        "role",
+        "content_preview",
+        "response_id",
+    ]
     sortable_fields = [
         "id",
         "user_qiao_id",
@@ -234,12 +258,22 @@ class AIConversationItemArchiveView(ModelView):
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
         StringField("character_qiao_id", label="Character Qiao ID", help_text="Character external ID"),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
+        TextAreaField(
+            "content_preview", label="Content Preview", help_text="Text preview for admin display"
+        ),
         JSONField("content", label="Content", help_text="Responses API content blocks array (JSONB)"),
-        TextAreaField("content_preview", label="Content Preview", help_text="Text preview for admin display"),
-        JSONField("client_msg_ids", label="Client Message IDs", help_text="Client message IDs merged into this row"),
+        JSONField(
+            "client_msg_ids",
+            label="Client Message IDs",
+            help_text="Client message IDs merged into this row",
+        ),
         StringField("buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"),
-        IntegerField("llm_config_id", label="LLM Config ID", help_text="LLM configuration used (assistant only)"),
-        StringField("response_id", label="Response ID", help_text="Provider response identifier (assistant only)"),
+        IntegerField(
+            "llm_config_id", label="LLM Config ID", help_text="LLM configuration used (assistant only)"
+        ),
+        StringField(
+            "response_id", label="Response ID", help_text="Provider response identifier (assistant only)"
+        ),
         BooleanField(
             "is_excluded_from_context",
             label="Excluded from Context",

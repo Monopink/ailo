@@ -108,6 +108,8 @@ class LLMConfigTestView(CustomView):
                         "name": config.name,
                         "provider_name": provider.display_name,
                         "model_name": config.model_name or provider.default_model,
+                        "status": config.status,
+                        "priority": config.priority,
                         "temperature": float(config.temperature) if config.temperature is not None else None,
                         "max_tokens": config.max_tokens,
                         "timeout_seconds": config.timeout_seconds,
@@ -125,6 +127,22 @@ class LLMConfigTestView(CustomView):
                         "stop_sequences_display": json.dumps(
                             config.stop_sequences or [], ensure_ascii=False
                         ),
+                        "default_tools": config.default_tools or [],
+                        "default_tools_display": json.dumps(
+                            config.default_tools or [], ensure_ascii=False
+                        ),
+                        "default_tool_choice": config.default_tool_choice,
+                        "parallel_tool_calls": config.parallel_tool_calls,
+                        "max_tool_calls": config.max_tool_calls,
+                        "default_extra_headers": config.default_extra_headers or {},
+                        "default_extra_headers_display": json.dumps(
+                            config.default_extra_headers or {}, ensure_ascii=False
+                        ),
+                        "default_extra_query": config.default_extra_query or {},
+                        "default_extra_query_display": json.dumps(
+                            config.default_extra_query or {}, ensure_ascii=False
+                        ),
+                        "enable_streaming": config.enable_streaming,
                         "extra_params": config.extra_params or {},
                         "extra_params_display": json.dumps(
                             config.extra_params or {}, ensure_ascii=False
@@ -222,7 +240,6 @@ class LLMConfigTestView(CustomView):
                         request_overrides["max_tool_calls"] = int(max_tool_calls_override)
                     except ValueError as exc:
                         raise FormFieldError(f"Max tool calls must be an integer: {str(exc)}")
-
 
             except FormFieldError as e:
                 logger.warning("llm_config_test_form_validation_error", error=str(e))

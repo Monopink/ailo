@@ -7,7 +7,7 @@ complete reuse of the core business logic.
 """
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -184,6 +184,11 @@ class ExecutorService:
                     "error": "request_payload not available",
                 }
 
+            history_messages, current_user_message = _extract_history_messages(
+                request_payload,
+                fallback_message=test_message,
+            )
+
             # Store response without request_payload to avoid data duplication
             log_entry.response = {
                 "success": conversation_result.get("success"),
@@ -231,6 +236,9 @@ class ExecutorService:
                     "llm_tokens": conversation_result.get("usage", {}).get("total_tokens", 0),
                 },
                 "request_payload": conversation_result.get("request_payload"),
+                "history_messages": history_messages,
+                "current_user_message": current_user_message,
+                "response_body": ai_response,
                 "log_id": log_id,
             }
 
@@ -283,3 +291,66 @@ class ExecutorService:
 
 # Global instance for dependency injection
 executor_service = ExecutorService()
+
+
+def _extract_history_messages(
+    request_payload: Optional[Dict[str, Any]],
+    fallback_message: str,
+) -> Tuple[List[Dict[str, str]], str]:
+    messages = _coerce_payload_messages(request_payload)
+    normalized: List[Dict[str, str]] = []
+
+    for message in messages:
+        role = str(message.get("role") or "user")
+        text = _flatten_message_content(message.get("content"))
+        normalized.append({"role": role, "text": text})
+
+    last_user_idx: Optional[int] = None
+    for index, item in enumerate(normalized):
+        if item["role"] == "user":
+            last_user_idx = index
+
+    current_user_message = fallback_message
+    history_slice = normalized
+    if last_user_idx is not None:
+        candidate = normalized[last_user_idx]["text"].strip()
+        if candidate:
+            current_user_message = candidate
+        history_slice = normalized[:last_user_idx]
+
+    history_messages = [item for item in history_slice if item["role"] in ("user", "assistant")]
+    return history_messages, current_user_message
+
+
+def _coerce_payload_messages(request_payload: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not isinstance(request_payload, dict):
+        return []
+
+    if isinstance(request_payload.get("input"), list):
+        return [msg for msg in request_payload["input"] if isinstance(msg, dict)]
+
+    if isinstance(request_payload.get("messages"), list):
+        return [msg for msg in request_payload["messages"] if isinstance(msg, dict)]
+
+    nested = request_payload.get("payload")
+    if isinstance(nested, dict) and isinstance(nested.get("messages"), list):
+        return [msg for msg in nested["messages"] if isinstance(msg, dict)]
+
+    return []
+
+
+def _flatten_message_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts: List[str] = []
+        for block in content:
+            if isinstance(block, dict) and block.get("text"):
+                parts.append(str(block["text"]))
+        return "".join(parts)
+
+    if content is None:
+        return ""
+
+    return str(content)

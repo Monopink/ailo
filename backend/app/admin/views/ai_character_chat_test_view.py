@@ -46,6 +46,9 @@ class AICharacterChatTestView(CustomView):
         if action == "readiness":
             return await self.check_test_readiness(request)
 
+        if action == "archive":
+            return await self.archive_conversations(request)
+
         # Handle POST requests (test execution)
         if request.method == "POST":
             return await self.handle_test_request(request)
@@ -225,6 +228,9 @@ class AICharacterChatTestView(CustomView):
                     "performance": test_execution["performance"],
                     "relationship_scores": latest_scores,
                     "request_payload": test_execution.get("request_payload"),
+                    "history_messages": test_execution.get("history_messages", []),
+                    "current_user_message": test_execution.get("current_user_message"),
+                    "response_body": test_execution.get("response_body"),
                     "selected_relationship_after": result.get("selected_relationship_after"),
                 }
 
@@ -309,6 +315,32 @@ class AICharacterChatTestView(CustomView):
                 {"error": f"Failed to check test readiness: {str(e)}"},
                 status_code=500,
             )
+
+    async def archive_conversations(self, request: Request) -> JSONResponse:
+        """API endpoint to archive all test conversations."""
+        try:
+            character_id_str = request.path_params.get("id")
+            if not character_id_str:
+                return JSONResponse({"error": "Missing character_id in URL path"}, status_code=400)
+
+            try:
+                character_id = int(character_id_str)
+            except (ValueError, TypeError):
+                return JSONResponse({"error": "Invalid character_id format"}, status_code=400)
+
+            async with SessionLocal() as db:
+                result = await ai_character_chat_test_service.archive_all_test_conversations(
+                    db=db, character_id=character_id
+                )
+                return JSONResponse(result)
+
+        except AICharacterChatTestError as e:
+            logger.error("archive_conversations_failed", character_id=character_id_str, error=str(e))
+            return JSONResponse({"success": False, "error": e.message}, status_code=400)
+
+        except Exception as e:
+            logger.error("archive_conversations_failed", character_id=character_id_str, error=str(e))
+            return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
 # Create view instance

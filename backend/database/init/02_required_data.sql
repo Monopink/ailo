@@ -56,11 +56,11 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('message_buffer_typing_end_wait_ms', '1000', '1000', 2, 'Short wait time in milliseconds after typing ends', 'message_buffer', NULL),
 ('message_buffer_no_typing_wait_ms', '2000', '2000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
 
--- AI context archive configurations
-('ai_context_archive_time', '604800', '604800', 2, 'Archive AI contexts older than this many seconds (7 days)', 'ai_context', NULL),
-('ai_context_archive_max_count', '50', '50', 2, 'Archive AI contexts when count exceeds this limit', 'ai_context', NULL),
-('ai_context_archive_min_count', '10', '10', 2, 'Minimum contexts to keep, do not archive if below this count', 'ai_context', NULL),
-('ai_context_archive_threshold', '80', '80', 2, 'Trigger immediate archive when count exceeds this threshold', 'ai_context', NULL),
+-- AI conversation archive configurations (values in seconds unless otherwise noted)
+('ai_conversation_archive_time', '604800', '604800', 2, 'Archive AI conversation items older than this many seconds (7 days)', 'ai_conversation', NULL),
+('ai_conversation_archive_max_count', '50', '50', 2, 'Archive AI conversation items when count exceeds this limit', 'ai_conversation', NULL),
+('ai_conversation_archive_min_count', '10', '10', 2, 'Minimum AI conversation items to keep; do not archive if below this count', 'ai_conversation', NULL),
+('ai_conversation_archive_threshold', '80', '80', 2, 'Trigger immediate archive when AI conversation items exceed this threshold', 'ai_conversation', NULL),
 
 -- API rate limit configuration
 ('api_rate_limit_requests', '1000', '100', 2, 'API requests per window', 'rate_limit', NULL),

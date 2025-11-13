@@ -213,7 +213,7 @@ updated_at
 
 ## ai_message_buffer
 
-消息缓冲窗口表；将用户端多条消息聚合为一个窗口，驱动双计时器逻辑（micro/macro）并控制抢占。只在窗口级写入，真正的历史由 `ai_conversation_items` 存储。
+消息缓冲窗口表；将用户端多条消息聚合为一个窗口，驱动双计时器逻辑（micro/macro）并控制抢占。
 
 ```txt
 id -- Snowflake ID
@@ -232,16 +232,9 @@ created_at
 updated_at
 ```
 
-**约束 & 索引**
-
-- `(user_qiao_id, character_qiao_id)` + `aggregate_state=2` 的部分唯一索引用于确保单会话仅有一个 LOCKED 窗口。
-- `micro_expires_at_ms`、`macro_expires_at_ms` 分别加条件索引（aggregate_state=1）以供扫描器按到期顺序拉取。
-- `idx_buffer_session`：`(user_qiao_id, character_qiao_id, aggregate_state)` 支撑状态查询。
-- 若后续需要完整消息 ID 列表，可增加 `ai_buffer_messages(buffer_id, client_msg_id, seq_no)`，MVP 暂不实现，保持 KISS。
-
 ## ai_conversation_items
 
-对话历史表，完整记录多模态消息内容，直接映射 Doubao Responses API `content` 数组。所有系统、用户、助手消息都会双写到此表；`buffer_id` 仅对用户消息赋值，指向对应的 `ai_message_buffer` 记录。
+对话历史表，完整记录多模态消息内容，直接映射 Doubao Responses API `content` 数组。
 
 ```txt
 id -- Snowflake ID
@@ -254,21 +247,6 @@ buffer_id -- 关联 ai_message_buffer.id，仅 user 角色可填
 is_excluded_from_context -- 是否从 LLM 上下文中剔除（攻击/敏感内容），默认false
 created_at
 ```
-
-**约束 & 索引**
-
-- 检查约束：`role='user'` 时必须携带 `buffer_id`，其他角色禁止填写。
-- `idx_conv_items_session (user_qiao_id, character_qiao_id, created_at DESC)`：上下文查询。
-- `idx_conv_items_buffer (buffer_id)`：逆向定位窗口。
-- `idx_conv_items_excluded`：标记攻击内容，构建上下文时直接过滤。
-
-**Block 类型约定**
-
-- 输入：`input_text`, `input_image`, `input_audio`, `input_video`
-- 输出：`output_text`, `output_audio`, `reasoning`
-- 工具：`tool_call`, `tool_result`
-
-直接使用官方 block 字段（如 `image_url` 内部再嵌 URL/分辨率），禁止再套 `{"blocks": [...]}`，以便与 Doubao Responses API 一一对应。
 
 ## ai_conversation_items_archive
 
@@ -362,15 +340,28 @@ display_name -- 显示名称
 prompt_fragment -- 提示词片段
 usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
-response_time_min_ms -- INT，微计时器下限，默认3000，CHECK >=500
-response_time_max_ms -- INT，微计时器上限，默认3000，CHECK >= response_time_min_ms
-response_time_bias -- VARCHAR(20)，balanced/centered/fast/slow/very_fast/very_slow
-no_reply_probability -- DECIMAL(3,2)，0.00-1.00，不回复概率
+response_time_min_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器下限（毫秒），CHECK >= 500
+response_time_max_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器上限（毫秒），CHECK >= response_time_min_ms
+response_time_bias -- VARCHAR(20) NOT NULL DEFAULT 'balanced'，响应时间倾向，CHECK IN ('balanced', 'centered', 'fast', 'slow', 'very_fast', 'very_slow')
+no_reply_probability -- DECIMAL(3,2) NOT NULL DEFAULT 0.00，不回复概率（0.00-1.00），CHECK >= 0 AND <= 1
 created_at
 updated_at
 ```
 
-响应时间字段驱动关系化的微计时采样：缓冲服务根据 bias 采样到期时间，并结合 `no_reply_probability` 直接决定是否跳过回复。
+**响应时间字段说明**：
+
+- `response_time_min_ms`：关系驱动的最小响应时间，最低 500ms，避免过快显得不真实
+- `response_time_max_ms`：关系驱动的最大响应时间，必须 >= min
+- `response_time_bias`：采样倾向，影响响应时间分布：
+  - `balanced`：均衡分布，在 [min, max] 内均匀随机
+  - `centered`：中间集中，集中在中间值附近
+  - `fast`：快速倾向，更多接近 min 的值
+  - `slow`：慢速倾向，更多接近 max 的值
+  - `very_fast`：极快倾向，集中在 min 附近
+  - `very_slow`：极慢倾向，集中在 max 附近
+- `no_reply_probability`：不回复概率，模拟真人可能忽略消息的情况
+
+响应时间字段驱动关系化的微计时采样：缓冲服务根据 bias 采样到期时间，并结合 `no_reply_probability` 直接决定是否跳过回复。详见 [relationship-response-timing.md](../development/relationship-response-timing.md)。
 
 ## ai_styles
 
@@ -576,11 +567,6 @@ updated_at
 
 LLM运行时配置表，管理具体的模型配置参数。
 
-**设计说明**：
-
-- 已移除 Doubao 上下文缓存相关字段（`enable_caching`, `cache_strategy`, `cache_ttl_seconds`）
-- 原因：系统采用动态裁剪上下文和实时生成系统提示词，与缓存机制冲突
-
 ```txt
 id -- 自增ID
 provider_id -- 关联llm_providers.id
@@ -614,11 +600,6 @@ updated_at
 ## ai_request_logs
 
 AI请求日志表，记录所有AI请求和响应（包括生产环境和测试环境）。
-
-**设计说明**：
-
-- 已移除缓存相关字段（`response_id`, `cache_hit`）
-- 更新关联字段名：`conversation_item_id` → `conversation_history_id`
 
 ```txt
 id -- Snowflake ID

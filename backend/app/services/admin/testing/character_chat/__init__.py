@@ -258,6 +258,44 @@ class AICharacterChatTestService:
                 "suggestions": ["Check system logs", "Contact administrator"],
             }
 
+    async def archive_all_test_conversations(self, db: AsyncSession, character_id: int) -> Dict[str, Any]:
+        """
+        Archive all conversation items for test character and test user.
+
+        Args:
+            db: Database session
+            character_id: AI character ID
+
+        Returns:
+            Dictionary with archived count
+
+        Raises:
+            AICharacterChatTestError: If archiving fails
+        """
+        try:
+            validation_result = await validation_service.validate_character_test_prerequisites(
+                db=db, character_id=character_id
+            )
+            user_match_result = await user_matcher_service.find_test_user_for_character(
+                db=db, character_info=validation_result["character"]
+            )
+
+            from services.ai.queries.transactions import archive_all_conversation_items
+
+            archived_count = await archive_all_conversation_items(
+                db=db,
+                user_qiao_id=user_match_result["test_user"]["qiao_id"],
+                character_qiao_id=validation_result["character"]["qiao_id"],
+            )
+
+            return {"success": True, "archived_count": archived_count}
+
+        except Exception as e:
+            logger.error("archive_test_conversations_failed", character_id=character_id, error=str(e))
+            raise AICharacterChatTestError(
+                f"Failed to archive conversations: {str(e)}", error_code="ARCHIVE_FAILED"
+            )
+
 
 # Global instance for dependency injection
 ai_character_chat_test_service = AICharacterChatTestService()

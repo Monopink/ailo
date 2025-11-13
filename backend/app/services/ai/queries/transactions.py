@@ -8,6 +8,7 @@ database operations and require atomicity.
 from copy import deepcopy
 from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
 from models.ai import AICharacter, AIConversationItemArchive, AIRequestLog
 from models.profile import Profile
@@ -414,6 +415,7 @@ async def archive_contexts_transaction(
                     response_id=context.response_id,
                     is_excluded_from_context=context.is_excluded_from_context,
                     created_at=context.created_at,
+                    archived_at=func.now(),
                 )
 
                 db.add(archive_entry)
@@ -450,3 +452,63 @@ async def archive_contexts_transaction(
             contexts_count=len(contexts_to_archive),
         )
         return 0
+
+
+async def archive_all_conversation_items(
+    db: AsyncSession, user_qiao_id: str, character_qiao_id: str
+) -> int:
+    """
+    Archive all conversation items for a user-character pair.
+
+    Args:
+        db: Database session
+        user_qiao_id: User's qiao_id
+        character_qiao_id: Character's qiao_id
+
+    Returns:
+        Number of items archived
+    """
+    from models.ai import AIConversationItem
+    from sqlalchemy import and_
+
+    try:
+        result = await db.execute(
+            select(AIConversationItem).where(
+                and_(
+                    AIConversationItem.user_qiao_id == user_qiao_id,
+                    AIConversationItem.character_qiao_id == character_qiao_id,
+                )
+            )
+        )
+        items = list(result.scalars().all())
+
+        if not items:
+            logger.info(
+                "no_conversation_items_to_archive",
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
+            )
+            return 0
+
+        archived_count = await archive_contexts_transaction(db, items, character_qiao_id)
+        await db.commit()
+
+        logger.info(
+            "all_conversation_items_archived",
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_qiao_id,
+            archived_count=archived_count,
+        )
+
+        return archived_count
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            "archive_all_conversation_items_failed",
+            error=str(e),
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_qiao_id,
+            exc_info=True,
+        )
+        raise

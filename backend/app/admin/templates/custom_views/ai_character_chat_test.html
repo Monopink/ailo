@@ -134,8 +134,9 @@ pre {
     <div class="col-12 col-lg-8">
       <!-- Chat Card -->
       <div class="card mb-3">
-        <div class="card-header">
-          <h3 class="card-title">聊天</h3>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="card-title mb-0">聊天</h3>
+          <button class="btn btn-outline-danger" id="archiveBtn">归档所有消息</button>
         </div>
         <div class="card-body">
           <!-- Chat display area -->
@@ -202,6 +203,9 @@ pre {
 
               <h4 class="fw-bold mb-2">Internal Thoughts</h4>
               <div id="respParsedInternalThoughts" class="text-muted mb-3">-</div>
+
+              <h4 class="fw-bold mb-2">Current State</h4>
+              <div id="respParsedCurrentState" class="text-muted mb-3">-</div>
 
               <h4 class="fw-bold mb-2">Outgoing Messages</h4>
               <div id="respParsedOutgoing" class="text-muted mb-3">-</div>
@@ -374,6 +378,36 @@ pre {
           sendMessage();
         }
       });
+      document.getElementById('archiveBtn').addEventListener('click', archiveAllMessages);
+    }
+
+    function archiveAllMessages() {
+      if (!confirm('确定要归档所有消息吗？归档后消息将从当前对话中移除。')) {
+        return;
+      }
+
+      var archiveBtn = document.getElementById('archiveBtn');
+      archiveBtn.disabled = true;
+      archiveBtn.textContent = '归档中...';
+
+      fetch('/qiao-dash/ai_character/chat-test/' + characterId + '?action=archive')
+        .then(r => r.json())
+        .then(function (data) {
+          if (data.success) {
+            var chatArea = document.getElementById('chatArea');
+            chatArea.innerHTML = '<div class="empty" id="chatEmptyState"><p class="empty-subtitle text-secondary">Send a message to begin the conversation</p></div>';
+            alert('成功归档 ' + data.archived_count + ' 条消息');
+          } else {
+            showError(data.error || '归档失败');
+          }
+        })
+        .catch(function (e) {
+          showError('归档请求失败: ' + e.message);
+        })
+        .finally(function () {
+          archiveBtn.disabled = false;
+          archiveBtn.textContent = '归档所有消息';
+        });
     }
 
     function sendMessage() {
@@ -420,25 +454,26 @@ pre {
           // Display full conversation
           var chatArea = document.getElementById('chatArea');
           chatArea.innerHTML = '';
-          var reqMsgs = null;
-          if (data.request_payload && Array.isArray(data.request_payload.messages)) {
-            reqMsgs = data.request_payload.messages;
-          } else if (data.request_payload && data.request_payload.payload && Array.isArray(data.request_payload.payload.messages)) {
-            reqMsgs = data.request_payload.payload.messages;
-          }
-          if (reqMsgs) {
-            reqMsgs.forEach(function (m) {
-              if (m.role === 'system') {
-                appendMessage('system', m.content);
-              } else if (m.role === 'user') {
-                appendMessage('user', m.content);
-              } else if (m.role === 'assistant') {
-                appendMessage('ai', m.content);
-              }
-            });
+
+          // Display history messages (excludes current user message per backend logic)
+          var historyMessages = Array.isArray(data.history_messages) ? data.history_messages : [];
+          historyMessages.forEach(function (msg) {
+            if (!msg || !msg.text) return;
+            var role = (msg.role === 'assistant') ? 'ai' : 'user';
+            appendMessage(role, msg.text);
+          });
+
+          // Display current user message only if not already in history
+          var currentUserMessage = (data.current_user_message || '').trim();
+          var alreadyInHistory = historyMessages.some(function(msg) {
+            return msg.role === 'user' && msg.text === currentUserMessage;
+          });
+          if (currentUserMessage && !alreadyInHistory) {
+            appendMessage('user', currentUserMessage);
           }
 
-          if (data.conversation && data.conversation.all_messages) {
+          // Display the latest AI response (outgoing + followup)
+          if (data.conversation && Array.isArray(data.conversation.all_messages)) {
             data.conversation.all_messages.forEach(function (m) {
               appendMessage('ai', m);
             });
@@ -596,44 +631,82 @@ pre {
     function updateResponseDetails(data) {
       if (!data || !data.conversation) return;
       var conv = data.conversation;
+      var responseBody = data.response_body || {};
       var toText = function (x) {
         try { return (typeof x === 'string') ? x : JSON.stringify(x, null, 2); } catch (_) { return String(x); }
       };
       // System prompt (from request payload)
       try {
         var reqMsgs = null;
-        if (data.request_payload && Array.isArray(data.request_payload.messages)) {
-          reqMsgs = data.request_payload.messages;
-        } else if (data.request_payload && data.request_payload.payload && Array.isArray(data.request_payload.payload.messages)) {
-          reqMsgs = data.request_payload.payload.messages;
+        // Parse request_payload - support both Responses API (input) and Chat Completions (messages) formats
+        if (data.request_payload) {
+          if (Array.isArray(data.request_payload.input)) {
+            reqMsgs = data.request_payload.input;
+          } else if (Array.isArray(data.request_payload.messages)) {
+            reqMsgs = data.request_payload.messages;
+          } else if (data.request_payload.payload && Array.isArray(data.request_payload.payload.messages)) {
+            reqMsgs = data.request_payload.payload.messages;
+          }
         }
+
         var sysTexts = [];
         if (reqMsgs) {
-          reqMsgs.forEach(function (m) { if (m && m.role === 'system') sysTexts.push(String(m.content || '')); });
+          reqMsgs.forEach(function (m) {
+            if (m && m.role === 'system') {
+              var content = m.content;
+              var text = '';
+
+              // Extract text from content (handle both string and block array formats)
+              if (typeof content === 'string') {
+                text = content;
+              } else if (Array.isArray(content)) {
+                // Responses API format: content is array of blocks
+                content.forEach(function (block) {
+                  if (block && block.text) {
+                    text += block.text;
+                  }
+                });
+              }
+
+              if (text) {
+                sysTexts.push(text);
+              }
+            }
+          });
         }
+
         var sysPre = document.getElementById('respParsedSystemPrompt');
         if (sysPre) sysPre.textContent = sysTexts.length > 0 ? sysTexts.join('\n\n') : '-';
       } catch (_) { }
 
       // Internal Thoughts
       var internalThoughtsEl = document.getElementById('respParsedInternalThoughts');
-      internalThoughtsEl.textContent = conv.internal_thoughts ? String(conv.internal_thoughts) : '-';
+      var internalThoughts = responseBody.internal_thoughts ?? conv.internal_thoughts;
+      internalThoughtsEl.textContent = internalThoughts ? String(internalThoughts) : '-';
+
+      var currentStateEl = document.getElementById('respParsedCurrentState');
+      var currentState = responseBody.current_state;
+      currentStateEl.textContent = currentState ? String(currentState) : '-';
 
       // Outgoing Messages
       var outgoingEl = document.getElementById('respParsedOutgoing');
-      outgoingEl.textContent = Array.isArray(conv.outgoing_messages) && conv.outgoing_messages.length > 0 ? conv.outgoing_messages.map(String).join(', ') : '-';
+      var outgoingMessages = Array.isArray(responseBody.outgoing_messages) ? responseBody.outgoing_messages : conv.outgoing_messages;
+      outgoingEl.textContent = Array.isArray(outgoingMessages) && outgoingMessages.length > 0 ? outgoingMessages.map(String).join('\n') : '-';
 
       // Followup Messages
       var followupEl = document.getElementById('respParsedFollowup');
-      followupEl.textContent = Array.isArray(conv.followup_messages) && conv.followup_messages.length > 0 ? conv.followup_messages.map(String).join(', ') : '-';
+      var followupMessages = Array.isArray(responseBody.followup_messages) ? responseBody.followup_messages : conv.followup_messages;
+      followupEl.textContent = Array.isArray(followupMessages) && followupMessages.length > 0 ? followupMessages.map(String).join('\n') : '-';
 
       // Memory Operations (keep as pre tag for JSON formatting)
-      document.getElementById('respParsedMemoryOps').textContent = conv.memory_operations ? toText(conv.memory_operations) : '-';
+      var memoryOps = responseBody.memory_operations ?? conv.memory_operations;
+      document.getElementById('respParsedMemoryOps').textContent = memoryOps ? toText(memoryOps) : '-';
 
       // Score updates as plain text
       var scoresEl = document.getElementById('respParsedScoreUpdates');
-      if (conv.score_updates && Object.keys(conv.score_updates).length > 0) {
-        var su = conv.score_updates;
+      var scoreUpdates = responseBody.score || conv.score_updates;
+      if (scoreUpdates && Object.keys(scoreUpdates).length > 0) {
+        var su = scoreUpdates;
         var items = Object.keys(su).map(function (k) {
           return k + ': ' + String(su[k]);
         });
@@ -677,8 +750,10 @@ pre {
       }
 
       var flags = [];
-      if (conv.should_reply !== undefined) flags.push('should_reply=' + String(conv.should_reply));
-      if (conv.attack_detected !== undefined) flags.push('attack_detected=' + String(conv.attack_detected));
+      var shouldReply = (responseBody.should_reply !== undefined) ? responseBody.should_reply : conv.should_reply;
+      var attackDetected = (responseBody.attack_detected !== undefined) ? responseBody.attack_detected : conv.attack_detected;
+      if (shouldReply !== undefined) flags.push('should_reply=' + String(shouldReply));
+      if (attackDetected !== undefined) flags.push('attack_detected=' + String(attackDetected));
       document.getElementById('respParsedFlags').textContent = flags.length > 0 ? flags.join(' | ') : '-';
     }
   </script>

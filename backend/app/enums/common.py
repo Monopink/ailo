@@ -308,6 +308,7 @@ class AIRelationshipStatus(IntEnum):
 class AIMessageBufferState(IntEnum):
     """Message buffer aggregate state (ai_message_buffer.aggregate_state)"""
 
+    WAITING_WAKEUP = 0  # Waiting to finish wake timer before aggregation
     OPEN = 1  # Waiting for merge/timer
     LOCKED = 2  # Processing (only one per conversation)
     COMPLETE = 3  # Processing completed

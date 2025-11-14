@@ -7,7 +7,7 @@ This module contains Starlette-Admin views for AI style and relationship system.
 from typing import Any, Dict
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import IntegerField, StringField, TextAreaField, HasOne
+from starlette_admin import IntegerField, StringField, TextAreaField, HasOne, FloatField, EnumField
 from admin.fields import LocalDateTimeField
 from starlette_admin.actions import link_row_action
 from starlette_admin.exceptions import FormValidationError
@@ -110,6 +110,21 @@ class AIStyleView(ModelView):
         return f"/qiao-dash/ai_style/test/{pk}"
 
 
+WAKE_BIAS_CHOICES = [
+    ("balanced", "Balanced"),
+    ("centered", "Centered"),
+    ("fast", "Fast"),
+    ("slow", "Slow"),
+    ("very_fast", "Very Fast"),
+    ("very_slow", "Very Slow"),
+]
+
+WAKE_ADJUSTMENT_CHOICES = [
+    ("none", "No Adjustment (keep full wait, ≥1s)"),
+    ("random_half", "Random Half (50% chance to shorten)"),
+]
+
+
 class AIRelationshipView(ModelView):
     """Enhanced AI Relationship view with proper field configuration."""
 
@@ -129,7 +144,19 @@ class AIRelationshipView(ModelView):
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at", "updated_at"]
+    sortable_fields = [
+        "id",
+        "name",
+        "display_name",
+        "wake_time_min_ms",
+        "wake_time_max_ms",
+        "wake_window_ms",
+        "no_reply_probability",
+        "usage_count",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Internal relationship ID"),
@@ -147,6 +174,44 @@ class AIRelationshipView(ModelView):
             label="Prompt Fragment",
             help_text="Text fragment to be included in AI prompts for this relationship",
             required=False,
+        ),
+        IntegerField(
+            "wake_time_min_ms",
+            label="Wake Time Min (ms)",
+            help_text="Minimum wake delay; must be ≥500",
+            required=True,
+        ),
+        IntegerField(
+            "wake_time_max_ms",
+            label="Wake Time Max (ms)",
+            help_text="Maximum wake delay; must be ≥ min",
+            required=True,
+        ),
+        EnumField(
+            "wake_time_bias",
+            choices=WAKE_BIAS_CHOICES,
+            label="Wake Bias",
+            help_text="Distribution bias for wake sampling",
+            required=True,
+        ),
+        IntegerField(
+            "wake_window_ms",
+            label="Wake Window (ms)",
+            help_text="Skip wake if last user message within this window",
+            required=True,
+        ),
+        EnumField(
+            "wake_time_adjustment",
+            choices=WAKE_ADJUSTMENT_CHOICES,
+            label="Wake Adjustment",
+            help_text="Either keep the wait or apply the random-half algorithm (50% chance to shorten)",
+            required=True,
+        ),
+        FloatField(
+            "no_reply_probability",
+            label="No Reply Probability",
+            help_text="Chance of skipping reply after wake (0.0–1.0)",
+            required=True,
         ),
         IntegerEnumField(
             "status",

@@ -11,19 +11,22 @@ Design: Follows ai-message-processing.md specification
 """
 
 import asyncio
+import random
 from typing import Optional, Set
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import SessionLocal
 from enums.common import AIMessageBufferState
 from models.ai.character import AIMessageBuffer
 from services.message.processing.buffer import (
+    finalize_buffer_if_locked,
     get_locked_context,
     lock_conversation_preemptively,
     _get_db_now_ms,
 )
+from services.ai.queries.character_queries import get_character_relationship_config
 from services.ai.conversation_flow import process_conversation
 from utils.logging import get_logger
 
@@ -107,15 +110,35 @@ async def _scan_and_process() -> None:
     Scan for expired contexts and trigger processing.
 
     Steps:
-    1. Query expired OPEN contexts (buffer_expires_at_ms <= now)
-    2. Group by conversation (user_qiao_id, character_qiao_id)
-    3. For each conversation, attempt preemptive lock
-    4. If locked successfully, trigger AI processing asynchronously
+    1. Promote WAITING_WAKEUP buffers whose wake timers expired
+    2. Query expired OPEN contexts (buffer_expires_at_ms <= now)
+    3. Group by conversation (user_qiao_id, character_qiao_id)
+    4. For each conversation, attempt preemptive lock
+    5. If locked successfully, trigger AI processing asynchronously
     """
     async with SessionLocal() as db:
         try:
             # Get current DB time
             now_ms = await _get_db_now_ms(db)
+
+            # Step 1: promote wake-complete buffers
+            wake_result = await db.execute(
+                update(AIMessageBuffer)
+                .where(
+                    AIMessageBuffer.aggregate_state == AIMessageBufferState.WAITING_WAKEUP,
+                    AIMessageBuffer.wake_expires_at_ms.is_not(None),
+                    AIMessageBuffer.wake_expires_at_ms <= now_ms,
+                )
+                .values(
+                    aggregate_state=AIMessageBufferState.OPEN,
+                    wake_expires_at_ms=None,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            wake_count = wake_result.rowcount or 0
+            if wake_count:
+                await db.commit()
+                logger.info("wake_expired_buffers_transitioned", count=wake_count)
 
             # Query expired OPEN contexts (distinct conversations)
             result = await db.execute(
@@ -193,13 +216,6 @@ async def _process_conversation_async(
                 )
                 return
 
-            logger.info(
-                "triggering_ai_processing",
-                buffer_id=buffer_id,
-                user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
-            )
-
             # Step 2: Get locked context content
             context = await get_locked_context(db, buffer_id)
 
@@ -209,6 +225,30 @@ async def _process_conversation_async(
                     buffer_id=buffer_id,
                 )
                 return
+
+            relationship_config = await get_character_relationship_config(db, character_qiao_id)
+            no_reply_prob = float((relationship_config or {}).get("no_reply_probability", 0.0))
+            should_reply = random.random() >= no_reply_prob
+
+            if not should_reply:
+                finalized = await finalize_buffer_if_locked(
+                    db, buffer_id, target_state=AIMessageBufferState.COMPLETE
+                )
+                if finalized:
+                    await db.commit()
+                    logger.info(
+                        "buffer_no_reply_decision",
+                        buffer_id=buffer_id,
+                        no_reply_probability=no_reply_prob,
+                    )
+                return
+
+            logger.info(
+                "triggering_ai_processing",
+                buffer_id=buffer_id,
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
+            )
 
             # Step 3: Trigger AI processing
             # Note: process_conversation will handle finalization and error handling

@@ -153,28 +153,44 @@ class AIRelationship(AutoIncrementModel):
         Integer, nullable=False, default=1, server_default=text("1"), comment="Status: 1=active, 2=inactive"
     )
 
-    response_time_min_ms: Mapped[int] = mapped_column(
+    wake_time_min_ms: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=3000,
         server_default=text("3000"),
-        comment="Lower bound for relationship-driven micro timer (ms)",
+        comment="Minimum wake wait time (ms), minimum 500ms",
     )
 
-    response_time_max_ms: Mapped[int] = mapped_column(
+    wake_time_max_ms: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=3000,
         server_default=text("3000"),
-        comment="Upper bound for relationship-driven micro timer (ms)",
+        comment="Maximum wake wait time (ms), must be >= min",
     )
 
-    response_time_bias: Mapped[str] = mapped_column(
+    wake_time_bias: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default="balanced",
         server_default=text("'balanced'"),
-        comment="Sampling bias for response timing distribution",
+        comment="Sampling bias for wake time distribution",
+    )
+
+    wake_window_ms: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=60000,
+        server_default=text("60000"),
+        comment="Skip wake if last message within this window (ms)",
+    )
+
+    wake_time_adjustment: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="random_half",
+        server_default=text("'random_half'"),
+        comment="Wait time adjustment when new message arrives",
     )
 
     no_reply_probability: Mapped[float] = mapped_column(
@@ -182,7 +198,7 @@ class AIRelationship(AutoIncrementModel):
         nullable=False,
         default=0,
         server_default=text("0"),
-        comment="Probability of intentionally skipping a reply",
+        comment="Probability of intentionally skipping a reply after wake",
     )
 
     # Relationships
@@ -194,9 +210,9 @@ class AIRelationship(AutoIncrementModel):
     )
 
     __table_args__ = (
-        CheckConstraint("response_time_min_ms >= 500", name="ck_ai_relationships_response_time_min"),
+        CheckConstraint("wake_time_min_ms >= 500", name="ck_ai_relationships_response_time_min"),
         CheckConstraint(
-            "response_time_max_ms >= response_time_min_ms",
+            "wake_time_max_ms >= wake_time_min_ms",
             name="ck_ai_relationships_response_time_bounds",
         ),
         CheckConstraint(

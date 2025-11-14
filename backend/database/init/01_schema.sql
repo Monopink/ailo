@@ -373,9 +373,23 @@ CREATE TABLE IF NOT EXISTS ai_relationships (
     prompt_fragment TEXT,
     usage_count INTEGER NOT NULL DEFAULT 0,
     status INTEGER NOT NULL DEFAULT 1,
+    wake_time_min_ms INTEGER NOT NULL DEFAULT 3000 CHECK (wake_time_min_ms >= 500),
+    wake_time_max_ms INTEGER NOT NULL DEFAULT 3000 CHECK (wake_time_max_ms >= wake_time_min_ms),
+    wake_time_bias VARCHAR(20) NOT NULL DEFAULT 'balanced' CHECK (wake_time_bias <> ''),
+    wake_window_ms INTEGER NOT NULL DEFAULT 60000 CHECK (wake_window_ms >= 0),
+    wake_time_adjustment VARCHAR(20) NOT NULL DEFAULT 'random_half' CHECK (wake_time_adjustment <> ''),
+    no_reply_probability DECIMAL(3,2) NOT NULL DEFAULT 0.00 CHECK (no_reply_probability >= 0 AND no_reply_probability <= 1),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+-- Add comments for ai_relationships table
+COMMENT ON COLUMN ai_relationships.wake_time_min_ms IS 'Minimum wake wait time (ms), minimum 500ms';
+COMMENT ON COLUMN ai_relationships.wake_time_max_ms IS 'Maximum wake wait time (ms), must be >= min';
+COMMENT ON COLUMN ai_relationships.wake_time_bias IS 'Sampling bias: balanced/centered/fast/slow/very_fast/very_slow';
+COMMENT ON COLUMN ai_relationships.wake_window_ms IS 'Skip wake if last message within this window (ms)';
+COMMENT ON COLUMN ai_relationships.wake_time_adjustment IS 'Wait time adjustment when new message arrives';
+COMMENT ON COLUMN ai_relationships.no_reply_probability IS 'Probability of not replying after wake (0.00-1.00)';
 
 -- Create indexes for ai_relationships table
 -- Note: No additional indexes needed for MVP
@@ -547,14 +561,20 @@ CREATE TABLE IF NOT EXISTS ai_message_buffer (
     micro_expires_at_ms BIGINT,
     macro_expires_at_ms BIGINT,
     buffer_expires_at_ms BIGINT,
+    wake_expires_at_ms BIGINT,
     last_message_category VARCHAR(32),
     first_msg_id_client VARCHAR(64),
     last_msg_id_client VARCHAR(64),
     message_count INTEGER NOT NULL DEFAULT 1,
     last_msg_time_ms BIGINT,
     locked_at TIMESTAMP WITH TIME ZONE,
+    wake_adjustment_count SMALLINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_wake_expires_state CHECK (
+        (aggregate_state = 0 AND wake_expires_at_ms IS NOT NULL)
+        OR (aggregate_state <> 0 AND wake_expires_at_ms IS NULL)
+    )
 );
 
 CREATE INDEX idx_ai_message_buffer_session_state ON ai_message_buffer(user_qiao_id, character_qiao_id, aggregate_state);
@@ -562,6 +582,10 @@ CREATE INDEX idx_ai_message_buffer_micro ON ai_message_buffer(micro_expires_at_m
 CREATE INDEX idx_ai_message_buffer_macro ON ai_message_buffer(macro_expires_at_ms) WHERE aggregate_state = 1 AND macro_expires_at_ms IS NOT NULL;
 CREATE UNIQUE INDEX idx_ai_message_buffer_locked ON ai_message_buffer(user_qiao_id, character_qiao_id) WHERE aggregate_state = 2;
 CREATE INDEX idx_ai_message_buffer_expire_scan ON ai_message_buffer(user_qiao_id, character_qiao_id, buffer_expires_at_ms) WHERE aggregate_state = 1 AND buffer_expires_at_ms IS NOT NULL;
+CREATE INDEX idx_ai_message_buffer_wake_scan ON ai_message_buffer(wake_expires_at_ms) WHERE aggregate_state = 0 AND wake_expires_at_ms IS NOT NULL;
+
+COMMENT ON COLUMN ai_message_buffer.wake_expires_at_ms IS 'Wake timer expiration (ms), NULL if already awake or in OPEN state';
+COMMENT ON COLUMN ai_message_buffer.wake_adjustment_count IS 'Number of times wake time was adjusted by new messages';
 
 -- AI conversation items table - Responses API compatible blocks
 CREATE TABLE IF NOT EXISTS ai_conversation_items (
@@ -999,11 +1023,11 @@ CREATE TABLE IF NOT EXISTS llm_configs (
     extra_params JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT check_thinking_mode CHECK (thinking_mode IN ('enabled', 'disabled', 'auto')),
+    CONSTRAINT check_thinking_mode CHECK (thinking_mode <> ''),
     CONSTRAINT check_top_p CHECK (top_p >= 0 AND top_p <= 1),
     CONSTRAINT check_frequency_penalty CHECK (frequency_penalty >= -2 AND frequency_penalty <= 2),
     CONSTRAINT check_presence_penalty CHECK (presence_penalty >= -2 AND presence_penalty <= 2),
-    CONSTRAINT check_default_tool_choice CHECK (default_tool_choice IN ('auto', 'none', 'required')),
+    CONSTRAINT check_default_tool_choice CHECK (default_tool_choice <> ''),
     CONSTRAINT check_max_tool_calls CHECK (max_tool_calls >= 0)
 );
 
@@ -1050,7 +1074,7 @@ CREATE TABLE IF NOT EXISTS llm_test_logs (
 );
 
 ALTER TABLE llm_test_logs
-    ADD CONSTRAINT check_llm_test_logs_thinking_mode CHECK (thinking_mode IN ('enabled', 'disabled', 'auto'));
+    ADD CONSTRAINT check_llm_test_logs_thinking_mode CHECK (thinking_mode <> '');
 
 COMMENT ON COLUMN llm_test_logs.thinking_mode IS 'Thinking mode: enabled/disabled/auto';
 

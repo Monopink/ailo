@@ -152,7 +152,9 @@ class AIMessageBuffer(SnowflakeModel):
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
     character_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Character external ID")
     aggregate_state: Mapped[int] = mapped_column(
-        SmallInteger, nullable=False, comment="Buffer state: 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED"
+        SmallInteger,
+        nullable=False,
+        comment="Buffer state: 0=WAITING_WAKEUP, 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED",
     )
     micro_expires_at_ms: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, comment="Micro timer expiration timestamp (ms)"
@@ -181,6 +183,18 @@ class AIMessageBuffer(SnowflakeModel):
     locked_at: Mapped[Optional[DateTime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Timestamp when buffer entered LOCKED state"
     )
+    wake_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        nullable=True,
+        comment="Wake timer expiration (ms), NULL if already awake or in OPEN state",
+    )
+    wake_adjustment_count: Mapped[int] = mapped_column(
+        SmallInteger,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Number of times wake time was adjusted by new messages",
+    )
 
     __table_args__ = (
         Index("idx_ai_message_buffer_session_state", "user_qiao_id", "character_qiao_id", "aggregate_state"),
@@ -207,6 +221,11 @@ class AIMessageBuffer(SnowflakeModel):
             "character_qiao_id",
             "buffer_expires_at_ms",
             postgresql_where=text("aggregate_state = 1 AND buffer_expires_at_ms IS NOT NULL"),
+        ),
+        Index(
+            "idx_ai_message_buffer_wake_scan",
+            "wake_expires_at_ms",
+            postgresql_where=text("aggregate_state = 0 AND wake_expires_at_ms IS NOT NULL"),
         ),
     )
 

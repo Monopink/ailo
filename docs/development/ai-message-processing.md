@@ -121,6 +121,52 @@
 
 不影响计时器且不记录为上一条消息。
 
+## 唤醒机制（Wake Mechanism）
+
+### 设计目标
+
+模拟真人"看到消息后思考一段时间"的行为，使 AI 响应速度反映与用户的关系等级。
+
+### 状态扩展
+
+在原有状态基础上新增 WAITING_WAKEUP 状态（值为 0）：
+
+- `WAITING_WAKEUP = 0`: 等待唤醒（新增）
+- `OPEN = 1`: 开放（聚合中）
+- `LOCKED = 2`: 已锁定（处理中）
+- `COMPLETE = 3`: 已完成
+- `CANCELLED = 4`: 已取消
+
+### 新增字段
+
+- `wake_expires_at_ms`: 唤醒计时器到期时间（毫秒时间戳），仅在 WAITING_WAKEUP 状态下非 NULL
+- `wake_adjustment_count`: 等待期间收到新消息的调整次数
+
+### 流程集成
+
+1. **消息到达时判断是否需要唤醒**：
+   - 查询最近的 COMPLETE buffer，检查 last_msg_time_ms 是否在 wake_window_ms 内
+   - 如果在窗口内 → 跳过唤醒，直接创建 OPEN buffer
+   - 如果超出窗口 → 创建 WAITING_WAKEUP buffer
+
+2. **WAITING_WAKEUP → OPEN 转换**：
+   - Scanner 扫描 wake_expires_at_ms 到期的 WAITING_WAKEUP buffer
+   - 批量更新为 OPEN 状态，清空 wake_expires_at_ms
+   - 进入现有的 buffer 聚合流程
+
+3. **等待期间收到新消息**：
+   - 根据 wake_time_adjustment 算法调整 wake_expires_at_ms
+   - wake_adjustment_count += 1
+   - 更新 buffer 内容
+
+### 与现有流程的关系
+
+- 唤醒机制在 buffer 流程**之前**，不影响现有的双计时器逻辑
+- WAITING_WAKEUP 状态的 buffer 不参与 OPEN buffer 的查询和锁定
+- 初次对话（无历史 COMPLETE buffer）跳过唤醒，直接创建 OPEN buffer
+
+详细设计参见 [relationship-response-timing.md](relationship-response-timing.md)
+
 ## 整体流程
 
 ### 1) 入站缓冲（add_message_to_buffer）

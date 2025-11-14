@@ -212,6 +212,69 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optio
         return None
 
 
+async def get_character_relationship_config(
+    db: AsyncSession,
+    character_qiao_id: str,
+) -> Optional[Dict[str, Any]]:
+    """
+    Fetch wake timing configuration for the character's current relationship.
+
+    Returns None for first conversations (no relationship_id yet),
+    the actual configuration when available, or a hard-coded default
+    if the relationship row is missing/invalid.
+    """
+
+    try:
+        stmt = (
+            select(AICharacter.relationship_id, AIRelationship)
+            .join(
+                AIRelationship,
+                AICharacter.relationship_id == AIRelationship.id,
+                isouter=True,
+            )
+            .where(AICharacter.qiao_id == character_qiao_id)
+        )
+        result = await db.execute(stmt)
+        row = result.first()
+
+        if not row:
+            logger.warning(
+                "character_not_found_for_relationship_config",
+                character_qiao_id=character_qiao_id,
+            )
+            return None
+
+        relationship_id, relationship = row
+
+        if relationship_id is None:
+            return None  # First conversation: skip wake logic
+
+        if not relationship:
+            logger.warning(
+                "relationship_config_missing",
+                character_qiao_id=character_qiao_id,
+                relationship_id=relationship_id,
+            )
+            return _default_relationship_timing()
+
+        return {
+            "wake_time_min_ms": int(relationship.wake_time_min_ms),
+            "wake_time_max_ms": int(relationship.wake_time_max_ms),
+            "wake_time_bias": relationship.wake_time_bias,
+            "wake_window_ms": int(relationship.wake_window_ms),
+            "wake_time_adjustment": relationship.wake_time_adjustment,
+            "no_reply_probability": float(relationship.no_reply_probability or 0.0),
+        }
+
+    except Exception as exc:
+        logger.error(
+            "relationship_config_fetch_failed",
+            error=str(exc),
+            character_qiao_id=character_qiao_id,
+        )
+        return _default_relationship_timing()
+
+
 async def get_character_id_by_qiao_id(db: AsyncSession, character_qiao_id: str) -> Optional[int]:
     """
     Get character ID by qiao_id.
@@ -308,3 +371,16 @@ async def get_all_characters(db: AsyncSession) -> List[Dict[str, Any]]:
             error=str(e),
         )
         return []
+
+
+def _default_relationship_timing() -> Dict[str, Any]:
+    """Provide sane defaults when relationship timing data is unavailable."""
+
+    return {
+        "wake_time_min_ms": 2000,
+        "wake_time_max_ms": 4000,
+        "wake_time_bias": "balanced",
+        "wake_window_ms": 60000,
+        "wake_time_adjustment": "random_half",
+        "no_reply_probability": 0.0,
+    }

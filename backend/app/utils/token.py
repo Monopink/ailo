@@ -11,7 +11,11 @@ from enums import DeviceType
 
 
 def generate_jwt_token(
-    user_id: int, qiao_id: str, device_type: DeviceType, session_id: Optional[int] = None
+    user_id: int,
+    qiao_id: str,
+    device_type: DeviceType,
+    expires_in_seconds: int,
+    session_id: Optional[int] = None,
 ) -> str:
     """
     Generate a JWT token for user authentication.
@@ -20,6 +24,7 @@ def generate_jwt_token(
         user_id: Internal user ID
         qiao_id: User's qiao_id
         device_type: Device type enum
+        expires_in_seconds: Token lifetime in seconds
         session_id: Optional session/token record ID (will be set after token creation)
 
     Returns:
@@ -27,12 +32,8 @@ def generate_jwt_token(
     """
     from utils.snowflake import generate_snowflake_id
 
-    # Get expiration time from system config (in seconds)
-    # Default to 14 days if not configured
-    expires_in = 1209600  # 14 days in seconds
-
     now = datetime.utcnow()
-    exp = now + timedelta(seconds=expires_in)
+    exp = now + timedelta(seconds=expires_in_seconds)
 
     payload = {
         "sub": qiao_id,  # Subject: user qiao_id
@@ -74,15 +75,7 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def calculate_token_expiry() -> datetime:
-    """
-    Calculate token expiration time based on system config.
+def calculate_token_expiry(expires_in_seconds: int) -> datetime:
+    """Calculate token expiration timestamp based on provided duration."""
 
-    Returns:
-        Expiration datetime (UTC)
-    """
-    # Get expiration time from system config (in seconds)
-    # Default to 14 days if not configured
-    expires_in = 1209600  # 14 days in seconds
-
-    return datetime.utcnow() + timedelta(seconds=expires_in)
+    return datetime.utcnow() + timedelta(seconds=expires_in_seconds)

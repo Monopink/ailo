@@ -38,6 +38,22 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+async def _get_contact_expiration_days(db: AsyncSession) -> int:
+    """Read contact request expiration from configuration (stored in days)."""
+
+    expiry_days_value = await system_configs.get_config_value(
+        db, config_key="contact_request_expiration_days"
+    )
+    if expiry_days_value is None:
+        logger.error("contact_request_expiration_config_missing")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统配置缺失",
+        )
+
+    return int(expiry_days_value)
+
+
 async def get_ai_contact_limit(db: AsyncSession, user_qiao_id: str) -> int:
     """
     Get AI contact limit for user.
@@ -485,10 +501,7 @@ async def _check_and_update_pending_request(
         existing_request.message = request.message
         existing_request.source = request.source
         # Extend expiry window
-        expiry_days_config = await system_configs.get_config_value(
-            db, config_key="contact_request_expiry_days"
-        )
-        expiry_days = int(expiry_days_config) if expiry_days_config else 3
+        expiry_days = await _get_contact_expiration_days(db)
         existing_request.expires_at = datetime.now() + timedelta(days=expiry_days)
         db.add(existing_request)
         await db.commit()
@@ -597,8 +610,7 @@ async def _create_request_record(
         )
 
     # Calculate expiration time
-    expiry_days_config = await system_configs.get_config_value(db, config_key="contact_request_expiry_days")
-    expiry_days = int(expiry_days_config) if expiry_days_config else 3
+    expiry_days = await _get_contact_expiration_days(db)
     expires_at = datetime.now() + timedelta(days=expiry_days)
 
     # Create contact request record

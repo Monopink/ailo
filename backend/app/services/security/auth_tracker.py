@@ -17,6 +17,26 @@ logger = get_logger(__name__)
 # Global cache for failure tracking
 _failure_cache: Dict[str, Dict] = {}
 
+MAX_FAILURE_KEYS: Dict[str, str] = {
+    "admin_auth": "admin_auth_max_failures",
+    "user_auth": "auth_max_failures",
+}
+
+LOCKOUT_DURATION_KEYS: Dict[str, Tuple[str, int]] = {
+    "admin_auth": ("admin_auth_lockout_duration_minutes", 60),
+    "user_auth": ("auth_lockout_duration_minutes", 60),
+}
+
+CAPTCHA_THRESHOLD_KEYS: Dict[str, str] = {
+    "admin_auth": "admin_captcha_threshold_failures",
+    "user_auth": "captcha_threshold_failures",
+}
+
+AUTH_WHITELIST_KEYS: Dict[str, Optional[str]] = {
+    "admin_auth": "admin_auth_whitelist",
+    "user_auth": None,
+}
+
 
 async def record_auth_failure(
     identifier: str, auth_type: str, db: AsyncSession  # IP or user_id  # 'admin_auth' or 'user_auth'
@@ -39,9 +59,13 @@ async def record_auth_failure(
     # Record failure
     _failure_cache[cache_key]["failures"].append(now)
 
-    # Get lockout configuration
-    max_failures = int(await get_config(db, key=f"{auth_type}_max_failures"))
-    lockout_duration = int(await get_config(db, key=f"{auth_type}_lockout_duration"))
+    if auth_type not in MAX_FAILURE_KEYS or auth_type not in LOCKOUT_DURATION_KEYS:
+        raise ValueError(f"Unsupported auth_type: {auth_type}")
+
+    max_failures = int(await get_config(db, key=MAX_FAILURE_KEYS[auth_type]))
+    duration_key, multiplier = LOCKOUT_DURATION_KEYS[auth_type]
+    lockout_duration_value = int(await get_config(db, key=duration_key))
+    lockout_duration = lockout_duration_value * multiplier
 
     # Clean old failures (outside lockout window)
     while (
@@ -86,14 +110,18 @@ async def check_lockout(identifier: str, auth_type: str, db: AsyncSession) -> Tu
     Returns:
         (is_locked, remaining_seconds)
     """
-    # Check whitelist first
-    whitelist_str = await get_config(db, key=f"{auth_type}_whitelist", required=False) or ""
+    if auth_type not in AUTH_WHITELIST_KEYS:
+        raise ValueError(f"Unsupported auth_type: {auth_type}")
 
-    if whitelist_str:
-        whitelist = [ip.strip() for ip in whitelist_str.split(",")]
-        if identifier in whitelist:
-            logger.debug("auth_whitelist_allowed", identifier=identifier, auth_type=auth_type)
-            return False, None
+    whitelist_key = AUTH_WHITELIST_KEYS.get(auth_type)
+    if whitelist_key:
+        whitelist_str = await get_config(db, key=whitelist_key, required=False) or ""
+
+        if whitelist_str:
+            whitelist = [ip.strip() for ip in whitelist_str.split(",")]
+            if identifier in whitelist:
+                logger.debug("auth_whitelist_allowed", identifier=identifier, auth_type=auth_type)
+                return False, None
 
     cache_key = f"{auth_type}:{identifier}"
     now = time.time()
@@ -144,8 +172,11 @@ async def should_require_captcha(identifier: str, auth_type: str, db: AsyncSessi
     if captcha_provider is None or captcha_provider == "none":
         return False
 
-    # Get threshold
-    threshold = int(await get_config(db, key=f"{auth_type.split('_')[0]}_captcha_threshold"))
+    threshold_key = CAPTCHA_THRESHOLD_KEYS.get(auth_type)
+    if not threshold_key:
+        raise ValueError(f"Unsupported auth_type: {auth_type}")
+
+    threshold = int(await get_config(db, key=threshold_key))
 
     cache_key = f"{auth_type}:{identifier}"
     now = time.time()

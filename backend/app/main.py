@@ -61,12 +61,16 @@ async def lifespan(app: FastAPI):
 
         async with SessionLocal() as db:
             api_requests = int(await get_config(db, key="api_rate_limit_requests"))
-            api_window = int(await get_config(db, key="api_rate_limit_window"))
+            api_window_seconds = int(await get_config(db, key="api_rate_limit_window_seconds"))
 
         app.state.api_rate_limit_requests = api_requests
-        app.state.api_rate_limit_window = api_window
+        app.state.api_rate_limit_window_seconds = api_window_seconds
 
-        logger.info("rate_limit_config_loaded", api_requests=api_requests, api_window=api_window)
+        logger.info(
+            "rate_limit_config_loaded",
+            api_requests=api_requests,
+            api_window_seconds=api_window_seconds,
+        )
 
         # Initialize message service (LeanCloud)
         logger.info("initializing_message_service")

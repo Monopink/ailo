@@ -31,16 +31,16 @@ ON CONFLICT (username) DO NOTHING;
 INSERT INTO system_configs (config_key, config_value, default_value, config_type, description, group_name, allowed_values) VALUES
 -- Business configurations
 ('default_contact_limit', '10', '3', 2, 'Default contact limit per user', 'business', NULL),
-('contact_request_expiration', '259200', '259200', 2, 'Contact request expiration time (72 hours, in seconds)', 'business', NULL),
+('contact_request_expiration_days', '3', '3', 2, 'Contact request expiration time in days (default: 3 days)', 'business', NULL),
 ('square_page_size', '20', '20', 2, 'Square page size (items per page)', 'business', NULL),
-('max_message_length', '49', '49', 2, 'Maximum message length in characters', 'business', NULL),
+('max_message_length_chars', '49', '49', 2, 'Maximum message length in characters', 'business', NULL),
 
 -- Authentication configurations
-('jwt_token_expires_in', '1209600', '1209600', 2, 'JWT token expiration time in seconds (14 days)', 'auth', NULL),
-('jwt_sliding_window', '604800', '604800', 2, 'JWT sliding window threshold in seconds (7 days, auto-renew if < this)', 'auth', NULL),
+('jwt_token_expires_in_days', '14', '14', 2, 'JWT token expiration time in days', 'auth', NULL),
+('jwt_sliding_window_days', '7', '7', 2, 'JWT sliding window threshold in days (auto-renew if < this)', 'auth', NULL),
 ('jwt_algorithm', 'HS256', 'HS256', 1, 'JWT signing algorithm', 'auth', NULL),
 ('token_max_active_per_device', '5', '1', 2, 'Maximum active tokens per device type', 'auth', NULL),
-('token_cleanup_after', '2592000', '2592000', 2, 'Clean up revoked tokens older than N seconds (30 days)', 'auth', NULL),
+('token_cleanup_after_days', '30', '30', 2, 'Clean up revoked tokens older than N days', 'auth', NULL),
 
 -- LeanCloud IM configurations
 ('leancloud_im_app_id', 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz', '', 1, 'LeanCloud IM App ID', 'leancloud', NULL),
@@ -57,62 +57,62 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('message_buffer_no_typing_wait_ms', '2000', '2000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
 
 -- AI conversation archive configurations (values in seconds unless otherwise noted)
-('ai_conversation_archive_time', '604800', '604800', 2, 'Archive AI conversation items older than this many seconds (7 days)', 'ai_conversation', NULL),
+('ai_conversation_archive_time_days', '7', '7', 2, 'Archive AI conversation items older than this many days', 'ai_conversation', NULL),
 ('ai_conversation_archive_max_count', '50', '50', 2, 'Archive AI conversation items when count exceeds this limit', 'ai_conversation', NULL),
 ('ai_conversation_archive_min_count', '10', '10', 2, 'Minimum AI conversation items to keep; do not archive if below this count', 'ai_conversation', NULL),
 ('ai_conversation_archive_threshold', '80', '80', 2, 'Trigger immediate archive when AI conversation items exceed this threshold', 'ai_conversation', NULL),
 
 -- API rate limit configuration
 ('api_rate_limit_requests', '1000', '100', 2, 'API requests per window', 'rate_limit', NULL),
-('api_rate_limit_window', '60', '60', 2, 'API window (seconds)', 'rate_limit', NULL),
+('api_rate_limit_window_seconds', '60', '60', 2, 'API window in seconds', 'rate_limit', NULL),
 ('api_whitelist', '', '', 1, 'API whitelist IPs (comma separated)', 'rate_limit', NULL),
 
 -- Admin authentication rate limit and security
 ('admin_auth_rate_limit_requests', '100', '30', 2, 'Admin auth requests per window', 'rate_limit', NULL),
-('admin_auth_rate_limit_window', '60', '60', 2, 'Admin auth window (seconds)', 'rate_limit', NULL),
+('admin_auth_rate_limit_window_seconds', '60', '60', 2, 'Admin auth window in seconds', 'rate_limit', NULL),
 ('admin_auth_max_failures', '100', '10', 2, 'Max admin failures before lockout', 'security', NULL),
-('admin_auth_lockout_duration', '300', '1800', 2, 'Admin lockout duration (seconds)', 'security', NULL),
+('admin_auth_lockout_duration_minutes', '5', '30', 2, 'Admin lockout duration in minutes', 'security', NULL),
 ('admin_auth_whitelist', '127.0.0.1,::1', '127.0.0.1,::1', 1, 'Admin whitelist IPs (comma separated)', 'security', NULL),
 
 -- User authentication rate limit and security
 ('auth_rate_limit_requests', '100', '10', 2, 'User auth requests per window', 'rate_limit', NULL),
-('auth_rate_limit_window', '3600', '3600', 2, 'User auth window (seconds)', 'rate_limit', NULL),
+('auth_rate_limit_window_hours', '1', '1', 2, 'User auth window in hours', 'rate_limit', NULL),
 ('auth_max_failures', '100', '5', 2, 'Max user failures before lockout', 'security', NULL),
-('auth_lockout_duration', '300', '900', 2, 'User lockout duration (seconds)', 'security', NULL),
+('auth_lockout_duration_minutes', '5', '15', 2, 'User lockout duration in minutes', 'security', NULL),
 
 -- SMS rate limit configuration
 ('sms_rate_limit_requests', '10', '1', 2, 'SMS requests per window', 'rate_limit', NULL),
-('sms_rate_limit_window', '60', '60', 2, 'SMS window (seconds)', 'rate_limit', NULL),
+('sms_rate_limit_window_seconds', '60', '60', 2, 'SMS window in seconds', 'rate_limit', NULL),
 ('sms_whitelist', '', '', 1, 'SMS whitelist phones (comma separated)', 'rate_limit', NULL),
 
 -- SMS provider configuration
 ('sms_provider', 'mock', 'mock', 1, 'SMS provider', 'sms', '["mock"]'::jsonb),
-('sms_code_expires_in', '300', '300', 2, 'SMS code expiration time in seconds', 'sms', NULL),
-('sms_code_length', '6', '6', 2, 'SMS code length', 'sms', NULL),
+('sms_code_expires_in_seconds', '300', '300', 2, 'SMS code expiration time in seconds', 'sms', NULL),
+('sms_code_length_digits', '6', '6', 2, 'SMS code length in digits', 'sms', NULL),
 
 -- Admin CAPTCHA configuration
 ('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'captcha', '["none","turnstile","aliyun"]'::jsonb),
-('admin_captcha_threshold', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'captcha', NULL),
+('admin_captcha_threshold_failures', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'captcha', NULL),
 ('admin_captcha_mode', 'fallback', 'strict', 5, 'Admin CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'captcha', '["strict", "fallback"]'::jsonb),
 ('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '1x00000000000000000000AA', 1, 'Admin Turnstile site key', 'captcha', NULL),
 ('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '1x0000000000000000000000000000000AA', 1, 'Admin Turnstile secret key', 'captcha', NULL),
 
 -- User CAPTCHA configuration
 ('wxminipg_captcha_provider', 'aliyun', 'none', 5, 'User captcha provider', 'captcha', '["none","turnstile","aliyun"]'::jsonb),
-('captcha_threshold', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
+('captcha_threshold_failures', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
 ('turnstile_site_key', '', '1x00000000000000000000AA', 1, 'User Turnstile site key', 'captcha', NULL),
 ('turnstile_secret_key', '', '1x0000000000000000000000000000000AA', 1, 'User Turnstile secret key', 'captcha', NULL),
 ('wxminipg_aliyun_captcha_scene_id', '', '', 1, 'Aliyun Captcha SceneId for user verification', 'captcha', NULL),
 
 -- Message rate limit configuration
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
-('message_rate_limit_short_window', '10', '10', 2, 'Short window (seconds)', 'rate_limit', NULL),
+('message_rate_limit_short_window_seconds', '10', '10', 2, 'Short window in seconds', 'rate_limit', NULL),
 ('message_rate_limit_long_requests', '20', '20', 2, 'Max messages per long window', 'rate_limit', NULL),
-('message_rate_limit_long_window', '60', '60', 2, 'Long window (seconds)', 'rate_limit', NULL),
+('message_rate_limit_long_window_seconds', '60', '60', 2, 'Long window in seconds', 'rate_limit', NULL),
 
 -- Square rate limit configuration
 ('square_rate_limit_requests', '1', '1', 2, 'Square refresh requests per window', 'rate_limit', NULL),
-('square_rate_limit_window', '10', '10', 2, 'Square refresh window (seconds)', 'rate_limit', NULL)
+('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'rate_limit', NULL)
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     default_value = EXCLUDED.default_value,

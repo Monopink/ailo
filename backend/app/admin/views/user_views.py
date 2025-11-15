@@ -764,9 +764,9 @@ class ContactRequestView(ModelView):
         from datetime import datetime, timedelta
         from services.system_config import get_config
 
-        # Get expiration time from config
-        expiration_seconds = await get_config(request.state.session, "contact_request_expiration")
-        obj.expires_at = datetime.utcnow() + timedelta(seconds=int(expiration_seconds))
+        # Get expiration time from config (stored in days)
+        expiration_days = await get_config(request.state.session, "contact_request_expiration_days")
+        obj.expires_at = datetime.utcnow() + timedelta(days=int(expiration_days))
 
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""

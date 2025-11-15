@@ -340,13 +340,13 @@ API Key 管理：
 **业务配置**:
 
 - `default_contact_limit`: 默认联系人上限 (默认: 3)
-- `contact_request_expiration`: 联系人请求过期时间 (默认: 259200 秒 = 72 小时 = 3 天)
+- `contact_request_expiration_days`: 联系人请求过期时间（单位: 天，默认 3 天）
 - `square_recommend_count`: 广场每次推荐的联系人数量 (默认: 10)
 - `square_refresh_interval`: 广场刷新间隔/秒 (默认: 60)
 
 **系统配置**:
 
-- `max_message_length`: 最大消息长度/字符 (默认: 49)
+- `max_message_length_chars`: 最大消息长度/字符 (默认: 49)
 - `session_timeout`: 用户会话超时时间 (默认: 86400 秒 = 24 小时)
 
 ### 系统管理

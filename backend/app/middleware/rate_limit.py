@@ -27,7 +27,7 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
     Configuration is loaded on application startup from system_configs
     and stored in app.state:
     - app.state.api_rate_limit_requests: Max requests per window (default: 100)
-    - app.state.api_rate_limit_window: Time window in seconds (default: 60)
+    - app.state.api_rate_limit_window_seconds: Time window in seconds (default: 60)
     """
 
     def __init__(self, app):
@@ -59,7 +59,7 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
 
         # Get configuration from app state (loaded on startup)
         requests = getattr(request.app.state, "api_rate_limit_requests", 100)
-        window = getattr(request.app.state, "api_rate_limit_window", 60)
+        window_seconds = getattr(request.app.state, "api_rate_limit_window_seconds", 60)
 
         ip = request.client.host
 
@@ -71,14 +71,14 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
             self._cache[ip] = deque()
 
         # Remove old requests outside the window
-        while self._cache[ip] and self._cache[ip][0] < now - window:
+        while self._cache[ip] and self._cache[ip][0] < now - window_seconds:
             self._cache[ip].popleft()
 
         # Check if limit exceeded
         if len(self._cache[ip]) >= requests:
             # Calculate retry_after
             oldest_request = self._cache[ip][0]
-            retry_after = int(window - (now - oldest_request)) + 1
+            retry_after = int(window_seconds - (now - oldest_request)) + 1
 
             logger.warning(
                 "api_rate_limit_exceeded",
@@ -103,23 +103,23 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
 
         # Clean up old IPs periodically (every 1000 requests)
         if len(self._cache) > 1000:
-            self._cleanup_cache(now)
+            self._cleanup_cache(now, window_seconds)
 
         return await call_next(request)
 
-    def _cleanup_cache(self, now: float, window: int) -> None:
+    def _cleanup_cache(self, now: float, window_seconds: int) -> None:
         """
         Clean up cache entries for IPs with no recent requests.
 
         Args:
             now: Current timestamp
-            window: Time window in seconds
+            window_seconds: Time window in seconds
         """
         ips_to_remove = []
 
         for ip, requests in self._cache.items():
             # Remove old requests
-            while requests and requests[0] < now - window:
+            while requests and requests[0] < now - window_seconds:
                 requests.popleft()
 
             # Mark IP for removal if no recent requests

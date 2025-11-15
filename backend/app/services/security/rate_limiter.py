@@ -18,6 +18,33 @@ logger = get_logger(__name__)
 # Global cache for rate limiting
 _rate_limit_cache: Dict[str, deque] = {}
 
+RATE_LIMIT_REQUEST_KEYS: Dict[str, str] = {
+    "admin_auth": "admin_auth_rate_limit_requests",
+    "user_auth": "auth_rate_limit_requests",
+    "sms": "sms_rate_limit_requests",
+    "message_short": "message_rate_limit_short_requests",
+    "message_long": "message_rate_limit_long_requests",
+    "square": "square_rate_limit_requests",
+}
+
+RATE_LIMIT_WINDOW_KEYS: Dict[str, Tuple[str, int]] = {
+    "admin_auth": ("admin_auth_rate_limit_window_seconds", 1),
+    "user_auth": ("auth_rate_limit_window_hours", 3600),
+    "sms": ("sms_rate_limit_window_seconds", 1),
+    "message_short": ("message_rate_limit_short_window_seconds", 1),
+    "message_long": ("message_rate_limit_long_window_seconds", 1),
+    "square": ("square_rate_limit_window_seconds", 1),
+}
+
+RATE_LIMIT_WHITELIST_KEYS: Dict[str, Optional[str]] = {
+    "admin_auth": "admin_auth_whitelist",
+    "user_auth": None,
+    "sms": "sms_whitelist",
+    "message_short": None,
+    "message_long": None,
+    "square": None,
+}
+
 
 async def check_rate_limit(
     identifier: str,  # IP or user_id
@@ -35,14 +62,21 @@ async def check_rate_limit(
     Returns:
         (is_allowed, error_code, retry_after_seconds)
     """
-    # Get configuration
-    requests = int(await get_config(db, key=f"{group}_rate_limit_requests"))
-    window = int(await get_config(db, key=f"{group}_rate_limit_window"))
+    if group not in RATE_LIMIT_REQUEST_KEYS or group not in RATE_LIMIT_WINDOW_KEYS:
+        raise ValueError(f"Unsupported rate limit group: {group}")
+
+    request_key = RATE_LIMIT_REQUEST_KEYS[group]
+    window_key, multiplier = RATE_LIMIT_WINDOW_KEYS[group]
+
+    requests = int(await get_config(db, key=request_key))
+    base_window = int(await get_config(db, key=window_key))
+    window = base_window * multiplier
 
     # Check whitelist
-    whitelist_str = await get_config(
-        db, key=f"{group.split('_')[0]}_whitelist", required=False  # Extract prefix (admin, user, sms, api)
-    ) or ""
+    whitelist_key = RATE_LIMIT_WHITELIST_KEYS.get(group)
+    whitelist_str = ""
+    if whitelist_key:
+        whitelist_str = await get_config(db, key=whitelist_key, required=False) or ""
 
     if whitelist_str:
         whitelist = [ip.strip() for ip in whitelist_str.split(",")]

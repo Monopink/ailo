@@ -66,6 +66,22 @@ _verified_phone_tokens: Dict[str, Tuple[str, str | None, datetime]] = {}
 _operation_tokens: Dict[str, Tuple[int, datetime]] = {}
 
 
+async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
+    """Return JWT expiration duration in seconds from configuration."""
+
+    expires_in_days = await system_configs.get_config_value(
+        db, config_key="jwt_token_expires_in_days"
+    )
+    if expires_in_days is None:
+        logger.error("jwt_expiration_config_missing")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统配置缺失",
+        )
+
+    return int(expires_in_days) * 86400
+
+
 def _cleanup_expired_codes() -> None:
     """
     Clean up expired verification codes from memory.
@@ -595,10 +611,14 @@ async def wechat_login(request: Request, body: WeChatLoginRequest, db: AsyncSess
         try:
             from utils.snowflake import generate_snowflake_id
 
+            expires_in_seconds = await _get_jwt_expiration_seconds(db)
             jwt_token = generate_jwt_token(
-                user_id=user.id, qiao_id=user.qiao_id, device_type=DeviceType.MINI_PROGRAM
+                user_id=user.id,
+                qiao_id=user.qiao_id,
+                device_type=DeviceType.MINI_PROGRAM,
+                expires_in_seconds=expires_in_seconds,
             )
-            expires_at = calculate_token_expiry()
+            expires_at = calculate_token_expiry(expires_in_seconds)
 
             user_token = UserToken(
                 id=generate_snowflake_id(),
@@ -823,10 +843,14 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
         try:
             from utils.snowflake import generate_snowflake_id
 
+            expires_in_seconds = await _get_jwt_expiration_seconds(db)
             jwt_token = generate_jwt_token(
-                user_id=user.id, qiao_id=user.qiao_id, device_type=DeviceType.MINI_PROGRAM
+                user_id=user.id,
+                qiao_id=user.qiao_id,
+                device_type=DeviceType.MINI_PROGRAM,
+                expires_in_seconds=expires_in_seconds,
             )
-            expires_at = calculate_token_expiry()
+            expires_at = calculate_token_expiry(expires_in_seconds)
 
             user_token = UserToken(
                 id=generate_snowflake_id(),
@@ -1043,12 +1067,14 @@ async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSess
             try:
                 from utils.snowflake import generate_snowflake_id
 
+                expires_in_seconds = await _get_jwt_expiration_seconds(db)
                 jwt_token = generate_jwt_token(
                     user_id=user.id,
                     qiao_id=user.qiao_id,
                     device_type=DeviceType.MINI_PROGRAM,
+                    expires_in_seconds=expires_in_seconds,
                 )
-                expires_at = calculate_token_expiry()
+                expires_at = calculate_token_expiry(expires_in_seconds)
 
                 user_token = UserToken(
                     id=generate_snowflake_id(),
@@ -1277,12 +1303,14 @@ async def complete_registration(
         try:
             from utils.snowflake import generate_snowflake_id
 
+            expires_in_seconds = await _get_jwt_expiration_seconds(db)
             jwt_token = generate_jwt_token(
                 user_id=user.id,
                 qiao_id=user.qiao_id,
                 device_type=DeviceType.MINI_PROGRAM,
+                expires_in_seconds=expires_in_seconds,
             )
-            expires_at = calculate_token_expiry()
+            expires_at = calculate_token_expiry(expires_in_seconds)
 
             user_token = UserToken(
                 id=generate_snowflake_id(),

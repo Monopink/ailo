@@ -47,15 +47,7 @@ async def get_conversation_contexts(
 
         formatted: List[Dict[str, Any]] = []
         for item in reversed(items):
-            formatted.append(
-                {
-                    "id": item.id,
-                    "role": item.role,
-                    "content": item.content,
-                    "content_preview": item.content_preview,
-                    "created_at": item.created_at,
-                }
-            )
+            formatted.append(_serialize_item(item))
 
         logger.debug(
             "conversation_items_retrieved",
@@ -101,18 +93,10 @@ async def get_conversation_history(
         items = list(result.scalars().all())
         history: List[Dict[str, Any]] = []
         for item in reversed(items):
-            history.append(
-                {
-                    "id": item.id,
-                    "role": item.role,
-                    "content": item.content,
-                    "content_preview": item.content_preview,
-                    "created_at": item.created_at,
-                    "is_excluded_from_context": item.is_excluded_from_context,
-                    "buffer_id": item.buffer_id,
-                    "response_id": item.response_id,
-                }
-            )
+            payload = _serialize_item(item)
+            payload["is_excluded_from_context"] = item.is_excluded_from_context
+            payload["buffer_id"] = item.buffer_id
+            history.append(payload)
 
         logger.debug(
             "conversation_history_retrieved",
@@ -144,18 +128,14 @@ async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> Optiona
             logger.warning("conversation_item_not_found", item_id=item_id)
             return None
 
-        return {
-            "id": item.id,
-            "user_qiao_id": item.user_qiao_id,
-            "character_qiao_id": item.character_qiao_id,
-            "role": item.role,
-            "content": item.content,
-            "content_preview": item.content_preview,
-            "buffer_id": item.buffer_id,
-            "response_id": item.response_id,
-            "is_excluded_from_context": item.is_excluded_from_context,
-            "created_at": item.created_at,
-        }
+        payload = _serialize_item(item)
+        payload.update(
+            {
+                "buffer_id": item.buffer_id,
+                "is_excluded_from_context": item.is_excluded_from_context,
+            }
+        )
+        return payload
 
     except Exception as exc:
         logger.error("conversation_item_by_id_query_failed", error=str(exc), item_id=item_id)
@@ -219,3 +199,18 @@ async def get_items_for_archiving(
             user_qiao_id=user_qiao_id,
         )
         return [], 0
+
+
+def _serialize_item(item: AIConversationItem) -> Dict[str, Any]:
+    """Serialize ORM conversation item into dictionary form."""
+    return {
+        "id": item.id,
+        "user_qiao_id": item.user_qiao_id,
+        "character_qiao_id": item.character_qiao_id,
+        "role": item.role,
+        "message_type": item.message_type,
+        "text_content": item.text_content,
+        "media_url": item.media_url,
+        "media_metadata": item.media_metadata,
+        "created_at": item.created_at,
+    }

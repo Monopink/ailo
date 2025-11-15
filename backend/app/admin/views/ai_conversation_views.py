@@ -5,6 +5,8 @@ This module contains Starlette-Admin views for AI conversation management
 (message buffer, conversation items, and archives).
 """
 
+from typing import Any, Dict
+
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import IntegerField, StringField, TextAreaField, BooleanField, JSONField
@@ -47,6 +49,33 @@ class AIMessageBufferView(ModelView):
         "last_msg_id_client",
         "last_msg_time_ms",
     ]
+
+    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+        """Normalize optional integer fields before persisting."""
+        # Convert string to int or None for optional BIGINT fields
+        bigint_fields = [
+            "micro_expires_at_ms",
+            "macro_expires_at_ms",
+            "buffer_expires_at_ms",
+            "last_msg_time_ms",
+            "wake_expires_at_ms",
+        ]
+        for field in bigint_fields:
+            if field in data:
+                value = data[field]
+                if value == "" or value is None:
+                    data[field] = None
+                elif isinstance(value, str):
+                    try:
+                        data[field] = int(value)
+                    except ValueError:
+                        data[field] = None
+
+        # Convert empty string to None for optional string fields
+        if data.get("last_message_category") == "":
+            data["last_message_category"] = None
+
+        return await super().edit(request, pk, data)
 
     def can_create(self, request: Request) -> bool:
         return False
@@ -117,7 +146,7 @@ class AIMessageBufferView(ModelView):
 
 
 class AIConversationItemView(ModelView):
-    """AI Conversation Item view - conversation history with Responses API blocks."""
+    """AI Conversation Item view - conversation history stored in simple fields."""
 
     exclude_fields_from_create = [
         "id",
@@ -133,6 +162,14 @@ class AIConversationItemView(ModelView):
     ]
     exclude_fields_from_list = []
 
+    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+        """Normalize optional fields before persisting."""
+        if not data.get("client_msg_ids"):
+            data["client_msg_ids"] = []
+        if not data.get("media_url"):
+            data["media_url"] = None
+        return await super().edit(request, pk, data)
+
     def can_delete(self, request: Request) -> bool:
         return False
 
@@ -142,8 +179,7 @@ class AIConversationItemView(ModelView):
         "user_qiao_id",
         "character_qiao_id",
         "role",
-        "content_preview",
-        "response_id",
+        "text_content",
     ]
     sortable_fields = [
         "id",
@@ -151,8 +187,6 @@ class AIConversationItemView(ModelView):
         "character_qiao_id",
         "role",
         "buffer_id",
-        "llm_config_id",
-        "response_id",
         "is_excluded_from_context",
         "created_at",
     ]
@@ -162,26 +196,29 @@ class AIConversationItemView(ModelView):
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
         StringField("character_qiao_id", label="Character Qiao ID", help_text="Character external ID"),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
+        StringField("message_type", label="Message Type", help_text="text/image/audio"),
         TextAreaField(
-            "content_preview", label="Content Preview", help_text="Text preview for admin display"
+            "text_content",
+            label="Text Content",
+            help_text="Stored text message content (for text messages)",
         ),
-        JSONField("content", label="Content", help_text="Responses API content blocks array (JSONB)"),
+        StringField("media_url", label="Media URL", help_text="Media URL for image/audio messages"),
+        JSONField(
+            "media_metadata",
+            label="Media Metadata",
+            help_text="JSON metadata (dimensions, transcript, duration, etc.)",
+        ),
         JSONField(
             "client_msg_ids",
             label="Client Message IDs",
             help_text="Client message IDs merged into this row",
         ),
         StringField("buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"),
-        IntegerField(
-            "llm_config_id", label="LLM Config ID", help_text="LLM configuration used (assistant only)"
-        ),
-        StringField(
-            "response_id", label="Response ID", help_text="Provider response identifier (assistant only)"
-        ),
-        BooleanField(
+        IntegerEnumField(
             "is_excluded_from_context",
-            label="Excluded from Context",
-            help_text="Flag to exclude from LLM context (prompt injection, etc.)",
+            choices=[(0, "Included"), (1, "Excluded")],
+            label="Context Status",
+            help_text="Whether this item is included in LLM context",
         ),
         LocalDateTimeField("created_at", label="Created At", help_text="Item creation time"),
     ]
@@ -195,12 +232,12 @@ class AIConversationItemArchiveView(ModelView):
         "user_qiao_id",
         "character_qiao_id",
         "role",
-        "content",
-        "content_preview",
+        "message_type",
+        "text_content",
+        "media_url",
+        "media_metadata",
         "client_msg_ids",
         "buffer_id",
-        "llm_config_id",
-        "response_id",
         "is_excluded_from_context",
         "created_at",
         "archived_at",
@@ -210,16 +247,22 @@ class AIConversationItemArchiveView(ModelView):
         "user_qiao_id",
         "character_qiao_id",
         "role",
-        "content",
-        "content_preview",
+        "message_type",
+        "text_content",
+        "media_url",
+        "media_metadata",
         "client_msg_ids",
         "buffer_id",
-        "llm_config_id",
-        "response_id",
         "is_excluded_from_context",
         "created_at",
         "archived_at",
     ]
+
+    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+        """Normalize optional fields before persisting."""
+        if not data.get("client_msg_ids"):
+            data["client_msg_ids"] = []
+        return await super().edit(request, pk, data)
     exclude_fields_from_list = []
 
     def can_create(self, request: Request) -> bool:
@@ -237,8 +280,7 @@ class AIConversationItemArchiveView(ModelView):
         "user_qiao_id",
         "character_qiao_id",
         "role",
-        "content_preview",
-        "response_id",
+        "text_content",
     ]
     sortable_fields = [
         "id",
@@ -246,8 +288,6 @@ class AIConversationItemArchiveView(ModelView):
         "character_qiao_id",
         "role",
         "buffer_id",
-        "llm_config_id",
-        "response_id",
         "is_excluded_from_context",
         "created_at",
         "archived_at",
@@ -258,26 +298,29 @@ class AIConversationItemArchiveView(ModelView):
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
         StringField("character_qiao_id", label="Character Qiao ID", help_text="Character external ID"),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
+        StringField("message_type", label="Message Type", help_text="text/image/audio"),
         TextAreaField(
-            "content_preview", label="Content Preview", help_text="Text preview for admin display"
+            "text_content",
+            label="Text Content",
+            help_text="Stored text content (if applicable)",
         ),
-        JSONField("content", label="Content", help_text="Responses API content blocks array (JSONB)"),
+        StringField("media_url", label="Media URL", help_text="Media URL for image/audio messages"),
+        JSONField(
+            "media_metadata",
+            label="Media Metadata",
+            help_text="JSON metadata (dimensions, transcript, duration, etc.)",
+        ),
         JSONField(
             "client_msg_ids",
             label="Client Message IDs",
             help_text="Client message IDs merged into this row",
         ),
         StringField("buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"),
-        IntegerField(
-            "llm_config_id", label="LLM Config ID", help_text="LLM configuration used (assistant only)"
-        ),
-        StringField(
-            "response_id", label="Response ID", help_text="Provider response identifier (assistant only)"
-        ),
-        BooleanField(
+        IntegerEnumField(
             "is_excluded_from_context",
-            label="Excluded from Context",
-            help_text="Flag to exclude from LLM context (prompt injection, etc.)",
+            choices=[(0, "Included"), (1, "Excluded")],
+            label="Context Status",
+            help_text="Whether this item is included in LLM context",
         ),
         LocalDateTimeField("created_at", label="Created At", help_text="Original creation time"),
         LocalDateTimeField("archived_at", label="Archived At", help_text="Archive timestamp"),

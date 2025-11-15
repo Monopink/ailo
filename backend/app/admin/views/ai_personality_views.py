@@ -80,12 +80,6 @@ class AIPersonalityView(ModelView):
         IntegerField(
             "usage_count", label="Usage Count", help_text="Number of characters using this personality"
         ),
-        IntegerField(
-            "typing_speed",
-            label="Typing Speed (CPM)",
-            help_text="Characters per minute typing speed",
-            required=True,
-        ),
         IntegerEnumField(
             "status",
             enum=AIPersonalityStatus,

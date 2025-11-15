@@ -199,7 +199,7 @@ ORDER BY created_at DESC LIMIT 1;
    WHERE id = $window_id;
    ```
 
-3. 同时将消息内容写入 `ai_conversation_items`（每条消息独立存储）
+3. 同时将消息内容写入 `ai_conversation_items`（每条消息独立存储，使用 message_type/text_content/media_* 字段）
 
 **如果窗口不存在**（创建新窗口）：
 
@@ -220,12 +220,12 @@ INSERT INTO ai_message_buffer (
 -- 同时将消息内容写入 ai_conversation_items
 INSERT INTO ai_conversation_items (
   user_qiao_id, character_qiao_id, role,
-  content, content_preview, buffer_id, client_msg_ids,
-  is_excluded_from_context, created_at
+  message_type, text_content, media_url, media_metadata,
+  buffer_id, client_msg_ids, is_excluded_from_context, created_at
 ) VALUES (
   $user_id, $char_id, 'user',
-  $content_jsonb, $preview, $buffer_id, ARRAY[$msg_id],
-  false, NOW()
+  'text', $text_content, NULL, NULL,
+  $buffer_id, ARRAY[$msg_id], false, NOW()
 );
 ```
 
@@ -283,34 +283,69 @@ COMMIT;
 - 读取 `LOCKED` 窗口，从 `ai_conversation_items` 查询该 buffer 关联的所有用户消息。
 - 构建完整上下文（包含历史对话），发起 Doubao 流式请求（SSE）。
 - 若新窗口抢占发生，立即中止流式读取（早停可减少后续输出 tokens 费用）。
-- 结果落地前二次校验：若该窗口仍为 `LOCKED`，则：
-  - 将 assistant 响应写入 `ai_conversation_items`（JSONB 格式，直接存储 Doubao 返回的 content blocks）；
-  - 将该 buffer 窗口置 `COMPLETE`。
+- 结果落地前二次校验：若该窗口仍为 `LOCKED`，则将该 buffer 窗口置 `COMPLETE`。
 - 若状态已变（CANCELLED/OPEN/不存在），丢弃结果（被抢占）。
 
-**保存 assistant 消息示例**：
+**标记 buffer 完成示例**：
 
 ```sql
--- 保存 assistant 响应到 ai_conversation_items
-INSERT INTO ai_conversation_items (
-  user_qiao_id, character_qiao_id, role,
-  content, content_preview, llm_config_id,
-  is_excluded_from_context, created_at
-) VALUES (
-  $user_id, $char_id, 'assistant',
-  $assistant_content_jsonb,  -- Doubao 返回的 content blocks
-  $preview, $llm_config_id,
-  false, NOW()
-);
-
--- 标记 buffer 为 COMPLETE
+-- 标记 buffer 为 COMPLETE（不写入 assistant 消息）
 UPDATE ai_message_buffer SET aggregate_state = 3
 WHERE id = $buffer_id AND aggregate_state = 2;
 ```
 
-### 4) 发送与失败重试
+**重要说明**：
+- ❌ **不在此阶段写入 assistant 消息**到 `ai_conversation_items`
+- ✅ **assistant 消息在实际发送时写入**（见下一节）
+- 理由：保持 `ImmutableSnowflakeModel` 的不可变性，每条消息独立插入，记录真实发送时间
 
-- 通过 LeanCloud 发送；失败写入 `message_delivery_failures`，按既有策略重试。
+### 4) LLM 响应处理与消息发送
+
+**架构决策**：消息发送不再是 buffer 处理流程的一部分，而是由 `process_llm_response` 统一处理。
+
+**流程**：
+1. Buffer 标记为 `COMPLETE` 后，调用 `process_llm_response` 处理 LLM 响应中的所有操作：
+   - `attack_detected`：标记攻击消息
+   - `should_block`：阻断角色
+   - `memory_operations`：更新记忆
+   - `score`：更新关系分数
+   - **消息发送**：通过 `send_ai_messages_with_typing` 异步发送消息
+2. 消息发送过程中：
+   - 每发送一条消息，立即独立插入到 `ai_conversation_items`
+   - 记录真实的发送时间（`created_at`）
+   - 如果被打断，未发送的消息写入 `ai_conversation_state.pending_messages`
+3. 消息发送失败时，写入 `ai_conversation_state.pending_messages`，等待下次对话时由 LLM 重新处理
+
+**消息写入时机**：
+
+```python
+# 在 send_ai_messages_with_typing 中，每发送一条消息：
+async def _send_message_list(...):
+    for msg in messages:
+        # 1. 打字模拟
+        await asyncio.sleep(typing_time)
+
+        # 2. 发送到 LeanCloud
+        await send_message_to_leancloud(...)
+
+        # 3. 独立插入到数据库（记录真实发送时间）
+        new_item = AIConversationItem(
+            role="assistant",
+            content=[{"type": "text", "text": msg}],
+            buffer_id=buffer_id,  # 关联到触发的 buffer
+            created_at=datetime.utcnow(),  # 真实发送时间
+        )
+        db.add(new_item)
+        await db.commit()
+```
+
+**重要说明**：
+- ✅ `buffer_id`：关联到触发此次 LLM 请求的 buffer
+- ✅ LLM 元数据（`llm_config_id`、`response_id`）存储在 `ai_request_logs` 表中
+- ✅ 通过 `buffer_id` 可以关联到 `ai_request_logs`，查询 LLM 请求的完整元数据
+- ✅ 若发送被打断，`ai_conversation_state.pending_messages` 会通过 `{{pending_messages}}` 占位符注入下一次 system prompt
+
+**详细设计参见**：[message-sending-and-interruption.md](message-sending-and-interruption.md)
 
 ## 上下文构建
 

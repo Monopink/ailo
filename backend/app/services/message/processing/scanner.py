@@ -260,7 +260,7 @@ async def _process_conversation_async(
                 message_type="text",
                 locked_buffer_id=buffer_id,
                 user_message_item_id=context.conversation_item_id,
-                message_blocks=context.content_blocks,
+                message_blocks=None,
                 persist=True,
             )
 

@@ -59,13 +59,20 @@
         <strong id="current-relationship-display">{{ character.relationship_display_name or 'Not set' }}</strong>
        </div>
       </div>
+      <div class="col-md-3">
+       <div class="mb-2">
+        <span class="text-muted">Typing Speed:</span>
+        <strong>{{ character.typing_speed_wpm or '-' }} WPM</strong>
+       </div>
+      </div>
      </div>
     </div>
    </div>
 
    <form id="main-form">
-    <!-- Hidden field for selected relationship_id -->
-    <input type="hidden" id="selected-relationship-id" name="relationship_id" value="">
+   <!-- Hidden field for selected relationship_id -->
+   <input type="hidden" id="selected-relationship-id" name="relationship_id" value="">
+
 
     <!-- Prompt Variables Card -->
     <div class="card mt-3">
@@ -356,7 +363,7 @@
   submitBtn.disabled = true;
   submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
- const formData = new FormData(e.target);
+  const formData = new FormData(e.target);
   const action = (e.submitter && e.submitter.dataset && e.submitter.dataset.action) ? e.submitter.dataset.action : 'continue';
 
   // Extract variables
@@ -425,7 +432,12 @@
    const response = await fetch('/admin-api/ai/ai_character/{{ character.id }}/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt_variables: variables, dimensions, positions, relationship_id: relationshipId }),
+    body: JSON.stringify({
+      prompt_variables: variables,
+      dimensions,
+      positions,
+      relationship_id: relationshipId,
+    }),
    });
 
    if (response.ok) {

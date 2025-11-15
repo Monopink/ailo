@@ -177,6 +177,7 @@ class CharacterAdvancedEditView(CustomView):
                     "relationship_display_name": (
                         character.relationship.display_name if character.relationship else None
                     ),
+                    "typing_speed_wpm": character.typing_speed_wpm,
                 }
 
             # Prepare status indicators
@@ -323,6 +324,7 @@ class CharacterTemplateAdvancedEditView(CustomView):
                     template.personality.display_name if template.personality else "N/A"
                 ),
                 "prompt_variables": pv,
+                "typing_speed_wpm": template.typing_speed_wpm,
             }
 
         context = {

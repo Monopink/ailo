@@ -20,6 +20,9 @@ class AICharacterTemplateBase(BaseModel):
     position_mapping_config: Optional[Dict[str, Any]] = Field(
         None, description="Per-dimension position mapping configuration"
     )
+    typing_speed_wpm: int = Field(
+        ..., ge=1, description="Default typing speed (words per minute) for instantiated characters"
+    )
     is_reusable: int = Field(1, description="Is reusable: 1=reusable, 0=single_use")
     profile_count: int = Field(0, description="Associated profile template count")
     profile_id: Optional[int] = Field(None, description="Associated profile template ID (for single-use)")
@@ -41,6 +44,11 @@ class AICharacterTemplateUpdate(BaseModel):
     prompt_variables: Optional[Dict[str, Any]] = Field(None, description="Prompt variables")
     position_mapping_config: Optional[Dict[str, Any]] = Field(
         None, description="Per-dimension position mapping configuration"
+    )
+    typing_speed_wpm: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Default typing speed (words per minute)",
     )
     is_reusable: Optional[int] = Field(None, description="Is reusable")
     profile_count: Optional[int] = Field(None, description="Profile count")

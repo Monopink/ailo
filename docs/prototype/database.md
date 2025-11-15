@@ -234,32 +234,48 @@ updated_at
 
 ## ai_conversation_items
 
-对话历史表，完整记录多模态消息内容，直接映射 Doubao Responses API `content` 数组。
+对话历史表，使用简单字段存储消息内容（不再直接存储 LLM provider block）。
 
 ```txt
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
 character_qiao_id -- AI external ID
 role -- system / user / assistant
-content -- JSONB，直接存储 Responses API block 数组（[{"type": ...}, ...]）
-content_preview -- 纯文本预览，便于检索及后台展示
-buffer_id -- 关联 ai_message_buffer.id，仅 user 角色可填
+message_type -- text / image / audio
+text_content -- 文本内容（message_type=text 必填）
+media_url -- 媒体地址（message_type=image/audio 必填）
+media_metadata -- JSONB 元数据（如宽高、时长、transcript 等）
+client_msg_ids -- 聚合的客户端消息ID
+buffer_id -- 关联 ai_message_buffer.id，user 必填、assistant 可选
 is_excluded_from_context -- 是否从 LLM 上下文中剔除（攻击/敏感内容），默认false
 created_at
 ```
 
+检查约束：
+- `ck_ai_conversation_items_content`: text 需有 text_content 且 media_url 为空；image/audio 需有 media_url
+- `ck_ai_conversation_items_user_buffer`: role=user 必须有 buffer_id
+
+索引：
+- `idx_ai_conv_items_session (user_qiao_id, character_qiao_id, created_at)`
+- `idx_ai_conv_items_buffer (buffer_id) WHERE buffer_id IS NOT NULL`
+- `idx_ai_conv_items_excluded (user_qiao_id, character_qiao_id, created_at) WHERE is_excluded_from_context = true`
+- `idx_ai_conv_items_text_search` GIN(trgm) on text_content
+
 ## ai_conversation_items_archive
 
-`ai_conversation_items` 的冷数据归档表，结构保持一致，用于移动超出上下文窗口的历史（主表只保留近 14 天数据，定时作业将旧记录搬迁到 archive）。
+与主表结构一致，存放冷数据（同样使用 message_type/text_content/media_* 字段）。
 
 ```txt
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
 character_qiao_id -- AI external ID
 role -- system / user / assistant
-content -- JSONB，完整 block 数组
-content_preview -- 预览文本
-buffer_id -- 原始缓冲窗口ID（仅 user 角色保留）
+message_type -- text / image / audio
+text_content -- 文本内容
+media_url -- 媒体地址
+media_metadata -- 媒体元数据
+client_msg_ids -- 客户端消息ID
+buffer_id -- 原始缓冲窗口ID
 is_excluded_from_context -- 是否排除上下文
 created_at -- 原始创建时间
 archived_at -- 归档时间
@@ -268,7 +284,7 @@ archived_at -- 归档时间
 **归档策略**
 
 - 定期任务（pg_cron / APScheduler / 外部 Cron）每日搬迁 `created_at < NOW() - INTERVAL '14 days'` 的记录
-- 归档后立即从主表删除对应记录，并执行 `VACUUM ANALYZE ai_conversation_history` 保持索引健康
+- 归档后立即从主表删除对应记录，并执行 `VACUUM ANALYZE ai_conversation_items` 保持索引健康
 
 ## preset_assets
 
@@ -331,8 +347,6 @@ created_at
 
 AI关系类型表，定义AI角色的关系类型。usage_count不为0不允许修改status。
 
-**注意：** name字段具有UNIQUE约束，确保关系名称唯一。
-
 ```txt
 id -- 自增ID
 name -- 关系名称（唯一）
@@ -347,21 +361,6 @@ no_reply_probability -- DECIMAL(3,2) NOT NULL DEFAULT 0.00，不回复概率（0
 created_at
 updated_at
 ```
-
-**响应时间字段说明**：
-
-- `response_time_min_ms`：关系驱动的最小响应时间，最低 500ms，避免过快显得不真实
-- `response_time_max_ms`：关系驱动的最大响应时间，必须 >= min
-- `response_time_bias`：采样倾向，影响响应时间分布：
-  - `balanced`：均衡分布，在 [min, max] 内均匀随机
-  - `centered`：中间集中，集中在中间值附近
-  - `fast`：快速倾向，更多接近 min 的值
-  - `slow`：慢速倾向，更多接近 max 的值
-  - `very_fast`：极快倾向，集中在 min 附近
-  - `very_slow`：极慢倾向，集中在 max 附近
-- `no_reply_probability`：不回复概率，模拟真人可能忽略消息的情况
-
-响应时间字段驱动关系化的微计时采样：缓冲服务根据 bias 采样到期时间，并结合 `no_reply_probability` 直接决定是否跳过回复。详见 [relationship-response-timing.md](../development/relationship-response-timing.md)。
 
 ## ai_styles
 
@@ -425,7 +424,6 @@ name -- 人格名称
 desplay_name -- 显示名称
 prompt -- 人格提示词模板
 json_schema -- JSON模式定义
-typing_speed -- 打字速度，每分钟词数
 usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
 created_at
@@ -480,6 +478,7 @@ personality_id -- 关联ai_personalities.id
 memory -- 记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
 request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
+typing_speed_wpm -- 模板层的打字速度（词/分钟，整数，必填），角色创建时拷贝，运行阶段若遇到非法值再退回 35 WPM
 position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
 {
   "foo": {"algorithm": 1, "params": {}},
@@ -523,6 +522,7 @@ prompt_variables -- 占位符覆盖值，JSON格式
 request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
   示例：{"temperature": 0.8, "max_tokens": 2000, "top_p": 0.9, "frequency_penalty": 0.5}
   参数优先级：显式调用参数 > request_params > LLM配置默认值
+typing_speed_wpm -- 角色级打字速度（词/分钟），用于模拟打字等待，实例化时由模板赋值；运行阶段若缺失/异常则退回 35 WPM
 created_by -- 创建者类型：1=user, 2=admin, 3=system
 created_at
 updated_at

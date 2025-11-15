@@ -35,10 +35,6 @@ class AIPersonality(AutoIncrementModel):
         Integer, nullable=False, default=0, server_default=text("0"), comment="Reference count"
     )
 
-    typing_speed: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Typing speed in characters per minute"
-    )
-
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

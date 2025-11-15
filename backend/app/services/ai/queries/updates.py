@@ -17,29 +17,53 @@ logger = get_logger(__name__)
 
 async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) -> Optional[int]:
     """
-    Persist a new conversation item row.
+    Persist a new conversation item row using simple content fields.
     """
     try:
-        required_fields = {"user_qiao_id", "character_qiao_id", "role", "content"}
+        required_fields = {"user_qiao_id", "character_qiao_id", "role", "message_type"}
         missing = required_fields - set(item_data.keys())
         if missing:
             logger.error("conversation_item_missing_fields", missing=list(missing))
             return None
 
+        message_type = item_data["message_type"]
+        text_content = item_data.get("text_content")
+        media_url = item_data.get("media_url")
+        media_metadata = item_data.get("media_metadata")
+
+        if message_type == "text":
+            if not text_content:
+                logger.error("conversation_item_missing_text_content")
+                return None
+            media_url = None
+            media_metadata = None
+        elif message_type in {"image", "audio"}:
+            if not media_url:
+                logger.error("conversation_item_missing_media_url", message_type=message_type)
+                return None
+        else:
+            logger.error("conversation_item_unknown_type", message_type=message_type)
+            return None
+
         client_msg_ids = item_data.get("client_msg_ids") or []
+
+        created_at_override = item_data.get("created_at")
 
         item = AIConversationItem(
             user_qiao_id=item_data["user_qiao_id"],
             character_qiao_id=item_data["character_qiao_id"],
             role=item_data["role"],
-            content=item_data["content"],
-            content_preview=item_data.get("content_preview"),
+            message_type=message_type,
+            text_content=text_content,
+            media_url=media_url,
+            media_metadata=media_metadata,
             buffer_id=item_data.get("buffer_id"),
-            llm_config_id=item_data.get("llm_config_id"),
-            response_id=item_data.get("response_id"),
             is_excluded_from_context=item_data.get("is_excluded_from_context", False),
             client_msg_ids=client_msg_ids,
         )
+
+        if created_at_override:
+            item.created_at = created_at_override
 
         db.add(item)
         await db.flush()
@@ -50,6 +74,7 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
             user_qiao_id=item.user_qiao_id,
             character_qiao_id=item.character_qiao_id,
             role=item.role,
+            message_type=message_type,
         )
 
         return item.id

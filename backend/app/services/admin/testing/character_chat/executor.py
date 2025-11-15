@@ -103,7 +103,6 @@ class ExecutorService:
                 log_id=log_id,
             )
 
-            message_blocks = [{"type": "input_text", "text": test_message}]
             locked_buffer_id: Optional[int] = None
             user_message_item_id: Optional[int] = None
             if persist:
@@ -127,8 +126,8 @@ class ExecutorService:
                             "user_qiao_id": user_qiao_id,
                             "character_qiao_id": character_qiao_id,
                             "role": ConversationRole.USER.value,
-                            "content": message_blocks,
-                            "content_preview": test_message[:180],
+                            "message_type": "text",
+                            "text_content": test_message,
                             "buffer_id": locked_buffer_id,
                             "client_msg_ids": ["admin_test"],
                         },
@@ -164,7 +163,7 @@ class ExecutorService:
                 request_overrides=request_overrides,
                 locked_buffer_id=locked_buffer_id,
                 user_message_item_id=user_message_item_id,
-                message_blocks=message_blocks,
+                message_blocks=None,
                 persist=persist,
             )
 

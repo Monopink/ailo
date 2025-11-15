@@ -5,26 +5,28 @@ This module provides complex transaction operations that involve multiple
 database operations and require atomicity.
 """
 
-from copy import deepcopy
-from typing import Dict, Any, Optional, List
-from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
+from typing import Any, Dict, List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy import func, select
 
 from models.ai import AICharacter, AIConversationItemArchive, AIRequestLog
 from models.profile import Profile
 from models.contact import Contact
-from enums.common import ConversationRole
 from .updates import (
-    create_conversation_item,
     update_relationship_scores,
     set_current_relationship,
     update_character_status,
     mark_conversation_item_as_excluded,
 )
-from .character_queries import get_user_id_by_qiao_id
+from .character_queries import get_user_id_by_qiao_id, get_character_relationship_config
 from .template_queries import get_profile_template_by_id, get_character_template_by_id
+from services.message.processing.sender import send_ai_messages_with_typing
 from utils.logging import get_logger
 logger = get_logger(__name__)
+
+DEFAULT_TYPING_SPEED_WPM = 35
+DEFAULT_TYPING_SPEED_SECONDS_PER_WORD = 60.0 / DEFAULT_TYPING_SPEED_WPM
 
 
 async def create_character_with_relations(db: AsyncSession, character_data: Dict[str, Any]) -> str:
@@ -42,6 +44,9 @@ async def create_character_with_relations(db: AsyncSession, character_data: Dict
         RuntimeError: If creation fails
     """
     try:
+        if "typing_speed_wpm" not in character_data:
+            raise ValueError("typing_speed_wpm is required to create character")
+
         # Create character
         character = AICharacter(
             qiao_id=character_data["qiao_id"],
@@ -53,6 +58,7 @@ async def create_character_with_relations(db: AsyncSession, character_data: Dict
             memory=character_data.get("memory"),
             prompt_variables=character_data.get("prompt_variables", {}),
             created_by=character_data.get("created_by", 2),  # admin
+            typing_speed_wpm=character_data["typing_speed_wpm"],
         )
 
         db.add(character)
@@ -108,47 +114,28 @@ async def create_character_with_relations(db: AsyncSession, character_data: Dict
         raise RuntimeError(f"Failed to create character with relations: {str(e)}")
 
 
-async def save_conversation_result(
+async def process_llm_response(
     db: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
     user_qiao_id: str,
     character_qiao_id: str,
     character_info: Dict[str, Any],
     ai_response: Dict[str, Any],
-    new_scores: Optional[Dict[str, int]],
-    memory_operations: Optional[List[Dict]],
     llm_result: Dict[str, Any],
     locked_buffer_id: Optional[int],
     user_message_item_id: Optional[int],
 ) -> Dict[str, Any]:
     """
-    Save all conversation results in a single atomic transaction.
-
-    This function ensures atomicity - either all operations succeed or all fail.
-
-    Args:
-        db: Database session
-        user_qiao_id: User's qiao_id
-        character_qiao_id: Character's qiao_id
-        character_info: Character information dictionary
-        ai_response: AI response dictionary
-        new_scores: New relationship scores (dimension_name -> score)
-        memory_operations: Memory operations to process
-        llm_result: LLM result with usage info
-        locked_buffer_id: Locked buffer ID (if any)
-        user_message_item_id: Conversation history row id linked to buffer
-
-    Returns:
-        Dictionary with success status and buffer_id
-
-    Raises:
-        Exception: If any operation fails (triggers rollback)
+    Persist LLM side effects (scores, memory, logs) and launch message sending task.
     """
+
     try:
-        # 1. Update relationship scores
+        new_scores = ai_response.get("score")
+        memory_operations = ai_response.get("memory_operations")
+
         if new_scores:
             await update_relationship_scores(db, character_info["character_id"], new_scores)
 
-            # Re-evaluate relationship after score update
             from .relationship_queries import get_character_relationship_scores
             from ..relationship_scoring import determine_relationship_type
 
@@ -162,93 +149,31 @@ async def save_conversation_result(
                         db, character_info["character_id"], relationship.id, display_name
                     )
 
-        # 2. Process memory operations
         if memory_operations:
             from ..conversation_memory import process_memory_operations
 
             await process_memory_operations(db, character_qiao_id, memory_operations)
 
-        # 3. Handle attack detection
         if ai_response.get("attack_detected") and user_message_item_id:
             await mark_conversation_item_as_excluded(db, user_message_item_id)
 
-        # 4. Handle blocking
         if ai_response.get("should_block"):
-            await update_character_status(db, character_qiao_id, status=3)  # blocked
+            await update_character_status(db, character_qiao_id, status=3)
 
-        # 5. Send response messages and save to contexts
-        assistant_item_id: Optional[int] = None
-        if ai_response.get("should_reply"):
-            from services.message.outbound.sender import send_message
-            from crud.contact import contact as contact_crud
-            from enums import MessageType
-
-            outgoing_messages = ai_response.get("outgoing_messages", [])
-            assistant_blocks = _clone_blocks(llm_result.get("output_blocks") or [])
-            response_id = llm_result.get("response_id")
-            llm_config_id = (llm_result.get("config_used") or {}).get("id")
-
-            for idx, message in enumerate(outgoing_messages):
-                # Get contact for conv_id
-                contact = await contact_crud.get_user_contact(
-                    db, user_qiao_id=user_qiao_id, contact_qiao_id=character_qiao_id
-                )
-
-                if contact:
-                    # Send message
-                    await send_message(
-                        db=db,
-                        from_qiao_id=character_qiao_id,
-                        to_qiao_id=user_qiao_id,
-                        conv_id=contact.conv_id,
-                        content=message,
-                        message_type=MessageType.TEXT,
-                    )
-
-                    # Save AI response to conversation items
-                    content_blocks = assistant_blocks if assistant_blocks and idx == 0 else _build_output_blocks(message)
-                    if assistant_blocks and idx == 0:
-                        assistant_blocks = None  # consume provider blocks once per response
-
-                    conversation_item_id = await create_conversation_item(
-                        db,
-                        {
-                            "character_qiao_id": character_qiao_id,
-                            "user_qiao_id": user_qiao_id,
-                            "role": ConversationRole.ASSISTANT.value,
-                            "content": content_blocks,
-                            "content_preview": message[:180],
-                            "llm_config_id": llm_config_id,
-                            "response_id": response_id,
-                        },
-                    )
-
-                    if conversation_item_id:
-                        assistant_item_id = conversation_item_id
-                else:
-                    logger.error(
-                        "contact_not_found_for_sending",
-                        user_qiao_id=user_qiao_id,
-                        character_qiao_id=character_qiao_id,
-                    )
-
-        # 6. Save AI request log (NEW - fixes missing logging issue)
         await _save_ai_request_log(
             db=db,
             character_info=character_info,
             user_qiao_id=user_qiao_id,
             ai_response=ai_response,
             llm_result=llm_result,
-            conversation_item_id=assistant_item_id,
+            buffer_id=locked_buffer_id,
         )
 
-        # 7. Update buffer status to COMPLETE
         if locked_buffer_id:
             from services.message.processing.buffer import finalize_buffer_if_locked
 
             await finalize_buffer_if_locked(db, locked_buffer_id)
 
-        # Commit transaction
         await db.commit()
 
         logger.info(
@@ -257,12 +182,6 @@ async def save_conversation_result(
             character_qiao_id=character_qiao_id,
             buffer_id=locked_buffer_id,
         )
-
-        return {
-            "success": True,
-            "buffer_id": locked_buffer_id,
-            "conversation_item_id": assistant_item_id,
-        }
 
     except Exception as e:
         await db.rollback()
@@ -275,6 +194,44 @@ async def save_conversation_result(
         )
         raise
 
+    # Launch asynchronous sending task (typing simulation lives outside transaction)
+    outgoing_messages = ai_response.get("outgoing_messages", [])
+    followup_messages = ai_response.get("followup_messages", [])
+
+    should_reply = ai_response.get("should_reply", True)
+    typing_speed_seconds_per_word = DEFAULT_TYPING_SPEED_SECONDS_PER_WORD
+    followup_delay_seconds = 0.0
+
+    if should_reply and (outgoing_messages or followup_messages):
+        typing_speed_seconds_per_word = await _get_typing_speed_seconds_per_word(
+            db, character_qiao_id
+        )
+        followup_delay_ms = await _get_followup_delay_ms(db, character_qiao_id)
+        if followup_delay_ms is None:
+            raise ValueError("Missing followup_delay_ms configuration")
+        followup_delay_seconds = followup_delay_ms / 1000.0
+    else:
+        outgoing_messages = []
+        followup_messages = []
+
+    asyncio.create_task(
+        send_ai_messages_with_typing(
+            session_factory=session_factory,
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_qiao_id,
+            buffer_id=locked_buffer_id,
+            outgoing_messages=outgoing_messages,
+            followup_messages=followup_messages,
+            typing_speed_seconds_per_word=typing_speed_seconds_per_word,
+            followup_delay_seconds=followup_delay_seconds,
+        )
+    )
+
+    return {
+        "success": True,
+        "buffer_id": locked_buffer_id,
+    }
+
 
 async def _save_ai_request_log(
     db: AsyncSession,
@@ -282,7 +239,7 @@ async def _save_ai_request_log(
     user_qiao_id: str,
     ai_response: Dict[str, Any],
     llm_result: Dict[str, Any],
-    conversation_item_id: Optional[int],
+    buffer_id: Optional[int],
 ) -> None:
     """
     Save AI request log with correct field mapping.
@@ -314,7 +271,7 @@ async def _save_ai_request_log(
             llm_config_id=(llm_result.get("config_used") or {}).get("id"),
             response_id=llm_result.get("response_id"),
             cache_hit=bool(llm_result.get("cache_hit")),
-            conversation_item_id=conversation_item_id,
+            buffer_id=buffer_id,
             request=llm_result.get("request_payload", {}),
             response=ai_response,
             status=1 if llm_result.get("success") else 2,
@@ -337,14 +294,36 @@ async def _save_ai_request_log(
         pass
 
 
-def _build_output_blocks(content: str) -> List[Dict[str, Any]]:
-    return [{"type": "output_text", "text": content}]
+async def _get_typing_speed_seconds_per_word(
+    db: AsyncSession, character_qiao_id: str
+) -> float:
+    """Fetch the per-word typing latency derived from character-level WPM configuration."""
+
+    stmt = select(AICharacter.typing_speed_wpm).where(AICharacter.qiao_id == character_qiao_id)
+    result = await db.execute(stmt)
+    value = result.scalar_one_or_none()
+
+    wpm = DEFAULT_TYPING_SPEED_WPM if value is None else int(value)
+    if wpm <= 0:
+        logger.warning(
+            "invalid_typing_speed_wpm",
+            character_qiao_id=character_qiao_id,
+            configured_value=wpm,
+        )
+        wpm = DEFAULT_TYPING_SPEED_WPM
+
+    return 60.0 / float(wpm)
 
 
-def _clone_blocks(blocks: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
-    if not blocks:
+async def _get_followup_delay_ms(db: AsyncSession, character_qiao_id: str) -> Optional[int]:
+    """
+    Fetch relationship-specific followup delay.
+    """
+    config = await get_character_relationship_config(db, character_qiao_id)
+    if not config:
         return None
-    return [deepcopy(block) for block in blocks if isinstance(block, dict)]
+    delay = config.get("followup_delay_ms")
+    return int(delay) if delay is not None else None
 
 
 async def cleanup_single_use_templates(
@@ -409,10 +388,11 @@ async def archive_contexts_transaction(
                     character_qiao_id=context.character_qiao_id,
                     user_qiao_id=context.user_qiao_id,
                     role=context.role,
-                    content=context.content,
-                    content_preview=context.content_preview,
+                    message_type=context.message_type,
+                    text_content=context.text_content,
+                    media_url=context.media_url,
+                    media_metadata=context.media_metadata,
                     buffer_id=context.buffer_id,
-                    response_id=context.response_id,
                     is_excluded_from_context=context.is_excluded_from_context,
                     created_at=context.created_at,
                     archived_at=func.now(),

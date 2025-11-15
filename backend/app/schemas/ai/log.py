@@ -39,7 +39,7 @@ class AIRequestLogCreate(BaseModel):
     llm_config_id: Optional[int] = Field(None, description="LLM config ID used for this request")
     response_id: Optional[str] = Field(None, description="Provider response ID for caching trace")
     cache_hit: Optional[bool] = Field(False, description="Whether the request used cached tokens")
-    conversation_item_id: Optional[int] = Field(None, description="Associated ai_conversation_items ID")
+    buffer_id: Optional[int] = Field(None, description="Associated buffer ID that triggered the request")
 
 
 class AIRequestLogUpdate(BaseModel):
@@ -64,7 +64,7 @@ class AIRequestLogResponse(AIRequestLogBase):
     llm_config_id: Optional[int] = Field(None, description="LLM config ID used for this request")
     response_id: Optional[str] = Field(None, description="Provider response ID for caching trace")
     cache_hit: bool = Field(False, description="Whether cached tokens were used")
-    conversation_item_id: Optional[int] = Field(None, description="Associated ai_conversation_items ID")
+    buffer_id: Optional[int] = Field(None, description="Associated buffer ID that triggered the request")
     created_at: datetime = Field(..., description="Request time")
 
 

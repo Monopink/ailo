@@ -5,15 +5,16 @@ This module handles system prompt construction, placeholder replacement,
 and JSON schema building for AI responses.
 """
 
-from copy import deepcopy
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums.common import ConversationRole
 from .queries import get_personality_with_placeholders
 from exceptions import AIServiceError
 from utils.logging import get_logger
+from models.ai import AIConversationState
 
 logger = get_logger(__name__)
 
@@ -296,6 +297,13 @@ async def _build_placeholder_values(
             score_placeholders = await _build_score_placeholders(db, character_qiao_id)
             placeholder_values.update(score_placeholders)
 
+            pending_text = await _build_pending_messages_placeholder(
+                db, user_qiao_id, character_qiao_id
+            )
+            placeholder_values["pending_messages"] = pending_text
+        else:
+            placeholder_values["pending_messages"] = ""
+
         # Fill in template-defined placeholders with defaults if not already provided
         if available_placeholders:
             for placeholder in available_placeholders:
@@ -378,6 +386,49 @@ async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) ->
         )
         # Return empty dict to avoid complete failure
         return {}
+
+
+async def _build_pending_messages_placeholder(
+    db: AsyncSession,
+    user_qiao_id: str,
+    character_qiao_id: str,
+) -> str:
+    """
+    Format pending messages (if any) so they can be injected into system prompt.
+    """
+    try:
+        result = await db.execute(
+            select(AIConversationState.pending_messages).where(
+                AIConversationState.user_qiao_id == user_qiao_id,
+                AIConversationState.character_qiao_id == character_qiao_id,
+            )
+        )
+        pending_data = result.scalar_one_or_none()
+        if not pending_data:
+            return ""
+
+        outgoing = pending_data.get("outgoing", []) or []
+        followup = pending_data.get("followup", []) or []
+        all_pending = outgoing + followup
+        if not all_pending:
+            return ""
+
+        total = pending_data.get("total_pending", len(all_pending))
+        message_lines = "\n".join(f"- {msg}" for msg in all_pending)
+        return (
+            f"【系统提示】你有 {total} 条消息因被打断而未发送:\n"
+            f"{message_lines}\n"
+            "请在本次回复中优先考虑这些未发送的内容。"
+        )
+
+    except Exception as exc:
+        logger.error(
+            "pending_messages_placeholder_build_failed",
+            error=str(exc),
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_qiao_id,
+        )
+        return ""
 
 
 def _format_profile(profile: Any) -> str:
@@ -639,14 +690,19 @@ async def build_conversation_context(
             )
             return []
 
-        # Convert contexts to Responses-compatible message format
+        # Convert contexts to business-format message dictionaries
         messages: List[Dict[str, Any]] = []
         for context in contexts:
             role = _map_context_role_to_message_role(context.get("role", ConversationRole.USER.value))
-            content_blocks = _normalize_content_blocks(context.get("content"))
-
-            if content_blocks:
-                messages.append({"role": role, "content": content_blocks})
+            messages.append(
+                {
+                    "role": role,
+                    "message_type": context.get("message_type", "text"),
+                    "text_content": context.get("text_content"),
+                    "media_url": context.get("media_url"),
+                    "media_metadata": context.get("media_metadata"),
+                }
+            )
 
         logger.debug(
             "conversation_context_built",
@@ -688,23 +744,6 @@ def _map_context_role_to_message_role(role: str) -> str:
         ConversationRole.ASSISTANT.value: "assistant",
     }
     return role_mapping.get(role, "user")
-
-
-def _normalize_content_blocks(blocks: Any) -> List[Dict[str, Any]]:
-    """Ensure stored JSONB blocks are safe to send back to the LLM."""
-
-    normalized: List[Dict[str, Any]] = []
-
-    if isinstance(blocks, list):
-        for block in blocks:
-            if isinstance(block, dict) and block.get("type"):
-                normalized.append(deepcopy(block))
-            elif isinstance(block, str) and block.strip():
-                normalized.append({"type": "input_text", "text": block})
-    elif isinstance(blocks, str) and blocks.strip():
-        normalized.append({"type": "input_text", "text": blocks})
-
-    return normalized
 
 
 async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, template: str) -> str:

@@ -24,11 +24,3 @@ class MessageConverter(ABC):
         Convert generic messages into provider specific format.
         """
 
-    @abstractmethod
-    def normalize_content_blocks(
-        self,
-        blocks: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """
-        Normalize content blocks so that they comply with the provider contract.
-        """

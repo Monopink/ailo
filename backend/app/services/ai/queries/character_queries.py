@@ -264,6 +264,7 @@ async def get_character_relationship_config(
             "wake_window_ms": int(relationship.wake_window_ms),
             "wake_time_adjustment": relationship.wake_time_adjustment,
             "no_reply_probability": float(relationship.no_reply_probability or 0.0),
+            "followup_delay_ms": int(getattr(relationship, "followup_delay_ms", 5000)),
         }
 
     except Exception as exc:
@@ -383,4 +384,5 @@ def _default_relationship_timing() -> Dict[str, Any]:
         "wake_window_ms": 60000,
         "wake_time_adjustment": "random_half",
         "no_reply_probability": 0.0,
+        "followup_delay_ms": 5000,
     }

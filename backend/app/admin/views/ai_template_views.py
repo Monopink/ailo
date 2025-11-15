@@ -149,6 +149,12 @@ class AICharacterTemplateView(ModelView):
             label="Request Parameters",
             help_text="LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
         ),
+        IntegerField(
+            "typing_speed_wpm",
+            label="Typing Speed (WPM)",
+            help_text="Default typing speed that downstream characters inherit (words per minute)",
+            required=True,
+        ),
         JSONField(
             "position_mapping_config",
             label="Position Mapping Config",

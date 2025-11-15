@@ -69,8 +69,8 @@ class AIRequestLog(ImmutableSnowflakeModel):
         comment="Whether the provider reported cached tokens",
     )
 
-    conversation_item_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True, comment="Related ai_conversation_items.id for assistant message"
+    buffer_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Associated ai_message_buffer.id that triggered the request"
     )
 
     request: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, comment="Request content")

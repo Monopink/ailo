@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models.base import SnowflakeModel, SnowflakeQiaoModel, ImmutableSnowflakeModel
+from models.base import Base, SnowflakeModel, SnowflakeQiaoModel, ImmutableSnowflakeModel, TimestampMixin
 
 if TYPE_CHECKING:
     from models.user import User
@@ -76,6 +76,12 @@ class AICharacter(SnowflakeQiaoModel):
         JSONB,
         nullable=True,
         comment="AI character request parameters configuration (can override default LLM settings)",
+    )
+
+    typing_speed_wpm: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Typing speed (words per minute) used for message delays",
     )
 
     created_from_profile_qiao_id: Mapped[Optional[str]] = mapped_column(
@@ -150,7 +156,9 @@ class AIMessageBuffer(SnowflakeModel):
     __tablename__ = "ai_message_buffer"
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
-    character_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Character external ID")
+    character_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Character external ID"
+    )
     aggregate_state: Mapped[int] = mapped_column(
         SmallInteger,
         nullable=False,
@@ -197,7 +205,9 @@ class AIMessageBuffer(SnowflakeModel):
     )
 
     __table_args__ = (
-        Index("idx_ai_message_buffer_session_state", "user_qiao_id", "character_qiao_id", "aggregate_state"),
+        Index(
+            "idx_ai_message_buffer_session_state", "user_qiao_id", "character_qiao_id", "aggregate_state"
+        ),
         Index(
             "idx_ai_message_buffer_micro",
             "micro_expires_at_ms",
@@ -231,19 +241,39 @@ class AIMessageBuffer(SnowflakeModel):
 
 
 class AIConversationItem(ImmutableSnowflakeModel):
-    """Conversation item stored as Responses API content blocks (immutable)."""
+    """Conversation item stored as simple typed fields (immutable)."""
 
     __tablename__ = "ai_conversation_items"
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
-    character_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Character external ID")
-    role: Mapped[str] = mapped_column(String(20), nullable=False, comment="Message role: system/user/assistant")
-    content: Mapped[List[Dict[str, Any]]] = mapped_column(
-        JSONB,
-        nullable=False,
-        comment="Responses API content blocks array",
+    character_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Character external ID"
     )
-    content_preview: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Preview for admin tooling")
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, comment="Message role: system/user/assistant"
+    )
+    message_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="text",
+        server_default=text("'text'"),
+        comment="Message type: text/image/audio",
+    )
+    text_content: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Plain text content (for message_type=text)",
+    )
+    media_url: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Media URL for image/audio messages",
+    )
+    media_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Media metadata (dimensions, transcript, duration, etc.)",
+    )
     client_msg_ids: Mapped[List[str]] = mapped_column(
         ARRAY(String(64)),
         nullable=False,
@@ -256,20 +286,12 @@ class AIConversationItem(ImmutableSnowflakeModel):
         nullable=True,
         comment="Associated buffer ID (references ai_message_buffer.id, no FK constraint)",
     )
-    llm_config_id: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="LLM configuration ID (references llm_configs.id, no FK constraint)",
-    )
-    response_id: Mapped[Optional[str]] = mapped_column(
-        String(64), nullable=True, comment="Provider response identifier for assistant rows"
-    )
-    is_excluded_from_context: Mapped[bool] = mapped_column(
-        Boolean,
+    is_excluded_from_context: Mapped[int] = mapped_column(
+        SmallInteger,
         nullable=False,
-        default=False,
-        server_default=text("false"),
-        comment="Flag to exclude this row from LLM context (prompt injection, etc.)",
+        default=0,
+        server_default=text("0"),
+        comment="Context inclusion status: 0=included, 1=excluded (prompt injection, etc.)",
     )
 
     __table_args__ = (
@@ -280,21 +302,50 @@ class AIConversationItem(ImmutableSnowflakeModel):
             postgresql_where=text("buffer_id IS NOT NULL"),
         ),
         Index(
-            "idx_ai_conv_items_response",
-            "response_id",
-            postgresql_where=text("response_id IS NOT NULL"),
-        ),
-        Index(
             "idx_ai_conv_items_excluded",
             "user_qiao_id",
             "character_qiao_id",
             "created_at",
             postgresql_where=text("is_excluded_from_context = true"),
         ),
+        Index(
+            "idx_ai_conv_items_text_search",
+            "text_content",
+            postgresql_using="gin",
+            postgresql_ops={"text_content": "gin_trgm_ops"},
+        ),
         CheckConstraint(
-            "(role = 'user' AND buffer_id IS NOT NULL) OR (role <> 'user' AND buffer_id IS NULL)",
+            "(message_type = 'text' AND text_content IS NOT NULL AND media_url IS NULL)"
+            " OR (message_type IN ('image','audio') AND media_url IS NOT NULL)",
+            name="ck_ai_conversation_items_content",
+        ),
+        CheckConstraint(
+            "(role = 'user' AND buffer_id IS NOT NULL) OR (role <> 'user')",
             name="ck_ai_conversation_items_user_buffer",
         ),
+    )
+
+
+class AIConversationState(Base, TimestampMixin):
+    """
+    Per-conversation transient state (pending AI messages, interruption metadata).
+    """
+
+    __tablename__ = "ai_conversation_state"
+
+    user_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    character_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    pending_messages: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment='Pending messages structure: {"outgoing": [...], "followup": [...], "total_pending": N}',
+    )
+    interrupted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="Timestamp when the last interruption occurred"
+    )
+
+    __table_args__ = (
+        Index("idx_ai_conversation_state_updated", "updated_at"),
     )
 
 
@@ -304,14 +355,34 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
     __tablename__ = "ai_conversation_items_archive"
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
-    character_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Character external ID")
-    role: Mapped[str] = mapped_column(String(20), nullable=False, comment="Message role: system/user/assistant")
-    content: Mapped[List[Dict[str, Any]]] = mapped_column(
-        JSONB,
-        nullable=False,
-        comment="Responses API content blocks array",
+    character_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Character external ID"
     )
-    content_preview: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Preview for admin tooling")
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, comment="Message role: system/user/assistant"
+    )
+    message_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="text",
+        server_default=text("'text'"),
+        comment="Message type: text/image/audio",
+    )
+    text_content: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Plain text content (for message_type=text)",
+    )
+    media_url: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Media URL for image/audio messages",
+    )
+    media_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Media metadata (dimensions, transcript, duration, etc.)",
+    )
     client_msg_ids: Mapped[List[str]] = mapped_column(
         ARRAY(String(64)),
         nullable=False,
@@ -324,20 +395,12 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
         nullable=True,
         comment="Associated buffer ID (references ai_message_buffer.id, no FK constraint)",
     )
-    llm_config_id: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        nullable=True,
-        comment="LLM configuration ID (references llm_configs.id, no FK constraint)",
-    )
-    response_id: Mapped[Optional[str]] = mapped_column(
-        String(64), nullable=True, comment="Provider response identifier for assistant rows"
-    )
-    is_excluded_from_context: Mapped[bool] = mapped_column(
-        Boolean,
+    is_excluded_from_context: Mapped[int] = mapped_column(
+        SmallInteger,
         nullable=False,
-        default=False,
-        server_default=text("false"),
-        comment="Flag to exclude this row from LLM context (prompt injection, etc.)",
+        default=0,
+        server_default=text("0"),
+        comment="Context inclusion status: 0=included, 1=excluded (prompt injection, etc.)",
     )
     archived_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, comment="Archive timestamp"

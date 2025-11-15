@@ -7,7 +7,7 @@ This module contains Starlette-Admin views for managing LLM providers and config
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, IntegerField, FloatField, JSONField, HasOne, EnumField
+from starlette_admin import StringField, IntegerField, FloatField, JSONField, HasOne, EnumField, BooleanField
 from starlette_admin.actions import link_row_action, row_action
 from starlette_admin.exceptions import FormValidationError
 from admin.views.base import IntegerEnumField
@@ -157,6 +157,16 @@ class LLMConfigView(ModelView):
         path = request.scope["path"]
         return f"/{self.identity}/test/" in path
 
+    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+        """Normalize field types before persisting."""
+        # Convert empty strings to None for optional JSON fields
+        json_fields = ["default_tools", "default_extra_headers", "default_extra_query", "extra_params", "stop_sequences"]
+        for field in json_fields:
+            if field in data and data[field] == "":
+                data[field] = None
+
+        return await super().edit(request, pk, data)
+
     fields_default_sort = [("name", False)]
     searchable_fields = ["name", "model_name"]
     sortable_fields = ["id", "name", "model_name", "status", "priority", "created_at", "updated_at"]
@@ -244,12 +254,10 @@ class LLMConfigView(ModelView):
             help_text="How the model decides whether to call tools",
             required=True,
         ),
-        EnumField(
+        BooleanField(
             "parallel_tool_calls",
-            choices=[(True, "Enabled"), (False, "Disabled")],
             label="Parallel Tool Calls",
             help_text="Allow the provider to execute tool calls in parallel",
-            required=True,
         ),
         IntegerField(
             "max_tool_calls",
@@ -267,12 +275,10 @@ class LLMConfigView(ModelView):
             label="Default Extra Query Params",
             help_text="JSON object of additional query parameters sent to the provider",
         ),
-        IntegerEnumField(
+        BooleanField(
             "enable_streaming",
-            choices=[(0, "Disabled (Recommended)"), (1, "Enabled (Experimental)")],
             label="Enable Streaming",
             help_text="Enable streaming output (experimental, may have compatibility issues with Doubao)",
-            required=True,
         ),
         IntegerEnumField(
             "status",

@@ -179,6 +179,8 @@ flowchart TB
 
 {{memory}} ai_characters.memory值。
 
+{{pending_messages}} 如果上一次发送被打断，则包含 `ai_conversation_state.pending_messages` 中的待发内容列表，提示 LLM 需要优先处理这些文本。
+
 #### 占位符处理机制
 
 1. **替换顺序**：系统占位符优先于角色自定义占位符
@@ -195,9 +197,21 @@ flowchart TB
 
 对于is_attack=1的消息，合并时忽略内容，并且用攻击内容替代文本替代。攻击内容替代文本使用system_configs中的配置项。
 
-回复消息后将ai_contexts中reply_status为processing的数据更新为done。
+回复消息后将 ai_contexts 中 reply_status 为 processing 的数据更新为 done，并根据 system_config 触发归档。
 
-回复消息后移动ai_contexts中时间超过x或条数超过y条以外的数据到ai_contexts_archive表。x和y使用sysytem_config控制。
+### 消息存储格式
+
+- 使用简单字段（解耦 provider）：
+  - `message_type`: text / image / audio
+  - `text_content`: 文本内容（message_type=text 必填）
+  - `media_url`: 媒体 URL（image/audio 必填）
+  - `media_metadata`: JSON（宽高、时长、transcript 等）
+- provider block 的拼装在 LLM converter 层完成，业务层/存储层不关心 provider 协议
+
+### LLM 上下文构建
+
+- 查询时转换为业务格式：`{role, message_type, text_content, media_url, media_metadata}`
+- Converter 负责合并连续同 role，并输出 Doubao Responses API 格式
 
 ### 位置映射算法 V1
 
@@ -529,7 +543,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ### `attack_detected`
 
-意味着用户发送的内容存在提示词攻击，将processing状态的ai_context.is_attack标记为1，并记录suser_violation_logs。
+意味着用户发送的内容存在提示词攻击，将上一条的用户消息从请求中排除，避免污染上下文，并记录suser_violation_logs。
 
 ### `should_reply`
 
@@ -563,16 +577,21 @@ JSON Schema 用于约束大模型输出内容。
 
 ### 消息发送
 
-计算打字时间 -> 等待 -> 发送 -> 处理下一条
+由 `process_llm_response` 启动异步任务，遵循以下流程：
+
+1. 每条消息按照 `typing_speed_wpm`（词/分钟）推导的延迟（`60 / typing_speed_wpm * 词数`）计算打字时间并等待；
+2. 等待完毕后调用 LeanCloud 发送，并实时写入 `ai_conversation_items`（带上触发的 `buffer_id`）；
+3. 若 `followup_messages` 存在，先等待 `followup_delay_ms` 后再进入下一轮；
+4. 任意阶段若用户发送新消息，则通过 `interrupt_sending_task` 终止当前任务，未发送内容写入 `ai_conversation_state.pending_messages`，下一次请求通过 `{{pending_messages}}` 提醒 LLM。
 
 ### 发送规则
 
-先发送outgoing_messages内容，等待x秒后，发送followup_messages内容。
-
-如果发送过程中被打断（用户发送消息），则停止发送。开始新的一轮请求。
+- outgoing_messages 按顺序逐条发送；
+- followup_messages 在 `followup_delay_ms`（来自 `ai_relationships`）之后发送；
+- 被打断或显式 `should_reply=false` 时清空 `ai_conversation_state`，由下一次请求自行决定如何处理。
 
 ## 打字速度计算
 
-ai_personalities.typing_speed * 词数
+`typing_speed_wpm = ai_characters.typing_speed_wpm`（词/分钟），等效秒/词为 `60 / typing_speed_wpm`，总耗时为 `60 / typing_speed_wpm * 词数`。若配置缺失或<=0，则运行期退回 35 WPM，避免出现 0 延迟。
 
 1词数 = 1全角字符 = 3半角字符 = 1emoji = 1特殊字符

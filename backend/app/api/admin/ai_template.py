@@ -36,6 +36,16 @@ async def save_character_template(
             raise HTTPException(status_code=400, detail="prompt_variables must be a dict")
         update_data["prompt_variables"] = prompt_variables
 
+    if "typing_speed_wpm" in data:
+        raw_value = data["typing_speed_wpm"]
+        try:
+            typing_speed = int(raw_value)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="typing_speed_wpm must be an integer")
+        if typing_speed <= 0:
+            raise HTTPException(status_code=400, detail="typing_speed_wpm must be greater than 0")
+        update_data["typing_speed_wpm"] = typing_speed
+
     # Handle position_mapping_config
     if "position_mapping_config" in data:
         position_mapping_config = data["position_mapping_config"]

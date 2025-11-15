@@ -20,7 +20,6 @@ class AIPersonalityBase(BaseSchema):
     name: str = Field(..., max_length=100, description="Personality name")
     display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., description="Personality prompt template")
-    typing_speed: Optional[int] = Field(None, description="Typing speed in characters per minute")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
 
 
@@ -30,7 +29,6 @@ class AIPersonalityCreate(BaseModel):
     name: str = Field(..., max_length=100, description="Personality name")
     display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., min_length=1, description="Personality prompt template")
-    typing_speed: Optional[int] = Field(None, description="Typing speed in characters per minute")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
 
 

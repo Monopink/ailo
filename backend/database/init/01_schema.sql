@@ -10,6 +10,7 @@
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- Set timezone and encoding
 SET timezone = 'UTC';
@@ -451,7 +452,6 @@ CREATE TABLE IF NOT EXISTS ai_personalities (
     prompt TEXT NOT NULL,
     json_schema JSONB,
     usage_count INTEGER NOT NULL DEFAULT 0,
-    typing_speed INTEGER,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -486,6 +486,7 @@ CREATE TABLE IF NOT EXISTS ai_character_templates (
     memory TEXT,
     prompt_variables JSONB,
     request_params JSONB,
+    typing_speed_wpm INTEGER NOT NULL,
     display_name VARCHAR(100),
     position_mapping_config JSONB,
     is_reusable INTEGER NOT NULL DEFAULT 1,
@@ -539,6 +540,7 @@ CREATE TABLE IF NOT EXISTS ai_characters (
     relationship_id INTEGER,
     relationship_counts JSONB,
     request_params JSONB,
+    typing_speed_wpm INTEGER NOT NULL,
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -587,31 +589,35 @@ CREATE INDEX idx_ai_message_buffer_wake_scan ON ai_message_buffer(wake_expires_a
 COMMENT ON COLUMN ai_message_buffer.wake_expires_at_ms IS 'Wake timer expiration (ms), NULL if already awake or in OPEN state';
 COMMENT ON COLUMN ai_message_buffer.wake_adjustment_count IS 'Number of times wake time was adjusted by new messages';
 
--- AI conversation items table - Responses API compatible blocks
+-- AI conversation items table - simple message fields
 CREATE TABLE IF NOT EXISTS ai_conversation_items (
     id BIGINT PRIMARY KEY,
     user_qiao_id VARCHAR(32) NOT NULL,
     character_qiao_id VARCHAR(32) NOT NULL,
     role VARCHAR(20) NOT NULL,
-    content JSONB NOT NULL,
-    content_preview TEXT,
+    message_type VARCHAR(20) NOT NULL DEFAULT 'text',
+    text_content TEXT,
+    media_url TEXT,
+    media_metadata JSONB,
     client_msg_ids TEXT[] NOT NULL DEFAULT '{}',
     buffer_id BIGINT,
-    llm_config_id INTEGER,
-    response_id VARCHAR(64),
     is_excluded_from_context BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT ck_ai_conversation_items_user_buffer CHECK (
-        (role = 'user' AND buffer_id IS NOT NULL) OR (role <> 'user' AND buffer_id IS NULL)
+        (role = 'user' AND buffer_id IS NOT NULL) OR (role <> 'user')
+    ),
+    CONSTRAINT ck_ai_conversation_items_content CHECK (
+        (message_type = 'text' AND text_content IS NOT NULL AND media_url IS NULL)
+        OR (message_type IN ('image', 'audio') AND media_url IS NOT NULL)
     )
 );
 
 COMMENT ON COLUMN ai_conversation_items.buffer_id IS 'Associated buffer ID (references ai_message_buffer.id, no FK constraint)';
-COMMENT ON COLUMN ai_conversation_items.llm_config_id IS 'LLM config ID (references llm_configs.id, no FK constraint)';
+COMMENT ON COLUMN ai_conversation_items.media_metadata IS 'Media metadata (dimensions, duration, transcript, etc.)';
 
 CREATE INDEX idx_ai_conv_items_session ON ai_conversation_items(user_qiao_id, character_qiao_id, created_at DESC);
 CREATE INDEX idx_ai_conv_items_buffer ON ai_conversation_items(buffer_id) WHERE buffer_id IS NOT NULL;
-CREATE INDEX idx_ai_conv_items_response ON ai_conversation_items(response_id) WHERE response_id IS NOT NULL;
+CREATE INDEX idx_ai_conv_items_text_search ON ai_conversation_items USING gin(text_content gin_trgm_ops);
 CREATE INDEX idx_ai_conv_items_excluded ON ai_conversation_items(user_qiao_id, character_qiao_id, created_at DESC) WHERE is_excluded_from_context = TRUE;
 
 -- AI conversation archive table - cold storage for history
@@ -620,19 +626,19 @@ CREATE TABLE IF NOT EXISTS ai_conversation_items_archive (
     user_qiao_id VARCHAR(32) NOT NULL,
     character_qiao_id VARCHAR(32) NOT NULL,
     role VARCHAR(20) NOT NULL,
-    content JSONB NOT NULL,
-    content_preview TEXT,
+    message_type VARCHAR(20) NOT NULL DEFAULT 'text',
+    text_content TEXT,
+    media_url TEXT,
+    media_metadata JSONB,
     client_msg_ids TEXT[] NOT NULL DEFAULT '{}',
     buffer_id BIGINT,
-    llm_config_id INTEGER,
-    response_id VARCHAR(64),
     is_excluded_from_context BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     archived_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON COLUMN ai_conversation_items_archive.buffer_id IS 'Associated buffer ID (references ai_message_buffer.id, no FK constraint)';
-COMMENT ON COLUMN ai_conversation_items_archive.llm_config_id IS 'LLM config ID (references llm_configs.id, no FK constraint)';
+COMMENT ON COLUMN ai_conversation_items_archive.media_metadata IS 'Media metadata (dimensions, duration, transcript, etc.)';
 
 CREATE INDEX idx_ai_conv_items_archive_session ON ai_conversation_items_archive(user_qiao_id, character_qiao_id, created_at DESC);
 
@@ -669,7 +675,7 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
     llm_config_id INTEGER,
     response_id VARCHAR(64),
     cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
-    conversation_item_id BIGINT,
+    buffer_id BIGINT,
     request JSONB NOT NULL,
     response JSONB,
     status INTEGER NOT NULL,

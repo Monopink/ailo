@@ -10,6 +10,7 @@ from .character import (
     AIMessageBuffer,
     AIConversationItem,
     AIConversationItemArchive,
+    AIConversationState,
 )
 
 # Template models
@@ -34,6 +35,7 @@ __all__ = [
     "AIMessageBuffer",
     "AIConversationItem",
     "AIConversationItemArchive",
+    "AIConversationState",
     # Templates
     "AICharacterTemplate",
     "AIProfileTemplate",

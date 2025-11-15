@@ -29,6 +29,9 @@ class AICharacterBase(BaseSchema):
     created_from_profile_qiao_id: Optional[str] = Field(
         None, max_length=32, description="Source profile template qiao_id (if created from template)"
     )
+    typing_speed_wpm: int = Field(
+        ..., ge=1, description="Typing speed for this character in words per minute"
+    )
 
 
 class AICharacterCreate(BaseModel):
@@ -54,6 +57,9 @@ class AICharacterCreate(BaseModel):
     created_from_profile_qiao_id: Optional[str] = Field(
         None, max_length=32, description="Source profile template qiao_id (if created from template)"
     )
+    typing_speed_wpm: int = Field(
+        ..., ge=1, description="Typing speed for this character in words per minute"
+    )
 
 
 class AICharacterUpdate(BaseModel):
@@ -65,6 +71,9 @@ class AICharacterUpdate(BaseModel):
     request_params: Optional[Dict[str, Any]] = Field(None, description="LLM request parameters override")
     created_from_profile_qiao_id: Optional[str] = Field(
         None, max_length=32, description="Source profile template qiao_id (if created from template)"
+    )
+    typing_speed_wpm: Optional[int] = Field(
+        None, ge=1, description="Typing speed for this character in words per minute"
     )
 
 
@@ -86,6 +95,7 @@ class AICharacterListResponse(BaseSchema):
     category: Optional[str] = Field(None, description="Character category")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
+    typing_speed_wpm: int = Field(..., description="Typing speed words per minute")
     created_by: AICharacterCreator = Field(..., description="Creator type")
     created_at: datetime = Field(..., description="Creation time")
 

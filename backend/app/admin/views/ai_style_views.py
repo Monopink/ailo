@@ -213,6 +213,12 @@ class AIRelationshipView(ModelView):
             help_text="Chance of skipping reply after wake (0.0–1.0)",
             required=True,
         ),
+        IntegerField(
+            "followup_delay_ms",
+            label="Followup Delay (ms)",
+            help_text="Wait time between outgoing and followup messages",
+            required=True,
+        ),
         IntegerEnumField(
             "status",
             enum=AIStyleStatus,

@@ -30,12 +30,14 @@ async def save_character(
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
 
+    update_data: Dict[str, Any] = {}
+
     # Validate and update prompt_variables
     if "prompt_variables" in data:
         prompt_variables = data["prompt_variables"]
         if not isinstance(prompt_variables, dict):
             raise HTTPException(status_code=400, detail="prompt_variables must be a dict")
-        await character_crud.update(db, db_obj=character, obj_in={"prompt_variables": prompt_variables})
+        update_data["prompt_variables"] = prompt_variables
 
     # Validate and update dimensions (skip items with empty score/algorithm)
     updated_dims = 0
@@ -118,9 +120,22 @@ async def save_character(
     if "relationship_id" in data and data["relationship_id"] is not None:
         try:
             relationship_id = int(data["relationship_id"])
-            await character_crud.update(db, db_obj=character, obj_in={"relationship_id": relationship_id})
+            update_data["relationship_id"] = relationship_id
         except Exception as e:
             logger.error("update_relationship_id_failed", character_id=character_id, error=str(e))
+
+    if "typing_speed_wpm" in data:
+        raw_value = data["typing_speed_wpm"]
+        try:
+            typing_speed = int(raw_value)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="typing_speed_wpm must be an integer")
+        if typing_speed <= 0:
+            raise HTTPException(status_code=400, detail="typing_speed_wpm must be greater than 0")
+        update_data["typing_speed_wpm"] = typing_speed
+
+    if update_data:
+        await character_crud.update(db, db_obj=character, obj_in=update_data)
 
     logger.info(
         "character_saved",

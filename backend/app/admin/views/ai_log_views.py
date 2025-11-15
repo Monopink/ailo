@@ -27,7 +27,7 @@ class AIRequestLogView(ModelView):
         "llm_config_id",
         "response_id",
         "cache_hit",
-        "conversation_item_id",
+        "buffer_id",
         "request",
         "response",
         "status",
@@ -44,7 +44,7 @@ class AIRequestLogView(ModelView):
         "llm_config_id",
         "response_id",
         "cache_hit",
-        "conversation_item_id",
+        "buffer_id",
         "request",
         "response",
         "status",
@@ -65,7 +65,15 @@ class AIRequestLogView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["id", "character_id", "user_id", "provider_name", "model_name", "response_id"]
+    searchable_fields = [
+        "id",
+        "character_id",
+        "user_id",
+        "provider_name",
+        "model_name",
+        "response_id",
+        "buffer_id",
+    ]
     sortable_fields = [
         "id",
         "character_id",
@@ -91,9 +99,9 @@ class AIRequestLogView(ModelView):
         StringField("response_id", label="Response ID", help_text="Provider response identifier"),
         BooleanField("cache_hit", label="Cache Hit"),
         StringField(
-            "conversation_item_id",
-            label="Conversation Item ID",
-            help_text="Associated ai_conversation_items ID",
+            "buffer_id",
+            label="Buffer ID",
+            help_text="Associated buffer that triggered the request",
         ),
         JSONField("request", label="Request", help_text="Request content in JSON format"),
         JSONField("response", label="Response", help_text="Response content in JSON format"),

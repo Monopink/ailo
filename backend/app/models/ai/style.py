@@ -201,6 +201,14 @@ class AIRelationship(AutoIncrementModel):
         comment="Probability of intentionally skipping a reply after wake",
     )
 
+    followup_delay_ms: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=5000,
+        server_default=text("5000"),
+        comment="Delay between outgoing and followup messages in milliseconds",
+    )
+
     # Relationships
     relationship_mappings: Mapped[List["AIDimensionRelationshipMapping"]] = relationship(
         "AIDimensionRelationshipMapping",

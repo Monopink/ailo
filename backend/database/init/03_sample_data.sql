@@ -215,7 +215,21 @@ ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 
 -- Insert AI character for testing with proper configuration
 -- Each AI character is owned by a test user (establishing AI->User relationship)
-INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, user_id, user_qiao_id, created_by) VALUES
+INSERT INTO ai_characters (
+    id,
+    qiao_id,
+    category,
+    style_id,
+    personality_id,
+    status,
+    memory,
+    prompt_variables,
+    request_params,
+    typing_speed_wpm,
+    user_id,
+    user_qiao_id,
+    created_by
+) VALUES
 (223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'love', 1, 1, 1,
 '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
 '{
@@ -231,6 +245,8 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
   "relationship_status": "单身",
   "chat_style": "温柔耐心，会认真倾听，回复比较详细，喜欢分享自己的想法和感受"
 }',
+ NULL,
+ 48,
 223788765171154945, 'qqid_test_user_001',
 1)
 ON CONFLICT (qiao_id) DO NOTHING;
@@ -243,7 +259,21 @@ INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, ge
 ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 
 -- Insert additional AI characters for comprehensive testing
-INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, status, memory, prompt_variables, user_id, user_qiao_id, created_by) VALUES
+INSERT INTO ai_characters (
+    id,
+    qiao_id,
+    category,
+    style_id,
+    personality_id,
+    status,
+    memory,
+    prompt_variables,
+    request_params,
+    typing_speed_wpm,
+    user_id,
+    user_qiao_id,
+    created_by
+) VALUES
 (223788765171154945, 'qiao_sweet_girlfriend_001', 'love', 1, 2, 1,
 '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。我们刚刚认识，我对你很好奇，希望能和你成为好朋友，甚至更亲密的关系。',
 '{
@@ -259,6 +289,8 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
   "relationship_status": "单身",
   "chat_style": "活泼热情，喜欢撒娇，回复比较感性，经常使用可爱的表达方式"
 }',
+ NULL,
+ 42,
 223788765171154946, 'qqid_test_user_002',
 1),
 (223788765171154946, 'qiao_friendly_buddy_001', 'friend', 2, 3, 1,
@@ -270,8 +302,8 @@ INSERT INTO ai_characters (id, qiao_id, category, style_id, personality_id, stat
   "personality_type": "ESTP",
   "speaking_style": "轻松幽默，喜欢开玩笑，使用一些网络用语和表情，像好兄弟一样"
 }',
-1,
-'{"left_sensitivity": -10, "right_sensitivity": 10, "left_positive_gain": 45, "left_negative_gain": 39, "right_positive_gain": 45, "right_negative_gain": 39}',
+ '{"left_sensitivity": -10, "right_sensitivity": 10, "left_positive_gain": 45, "left_negative_gain": 39, "right_positive_gain": 45, "right_negative_gain": 39}',
+ 38,
 223788765171154947, 'qqid_test_user_003',
 1)
 ON CONFLICT (qiao_id) DO NOTHING;
@@ -430,9 +462,19 @@ INSERT INTO ai_personality_placeholders (personality_id, placeholder_key, displa
 
 -- Insert sample AI character templates (auto-increment ID) and get generated IDs for profile templates
 WITH inserted_character_templates AS (
-    INSERT INTO ai_character_templates (style_id, personality_id, memory, prompt_variables, is_reusable, profile_count, status) VALUES
-    (1, 1, '刚刚上大学', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', 1, 2, 1),
-    (1, 2, '找到了新的工作', '{"hobbies": "音乐、电影"}', 1, 1, 1)
+    INSERT INTO ai_character_templates (
+        style_id,
+        personality_id,
+        memory,
+        prompt_variables,
+        request_params,
+        typing_speed_wpm,
+        is_reusable,
+        profile_count,
+        status
+    ) VALUES
+    (1, 1, '刚刚上大学', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', NULL, 48, 1, 2, 1),
+    (1, 2, '找到了新的工作', '{"hobbies": "音乐、电影"}', NULL, 42, 1, 1, 1)
     RETURNING id, personality_id
 )
 -- Insert sample AI profile templates using the generated character_template IDs (Snowflake ID)

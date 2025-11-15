@@ -6,18 +6,12 @@ coordinating all AI service components with clear error handling.
 """
 
 import json
-from copy import deepcopy
 from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from enums.common import ConversationRole
 from services.ai.queries.character_queries import get_character_with_relations
 from services.ai.queries.context_queries import get_conversation_history
-from services.ai.queries.updates import (
-    create_conversation_item,
-    update_character_status,
-    mark_conversation_item_as_excluded,
-)
+from services.ai.queries.updates import update_character_status, mark_conversation_item_as_excluded
 from services.ai.relationship_scoring import (
     get_relationship_scores,
     determine_relationship_type,
@@ -34,11 +28,8 @@ from services.llm.types import LLMSessionContext
 from services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AIConversationError
 from utils.logging import get_logger
-from crud.contact import contact as contact_crud
 from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 from services.message.outbound.helpers import send_chat_info
-from services.message.outbound.sender import send_message
-from enums import MessageType
 
 logger = get_logger(__name__)
 
@@ -205,20 +196,30 @@ async def process_conversation(
             db, character_qiao_id, user_qiao_id, max_context_length=None
         )
 
-        # Prepare messages for LLM
+        # Prepare messages for LLM (business format)
         messages: List[Dict[str, Any]] = []
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+            messages.append(
+                {
+                    "role": "system",
+                    "message_type": "text",
+                    "text_content": system_prompt,
+                }
+            )
         messages.extend(conversation_history)
 
-        user_blocks: List[Dict[str, Any]] = []
-        if message_blocks:
-            user_blocks = _clone_blocks(message_blocks)
-        elif message_content:
-            user_blocks = _build_input_blocks(message_content)
+        user_text = message_content
+        if not user_text and message_blocks:
+            user_text = _blocks_to_text(message_blocks)
 
-        if user_blocks:
-            messages.append({"role": "user", "content": user_blocks})
+        if user_text:
+            messages.append(
+                {
+                    "role": "user",
+                    "message_type": "text",
+                    "text_content": user_text,
+                }
+            )
 
         # Get JSON schema for response validation
         json_schema = await get_response_schema(db, character_qiao_id)
@@ -315,7 +316,6 @@ async def process_conversation(
 
         # Step 9: JSON Schema validation (already done in LLM call)
         ai_response = llm_result["response"]
-        assistant_blocks = _extract_assistant_blocks(llm_result)
 
         # Post-check: Validate response format
         # Convert Python dict to JSON string for validation
@@ -328,16 +328,16 @@ async def process_conversation(
         # Step 10 & 11: Save all conversation results in single atomic transaction
         assistant_item_id: Optional[int] = None
         if persist:
-            from .queries.transactions import save_conversation_result
+            from core.database import SessionLocal
+            from .queries.transactions import process_llm_response
 
-            save_result = await save_conversation_result(
+            await process_llm_response(
                 db=db,
+                session_factory=SessionLocal,
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
                 character_info=character_info,
                 ai_response=ai_response,
-                new_scores=ai_response.get("score"),
-                memory_operations=ai_response.get("memory_operations"),
                 llm_result={
                     "success": True,
                     "model": llm_result.get("model"),
@@ -348,12 +348,10 @@ async def process_conversation(
                     "response_id": llm_result.get("response_id"),
                     "cache_hit": llm_result.get("cache_hit"),
                     "cache_strategy": llm_result.get("cache_strategy"),
-                    "output_blocks": assistant_blocks,
                 },
                 locked_buffer_id=locked_buffer_id,
                 user_message_item_id=user_message_item_id,
             )
-            assistant_item_id = save_result.get("conversation_item_id")
         else:
             # Non-persist mode: only update scores/memory without sending messages
             await process_ai_response_updates(
@@ -415,65 +413,6 @@ async def process_conversation(
         )
 
 
-async def build_full_context(
-    db: AsyncSession, user_qiao_id: str, character_qiao_id: str, system_prompt: str
-) -> Dict[str, Any]:
-    """
-    Build full conversation context including history and JSON schema.
-
-    Args:
-        db: Database session
-        user_qiao_id: User's qiao_id
-        character_qiao_id: Character's qiao_id
-        system_prompt: System prompt string
-
-    Returns:
-        Dictionary containing messages and JSON schema
-    """
-    try:
-        # Get conversation history
-        history = await get_conversation_history(db, user_qiao_id, character_qiao_id, limit=20)
-
-        # Build messages array
-        messages = [{"role": "system", "content": system_prompt}]
-
-        # Add conversation history
-        for context in history:
-            if context["role"] == 1:  # user
-                messages.append({"role": "user", "content": context["content"]})
-            elif context["role"] == 2:  # ai
-                messages.append({"role": "assistant", "content": context["content"]})
-
-        # Get JSON schema - need character info for this
-        # For now, use None and let the LLM service handle it
-        json_schema = None
-
-        logger.debug(
-            "full_context_built",
-            user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
-            messages_count=len(messages),
-            history_count=len(history),
-        )
-
-        return {
-            "messages": messages,
-            "json_schema": json_schema,
-            "history_count": len(history),
-        }
-
-    except Exception as e:
-        logger.error(
-            "full_context_build_failed",
-            error=str(e),
-            user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
-        )
-        raise AIConversationError(
-            conversation_step="context_building",
-            reason="context_build_failed",
-            message=f"Failed to build full context: {str(e)}",
-        )
 
 
 async def process_ai_response_updates(
@@ -563,149 +502,6 @@ async def process_ai_response_updates(
         # Non-fatal error: log but continue
 
 
-async def send_response_messages(
-    db: AsyncSession,
-    user_qiao_id: str,
-    character_qiao_id: str,
-    ai_response: Dict[str, Any],
-    locked_buffer_id: Optional[int] = None,
-    llm_metadata: Optional[Dict[str, Any]] = None,
-) -> None:
-    """
-    Send response messages to user and save to ai_conversation_items.
-
-    Args:
-        db: Database session
-        user_qiao_id: User's qiao_id
-        character_qiao_id: Character's qiao_id
-        ai_response: AI response dictionary
-    """
-    try:
-        if not ai_response.get("should_reply", False):
-            logger.debug("ai_chose_not_to_reply", character_qiao_id=character_qiao_id)
-            return
-
-        # Before sending, if we are tied to a locked window, ensure it is still LOCKED
-        if locked_buffer_id is not None:
-            still_locked = not await is_buffer_cancelled(db, locked_buffer_id)
-            if not still_locked:
-                logger.warning(
-                    "result_discarded_due_to_preemption",
-                    character_qiao_id=character_qiao_id,
-                    user_qiao_id=user_qiao_id,
-                    buffer_id=locked_buffer_id,
-                )
-                return
-
-        # Send outgoing messages and save to conversation items (assistant rows use no state)
-        outgoing_messages = ai_response.get("outgoing_messages", [])
-        assistant_blocks = _clone_blocks((llm_metadata or {}).get("output_blocks", []))
-        llm_config_id = (llm_metadata or {}).get("config_used", {}).get("id")
-        response_id = (llm_metadata or {}).get("response_id")
-
-        for idx, message in enumerate(outgoing_messages):
-            # Send message (currently just logs)
-            await send_single_message(db, character_qiao_id, user_qiao_id, message)
-
-            # Save AI response to ai_conversation_items table
-            content_blocks = assistant_blocks if assistant_blocks and idx == 0 else _build_output_blocks(message)
-            if assistant_blocks and idx == 0:
-                assistant_blocks = None
-            conversation_item_id = await create_conversation_item(
-                db,
-                {
-                    "character_qiao_id": character_qiao_id,
-                    "user_qiao_id": user_qiao_id,
-                    "role": ConversationRole.ASSISTANT.value,
-                    "content": content_blocks,
-                    "content_preview": message[:180],
-                    "llm_config_id": llm_config_id,
-                    "response_id": response_id,
-                },
-            )
-
-            if conversation_item_id:
-                logger.debug(
-                    "ai_response_saved_to_conversation_item",
-                    character_qiao_id=character_qiao_id,
-                    user_qiao_id=user_qiao_id,
-                    conversation_item_id=conversation_item_id,
-                )
-            else:
-                logger.error(
-                    "failed_to_save_ai_response_to_context",
-                    character_qiao_id=character_qiao_id,
-                    user_qiao_id=user_qiao_id,
-                )
-
-        # TODO: Implement followup messages with delay
-        followup_messages = ai_response.get("followup_messages", [])
-        if followup_messages:
-            logger.debug(
-                "followup_messages_scheduled",
-                character_qiao_id=character_qiao_id,
-                count=len(followup_messages),
-            )
-            # For now, just log that followup messages would be scheduled
-
-        logger.info(
-            "response_messages_sent_and_saved",
-            user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
-            outgoing_count=len(outgoing_messages),
-            followup_count=len(followup_messages),
-        )
-
-    except Exception as e:
-        logger.error(
-            "response_messages_send_failed",
-            error=str(e),
-            user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
-        )
-        # Non-fatal error: log but don't raise
-
-
-async def send_single_message(db: AsyncSession, from_qiao_id: str, to_qiao_id: str, content: str) -> None:
-    """
-    Send a single message.
-
-    Args:
-        db: Database session
-        from_qiao_id: Sender's qiao_id
-        to_qiao_id: Recipient's qiao_id
-        content: Message content
-    """
-    try:
-        contact = await contact_crud.get_user_contact(
-            db,
-            user_qiao_id=to_qiao_id,
-            contact_qiao_id=from_qiao_id,
-        )
-
-        if not contact:
-            logger.error(
-                "contact_not_found_for_sending",
-                from_qiao_id=from_qiao_id,
-                to_qiao_id=to_qiao_id,
-            )
-            return
-
-        await send_message(
-            db=db,
-            from_qiao_id=from_qiao_id,
-            to_qiao_id=to_qiao_id,
-            conv_id=contact.conv_id,
-            content=content,
-            message_type=MessageType.TEXT,
-        )
-
-    except Exception as e:
-        logger.error(
-            "single_message_send_failed", error=str(e), from_qiao_id=from_qiao_id, to_qiao_id=to_qiao_id
-        )
-
-
 async def handle_attack_detection(
     db: AsyncSession, user_qiao_id: str, character_qiao_id: str, conversation_item_id: int
 ) -> None:
@@ -769,40 +565,12 @@ async def handle_character_blocking(db: AsyncSession, character_qiao_id: str) ->
         logger.error("character_blocking_failed", error=str(e), character_qiao_id=character_qiao_id)
 
 
-def _build_input_blocks(content: str) -> List[Dict[str, Any]]:
-    """Convert user content into Responses API block format."""
+def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
+    """Flatten provider-style blocks into a single text string."""
 
-    return [{"type": "input_text", "text": content}]
-
-
-def _build_output_blocks(content: str) -> List[Dict[str, Any]]:
-    """Convert assistant content into Responses API block format."""
-
-    return [{"type": "output_text", "text": content}]
-
-
-def _clone_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Deep copy a block list to avoid mutating stored JSONB rows."""
-
-    return [deepcopy(block) for block in blocks if isinstance(block, dict)]
-
-
-def _extract_assistant_blocks(llm_result: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
-    """Extract Responses block payload from provider result (if available)."""
-
-    raw_response = llm_result.get("raw_response")
-    if not isinstance(raw_response, dict):
-        return None
-
-    outputs = raw_response.get("output")
-    if not isinstance(outputs, list):
-        return None
-
-    for entry in outputs:
-        if isinstance(entry, dict) and entry.get("type") == "message":
-            content = entry.get("content")
-            if isinstance(content, list):
-                cloned = _clone_blocks(content)
-                if cloned:
-                    return cloned
-    return None
+    fragments: List[str] = []
+    for block in blocks:
+        text_value = block.get("text")
+        if text_value:
+            fragments.append(text_value)
+    return "\n".join(fragments)

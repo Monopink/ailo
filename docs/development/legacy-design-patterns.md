@@ -339,7 +339,7 @@ async def send_ai_response(
             await send_message(msg)
 ```
 
-**配置位置**: `ai_personalities.typing_speed` 字段
+**配置位置（Legacy）**: `ai_personalities.typing_speed` 字段（现已迁移到 `ai_character_templates.typing_speed_wpm` / `ai_characters.typing_speed_wpm`，本章节仅保留旧设计记录）
 
 ## 6. 配置驱动的设计
 
@@ -403,7 +403,7 @@ prepared_wait_max = 16.0
    - `llm_retry_delay_secs`: 2
 
 3. **数据库表字段**（角色级配置）：
-   - `ai_personalities.typing_speed`: 0.6
+   - `ai_characters.typing_speed_wpm`: 35（运行态按 60/WPM 计算秒/词，旧设计曾挂在 personalities 上）
    - `ai_characters.relationship_wait_multiplier`: JSON
 
 **配置读取示例**：

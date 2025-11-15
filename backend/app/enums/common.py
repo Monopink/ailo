@@ -331,6 +331,13 @@ class ConversationRole(str, Enum):
     ASSISTANT = "assistant"
 
 
+class ConversationItemContextStatus(IntEnum):
+    """Conversation item context inclusion status (ai_conversation_items.is_excluded_from_context)"""
+
+    INCLUDED = 0  # Included in LLM context
+    EXCLUDED = 1  # Excluded from LLM context (prompt injection, etc.)
+
+
 class AIRequestStatus(IntEnum):
     """AI request status (ai_request_logs.status)"""
 

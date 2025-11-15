@@ -296,6 +296,12 @@ class AICharacterView(ModelView):
             label="Request Parameters",
             help_text="LLM request parameters (temperature, max_tokens, etc.)",
         ),
+        IntegerField(
+            "typing_speed_wpm",
+            label="Typing Speed (WPM)",
+            help_text="Words per minute used for typing simulation",
+            required=True,
+        ),
         IntegerEnumField(
             "created_by",
             enum=AICharacterCreator,

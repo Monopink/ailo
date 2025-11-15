@@ -24,6 +24,7 @@ from enums.common import AIMessageBufferState, ConversationRole
 from models.ai.character import AIMessageBuffer, AIConversationItem
 from services.ai.queries.character_queries import get_character_relationship_config
 from services.ai.queries.updates import create_conversation_item
+from services.message.processing.sender import interrupt_sending_task
 from services.message.schemas import InboundMessageEvent
 from services.config import config_service
 from utils.logging import get_logger
@@ -73,7 +74,6 @@ class LockedConversationWindow:
     user_qiao_id: str
     character_qiao_id: str
     content: str
-    content_blocks: List[Dict[str, Any]]
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +94,8 @@ async def add_message_to_buffer(
         event: Inbound message payload
         character_qiao_id: Character external ID
     """
+    interrupt_sending_task(event.from_qiao_id, character_qiao_id)
+
     category = _categorize_event(event)
     if category is None:
         logger.debug("buffer_event_ignored", reason="unsupported_category", type=event.message_type)
@@ -292,15 +294,13 @@ async def get_locked_context(
         if not buffer_obj or not item_obj:
             return None
 
-        content_blocks = list(item_obj.content or [])
-        content_text = _blocks_to_text(content_blocks)
+        content_text = item_obj.text_content or ""
         return LockedConversationWindow(
             buffer_id=buffer_obj.id,
             conversation_item_id=item_obj.id,
             user_qiao_id=buffer_obj.user_qiao_id,
             character_qiao_id=buffer_obj.character_qiao_id,
             content=content_text,
-            content_blocks=content_blocks,
         )
 
     except Exception as exc:
@@ -469,17 +469,14 @@ async def _create_wake_buffer(
     db.add(buffer_obj)
     await db.flush()
 
-    content_blocks = _build_user_blocks(event.content)
-    preview = _build_preview(content_blocks)
-
     await create_conversation_item(
         db,
         {
             "user_qiao_id": user_qiao_id,
             "character_qiao_id": character_qiao_id,
             "role": ConversationRole.USER.value,
-            "content": content_blocks,
-            "content_preview": preview,
+            "message_type": "text",
+            "text_content": event.content or "",
             "buffer_id": buffer_obj.id,
             "client_msg_ids": client_msg_ids,
         },
@@ -554,13 +551,8 @@ async def _handle_wake_adjustment(
         .values(update_values)
     )
 
-    content_blocks = list(buffer_item.content if buffer_item and buffer_item.content else [])
-    content_blocks.append(_build_input_text_block(event.content))
-    preview = _build_preview(content_blocks)
-
     if buffer_item:
-        buffer_item.content = content_blocks
-        buffer_item.content_preview = preview
+        buffer_item.text_content = _append_text(buffer_item.text_content, event.content)
         if msg_id_client:
             client_ids = list(buffer_item.client_msg_ids or [])
             client_ids.append(msg_id_client)
@@ -573,8 +565,8 @@ async def _handle_wake_adjustment(
                 "user_qiao_id": buffer_obj.user_qiao_id,
                 "character_qiao_id": buffer_obj.character_qiao_id,
                 "role": ConversationRole.USER.value,
-                "content": content_blocks,
-                "content_preview": preview,
+                "message_type": "text",
+                "text_content": event.content or "",
                 "buffer_id": buffer_obj.id,
                 "client_msg_ids": client_ids,
             },
@@ -761,17 +753,14 @@ async def _create_new_buffer_window(
     db.add(buffer_obj)
     await db.flush()
 
-    content_blocks = _build_user_blocks(event.content)
-    preview = _build_preview(content_blocks)
-
     await create_conversation_item(
         db,
         {
             "user_qiao_id": user_qiao_id,
             "character_qiao_id": character_qiao_id,
             "role": ConversationRole.USER.value,
-            "content": content_blocks,
-            "content_preview": preview,
+            "message_type": "text",
+            "text_content": event.content or "",
             "buffer_id": buffer_obj.id,
             "client_msg_ids": client_msg_ids,
         },
@@ -824,15 +813,10 @@ async def _update_buffer_window(
     )
 
     if event.message_type == MessageType.TEXT:
-        content_blocks = list(buffer_item.content if buffer_item and buffer_item.content else [])
-        content_blocks.append(_build_input_text_block(event.content))
-        preview = _build_preview(content_blocks)
-
         msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
 
         if buffer_item:
-            buffer_item.content = content_blocks
-            buffer_item.content_preview = preview
+            buffer_item.text_content = _append_text(buffer_item.text_content, event.content)
             if msg_id_client:
                 existing_ids = list(buffer_item.client_msg_ids or [])
                 existing_ids.append(msg_id_client)
@@ -844,8 +828,8 @@ async def _update_buffer_window(
                     "user_qiao_id": buffer_obj.user_qiao_id,
                     "character_qiao_id": buffer_obj.character_qiao_id,
                     "role": ConversationRole.USER.value,
-                    "content": content_blocks,
-                    "content_preview": preview,
+                    "message_type": "text",
+                    "text_content": event.content or "",
                     "buffer_id": buffer_obj.id,
                     "client_msg_ids": [msg_id_client] if msg_id_client else [],
                 },
@@ -854,33 +838,12 @@ async def _update_buffer_window(
     logger.info("buffer_window_updated", buffer_id=buffer_obj.id, category=category.name)
 
 
-def _build_input_text_block(content: str) -> Dict[str, Any]:
-    return {"type": "input_text", "text": content}
-
-
-def _build_user_blocks(content: str) -> List[Dict[str, Any]]:
-    return [_build_input_text_block(content)]
-
-
-def _build_preview(blocks: List[Dict[str, Any]], limit: int = 180) -> str:
-    accumulator: List[str] = []
-    for block in blocks:
-        text_value = block.get("text")
-        if text_value:
-            accumulator.append(text_value)
-        if len(" ".join(accumulator)) >= limit:
-            break
-    preview = " ".join(accumulator)
-    return preview[:limit]
-
-
-def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
-    texts = []
-    for block in blocks:
-        text_value = block.get("text")
-        if text_value:
-            texts.append(text_value)
-    return "\n".join(texts)
+def _append_text(existing: Optional[str], addition: str) -> str:
+    if not existing:
+        return addition or ""
+    if not addition:
+        return existing
+    return f"{existing}\n{addition}"
 
 
 def _categorize_event(event: InboundMessageEvent) -> Optional[BufferMessageCategory]:

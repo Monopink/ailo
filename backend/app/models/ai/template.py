@@ -47,6 +47,12 @@ class AICharacterTemplate(AutoIncrementModel):
         comment="Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
     )
 
+    typing_speed_wpm: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Typing speed (words per minute) applied when instantiating characters",
+    )
+
     # Display name for admin/UI list and association views
     display_name: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True, comment="Display name for character template"

@@ -9,7 +9,7 @@ import json
 from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.ai.queries.character_queries import get_character_with_relations
+from services.ai.queries.character_queries import get_character_context
 from services.ai.queries.context_queries import get_conversation_history
 from services.ai.queries.updates import update_character_status, mark_conversation_item_as_excluded
 from services.ai.relationship_scoring import (
@@ -19,7 +19,7 @@ from services.ai.relationship_scoring import (
     update_relationship_positions,
     update_current_relationship,
 )
-from services.ai.conversation_prompt import build_system_prompt, get_response_schema, build_conversation_context
+from services.ai.conversation_prompt import build_system_prompt, build_response_schema, build_conversation_context
 from services.ai.conversation_memory import process_memory_operations, archive_old_contexts
 from services.message.processing.buffer import is_buffer_cancelled
 from services.ai.utils.validator import invoke_llm_with_validation
@@ -27,6 +27,7 @@ from services.llm.client import select_config_for_ai, validate_ai_response
 from services.llm.types import LLMSessionContext
 from services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError, AIConversationError
+from services.ai.types import CharacterContext
 from utils.logging import get_logger
 from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 from services.message.outbound.helpers import send_chat_info
@@ -97,9 +98,9 @@ async def process_conversation(
         # This function assumes, when called by buffer, that locked_buffer_id points
         # to the currently LOCKED user window and message_content reflects its content.
 
-        # Step 3: Find corresponding ai_character with relations
-        character_info = await get_character_with_relations(db, character_qiao_id)
-        if not character_info:
+        # Step 3: Find corresponding ai_character context
+        context = await get_character_context(db, character_qiao_id=character_qiao_id)
+        if not context:
             raise AIConversationError(
                 conversation_step="character_lookup",
                 reason="character_not_found",
@@ -186,10 +187,10 @@ async def process_conversation(
         relationship_scores = await get_relationship_scores(db, character_qiao_id)
 
         # Step 5: Determine relationship type
-        relationship_type = await determine_relationship_type(db, character_info, relationship_scores)
+        relationship_type = await determine_relationship_type(db, context, relationship_scores)
 
         # Step 6: Apply relationship prompt and placeholders to personality template
-        system_prompt = await build_system_prompt(db, character_info, relationship_type, user_qiao_id)
+        system_prompt = await build_system_prompt(db, context, relationship_type, user_qiao_id)
 
         # Step 7: Get conversation context and prepare messages
         conversation_history = await build_conversation_context(
@@ -212,7 +213,22 @@ async def process_conversation(
         if not user_text and message_blocks:
             user_text = _blocks_to_text(message_blocks)
 
-        if user_text:
+        def _should_append_user_message() -> bool:
+            if not user_text:
+                return False
+            if not (persist and user_message_item_id is not None):
+                return True
+            if not conversation_history:
+                return True
+            last_entry = conversation_history[-1]
+            if last_entry.get("role") != "user":
+                return True
+            last_text = last_entry.get("text_content")
+            if last_text is None:
+                return True
+            return last_text.strip() != user_text.strip()
+
+        if _should_append_user_message():
             messages.append(
                 {
                     "role": "user",
@@ -222,7 +238,7 @@ async def process_conversation(
             )
 
         # Get JSON schema for response validation
-        json_schema = await get_response_schema(db, character_qiao_id)
+        json_schema = build_response_schema(context)
 
         # Pre-check: Validate config supports JSON Schema
         # This will raise ConfigNotVerifiedError or JSONSchemaNotSupportedError if config is not suitable
@@ -236,9 +252,7 @@ async def process_conversation(
         )
 
         # Extract character-specific request parameters
-        character_request_params = character_info.get("character", {}).request_params or {}
-        if not isinstance(character_request_params, dict):
-            character_request_params = {}
+        character_request_params = dict(context.get("request_params") or {})
         # Apply test-time overrides (e.g., mock provider)
         if request_overrides:
             try:
@@ -336,7 +350,7 @@ async def process_conversation(
                 session_factory=SessionLocal,
                 user_qiao_id=user_qiao_id,
                 character_qiao_id=character_qiao_id,
-                character_info=character_info,
+                character_context=context,
                 ai_response=ai_response,
                 llm_result={
                     "success": True,
@@ -358,7 +372,7 @@ async def process_conversation(
                 db,
                 user_qiao_id,
                 character_qiao_id,
-                character_info,
+                context,
                 ai_response,
                 locked_buffer_id,
                 user_message_item_id,
@@ -419,7 +433,7 @@ async def process_ai_response_updates(
     db: AsyncSession,
     user_qiao_id: str,
     character_qiao_id: str,
-    character_info: Dict[str, Any],
+    context: CharacterContext,
     ai_response: Dict[str, Any],
     buffer_id: Optional[int],  # Locked buffer id
     user_message_item_id: Optional[int],
@@ -433,7 +447,7 @@ async def process_ai_response_updates(
         db: Database session
         user_qiao_id: User's qiao_id
         character_qiao_id: Character's qiao_id
-        character_info: Character information
+        context: Character context data
         ai_response: AI response dictionary
         buffer_id: Buffer ID (used for logging only)
         user_message_item_id: Conversation item identifier linked to buffer
@@ -454,10 +468,10 @@ async def process_ai_response_updates(
         # Update relationship scores
         if ai_response.get("score"):
             # Calculate new scores using the new system
-            new_scores = await calculate_new_scores(db, character_info, ai_response["score"])
+            new_scores = await calculate_new_scores(db, context, ai_response["score"])
 
             # Update relationship positions
-            character_id = character_info["character_id"]
+            character_id = context["character_id"]
             if persist and character_id and new_scores:
                 await update_relationship_positions(db, character_id, new_scores)
 
@@ -466,7 +480,7 @@ async def process_ai_response_updates(
 
                 latest_scores = await get_character_relationship_scores(db, character_id)
                 if persist and latest_scores:
-                    rel = await determine_relationship_type(db, character_info, latest_scores)
+                    rel = await determine_relationship_type(db, context, latest_scores)
                     if rel and rel.get("relationship"):
                         relationship = rel["relationship"]
                         display_name = getattr(

@@ -10,12 +10,10 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from models.ai.character import AICharacter
-from models.ai.personality import AIPersonality
-from models.ai.style import AIStyle, AIRelationship
-from models.profile import Profile
 from services.llm.config import get_active_configs
 from utils.logging import get_logger
+from services.ai.queries import get_character_context
+from services.ai.types import CharacterContext
 
 logger = get_logger(__name__)
 
@@ -52,36 +50,36 @@ class ValidationService:
             ValidationError: If any validation fails
         """
         try:
-            # Step 1: Validate AI character exists and is active
-            character_info = await self._validate_character(db, character_id)
+            # Step 1: Load and validate character context
+            character_context = await self._validate_character(db, character_id)
 
-            # Step 2: Validate character profile exists
-            character_profile = await self._validate_character_profile(db, character_info)
+            # Step 2: Extract profile info from context
+            character_profile = self._extract_character_profile(character_context)
 
             # Step 3: Validate AI style and personality configuration
-            style_info, personality_info = await self._validate_ai_configuration(db, character_info)
+            style_info, personality_info = self._validate_ai_configuration(character_context)
 
-            # Step 4: Get current relationship info if set
-            current_relationship = await self._get_current_relationship(db, character_info)
+            # Step 4: Current relationship snapshot comes from context
+            current_relationship = character_context.get("current_relationship")
 
             # Step 5: Validate relationship scores exist
-            relationship_scores = await self._validate_relationship_scores(db, character_info, style_info)
+            relationship_scores = await self._validate_relationship_scores(db, character_context, style_info)
 
             # Step 6: Validate LLM configurations available
             llm_configs = await self._validate_llm_configs(db)
 
             # Step 7: Validate prompt variables completeness
-            await self._validate_prompt_variables(character_info, personality_info)
+            await self._validate_prompt_variables(character_context, personality_info)
 
             logger.info(
                 "ai_character_test_validation_success",
                 character_id=character_id,
-                character_qiao_id=character_info["qiao_id"],
+                character_qiao_id=character_context["character_qiao_id"],
             )
 
             return {
                 "valid": True,
-                "character": character_info,
+                "character": character_context,
                 "character_profile": character_profile,
                 "style": style_info,
                 "personality": personality_info,
@@ -98,22 +96,23 @@ class ValidationService:
                 f"Validation failed due to system error: {str(e)}", error_code="SYSTEM_ERROR"
             )
 
-    async def _validate_character(self, db: AsyncSession, character_id: int) -> Dict[str, Any]:
-        """Validate AI character exists and is active"""
-        stmt = select(AICharacter).where(AICharacter.id == character_id)
-        result = await db.execute(stmt)
-        character = result.scalar_one_or_none()
+    async def _validate_character(self, db: AsyncSession, character_id: int) -> CharacterContext:
+        """Validate AI character exists and is active, returning context."""
+        context = await get_character_context(db, character_id=character_id)
 
-        if not character:
+        if not context:
             raise ValidationError(
                 f"AI character with ID {character_id} not found",
                 error_code="CHARACTER_NOT_FOUND",
-                suggestions=["Check if the character ID is correct", "Verify character exists in database"],
+                suggestions=[
+                    "Check if the character ID is correct",
+                    "Verify character exists in database",
+                ],
             )
 
-        if character.status != 1:  # ACTIVE
+        if context["status"] != 1:
             raise ValidationError(
-                f"AI character '{character.qiao_id}' is not active (status: {character.status})",
+                f"AI character '{context['character_qiao_id']}' is not active (status: {context['status']})",
                 error_code="CHARACTER_INACTIVE",
                 suggestions=[
                     "Activate the character in AI Characters management",
@@ -121,59 +120,15 @@ class ValidationService:
                 ],
             )
 
-        return {
-            "id": character.id,
-            "qiao_id": character.qiao_id,
-            "category": character.category,
-            "style_id": character.style_id,
-            "personality_id": character.personality_id,
-            "relationship_id": character.relationship_id,
-            "memory": character.memory,
-            "prompt_variables": character.prompt_variables,
-            "user_id": character.user_id,
-            "user_qiao_id": character.user_qiao_id,
-        }
+        return context
 
-    async def _get_current_relationship(
-        self, db: AsyncSession, character_info: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """Get current relationship info if character has relationship_id set"""
-        relationship_id = character_info.get("relationship_id")
-        if not relationship_id:
-            return None
+    def _extract_character_profile(self, context: CharacterContext) -> Dict[str, Any]:
+        """Extract profile data from context and ensure it exists."""
+        profile = context.get("profile")
 
-        stmt = select(AIRelationship).where(AIRelationship.id == relationship_id)
-        result = await db.execute(stmt)
-        relationship = result.scalar_one_or_none()
-
-        if not relationship:
-            logger.warning(
-                "relationship_not_found",
-                relationship_id=relationship_id,
-                character_qiao_id=character_info["qiao_id"],
-            )
-            return None
-
-        return {
-            "id": relationship.id,
-            "name": relationship.name,
-            "display_name": relationship.display_name,
-            "prompt_fragment": relationship.prompt_fragment,
-        }
-
-    async def _validate_character_profile(
-        self, db: AsyncSession, character_info: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Validate character profile exists"""
-        stmt = select(Profile).where(
-            Profile.owner_qiao_id == character_info["qiao_id"], Profile.owner_type == 2  # AI character
-        )
-        result = await db.execute(stmt)
-        profile = result.scalar_one_or_none()
-
-        if not profile:
+        if not profile or not profile.get("nickname"):
             raise ValidationError(
-                f"Profile not found for AI character '{character_info['qiao_id']}'",
+                f"Profile not found for AI character '{context['character_qiao_id']}'",
                 error_code="CHARACTER_PROFILE_MISSING",
                 suggestions=[
                     "Create a profile for this AI character",
@@ -182,70 +137,46 @@ class ValidationService:
             )
 
         return {
-            "nickname": profile.nickname,
-            "bio": profile.bio,
-            "gender": profile.gender,
-            "avatar_url": profile.avatar_url,
-            "avatar_prompt": profile.avatar_prompt,
-            "region": profile.region,
+            "nickname": profile.get("nickname"),
+            "bio": profile.get("bio"),
+            "gender": profile.get("gender"),
+            "avatar_url": profile.get("avatar_url"),
+            "avatar_prompt": profile.get("avatar_prompt"),
+            "region": profile.get("region"),
         }
 
-    async def _validate_ai_configuration(
-        self, db: AsyncSession, character_info: Dict[str, Any]
+    def _validate_ai_configuration(
+        self, context: CharacterContext
     ) -> tuple[Dict[str, Any], Dict[str, Any]]:
-        """Validate AI style and personality configuration"""
-        # Validate AI style
-        stmt = select(AIStyle).where(AIStyle.id == character_info["style_id"])
-        result = await db.execute(stmt)
-        style = result.scalar_one_or_none()
+        """Validate AI style and personality configuration from context."""
+        style = context["style"]
+        personality = context["personality"]
 
-        if not style:
+        if personality.get("status") != 1:
             raise ValidationError(
-                f"AI style with ID {character_info['style_id']} not found",
-                error_code="STYLE_NOT_FOUND",
-                suggestions=["Check AI Styles management", "Verify style_id in character configuration"],
-            )
-
-        # Validate AI personality
-        stmt = select(AIPersonality).where(AIPersonality.id == character_info["personality_id"])
-        result = await db.execute(stmt)
-        personality = result.scalar_one_or_none()
-
-        if not personality:
-            raise ValidationError(
-                f"AI personality with ID {character_info['personality_id']} not found",
-                error_code="PERSONALITY_NOT_FOUND",
-                suggestions=[
-                    "Check AI Personalities management",
-                    "Verify personality_id in character configuration",
-                ],
-            )
-
-        if personality.status != 1:  # ACTIVE
-            raise ValidationError(
-                f"AI personality '{personality.name}' is not active",
+                f"AI personality '{personality.get('name')}' is not active",
                 error_code="PERSONALITY_INACTIVE",
                 suggestions=["Activate the personality", "Check personality status"],
             )
 
         style_info = {
-            "id": style.id,
-            "name": style.name,
-            "display_name": style.display_name,
+            "id": style.get("id"),
+            "name": style.get("name"),
+            "display_name": style.get("display_name"),
         }
 
         personality_info = {
-            "id": personality.id,
-            "name": personality.name,
-            "display_name": personality.display_name,
-            "prompt": personality.prompt,
-            "json_schema": personality.json_schema,
+            "id": personality.get("id"),
+            "name": personality.get("name"),
+            "display_name": personality.get("display_name"),
+            "prompt": personality.get("prompt"),
+            "json_schema": personality.get("json_schema"),
         }
 
         return style_info, personality_info
 
     async def _validate_relationship_scores(
-        self, db: AsyncSession, character_info: Dict[str, Any], style_info: Dict[str, Any]
+        self, db: AsyncSession, character_context: CharacterContext, style_info: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Validate relationship scores exist for this character.
@@ -254,11 +185,11 @@ class ValidationService:
         from services.ai.relationship_scoring import get_relationship_scores
 
         # Do not auto-initialize in validation. Missing scores is an error by design.
-        scores = await get_relationship_scores(db, character_info["qiao_id"], auto_initialize=False)
+        scores = await get_relationship_scores(db, character_context["character_qiao_id"], auto_initialize=False)
 
         if not scores:
             raise ValidationError(
-                f"Relationship scores missing for character '{character_info['qiao_id']}'",
+                f"Relationship scores missing for character '{character_context['character_qiao_id']}'",
                 error_code="RELATIONSHIP_SCORES_MISSING",
                 suggestions=[
                     "Ensure character is created via template so scores are initialized",
@@ -303,13 +234,13 @@ class ValidationService:
         ]
 
     async def _validate_prompt_variables(
-        self, character_info: Dict[str, Any], personality_info: Dict[str, Any]
+        self, character_context: CharacterContext, personality_info: Dict[str, Any]
     ) -> None:
         """Validate prompt variables are complete"""
-        prompt_variables = character_info.get("prompt_variables")
+        prompt_variables = character_context.get("prompt_variables")
         if not prompt_variables or prompt_variables == "{}":
             raise ValidationError(
-                f"Prompt variables not configured for AI character '{character_info['qiao_id']}'",
+                f"Prompt variables not configured for AI character '{character_context['character_qiao_id']}'",
                 error_code="PROMPT_VARIABLES_MISSING",
                 suggestions=[
                     "Configure prompt_variables in AI character settings",

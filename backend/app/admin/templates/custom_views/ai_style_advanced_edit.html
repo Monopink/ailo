@@ -1407,12 +1407,32 @@
 
     try {
       // Collect all dimensions
+      const nameSet = new Set();
+      const duplicateNames = new Set();
+      // seed with existing dimension names to prevent creating duplicate names
+      dimensions.forEach(d => {
+        if (d.id >= 0 && d.name) {
+          nameSet.add(String(d.name).trim().toLowerCase());
+        }
+      });
+
       const allDimensions = [];
       dimensions.forEach(dimension => {
         const dimData = {
           initial_position: dimension.initial_position,
           description: dimension.description || ''
         };
+
+        // Validate duplicate dimension names (only for new dimensions)
+        if (dimension.id < 0) {
+          const dimName = (dimension.name || '').trim();
+          if (!dimName) {
+            duplicateNames.add('(空名称)');
+          } else if (nameSet.has(dimName.toLowerCase())) {
+            duplicateNames.add(dimName);
+          }
+          nameSet.add(dimName.toLowerCase());
+        }
 
         // Negative ID means new dimension, need to create dimension first
         if (dimension.id < 0) {
@@ -1427,6 +1447,13 @@
 
         allDimensions.push(dimData);
       });
+
+      if (duplicateNames.size > 0) {
+        alert('保存失败: 维度名称重复，请修改后再保存 (重复: ' + Array.from(duplicateNames).join(', ') + ')');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalBtnHtml;
+        return;
+      }
 
       // Collect all mappings
       const allMappings = [];
@@ -1496,7 +1523,12 @@
         }
       } else {
         const error = await response.json();
-        alert('保存失败: ' + (error.detail || '未知错误'));
+        const detail = error.detail || '未知错误';
+        if (detail === 'dimension name already exists') {
+          alert('保存失败: 维度名称已存在，请修改后再保存');
+        } else {
+          alert('保存失败: ' + detail);
+        }
         saveBtn.disabled = false;
         saveBtn.innerHTML = originalBtnHtml;
       }

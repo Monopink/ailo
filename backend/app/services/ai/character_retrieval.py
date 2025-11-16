@@ -8,14 +8,15 @@ with clear error handling and single responsibility principle.
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .queries import get_character_with_relations
+from .queries import get_character_context
 from exceptions import AICharacterNotFoundError, AICharacterInactiveError
 from utils.logging import get_logger
+from services.ai.types import CharacterContext
 
 logger = get_logger(__name__)
 
 
-async def get_character_info(db: AsyncSession, character_qiao_id: str) -> Dict[str, Any]:
+async def get_character_info(db: AsyncSession, character_qiao_id: str) -> CharacterContext:
     """
     Get character information with validation.
 
@@ -30,38 +31,36 @@ async def get_character_info(db: AsyncSession, character_qiao_id: str) -> Dict[s
         CharacterNotFoundError: If character doesn't exist
         CharacterInactiveError: If character is inactive or blocked
     """
-    character_data = await get_character_with_relations(db, character_qiao_id)
+    context = await get_character_context(db, character_qiao_id=character_qiao_id)
 
-    if not character_data:
+    if not context:
         raise AICharacterNotFoundError(character_id=character_qiao_id)
 
-    character = character_data["character"]
-
-    # Validate character status
-    if character.status != 1:  # 1 = active
-        if character.status == 2:
+    character_status = context["status"]
+    if character_status != 1:
+        if character_status == 2:
             raise AICharacterInactiveError(
-                character_id=character_qiao_id, status=character.status, message="Character is inactive"
+                character_id=character_qiao_id, status=character_status, message="Character is inactive"
             )
-        elif character.status == 3:
+        elif character_status == 3:
             raise AICharacterInactiveError(
-                character_id=character_qiao_id, status=character.status, message="Character is blocked"
+                character_id=character_qiao_id, status=character_status, message="Character is blocked"
             )
         else:
             raise AICharacterInactiveError(
                 character_id=character_qiao_id,
-                status=character.status,
-                message=f"Character has invalid status {character.status}",
+                status=character_status,
+                message=f"Character has invalid status {character_status}",
             )
 
     logger.debug(
         "character_info_retrieved",
         character_qiao_id=character_qiao_id,
-        personality_id=character_data["personality_id"],
-        style_id=character_data["style_id"],
+        personality_id=context["personality"]["id"],
+        style_id=context["style"]["id"],
     )
 
-    return character_data
+    return context
 
 
 async def validate_character_status(character: Any) -> None:

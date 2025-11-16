@@ -17,6 +17,7 @@ from .queries import (
 from .queries.updates import update_relationship_scores, set_current_relationship
 from exceptions import AIRelationshipError
 from utils.logging import get_logger
+from services.ai.types import CharacterContext
 
 logger = get_logger(__name__)
 
@@ -201,23 +202,26 @@ async def initialize_relationship_scores(
 
 
 async def determine_relationship_type(
-    db: AsyncSession, character_info: Dict[str, Any], scores: Optional[List[Dict[str, Any]]]
+    db: AsyncSession, context: CharacterContext, scores: Optional[List[Dict[str, Any]]]
 ) -> Optional[Dict[str, Any]]:
     """
     Determine relationship type based on character style and scores.
 
     Args:
         db: Database session
-        character_info: Character information dictionary
+        context: Character context dictionary
         scores: List of relationship scores
 
     Returns:
         Dictionary containing relationship information, or None if not determined
     """
     try:
-        style_id = character_info.get("style_id")
+        style_id = context["style"]["id"]
         if not style_id:
-            logger.warning("no_style_id_in_character_info", character_info=character_info)
+            logger.warning(
+                "no_style_id_in_context",
+                character_qiao_id=context.get("character_qiao_id"),
+            )
             return None
 
         # Get style with relationship mappings
@@ -241,21 +245,8 @@ async def determine_relationship_type(
         score_positions = _calculate_score_positions(scores)
 
         # Get current relationship ID from scores (if any)
-        current_relationship_id = None
-        try:
-            character = character_info.get("character")
-            if character is not None:
-                current_relationship_id = getattr(character, "relationship_id", None)
-        except Exception:
-            current_relationship_id = None
-
-        # Find matching relationship with current relationship priority and limit_count
-        relationship_counts = {}
-        try:
-            if character is not None and getattr(character, "relationship_counts", None):
-                relationship_counts = getattr(character, "relationship_counts") or {}
-        except Exception:
-            relationship_counts = {}
+        current_relationship_id = context.get("relationship_id")
+        relationship_counts = context.get("relationship_counts") or {}
 
         matching_relationship = _find_matching_relationship(
             score_positions, relationships, current_relationship_id, relationship_counts
@@ -288,7 +279,7 @@ async def determine_relationship_type(
         logger.error(
             "relationship_type_determination_failed",
             error=str(e),
-            character_info=character_info,
+            character_qiao_id=context.get("character_qiao_id"),
             scores=scores,
         )
         raise AIRelationshipError(
@@ -602,14 +593,14 @@ def _get_default_relationship_mapping(
 
 
 async def calculate_new_scores(
-    db: AsyncSession, character_info: Dict[str, Any], llm_response_scores: Dict[str, int]
+    db: AsyncSession, context: CharacterContext, llm_response_scores: Dict[str, int]
 ) -> Dict[str, int]:
     """
     Calculate new relationship scores based on LLM response.
 
     Args:
         db: Database session
-        character_info: Character information dictionary
+        context: Character context dictionary
         llm_response_scores: Scores from LLM response
 
     Returns:
@@ -619,12 +610,12 @@ async def calculate_new_scores(
         AIRelationshipError: If calculation fails
     """
     try:
-        character_id = character_info.get("character_id")
+        character_id = context.get("character_id")
         if not character_id:
             raise AIRelationshipError(
                 operation="calculate_new_scores",
                 reason="missing_character_id",
-                message="No character_id in character_info",
+                message="Character context missing character_id",
             )
 
         # Get all dimensions with offset config in one query
@@ -640,26 +631,11 @@ async def calculate_new_scores(
 
         # Build dimension config map
         from .utils.position_mapping import map_score_to_position
-        from .conversation_prompt import get_response_schema
+        from .conversation_prompt import build_response_schema
         from .utils.score_mapping import map_to_permille
 
         # Load JSON Schema to get per-dimension min/max for mapping
-        character_qiao_id = None
-        try:
-            character_obj = character_info.get("character")
-            if character_obj is not None:
-                character_qiao_id = getattr(character_obj, "qiao_id", None)
-        except Exception:
-            character_qiao_id = None
-
-        if not character_qiao_id:
-            raise AIRelationshipError(
-                operation="calculate_new_scores",
-                reason="missing_character_qiao_id",
-                message="No character.qiao_id in character_info",
-            )
-
-        schema = await get_response_schema(db, character_qiao_id)
+        schema = build_response_schema(context)
         # Validate schema structure
         try:
             score_schema_props = (
@@ -738,7 +714,7 @@ async def calculate_new_scores(
         logger.error(
             "new_scores_calculation_failed",
             error=str(e),
-            character_info=character_info,
+            character_qiao_id=context.get("character_qiao_id"),
             llm_response_scores=llm_response_scores,
         )
         raise AIRelationshipError(

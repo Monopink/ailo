@@ -22,6 +22,7 @@ from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base, SnowflakeModel, SnowflakeQiaoModel, ImmutableSnowflakeModel, TimestampMixin
+from enums.common import ConversationItemContextStatus
 
 if TYPE_CHECKING:
     from models.user import User
@@ -306,7 +307,9 @@ class AIConversationItem(ImmutableSnowflakeModel):
             "user_qiao_id",
             "character_qiao_id",
             "created_at",
-            postgresql_where=text("is_excluded_from_context = true"),
+            postgresql_where=text(
+                f"is_excluded_from_context = {int(ConversationItemContextStatus.EXCLUDED)}"
+            ),
         ),
         Index(
             "idx_ai_conv_items_text_search",

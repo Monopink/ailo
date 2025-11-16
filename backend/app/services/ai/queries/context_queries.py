@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.ai import AIConversationItem
 from utils.logging import get_logger
+from enums.common import ConversationItemContextStatus
 
 logger = get_logger(__name__)
 
@@ -33,7 +34,8 @@ async def get_conversation_contexts(
                 and_(
                     AIConversationItem.user_qiao_id == user_qiao_id,
                     AIConversationItem.character_qiao_id == character_qiao_id,
-                    AIConversationItem.is_excluded_from_context.is_(False),
+                    AIConversationItem.is_excluded_from_context
+                    == ConversationItemContextStatus.INCLUDED,
                 )
             )
             .order_by(desc(AIConversationItem.created_at), desc(AIConversationItem.id))
@@ -94,7 +96,9 @@ async def get_conversation_history(
         history: List[Dict[str, Any]] = []
         for item in reversed(items):
             payload = _serialize_item(item)
-            payload["is_excluded_from_context"] = item.is_excluded_from_context
+            payload["is_excluded_from_context"] = (
+                item.is_excluded_from_context == ConversationItemContextStatus.EXCLUDED
+            )
             payload["buffer_id"] = item.buffer_id
             history.append(payload)
 
@@ -132,7 +136,10 @@ async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> Optiona
         payload.update(
             {
                 "buffer_id": item.buffer_id,
-                "is_excluded_from_context": item.is_excluded_from_context,
+                "is_excluded_from_context": (
+                    item.is_excluded_from_context
+                    == ConversationItemContextStatus.EXCLUDED
+                ),
             }
         )
         return payload

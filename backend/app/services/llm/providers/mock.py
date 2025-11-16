@@ -10,21 +10,31 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from models.llm import LLMConfig, LLMProvider
 from services.llm.types import LLMRequestOptions, LLMProviderResult
+from services.llm.converters import ResponsesFormatConverter
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def _build_payload(config: LLMConfig, provider: LLMProvider, options: LLMRequestOptions) -> Dict[str, Any]:
+_converter = ResponsesFormatConverter()
+
+
+def _build_payload(
+    config: LLMConfig,
+    provider: LLMProvider,
+    options: LLMRequestOptions,
+    provider_messages: List[Dict[str, Any]],
+) -> Dict[str, Any]:
     """Create a payload snapshot to simplify debugging."""
 
     payload: Dict[str, Any] = {
         "model": options.model or config.model_name or provider.default_model or "mock-model-v1",
         "messages": options.messages,
+        "input": provider_messages,
         "temperature": (
             options.temperature
             if options.temperature is not None
@@ -141,7 +151,8 @@ async def send_request(
         preemption_checker: Optional async callable used to cancel streaming
     """
 
-    payload = _build_payload(config, provider, options)
+    provider_messages = _converter.convert_to_provider_format(options.messages)
+    payload = _build_payload(config, provider, options, provider_messages)
 
     # Simulate inference latency
     await asyncio.sleep(0.2)
@@ -159,24 +170,11 @@ async def send_request(
         )
 
     # Extract last user message, handling both string and list content formats
-    last_user_message = ""
-    for msg in reversed(options.messages):
-        if msg.get("role") == "user":
-            content_value = msg.get("content", "")
-            if isinstance(content_value, list):
-                # Extract text from content blocks (e.g., [{"type": "input_text", "text": "..."}])
-                text_parts = []
-                for block in content_value:
-                    if isinstance(block, dict) and "text" in block:
-                        text_parts.append(block["text"])
-                last_user_message = " ".join(text_parts)
-            else:
-                last_user_message = str(content_value)
-            break
+    last_user_message = _extract_last_user_message(provider_messages)
 
     content = _build_mock_content(last_user_message, options.json_schema, config, provider)
 
-    prompt_tokens = sum(len(msg.get("content", "")) // 4 + 1 for msg in options.messages)
+    prompt_tokens = _estimate_tokens(provider_messages)
     completion_tokens = len(content) // 4 + 1
     usage = {
         "prompt_tokens": prompt_tokens,
@@ -226,3 +224,37 @@ async def send_request(
         response_id=response_identifier,
         reasoning_content=reasoning_content,
     )
+
+
+def _extract_last_user_message(provider_messages: List[Dict[str, Any]]) -> str:
+    for msg in reversed(provider_messages):
+        if msg.get("role") != "user":
+            continue
+        content_blocks = msg.get("content")
+        if isinstance(content_blocks, list):
+            text_parts: List[str] = []
+            for block in content_blocks:
+                if isinstance(block, dict) and block.get("type") in ("input_text", "text"):
+                    value = block.get("text") or block.get("input_text")
+                    if isinstance(value, str):
+                        text_parts.append(value)
+            if text_parts:
+                return " ".join(text_parts)
+        fallback = msg.get("text")
+        if isinstance(fallback, str) and fallback:
+            return fallback
+    return ""
+
+
+def _estimate_tokens(provider_messages: List[Dict[str, Any]]) -> int:
+    total = 0
+    for msg in provider_messages:
+        blocks = msg.get("content")
+        if isinstance(blocks, list):
+            for block in blocks:
+                text = block.get("text") if isinstance(block, dict) else None
+                if isinstance(text, str):
+                    total += max(len(text) // 4 + 1, 1)
+        elif isinstance(msg.get("text"), str):
+            total += max(len(msg["text"]) // 4 + 1, 1)
+    return total or 1

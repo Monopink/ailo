@@ -8,7 +8,7 @@ context status updates, and context archiving.
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .queries import get_character_with_relations, get_items_for_archiving
+from .queries import get_character_context, get_items_for_archiving
 from .queries.updates import update_character_memory
 from .queries.transactions import archive_contexts_transaction
 from services.config import config_service
@@ -43,15 +43,14 @@ async def process_memory_operations(
             logger.debug("no_memory_operations_to_process", character_qiao_id=character_qiao_id)
             return True
 
-        # Get character
-        character_data = await get_character_with_relations(db, character_qiao_id)
+        # Get character context
+        context = await get_character_context(db, character_qiao_id=character_qiao_id)
 
-        if not character_data:
+        if not context:
             logger.error("character_not_found_for_memory", character_qiao_id=character_qiao_id)
             return False
 
-        character = character_data["character"]
-        current_memory = character.memory or ""
+        current_memory = context.get("memory") or ""
 
         # Process operations in sequence
         for i, operation in enumerate(operations):

@@ -205,8 +205,8 @@ class AICharacterChatTestView(CustomView):
                     "test_mode": test_execution["test_mode"],
                     "log_id": test_execution["log_id"],
                     "character_info": {
-                        "qiao_id": result["validation_info"]["character"]["qiao_id"],
-                        "category": result["validation_info"]["character"]["category"],
+                        "qiao_id": result["validation_info"]["character"].get("character_qiao_id"),
+                        "category": result["validation_info"]["character"].get("category"),
                         "style": result["validation_info"]["style"]["display_name"],
                         "personality": result["validation_info"]["personality"]["display_name"],
                     },

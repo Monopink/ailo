@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from models.user import User
-from models.contact import Contact
 from models.profile import Profile
 from utils.logging import get_logger
+from services.ai.types import CharacterContext
 
 logger = get_logger(__name__)
 
@@ -33,14 +33,14 @@ class UserMatcherService:
     """Stateless service for automatic test user matching and validation"""
 
     async def find_test_user_for_character(
-        self, db: AsyncSession, character_info: Dict[str, Any]
+        self, db: AsyncSession, character_context: CharacterContext
     ) -> Dict[str, Any]:
         """
         Find and validate test user associated with the given AI character.
 
         Args:
             db: Database session
-            character_info: AI character information from validation
+            character_context: AI character context from validation
 
         Returns:
             Dictionary containing test user information and relationship data
@@ -50,14 +50,14 @@ class UserMatcherService:
         """
         try:
             # Find contact relationship where user is test user (user_type=3) and contact is this AI character
-            test_user_info = await self._find_associated_test_user(db, character_info)
+            test_user_info = await self._find_associated_test_user(db, character_context)
 
             # Validate test user profile exists
             test_user_profile = await self._validate_test_user_profile(db, test_user_info)
 
             logger.info(
                 "test_user_match_success",
-                character_qiao_id=character_info["qiao_id"],
+                character_qiao_id=character_context["character_qiao_id"],
                 test_user_qiao_id=test_user_info["qiao_id"],
                 conversation_id=test_user_info["conversation_id"],
             )
@@ -71,14 +71,16 @@ class UserMatcherService:
             raise
         except Exception as e:
             logger.error(
-                "test_user_match_error", character_qiao_id=character_info.get("qiao_id"), error=str(e)
+                "test_user_match_error",
+                character_qiao_id=character_context.get("character_qiao_id"),
+                error=str(e),
             )
             raise UserMatcherError(
                 f"Test user matching failed due to system error: {str(e)}", error_code="SYSTEM_ERROR"
             )
 
     async def _find_associated_test_user(
-        self, db: AsyncSession, character_info: Dict[str, Any]
+        self, db: AsyncSession, character_context: CharacterContext
     ) -> Dict[str, Any]:
         """
         Find test user (owner) for this AI character.
@@ -89,10 +91,10 @@ class UserMatcherService:
         from enums import UserType
 
         # Step 1: Validate character has owner
-        owner_qiao_id = character_info.get("user_qiao_id")
+        owner_qiao_id = character_context.get("user_qiao_id")
         if not owner_qiao_id:
             raise UserMatcherError(
-                f"AI character '{character_info['qiao_id']}' has no owner",
+                f"AI character '{character_context['character_qiao_id']}' has no owner",
                 error_code="NO_OWNER",
                 suggestions=[
                     "Set AI character's Owner User to a virtual user (user_type=3)",
@@ -138,7 +140,7 @@ class UserMatcherService:
 
         logger.info(
             "test_user_validated",
-            character_qiao_id=character_info["qiao_id"],
+            character_qiao_id=character_context["character_qiao_id"],
             owner_qiao_id=owner_qiao_id,
             owner_user_type=owner_user.user_type,
         )

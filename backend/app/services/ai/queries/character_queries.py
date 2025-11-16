@@ -22,80 +22,111 @@ from models.ai import (
 from models.profile import Profile
 from models.user import User
 from utils.logging import get_logger
+from exceptions import AIDataAccessError
+from services.ai.types import (
+    CharacterContext,
+    CurrentRelationship,
+    DimensionSpec,
+    ProfileInfo,
+    RelationshipCounts,
+    StyleInfo,
+    PersonalityInfo,
+)
 
 logger = get_logger(__name__)
 
 
-async def get_character_with_relations(
-    db: AsyncSession, character_qiao_id: str
-) -> Optional[Dict[str, Any]]:
-    """
-    Get character with all related data (personality, style, profile).
+async def get_character_context(
+    db: AsyncSession,
+    *,
+    character_qiao_id: Optional[str] = None,
+    character_id: Optional[int] = None,
+) -> Optional[CharacterContext]:
+    """Query complete character context exactly once per request."""
 
-    Args:
-        db: Database session
-        character_qiao_id: Character's qiao_id
+    if not character_qiao_id and not character_id:
+        raise ValueError("character_qiao_id or character_id must be provided")
 
-    Returns:
-        Dictionary containing character and related data, or None if not found
-    """
     try:
-        result = await db.execute(
-            select(AICharacter, AIPersonality, AIStyle, Profile)
+        stmt = (
+            select(AICharacter, AIPersonality, AIStyle, Profile, AIRelationship)
             .join(AIPersonality, AICharacter.personality_id == AIPersonality.id)
             .join(AIStyle, AICharacter.style_id == AIStyle.id)
             .join(
                 Profile,
-                and_(Profile.owner_qiao_id == AICharacter.qiao_id, Profile.owner_type == 2),  # AI type
+                and_(Profile.owner_qiao_id == AICharacter.qiao_id, Profile.owner_type == 2),
             )
-            .where(AICharacter.qiao_id == character_qiao_id)
+            .outerjoin(AIRelationship, AICharacter.relationship_id == AIRelationship.id)
         )
+        if character_qiao_id:
+            stmt = stmt.where(AICharacter.qiao_id == character_qiao_id)
+        if character_id:
+            stmt = stmt.where(AICharacter.id == character_id)
 
+        result = await db.execute(stmt)
         row = result.first()
         if not row:
-            logger.warning("character_not_found", character_qiao_id=character_qiao_id)
+            logger.warning(
+                "character_context_not_found",
+                character_qiao_id=character_qiao_id,
+                character_id=character_id,
+            )
             return None
 
-        character, personality, style, profile = row
+        character, personality, style, profile, relationship = row
 
-        # Get dimensions for the style
-        dimensions_result = await db.execute(
-            select(
-                AIDimension.id.label("id"),
-                AIDimension.name.label("name"),
-                AIDimension.display_name.label("display_name"),
-                AIStyleDimension.initial_position.label("initial_position"),
-            )
-            .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
-            .where(AIStyleDimension.style_id == style.id)
-            .order_by(AIDimension.name)
-        )
-        dimensions = [
-            {
-                "id": row.id,
-                "name": row.name,
-                "display_name": row.display_name,
-                "initial_position": row.initial_position,
-            }
-            for row in dimensions_result
-        ]
+        dimensions = await _get_style_dimensions(db, style.id)
 
-        return {
-            "character": character,
-            "personality": personality,
-            "style": style,
-            "profile": profile,
-            "dimensions": dimensions,
+        context: CharacterContext = {
             "character_id": character.id,
-            "personality_id": personality.id,
-            "style_id": style.id,
+            "character_qiao_id": character.qiao_id,
+            "category": character.category,
+            "status": character.status,
+            "created_by": character.created_by,
+            "user_id": character.user_id,
+            "user_qiao_id": character.user_qiao_id,
+            "memory": character.memory,
+            "prompt_variables": dict(character.prompt_variables or {}),
+            "request_params": dict(character.request_params or {}),
+            "typing_speed_wpm": character.typing_speed_wpm,
+            "created_from_profile_qiao_id": character.created_from_profile_qiao_id,
+            "relationship_id": character.relationship_id,
+            "relationship_counts": _normalize_relationship_counts(character.relationship_counts),
+            "style": _build_style(style),
+            "personality": _build_personality(personality),
+            "profile": _build_profile(profile),
+            "current_relationship": _build_current_relationship(relationship),
+            "dimensions": dimensions,
         }
 
-    except Exception as e:
-        logger.error(
-            "character_with_relations_query_failed", error=str(e), character_qiao_id=character_qiao_id
+        logger.debug(
+            "character_context_loaded",
+            character_qiao_id=context["character_qiao_id"],
+            style_id=context["style"]["id"],
+            dimension_count=len(dimensions),
         )
-        return None
+
+        return context
+
+    except AIDataAccessError:
+        raise
+    except Exception as exc:
+        logger.error(
+            "character_context_query_failed",
+            error=str(exc),
+            character_qiao_id=character_qiao_id,
+            character_id=character_id,
+            exc_info=True,
+        )
+        raise AIDataAccessError(
+            query="get_character_context",
+            reason="query_failed",
+            message="Failed to load character context",
+            details={
+                "character_qiao_id": character_qiao_id,
+                "character_id": character_id,
+            },
+        ) from exc
 
 
 async def get_personality_with_placeholders(
@@ -146,6 +177,82 @@ async def get_personality_with_placeholders(
             "personality_with_placeholders_query_failed", error=str(e), personality_id=personality_id
         )
         return None
+
+
+async def _get_style_dimensions(db: AsyncSession, style_id: int) -> List[DimensionSpec]:
+    result = await db.execute(
+        select(
+            AIDimension.id.label("id"),
+            AIDimension.name.label("name"),
+            AIDimension.display_name.label("display_name"),
+            AIStyleDimension.initial_position.label("initial_position"),
+        )
+        .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
+        .where(AIStyleDimension.style_id == style_id)
+        .order_by(AIDimension.name)
+    )
+
+    return [
+        DimensionSpec(
+            id=row.id,
+            name=row.name,
+            display_name=row.display_name,
+            initial_position=row.initial_position,
+        )
+        for row in result
+    ]
+
+
+def _normalize_relationship_counts(raw_counts: Optional[Dict[str, Any]]) -> RelationshipCounts:
+    if not raw_counts:
+        return {}
+
+    normalized: RelationshipCounts = {}
+    for key, value in raw_counts.items():
+        try:
+            normalized[str(key)] = int(value)
+        except (TypeError, ValueError):
+            continue
+
+    return normalized
+
+
+def _build_style(style: AIStyle) -> StyleInfo:
+    return StyleInfo(id=style.id, name=style.name, display_name=style.display_name)
+
+
+def _build_personality(personality: AIPersonality) -> PersonalityInfo:
+    return PersonalityInfo(
+        id=personality.id,
+        name=personality.name,
+        display_name=personality.display_name,
+        prompt=personality.prompt,
+        status=personality.status,
+        json_schema=getattr(personality, "json_schema", None),
+    )
+
+
+def _build_profile(profile: Profile) -> ProfileInfo:
+    return ProfileInfo(
+        nickname=profile.nickname,
+        bio=profile.bio,
+        gender=profile.gender,
+        avatar_url=profile.avatar_url,
+        avatar_prompt=getattr(profile, "avatar_prompt", None),
+        region=getattr(profile, "region", None),
+    )
+
+
+def _build_current_relationship(relationship: Optional[AIRelationship]) -> Optional[CurrentRelationship]:
+    if not relationship:
+        return None
+
+    return CurrentRelationship(
+        id=relationship.id,
+        name=relationship.name,
+        display_name=relationship.display_name,
+        prompt_fragment=relationship.prompt_fragment,
+    )
 
 
 async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optional[Dict[str, Any]]:

@@ -11,8 +11,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.ai import AIConversationItem, AICharacterDimension, AICharacter
 from utils.logging import get_logger
+from enums.common import ConversationItemContextStatus
 
 logger = get_logger(__name__)
+
+
+def _coerce_context_status(raw_status: Any) -> int:
+    """Normalize incoming context status into ConversationItemContextStatus value."""
+    if isinstance(raw_status, ConversationItemContextStatus):
+        return int(raw_status)
+
+    if isinstance(raw_status, bool):
+        return int(
+            ConversationItemContextStatus.EXCLUDED
+            if raw_status
+            else ConversationItemContextStatus.INCLUDED
+        )
+
+    if raw_status is None:
+        return int(ConversationItemContextStatus.INCLUDED)
+
+    try:
+        value = int(raw_status)
+    except (TypeError, ValueError):
+        return int(ConversationItemContextStatus.INCLUDED)
+
+    if value == int(ConversationItemContextStatus.EXCLUDED):
+        return int(ConversationItemContextStatus.EXCLUDED)
+
+    return int(ConversationItemContextStatus.INCLUDED)
 
 
 async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) -> Optional[int]:
@@ -58,7 +85,9 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
             media_url=media_url,
             media_metadata=media_metadata,
             buffer_id=item_data.get("buffer_id"),
-            is_excluded_from_context=item_data.get("is_excluded_from_context", False),
+            is_excluded_from_context=_coerce_context_status(
+                item_data.get("is_excluded_from_context")
+            ),
             client_msg_ids=client_msg_ids,
         )
 
@@ -281,7 +310,7 @@ async def mark_conversation_item_as_excluded(
             logger.warning("conversation_item_not_found_for_flagging", item_id=conversation_item_id)
             return False
 
-        item.is_excluded_from_context = True
+        item.is_excluded_from_context = int(ConversationItemContextStatus.EXCLUDED)
         await db.flush()
 
         logger.info(

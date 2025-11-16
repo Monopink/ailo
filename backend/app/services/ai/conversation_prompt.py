@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from enums.common import ConversationRole
 from .queries import get_personality_with_placeholders
 from exceptions import AIServiceError
+from services.ai.types import CharacterContext
 from utils.logging import get_logger
 from models.ai import AIConversationState
 
@@ -24,7 +25,7 @@ logger = get_logger(__name__)
 
 async def build_system_prompt(
     db: AsyncSession,
-    character_info: Dict[str, Any],
+    context: CharacterContext,
     relationship_type: Optional[Dict[str, Any]],
     user_qiao_id: str,
 ) -> str:
@@ -36,7 +37,7 @@ async def build_system_prompt(
 
     Args:
         db: Database session
-        character_info: Character information dictionary
+        context: Character context dictionary
         relationship_type: Relationship type information
         user_qiao_id: User's qiao_id
 
@@ -47,15 +48,8 @@ async def build_system_prompt(
         PromptBuildError: If prompt building fails
     """
     try:
-        personality_id = character_info.get("personality_id")
-        if not personality_id:
-            raise AIServiceError(
-                ai_service="prompt_building",
-                reason="missing_personality_id",
-                message="No personality_id in character_info",
-            )
+        personality_id = context["personality"]["id"]
 
-        # Get personality with placeholders
         personality_data = await get_personality_with_placeholders(db, personality_id)
         if not personality_data:
             raise AIServiceError(
@@ -64,20 +58,19 @@ async def build_system_prompt(
                 message=f"Personality not found: {personality_id}",
             )
 
-        personality = personality_data["personality"]
         available_placeholders = personality_data["placeholders"]
 
         # Build placeholder values
         placeholder_values = await _build_placeholder_values(
-            db, character_info, relationship_type, user_qiao_id, available_placeholders
+            db, context, relationship_type, user_qiao_id, available_placeholders
         )
 
         # Apply character-specific prompt variables (overrides)
-        character_prompt_variables = character_info.get("character", {}).prompt_variables or {}
+        character_prompt_variables = context.get("prompt_variables") or {}
         placeholder_values.update(character_prompt_variables)
 
         # Replace placeholders in personality prompt
-        system_prompt = replace_placeholders(personality.prompt, placeholder_values)
+        system_prompt = replace_placeholders(context["personality"]["prompt"], placeholder_values)
 
         logger.debug(
             "system_prompt_built",
@@ -93,7 +86,7 @@ async def build_system_prompt(
         logger.error(
             "system_prompt_build_failed",
             error=str(e),
-            character_info=character_info,
+            character_qiao_id=context.get("character_qiao_id"),
             user_qiao_id=user_qiao_id,
         )
         raise AIServiceError(
@@ -170,53 +163,24 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
     return result
 
 
-async def get_response_schema(db: AsyncSession, character_qiao_id: str) -> Dict[str, Any]:
-    """
-    Get JSON schema for AI response validation.
+def build_response_schema(context: CharacterContext) -> Dict[str, Any]:
+    """Build JSON schema directly from character context."""
 
-    Args:
-        db: Database session
-        character_qiao_id: Character's qiao_id
-
-    Returns:
-        JSON schema dictionary
-    """
     try:
-        # Get character info to determine style
-        from .queries import get_character_with_relations
-
-        character_data = await get_character_with_relations(db, character_qiao_id)
-        if not character_data:
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="character_not_found",
-                message=f"Character {character_qiao_id} not found for schema generation",
-            )
-
-        style = character_data.get("style")
-        if not style:
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="style_not_found",
-                message=f"Character {character_qiao_id} missing style configuration",
-            )
-
-        # Get dimensions for the style
-        dimensions = character_data.get("dimensions", [])
+        dimensions = context.get("dimensions", [])
         if not dimensions:
             raise AIServiceError(
                 ai_service="schema_building",
                 reason="dimensions_not_found",
-                message=f"No dimensions configured for style {style.id}",
+                message=f"Style {context['style']['id']} has no configured dimensions",
             )
 
-        # Build dynamic schema based on style and dimensions
-        schema = _build_dynamic_response_schema(style, dimensions)
+        schema = _build_dynamic_response_schema(context["style"], dimensions)
 
         logger.debug(
             "response_schema_built",
-            character_qiao_id=character_qiao_id,
-            style_id=style.id,
+            character_qiao_id=context["character_qiao_id"],
+            style_id=context["style"]["id"],
             dimensions_count=len(dimensions),
         )
 
@@ -224,18 +188,22 @@ async def get_response_schema(db: AsyncSession, character_qiao_id: str) -> Dict[
 
     except AIServiceError:
         raise
-    except Exception as e:
-        logger.error("response_schema_build_failed", error=str(e), character_qiao_id=character_qiao_id)
+    except Exception as exc:
+        logger.error(
+            "response_schema_build_failed",
+            error=str(exc),
+            character_qiao_id=context.get("character_qiao_id"),
+        )
         raise AIServiceError(
             ai_service="schema_building",
             reason="unexpected_error",
-            message=f"Failed to build response schema: {str(e)}",
-        ) from e
+            message=f"Failed to build response schema: {str(exc)}",
+        ) from exc
 
 
 async def _build_placeholder_values(
     db: AsyncSession,
-    character_info: Dict[str, Any],
+    context: CharacterContext,
     relationship_type: Optional[Dict[str, Any]],
     user_qiao_id: str,
     available_placeholders: Dict[str, Any],
@@ -245,7 +213,7 @@ async def _build_placeholder_values(
 
     Args:
         db: Database session
-        character_info: Character information
+        context: Character context data
         relationship_type: Relationship type information
         user_qiao_id: User's qiao_id
         available_placeholders: Available placeholder definitions
@@ -253,90 +221,70 @@ async def _build_placeholder_values(
     Returns:
         Dictionary of placeholder values
     """
-    try:
-        placeholder_values = {}
+    placeholder_values = {}
 
-        # System placeholders (highest priority)
+    # System placeholders (highest priority)
 
-        # {{relationship_prompt}} - relationship prompt fragment
-        if relationship_type and relationship_type.get("relationship"):
-            relationship = relationship_type["relationship"]
-            placeholder_values["relationship_prompt"] = relationship.prompt_fragment or ""
-        else:
-            placeholder_values["relationship_prompt"] = ""
+    # {{relationship_prompt}} - relationship prompt fragment
+    if relationship_type and relationship_type.get("relationship"):
+        relationship = relationship_type["relationship"]
+        placeholder_values["relationship_prompt"] = relationship.prompt_fragment or ""
+    else:
+        placeholder_values["relationship_prompt"] = ""
 
-        # {{self_profile}} - character profile description
-        character_profile = character_info.get("profile")
-        if character_profile:
-            placeholder_values["self_profile"] = _format_profile(character_profile)
-        else:
-            placeholder_values["self_profile"] = ""
+    # {{self_profile}} - character profile description
+    character_profile = context.get("profile")
+    if character_profile:
+        placeholder_values["self_profile"] = _format_profile(character_profile)
+    else:
+        placeholder_values["self_profile"] = ""
 
-        # {{other_profile}} - user profile description
-        user_profile = await _get_user_profile(db, user_qiao_id)
-        if user_profile:
-            placeholder_values["other_profile"] = _format_profile(user_profile)
-        else:
-            placeholder_values["other_profile"] = ""
+    # {{other_profile}} - user profile description
+    user_profile = await _get_user_profile(db, user_qiao_id)
+    if user_profile:
+        placeholder_values["other_profile"] = _format_profile(user_profile)
+    else:
+        placeholder_values["other_profile"] = ""
 
-        # {{current_datetime}} - current date and time
-        placeholder_values["current_datetime"] = _get_current_datetime()
+    # {{current_datetime}} - current date and time
+    placeholder_values["current_datetime"] = _get_current_datetime()
 
-        # {{memory}} - character memory
-        character = character_info.get("character")
-        if character and character.memory:
-            placeholder_values["memory"] = character.memory
-        else:
-            placeholder_values["memory"] = ""
+    # {{memory}} - character memory
+    placeholder_values["memory"] = context.get("memory") or ""
 
-        # {{score:dimension_name}} - dynamic score placeholders
-        character_qiao_id = (
-            character_info.get("character", {}).qiao_id if character_info.get("character") else None
+    # {{score:dimension_name}} - dynamic score placeholders
+    character_qiao_id = context.get("character_qiao_id")
+    if character_qiao_id:
+        score_placeholders = await _build_score_placeholders(db, character_qiao_id)
+        placeholder_values.update(score_placeholders)
+
+        pending_text = await _build_pending_messages_placeholder(
+            db, user_qiao_id, character_qiao_id
         )
-        if character_qiao_id:
-            score_placeholders = await _build_score_placeholders(db, character_qiao_id)
-            placeholder_values.update(score_placeholders)
+        placeholder_values["pending_messages"] = pending_text
+    else:
+        placeholder_values["pending_messages"] = ""
 
-            pending_text = await _build_pending_messages_placeholder(
-                db, user_qiao_id, character_qiao_id
-            )
-            placeholder_values["pending_messages"] = pending_text
-        else:
-            placeholder_values["pending_messages"] = ""
+    # Fill in template-defined placeholders with defaults if not already provided
+    if available_placeholders:
+        for placeholder in available_placeholders:
+            if isinstance(placeholder, dict):
+                key = placeholder.get("placeholder_key")
+            else:
+                key = getattr(placeholder, "placeholder_key", None)
 
-        # Fill in template-defined placeholders with defaults if not already provided
-        if available_placeholders:
-            for placeholder in available_placeholders:
-                if isinstance(placeholder, dict):
-                    key = placeholder.get("placeholder_key")
-                    example_value = placeholder.get("example_value")
-                else:
-                    key = getattr(placeholder, "placeholder_key", None)
-                    example_value = getattr(placeholder, "example_value", None)
+            if not key or key in placeholder_values:
+                continue
 
-                if not key or key in placeholder_values:
-                    continue
+            placeholder_values[key] = ""
 
-                placeholder_values[key] = ""
+    logger.debug(
+        "placeholder_values_built",
+        user_qiao_id=user_qiao_id,
+        placeholders_count=len(placeholder_values),
+    )
 
-        logger.debug(
-            "placeholder_values_built",
-            user_qiao_id=user_qiao_id,
-            placeholders_count=len(placeholder_values),
-        )
-
-        return placeholder_values
-
-    except Exception as e:
-        logger.error("placeholder_values_build_failed", error=str(e), user_qiao_id=user_qiao_id)
-        # Return minimal placeholders to avoid complete failure
-        return {
-            "relationship_prompt": "",
-            "self_profile": "",
-            "other_profile": "",
-            "current_datetime": _get_current_datetime(),
-            "memory": "",
-        }
+    return placeholder_values
 
 
 async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) -> Dict[str, str]:
@@ -350,42 +298,30 @@ async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) ->
     Returns:
         Dictionary of score placeholders in format {"score:dimension_name": "value"}
     """
-    try:
-        from .relationship_scoring import get_relationship_scores
+    from .relationship_scoring import get_relationship_scores
 
-        # Get current scores for the character
-        scores = await get_relationship_scores(db, character_qiao_id)
-        if not scores:
-            logger.debug(
-                "no_scores_found_for_placeholders",
-                character_qiao_id=character_qiao_id,
-            )
-            return {}
-
-        # Build score placeholders dictionary
-        score_placeholders = {}
-        for score in scores:
-            dimension_name = score["dimension_name"]
-            score_value = score["score"]
-            placeholder_key = f"score:{dimension_name}"
-            score_placeholders[placeholder_key] = str(score_value)
-
+    scores = await get_relationship_scores(db, character_qiao_id)
+    if not scores:
         logger.debug(
-            "score_placeholders_built",
-            character_qiao_id=character_qiao_id,
-            placeholders_count=len(score_placeholders),
-        )
-
-        return score_placeholders
-
-    except Exception as e:
-        logger.error(
-            "score_placeholders_build_failed",
-            error=str(e),
+            "no_scores_found_for_placeholders",
             character_qiao_id=character_qiao_id,
         )
-        # Return empty dict to avoid complete failure
         return {}
+
+    score_placeholders = {}
+    for score in scores:
+        dimension_name = score["dimension_name"]
+        score_value = score["score"]
+        placeholder_key = f"score:{dimension_name}"
+        score_placeholders[placeholder_key] = str(score_value)
+
+    logger.debug(
+        "score_placeholders_built",
+        character_qiao_id=character_qiao_id,
+        placeholders_count=len(score_placeholders),
+    )
+
+    return score_placeholders
 
 
 async def _build_pending_messages_placeholder(
@@ -396,39 +332,29 @@ async def _build_pending_messages_placeholder(
     """
     Format pending messages (if any) so they can be injected into system prompt.
     """
-    try:
-        result = await db.execute(
-            select(AIConversationState.pending_messages).where(
-                AIConversationState.user_qiao_id == user_qiao_id,
-                AIConversationState.character_qiao_id == character_qiao_id,
-            )
+    result = await db.execute(
+        select(AIConversationState.pending_messages).where(
+            AIConversationState.user_qiao_id == user_qiao_id,
+            AIConversationState.character_qiao_id == character_qiao_id,
         )
-        pending_data = result.scalar_one_or_none()
-        if not pending_data:
-            return ""
-
-        outgoing = pending_data.get("outgoing", []) or []
-        followup = pending_data.get("followup", []) or []
-        all_pending = outgoing + followup
-        if not all_pending:
-            return ""
-
-        total = pending_data.get("total_pending", len(all_pending))
-        message_lines = "\n".join(f"- {msg}" for msg in all_pending)
-        return (
-            f"【系统提示】你有 {total} 条消息因被打断而未发送:\n"
-            f"{message_lines}\n"
-            "请在本次回复中优先考虑这些未发送的内容。"
-        )
-
-    except Exception as exc:
-        logger.error(
-            "pending_messages_placeholder_build_failed",
-            error=str(exc),
-            user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
-        )
+    )
+    pending_data = result.scalar_one_or_none()
+    if not pending_data:
         return ""
+
+    outgoing = pending_data.get("outgoing", []) or []
+    followup = pending_data.get("followup", []) or []
+    all_pending = outgoing + followup
+    if not all_pending:
+        return ""
+
+    total = pending_data.get("total_pending", len(all_pending))
+    message_lines = "\n".join(f"- {msg}" for msg in all_pending)
+    return (
+        f"【系统提示】你有 {total} 条消息因被打断而未发送:\n"
+        f"{message_lines}\n"
+        "请在本次回复中优先考虑这些未发送的内容。"
+    )
 
 
 def _format_profile(profile: Any) -> str:
@@ -484,14 +410,9 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Any
     Returns:
         User profile or None
     """
-    try:
-        from .queries import get_user_profile
+    from .queries import get_user_profile
 
-        return await get_user_profile(db, user_qiao_id)
-
-    except Exception as e:
-        logger.error("user_profile_query_failed", error=str(e), user_qiao_id=user_qiao_id)
-        return None
+    return await get_user_profile(db, user_qiao_id)
 
 
 def _get_current_datetime() -> str:
@@ -525,12 +446,13 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
         AIServiceError: If style configuration is invalid
     """
     try:
-        # Validate dimensions - no default values allowed
-        if not dimensions or len(dimensions) == 0:
+        style_id = style.get("id") if isinstance(style, dict) else getattr(style, "id", None)
+
+        if not dimensions:
             raise AIServiceError(
                 ai_service="schema_building",
                 reason="empty_dimensions",
-                message=f"Style {style.id} has no active dimensions. "
+                message=f"Style {style_id} has no active dimensions. "
                 f"This indicates a database configuration error.",
             )
 
@@ -544,7 +466,7 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
                 raise AIServiceError(
                     ai_service="schema_building",
                     reason="invalid_dimension_name",
-                    message=f"Style {style.id} contains invalid dimension name: {dimension_name}. "
+                    message=f"Style {style_id} contains invalid dimension name: {dimension_name}. "
                     f"All dimension names must be non-empty strings.",
                 )
             score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
@@ -552,7 +474,7 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
 
         logger.debug(
             "dynamic_schema_built_successfully",
-            style_id=style.id,
+            style_id=style_id,
             score_names=list(score_properties.keys()),
             score_count=len(score_properties),
         )
@@ -563,7 +485,11 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
         # Re-raise AI service errors
         raise
     except Exception as e:
-        logger.error("dynamic_schema_build_failed", error=str(e), style_id=getattr(style, "id", "unknown"))
+        logger.error(
+            "dynamic_schema_build_failed",
+            error=str(e),
+            style_id=style_id if "style_id" in locals() else getattr(style, "id", "unknown"),
+        )
         raise AIServiceError(
             ai_service="schema_building",
             reason="build_failed",

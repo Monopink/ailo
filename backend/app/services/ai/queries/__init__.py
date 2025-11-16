@@ -7,7 +7,7 @@ separation of concerns across different query types.
 
 # Character-related query functions
 from .character_queries import (
-    get_character_with_relations,
+    get_character_context,
     get_personality_with_placeholders,
     get_style_with_relationships,
     get_character_id_by_qiao_id,
@@ -60,7 +60,7 @@ from .transactions import (
 
 __all__ = [
     # Character queries
-    "get_character_with_relations",
+    "get_character_context",
     "get_personality_with_placeholders",
     "get_style_with_relationships",
     "get_character_id_by_qiao_id",

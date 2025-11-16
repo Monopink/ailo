@@ -71,7 +71,7 @@ class AICharacterChatTestService:
             # Step 2: Find and validate test user
             logger.info("ai_chat_test_user_matching_start", character_id=character_id)
             user_match_result = await user_matcher_service.find_test_user_for_character(
-                db=db, character_info=validation_result["character"]
+                db=db, character_context=validation_result["character"]
             )
 
             # Step 3: Execute test with main conversation logic
@@ -82,7 +82,7 @@ class AICharacterChatTestService:
             )
             execution_result = await executor_service.execute_character_chat_test(
                 db=db,
-                character_qiao_id=validation_result["character"]["qiao_id"],
+                character_qiao_id=validation_result["character"]["character_qiao_id"],
                 user_qiao_id=user_match_result["test_user"]["qiao_id"],
                 llm_config_name=llm_config_name,
                 test_message=test_message,
@@ -95,7 +95,9 @@ class AICharacterChatTestService:
             try:
                 from services.ai.relationship_scoring import get_relationship_scores
                 latest_scores = await get_relationship_scores(
-                    db=db, character_qiao_id=validation_result["character"]["qiao_id"], auto_initialize=False
+                    db=db,
+                    character_qiao_id=validation_result["character"]["character_qiao_id"],
+                    auto_initialize=False,
                 ) or []
             except Exception:
                 latest_scores = []
@@ -192,27 +194,28 @@ class AICharacterChatTestService:
 
             # Check test user availability
             user_match_result = await user_matcher_service.find_test_user_for_character(
-                db=db, character_info=validation_result["character"]
+                db=db, character_context=validation_result["character"]
             )
 
             # Get response JSON schema for this character (used by main flow)
             try:
-                from services.ai.conversation_prompt import get_response_schema
-                response_schema = await get_response_schema(db, validation_result["character"]["qiao_id"])
+                from services.ai.conversation_prompt import build_response_schema
+
+                response_schema = build_response_schema(validation_result["character"])
             except Exception:
                 response_schema = None
 
             # Fetch character dimensions for detailed display (score/position/offsets)
             try:
                 from crud.ai.character_dimension import get_by_character as _get_char_dims
-                character_dimensions = await _get_char_dims(db, validation_result["character"]["id"])
+                character_dimensions = await _get_char_dims(db, validation_result["character"]["character_id"])
             except Exception:
                 character_dimensions = []
 
             return {
                 "ready": True,
                 "character_info": {
-                    "qiao_id": validation_result["character"]["qiao_id"],
+                    "qiao_id": validation_result["character"]["character_qiao_id"],
                     "category": validation_result["character"]["category"],
                     "style": validation_result["style"]["display_name"],
                     "personality": validation_result["personality"]["display_name"],
@@ -277,7 +280,7 @@ class AICharacterChatTestService:
                 db=db, character_id=character_id
             )
             user_match_result = await user_matcher_service.find_test_user_for_character(
-                db=db, character_info=validation_result["character"]
+                db=db, character_context=validation_result["character"]
             )
 
             from services.ai.queries.transactions import archive_all_conversation_items
@@ -285,7 +288,7 @@ class AICharacterChatTestService:
             archived_count = await archive_all_conversation_items(
                 db=db,
                 user_qiao_id=user_match_result["test_user"]["qiao_id"],
-                character_qiao_id=validation_result["character"]["qiao_id"],
+                character_qiao_id=validation_result["character"]["character_qiao_id"],
             )
 
             return {"success": True, "archived_count": archived_count}

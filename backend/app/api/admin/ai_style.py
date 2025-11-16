@@ -115,14 +115,25 @@ async def save_style_complete(
         if not dimension_id:
             if "name" not in dim_data or not dim_data["name"]:
                 raise HTTPException(status_code=400, detail="name is required for new dimensions")
-            new_dimension = AIDimension(
-                name=dim_data["name"],
-                display_name=dim_data.get("display_name"),
-                description=dim_data.get("description"),
+
+            # Reuse existing dimension with same name to avoid uniqueness violations
+            existing_dim_result = await db.execute(
+                select(AIDimension).where(AIDimension.name == dim_data["name"])
             )
-            db.add(new_dimension)
-            await db.flush()
-            dimension_id = new_dimension.id
+            existing_dim = existing_dim_result.scalar_one_or_none()
+
+            if existing_dim:
+                raise HTTPException(status_code=400, detail="dimension name already exists")
+            else:
+                new_dimension = AIDimension(
+                    name=dim_data["name"],
+                    display_name=dim_data.get("display_name"),
+                    description=dim_data.get("description"),
+                )
+                db.add(new_dimension)
+                await db.flush()
+                dimension_id = new_dimension.id
+
             # Register temp_id mapping if present
             if isinstance(dim_data.get("temp_id"), int) and dim_data["temp_id"] < 0:
                 temp_to_new_dim_id[dim_data["temp_id"]] = dimension_id

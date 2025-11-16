@@ -302,6 +302,10 @@ def _extract_history_messages(
     for message in messages:
         role = str(message.get("role") or "user")
         text = _flatten_message_content(message.get("content"))
+        if not text:
+            fallback_text = message.get("text_content") or message.get("text")
+            if isinstance(fallback_text, str):
+                text = fallback_text
         normalized.append({"role": role, "text": text})
 
     last_user_idx: Optional[int] = None

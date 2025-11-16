@@ -380,6 +380,7 @@ CREATE TABLE IF NOT EXISTS ai_relationships (
     wake_window_ms INTEGER NOT NULL DEFAULT 60000 CHECK (wake_window_ms >= 0),
     wake_time_adjustment VARCHAR(20) NOT NULL DEFAULT 'random_half' CHECK (wake_time_adjustment <> ''),
     no_reply_probability DECIMAL(3,2) NOT NULL DEFAULT 0.00 CHECK (no_reply_probability >= 0 AND no_reply_probability <= 1),
+    followup_delay_ms INTEGER NOT NULL DEFAULT 5000 CHECK (followup_delay_ms >= 0),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -391,6 +392,7 @@ COMMENT ON COLUMN ai_relationships.wake_time_bias IS 'Sampling bias: balanced/ce
 COMMENT ON COLUMN ai_relationships.wake_window_ms IS 'Skip wake if last message within this window (ms)';
 COMMENT ON COLUMN ai_relationships.wake_time_adjustment IS 'Wait time adjustment when new message arrives';
 COMMENT ON COLUMN ai_relationships.no_reply_probability IS 'Probability of not replying after wake (0.00-1.00)';
+COMMENT ON COLUMN ai_relationships.followup_delay_ms IS 'Delay between outgoing and follow-up messages in milliseconds';
 
 -- Create indexes for ai_relationships table
 -- Note: No additional indexes needed for MVP
@@ -601,7 +603,7 @@ CREATE TABLE IF NOT EXISTS ai_conversation_items (
     media_metadata JSONB,
     client_msg_ids TEXT[] NOT NULL DEFAULT '{}',
     buffer_id BIGINT,
-    is_excluded_from_context BOOLEAN NOT NULL DEFAULT FALSE,
+    is_excluded_from_context SMALLINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT ck_ai_conversation_items_user_buffer CHECK (
         (role = 'user' AND buffer_id IS NOT NULL) OR (role <> 'user')
@@ -614,11 +616,12 @@ CREATE TABLE IF NOT EXISTS ai_conversation_items (
 
 COMMENT ON COLUMN ai_conversation_items.buffer_id IS 'Associated buffer ID (references ai_message_buffer.id, no FK constraint)';
 COMMENT ON COLUMN ai_conversation_items.media_metadata IS 'Media metadata (dimensions, duration, transcript, etc.)';
+COMMENT ON COLUMN ai_conversation_items.is_excluded_from_context IS 'Context status enum: 0=included, 1=excluded';
 
 CREATE INDEX idx_ai_conv_items_session ON ai_conversation_items(user_qiao_id, character_qiao_id, created_at DESC);
 CREATE INDEX idx_ai_conv_items_buffer ON ai_conversation_items(buffer_id) WHERE buffer_id IS NOT NULL;
 CREATE INDEX idx_ai_conv_items_text_search ON ai_conversation_items USING gin(text_content gin_trgm_ops);
-CREATE INDEX idx_ai_conv_items_excluded ON ai_conversation_items(user_qiao_id, character_qiao_id, created_at DESC) WHERE is_excluded_from_context = TRUE;
+CREATE INDEX idx_ai_conv_items_excluded ON ai_conversation_items(user_qiao_id, character_qiao_id, created_at DESC) WHERE is_excluded_from_context = 1;
 
 -- AI conversation archive table - cold storage for history
 CREATE TABLE IF NOT EXISTS ai_conversation_items_archive (
@@ -632,13 +635,14 @@ CREATE TABLE IF NOT EXISTS ai_conversation_items_archive (
     media_metadata JSONB,
     client_msg_ids TEXT[] NOT NULL DEFAULT '{}',
     buffer_id BIGINT,
-    is_excluded_from_context BOOLEAN NOT NULL DEFAULT FALSE,
+    is_excluded_from_context SMALLINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     archived_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON COLUMN ai_conversation_items_archive.buffer_id IS 'Associated buffer ID (references ai_message_buffer.id, no FK constraint)';
 COMMENT ON COLUMN ai_conversation_items_archive.media_metadata IS 'Media metadata (dimensions, duration, transcript, etc.)';
+COMMENT ON COLUMN ai_conversation_items_archive.is_excluded_from_context IS 'Context status enum: 0=included, 1=excluded';
 
 CREATE INDEX idx_ai_conv_items_archive_session ON ai_conversation_items_archive(user_qiao_id, character_qiao_id, created_at DESC);
 
@@ -686,7 +690,6 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
 );
 
 CREATE INDEX idx_ai_request_logs_response_id ON ai_request_logs(response_id);
-CREATE INDEX idx_ai_request_logs_conversation_item_id ON ai_request_logs(conversation_item_id);
 
 -- llm_session_cache removed in refactor (Responses API session cache conflicts with dynamic prompts)
 

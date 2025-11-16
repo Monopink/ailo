@@ -198,6 +198,29 @@ class AIServiceError(BaseAppException):
         )
 
 
+class AIDataAccessError(AIServiceError):
+    """Exception raised when character/AI data queries fail."""
+
+    def __init__(
+        self,
+        query: Optional[str] = None,
+        reason: Optional[str] = None,
+        message: str = "AI data access failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if query:
+            error_details["query"] = query
+
+        super().__init__(
+            ai_service="character_data",
+            reason=reason,
+            message=message,
+            details=error_details,
+        )
+        self.error_code = "AI_DATA_ACCESS_ERROR"
+
+
 class AICharacterNotFoundError(NotFoundError):
     """Exception raised when an AI character is not found."""
 

@@ -21,6 +21,8 @@ from services.ai.relationship_scoring import (
     update_relationship_positions,
     update_current_relationship,
 )
+from services.ai.queries import get_character_context
+from services.ai.types import CharacterContext
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -51,6 +53,10 @@ async def generate_relationship_for_character(
     character = result.scalar_one_or_none()
     if not character:
         return {"success": False, "message": "Character not found"}
+
+    context = await get_character_context(db, character_id=character_id)
+    if not context:
+        return {"success": False, "message": "Character context not found"}
 
     # Load dimensions for style
     dims_result = await db.execute(
@@ -191,12 +197,7 @@ async def generate_relationship_for_character(
         try:
             # Use overrides.score as llm_response_scores; calculate_new_scores will map via schema again
             llm_scores = {dr["dimension_name"]: int(dr["input_score"]) for dr in dimension_results}
-            character_info = {
-                "character_id": character_id,
-                "style_id": character.style_id,
-                "character": character,
-            }
-            new_scores = await calculate_new_scores(db, character_info, llm_scores)
+            new_scores = await calculate_new_scores(db, context, llm_scores)
             await update_relationship_positions(db, character_id, new_scores)
             if selected:
                 disp = selected.get("relationship_display_name") or selected.get("relationship_name") or ""

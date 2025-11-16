@@ -23,6 +23,7 @@ from .character_queries import get_user_id_by_qiao_id, get_character_relationshi
 from .template_queries import get_profile_template_by_id, get_character_template_by_id
 from services.message.processing.sender import send_ai_messages_with_typing
 from utils.logging import get_logger
+from services.ai.types import CharacterContext
 logger = get_logger(__name__)
 
 DEFAULT_TYPING_SPEED_WPM = 35
@@ -119,7 +120,7 @@ async def process_llm_response(
     session_factory: async_sessionmaker[AsyncSession],
     user_qiao_id: str,
     character_qiao_id: str,
-    character_info: Dict[str, Any],
+    character_context: CharacterContext,
     ai_response: Dict[str, Any],
     llm_result: Dict[str, Any],
     locked_buffer_id: Optional[int],
@@ -134,19 +135,19 @@ async def process_llm_response(
         memory_operations = ai_response.get("memory_operations")
 
         if new_scores:
-            await update_relationship_scores(db, character_info["character_id"], new_scores)
+            await update_relationship_scores(db, character_context["character_id"], new_scores)
 
             from .relationship_queries import get_character_relationship_scores
             from ..relationship_scoring import determine_relationship_type
 
-            latest_scores = await get_character_relationship_scores(db, character_info["character_id"])
+            latest_scores = await get_character_relationship_scores(db, character_context["character_id"])
             if latest_scores:
-                rel = await determine_relationship_type(db, character_info, latest_scores)
+                rel = await determine_relationship_type(db, character_context, latest_scores)
                 if rel and rel.get("relationship"):
                     relationship = rel["relationship"]
                     display_name = getattr(relationship, "display_name", getattr(relationship, "name", ""))
                     await set_current_relationship(
-                        db, character_info["character_id"], relationship.id, display_name
+                        db, character_context["character_id"], relationship.id, display_name
                     )
 
         if memory_operations:
@@ -162,7 +163,7 @@ async def process_llm_response(
 
         await _save_ai_request_log(
             db=db,
-            character_info=character_info,
+            character_context=character_context,
             user_qiao_id=user_qiao_id,
             ai_response=ai_response,
             llm_result=llm_result,
@@ -235,7 +236,7 @@ async def process_llm_response(
 
 async def _save_ai_request_log(
     db: AsyncSession,
-    character_info: Dict[str, Any],
+    character_context: CharacterContext,
     user_qiao_id: str,
     ai_response: Dict[str, Any],
     llm_result: Dict[str, Any],
@@ -248,7 +249,7 @@ async def _save_ai_request_log(
 
     Args:
         db: Database session
-        character_info: Character information dictionary
+        character_context: Character context dictionary
         user_qiao_id: User's qiao_id
         ai_response: AI response dictionary
         llm_result: LLM result with usage info
@@ -261,10 +262,10 @@ async def _save_ai_request_log(
             return
 
         request_log = AIRequestLog(
-            character_id=character_info["character_id"],
+            character_id=character_context["character_id"],
             user_id=user_id,  # ✅ FIXED: use user_id (int) not user_qiao_id (str)
-            style_id=character_info["style_id"],
-            personality_id=character_info["personality_id"],
+            style_id=character_context["style"]["id"],
+            personality_id=character_context["personality"]["id"],
             request_type="production",
             provider_name=llm_result.get("config_used", {}).get("provider_name"),
             model_name=llm_result.get("model"),
@@ -284,7 +285,7 @@ async def _save_ai_request_log(
 
         logger.debug(
             "ai_request_log_saved",
-            character_id=character_info["character_id"],
+            character_id=character_context["character_id"],
             user_id=user_id,
         )
 
@@ -393,7 +394,7 @@ async def archive_contexts_transaction(
                     media_url=context.media_url,
                     media_metadata=context.media_metadata,
                     buffer_id=context.buffer_id,
-                    is_excluded_from_context=context.is_excluded_from_context,
+                    is_excluded_from_context=int(context.is_excluded_from_context or 0),
                     created_at=context.created_at,
                     archived_at=func.now(),
                 )

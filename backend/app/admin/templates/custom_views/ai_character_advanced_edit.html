@@ -65,6 +65,12 @@
         <strong>{{ character.typing_speed_wpm or '-' }} WPM</strong>
        </div>
       </div>
+      <div class="col-md-3">
+       <div class="mb-2">
+        <span class="text-muted">Timezone:</span>
+        <strong>{{ character.timezone or 'Asia/Shanghai' }}</strong>
+       </div>
+      </div>
      </div>
     </div>
    </div>
@@ -346,8 +352,17 @@
   function toggleParams() {
    if (select.value === '2') {
     paramsDiv.style.display = 'block';
+    // Add required attribute back to required fields
+    paramsDiv.querySelectorAll('input[data-required="true"]').forEach(input => {
+      input.required = true;
+    });
    } else {
     paramsDiv.style.display = 'none';
+    // Remove required attribute from all inputs when hidden
+    paramsDiv.querySelectorAll('input[required]').forEach(input => {
+      input.dataset.required = 'true'; // Store that it was required
+      input.required = false;
+    });
    }
   }
 

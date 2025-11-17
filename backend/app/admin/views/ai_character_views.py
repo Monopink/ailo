@@ -183,6 +183,9 @@ class AICharacterView(ModelView):
         if hasattr(obj, "category") and obj.category == "":
             obj.category = None
 
+        if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
+            obj.timezone = "Asia/Shanghai"
+
         # Auto-fill foreign keys from HasOne relationships
         # starlette-admin's HasOne sets the relationship object but not the FK field
         if hasattr(obj, "style") and obj.style is not None:
@@ -225,6 +228,9 @@ class AICharacterView(ModelView):
             obj.relationship_id = obj.relationship.id
         else:
             obj.relationship_id = None
+
+        if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
+            obj.timezone = "Asia/Shanghai"
 
         # Validate required foreign keys
         errors = {}
@@ -295,6 +301,12 @@ class AICharacterView(ModelView):
             "request_params",
             label="Request Parameters",
             help_text="LLM request parameters (temperature, max_tokens, etc.)",
+        ),
+        StringField(
+            "timezone",
+            label="Timezone",
+            help_text="IANA timezone for this character (e.g., Asia/Shanghai)",
+            required=True,
         ),
         IntegerField(
             "typing_speed_wpm",

@@ -26,6 +26,11 @@ class AICharacterBase(BaseSchema):
     request_params: Optional[Dict[str, Any]] = Field(
         None, description="LLM request parameters override (temperature, max_tokens, etc.)"
     )
+    timezone: Optional[str] = Field(
+        "Asia/Shanghai",
+        description="IANA timezone for this character (e.g., Asia/Shanghai)",
+        max_length=50,
+    )
     created_from_profile_qiao_id: Optional[str] = Field(
         None, max_length=32, description="Source profile template qiao_id (if created from template)"
     )
@@ -54,6 +59,11 @@ class AICharacterCreate(BaseModel):
             }
         ],
     )
+    timezone: Optional[str] = Field(
+        "Asia/Shanghai",
+        description="IANA timezone for this character (e.g., Asia/Shanghai)",
+        max_length=50,
+    )
     created_from_profile_qiao_id: Optional[str] = Field(
         None, max_length=32, description="Source profile template qiao_id (if created from template)"
     )
@@ -69,6 +79,9 @@ class AICharacterUpdate(BaseModel):
     memory: Optional[str] = Field(None, description="Character memory settings")
     placeholder_overrides: Optional[Dict[str, Any]] = Field(None, description="Placeholder overrides")
     request_params: Optional[Dict[str, Any]] = Field(None, description="LLM request parameters override")
+    timezone: Optional[str] = Field(
+        None, description="IANA timezone for this character", max_length=50
+    )
     created_from_profile_qiao_id: Optional[str] = Field(
         None, max_length=32, description="Source profile template qiao_id (if created from template)"
     )
@@ -86,6 +99,7 @@ class AICharacterResponse(AICharacterBase):
     created_by: AICharacterCreator = Field(..., description="Creator type")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
+    timezone: str = Field(..., description="IANA timezone for this character")
 
 
 class AICharacterListResponse(BaseSchema):

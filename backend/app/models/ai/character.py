@@ -100,6 +100,14 @@ class AICharacter(SnowflakeQiaoModel):
         comment="Relationship usage counts (JSONB)",
     )
 
+    timezone: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="Asia/Shanghai",
+        server_default=text("'Asia/Shanghai'"),
+        comment="IANA timezone for time formatting",
+    )
+
     created_by: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Creator type: 1=system, 2=user"
     )

@@ -89,6 +89,7 @@ async def get_character_context(
             "prompt_variables": dict(character.prompt_variables or {}),
             "request_params": dict(character.request_params or {}),
             "typing_speed_wpm": character.typing_speed_wpm,
+            "timezone": character.timezone or "Asia/Shanghai",
             "created_from_profile_qiao_id": character.created_from_profile_qiao_id,
             "relationship_id": character.relationship_id,
             "relationship_counts": _normalize_relationship_counts(character.relationship_counts),

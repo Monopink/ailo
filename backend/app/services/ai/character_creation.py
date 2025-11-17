@@ -77,6 +77,7 @@ async def create_character_from_template(
         # Inherit request_params from character template (LLM parameter overrides)
         request_params=character_template.request_params,
         typing_speed_wpm=character_template.typing_speed_wpm,
+        timezone=getattr(character_template, "timezone", "Asia/Shanghai"),
     )
 
     character = await ai_character.create(db, obj_in=character_data, commit=False)

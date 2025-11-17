@@ -20,6 +20,11 @@ class AICharacterTemplateBase(BaseModel):
     position_mapping_config: Optional[Dict[str, Any]] = Field(
         None, description="Per-dimension position mapping configuration"
     )
+    timezone: Optional[str] = Field(
+        "Asia/Shanghai",
+        max_length=50,
+        description="Default IANA timezone for instantiated characters",
+    )
     typing_speed_wpm: int = Field(
         ..., ge=1, description="Default typing speed (words per minute) for instantiated characters"
     )
@@ -45,6 +50,9 @@ class AICharacterTemplateUpdate(BaseModel):
     position_mapping_config: Optional[Dict[str, Any]] = Field(
         None, description="Per-dimension position mapping configuration"
     )
+    timezone: Optional[str] = Field(
+        None, description="Default IANA timezone for instantiated characters", max_length=50
+    )
     typing_speed_wpm: Optional[int] = Field(
         None,
         ge=1,
@@ -62,6 +70,7 @@ class AICharacterTemplate(AICharacterTemplateBase):
     id: int = Field(..., description="Template ID")
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Update timestamp")
+    timezone: str = Field(..., description="Default IANA timezone for instantiated characters")
 
     class Config:
         from_attributes = True

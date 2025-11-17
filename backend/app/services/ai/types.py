@@ -79,6 +79,7 @@ class CharacterContext(TypedDict):
     prompt_variables: Dict[str, Any]
     request_params: Dict[str, Any]
     typing_speed_wpm: int
+    timezone: str
     created_from_profile_qiao_id: Optional[str]
 
     # Relationship state

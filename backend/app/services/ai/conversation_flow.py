@@ -6,7 +6,9 @@ coordinating all AI service components with clear error handling.
 """
 
 import json
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.ai.queries.character_queries import get_character_context
@@ -194,7 +196,11 @@ async def process_conversation(
 
         # Step 7: Get conversation context and prepare messages
         conversation_history = await build_conversation_context(
-            db, character_qiao_id, user_qiao_id, max_context_length=None
+            db,
+            character_qiao_id,
+            user_qiao_id,
+            max_context_length=None,
+            character_timezone=context.get("timezone"),
         )
 
         # Prepare messages for LLM (business format)
@@ -229,11 +235,13 @@ async def process_conversation(
             return last_text.strip() != user_text.strip()
 
         if _should_append_user_message():
+            prefix = _format_now_prefix(context.get("timezone"))
+            formatted_user_text = f"[{prefix}] {user_text}" if prefix else user_text
             messages.append(
                 {
                     "role": "user",
                     "message_type": "text",
-                    "text_content": user_text,
+                    "text_content": formatted_user_text,
                 }
             )
 
@@ -588,3 +596,18 @@ def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
         if text_value:
             fragments.append(text_value)
     return "\n".join(fragments)
+
+
+def _format_now_prefix(timezone_name: Optional[str]) -> Optional[str]:
+    """Format current time with the character timezone, fallback Asia/Shanghai."""
+
+    try:
+        tz = timezone_name or "Asia/Shanghai"
+        try:
+            tzinfo = ZoneInfo(tz)
+        except Exception:
+            tzinfo = ZoneInfo("Asia/Shanghai")
+        now = datetime.now(tzinfo)
+        return now.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return None

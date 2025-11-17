@@ -47,6 +47,14 @@ class AICharacterTemplate(AutoIncrementModel):
         comment="Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
     )
 
+    timezone: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="Asia/Shanghai",
+        server_default=text("'Asia/Shanghai'"),
+        comment="Default IANA timezone for instantiated characters",
+    )
+
     typing_speed_wpm: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

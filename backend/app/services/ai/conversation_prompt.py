@@ -7,6 +7,7 @@ and JSON schema building for AI responses.
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -247,7 +248,7 @@ async def _build_placeholder_values(
         placeholder_values["other_profile"] = ""
 
     # {{current_datetime}} - current date and time
-    placeholder_values["current_datetime"] = _get_current_datetime()
+    placeholder_values["current_datetime"] = _get_current_datetime(context)
 
     # {{memory}} - character memory
     placeholder_values["memory"] = context.get("memory") or ""
@@ -415,15 +416,21 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Any
     return await get_user_profile(db, user_qiao_id)
 
 
-def _get_current_datetime() -> str:
+def _get_current_datetime(context: Dict[str, Any]) -> str:
     """
-    Get current datetime string in Chinese format.
+    Get current datetime string based on character timezone.
 
-    Returns:
-        Formatted datetime string
+    Falls back to Asia/Shanghai when timezone is invalid or missing.
     """
     try:
-        now = datetime.now()
+        tz_name = (context or {}).get("timezone") or "Asia/Shanghai"
+        try:
+            tzinfo = ZoneInfo(tz_name)
+        except Exception:
+            logger.warning("invalid_timezone_fallback", timezone=tz_name)
+            tzinfo = ZoneInfo("Asia/Shanghai")
+
+        now = datetime.now(tzinfo)
         return now.strftime("%Y年%m月%d日 %H:%M")
 
     except Exception as e:
@@ -586,6 +593,7 @@ async def build_conversation_context(
     character_qiao_id: str,
     user_qiao_id: str,
     max_context_length: Optional[int] = None,
+    character_timezone: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Build conversation context from AI contexts table.
@@ -620,13 +628,24 @@ async def build_conversation_context(
         messages: List[Dict[str, Any]] = []
         for context in contexts:
             role = _map_context_role_to_message_role(context.get("role", ConversationRole.USER.value))
+            message_type = context.get("message_type", "text")
+            text_content = context.get("text_content")
+            media_url = context.get("media_url")
+            media_metadata = context.get("media_metadata")
+            created_at = context.get("created_at")
+
+            if message_type == "text" and text_content:
+                prefix = _format_time_prefix(created_at, character_timezone)
+                if prefix:
+                    text_content = f"[{prefix}] {text_content}"
+
             messages.append(
                 {
                     "role": role,
-                    "message_type": context.get("message_type", "text"),
-                    "text_content": context.get("text_content"),
-                    "media_url": context.get("media_url"),
-                    "media_metadata": context.get("media_metadata"),
+                    "message_type": message_type,
+                    "text_content": text_content,
+                    "media_url": media_url,
+                    "media_metadata": media_metadata,
                 }
             )
 
@@ -670,6 +689,35 @@ def _map_context_role_to_message_role(role: str) -> str:
         ConversationRole.ASSISTANT.value: "assistant",
     }
     return role_mapping.get(role, "user")
+
+
+def _format_time_prefix(created_at: Any, character_timezone: Optional[str]) -> Optional[str]:
+    """
+    Format timestamp for conversation history using character timezone.
+    Falls back to Asia/Shanghai.
+    """
+    try:
+        if created_at is None:
+            return None
+
+        from zoneinfo import ZoneInfo
+
+        tz_name = character_timezone or "Asia/Shanghai"
+        try:
+            tzinfo = ZoneInfo(tz_name)
+        except Exception:
+            tzinfo = ZoneInfo("Asia/Shanghai")
+
+        if hasattr(created_at, "tzinfo") and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=ZoneInfo("UTC"))
+
+        local_dt = created_at.astimezone(tzinfo) if hasattr(created_at, "astimezone") else None
+        if not local_dt:
+            return None
+
+        return local_dt.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return None
 
 
 async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, template: str) -> str:

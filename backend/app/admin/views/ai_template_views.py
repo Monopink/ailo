@@ -94,6 +94,9 @@ class AICharacterTemplateView(ModelView):
         if hasattr(obj, "profile") and obj.profile is not None:
             obj.profile_id = obj.profile.id
 
+        if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
+            obj.timezone = "Asia/Shanghai"
+
         # Validate required foreign keys
         errors = {}
         if not hasattr(obj, "style_id") or obj.style_id is None:
@@ -148,6 +151,12 @@ class AICharacterTemplateView(ModelView):
             "request_params",
             label="Request Parameters",
             help_text="LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
+        ),
+        StringField(
+            "timezone",
+            label="Timezone",
+            help_text="IANA timezone for instantiated characters (e.g., Asia/Shanghai)",
+            required=True,
         ),
         IntegerField(
             "typing_speed_wpm",

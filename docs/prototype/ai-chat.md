@@ -19,12 +19,12 @@ flowchart TB
 ```mermaid
 flowchart TB
     n1["收到消息"] --> n2["合并短时间消息"]
-    n2 --> n3["存入contexts表"]
+    n2 --> n3["写入ai_conversation_items（仅消息内容）"]
     n3 --> n4["找到对应的ai_character"]
     n4 --> n5["找到对应的relationship_score"]
     n5 --> n6["根据对应的ai_style找到对应的relationship"]
     n6 --> n7["将relationship的prompt和占位符覆盖内容应用到personality的提示词模板，生成完整system提示词"]
-    n7 --> n8["获取contexts表中的上下文，将system提示词与上下文合并合并，生成完整上下文"]
+    n7 --> n8["从ai_conversation_items构建上下文并与system提示词合并"]
     n8 --> n9["请求大模型"]
     n9 --> n11["使用json_schema验证"]
     n11 --> n12["更新ai_character_dimensions和其他相关内容"]
@@ -107,14 +107,14 @@ flowchart TB
 
 ### 实施细节
 
-- 入站缓冲：用户消息到达即写入 `ai_contexts`，若存在最近 `role=user & state=OPEN` 窗口则合并，否则创建新窗口（OPEN）。
+- 入站缓冲：用户消息到达即写入 `ai_conversation_items`（仅消息内容），并按 `ai_message_buffer` 维护的 WAITING_WAKEUP/OPEN 窗口决定是否合并或创建新窗口。
 - 等待策略：依据是否支持 typing 与消息类型设置 `micro_expires_at_ms` 和 `macro_expires_at_ms`（统一使用数据库时钟计算）。
 - 到期触发：调度器扫描 `OPEN 且任一计时器到期` 的窗口；事务内先取消同会话旧的 `OPEN/LOCKED`，再将"最新且到期"的窗口置 `LOCKED` 并开始处理。
 - Doubao 流式：使用流式输出 + 早停。当出现新窗口抢占时立即停止读取，减少后续输出 tokens。
 - 结果落地：仅当窗口仍为 `LOCKED` 时写入一条 `assistant` 行并将窗口置 `COMPLETE`；否则丢弃（被抢占）。
 - 发送与重试：通过 LeanCloud 发送；失败写入 `message_delivery_failures` 并按策略重试。
 
-说明：本流程依赖 `ai_contexts` 的 `micro_expires_at_ms`、`macro_expires_at_ms`、`last_message_category` 字段与 `aggregate_state` 状态机，确保"新消息可抢占旧处理"，且只在 `role=user` 的窗口使用状态字段。
+说明：本流程依赖 `ai_message_buffer` 的 `micro_expires_at_ms`、`macro_expires_at_ms`、`last_message_category` 字段与 `aggregate_state` 状态机，确保"新消息可抢占旧处理"，且只在 `role=user` 的窗口使用聚合状态字段。
 
 实现细节请参见[技术文档](ai-message-processing.md)。
 
@@ -193,11 +193,9 @@ flowchart TB
 
 ### context
 
-构造时从contexts获取，并标记对应数据reply_status为processing。
-
-对于is_attack=1的消息，合并时忽略内容，并且用攻击内容替代文本替代。攻击内容替代文本使用system_configs中的配置项。
-
-回复消息后将 ai_contexts 中 reply_status 为 processing 的数据更新为 done，并根据 system_config 触发归档。
+- 构造上下文：直接从 `ai_conversation_items` 查询（过滤 `is_excluded_from_context=0`），按时间顺序转换为 `{role, message_type, text_content, media_url, media_metadata}` 结构，再交给 LLM converter 合并。
+- 攻击内容：当 `is_attack=1` 时，照常写入 `ai_conversation_items` 但将 `is_excluded_from_context` 设为 1，并使用 `system_configs` 中的攻击提示文案替换展示文本，防止污染上下文。
+- 回复后处理：`process_llm_response` 写入新的 `assistant` 行并通过 `ai_message_buffer` 将窗口置为 `COMPLETE`，随后由 `archive_old_contexts` 依据配置迁移旧行至 `ai_conversation_items_archive`。
 
 ### 消息存储格式
 

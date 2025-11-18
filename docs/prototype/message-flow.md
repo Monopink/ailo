@@ -156,49 +156,30 @@ MESSAGE_BUFFER_NO_TYPING_WAIT = 2000   # 无输入状态等待：2秒
 
 #### 核心设计决策
 
-**1. 使用 ai_contexts 表管理缓冲状态**
+**1. 使用 ai_message_buffer 表管理缓冲状态**
 
-- 消息到达时立即存入 `ai_contexts` 表
-- 利用 `reply_status` 字段管理状态：
-  - `PENDING (1)` - 等待处理
-  - `PROCESSING (2)` - 处理中
-  - `DONE (3)` - 已完成
-- 利用 `context_metadata` 字段存储缓冲元数据
+- 消息到达后仅更新/创建 `ai_message_buffer` 窗口，表中保存 WAITING_WAKEUP → OPEN → LOCKED → COMPLETE 状态机及 `micro/macro_expires_at_ms`、`last_message_category` 等元数据。
+- Buffer 不存储消息内容，只负责聚合窗口与抢占逻辑，确保新窗口可以覆盖旧请求。
 
-**2. 消息合并策略**
+**2. 消息内容写入 ai_conversation_items（纯内容）**
 
-查询最新一条 context：
+- 每条用户/AI 消息立即写入 `ai_conversation_items`，只有 `{role, message_type, text_content, media_url, media_metadata, is_excluded_from_context}` 等简单字段。
+- 攻击或需要排除的消息只需将 `is_excluded_from_context` 标记为 1，内容仍完整保存，后续上下文会自动跳过。
 
-- 如果 `role = USER` → 合并到该条记录（追加内容）
-- 如果 `role = ASSISTANT` → 创建新的 USER 记录（带时间戳）
+**3. LLM 合并与时间标记由 converter 层负责**
 
-**3. 时间戳策略**
-
-- **第一条消息**：增加时间戳 `[2025-01-18 10:30:15] 消息内容`
-- **后续消息**（单次等待中）：不增加时间戳，直接追加
-- **新一轮等待**：增加新时间戳
-
-示例：
-
-```
-[2025-01-18 10:30:15] 你好
-我想问一下
-今天天气怎么样
-
-[2025-01-18 10:30:25] 还有一个问题
-```
+- 查询上下文时把 `ai_conversation_items` 转为业务格式，再由 converter 合并连续同 role 的条目。
+- `_format_time_prefix` 在构造 LLM 消息时才生成人性化前缀（例如 `[11-18(五天前) 17:19]` / `今天17:19`），数据库中仅保留原始文本，彻底解耦存储与展示。
 
 **4. 服务重启处理**
 
-- 消息已存储在数据库，不会丢失
-- 定时器丢失，但下次消息到达时自动恢复
-- 不需要启动恢复逻辑
+- buffer 状态和消息内容都在数据库里，服务重启不会丢失。
+- 定时器依赖数据库时间戳，下一次扫描或新消息即可恢复聚合流程。
 
 **5. 函数式编程**
 
-- 使用纯函数，不使用类
-- 状态存储在数据库，不在内存
-- 符合项目的函数式编程风格
+- 使用纯函数，不使用类。
+- 状态存储在数据库，不在内存，保持 MVP 的函数式风格。
 
 ### 4. 输入状态处理机制
 

@@ -1,14 +1,10 @@
 import os
-import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-
-# Add the app directory to sys.path to import our models
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "app"))
 
 # Import our models and configuration
 from models import Base

@@ -220,6 +220,12 @@ async def process_conversation(
             user_text = _blocks_to_text(message_blocks)
 
         def _should_append_user_message() -> bool:
+            """
+            Determine if current user message should be appended to messages array.
+            
+            Compares the last message in conversation_history with the current message,
+            stripping time prefixes to avoid false positives.
+            """
             if not user_text:
                 return False
             if not (persist and user_message_item_id is not None):
@@ -232,7 +238,14 @@ async def process_conversation(
             last_text = last_entry.get("text_content")
             if last_text is None:
                 return True
-            return last_text.strip() != user_text.strip()
+            
+            # Strip normalized "[prefix] " wrapper to compare content only
+            last_text_clean = last_text.strip()
+            if last_text_clean.startswith("["):
+                closing_index = last_text_clean.find("]")
+                if closing_index != -1:
+                    last_text_clean = last_text_clean[closing_index + 1 :].lstrip()
+            return last_text_clean != user_text.strip()
 
         if _should_append_user_message():
             prefix = _format_now_prefix(context.get("timezone"))
@@ -599,8 +612,12 @@ def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
 
 
 def _format_now_prefix(timezone_name: Optional[str]) -> Optional[str]:
-    """Format current time with the character timezone, fallback Asia/Shanghai."""
-
+    """
+    Format current time with humanized format.
+    
+    For current messages, always returns "今天HH:MM" format.
+    Falls back to Asia/Shanghai timezone.
+    """
     try:
         tz = timezone_name or "Asia/Shanghai"
         try:
@@ -608,6 +625,7 @@ def _format_now_prefix(timezone_name: Optional[str]) -> Optional[str]:
         except Exception:
             tzinfo = ZoneInfo("Asia/Shanghai")
         now = datetime.now(tzinfo)
-        return now.strftime("%Y-%m-%d %H:%M")
+        # For current messages, always use "今天HH:MM" format
+        return f"今天{now.strftime('%H:%M')}"
     except Exception:
         return None

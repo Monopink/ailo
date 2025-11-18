@@ -12,7 +12,7 @@ import random
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from enum import IntEnum
+from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy import Select, and_, or_, select, text, update
@@ -36,13 +36,13 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class BufferMessageCategory(IntEnum):
+class BufferMessageCategory(str, Enum):
     """Categorized message types for buffer state machine."""
 
-    SUPPORTS_TYPING = 1
-    NO_TYPING = 2
-    TYPING_START = 3
-    TYPING_END = 4
+    SUPPORTS_TYPING = "CONTENT_TYPING"
+    NO_TYPING = "CONTENT_NO_TYPING"
+    TYPING_START = "typing_start"
+    TYPING_END = "typing_end"
 
 
 @dataclass
@@ -62,7 +62,7 @@ class TimerComputationResult:
     micro_expires_at_ms: Optional[int]
     macro_expires_at_ms: Optional[int]
     buffer_expires_at_ms: Optional[int]
-    last_message_category: Optional[int]
+    last_message_category: Optional[str]
 
 
 @dataclass
@@ -661,13 +661,8 @@ async def _get_latest_open_buffer(
     *,
     for_update: bool = False,
 ) -> Tuple[Optional[AIMessageBuffer], Optional[AIConversationItem]]:
-    query: Select = (
-        select(AIMessageBuffer, AIConversationItem)
-        .join(
-            AIConversationItem,
-            AIConversationItem.buffer_id == AIMessageBuffer.id,
-            isouter=True,
-        )
+    buffer_query = (
+        select(AIMessageBuffer)
         .where(
             AIMessageBuffer.user_qiao_id == user_qiao_id,
             AIMessageBuffer.character_qiao_id == character_qiao_id,
@@ -678,14 +673,21 @@ async def _get_latest_open_buffer(
         .order_by(AIMessageBuffer.created_at.desc())
         .limit(1)
     )
-    if for_update:
-        query = query.with_for_update(skip_locked=True)
 
-    result = await db.execute(query)
-    row = result.first()
-    if not row:
+    if for_update:
+        buffer_query = buffer_query.with_for_update(skip_locked=True)
+
+    buffer_result = await db.execute(buffer_query)
+    buffer_obj = buffer_result.scalar_one_or_none()
+    if not buffer_obj:
         return None, None
-    return row[0], row[1]
+
+    item_result = await db.execute(
+        select(AIConversationItem).where(AIConversationItem.buffer_id == buffer_obj.id)
+    )
+    item_obj = item_result.scalar_one_or_none()
+
+    return buffer_obj, item_obj
 
 
 async def _get_buffer_and_item(
@@ -860,17 +862,13 @@ def _categorize_event(event: InboundMessageEvent) -> Optional[BufferMessageCateg
     return None
 
 
-def _category_from_value(value: Optional[int]) -> Optional[BufferMessageCategory]:
+def _category_from_value(value: Optional[str]) -> Optional[BufferMessageCategory]:
     if value is None:
         return None
     try:
         return BufferMessageCategory(value)
     except ValueError:
         return None
-
-
-def _category_to_value(category: Optional[BufferMessageCategory]) -> Optional[int]:
-    return category.value if category is not None else None
 
 
 def _compute_timer_state(
@@ -884,7 +882,7 @@ def _compute_timer_state(
 ) -> TimerComputationResult:
     new_micro = current_micro
     new_macro = current_macro
-    last_category_value = _category_to_value(prev_category)
+    last_category_value = prev_category.value if prev_category else None
 
     if current_category is None:
         return TimerComputationResult(

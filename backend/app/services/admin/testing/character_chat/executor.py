@@ -209,10 +209,10 @@ class ExecutorService:
             # Extract AI response from conversation result
             ai_response = conversation_result.get("response", {})
 
-            # Test mode: Merge all messages
-            all_messages = ai_response.get("outgoing_messages", []) + ai_response.get(
-                "followup_messages", []
-            )
+            # Test mode: Merge all messages with newlines between them
+            outgoing = ai_response.get("outgoing_messages", [])
+            followup = ai_response.get("followup_messages", [])
+            all_messages = outgoing + followup
 
             # Format test result
             result = {

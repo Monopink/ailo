@@ -693,8 +693,16 @@ def _map_context_role_to_message_role(role: str) -> str:
 
 def _format_time_prefix(created_at: Any, character_timezone: Optional[str]) -> Optional[str]:
     """
-    Format timestamp for conversation history using character timezone.
-    Falls back to Asia/Shanghai.
+    Format timestamp for conversation history using character timezone with humanized relative time.
+    
+    Examples:
+    - [2024-11-18(一年前) 17:19]
+    - [10-18(一个月前) 17:19]
+    - [11-18(五天前) 17:19]
+    - [昨天17:19]
+    - [今天17:19]
+    
+    Falls back to Asia/Shanghai timezone.
     """
     try:
         if created_at is None:
@@ -715,9 +723,91 @@ def _format_time_prefix(created_at: Any, character_timezone: Optional[str]) -> O
         if not local_dt:
             return None
 
-        return local_dt.strftime("%Y-%m-%d %H:%M")
+        return _format_humanized_time(local_dt, tzinfo)
     except Exception:
         return None
+
+
+def _format_humanized_time(dt: datetime, tzinfo: ZoneInfo) -> str:
+    """
+    Format datetime with humanized relative time description.
+    
+    Args:
+        dt: Datetime to format (already in target timezone)
+        tzinfo: Timezone info for calculating "now"
+    
+    Returns:
+        Humanized time string like "今天17:19", "昨天17:19", "[11-18(五天前) 17:19]"
+    """
+    now = datetime.now(tzinfo)
+    
+    # Calculate time difference
+    time_diff = now - dt
+    days_diff = time_diff.days
+
+    # Get formatted components
+    time_str = dt.strftime("%H:%M")
+    date_str = dt.strftime("%m-%d")
+    
+    # Today
+    if days_diff == 0 and dt.date() == now.date():
+        return f"今天{time_str}"
+    
+    # Yesterday
+    if days_diff == 1 or (days_diff == 0 and dt.date() < now.date()):
+        return f"昨天{time_str}"
+    
+    # Within a week (2-6 days ago)
+    if 2 <= days_diff <= 6:
+        relative_label = _format_day_relative_label(days_diff)
+        return f"{date_str}({relative_label}) {time_str}"
+    
+    # Within a month (7-30 days ago)
+    if 7 <= days_diff <= 30:
+        weeks = days_diff // 7
+        if weeks == 1:
+            relative = "一周前"
+        elif weeks == 2:
+            relative = "两周前"
+        elif weeks == 3:
+            relative = "三周前"
+        else:
+            relative = f"{weeks}周前"
+        return f"{date_str}({relative}) {time_str}"
+    
+    # Within a year (31-364 days ago)
+    if 31 <= days_diff < 365:
+        months = days_diff // 30
+        if months == 1:
+            relative = "一个月前"
+        elif months == 2:
+            relative = "两个月前"
+        elif months == 3:
+            relative = "三个月前"
+        else:
+            relative = f"{months}个月前"
+        return f"{date_str}({relative}) {time_str}"
+    
+    # More than a year ago
+    years = days_diff // 365
+    if years == 1:
+        relative = "一年前"
+    else:
+        relative = f"{years}年前"
+    return f"{dt.year}-{dt.month:02d}-{dt.day:02d}({relative}) {time_str}"
+
+
+def _format_day_relative_label(days_diff: int) -> str:
+    """Return human-friendly label (e.g., "两天前") for small day offsets."""
+
+    mapping = {
+        2: "两天前",
+        3: "三天前",
+        4: "四天前",
+        5: "五天前",
+        6: "六天前",
+    }
+    return mapping.get(days_diff, f"{days_diff}天前")
 
 
 async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, template: str) -> str:

@@ -43,7 +43,7 @@ services:
       LEANCLOUD_APP_ID: ${LEANCLOUD_APP_ID}
       LEANCLOUD_APP_KEY: ${LEANCLOUD_APP_KEY}
       LEANCLOUD_MASTER_KEY: ${LEANCLOUD_MASTER_KEY}
-      LEANCLOUD_BASE_URL: ${LEANCLOUD_BASE_URL}
+      LEANCLOUD_IM_SERVER_URL: ${LEANCLOUD_IM_SERVER_URL}
       ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: ${JWT_ALGORITHM}
@@ -83,7 +83,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+      # Only mount test.conf to avoid conflicting with default.conf
+      - ../nginx/conf.d/test.conf:/etc/nginx/conf.d/default.conf:ro
       - ../nginx/ssl:/etc/nginx/ssl:ro
       - certbot_webroot:/var/www/certbot:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro

@@ -39,13 +39,12 @@ parser、缓冲、AI、发送器、日志）的唯一数据契约。
 | `metadata` | object | ✅ | 业务扩展字段（白名单见下） |
 | `provider_metadata` | object | ✅ | 第三方原始字段，便于审计与追溯 |
 | `metadata.encryption` | string/null | 条件 | 传输加密算法（如 `base64`），为空表示纯文本 |
-| `metadata.encryption_version` | string/null | 条件 | 加密协议版本（当前 `v1`） |
+| `metadata.encryption_version` | string/null | 条件 | 加密协议版本（当前为明文，App 阶段再启用） |
 
 **metadata 白名单（可按需扩展）：**
 
 - `action`：系统消息附带的 action 描述
 - `notification_type`：通知类型枚举（与 enums.NotificationType 保持一致）
-- `follow_up_hint`：AI 回复需要的额外提示
 - `rate_limit_bucket`：速率限制统计窗口（例如 `"10s"` / `"60s"`）
 - `encryption` / `encryption_version`：传输加密算法与版本，目前默认 `base64` 作为占位编码
 
@@ -74,7 +73,6 @@ LeanCloud Webhook 解析后的标准结构，进入统一管线。
   "metadata": {
     "action": null,
     "notification_type": null,
-    "follow_up_hint": null,
     "rate_limit_bucket": "10s",
     "encryption": "base64",
     "encryption_version": "v1"
@@ -119,7 +117,6 @@ AI/系统经 sender 发送前的结构，确保与 Inbound 一致，便于审计
       "target": "contact_requests"
     },
     "notification_type": 2001,
-    "follow_up_hint": "ask_weather",
     "rate_limit_bucket": "60s",
     "encryption": "base64",
     "encryption_version": "v1"

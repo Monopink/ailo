@@ -238,12 +238,10 @@ def encrypt_for_transport(content: str) -> Tuple[str, Dict[str, Any]]:
     """
     Encrypt content using the default transport algorithm.
 
-    Currently defaults to BASE64 so the transport pipeline is established
-    without requiring client key distribution. The returned metadata should be
-    attached to the outbound message payload.
+    For now we transmit plain text (WeChat mini program cannot decrypt safely).
+    Keep this function so future AES transport can plug in without refactoring.
     """
-    encrypted, metadata = encrypt(content, DEFAULT_ENCRYPTION, None)
-    return encrypted, metadata
+    return content, {}
 
 
 def decrypt_from_transport(encrypted_content: str, metadata: Dict[str, Any]) -> str:

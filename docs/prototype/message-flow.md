@@ -354,8 +354,8 @@ await send_chat_info(
 
 **场景3：用户不是AI角色的所有者（不是对方好友）**
 
-- 检查ai_characters.user_qiao_id是否等于当前用户qiao_id
-- 如果不是所有者，只存储消息和上下文
+- 在 contacts 表中检查是否存在 `user_qiao_id = 当前用户`、`contact_qiao_id = AI qiao_id` 且 `contact_type = 2`、`is_deleted = 0` 的记录
+- 如果没有有效联系人，只存储消息和上下文
 - 发送CHAT_INFO消息：`"对方还没有添加你为联系人"`
 
 ### 7. 消息发送失败处理

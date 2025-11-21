@@ -30,10 +30,6 @@ class EventMetadata(BaseModel):
         default=None,
         description="Notification type enum value",
     )
-    follow_up_hint: Optional[str] = Field(
-        default=None,
-        description="Optional hint for AI follow-up logic",
-    )
     rate_limit_bucket: Optional[str] = Field(
         default=None,
         description="Indicates which rate-limit window (e.g., 10s/60s) applied",

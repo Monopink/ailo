@@ -71,6 +71,7 @@ class MessageProvider(Protocol):
         content: str,
         message_type: int = 1,
         extra_fields: Optional[dict] = None,
+        msg_id: Optional[str] = None,
     ) -> MessageResult:
         """
         Send message.
@@ -81,7 +82,8 @@ class MessageProvider(Protocol):
             conv_id: Internal conversation ID (included in message)
             content: Message content
             message_type: Message type (1=TEXT, 2=IMAGE, etc.)
-            extra_fields: Additional payload fields (encryption, metadata, etc.)
+            extra_fields: Additional payload fields (metadata, typing flags, etc.)
+            msg_id: Explicit message ID (server snowflake). Providers must embed this value.
 
         Returns:
             MessageResult with success status and provider message ID
@@ -206,10 +208,11 @@ async def send_message_via_provider(
     content: str,
     message_type: int = 1,
     extra_fields: Optional[dict] = None,
+    msg_id: Optional[str] = None,
 ) -> MessageResult:
     """Send single message using specified provider."""
     return await provider.send_message(
-        conversation_id, from_qiao_id, to_qiao_id, content, message_type, extra_fields
+        conversation_id, from_qiao_id, to_qiao_id, content, message_type, extra_fields, msg_id
     )
 
 

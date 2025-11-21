@@ -122,7 +122,16 @@ class _DimensionDisplayNameField(StringField):
 class AICharacterView(ModelView):
     """Enhanced AI Character view with proper field configuration and chat test functionality."""
 
-    exclude_fields_from_create = ["id", "qiao_id", "created_by", "created_at", "updated_at"]
+    exclude_fields_from_create = [
+        "id",
+        "qiao_id",
+        "created_by",
+        "created_at",
+        "updated_at",
+        "profile_nickname",
+        "profile_gender",
+        "relationship_display_name",
+    ]
     exclude_fields_from_edit = [
         "id",
         "qiao_id",
@@ -192,13 +201,6 @@ class AICharacterView(ModelView):
             obj.style_id = obj.style.id
         if hasattr(obj, "personality") and obj.personality is not None:
             obj.personality_id = obj.personality.id
-        if hasattr(obj, "user") and obj.user is not None:
-            obj.user_id = obj.user.id
-            obj.user_qiao_id = obj.user.qiao_id
-        else:
-            # If user is not set, clear user_id and user_qiao_id
-            obj.user_id = None
-            obj.user_qiao_id = None
 
         # Validate required foreign keys
         errors = {}
@@ -217,13 +219,6 @@ class AICharacterView(ModelView):
             obj.style_id = obj.style.id
         if hasattr(obj, "personality") and obj.personality is not None:
             obj.personality_id = obj.personality.id
-        if hasattr(obj, "user") and obj.user is not None:
-            obj.user_id = obj.user.id
-            obj.user_qiao_id = obj.user.qiao_id
-        else:
-            # If user is not set or cleared, set to None
-            obj.user_id = None
-            obj.user_qiao_id = None
         if hasattr(obj, "relationship") and obj.relationship is not None:
             obj.relationship_id = obj.relationship.id
         else:
@@ -243,7 +238,7 @@ class AICharacterView(ModelView):
             raise FormValidationError(errors)
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["qiao_id", "user_qiao_id", "category"]
+    searchable_fields = ["qiao_id", "category"]
     sortable_fields = ["id", "qiao_id", "category", "status", "created_by", "created_at", "updated_at"]
 
     fields = [
@@ -252,14 +247,6 @@ class AICharacterView(ModelView):
         StringField("category", label="Category", help_text="Character category classification"),
         _ProfileRelatedStringField("profile_nickname", profile_attr="nickname", label="Profile Nickname"),
         _ProfileGenderField(),
-        HasOne(
-            "user",
-            identity="user",
-            label="Owner User",
-            help_text="User who owns this character (optional for system characters)",
-            required=False,
-        ),
-        StringField("user_qiao_id", label="Owner Qiao ID", help_text="Owner user external ID"),
         HasOne(
             "style",
             identity="ai_style",
@@ -358,7 +345,7 @@ class AICharacterDimensionView(ModelView):
     label = "Character Dimensions"
     name = "Character Dimensions"
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "dimension_display_name", "created_at", "updated_at"]
     exclude_fields_from_edit = [
         "id",
         "dimension_display_name",
@@ -518,12 +505,15 @@ class AICharacterDimensionView(ModelView):
                     or {}
                 )
                 score_val = getattr(obj, "score", None) or data.get("score")
+                if score_val is None:
+                    raise FormValidationError({"score": "Score is required and cannot be None."})
 
                 try:
+                    score_float = float(score_val)
                     obj.position = int(
                         map_score_to_position(
                             algorithm=int(algorithm),
-                            score=float(score_val),
+                            score=score_float,
                             initial_position=float(initial_position),
                             params=params or {},
                         )

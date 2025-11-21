@@ -509,9 +509,9 @@ AI角色表，存储具体的AI角色实例。
 ```txt
 id -- Snowflake ID
 qiao_id -- qiao_+随机字符，外部使用
+created_from_profile_id -- 来源资料模板ID（内部ID，用于高效查询和统计）
+created_from_profile_qiao_id -- 来源资料模板qiao_id（外部ID，用于审计和历史追溯）
 category -- 角色分类
-user_id -- 关联users.id，所属用户
-user_qiao_id -- 关联users.qiao_id，所属用户外部ID
 status -- 状态：1=active, 2=inactive，3=blocked
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
@@ -523,10 +523,17 @@ request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认
   示例：{"temperature": 0.8, "max_tokens": 2000, "top_p": 0.9, "frequency_penalty": 0.5}
   参数优先级：显式调用参数 > request_params > LLM配置默认值
 typing_speed_wpm -- 角色级打字速度（词/分钟），用于模拟打字等待，实例化时由模板赋值；运行阶段若缺失/异常则退回 35 WPM
+timezone -- IANA时区标识（如Asia/Shanghai），用于时间相关功能
 created_by -- 创建者类型：1=user, 2=admin, 3=system
 created_at
 updated_at
 ```
+
+**设计说明**：
+- `created_from_profile_id` 和 `created_from_profile_qiao_id` 采用双字段设计，符合项目一致性原则
+- 内部ID用于高效的JOIN查询和统计分析
+- 外部qiao_id用于审计日志、历史追溯，即使Profile Template被删除仍保留来源信息
+- 不再存储 `user_id` 和 `user_qiao_id`，通过 `contacts` 表关联用户
 
 ## ai_character_dimensions
 

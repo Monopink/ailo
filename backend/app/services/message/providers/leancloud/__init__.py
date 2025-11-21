@@ -41,10 +41,18 @@ class LeanCloudProvider:
         content: str,
         message_type: int = 1,
         extra_fields: Optional[dict] = None,
+        msg_id: Optional[str] = None,
     ) -> MessageResult:
         """Send message through LeanCloud."""
         return await service.send_message(
-            self.db, from_qiao_id, to_qiao_id, conv_id, content, message_type, extra_fields
+            self.db,
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+            conv_id=conv_id,
+            content=content,
+            message_type=message_type,
+            extra_fields=extra_fields,
+            msg_id=msg_id,
         )
 
     async def send_message_as_system(

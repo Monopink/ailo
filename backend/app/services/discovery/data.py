@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.ai.template import AIProfileTemplate
 from models.ai.character import AICharacter
+from models.contact import Contact
+from enums import ContactType
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -39,9 +41,12 @@ async def get_random_templates(
         # Build subquery for excluded templates (optimized)
         excluded_subquery = (
             select(AICharacter.created_from_profile_qiao_id)
+            .join(Contact, Contact.contact_qiao_id == AICharacter.qiao_id)
             .where(
                 and_(
-                    AICharacter.user_qiao_id == user_qiao_id,
+                    Contact.user_qiao_id == user_qiao_id,
+                    Contact.contact_type == ContactType.AI,
+                    Contact.is_deleted == 0,
                     AICharacter.created_from_profile_qiao_id.isnot(None),
                 )
             )

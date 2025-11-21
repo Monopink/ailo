@@ -14,7 +14,8 @@ from models.ai import AICharacter
 from schemas.ai import AICharacterCreate, AICharacterUpdate
 from services.ai.usage_tracking import increment_usage_count, decrement_usage_count
 from utils.logging import get_logger
-from enums import AICharacterCreator
+from enums import AICharacterCreator, ContactType
+from models.contact import Contact
 
 logger = get_logger(__name__)
 
@@ -61,7 +62,12 @@ class CRUDAICharacter(CRUDBase[AICharacter, AICharacterCreate, AICharacterUpdate
         try:
             result = await db.execute(
                 select(AICharacter)
-                .where(AICharacter.user_qiao_id == user_qiao_id)
+                .join(Contact, Contact.contact_qiao_id == AICharacter.qiao_id)
+                .where(
+                    Contact.user_qiao_id == user_qiao_id,
+                    Contact.contact_type == ContactType.AI,
+                    Contact.is_deleted == 0,
+                )
                 .order_by(desc(AICharacter.created_at))
                 .offset(skip)
                 .limit(limit)

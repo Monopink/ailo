@@ -893,6 +893,7 @@ Authorization: Bearer <token>
 - im_conv_id: IM provider conversation ID, used for message client connection
 - contact_type: 1=真人用户, 2=AI角色
 - 不返回last_message（客户端本地管理）
+- `im_conv_id` 来源于系统接口 `GET /api/v1/system/lc-im-conversation`，此处仅作为派生字段提供给业务页面。
 
 #### 4.2 获取单个联系人详情
 
@@ -991,6 +992,7 @@ Authorization: Bearer <token>
 
 - im_conv_id与contacts接口返回的值一致
 - 此接口提供额外的联系人信息用于对话初始化
+- `im_conv_id` 仍然来自系统注册表，前端的 `ConversationStore` 需要使用 `/api/v1/system/lc-im-conversation` 保持同步。
 
 #### 4.8 获取历史消息
 
@@ -1375,9 +1377,9 @@ Authorization: Bearer <token>
 
 ### 8. 系统配置
 
-#### 8.1 获取IM配置 (2.0功能,暂不实现)
+#### 8.1 获取 LeanCloud 系统会话 ID
 
-**接口**: `GET /api/v1/system/im-config`
+**接口**: `GET /api/v1/system/lc-im-conversation`
 
 **请求头**: `Authorization: Bearer token`
 
@@ -1385,16 +1387,15 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "provider": 1,
-  "key": "..."
+  "im_conv_id": "system_conversation_id"
 }
 ```
 
 **说明**:
 
-- 用于动态下发IM provider相关配置
-- provider: 1=internal, 2=LeanCloud
-- 当前版本不实现，contacts接口的im_conv_id已满足基本需求
+- 作为系统级 IM 注册表。前端 `ConversationStore`、消息服务重连流程必须通过该接口获取最新的 LeanCloud 会话 ID。
+- 返回值目前仅包含 `im_conv_id`；若未来需要下发其他元数据（版本号、过期时间等），将在同一接口扩展字段。
+- Contact/Conversation 等业务接口中的 `im_conv_id` 均派生自此配置，仅用于 UI 兜底，不能替代本接口。*** End Patch***}):
 
 ### 9. Webhook
 

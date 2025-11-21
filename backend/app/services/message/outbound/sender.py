@@ -75,6 +75,7 @@ async def _send_message_internal(
             content=encrypted_content,
             message_type=message_type,
             extra_fields=merged_extra_fields,
+            msg_id=msg_id,
         )
 
     return result, encryption_meta
@@ -109,7 +110,7 @@ async def send_message(
         ValueError: If message sending fails
     """
     sent_at_ms = int(time.time() * 1000)
-    msg_id_server = f"msg_{generate_snowflake_id()}"
+    msg_id_server = msg_id or f"msg_{generate_snowflake_id()}"
 
     # Send through provider (handles encryption)
     result, encryption_meta = await _send_message_internal(
@@ -121,7 +122,7 @@ async def send_message(
         message_type=message_type,
         action=action,
         extra_fields=extra_fields,
-        msg_id=msg_id,
+        msg_id=msg_id_server,
     )
 
     if not result.success:

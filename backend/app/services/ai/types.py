@@ -70,10 +70,6 @@ class CharacterContext(TypedDict):
     status: int
     created_by: int
 
-    # Ownership
-    user_id: Optional[int]
-    user_qiao_id: Optional[str]
-
     # Prompt + runtime configuration
     memory: Optional[str]
     prompt_variables: Dict[str, Any]

@@ -13,6 +13,11 @@ from .validation import validation_service, ValidationError
 from .user_matcher import user_matcher_service, UserMatcherError
 from .executor import executor_service, ExecutorError
 from utils.logging import get_logger
+from crud.contact import contact as contact_crud
+from schemas.contact import ContactCreate
+from enums import ContactType
+from models.base import generate_conv_id
+from services.ai.types import CharacterContext
 
 logger = get_logger(__name__)
 
@@ -44,6 +49,7 @@ class AICharacterChatTestService:
         llm_config_name: str,
         test_message: str,
         mock_overrides: Optional[Dict[str, Any]] = None,
+        test_user_qiao_id: Optional[str] = None,
         persist: bool = True,
     ) -> Dict[str, Any]:
         """
@@ -71,8 +77,37 @@ class AICharacterChatTestService:
             # Step 2: Find and validate test user
             logger.info("ai_chat_test_user_matching_start", character_id=character_id)
             user_match_result = await user_matcher_service.find_test_user_for_character(
-                db=db, character_context=validation_result["character"]
+                db=db,
+                character_context=validation_result["character"],
+                preferred_user_qiao_id=test_user_qiao_id,
             )
+            if not user_match_result["test_user"]:
+                raise AICharacterChatTestError(
+                    "请选择测试用户后再执行测试",
+                    error_code="TEST_USER_REQUIRED",
+                    suggestions=["在页面中选择 virtual 测试用户", "刷新页面同步最新测试用户列表"],
+                )
+
+            selection_locked = bool(user_match_result.get("test_user_selection_locked"))
+            locked_user_qiao_id = user_match_result.get("locked_test_user_qiao_id")
+            if selection_locked:
+                if test_user_qiao_id and test_user_qiao_id != locked_user_qiao_id:
+                    raise AICharacterChatTestError(
+                        "该角色已绑定测试用户，无法切换到其他账号",
+                        error_code="TEST_USER_LOCKED",
+                        suggestions=["清理旧的测试联系人后再尝试更换测试用户"],
+                    )
+                test_user_qiao_id = locked_user_qiao_id
+
+            ensured_contact = await self._ensure_virtual_contact(
+                db=db,
+                user_id=user_match_result["test_user"]["id"],
+                user_qiao_id=user_match_result["test_user"]["qiao_id"],
+                character_context=validation_result["character"],
+            )
+            contact_for_response = self._serialize_contact(ensured_contact)
+            user_match_result["contact"] = contact_for_response
+            user_match_result["test_user"]["conversation_id"] = ensured_contact.conv_id
 
             # Step 3: Execute test with main conversation logic
             logger.info(
@@ -88,6 +123,11 @@ class AICharacterChatTestService:
                 test_message=test_message,
                 request_overrides={"provider_overrides": mock_overrides} if mock_overrides else None,
                 persist=persist,
+                contact_conv_id=(
+                    ensured_contact.conv_id
+                    if persist
+                    else None
+                ),
             )
 
             # Combine all results for comprehensive response
@@ -126,7 +166,16 @@ class AICharacterChatTestService:
                 "test_user_info": {
                     "test_user": user_match_result["test_user"],
                     "test_user_profile": user_match_result["test_user_profile"],
+                    "contact": contact_for_response,
+                    "available_contacts": user_match_result.get("available_contacts", []),
+                    "available_test_users": user_match_result.get("available_test_users", []),
+                    "test_user_selection_locked": selection_locked,
+                    "locked_test_user_qiao_id": locked_user_qiao_id,
                 },
+                "available_contacts": user_match_result.get("available_contacts", []),
+                "available_test_users": user_match_result.get("available_test_users", []),
+                "test_user_selection_locked": selection_locked,
+                "locked_test_user_qiao_id": locked_user_qiao_id,
                 "available_llm_configs": validation_result["llm_configs"],
                 "relationship_scores_after": latest_scores,
                 "selected_relationship_after": selected_rel,
@@ -196,6 +245,14 @@ class AICharacterChatTestService:
             user_match_result = await user_matcher_service.find_test_user_for_character(
                 db=db, character_context=validation_result["character"]
             )
+            contacts_for_response = user_match_result.get("recomputed_contacts") or user_match_result.get("available_contacts", [])
+            selected_user = user_match_result.get("test_user")
+            if not selected_user:
+                logger.warning(
+                    "test_readiness_multiple_contacts",
+                    character_id=character_id,
+                    contacts=len(contacts_for_response),
+                )
 
             # Get response JSON schema for this character (used by main flow)
             try:
@@ -211,6 +268,14 @@ class AICharacterChatTestService:
                 character_dimensions = await _get_char_dims(db, validation_result["character"]["character_id"])
             except Exception:
                 character_dimensions = []
+
+            test_user_summary = None
+            if selected_user:
+                test_user_summary = {
+                    "qiao_id": selected_user["qiao_id"],
+                    "username": selected_user["username"],
+                    "nickname": (user_match_result["test_user_profile"] or {}).get("nickname"),
+                }
 
             return {
                 "ready": True,
@@ -233,11 +298,11 @@ class AICharacterChatTestService:
                     "memory": validation_result["character"].get("memory"),
                     "prompt_variables": validation_result["character"].get("prompt_variables"),
                 },
-                "test_user_info": {
-                    "qiao_id": user_match_result["test_user"]["qiao_id"],
-                    "username": user_match_result["test_user"]["username"],
-                    "nickname": user_match_result["test_user_profile"]["nickname"],
-                },
+                "test_user_info": test_user_summary,
+                "available_contacts": contacts_for_response,
+                "available_test_users": user_match_result.get("available_test_users", []),
+                "test_user_selection_locked": user_match_result.get("test_user_selection_locked", False),
+                "locked_test_user_qiao_id": user_match_result.get("locked_test_user_qiao_id"),
                 "relationship_scores": validation_result["relationship_scores"],
                 "available_llm_configs": validation_result["llm_configs"],
                 "response_schema": response_schema,
@@ -298,6 +363,84 @@ class AICharacterChatTestService:
             raise AICharacterChatTestError(
                 f"Failed to archive conversations: {str(e)}", error_code="ARCHIVE_FAILED"
             )
+
+    async def _ensure_virtual_contact(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: int,
+        user_qiao_id: str,
+        character_context: CharacterContext,
+    ):
+        """Create or restore contact relationship for virtual test user."""
+        existing = await contact_crud.get_user_contact_including_deleted(
+            db,
+            user_qiao_id=user_qiao_id,
+            contact_qiao_id=character_context["character_qiao_id"],
+        )
+
+        if existing:
+            if getattr(existing, "is_deleted", 0) == 0:
+                return existing
+            restored = await contact_crud.restore_contact(
+                db,
+                contact=existing,
+                alias=None,
+                tags=None,
+            )
+            logger.info(
+                "virtual_contact_restored_for_test",
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_context["character_qiao_id"],
+                conv_id=restored.conv_id,
+            )
+            return restored
+
+        contact_input = ContactCreate(
+            contact_type=ContactType.AI,
+            contact_qiao_id=character_context["character_qiao_id"],
+            alias=None,
+            custom_avatar_url=None,
+            tags=None,
+            remark=None,
+        )
+        conv_id = generate_conv_id()
+        contact = await contact_crud.create_with_user(
+            db,
+            obj_in=contact_input,
+            user_qiao_id=user_qiao_id,
+            user_id=user_id,
+            conv_id=conv_id,
+        )
+        contact.contact_id = character_context["character_id"]
+        db.add(contact)
+        await db.flush()
+        await db.commit()
+        await db.refresh(contact)
+
+        logger.info(
+            "virtual_contact_created_for_test",
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_context["character_qiao_id"],
+            conv_id=contact.conv_id,
+        )
+        return contact
+
+    @staticmethod
+    def _serialize_contact(contact: Optional[Any]) -> Optional[Dict[str, Any]]:
+        """Normalize contact object/dict to JSON-serializable dict."""
+        if contact is None:
+            return None
+        if isinstance(contact, dict):
+            return contact
+        try:
+            return contact.to_dict()
+        except AttributeError:
+            return {
+                "conv_id": getattr(contact, "conv_id", None),
+                "user_qiao_id": getattr(contact, "user_qiao_id", None),
+                "contact_qiao_id": getattr(contact, "contact_qiao_id", None),
+            }
 
 
 # Global instance for dependency injection

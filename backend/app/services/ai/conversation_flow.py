@@ -21,7 +21,11 @@ from services.ai.relationship_scoring import (
     update_relationship_positions,
     update_current_relationship,
 )
-from services.ai.conversation_prompt import build_system_prompt, build_response_schema, build_conversation_context
+from services.ai.conversation_prompt import (
+    build_system_prompt,
+    build_response_schema,
+    build_conversation_context,
+)
 from services.ai.conversation_memory import process_memory_operations, archive_old_contexts
 from services.message.processing.buffer import is_buffer_cancelled
 from services.ai.utils.validator import invoke_llm_with_validation
@@ -110,79 +114,86 @@ async def process_conversation(
             )
 
         # Step 3.5: Validate message permission (bidirectional relationship)
-        # Get contact relationship and AI character for validation
-        from models.contact import Contact
-        from models.ai.character import AICharacter
-        from services.message.security.validation import message_validation_service
-        from sqlalchemy import select
+        # Skip contact validation in test mode (persist=False)
+        if persist:
+            from models.contact import Contact
+            from models.ai.character import AICharacter
+            from services.message.security.validation import message_validation_service
+            from sqlalchemy import select
 
-        # Find contact by user and character qiao_ids
-        contact_stmt = select(Contact).where(
-            Contact.user_qiao_id == user_qiao_id,
-            Contact.contact_qiao_id == character_qiao_id,
-            Contact.contact_type == 2,  # AI character
-        )
-        contact_result = await db.execute(contact_stmt)
-        contact = contact_result.scalar_one_or_none()
-
-        if not contact:
-            logger.warning(
-                "contact_not_found_for_validation",
-                user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+            # Find contact by user and character qiao_ids
+            contact_stmt = select(Contact).where(
+                Contact.user_qiao_id == user_qiao_id,
+                Contact.contact_qiao_id == character_qiao_id,
+                Contact.contact_type == 2,  # AI character
             )
-            raise AIConversationError(
-                conversation_step="permission_validation",
-                reason="contact_not_found",
-                message=f"Contact relationship not found between user and character",
-            )
+            contact_result = await db.execute(contact_stmt)
+            contact = contact_result.scalar_one_or_none()
 
-        # Get AI character instance for validation
-        character_stmt = select(AICharacter).where(AICharacter.qiao_id == character_qiao_id)
-        character_result = await db.execute(character_stmt)
-        character = character_result.scalar_one_or_none()
-
-        if not character:
-            raise AIConversationError(
-                conversation_step="permission_validation",
-                reason="character_not_found",
-                message=f"Character not found: {character_qiao_id}",
-            )
-
-        # Validate message permission
-        validation_result = await message_validation_service.validate_message_permission(
-            db=db, from_qiao_id=user_qiao_id, character=character, contact=contact
-        )
-
-        if not validation_result.allowed:
-            logger.warning(
-                "message_permission_denied",
-                user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
-                reason=validation_result.reason,
-                error_code=validation_result.error_code,
-            )
-            try:
-                template_key = validation_result.chat_info_type or ChatInfoType.MESSAGE_BLOCKED
-                content = CHAT_INFO_TEMPLATES.get(template_key)
-                if content and contact.conv_id:
-                    await send_chat_info(
-                        db=db,
-                        to_qiao_id=user_qiao_id,
-                        conv_id=contact.conv_id,
-                        content=content,
-                    )
-            except Exception as send_error:
-                logger.error(
-                    "chat_info_send_failed",
+            if not contact:
+                logger.warning(
+                    "contact_not_found_for_validation",
                     user_qiao_id=user_qiao_id,
                     character_qiao_id=character_qiao_id,
-                    error=str(send_error),
                 )
-            raise AIConversationError(
-                conversation_step="permission_validation",
-                reason=validation_result.error_code or "permission_denied",
-                message=validation_result.reason or "Message permission denied",
+                raise AIConversationError(
+                    conversation_step="permission_validation",
+                    reason="contact_not_found",
+                    message="Contact relationship not found between user and character",
+                )
+
+            # Get AI character instance for validation
+            character_stmt = select(AICharacter).where(AICharacter.qiao_id == character_qiao_id)
+            character_result = await db.execute(character_stmt)
+            character = character_result.scalar_one_or_none()
+
+            if not character:
+                raise AIConversationError(
+                    conversation_step="permission_validation",
+                    reason="character_not_found",
+                    message=f"Character not found: {character_qiao_id}",
+                )
+
+            # Validate message permission
+            validation_result = await message_validation_service.validate_message_permission(
+                db=db, from_qiao_id=user_qiao_id, character=character, contact=contact
+            )
+
+            if not validation_result.allowed:
+                logger.warning(
+                    "message_permission_denied",
+                    user_qiao_id=user_qiao_id,
+                    character_qiao_id=character_qiao_id,
+                    reason=validation_result.reason,
+                    error_code=validation_result.error_code,
+                )
+                try:
+                    template_key = validation_result.chat_info_type or ChatInfoType.MESSAGE_BLOCKED
+                    content = CHAT_INFO_TEMPLATES.get(template_key)
+                    if content and contact.conv_id:
+                        await send_chat_info(
+                            db=db,
+                            to_qiao_id=user_qiao_id,
+                            conv_id=contact.conv_id,
+                            content=content,
+                        )
+                except Exception as send_error:
+                    logger.error(
+                        "chat_info_send_failed",
+                        user_qiao_id=user_qiao_id,
+                        character_qiao_id=character_qiao_id,
+                        error=str(send_error),
+                    )
+                raise AIConversationError(
+                    conversation_step="permission_validation",
+                    reason=validation_result.error_code or "permission_denied",
+                    message=validation_result.reason or "Message permission denied",
+                )
+        else:
+            logger.debug(
+                "skipping_contact_validation_in_test_mode",
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
             )
 
         # Step 4: Get relationship scores
@@ -222,7 +233,7 @@ async def process_conversation(
         def _should_append_user_message() -> bool:
             """
             Determine if current user message should be appended to messages array.
-            
+
             Compares the last message in conversation_history with the current message,
             stripping time prefixes to avoid false positives.
             """
@@ -238,7 +249,7 @@ async def process_conversation(
             last_text = last_entry.get("text_content")
             if last_text is None:
                 return True
-            
+
             # Strip normalized "[prefix] " wrapper to compare content only
             last_text_clean = last_text.strip()
             if last_text_clean.startswith("["):
@@ -304,6 +315,7 @@ async def process_conversation(
             )
 
             if preview_decision.should_stream:
+
                 async def check_preemption() -> bool:
                     """Check if buffer has been cancelled during streaming."""
                     return await is_buffer_cancelled(db, locked_buffer_id)
@@ -324,7 +336,9 @@ async def process_conversation(
             name=config_name,
             character_request_params=character_request_params,
             preemption_checker=preemption_checker,
-            session_context=LLMSessionContext(user_qiao_id=user_qiao_id, character_qiao_id=character_qiao_id),
+            session_context=LLMSessionContext(
+                user_qiao_id=user_qiao_id, character_qiao_id=character_qiao_id
+            ),
         )
 
         # Check if request was preempted
@@ -383,6 +397,12 @@ async def process_conversation(
                     "response_id": llm_result.get("response_id"),
                     "cache_hit": llm_result.get("cache_hit"),
                     "cache_strategy": llm_result.get("cache_strategy"),
+                    "raw_response": llm_result.get("raw_response"),
+                    "raw_content": llm_result.get("raw_content"),
+                    "tool_calls": llm_result.get("tool_calls"),
+                    "reasoning_content": llm_result.get("reasoning_content"),
+                    "finish_reason": llm_result.get("finish_reason"),
+                    "streaming": llm_result.get("streaming"),
                 },
                 locked_buffer_id=locked_buffer_id,
                 user_message_item_id=user_message_item_id,
@@ -448,8 +468,6 @@ async def process_conversation(
         )
 
 
-
-
 async def process_ai_response_updates(
     db: AsyncSession,
     user_qiao_id: str,
@@ -477,14 +495,8 @@ async def process_ai_response_updates(
         # No state transition here; buffer controls OPEN -> LOCKED -> COMPLETE
 
         # Handle attack detection
-        if (
-            persist
-            and ai_response.get("attack_detected", False)
-            and user_message_item_id is not None
-        ):
-            await handle_attack_detection(
-                db, user_qiao_id, character_qiao_id, user_message_item_id
-            )
+        if persist and ai_response.get("attack_detected", False) and user_message_item_id is not None:
+            await handle_attack_detection(db, user_qiao_id, character_qiao_id, user_message_item_id)
 
         # Update relationship scores
         if ai_response.get("score"):
@@ -510,7 +522,11 @@ async def process_ai_response_updates(
                         await update_current_relationship(db, character_id, relationship.id, display_name)
 
         # Process memory operations
-        if persist and ai_response.get("should_update_memory", False) and ai_response.get("memory_operations"):
+        if (
+            persist
+            and ai_response.get("should_update_memory", False)
+            and ai_response.get("memory_operations")
+        ):
             await process_memory_operations(db, character_qiao_id, ai_response["memory_operations"])
 
         # Handle blocking
@@ -614,7 +630,7 @@ def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
 def _format_now_prefix(timezone_name: Optional[str]) -> Optional[str]:
     """
     Format current time with humanized format.
-    
+
     For current messages, always returns "今天HH:MM" format.
     Falls back to Asia/Shanghai timezone.
     """

@@ -4,7 +4,7 @@ Contact request service business logic.
 This module provides business logic for contact request processing.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -190,8 +190,6 @@ async def _process_ai_contact_request(
             ai_character = await create_character_from_template(
                 db=db,
                 template_qiao_id=contact_request.to_qiao_id,
-                user_qiao_id=user_qiao_id,
-                user_id=user_id,
             )
 
             # Generate internal conversation ID
@@ -421,19 +419,23 @@ async def _check_ai_template_duplicate(
         Success message if duplicate found and handled, None if should continue
     """
     try:
-        result_ai = await db.execute(
-            select(AICharacter.qiao_id, AICharacter.created_from_profile_qiao_id).where(
-                AICharacter.user_qiao_id == user_qiao_id
+        stmt = (
+            select(AICharacter.qiao_id, AICharacter.created_from_profile_qiao_id)
+            .join(Contact, Contact.contact_qiao_id == AICharacter.qiao_id)
+            .where(
+                Contact.user_qiao_id == user_qiao_id,
+                Contact.contact_type == ContactType.AI,
+                Contact.is_deleted == 0,
+                AICharacter.created_from_profile_qiao_id.isnot(None),
             )
         )
-        rows = result_ai.all()
-        created_from_map = {}
-        for qid, src in rows:
+        rows = await db.execute(stmt)
+        created_from_map: Dict[str, str] = {}
+        for qid, src in rows.all():
             if src:
                 created_from_map[src] = qid
 
         if request.to_qiao_id in created_from_map:
-            # Check if contact exists via character qiao_id
             existing_via_char = await contact_crud.get_user_contact_including_deleted(
                 db,
                 user_qiao_id=user_qiao_id,
@@ -441,7 +443,6 @@ async def _check_ai_template_duplicate(
             )
             if existing_via_char:
                 if existing_via_char.is_deleted == 1:
-                    # Restore
                     restored_contact = await contact_crud.restore_contact(
                         db,
                         contact=existing_via_char,
@@ -455,16 +456,15 @@ async def _check_ai_template_duplicate(
                         contact_id=restored_contact.id,
                     )
                     return {"message": "请求已发送"}
-                else:
-                    logger.error(
-                        "contact_already_exists_via_template",
-                        user_qiao_id=user_qiao_id,
-                        template_qiao_id=request.to_qiao_id,
-                    )
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="已添加该联系人",
-                    )
+                logger.error(
+                    "contact_already_exists_via_template",
+                    user_qiao_id=user_qiao_id,
+                    template_qiao_id=request.to_qiao_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="已添加该联系人",
+                )
     except HTTPException:
         raise
     except Exception as e:

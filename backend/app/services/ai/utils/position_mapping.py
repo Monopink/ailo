@@ -345,7 +345,7 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
                 )
                 offset_ratio = max(0.0, min(1.0, offset_ratio))
 
-            position = _initial_position - distance * offset_ratio
+            position = _initial_position * offset_ratio
     else:
         # Right segment calculations
         max_range = 1000 - _initial_position
@@ -372,7 +372,7 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
                 )
                 offset_ratio = max(0.0, min(1.0, offset_ratio))
 
-            position = _initial_position + distance * offset_ratio
+            position = _initial_position + max_range * offset_ratio
 
     return max(0.0, min(1000.0, position))
 

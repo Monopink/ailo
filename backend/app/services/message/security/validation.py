@@ -33,10 +33,9 @@ class MessageValidationService:
     """
     Validates message sending permissions based on relationships.
 
-    Implements three validation checks:
+    Implements two validation checks:
     1. User blocked AI character (contact.is_blocked)
     2. AI character blocked user (character.status == 3)
-    3. Bidirectional relationship exists (character.user_qiao_id == user_qiao_id)
     """
 
     async def validate_message_permission(
@@ -82,27 +81,6 @@ class MessageValidationService:
                 reason="AI character has blocked this user",
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
                 error_code="CHARACTER_BLOCKED_USER",
-            )
-
-        # Check 3: Bidirectional relationship (AI recognizes user)
-        if character.user_qiao_id != from_qiao_id:
-            logger.info(
-                "bidirectional_relationship_missing",
-                user_qiao_id=from_qiao_id,
-                character_qiao_id=character.qiao_id,
-                character_user_qiao_id=character.user_qiao_id,
-            )
-            return ValidationResult(
-                allowed=False,
-                reason=f"User '{from_qiao_id}' is not recognized by AI character '{character.qiao_id}' "
-                f"(character.user_qiao_id={character.user_qiao_id or 'not set'})",
-                chat_info_type=ChatInfoType.NOT_FRIEND,
-                error_code="NOT_FRIEND",
-                suggestions=[
-                    "AI character needs to add you as friend",
-                    "Contact relationship exists (User->AI) but AI doesn't recognize you (AI->User missing)",
-                    "Both directions are required for normal chat functionality",
-                ],
             )
 
         # All checks passed
@@ -152,22 +130,6 @@ class MessageValidationService:
                 suggestions=[
                     "Change character status from BLOCKED to ACTIVE",
                     "Check AI Character management to update status",
-                ],
-            )
-
-        # Check 3: Bidirectional relationship
-        if character.user_qiao_id != test_user_qiao_id:
-            return ValidationResult(
-                allowed=False,
-                reason=f"Bidirectional relationship mismatch: Test user '{test_user_qiao_id}' has added "
-                f"AI character '{character.qiao_id}' as contact, but AI character's owner is "
-                f"'{character.user_qiao_id or 'not set'}' (expected: '{test_user_qiao_id}')",
-                chat_info_type=ChatInfoType.NOT_FRIEND,
-                error_code="OWNER_MISMATCH",
-                suggestions=[
-                    f"Set AI character's Owner User to test user ({test_user_qiao_id})",
-                    "Or change the contact relationship to match the AI character's current owner",
-                    "Both User->AI (contact) and AI->User (owner) relationships are required",
                 ],
             )
 

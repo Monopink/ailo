@@ -6,6 +6,7 @@ Handles LeanCloud-specific format conversion without business logic.
 
 import json
 from datetime import datetime
+import time
 from typing import Any, Dict, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,8 @@ from crud.system import system_configs
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+BUSINESS_MESSAGE_TYPE = 1
 
 
 async def parse_webhook_to_dict(
@@ -63,12 +66,64 @@ async def parse_webhook_to_dict(
             )
             return None
 
-        # Parse inner message JSON
-        try:
-            inner_message = json.loads(data_str)
-        except json.JSONDecodeError as e:
-            logger.error("lc_invalid_json", data=data_str, error=str(e))
+        # Parse inner message JSON (TypedMessage format or flattened JSON)
+        if isinstance(data_str, (dict, list)):
+            inner_message = data_str
+        else:
+            try:
+                inner_message = json.loads(data_str)
+            except json.JSONDecodeError as e:
+                logger.error("lc_invalid_json", data=data_str, error=str(e))
+                return None
+
+        if not isinstance(inner_message, dict):
+            logger.error("lc_invalid_message_payload", payload=inner_message)
             return None
+
+        logger.info(
+            "lc_incoming_message",
+            lctype=inner_message.get("_lctype"),
+            has_lcattrs=isinstance(inner_message.get("_lcattrs"), dict),
+            inner=inner_message,
+        )
+
+        if inner_message.get("_lctype") != BUSINESS_MESSAGE_TYPE:
+            logger.warning(
+                "lc_unsupported_message_type",
+                lctype=inner_message.get("_lctype"),
+                expected=BUSINESS_MESSAGE_TYPE,
+            )
+            return None
+
+        attrs = inner_message.get("_lcattrs")
+        if not isinstance(attrs, dict):
+            attrs = {}
+        outer_fields = {
+            "from": lc_from,
+            "to": webhook_payload.get("to"),
+        }
+
+        def _extract(field: str, *sources: Dict[str, Any], default: Any = None) -> Any:
+            for source in sources:
+                if not isinstance(source, dict):
+                    continue
+                if field in source and source[field] is not None:
+                    return source[field]
+            return default
+
+        msg_id_client = _extract("msg_id", attrs, inner_message)
+        from_qiao_id = _extract("from_qiao_id", attrs, inner_message, outer_fields, default=lc_from)
+        to_qiao_id = _extract("to_qiao_id", attrs, inner_message, outer_fields)
+        conv_id = _extract("conv_id", attrs, inner_message)
+        content = _extract("content", attrs, inner_message, default="") or ""
+        message_type = _extract("message_type", attrs, inner_message)
+        supports_typing = bool(_extract("supports_typing", attrs, inner_message, default=False))
+        sent_time = _extract("sent_time", attrs, inner_message)
+        action = _extract("action", attrs, inner_message)
+        notification_type = _extract("notification_type", attrs, inner_message)
+        notification_data = _extract("data", attrs, inner_message)
+        encryption = _extract("encryption", attrs, inner_message)
+        encryption_version = _extract("enc_version", attrs, inner_message)
 
         # Convert ISO timestamp to milliseconds
         try:
@@ -76,26 +131,25 @@ async def parse_webhook_to_dict(
             timestamp_ms = int(dt.timestamp() * 1000)
         except (ValueError, AttributeError) as e:
             logger.error("lc_invalid_timestamp", iso=created_at_iso, error=str(e))
-            timestamp_ms = inner_message.get("sent_time") or int(datetime.now().timestamp() * 1000)
+            timestamp_ms = sent_time or int(datetime.now().timestamp() * 1000)
 
         # Return intermediate format (business layer will process further)
         return {
             "msg_id_provider": msg_id_provider,
-            "msg_id_client": inner_message.get("msg_id"),
-            "from_qiao_id": inner_message.get("from"),
-            "to_qiao_id": inner_message.get("to"),
-            "conv_id": inner_message.get("conv_id"),
-            "content": inner_message.get("content") or "",
-            "message_type": inner_message.get("message_type"),
-            "supports_typing": inner_message.get("supports_typing", False),
-            "sent_time": inner_message.get("sent_time"),
+            "msg_id_client": msg_id_client,
+            "from_qiao_id": from_qiao_id,
+            "to_qiao_id": to_qiao_id,
+            "conv_id": conv_id,
+            "content": content,
+            "message_type": message_type,
+            "supports_typing": supports_typing,
+            "sent_time": sent_time,
             "timestamp_ms": timestamp_ms,
-            "action": inner_message.get("action"),
-            "notification_type": inner_message.get("notification_type"),
-            "notification_data": inner_message.get("data"),
-            "follow_up_hint": inner_message.get("follow_up_hint"),
-            "encryption": inner_message.get("encryption"),
-            "encryption_version": inner_message.get("enc_version"),
+            "action": action,
+            "notification_type": notification_type,
+            "notification_data": notification_data,
+            "encryption": encryption,
+            "encryption_version": encryption_version,
             # Provider metadata
             "lc_from": lc_from,
             "lc_conv_id": lc_conv_id,
@@ -107,13 +161,15 @@ async def parse_webhook_to_dict(
         return None
 
 
-def build_outbound_payload(
+def build_outbound_typed_message(
+    *,
     from_qiao_id: str,
     to_qiao_id: str,
     conv_id: str,
     content: str,
     message_type: int,
-    msg_id: Optional[str] = None,
+    msg_id: str,
+    supports_typing: bool = True,
     action: Optional[dict] = None,
     extra_fields: Optional[dict] = None,
 ) -> str:
@@ -135,24 +191,26 @@ def build_outbound_payload(
     Returns:
         JSON string for LeanCloud API
     """
-    import time
-
-    payload = {
-        "from": from_qiao_id,
-        "to": to_qiao_id,
+    attrs: Dict[str, Any] = {
+        "msg_id": msg_id,
+        "from_qiao_id": from_qiao_id,
+        "to_qiao_id": to_qiao_id,
         "conv_id": conv_id,
         "content": content,
         "message_type": message_type,
+        "supports_typing": supports_typing,
         "sent_time": int(time.time() * 1000),
     }
 
-    if msg_id:
-        payload["msg_id"] = msg_id
-
     if action:
-        payload["action"] = action
+        attrs["action"] = action
 
     if extra_fields:
-        payload.update(extra_fields)
+        attrs.update(extra_fields)
+
+    payload = {
+        "_lctype": BUSINESS_MESSAGE_TYPE,
+        "_lcattrs": attrs,
+    }
 
     return json.dumps(payload, ensure_ascii=False)

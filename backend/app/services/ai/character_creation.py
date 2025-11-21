@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 async def create_character_from_template(
-    db: AsyncSession, template_qiao_id: str, user_qiao_id: str, user_id: int
+    db: AsyncSession, template_qiao_id: str
 ) -> AICharacter:
     """
     Create AI character instance from profile template.
@@ -27,8 +27,6 @@ async def create_character_from_template(
     Args:
         db: Database session
         template_qiao_id: Profile template qiao_id
-        user_qiao_id: Owner user qiao_id
-        user_id: Owner user ID
 
     Returns:
         Created AI character
@@ -81,25 +79,14 @@ async def create_character_from_template(
     )
 
     character = await ai_character.create(db, obj_in=character_data, commit=False)
-
-    # Ensure ownership is set even if schema ignored extras
-    try:
-        if not getattr(character, "user_id", None):
-            character.user_id = user_id
-        if not getattr(character, "user_qiao_id", None):
-            character.user_qiao_id = user_qiao_id
-        # Set active status explicitly if model default differs
-        if int(getattr(character, "status", 1)) != 1:
-            character.status = 1
+    if int(getattr(character, "status", 1)) != 1:
+        character.status = 1
         await db.flush()
-    except Exception as e:
-        logger.error("character_post_create_update_failed", error=str(e))
 
     logger.info(
         "character_created_from_template",
         character_qiao_id=character.qiao_id,
         template_qiao_id=template_qiao_id,
-        user_qiao_id=user_qiao_id,
     )
 
     # 3.1 Ensure AI profile exists or update from profile template (overwrite with latest values)
@@ -201,7 +188,6 @@ async def create_character_from_template(
             "template_deactivation_failed",
             error=str(e),
             template_qiao_id=template_qiao_id,
-            user_qiao_id=user_qiao_id,
         )
 
     return character

@@ -69,7 +69,6 @@ def parse_to_event(intermediate: Dict[str, Any]) -> Optional[InboundMessageEvent
         event_metadata = EventMetadata(
             action=intermediate.get("action"),
             notification_type=intermediate.get("notification_type"),
-            follow_up_hint=intermediate.get("follow_up_hint"),
             encryption=encryption_algo,
             encryption_version=encryption_version,
         )

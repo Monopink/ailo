@@ -6,7 +6,7 @@ database operations and require atomicity.
 """
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy import func, select
 
@@ -24,9 +24,10 @@ from .template_queries import get_profile_template_by_id, get_character_template
 from services.message.processing.sender import send_ai_messages_with_typing
 from utils.logging import get_logger
 from services.ai.types import CharacterContext
+
 logger = get_logger(__name__)
 
-DEFAULT_TYPING_SPEED_WPM = 35
+DEFAULT_TYPING_SPEED_WPM = 50
 DEFAULT_TYPING_SPEED_SECONDS_PER_WORD = 60.0 / DEFAULT_TYPING_SPEED_WPM
 
 
@@ -52,7 +53,6 @@ async def create_character_with_relations(db: AsyncSession, character_data: Dict
         character = AICharacter(
             qiao_id=character_data["qiao_id"],
             category=character_data.get("category"),
-            user_qiao_id=character_data.get("user_qiao_id"),
             status=character_data.get("status", 1),
             style_id=character_data["style_id"],
             personality_id=character_data["personality_id"],
@@ -204,9 +204,7 @@ async def process_llm_response(
     followup_delay_seconds = 0.0
 
     if should_reply and (outgoing_messages or followup_messages):
-        typing_speed_seconds_per_word = await _get_typing_speed_seconds_per_word(
-            db, character_qiao_id
-        )
+        typing_speed_seconds_per_word = await _get_typing_speed_seconds_per_word(db, character_qiao_id)
         followup_delay_ms = await _get_followup_delay_ms(db, character_qiao_id)
         if followup_delay_ms is None:
             raise ValueError("Missing followup_delay_ms configuration")
@@ -261,6 +259,33 @@ async def _save_ai_request_log(
             logger.warning("user_not_found_for_log", user_qiao_id=user_qiao_id)
             return
 
+        response_payload: Dict[str, Any]
+        if isinstance(ai_response, dict):
+            response_payload = dict(ai_response)
+        else:
+            response_payload = {"content": ai_response}
+
+        llm_debug_payload: Dict[str, Any] = {}
+        for key in (
+            "raw_response",
+            "raw_content",
+            "tool_calls",
+            "reasoning_content",
+            "finish_reason",
+            "streaming",
+        ):
+            value = llm_result.get(key)
+            if value not in (None, {}, []):
+                llm_debug_payload[key] = value
+
+        # Include cache metadata for debugging if provided.
+        for meta_key in ("cache_hit", "cache_strategy"):
+            if meta_key in llm_result and llm_result[meta_key] is not None:
+                llm_debug_payload[meta_key] = llm_result[meta_key]
+
+        if llm_debug_payload:
+            response_payload["__llm_response"] = llm_debug_payload
+
         request_log = AIRequestLog(
             character_id=character_context["character_id"],
             user_id=user_id,  # ✅ FIXED: use user_id (int) not user_qiao_id (str)
@@ -274,7 +299,7 @@ async def _save_ai_request_log(
             cache_hit=bool(llm_result.get("cache_hit")),
             buffer_id=buffer_id,
             request=llm_result.get("request_payload", {}),
-            response=ai_response,
+            response=response_payload,
             status=1 if llm_result.get("success") else 2,
             token_count=llm_result.get("usage", {}).get("total_tokens", 0),
             response_time=int(llm_result.get("response_time", 0) * 1000),  # Convert to ms
@@ -295,9 +320,7 @@ async def _save_ai_request_log(
         pass
 
 
-async def _get_typing_speed_seconds_per_word(
-    db: AsyncSession, character_qiao_id: str
-) -> float:
+async def _get_typing_speed_seconds_per_word(db: AsyncSession, character_qiao_id: str) -> float:
     """Fetch the per-word typing latency derived from character-level WPM configuration."""
 
     stmt = select(AICharacter.typing_speed_wpm).where(AICharacter.qiao_id == character_qiao_id)

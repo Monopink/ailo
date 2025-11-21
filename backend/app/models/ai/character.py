@@ -25,7 +25,6 @@ from models.base import Base, SnowflakeModel, SnowflakeQiaoModel, ImmutableSnowf
 from enums.common import ConversationItemContextStatus
 
 if TYPE_CHECKING:
-    from models.user import User
     from models.ai.style import AIStyle, AIRelationship
     from models.ai.personality import AIPersonality
 
@@ -38,14 +37,6 @@ class AICharacter(SnowflakeQiaoModel):
     """
 
     __tablename__ = "ai_characters"
-
-    user_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True, comment="Owner user ID, references users.id"
-    )
-
-    user_qiao_id: Mapped[Optional[str]] = mapped_column(
-        String(32), nullable=True, comment="Owner user external ID"
-    )
 
     category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Character category")
 
@@ -113,13 +104,6 @@ class AICharacter(SnowflakeQiaoModel):
     )
 
     # Relationships
-    user: Mapped[Optional["User"]] = relationship(
-        "User",
-        primaryjoin="AICharacter.user_id == User.id",
-        foreign_keys=[user_id],
-        lazy="select",
-        viewonly=True,
-    )
     style: Mapped["AIStyle"] = relationship(
         "AIStyle",
         primaryjoin="AICharacter.style_id == AIStyle.id",
@@ -151,7 +135,6 @@ class AICharacter(SnowflakeQiaoModel):
     # Indexes - Only essential indexes for MVP
     # Note: qiao_id already has unique index
     __table_args__ = (
-        Index("idx_ai_characters_user_qiao_id", "user_qiao_id"),
         Index("idx_ai_characters_style_id", "style_id"),
         Index("idx_ai_characters_personality_id", "personality_id"),
     )

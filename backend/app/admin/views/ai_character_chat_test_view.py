@@ -234,6 +234,13 @@ class AICharacterChatTestView(CustomView):
                     "selected_relationship_after": result.get("selected_relationship_after"),
                 }
 
+                # Keep API contract identical to readiness endpoint so the frontend
+                # can refresh test-user state without extra fetches.
+                response_data["available_contacts"] = result.get("available_contacts", [])
+                response_data["available_test_users"] = result.get("available_test_users", [])
+                response_data["test_user_selection_locked"] = result.get("test_user_selection_locked", False)
+                response_data["locked_test_user_qiao_id"] = result.get("locked_test_user_qiao_id")
+
                 logger.info(
                     "ai_character_test_completed_successfully",
                     character_id=character_id,

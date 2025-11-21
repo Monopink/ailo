@@ -12,13 +12,17 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from services.ai.conversation_flow import process_conversation
-from services.ai.queries.updates import create_conversation_item
-from services.message.processing.buffer import finalize_buffer_if_locked
-from enums.common import AIMessageBufferState, ConversationRole
-from models.ai.character import AICharacter, AIMessageBuffer
+from enums import MessageType
+from models.ai.character import AICharacter
 from models.ai.log import AIRequestLog
 from models.user import User
+from services.ai.conversation_flow import process_conversation
+from services.message.processing.buffer import (
+    add_message_to_buffer,
+    finalize_buffer_if_locked,
+    force_lock_latest_window,
+)
+from services.message.schemas import InboundMessageEvent
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -44,7 +48,8 @@ class ExecutorService:
         llm_config_name: str,
         test_message: str,
         request_overrides: dict | None = None,
-        persist: bool = True,
+        persist: bool = False,
+        contact_conv_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Execute AI character chat test by calling main conversation logic.
@@ -106,50 +111,18 @@ class ExecutorService:
             locked_buffer_id: Optional[int] = None
             user_message_item_id: Optional[int] = None
             if persist:
-                try:
-                    buffer_entry = AIMessageBuffer(
-                        user_qiao_id=user_qiao_id,
-                        character_qiao_id=character_qiao_id,
-                        aggregate_state=AIMessageBufferState.LOCKED,
-                        first_msg_id_client="admin_test",
-                        last_msg_id_client="admin_test",
-                        message_count=1,
-                        last_msg_time_ms=int(time.time() * 1000),
+                if not contact_conv_id:
+                    raise ExecutorError(
+                        "Contact conversation_id is required when persist=True",
+                        error_code="CONTACT_REQUIRED",
                     )
-                    db.add(buffer_entry)
-                    await db.flush()
-                    locked_buffer_id = buffer_entry.id
-
-                    user_message_item_id = await create_conversation_item(
-                        db,
-                        {
-                            "user_qiao_id": user_qiao_id,
-                            "character_qiao_id": character_qiao_id,
-                            "role": ConversationRole.USER.value,
-                            "message_type": "text",
-                            "text_content": test_message,
-                            "buffer_id": locked_buffer_id,
-                            "client_msg_ids": ["admin_test"],
-                        },
-                    )
-
-                    logger.debug(
-                        "test_user_context_locked",
-                        character_qiao_id=character_qiao_id,
-                        user_qiao_id=user_qiao_id,
-                        buffer_id=locked_buffer_id,
-                        conversation_item_id=user_message_item_id,
-                    )
-                except Exception as e:
-                    await db.rollback()
-                    logger.error(
-                        "test_user_context_lock_error",
-                        error=str(e),
-                        character_qiao_id=character_qiao_id,
-                        user_qiao_id=user_qiao_id,
-                    )
-                    locked_buffer_id = None
-                    user_message_item_id = None
+                locked_buffer_id, user_message_item_id = await self._seed_test_user_context(
+                    db=db,
+                    user_qiao_id=user_qiao_id,
+                    character_qiao_id=character_qiao_id,
+                    conv_id=contact_conv_id,
+                    test_message=test_message,
+                )
 
             # Execute main conversation logic - 100% reuse，传入 locked_buffer_id 以复用完整业务路径
             start_time = time.time()
@@ -286,6 +259,55 @@ class ExecutorService:
             )
 
             raise ExecutorError(f"Test execution failed: {str(e)}", error_code="EXECUTION_FAILED")
+
+    async def _seed_test_user_context(
+        self,
+        *,
+        db: AsyncSession,
+        user_qiao_id: str,
+        character_qiao_id: str,
+        conv_id: str,
+        test_message: str,
+    ) -> Tuple[int, int]:
+        """
+        Buffer the admin test message and lock the latest window immediately.
+        """
+        if not test_message or not test_message.strip():
+            raise ExecutorError(
+                "Test message cannot be empty",
+                error_code="EMPTY_TEST_MESSAGE",
+            )
+        now_ms = int(time.time() * 1000)
+        msg_token = f"admin_test_{now_ms}"
+        event = InboundMessageEvent(
+            conversation_id=conv_id,
+            from_qiao_id=user_qiao_id,
+            to_qiao_id=character_qiao_id,
+            content=test_message,
+            message_type=MessageType.TEXT,
+            sent_at_ms=now_ms,
+            msg_id_client=msg_token,
+            msg_id_provider_inbound=f"{msg_token}_provider",
+            supports_typing=False,
+        )
+
+        await add_message_to_buffer(db, event, character_qiao_id)
+        locked_window = await force_lock_latest_window(db, user_qiao_id, character_qiao_id)
+        if not locked_window:
+            raise ExecutorError(
+                "Unable to lock buffered user context for testing",
+                error_code="CONTEXT_LOCK_FAILED",
+            )
+
+        logger.debug(
+            "test_user_context_locked",
+            character_qiao_id=character_qiao_id,
+            user_qiao_id=user_qiao_id,
+            buffer_id=locked_window.buffer_id,
+            conversation_item_id=locked_window.conversation_item_id,
+        )
+
+        return locked_window.buffer_id, locked_window.conversation_item_id
 
 
 # Global instance for dependency injection

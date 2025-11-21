@@ -83,6 +83,11 @@ pre {
           </table>
 
           <h4 class="fw-bold mb-2">Test User</h4>
+          <div class="mb-2">
+            <label for="testUserSelect" class="form-label text-muted">选择测试用户</label>
+            <select id="testUserSelect" class="form-select"></select>
+            <div class="form-text">仅支持 user_type=virtual 的测试用户，若缺少联系人将自动创建。</div>
+          </div>
           <table class="table table-sm table-borderless mb-3">
             <tbody>
               <tr><td class="text-muted" style="width:40%">ID</td><td id="userQiaoId">-</td></tr>
@@ -243,6 +248,21 @@ pre {
     var characterId = "{{ character_id }}";
     var llmConfigMap = {};
     var currentDebugInfo = null;
+    var availableTestUsers = [];
+    var testUserSelectionLocked = false;
+    var lockedTestUserId = "";
+    var testUserMap = {};
+    var selectedTestUserId = "";
+    var testUserProfiles = {};
+
+    function valueOrDash(x) {
+      return (x === undefined || x === null || x === '') ? '-' : String(x);
+    }
+    function formatGenderValue(g) {
+      if (g === undefined || g === null || g === '') return '-';
+      var genderMap = { 0: '-', 1: 'Male', 2: 'Female', 3: 'Other' };
+      return genderMap[g] !== undefined ? genderMap[g] : String(g);
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
       loadReadinessInfo();
@@ -370,6 +390,67 @@ pre {
       });
     }
 
+    function renderTestUserOptions(selectedId) {
+      var select = document.getElementById('testUserSelect');
+      if (!select) return;
+      testUserMap = {};
+      select.innerHTML = '';
+
+      if (!availableTestUsers.length) {
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '无可用测试用户';
+        select.appendChild(opt);
+        select.disabled = true;
+        updateTestUserSummary('', null);
+        selectedTestUserId = '';
+        return;
+      }
+
+      select.disabled = !!testUserSelectionLocked;
+      availableTestUsers.forEach(function (user) {
+        testUserMap[user.user_qiao_id] = user;
+        var opt = document.createElement('option');
+        opt.value = user.user_qiao_id;
+        var profile = user.profile || {};
+        var label = profile.nickname || user.nickname || user.username || user.user_qiao_id;
+        opt.textContent = label + ' (' + user.user_qiao_id + ')';
+        select.appendChild(opt);
+      });
+
+      if (testUserSelectionLocked && lockedTestUserId && testUserMap[lockedTestUserId]) {
+        select.value = lockedTestUserId;
+        selectedId = lockedTestUserId;
+      } else if (selectedId && testUserMap[selectedId]) {
+        select.value = selectedId;
+      } else if (availableTestUsers.length > 0) {
+        select.value = availableTestUsers[0].user_qiao_id;
+        selectedId = select.value;
+      }
+
+      selectedTestUserId = select.value;
+      select.onchange = function () {
+        selectedTestUserId = select.value;
+        updateTestUserSummary(selectedTestUserId, null);
+        updateSendButtonState();
+      };
+
+      updateTestUserSummary(selectedTestUserId, null);
+    }
+
+    function updateTestUserSummary(qiaoId, profileOverride) {
+      var info = (qiaoId && testUserMap[qiaoId]) ? testUserMap[qiaoId] : {};
+      var profile = profileOverride || info.profile || testUserProfiles[qiaoId] || null;
+      document.getElementById('userQiaoId').textContent = valueOrDash(info.user_qiao_id);
+      document.getElementById('userNickname').textContent = valueOrDash((profile && profile.nickname) || info.nickname || info.username);
+      document.getElementById('userGender').textContent = formatGenderValue((profile && profile.gender) || info.gender);
+      document.getElementById('userRegion').textContent = valueOrDash((profile && profile.region) || info.region);
+      document.getElementById('userBio').textContent = valueOrDash((profile && profile.bio));
+      document.getElementById('userAvatarUrl').textContent = valueOrDash((profile && profile.avatar_url));
+      document.getElementById('userAvatarPrompt').textContent = valueOrDash((profile && profile.avatar_prompt));
+      document.getElementById('userUsername').textContent = valueOrDash(info.username);
+    }
+
     function setupEventListeners() {
       document.getElementById('sendBtn').addEventListener('click', sendMessage);
       document.getElementById('messageInput').addEventListener('keydown', function (e) {
@@ -378,7 +459,10 @@ pre {
           sendMessage();
         }
       });
+      document.getElementById('messageInput').addEventListener('input', updateSendButtonState);
+      document.getElementById('llmSelect').addEventListener('change', updateSendButtonState);
       document.getElementById('archiveBtn').addEventListener('click', archiveAllMessages);
+      updateSendButtonState();
     }
 
     function archiveAllMessages() {
@@ -416,8 +500,18 @@ pre {
       var sendBtn = document.getElementById('sendBtn');
       var message = messageInput.value.trim();
       var key = llmSelect.value;
-      if (!message || !key) return;
+      if (!message) {
+        showError('请输入测试消息后再发送');
+        updateSendButtonState();
+        return;
+      }
+      if (!key) {
+        showError('请选择 LLM 配置后再发送');
+        updateSendButtonState();
+        return;
+      }
       messageInput.value = '';
+      updateSendButtonState();
       sendBtn.disabled = true;
       document.querySelector('.container-fluid').classList.add('loading', 'opacity-50');
 
@@ -425,6 +519,9 @@ pre {
       formData.append('character_id', characterId);
       formData.append('llm_config_name', key);
       formData.append('test_message', message);
+      if (selectedTestUserId) {
+        formData.append('test_user_qiao_id', selectedTestUserId);
+      }
 
       var cfg = llmConfigMap[key];
       var isMock = cfg && cfg.provider_name && String(cfg.provider_name).toLowerCase() === 'mock';
@@ -492,6 +589,7 @@ pre {
         .finally(function () {
           document.querySelector('.container-fluid').classList.remove('loading', 'opacity-50');
           sendBtn.disabled = false;
+          updateSendButtonState();
         });
     }
 
@@ -580,44 +678,100 @@ pre {
       e.style.display = 'block';
     }
 
-    function updateParticipantsAndSettings(data) {
-      function val(x) { return (x === undefined || x === null || x === '') ? '-' : String(x); }
-      function formatGender(g) {
-        if (g === undefined || g === null || g === '') return '-';
-        var genderMap = { 0: '-', 1: 'Male', 2: 'Female', 3: 'Other' };
-        return genderMap[g] !== undefined ? genderMap[g] : String(g);
+    function updateSendButtonState() {
+      var message = document.getElementById('messageInput').value.trim();
+      var llmSelected = !!document.getElementById('llmSelect').value;
+      var enabled = !!selectedTestUserId && llmSelected && !!message;
+      var sendBtn = document.getElementById('sendBtn');
+      if (sendBtn) {
+        sendBtn.disabled = !enabled;
       }
+    }
+
+    function updateParticipantsAndSettings(data) {
+      if (!data) return;
       try {
-        // User
-        var tui = data.test_user_info || {};
-        var tup = data.test_user_profile || {};
-        document.getElementById('userQiaoId').textContent = val(tui.qiao_id);
-        document.getElementById('userUsername').textContent = val(tui.username);
-        document.getElementById('userNickname').textContent = val(tup.nickname);
-        document.getElementById('userGender').textContent = formatGender(tup.gender);
-        document.getElementById('userRegion').textContent = val(tup.region);
-        document.getElementById('userBio').textContent = val(tup.bio);
-        document.getElementById('userAvatarUrl').textContent = val(tup.avatar_url);
-        document.getElementById('userAvatarPrompt').textContent = val(tup.avatar_prompt);
+        testUserSelectionLocked = !!data.test_user_selection_locked;
+        lockedTestUserId = data.locked_test_user_qiao_id || "";
 
-        // AI
-        var ci = data.character_info || {};
+        var rawUsers = [];
+        var hasFreshUserList = false;
+        var owns = Object.prototype.hasOwnProperty;
+        if (owns.call(data, 'available_test_users')) {
+          hasFreshUserList = true;
+          rawUsers = Array.isArray(data.available_test_users) ? data.available_test_users : [];
+        } else if (data.test_user_info && owns.call(data.test_user_info, 'available_test_users')) {
+          hasFreshUserList = true;
+          rawUsers = Array.isArray(data.test_user_info.available_test_users) ? data.test_user_info.available_test_users : [];
+        } else if (owns.call(data, 'available_contacts')) {
+          hasFreshUserList = true;
+          rawUsers = Array.isArray(data.available_contacts) ? data.available_contacts : [];
+        } else if (data.test_user_info && owns.call(data.test_user_info, 'available_contacts')) {
+          hasFreshUserList = true;
+          rawUsers = Array.isArray(data.test_user_info.available_contacts) ? data.test_user_info.available_contacts : [];
+        }
+
+        if (!hasFreshUserList && availableTestUsers.length > 0) {
+          rawUsers = availableTestUsers.slice();
+        }
+
+        availableTestUsers = rawUsers.map(function (user) {
+          if (!user) return null;
+          if (user.profile || typeof user.has_contact !== 'undefined') {
+            return user;
+          }
+          return {
+            user_qiao_id: user.user_qiao_id,
+            username: user.username,
+            nickname: user.nickname,
+            has_contact: true,
+            conv_id: user.conv_id,
+            profile: {
+              nickname: user.nickname,
+              gender: user.gender,
+              region: user.region,
+              bio: user.bio,
+              avatar_url: user.avatar_url,
+              avatar_prompt: user.avatar_prompt,
+            },
+          };
+        }).filter(Boolean);
+
+        availableTestUsers.forEach(function (user) {
+          if (user.user_qiao_id && user.profile) {
+            testUserProfiles[user.user_qiao_id] = user.profile;
+          }
+        });
+
+        if (data.test_user_info && data.test_user_info.qiao_id && data.test_user_profile) {
+          testUserProfiles[data.test_user_info.qiao_id] = data.test_user_profile;
+        }
+
+        var defaultUserId = selectedTestUserId;
+        if (data.test_user_info && data.test_user_info.qiao_id) {
+          defaultUserId = data.test_user_info.qiao_id;
+        } else if (testUserSelectionLocked && lockedTestUserId) {
+          defaultUserId = lockedTestUserId;
+        } else if (!defaultUserId && availableTestUsers.length > 0) {
+          defaultUserId = availableTestUsers[0].user_qiao_id;
+        }
+
+        renderTestUserOptions(defaultUserId);
+        updateTestUserSummary(selectedTestUserId, testUserProfiles[selectedTestUserId] || null);
+
         var cp = data.character_profile || {};
-        document.getElementById('aiNickname').textContent = val(cp.nickname);
-        document.getElementById('aiGender').textContent = formatGender(cp.gender);
-        document.getElementById('aiRegion').textContent = val(cp.region);
-        document.getElementById('aiBio').textContent = val(cp.bio);
-        document.getElementById('aiAvatarUrl').textContent = val(cp.avatar_url);
-        document.getElementById('aiAvatarPrompt').textContent = val(cp.avatar_prompt);
-        document.getElementById('characterCategory').textContent = val(ci.category);
+        document.getElementById('aiNickname').textContent = valueOrDash(cp.nickname);
+        document.getElementById('aiGender').textContent = formatGenderValue(cp.gender);
+        document.getElementById('aiRegion').textContent = valueOrDash(cp.region);
+        document.getElementById('aiBio').textContent = valueOrDash(cp.bio);
+        document.getElementById('aiAvatarUrl').textContent = valueOrDash(cp.avatar_url);
+        document.getElementById('aiAvatarPrompt').textContent = valueOrDash(cp.avatar_prompt);
+        document.getElementById('characterCategory').textContent = valueOrDash((data.character_info || {}).category);
 
-        // Settings
-        var style = data.style || {};
-        var personality = data.personality || {};
-        document.getElementById('aiStyleName').textContent = val(style.display_name || ci.style);
-        document.getElementById('aiPersonalityName').textContent = val(personality.display_name || ci.personality);
+        document.getElementById('aiStyleName').textContent = valueOrDash(data.style && data.style.display_name);
+        document.getElementById('aiPersonalityName').textContent = valueOrDash(data.personality && data.personality.display_name);
         var settings = data.character_settings || {};
-        document.getElementById('aiMemory').textContent = settings.memory ? String(settings.memory) : '';
+        document.getElementById('aiMemory').textContent = valueOrDash(settings.memory);
         try {
           var pv = settings.prompt_variables;
           var pvText = (typeof pv === 'string') ? pv : JSON.stringify(pv, null, 2);
@@ -625,6 +779,8 @@ pre {
         } catch (e) {
           document.getElementById('aiPromptVars').textContent = '';
         }
+
+        updateSendButtonState();
       } catch (_) { }
     }
 

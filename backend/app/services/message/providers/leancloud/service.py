@@ -21,6 +21,7 @@ from .client import (
 )
 from .health import check_leancloud_health
 from ..base import MessageResult
+from .adapter import build_outbound_typed_message
 from utils.logging import get_logger
 from utils.snowflake import generate_snowflake_id
 from enums import MessageType
@@ -381,6 +382,7 @@ async def send_message(
     content: str,
     message_type: int = 1,
     extra_fields: Optional[dict] = None,
+    msg_id: Optional[str] = None,
 ) -> MessageResult:
     """
     Send message through LeanCloud.
@@ -416,21 +418,16 @@ async def send_message(
             )
 
         # Construct message JSON
-        import json
-        import time
-
-        payload = {
-            "conv_id": conv_id,
-            "from": from_qiao_id,
-            "to": to_qiao_id,
-            "content": content,
-            "message_type": message_type,
-            "sent_time": int(time.time() * 1000),
-        }
-        if extra_fields:
-            payload.update(extra_fields)
-
-        message_json = json.dumps(payload)
+        message_json = build_outbound_typed_message(
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+            conv_id=conv_id,
+            content=content,
+            message_type=message_type,
+            msg_id=msg_id or f"msg_{generate_snowflake_id()}",
+            supports_typing=True,
+            extra_fields=extra_fields,
+        )
 
         # Send message through LeanCloud API
         success, msg_id, error = await send_service_message(
@@ -499,27 +496,17 @@ async def send_message_as_system(
             )
 
         # Construct message JSON
-        import json
-        import time
-
-        message_body = {
-            "msg_id": msg_id or str(generate_snowflake_id()),
-            "conv_id": conv_id,
-            "from": "system",
-            "to": to_qiao_id,
-            "content": content,
-            "message_type": message_type,
-            "supports_typing": False,
-            "sent_time": int(time.time() * 1000),
-        }
-
-        if action:
-            message_body["action"] = action
-
-        if extra_fields:
-            message_body.update(extra_fields)
-
-        message_json = json.dumps(message_body, ensure_ascii=False)
+        message_json = build_outbound_typed_message(
+            from_qiao_id="system",
+            to_qiao_id=to_qiao_id,
+            conv_id=conv_id,
+            content=content,
+            message_type=message_type,
+            msg_id=msg_id or f"msg_{generate_snowflake_id()}",
+            supports_typing=False,
+            action=action,
+            extra_fields=extra_fields,
+        )
 
         # Send message as system through LeanCloud API
         success, msg_id, error = await send_service_message(

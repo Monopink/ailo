@@ -20,7 +20,8 @@ from models.ai import (
     AIDimension,
 )
 from models.profile import Profile
-from models.user import User
+from models.contact import Contact
+from enums import ContactType
 from utils.logging import get_logger
 from exceptions import AIDataAccessError
 from services.ai.types import (
@@ -83,8 +84,6 @@ async def get_character_context(
             "category": character.category,
             "status": character.status,
             "created_by": character.created_by,
-            "user_id": character.user_id,
-            "user_qiao_id": character.user_qiao_id,
             "memory": character.memory,
             "prompt_variables": dict(character.prompt_variables or {}),
             "request_params": dict(character.request_params or {}),
@@ -448,21 +447,29 @@ async def get_all_characters(db: AsyncSession) -> List[Dict[str, Any]]:
     """
     try:
         result = await db.execute(
-            select(AICharacter, Profile)
+            select(AICharacter, Profile, Contact.user_qiao_id)
             .outerjoin(Profile, AICharacter.qiao_id == Profile.owner_qiao_id)
+            .outerjoin(
+                Contact,
+                and_(
+                    Contact.contact_id == AICharacter.id,
+                    Contact.contact_type == ContactType.AI,
+                    Contact.is_deleted == 0,
+                ),
+            )
             .where(AICharacter.status == 1)  # active characters only
             .order_by(AICharacter.created_at.desc())
         )
 
         characters = []
-        for character, profile in result.all():
+        for character, profile, owner_qiao_id in result.all():
             characters.append(
                 {
                     "id": character.id,
                     "qiao_id": character.qiao_id,
                     "name": (profile.nickname if profile else None) or f"Character {character.qiao_id}",
                     "category": character.category,
-                    "user_qiao_id": character.user_qiao_id,
+                    "user_qiao_id": owner_qiao_id,
                     "created_at": character.created_at.isoformat() if character.created_at else None,
                 }
             )

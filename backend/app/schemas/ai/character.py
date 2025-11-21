@@ -94,8 +94,6 @@ class AICharacterResponse(AICharacterBase):
     """Schema for AI character response data."""
 
     qiao_id: str = Field(..., description="Character external ID")
-    user_id: Optional[int] = Field(None, description="Owner user ID")
-    user_qiao_id: Optional[str] = Field(None, description="Owner user external ID")
     created_by: AICharacterCreator = Field(..., description="Creator type")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")

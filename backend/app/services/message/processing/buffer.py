@@ -256,6 +256,67 @@ async def lock_conversation_preemptively(
         raise
 
 
+async def force_lock_latest_window(
+    db: AsyncSession,
+    user_qiao_id: str,
+    character_qiao_id: str,
+) -> Optional[LockedConversationWindow]:
+    """
+    Force lock the most recent buffer regardless of timer state.
+
+    Used in controlled flows (e.g., admin testing) where we need immediate
+    processing without waiting for micro/macro timers or wake windows.
+    """
+    try:
+        buffer_obj, buffer_item = await _get_latest_open_buffer(
+            db, user_qiao_id, character_qiao_id, for_update=True
+        )
+
+        if not buffer_obj or not buffer_item:
+            logger.warning(
+                "force_lock_no_buffer",
+                user_qiao_id=user_qiao_id,
+                character_qiao_id=character_qiao_id,
+            )
+            await db.rollback()
+            return None
+
+        buffer_obj.aggregate_state = AIMessageBufferState.LOCKED
+        buffer_obj.locked_at = datetime.utcnow()
+        buffer_obj.micro_expires_at_ms = None
+        buffer_obj.macro_expires_at_ms = None
+        buffer_obj.buffer_expires_at_ms = None
+        buffer_obj.wake_expires_at_ms = None
+        await db.flush()
+        await db.commit()
+
+        logger.info(
+            "buffer_force_locked",
+            buffer_id=buffer_obj.id,
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_qiao_id,
+        )
+
+        return LockedConversationWindow(
+            buffer_id=buffer_obj.id,
+            conversation_item_id=buffer_item.id,
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_qiao_id,
+            content=buffer_item.text_content or "",
+        )
+
+    except Exception as exc:
+        await db.rollback()
+        logger.error(
+            "buffer_force_lock_failed",
+            error=str(exc),
+            user_qiao_id=user_qiao_id,
+            character_qiao_id=character_qiao_id,
+            exc_info=True,
+        )
+        raise
+
+
 async def is_buffer_cancelled(db: AsyncSession, buffer_id: int) -> bool:
     """
     Streaming cancellation hook. Returns True if buffer is no longer LOCKED.

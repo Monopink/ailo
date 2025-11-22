@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from enums.common import ConversationRole
 from .queries import get_personality_with_placeholders
 from exceptions import AIServiceError
-from services.ai.types import CharacterContext
+from services.ai.types import InstanceContext
 from utils.logging import get_logger
 from models.ai import AIConversationState
 
@@ -26,19 +26,19 @@ logger = get_logger(__name__)
 
 async def build_system_prompt(
     db: AsyncSession,
-    context: CharacterContext,
+    context: InstanceContext,
     relationship_type: Optional[Dict[str, Any]],
     user_qiao_id: str,
 ) -> str:
     """
-    Build complete system prompt for AI character.
+    Build complete system prompt for an AI instance.
 
     This implements step 7 from the prototype design:
     Apply relationship prompt and placeholders to personality template.
 
     Args:
         db: Database session
-        context: Character context dictionary
+        context: Instance context dictionary
         relationship_type: Relationship type information
         user_qiao_id: User's qiao_id
 
@@ -66,9 +66,9 @@ async def build_system_prompt(
             db, context, relationship_type, user_qiao_id, available_placeholders
         )
 
-        # Apply character-specific prompt variables (overrides)
-        character_prompt_variables = context.get("prompt_variables") or {}
-        placeholder_values.update(character_prompt_variables)
+        # Apply instance-specific prompt variables (overrides)
+        instance_prompt_variables = context.get("prompt_variables") or {}
+        placeholder_values.update(instance_prompt_variables)
 
         # Replace placeholders in personality prompt
         system_prompt = replace_placeholders(context["personality"]["prompt"], placeholder_values)
@@ -87,7 +87,7 @@ async def build_system_prompt(
         logger.error(
             "system_prompt_build_failed",
             error=str(e),
-            character_qiao_id=context.get("character_qiao_id"),
+            instance_qiao_id=context.get("instance_qiao_id"),
             user_qiao_id=user_qiao_id,
         )
         raise AIServiceError(
@@ -102,7 +102,7 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
     Replace placeholders in template string.
 
     Placeholders use {{variable_name}} format.
-    System placeholders take priority over character-specific ones.
+    System placeholders take priority over instance-specific ones.
     Unknown placeholders are detected, logged, and cleared.
 
     Args:
@@ -164,8 +164,8 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
     return result
 
 
-def build_response_schema(context: CharacterContext) -> Dict[str, Any]:
-    """Build JSON schema directly from character context."""
+def build_response_schema(context: InstanceContext) -> Dict[str, Any]:
+    """Build JSON schema directly from instance context."""
 
     try:
         dimensions = context.get("dimensions", [])
@@ -180,7 +180,7 @@ def build_response_schema(context: CharacterContext) -> Dict[str, Any]:
 
         logger.debug(
             "response_schema_built",
-            character_qiao_id=context["character_qiao_id"],
+            instance_qiao_id=context["instance_qiao_id"],
             style_id=context["style"]["id"],
             dimensions_count=len(dimensions),
         )
@@ -193,7 +193,7 @@ def build_response_schema(context: CharacterContext) -> Dict[str, Any]:
         logger.error(
             "response_schema_build_failed",
             error=str(exc),
-            character_qiao_id=context.get("character_qiao_id"),
+            instance_qiao_id=context.get("instance_qiao_id"),
         )
         raise AIServiceError(
             ai_service="schema_building",
@@ -204,7 +204,7 @@ def build_response_schema(context: CharacterContext) -> Dict[str, Any]:
 
 async def _build_placeholder_values(
     db: AsyncSession,
-    context: CharacterContext,
+    context: InstanceContext,
     relationship_type: Optional[Dict[str, Any]],
     user_qiao_id: str,
     available_placeholders: Dict[str, Any],
@@ -214,7 +214,7 @@ async def _build_placeholder_values(
 
     Args:
         db: Database session
-        context: Character context data
+        context: Instance context data
         relationship_type: Relationship type information
         user_qiao_id: User's qiao_id
         available_placeholders: Available placeholder definitions
@@ -233,10 +233,10 @@ async def _build_placeholder_values(
     else:
         placeholder_values["relationship_prompt"] = ""
 
-    # {{self_profile}} - character profile description
-    character_profile = context.get("profile")
-    if character_profile:
-        placeholder_values["self_profile"] = _format_profile(character_profile)
+    # {{self_profile}} - instance profile description
+    instance_profile = context.get("profile")
+    if instance_profile:
+        placeholder_values["self_profile"] = _format_profile(instance_profile)
     else:
         placeholder_values["self_profile"] = ""
 
@@ -250,17 +250,17 @@ async def _build_placeholder_values(
     # {{current_datetime}} - current date and time
     placeholder_values["current_datetime"] = _get_current_datetime(context)
 
-    # {{memory}} - character memory
+    # {{memory}} - instance memory
     placeholder_values["memory"] = context.get("memory") or ""
 
     # {{score:dimension_name}} - dynamic score placeholders
-    character_qiao_id = context.get("character_qiao_id")
-    if character_qiao_id:
-        score_placeholders = await _build_score_placeholders(db, character_qiao_id)
+    instance_qiao_id = context.get("instance_qiao_id")
+    if instance_qiao_id:
+        score_placeholders = await _build_score_placeholders(db, instance_qiao_id)
         placeholder_values.update(score_placeholders)
 
         pending_text = await _build_pending_messages_placeholder(
-            db, user_qiao_id, character_qiao_id
+            db, user_qiao_id, instance_qiao_id
         )
         placeholder_values["pending_messages"] = pending_text
     else:
@@ -288,24 +288,24 @@ async def _build_placeholder_values(
     return placeholder_values
 
 
-async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) -> Dict[str, str]:
+async def _build_score_placeholders(db: AsyncSession, instance_qiao_id: str) -> Dict[str, str]:
     """
-    Build score-related placeholders for a character.
+    Build score-related placeholders for an instance.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
 
     Returns:
         Dictionary of score placeholders in format {"score:dimension_name": "value"}
     """
     from .relationship_scoring import get_relationship_scores
 
-    scores = await get_relationship_scores(db, character_qiao_id)
+    scores = await get_relationship_scores(db, instance_qiao_id)
     if not scores:
         logger.debug(
             "no_scores_found_for_placeholders",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         return {}
 
@@ -318,7 +318,7 @@ async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) ->
 
     logger.debug(
         "score_placeholders_built",
-        character_qiao_id=character_qiao_id,
+        instance_qiao_id=instance_qiao_id,
         placeholders_count=len(score_placeholders),
     )
 
@@ -328,7 +328,7 @@ async def _build_score_placeholders(db: AsyncSession, character_qiao_id: str) ->
 async def _build_pending_messages_placeholder(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
 ) -> str:
     """
     Format pending messages (if any) so they can be injected into system prompt.
@@ -336,7 +336,7 @@ async def _build_pending_messages_placeholder(
     result = await db.execute(
         select(AIConversationState.pending_messages).where(
             AIConversationState.user_qiao_id == user_qiao_id,
-            AIConversationState.character_qiao_id == character_qiao_id,
+            AIConversationState.instance_qiao_id == instance_qiao_id,
         )
     )
     pending_data = result.scalar_one_or_none()
@@ -418,7 +418,7 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Any
 
 def _get_current_datetime(context: Dict[str, Any]) -> str:
     """
-    Get current datetime string based on character timezone.
+    Get current datetime string based on instance timezone.
 
     Falls back to Asia/Shanghai when timezone is invalid or missing.
     """
@@ -590,17 +590,17 @@ def _get_base_response_schema(
 
 async def build_conversation_context(
     db: AsyncSession,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     user_qiao_id: str,
     max_context_length: Optional[int] = None,
-    character_timezone: Optional[str] = None,
+    instance_timezone: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Build conversation context from AI contexts table.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
         user_qiao_id: User's qiao_id
         max_context_length: Maximum number of context entries to include
 
@@ -614,12 +614,12 @@ async def build_conversation_context(
         from .queries import get_conversation_contexts
 
         # Get conversation contexts; when max_context_length is None, include all
-        contexts = await get_conversation_contexts(db, character_qiao_id, user_qiao_id, max_context_length)
+        contexts = await get_conversation_contexts(db, instance_qiao_id, user_qiao_id, max_context_length)
 
         if not contexts:
             logger.debug(
                 "no_conversation_contexts_found",
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 user_qiao_id=user_qiao_id,
             )
             return []
@@ -635,7 +635,7 @@ async def build_conversation_context(
             created_at = context.get("created_at")
 
             if message_type == "text" and text_content:
-                prefix = _format_time_prefix(created_at, character_timezone)
+                prefix = _format_time_prefix(created_at, instance_timezone)
                 if prefix:
                     text_content = f"[{prefix}] {text_content}"
 
@@ -651,7 +651,7 @@ async def build_conversation_context(
 
         logger.debug(
             "conversation_context_built",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
             contexts_count=len(contexts),
             messages_count=len(messages),
@@ -663,7 +663,7 @@ async def build_conversation_context(
         logger.error(
             "conversation_context_build_failed",
             error=str(e),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
         )
         raise AIServiceError(
@@ -691,9 +691,9 @@ def _map_context_role_to_message_role(role: str) -> str:
     return role_mapping.get(role, "user")
 
 
-def _format_time_prefix(created_at: Any, character_timezone: Optional[str]) -> Optional[str]:
+def _format_time_prefix(created_at: Any, instance_timezone: Optional[str]) -> Optional[str]:
     """
-    Format timestamp for conversation history using character timezone with humanized relative time.
+    Format timestamp for conversation history using instance timezone with humanized relative time.
     
     Examples:
     - [2024-11-18(一年前) 17:19]
@@ -710,7 +710,7 @@ def _format_time_prefix(created_at: Any, character_timezone: Optional[str]) -> O
 
         from zoneinfo import ZoneInfo
 
-        tz_name = character_timezone or "Asia/Shanghai"
+        tz_name = instance_timezone or "Asia/Shanghai"
         try:
             tzinfo = ZoneInfo(tz_name)
         except Exception:
@@ -810,7 +810,7 @@ def _format_day_relative_label(days_diff: int) -> str:
     return mapping.get(days_diff, f"{days_diff}天前")
 
 
-async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, template: str) -> str:
+async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, template: str) -> str:
     """
     Format score-related placeholders in template.
 
@@ -819,7 +819,7 @@ async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, te
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
         template: Template string with score placeholders
 
     Returns:
@@ -840,12 +840,12 @@ async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, te
             # No score placeholders found
             return template
 
-        # Get current scores for the character
-        scores = await get_relationship_scores(db, character_qiao_id)
+        # Get current scores for the instance
+        scores = await get_relationship_scores(db, instance_qiao_id)
         if not scores:
             logger.warning(
                 "no_scores_found_for_placeholder_formatting",
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
             )
             # Replace all score placeholders with empty string
             result = re.sub(score_pattern, "", template)
@@ -870,13 +870,13 @@ async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, te
                 result = result.replace(placeholder, "")
                 logger.warning(
                     "score_dimension_not_found_for_placeholder",
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                     dimension_name=dimension_name,
                 )
 
         logger.debug(
             "score_placeholders_formatted",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             placeholders_found=len(score_matches),
             placeholders_replaced=replaced_count,
         )
@@ -887,7 +887,7 @@ async def format_score_placeholders(db: AsyncSession, character_qiao_id: str, te
         logger.error(
             "score_placeholder_formatting_failed",
             error=str(e),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         raise AIServiceError(
             ai_service="placeholder_formatting",

@@ -145,7 +145,7 @@ class AdminDashboardStats(BaseSchema):
     total_users: int = Field(..., description="Total user count")
     active_users: int = Field(..., description="Active user count")
     total_messages: int = Field(..., description="Total message count")
-    total_ai_characters: int = Field(..., description="Total AI character count")
+    total_ai_instances: int = Field(..., description="Total AI instance count")
     daily_new_users: int = Field(..., description="Daily new user count")
     daily_messages: int = Field(..., description="Daily message count")
 

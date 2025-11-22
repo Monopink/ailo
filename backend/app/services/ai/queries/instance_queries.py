@@ -1,7 +1,7 @@
 """
-AI character-related query functions.
+AI instance-related query functions.
 
-This module provides character-related read/query functions with clear
+This module provides instance-related read/query functions with clear
 separation of concerns and pure function design.
 """
 
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
 from models.ai import (
-    AICharacter,
+    AIInstance,
     AIPersonality,
     AIPersonalityPlaceholder,
     AIStyle,
@@ -21,77 +21,80 @@ from models.ai import (
 )
 from models.profile import Profile
 from models.contact import Contact
+from models.user import User
 from enums import ContactType
 from utils.logging import get_logger
 from exceptions import AIDataAccessError
 from services.ai.types import (
-    CharacterContext,
+    InstanceContext,
     CurrentRelationship,
     DimensionSpec,
     ProfileInfo,
     RelationshipCounts,
     StyleInfo,
     PersonalityInfo,
+    AITypeInfo,
 )
 
 logger = get_logger(__name__)
 
 
-async def get_character_context(
+async def get_instance_context(
     db: AsyncSession,
     *,
-    character_qiao_id: Optional[str] = None,
-    character_id: Optional[int] = None,
-) -> Optional[CharacterContext]:
-    """Query complete character context exactly once per request."""
+    instance_qiao_id: Optional[str] = None,
+    instance_id: Optional[int] = None,
+) -> Optional[InstanceContext]:
+    """Query complete instance context exactly once per request."""
 
-    if not character_qiao_id and not character_id:
-        raise ValueError("character_qiao_id or character_id must be provided")
+    if not instance_qiao_id and not instance_id:
+        raise ValueError("instance_qiao_id or instance_id must be provided")
 
     try:
         stmt = (
-            select(AICharacter, AIPersonality, AIStyle, Profile, AIRelationship)
-            .join(AIPersonality, AICharacter.personality_id == AIPersonality.id)
-            .join(AIStyle, AICharacter.style_id == AIStyle.id)
+            select(AIInstance, AIPersonality, AIStyle, Profile, AIRelationship)
+            .join(AIPersonality, AIInstance.personality_id == AIPersonality.id)
+            .join(AIStyle, AIInstance.style_id == AIStyle.id)
             .join(
                 Profile,
-                and_(Profile.owner_qiao_id == AICharacter.qiao_id, Profile.owner_type == 2),
+                and_(Profile.owner_qiao_id == AIInstance.qiao_id, Profile.owner_type == 2),
             )
-            .outerjoin(AIRelationship, AICharacter.relationship_id == AIRelationship.id)
+            .outerjoin(AIRelationship, AIInstance.relationship_id == AIRelationship.id)
         )
-        if character_qiao_id:
-            stmt = stmt.where(AICharacter.qiao_id == character_qiao_id)
-        if character_id:
-            stmt = stmt.where(AICharacter.id == character_id)
+        if instance_qiao_id:
+            stmt = stmt.where(AIInstance.qiao_id == instance_qiao_id)
+        if instance_id:
+            stmt = stmt.where(AIInstance.id == instance_id)
 
         result = await db.execute(stmt)
         row = result.first()
         if not row:
             logger.warning(
-                "character_context_not_found",
-                character_qiao_id=character_qiao_id,
-                character_id=character_id,
+                "instance_context_not_found",
+                instance_qiao_id=instance_qiao_id,
+                instance_id=instance_id,
             )
             return None
 
-        character, personality, style, profile, relationship = row
+        instance, personality, style, profile, relationship = row
+        ai_type_info = _build_ai_type(instance.creation_metadata)
 
         dimensions = await _get_style_dimensions(db, style.id)
 
-        context: CharacterContext = {
-            "character_id": character.id,
-            "character_qiao_id": character.qiao_id,
-            "category": character.category,
-            "status": character.status,
-            "created_by": character.created_by,
-            "memory": character.memory,
-            "prompt_variables": dict(character.prompt_variables or {}),
-            "request_params": dict(character.request_params or {}),
-            "typing_speed_wpm": character.typing_speed_wpm,
-            "timezone": character.timezone or "Asia/Shanghai",
-            "created_from_profile_qiao_id": character.created_from_profile_qiao_id,
-            "relationship_id": character.relationship_id,
-            "relationship_counts": _normalize_relationship_counts(character.relationship_counts),
+        context: InstanceContext = {
+            "instance_id": instance.id,
+            "instance_qiao_id": instance.qiao_id,
+            "ai_type": ai_type_info,
+            "status": instance.status,
+            "created_by": instance.created_by,
+            "memory": instance.memory,
+            "prompt_variables": dict(instance.prompt_variables or {}),
+            "request_params": dict(instance.request_params or {}),
+            "typing_speed_wpm": instance.typing_speed_wpm,
+            "timezone": instance.timezone or "Asia/Shanghai",
+            "created_from_profile_qiao_id": instance.created_from_profile_qiao_id,
+            "relationship_id": instance.relationship_id,
+            "relationship_counts": _normalize_relationship_counts(instance.relationship_counts),
             "style": _build_style(style),
             "personality": _build_personality(personality),
             "profile": _build_profile(profile),
@@ -100,8 +103,8 @@ async def get_character_context(
         }
 
         logger.debug(
-            "character_context_loaded",
-            character_qiao_id=context["character_qiao_id"],
+            "instance_context_loaded",
+            instance_qiao_id=context["instance_qiao_id"],
             style_id=context["style"]["id"],
             dimension_count=len(dimensions),
         )
@@ -112,19 +115,19 @@ async def get_character_context(
         raise
     except Exception as exc:
         logger.error(
-            "character_context_query_failed",
+            "instance_context_query_failed",
             error=str(exc),
-            character_qiao_id=character_qiao_id,
-            character_id=character_id,
+            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
             exc_info=True,
         )
         raise AIDataAccessError(
-            query="get_character_context",
+            query="get_instance_context",
             reason="query_failed",
-            message="Failed to load character context",
+            message="Failed to load instance context",
             details={
-                "character_qiao_id": character_qiao_id,
-                "character_id": character_id,
+                "instance_qiao_id": instance_qiao_id,
+                "instance_id": instance_id,
             },
         ) from exc
 
@@ -243,6 +246,31 @@ def _build_profile(profile: Profile) -> ProfileInfo:
     )
 
 
+def _build_ai_type(creation_metadata: Optional[Dict[str, Any]]) -> Optional[AITypeInfo]:
+    if not creation_metadata:
+        return None
+
+    def _parse_type_id(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+
+    type_id = creation_metadata.get("persona_type_id") or creation_metadata.get("template_type_id")
+    type_name = (
+        creation_metadata.get("persona_type_name")
+        or creation_metadata.get("template_type_name")
+    )
+    parsed_type_id = _parse_type_id(type_id)
+
+    if parsed_type_id is None or not type_name:
+        return None
+
+    return {"id": parsed_type_id, "display_name": str(type_name)}
+
+
 def _build_current_relationship(relationship: Optional[AIRelationship]) -> Optional[CurrentRelationship]:
     if not relationship:
         return None
@@ -319,12 +347,12 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optio
         return None
 
 
-async def get_character_relationship_config(
+async def get_instance_relationship_config(
     db: AsyncSession,
-    character_qiao_id: str,
+    instance_qiao_id: str,
 ) -> Optional[Dict[str, Any]]:
     """
-    Fetch wake timing configuration for the character's current relationship.
+    Fetch wake timing configuration for the instance's current relationship.
 
     Returns None for first conversations (no relationship_id yet),
     the actual configuration when available, or a hard-coded default
@@ -333,21 +361,21 @@ async def get_character_relationship_config(
 
     try:
         stmt = (
-            select(AICharacter.relationship_id, AIRelationship)
+            select(AIInstance.relationship_id, AIRelationship)
             .join(
                 AIRelationship,
-                AICharacter.relationship_id == AIRelationship.id,
+                AIInstance.relationship_id == AIRelationship.id,
                 isouter=True,
             )
-            .where(AICharacter.qiao_id == character_qiao_id)
+            .where(AIInstance.qiao_id == instance_qiao_id)
         )
         result = await db.execute(stmt)
         row = result.first()
 
         if not row:
             logger.warning(
-                "character_not_found_for_relationship_config",
-                character_qiao_id=character_qiao_id,
+                "instance_not_found_for_relationship_config",
+                instance_qiao_id=instance_qiao_id,
             )
             return None
 
@@ -359,7 +387,7 @@ async def get_character_relationship_config(
         if not relationship:
             logger.warning(
                 "relationship_config_missing",
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 relationship_id=relationship_id,
             )
             return _default_relationship_timing()
@@ -378,34 +406,34 @@ async def get_character_relationship_config(
         logger.error(
             "relationship_config_fetch_failed",
             error=str(exc),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         return _default_relationship_timing()
 
 
-async def get_character_id_by_qiao_id(db: AsyncSession, character_qiao_id: str) -> Optional[int]:
+async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) -> Optional[int]:
     """
-    Get character ID by qiao_id.
+    Get instance ID by qiao_id.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
 
     Returns:
-        Character ID or None if not found
+        Instance ID or None if not found
     """
     try:
-        result = await db.execute(select(AICharacter.id).where(AICharacter.qiao_id == character_qiao_id))
+        result = await db.execute(select(AIInstance.id).where(AIInstance.qiao_id == instance_qiao_id))
 
-        character_id = result.scalar_one_or_none()
+        instance_id = result.scalar_one_or_none()
 
-        if character_id is None:
-            logger.warning("character_id_not_found", character_qiao_id=character_qiao_id)
+        if instance_id is None:
+            logger.warning("instance_id_not_found", instance_qiao_id=instance_qiao_id)
 
-        return character_id
+        return instance_id
 
     except Exception as e:
-        logger.error("character_id_query_failed", error=str(e), character_qiao_id=character_qiao_id)
+        logger.error("instance_id_query_failed", error=str(e), instance_qiao_id=instance_qiao_id)
         return None
 
 
@@ -435,55 +463,55 @@ async def get_user_id_by_qiao_id(db: AsyncSession, user_qiao_id: str) -> Optiona
         return None
 
 
-async def get_all_characters(db: AsyncSession) -> List[Dict[str, Any]]:
+async def get_all_instances(db: AsyncSession) -> List[Dict[str, Any]]:
     """
-    Get all active characters for admin interface.
+    Get all active instances for admin interface.
 
     Args:
         db: Database session
 
     Returns:
-        List of character dictionaries with basic information
+        List of instance dictionaries with basic information
     """
     try:
         result = await db.execute(
-            select(AICharacter, Profile, Contact.user_qiao_id)
-            .outerjoin(Profile, AICharacter.qiao_id == Profile.owner_qiao_id)
+            select(AIInstance, Profile, Contact.user_qiao_id)
+            .outerjoin(Profile, AIInstance.qiao_id == Profile.owner_qiao_id)
             .outerjoin(
                 Contact,
                 and_(
-                    Contact.contact_id == AICharacter.id,
+                    Contact.contact_id == AIInstance.id,
                     Contact.contact_type == ContactType.AI,
                     Contact.is_deleted == 0,
                 ),
             )
-            .where(AICharacter.status == 1)  # active characters only
-            .order_by(AICharacter.created_at.desc())
+            .where(AIInstance.status == 1)  # active instances only
+            .order_by(AIInstance.created_at.desc())
         )
 
-        characters = []
-        for character, profile, owner_qiao_id in result.all():
-            characters.append(
+        instances = []
+        for instance, profile, owner_qiao_id in result.all():
+            instances.append(
                 {
-                    "id": character.id,
-                    "qiao_id": character.qiao_id,
-                    "name": (profile.nickname if profile else None) or f"Character {character.qiao_id}",
-                    "category": character.category,
+                    "id": instance.id,
+                    "qiao_id": instance.qiao_id,
+                    "name": (profile.nickname if profile else None) or f"Instance {instance.qiao_id}",
+                    "ai_type": _build_ai_type(instance.creation_metadata),
                     "user_qiao_id": owner_qiao_id,
-                    "created_at": character.created_at.isoformat() if character.created_at else None,
+                    "created_at": instance.created_at.isoformat() if instance.created_at else None,
                 }
             )
 
         logger.debug(
-            "all_characters_retrieved",
-            count=len(characters),
+            "all_instances_retrieved",
+            count=len(instances),
         )
 
-        return characters
+        return instances
 
     except Exception as e:
         logger.error(
-            "all_characters_retrieval_failed",
+            "all_instances_retrieval_failed",
             error=str(e),
         )
         return []

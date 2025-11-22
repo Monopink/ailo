@@ -11,7 +11,7 @@ from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import IntegerField, StringField, TextAreaField, BooleanField, JSONField
 
-from models.ai.character import AIMessageBuffer, AIConversationItem, AIConversationItemArchive
+from models.ai.instance import AIMessageBuffer, AIConversationItem, AIConversationItemArchive
 from admin.views.base import IntegerEnumField
 from admin.fields import LocalDateTimeField
 from enums import AIMessageBufferState
@@ -84,11 +84,11 @@ class AIMessageBufferView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["id", "user_qiao_id", "character_qiao_id"]
+    searchable_fields = ["id", "user_qiao_id", "instance_qiao_id"]
     sortable_fields = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "aggregate_state",
         "message_count",
         "created_at",
@@ -98,7 +98,7 @@ class AIMessageBufferView(ModelView):
     fields = [
         StringField("id", label="Buffer ID", help_text="Internal buffer ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
-        StringField("character_qiao_id", label="Character Qiao ID", help_text="Character external ID"),
+        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
         IntegerEnumField(
             "aggregate_state",
             enum=AIMessageBufferState,
@@ -155,7 +155,7 @@ class AIConversationItemView(ModelView):
     exclude_fields_from_edit = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "role",
         "buffer_id",
         "created_at",
@@ -177,14 +177,14 @@ class AIConversationItemView(ModelView):
     searchable_fields = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "role",
         "text_content",
     ]
     sortable_fields = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "role",
         "buffer_id",
         "is_excluded_from_context",
@@ -194,7 +194,7 @@ class AIConversationItemView(ModelView):
     fields = [
         StringField("id", label="Item ID", help_text="Internal conversation item ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
-        StringField("character_qiao_id", label="Character Qiao ID", help_text="Character external ID"),
+        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
         StringField("message_type", label="Message Type", help_text="text/image/audio"),
         TextAreaField(
@@ -230,7 +230,7 @@ class AIConversationItemArchiveView(ModelView):
     exclude_fields_from_create = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "role",
         "message_type",
         "text_content",
@@ -245,7 +245,7 @@ class AIConversationItemArchiveView(ModelView):
     exclude_fields_from_edit = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "role",
         "message_type",
         "text_content",
@@ -263,6 +263,7 @@ class AIConversationItemArchiveView(ModelView):
         if not data.get("client_msg_ids"):
             data["client_msg_ids"] = []
         return await super().edit(request, pk, data)
+
     exclude_fields_from_list = []
 
     def can_create(self, request: Request) -> bool:
@@ -278,14 +279,14 @@ class AIConversationItemArchiveView(ModelView):
     searchable_fields = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "role",
         "text_content",
     ]
     sortable_fields = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "role",
         "buffer_id",
         "is_excluded_from_context",
@@ -296,7 +297,7 @@ class AIConversationItemArchiveView(ModelView):
     fields = [
         StringField("id", label="Item ID", help_text="Internal conversation item ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
-        StringField("character_qiao_id", label="Character Qiao ID", help_text="Character external ID"),
+        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
         StringField("message_type", label="Message Type", help_text="text/image/audio"),
         TextAreaField(

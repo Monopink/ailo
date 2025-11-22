@@ -1,7 +1,7 @@
 """
-AI Character Chat Test view for admin panel.
+AI Instance Chat Test view for admin panel.
 
-This module provides admin interface for testing AI character chat functionality
+This module provides admin interface for testing AI instance chat functionality
 following the architectural patterns and prototype design specifications.
 """
 
@@ -11,7 +11,7 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from core.database import SessionLocal
-from services.admin.testing.character_chat import ai_character_chat_test_service, AICharacterChatTestError
+from services.admin.testing.instance_chat import ai_instance_chat_test_service, AIInstanceChatTestError
 from utils.logging import get_logger
 from utils.form_helpers import get_text_field, get_int_field, FormFieldError
 
@@ -21,13 +21,13 @@ logger = get_logger(__name__)
 templates = Jinja2Templates(directory="admin/templates", auto_reload=True)
 
 
-class AICharacterChatTestView(CustomView):
+class AIInstanceChatTestView(CustomView):
     """
-    AI Character Chat Test interface following prototype design.
+    AI Instance Chat Test interface following prototype design.
 
     Prototype Requirements:
     - Only includes: LLM Configuration dropdown + Test message input
-    - No AI character selection (fixed via URL parameter)
+    - No AI instance selection (fixed via URL parameter)
     - No user selection (automatically matched)
     - Shows prerequisite validation status
     - Supports continuous testing with context preservation
@@ -38,7 +38,7 @@ class AICharacterChatTestView(CustomView):
         return True
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
-        """Render the AI character chat test interface according to prototype design."""
+        """Render the AI instance chat test interface according to prototype design."""
 
         # Check action parameter for API endpoints
         action = request.query_params.get("action")
@@ -55,36 +55,36 @@ class AICharacterChatTestView(CustomView):
 
         # Default GET request - render the interface
         try:
-            # Get character_id from path parameters (required)
-            character_id_str = request.path_params.get("id")
-            if not character_id_str:
+            # Get instance_id from path parameters (required)
+            instance_id_str = request.path_params.get("id")
+            if not instance_id_str:
                 return templates.TemplateResponse(
-                    "custom_views/ai_character_chat_test.html",
+                    "custom_views/ai_instance_chat_test.html",
                     {
                         "request": request,
-                        "error": "Character ID is required in URL path",
-                        "page_title": "AI Character Chat Test - Error",
+                        "error": "Instance ID is required in URL path",
+                        "page_title": "AI Instance Chat Test - Error",
                     },
                 )
 
             try:
-                character_id = int(character_id_str)
+                instance_id = int(instance_id_str)
             except (ValueError, TypeError) as e:
-                logger.error("invalid_character_id", character_id=character_id_str, error=str(e))
+                logger.error("invalid_instance_id", instance_id=instance_id_str, error=str(e))
                 return templates.TemplateResponse(
-                    "custom_views/ai_character_chat_test.html",
+                    "custom_views/ai_instance_chat_test.html",
                     {
                         "request": request,
-                        "error": f"Invalid character_id: {character_id_str}",
-                        "page_title": "AI Character Chat Test - Error",
+                        "error": f"Invalid instance_id: {instance_id_str}",
+                        "page_title": "AI Instance Chat Test - Error",
                     },
                 )
 
             # Initialize context
             context = {
                 "request": request,
-                "character_id": character_id,
-                "page_title": "AI Character Chat Test",
+                "instance_id": instance_id,
+                "page_title": "AI Instance Chat Test",
                 "test_readiness": None,
                 "llm_configs": [],
                 "error": None,
@@ -92,8 +92,8 @@ class AICharacterChatTestView(CustomView):
 
             async with SessionLocal() as db:
                 # Check test readiness using the new service
-                test_readiness = await ai_character_chat_test_service.validate_test_readiness(
-                    db=db, character_id=character_id
+                test_readiness = await ai_instance_chat_test_service.validate_test_readiness(
+                    db=db, instance_id=instance_id
                 )
                 context["test_readiness"] = test_readiness
 
@@ -101,22 +101,22 @@ class AICharacterChatTestView(CustomView):
                 if test_readiness.get("ready", False):
                     context["llm_configs"] = test_readiness.get("available_llm_configs", [])
 
-            return templates.TemplateResponse("custom_views/ai_character_chat_test.html", context)
+            return templates.TemplateResponse("custom_views/ai_instance_chat_test.html", context)
 
         except Exception as e:
-            logger.error("ai_character_chat_test_render_failed", error=str(e), exc_info=True)
+            logger.error("ai_instance_chat_test_render_failed", error=str(e), exc_info=True)
             return templates.TemplateResponse(
-                "custom_views/ai_character_chat_test.html",
+                "custom_views/ai_instance_chat_test.html",
                 {
                     "request": request,
-                    "error": f"Failed to load AI character chat test interface: {str(e)}",
-                    "page_title": "AI Character Chat Test - Error",
+                    "error": f"Failed to load AI instance chat test interface: {str(e)}",
+                    "page_title": "AI Instance Chat Test - Error",
                 },
             )
 
     async def handle_test_request(self, request: Request) -> JSONResponse:
         """
-        Handle AI character test request using the new unified service.
+        Handle AI instance test request using the new unified service.
 
         This method leverages the facade service to execute the complete test flow:
         validation -> user matching -> execution (calling main logic).
@@ -126,7 +126,7 @@ class AICharacterChatTestView(CustomView):
             form_data = await request.form()
 
             try:
-                character_id = get_int_field(form_data, "character_id")
+                instance_id = get_int_field(form_data, "instance_id")
                 llm_config_name = get_text_field(form_data, "llm_config_name")
                 test_message = get_text_field(form_data, "test_message")
             except FormFieldError as e:
@@ -164,9 +164,9 @@ class AICharacterChatTestView(CustomView):
                     val = str(persist_raw).strip().lower()
                     persist_flag = val in ("1", "true", "on", "yes")
 
-                result = await ai_character_chat_test_service.prepare_and_execute_test(
+                result = await ai_instance_chat_test_service.prepare_and_execute_test(
                     db=db,
-                    character_id=character_id,
+                    instance_id=instance_id,
                     llm_config_name=llm_config_name,
                     test_message=test_message,
                     mock_overrides=mock_overrides,
@@ -199,25 +199,33 @@ class AICharacterChatTestView(CustomView):
                 latest_scores = _sanitize_scores(
                     result.get("relationship_scores_after")
                 ) or _sanitize_scores(result["validation_info"].get("relationship_scores"))
+                validation_instance = result["validation_info"]["instance"]
+                ai_type_info = validation_instance.get("ai_type")
+                ai_type_display = (
+                    ai_type_info.get("display_name")
+                    if isinstance(ai_type_info, dict)
+                    else None
+                )
 
                 response_data = {
                     "success": True,
                     "test_mode": test_execution["test_mode"],
                     "log_id": test_execution["log_id"],
-                    "character_info": {
-                        "qiao_id": result["validation_info"]["character"].get("character_qiao_id"),
-                        "category": result["validation_info"]["character"].get("category"),
+                    "instance_info": {
+                        "qiao_id": validation_instance.get("instance_qiao_id"),
+                        "ai_type_display": ai_type_display,
+                        "ai_type": ai_type_info,
                         "style": result["validation_info"]["style"]["display_name"],
                         "personality": result["validation_info"]["personality"]["display_name"],
                     },
                     # Rich profile/settings for UI panels
-                    "character_profile": result["validation_info"].get("character_profile"),
+                    "instance_profile": result["validation_info"].get("instance_profile"),
                     "style": result["validation_info"].get("style"),
                     "personality": result["validation_info"].get("personality"),
-                    "character_settings": {
-                        "memory": result["validation_info"]["character"].get("memory"),
-                        "prompt_variables": result["validation_info"]["character"].get("prompt_variables"),
-                    },
+                    "instance_settings": {
+                    "memory": validation_instance.get("memory"),
+                    "prompt_variables": validation_instance.get("prompt_variables"),
+                },
                     "test_user_info": {
                         "qiao_id": result["test_user_info"]["test_user"]["qiao_id"],
                         "username": result["test_user_info"]["test_user"]["username"],
@@ -238,12 +246,14 @@ class AICharacterChatTestView(CustomView):
                 # can refresh test-user state without extra fetches.
                 response_data["available_contacts"] = result.get("available_contacts", [])
                 response_data["available_test_users"] = result.get("available_test_users", [])
-                response_data["test_user_selection_locked"] = result.get("test_user_selection_locked", False)
+                response_data["test_user_selection_locked"] = result.get(
+                    "test_user_selection_locked", False
+                )
                 response_data["locked_test_user_qiao_id"] = result.get("locked_test_user_qiao_id")
 
                 logger.info(
-                    "ai_character_test_completed_successfully",
-                    character_id=character_id,
+                    "ai_instance_test_completed_successfully",
+                    instance_id=instance_id,
                     response_time_ms=test_execution["performance"]["response_time_ms"],
                     messages_count=len(test_execution["conversation"]["all_messages"]),
                 )
@@ -252,7 +262,7 @@ class AICharacterChatTestView(CustomView):
 
         except FormFieldError as e:
             logger.error(
-                "ai_character_test_form_validation_error",
+                "ai_instance_test_form_validation_error",
                 error=str(e),
             )
             return JSONResponse(
@@ -260,9 +270,9 @@ class AICharacterChatTestView(CustomView):
                 status_code=400,
             )
 
-        except AICharacterChatTestError as e:
+        except AIInstanceChatTestError as e:
             logger.error(
-                "ai_character_test_service_error",
+                "ai_instance_test_service_error",
                 error_code=e.error_code,
                 error=str(e),
             )
@@ -278,7 +288,7 @@ class AICharacterChatTestView(CustomView):
 
         except Exception as e:
             logger.error(
-                "ai_character_test_request_failed",
+                "ai_instance_test_request_failed",
                 error=str(e),
                 exc_info=True,
             )
@@ -290,24 +300,24 @@ class AICharacterChatTestView(CustomView):
     async def check_test_readiness(self, request: Request) -> JSONResponse:
         """API endpoint to check test readiness status."""
         try:
-            character_id_str = request.path_params.get("id")
-            if not character_id_str:
+            instance_id_str = request.path_params.get("id")
+            if not instance_id_str:
                 return JSONResponse(
-                    {"error": "Missing character_id in URL path"},
+                    {"error": "Missing instance_id in URL path"},
                     status_code=400,
                 )
 
             try:
-                character_id = int(character_id_str)
+                instance_id = int(instance_id_str)
             except (ValueError, TypeError):
                 return JSONResponse(
-                    {"error": "Invalid character_id format"},
+                    {"error": "Invalid instance_id format"},
                     status_code=400,
                 )
 
             async with SessionLocal() as db:
-                readiness = await ai_character_chat_test_service.validate_test_readiness(
-                    db=db, character_id=character_id
+                readiness = await ai_instance_chat_test_service.validate_test_readiness(
+                    db=db, instance_id=instance_id
                 )
 
                 return JSONResponse(readiness)
@@ -315,7 +325,7 @@ class AICharacterChatTestView(CustomView):
         except Exception as e:
             logger.error(
                 "test_readiness_check_failed",
-                character_id=character_id_str,
+                instance_id=instance_id_str,
                 error=str(e),
             )
             return JSONResponse(
@@ -326,35 +336,35 @@ class AICharacterChatTestView(CustomView):
     async def archive_conversations(self, request: Request) -> JSONResponse:
         """API endpoint to archive all test conversations."""
         try:
-            character_id_str = request.path_params.get("id")
-            if not character_id_str:
-                return JSONResponse({"error": "Missing character_id in URL path"}, status_code=400)
+            instance_id_str = request.path_params.get("id")
+            if not instance_id_str:
+                return JSONResponse({"error": "Missing instance_id in URL path"}, status_code=400)
 
             try:
-                character_id = int(character_id_str)
+                instance_id = int(instance_id_str)
             except (ValueError, TypeError):
-                return JSONResponse({"error": "Invalid character_id format"}, status_code=400)
+                return JSONResponse({"error": "Invalid instance_id format"}, status_code=400)
 
             async with SessionLocal() as db:
-                result = await ai_character_chat_test_service.archive_all_test_conversations(
-                    db=db, character_id=character_id
+                result = await ai_instance_chat_test_service.archive_all_test_conversations(
+                    db=db, instance_id=instance_id
                 )
                 return JSONResponse(result)
 
-        except AICharacterChatTestError as e:
-            logger.error("archive_conversations_failed", character_id=character_id_str, error=str(e))
+        except AIInstanceChatTestError as e:
+            logger.error("archive_conversations_failed", instance_id=instance_id_str, error=str(e))
             return JSONResponse({"success": False, "error": e.message}, status_code=400)
 
         except Exception as e:
-            logger.error("archive_conversations_failed", character_id=character_id_str, error=str(e))
+            logger.error("archive_conversations_failed", instance_id=instance_id_str, error=str(e))
             return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
 # Create view instance
-ai_character_chat_test_view = AICharacterChatTestView(
-    label="Character Chat Test",
+ai_instance_chat_test_view = AIInstanceChatTestView(
+    label="Instance Chat Test",
     icon="",
-    path="/ai_character/chat-test/{id:int}",
+    path="/ai_instance/chat-test/{id:int}",
     methods=["GET", "POST"],
     add_to_menu=False,  # Accessed via row actions only
 )

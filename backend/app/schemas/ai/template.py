@@ -8,9 +8,41 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 
-class AICharacterTemplateBase(BaseModel):
-    """Base schema for AI character template."""
+class AITypeBase(BaseModel):
+    """Base schema for AI type."""
 
+    display_name: str = Field(..., max_length=100, description="Display name (unique)")
+    description: Optional[str] = Field(None, description="Description")
+
+
+class AITypeCreate(AITypeBase):
+    """Schema for creating AI type."""
+
+    pass
+
+
+class AITypeUpdate(BaseModel):
+    """Schema for updating AI type."""
+
+    display_name: Optional[str] = Field(None, max_length=100, description="Display name")
+    description: Optional[str] = Field(None, description="Description")
+
+
+class AIType(AITypeBase):
+    """AI type response."""
+
+    id: int = Field(..., description="AI type ID")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Update timestamp")
+
+    class Config:
+        from_attributes = True
+
+
+class AITemplateBase(BaseModel):
+    """Base schema for AI template."""
+
+    type_id: int = Field(..., description="AI type ID")
     style_id: int = Field(..., description="Style ID, references ai_styles.id")
     personality_id: int = Field(..., description="Personality ID, references ai_personalities.id")
     memory: Optional[str] = Field(None, description="Memory settings")
@@ -23,25 +55,23 @@ class AICharacterTemplateBase(BaseModel):
     timezone: Optional[str] = Field(
         "Asia/Shanghai",
         max_length=50,
-        description="Default IANA timezone for instantiated characters",
+        description="Default IANA timezone for instances",
     )
     typing_speed_wpm: int = Field(
-        ..., ge=1, description="Default typing speed (words per minute) for instantiated characters"
+        ..., ge=1, description="Default typing speed (words per minute) for instances"
     )
     is_reusable: int = Field(1, description="Is reusable: 1=reusable, 0=single_use")
-    profile_count: int = Field(0, description="Associated profile template count")
-    profile_id: Optional[int] = Field(None, description="Associated profile template ID (for single-use)")
     status: int = Field(1, description="Status: 1=active, 2=inactive")
 
 
-class AICharacterTemplateCreate(AICharacterTemplateBase):
-    """Schema for creating AI character template."""
+class AITemplateCreate(AITemplateBase):
+    """Schema for creating AI template."""
 
     pass
 
 
-class AICharacterTemplateUpdate(BaseModel):
-    """Schema for updating AI character template."""
+class AITemplateUpdate(BaseModel):
+    """Schema for updating AI template."""
 
     style_id: Optional[int] = Field(None, description="Style ID")
     personality_id: Optional[int] = Field(None, description="Personality ID")
@@ -50,71 +80,55 @@ class AICharacterTemplateUpdate(BaseModel):
     position_mapping_config: Optional[Dict[str, Any]] = Field(
         None, description="Per-dimension position mapping configuration"
     )
-    timezone: Optional[str] = Field(
-        None, description="Default IANA timezone for instantiated characters", max_length=50
-    )
+    timezone: Optional[str] = Field(None, description="Default IANA timezone for instances", max_length=50)
     typing_speed_wpm: Optional[int] = Field(
         None,
         ge=1,
         description="Default typing speed (words per minute)",
     )
     is_reusable: Optional[int] = Field(None, description="Is reusable")
-    profile_count: Optional[int] = Field(None, description="Profile count")
-    profile_id: Optional[int] = Field(None, description="Profile ID")
     status: Optional[int] = Field(None, description="Status")
 
 
-class AICharacterTemplate(AICharacterTemplateBase):
-    """Schema for AI character template response."""
+class AITemplate(AITemplateBase):
+    """Schema for AI template response."""
 
     id: int = Field(..., description="Template ID")
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Update timestamp")
-    timezone: str = Field(..., description="Default IANA timezone for instantiated characters")
+    timezone: str = Field(..., description="Default IANA timezone for instances")
 
     class Config:
         from_attributes = True
 
 
-class AIProfileTemplateBase(BaseModel):
-    """Base schema for AI profile template."""
+class AIPersonaBase(BaseModel):
+    """Base schema for AI persona."""
 
-    category: Optional[str] = Field(None, max_length=50, description="Category")
-    character_template_id: int = Field(..., description="Associated character template ID")
-    nickname: Optional[str] = Field(None, max_length=100, description="Nickname")
-    gender: Optional[int] = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
-    avatar_url: Optional[str] = Field(None, max_length=500, description="Avatar URL")
-    bio: Optional[str] = Field(None, description="Bio/description")
-    region: Optional[str] = Field(None, max_length=100, description="Region/location")
-    is_reusable: int = Field(1, description="Is reusable: 1=reusable, 0=single_use")
-    status: int = Field(1, description="Status: 1=active, 2=inactive")
+    type_id: int = Field(..., description="AI type association")
+    is_reusable: int = Field(1, description="1=reusable, 0=single_use")
+    status: int = Field(1, description="1=active, 2=inactive, 3=used")
 
 
-class AIProfileTemplateCreate(AIProfileTemplateBase):
-    """Schema for creating AI profile template."""
+class AIPersonaCreate(AIPersonaBase):
+    """Schema for creating AI persona."""
 
-    qiao_id: str = Field(..., description="Template external ID")
-
-
-class AIProfileTemplateUpdate(BaseModel):
-    """Schema for updating AI profile template."""
-
-    category: Optional[str] = Field(None, description="Category")
-    character_template_id: Optional[int] = Field(None, description="Character template ID")
-    nickname: Optional[str] = Field(None, description="Nickname")
-    gender: Optional[int] = Field(None, description="Gender")
-    avatar_url: Optional[str] = Field(None, description="Avatar URL")
-    bio: Optional[str] = Field(None, description="Bio")
-    region: Optional[str] = Field(None, description="Region")
-    is_reusable: Optional[int] = Field(None, description="Is reusable")
-    status: Optional[int] = Field(None, description="Status")
+    qiao_id: str = Field(..., description="Persona qiao_id")
 
 
-class AIProfileTemplate(AIProfileTemplateBase):
-    """Schema for AI profile template response."""
+class AIPersonaUpdate(BaseModel):
+    """Schema for updating AI persona."""
 
-    id: int = Field(..., description="Template ID")
-    qiao_id: str = Field(..., description="Template external ID")
+    type_id: Optional[int] = Field(None, description="AI type association")
+    is_reusable: Optional[int] = Field(None, description="Is reusable flag")
+    status: Optional[int] = Field(None, description="Persona status")
+
+
+class AIPersona(AIPersonaBase):
+    """AI persona response."""
+
+    id: int = Field(..., description="Persona ID")
+    qiao_id: str = Field(..., description="Persona qiao_id")
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Update timestamp")
 

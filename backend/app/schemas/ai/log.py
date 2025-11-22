@@ -18,7 +18,7 @@ from schemas.common import BaseSchema
 class AIRequestLogBase(BaseSchema):
     """Base AI request log schema."""
 
-    character_qiao_id: str = Field(..., max_length=32, description="Character external ID")
+    instance_qiao_id: str = Field(..., max_length=32, description="Instance external ID")
     user_qiao_id: str = Field(..., max_length=32, description="User external ID")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
@@ -27,7 +27,7 @@ class AIRequestLogBase(BaseSchema):
 class AIRequestLogCreate(BaseModel):
     """Schema for creating AI request log."""
 
-    character_qiao_id: str = Field(..., max_length=32, description="Character external ID")
+    instance_qiao_id: str = Field(..., max_length=32, description="Instance external ID")
     user_qiao_id: str = Field(..., max_length=32, description="User external ID")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
@@ -54,7 +54,7 @@ class AIRequestLogUpdate(BaseModel):
 class AIRequestLogResponse(AIRequestLogBase):
     """Schema for AI request log response data."""
 
-    character_id: int = Field(..., description="Character internal ID")
+    instance_id: int = Field(..., description="Instance internal ID")
     user_id: int = Field(..., description="User internal ID")
     request: Dict[str, Any] = Field(..., description="Request content")
     response: Optional[Dict[str, Any]] = Field(None, description="Response content")
@@ -71,10 +71,10 @@ class AIRequestLogResponse(AIRequestLogBase):
 # AI Statistics Schemas
 
 
-class AICharacterStats(BaseSchema):
-    """Schema for AI character statistics."""
+class AIInstanceStats(BaseSchema):
+    """Schema for AI instance statistics."""
 
-    character_qiao_id: str = Field(..., description="Character external ID")
+    instance_qiao_id: str = Field(..., description="Instance external ID")
     total_requests: int = Field(..., description="Total request count")
     successful_requests: int = Field(..., description="Successful request count")
     failed_requests: int = Field(..., description="Failed request count")
@@ -92,15 +92,15 @@ class AIUserStats(BaseSchema):
     failed_requests: int = Field(..., description="Failed request count")
     total_tokens: int = Field(..., description="Total token consumption")
     avg_response_time: float = Field(..., description="Average response time in milliseconds")
-    active_characters: int = Field(..., description="Number of active characters")
+    active_instances: int = Field(..., description="Number of active instances")
     last_request_at: Optional[datetime] = Field(None, description="Last request time")
 
 
 class AISystemStats(BaseSchema):
     """Schema for AI system statistics."""
 
-    total_characters: int = Field(..., description="Total character count")
-    active_characters: int = Field(..., description="Active character count")
+    total_instances: int = Field(..., description="Total instance count")
+    active_instances: int = Field(..., description="Active instance count")
     total_requests: int = Field(..., description="Total request count")
     successful_requests: int = Field(..., description="Successful request count")
     failed_requests: int = Field(..., description="Failed request count")

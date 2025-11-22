@@ -59,7 +59,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     )
 
     from_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Sender type: 1=user, 2=ai_character"
+        Integer, nullable=False, comment="Sender type: 1=user, 2=ai_instance"
     )
 
     from_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Sender internal ID")
@@ -67,7 +67,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     from_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Sender external ID")
 
     to_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Receiver type: 1=user, 2=ai_character"
+        Integer, nullable=False, comment="Receiver type: 1=user, 2=ai_instance"
     )
 
     to_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Receiver internal ID")
@@ -126,7 +126,7 @@ class MessageDeliveryFailure(SnowflakeModel):
     )
 
     from_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Sender type: 1=user, 2=ai_character"
+        Integer, nullable=False, comment="Sender type: 1=user, 2=ai_instance"
     )
 
     from_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Sender internal ID")
@@ -134,7 +134,7 @@ class MessageDeliveryFailure(SnowflakeModel):
     from_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Sender external ID")
 
     to_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Receiver type: 1=user, 2=ai_character"
+        Integer, nullable=False, comment="Receiver type: 1=user, 2=ai_instance"
     )
 
     to_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Receiver internal ID")

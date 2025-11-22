@@ -153,64 +153,6 @@ class IntegerEnumField(EnumField):
         return int(value) if value is not None else None
 
 
-class CategoryEnumField(IntegerEnumField):
-    """
-    Special IntegerEnumField for category fields that store string values in DB
-    but display as integer enums in the admin UI.
-
-    This field handles the conversion between:
-    - DB storage: string values (e.g., "friend", "love", "talk")
-    - API/UI: integer enum values (e.g., 1, 2, 3)
-
-    Usage:
-        CategoryEnumField(
-            "category",
-            enum=AIProfileCategory,
-            db_to_api_map=PROFILE_CATEGORY_DB_TO_API,
-            api_to_db_map=PROFILE_CATEGORY_API_TO_DB
-        )
-    """
-
-    def __init__(
-        self,
-        name: str,
-        enum: Any = None,
-        db_to_api_map: dict = None,
-        api_to_db_map: dict = None,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Initialize CategoryEnumField.
-
-        Args:
-            name: Field name
-            enum: IntEnum class
-            db_to_api_map: Mapping from DB string to API enum (e.g., {"friend": AIProfileCategory.FRIEND})
-            api_to_db_map: Mapping from API enum to DB string (e.g., {AIProfileCategory.FRIEND: "friend"})
-            **kwargs: Additional field arguments
-        """
-        super().__init__(name, enum=enum, **kwargs)
-        self.db_to_api_map = db_to_api_map or {}
-        self.api_to_db_map = api_to_db_map or {}
-
-    async def serialize_value(self, request: Request, value: Any, action: Any) -> Any:
-        """
-        Serialize database value for display.
-
-        Converts DB string (e.g., "love") to API integer (e.g., 2) for display.
-        """
-        if value is None or value == "":
-            return None
-
-        # If value is a DB string, convert to API integer
-        if isinstance(value, str) and value in self.db_to_api_map:
-            api_enum = self.db_to_api_map[value]
-            value = api_enum.value
-
-        # Now use parent's serialize_value with the integer value
-        return await super().serialize_value(request, value, action)
-
-
 class BaseRoleAwareModelView(ModelView):
     """ModelView with role-based write permissions.
 

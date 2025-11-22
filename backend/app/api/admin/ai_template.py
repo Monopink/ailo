@@ -1,6 +1,6 @@
 """
-Admin AI Character Template API endpoints.
-Handles character template management including prompt variables and position mapping configurations.
+Admin AI Template API endpoints.
+Handles template management including prompt variables and position mapping configurations.
 """
 
 from typing import Any, Dict
@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from crud.ai import ai_character_template as character_template_crud
+from crud.ai import ai_template as ai_template_crud
 from enums.common import PositionMappingAlgorithm
 from services.ai.utils.position_mapping import parse_algorithm_params
 from utils.logging import get_logger
@@ -18,12 +18,12 @@ logger = get_logger(__name__)
 template_router = APIRouter()
 
 
-@template_router.post("/ai_character_template/{template_id}/save")
-async def save_character_template(
+@template_router.post("/ai_template/{template_id}/save")
+async def save_ai_template(
     template_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
-    """Save character template JSON fields (prompt_variables and position_mapping_config)."""
-    template = await character_template_crud.get(db, id=template_id)
+    """Save template advanced edit (prompt_variables and position_mapping_config)."""
+    template = await ai_template_crud.get(db, id=template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
 
@@ -76,10 +76,10 @@ async def save_character_template(
     if not update_data:
         raise HTTPException(status_code=400, detail="No data to update")
 
-    await character_template_crud.update(db, db_obj=template, obj_in=update_data)
+    await ai_template_crud.update(db, db_obj=template, obj_in=update_data)
 
     logger.info(
-        "character_template_json_updated",
+        "ai_template_json_updated",
         template_id=template_id,
         fields=list(update_data.keys()),
     )

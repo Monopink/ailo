@@ -49,7 +49,7 @@ async def execute_llm_config_test(
         override_temperature: Optional temperature override (0.0-2.0)
         override_max_tokens: Optional max tokens override
         thinking_mode: Optional thinking mode override (enabled/disabled/auto)
-        request_overrides: Optional character_request_params overrides (tools, caching, headers, etc.)
+        request_overrides: Optional instance_request_params overrides (tools, caching, headers, etc.)
 
     Returns:
         Dictionary containing test results and metadata
@@ -87,7 +87,7 @@ async def execute_llm_config_test(
             max_tokens=override_max_tokens,
             thinking_mode=thinking_mode,
             name=config.name,
-            character_request_params=request_overrides,
+            instance_request_params=request_overrides,
         )
 
         # Step 4: Calculate response time

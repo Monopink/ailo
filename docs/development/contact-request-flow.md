@@ -8,7 +8,7 @@
 
 ### Square 曝光与联系人处理
 
-- `square_character_entries` 决定哪些 `qiao_id` 对用户可见，包含分类、曝光策略、状态等字段
+- `square_type_entries` 决定哪些 AI 类型对用户可见，包含分类、曝光策略、状态等字段
 - 模板类型与模板库存只控制“用户拿到 qiao_id 后能否创建联系人”，不会影响 Square 曝光
 - 所有文案对外只出现 `qiao_id`，后台根据 `ai_personas` 管理 persona 与 `profiles` 展示信息
 
@@ -19,7 +19,7 @@
 **实现**:
 
 - 单一API: `POST /api/v1/contact-requests`
-- 后端通过查询数据库判断目标类型（先查users表，再查ai_characters表）
+- 后端通过查询数据库判断目标类型（先查users表，再查ai_instances表）
 - 统一返回格式: `{"message": "请求已发送，等待对方同意"}`
 - 防重复请求: 相同请求在有效期内只能有一条
 
@@ -56,168 +56,50 @@
 
 **后端处理**:
 
-1. **联系人模块验证** (`services/contact/request_service.py`):
+1. **联系人模块验证**：
 
-   ```python
-   # 1.1 检查是否已添加（包括已删除的）
-   existing = await contact_crud.get_user_contact_including_deleted(...)
+   - 检查是否已添加该联系人（包括已删除的）
+   - 如果已删除，则恢复联系人关系并返回成功
+   - 如果已添加且未删除，返回错误提示
+   - 检查是否有pending状态的有效请求，如有则直接返回成功
+   - 判断目标类型（先查users表，再查ai_personas表）
+   - 如果是AI类型，验证AI联系人数量是否达到上限
 
-   if existing:
-       if existing.is_deleted == 1:
-           # 恢复联系人
-           restored_contact = await contact_crud.restore_contact(
-               contact=existing,
-               alias=request.alias,
-               tags={"tags": request.tags} if request.tags else None,
-           )
-           return {"message": "请求已发送，等待对方同意"}
-       else:
-           # 已添加
-           raise HTTPException(detail="已添加该联系人")
+2. **创建联系人请求记录**：
 
-   # 1.1.5 检查是否有pending状态的请求
-   existing_request = await contact_request_crud.get_pending_request(
-       db, from_qiao_id=user_qiao_id, to_qiao_id=request.to_qiao_id
-   )
-   if existing_request and existing_request.expires_at > datetime.now():
-       # 有效期内已有pending请求，直接返回成功
-       return {"message": "请求已发送，等待对方同意"}
+   - 创建 contact_request 记录，状态为 PENDING
+   - 记录申请人和目标的 qiao_id、申请消息等信息
 
-   # 1.2 判断目标类型（查询数据库）
-   target_user = await user_crud.get_by_qiao_id(db, qiao_id=request.to_qiao_id)
-   if target_user:
-       target_type = ContactType.USER
-   else:
-       result = await db.execute(select(AICharacter).where(AICharacter.qiao_id == request.to_qiao_id))
-       character = result.scalar_one_or_none()
-       if character:
-           target_type = ContactType.AI
-       else:
-           raise HTTPException(status_code=404, detail="目标用户不存在")
+3. **转发给AI模块**：
 
-   # 1.3 验证AI联系人上限
-   if target_type == ContactType.AI:
-       ai_count = await contact_crud.count_user_contacts_by_type(
-           db, user_qiao_id=user_qiao_id, contact_type=ContactType.AI
-       )
-       if ai_count >= settings.MAX_AI_CONTACTS:
-           raise HTTPException(detail="AI联系人数量已达上限")
-   ```
+   - 调用 AI 联系人处理服务
+   - 传递请求ID、申请人qiao_id、目标qiao_id和申请消息
 
-2. **创建联系人请求记录**:
+4. **AI模块验证**：
 
-   ```python
-   contact_request = await contact_request_crud.create(
-       db,
-       obj_in=ContactRequestCreate(
-           from_qiao_id=user_qiao_id,
-           to_qiao_id=request.to_qiao_id,
-           message=request.message,
-           status=ContactRequestStatus.PENDING,
-           ...
-       ),
-   )
-   ```
+   - 通过 qiao_id 查找 ai_personas（注意：查询的是 persona，不是 instance）
+   - 检查 persona 是否存在且状态为可用（status=1）
+   - 检查 persona 是否可复用，如果不可复用且已被使用（status=3），则拒绝
+   - 查找该 type 下的可用模板
+   - 如果没有可用模板，标记请求为挂起状态（failure_code="NO_TEMPLATE_AVAILABLE"），返回决策为等待模板
+   - 如果有可用模板，返回决策为接受
 
-3. **转发给AI模块** (`services/ai/contact_handler.py`):
+5. **AI接受后创建联系人**：
 
-   ```python
-   decision = await handle_ai_contact_request(
-       db=db,
-       request_id=contact_request.id,
-       from_qiao_id=user_qiao_id,
-       to_qiao_id=request.to_qiao_id,
-       message=request.message,
-   )
-   ```
+   - 从 persona + template 创建 AI instance
+   - Instance 继承 persona.qiao_id（不生成新的 qiao_id）
+   - Instance 不创建新 profile（共享 persona 的 profile，owner_type=2）
+   - 设置 creation_metadata.source = "persona"
+   - 创建联系人记录，使用 persona.qiao_id
+   - 如果模板不可复用，标记模板为已使用（status=3）
+   - 更新 persona 使用统计（usage_count += 1）
+   - 如果 persona 不可复用，标记为已使用（status=3）
+   - 更新请求状态为 ACCEPTED
+   - 发送 CHAT_INFO 消息（类型为 CONTACT_ADDED）
 
-4. **AI模块验证**:
+6. **返回统一响应**：
 
-   ```python
-   # 通过qiao_id查找角色档案
-   character_profile = await character_profile_crud.get_by_qiao_id(db, qiao_id=to_qiao_id)
-   if not character_profile or character_profile.status != 1:
-       raise ValueError("Character profile not available")
-
-   # 检查角色档案是否可用
-   if character_profile.is_reusable == 0 and character_profile.status == 3:
-       raise ValueError("Character profile already used")
-
-   # 查找该分类下的可用模板
-  template_type_id = character_profile.template_type_id
-  available_template = await select_available_template(db, template_type_id)
-
-   if not available_template:
-       await contact_request_crud.mark_pending_failure(
-           db=db,
-           request_id=request_id,
-           failure_code="NO_TEMPLATE_AVAILABLE",
-           failure_detail={
-               "template_type_id": template_type_id,
-               "qiao_id": to_qiao_id,
-           },
-       )
-       return AIContactDecision(accepted=False, reason="WAIT_TEMPLATE")
-
-   # 返回决策
-   return AIContactDecision(accepted=True, reason="")
-   ```
-
-5. **AI接受后创建联系人**:
-
-   ```python
-   if decision.accepted:
-       # 从模板创建AI角色
-       ai_character = await create_character_from_template(
-           db=db,
-           character_profile=character_profile,
-           template=available_template,
-           user_qiao_id=user_qiao_id,
-       )
-
-       # 创建联系人记录
-       contact = await contact_crud.create_with_user(
-           db,
-           obj_in=ContactCreate(
-               contact_type=ContactType.AI,
-               contact_qiao_id=character_profile.qiao_id,  # 使用档案的qiao_id
-               alias=request.alias,
-               tags={"tags": request.tags} if request.tags else None,
-               ...
-           ),
-           user_qiao_id=user_qiao_id,
-           user_id=user_id,
-           conv_id=conv_id,
-       )
-
-       # 如果模板不可复用，标记为已使用
-   if available_template.is_reusable == 0:
-       available_template.status = 3
-
-       # 更新角色档案使用统计
-       character_profile.usage_count += 1
-   if character_profile.is_reusable == 0:
-       character_profile.status = 3
-
-       # 更新请求状态
-       contact_request.status = ContactRequestStatus.ACCEPTED
-       
-       # 发送CHAT_INFO消息
-       from enums.templates import CHAT_INFO_TEMPLATES
-       content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
-       await send_chat_info(
-           db=db,
-           to_qiao_id=user_qiao_id,
-           conv_id=conv_id,
-           content=content,
-       )
-   ```
-
-6. **返回统一响应**:
-
-   ```python
-   return {"message": "请求已发送"}
-   ```
+   - 返回 {"message": "请求已发送"}
 
 **用户收到**: `{"message": "请求已发送"}`
 
@@ -242,31 +124,21 @@
 
 **后端处理**:
 
-1. **联系人模块验证** (同AI流程):
+1. **联系人模块验证**（同AI流程）：
    - 检查是否已添加
-   - 判断目标类型 → `ContactType.USER`
+   - 判断目标类型 → ContactType.USER
 
-2. **创建联系人请求记录** (同AI流程)
+2. **创建联系人请求记录**（同AI流程）
 
-3. **验证目标用户存在**:
+3. **验证目标用户存在**：
 
-   ```python
-   target_user = await user_crud.get_by_qiao_id(db, qiao_id=request.to_qiao_id)
-   if not target_user:
-       raise HTTPException(detail="用户不存在")
-   ```
+   - 通过 qiao_id 查询 users 表
+   - 如果用户不存在，返回错误
 
-4. **发送NOTIFICATION消息** (`services/message/notification.py`):
+4. **发送NOTIFICATION消息**：
 
-   ```python
-   await send_contact_request_notification(
-       db=db,
-       to_qiao_id=request.to_qiao_id,
-       from_qiao_id=user_qiao_id,
-       request_id=contact_request.id,
-       message=request.message,
-   )
-   ```
+   - 调用通知发送服务
+   - 发送联系人请求通知给目标用户
 
 5. **通知消息内容**:
 
@@ -291,25 +163,14 @@
    }
    ```
 
-6. **存储通知记录** (`notification_push_history` 表):
+6. **存储通知记录**：
 
-   ```python
-   notification = await notification_crud.create_notification(
-       db=db,
-       to_qiao_id=request.to_qiao_id,
-       notification_type=NotificationType.CONTACT_REQUEST,
-       action_data={
-           "action": {...},
-           "data": {...},
-       },
-   )
-   ```
+   - 创建 notification_push_history 记录
+   - 记录通知类型、接收人、通知数据等信息
 
-7. **返回统一响应**:
+7. **返回统一响应**：
 
-   ```python
-   return {"message": "请求已发送"}
-   ```
+   - 返回 {"message": "请求已发送"}
 
 **用户收到**: `{"message": "请求已发送"}`
 
@@ -319,11 +180,11 @@
 
 ## 模板不足与重试流程
 
-当某个 `template_type` 暂时没有可用模板时，请求不会被拒绝或失败，而是保持在 `PENDING` 状态并记录失败原因：
+当某个 `ai_type` 暂时没有可用模板时，请求不会被拒绝或失败，而是保持在 `PENDING` 状态并记录失败原因：
 
 1. **记录失败元数据**
    - `contact_requests.failure_code`：例如 `NO_TEMPLATE_AVAILABLE`, `MANUAL_PROVISION_REQUIRED`。
-   - `contact_requests.failure_detail`：JSON，建议至少包含 `template_type_id`、`qiao_id`、`request_id` 等信息，方便后台定位问题。
+  - `contact_requests.failure_detail`：JSON，建议至少包含 `ai_type_id`、`qiao_id`、`request_id` 等信息，方便后台定位问题。
    - `retry_count`：每次自动或手动重试都会递增，用于运营监控。
    - `last_retry_at`：最近一次重试尝试的时间。
 2. **Admin 视图**
@@ -355,69 +216,34 @@
 
 **后端处理**:
 
-1. **验证请求**:
+1. **验证请求**：
 
-   ```python
-   contact_request = await contact_request_crud.get(db, id=request_id)
-   if not contact_request:
-       raise HTTPException(detail="请求不存在")
-   
-   if contact_request.to_qiao_id != current_user.qiao_id:
-       raise HTTPException(detail="无权操作")
-   
-   if contact_request.status != ContactRequestStatus.PENDING:
-       raise HTTPException(detail="请求已处理")
-   ```
+   - 获取 contact_request 记录
+   - 验证请求是否存在
+   - 验证当前用户是否有权操作（to_qiao_id 必须是当前用户）
+   - 验证请求状态是否为 PENDING
 
-2. **创建联系人记录**:
+2. **创建联系人记录**：
 
-   ```python
-   contact = await contact_crud.create_with_user(
-       db,
-       obj_in=ContactCreate(
-           contact_type=ContactType.USER,
-           contact_qiao_id=contact_request.from_qiao_id,
-           alias=request.alias,
-           tags={"tags": request.tags} if request.tags else None,
-           ...
-       ),
-       user_qiao_id=current_user.qiao_id,
-       user_id=current_user.id,
-       conv_id=conv_id,
-   )
-   ```
+   - 创建 contact 记录，类型为 USER
+   - 使用申请人的 qiao_id 作为 contact_qiao_id
+   - 设置备注名、标签等信息
+   - 关联对话 ID
 
-3. **更新请求状态**:
+3. **更新请求状态**：
 
-   ```python
-   contact_request.status = ContactRequestStatus.ACCEPTED
-   await db.commit()
-   ```
+   - 将 contact_request.status 更新为 ACCEPTED
+   - 提交数据库事务
 
-4. **发送CHAT_INFO消息给申请人**:
+4. **发送CHAT_INFO消息给申请人**：
 
-   ```python
-   from enums.templates import CHAT_INFO_TEMPLATES
-   content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
-   await send_chat_info(
-       db=db,
-       to_qiao_id=contact_request.from_qiao_id,
-       conv_id=conv_id,
-       content=content,
-   )
-   ```
+   - 使用 CHAT_INFO_TEMPLATES 中的 CONTACT_ADDED 模板
+   - 发送消息到申请人的对话
 
-5. **返回ContactResponse**:
+5. **返回ContactResponse**：
 
-   ```python
-   return ContactResponse(
-       conv_id=contact.conv_id,
-       im_conv_id=im_conv_id,
-       contact_qiao_id=contact.contact_qiao_id,
-       contact_type=ContactType.USER,
-       ...
-   )
-   ```
+   - 返回完整的联系人信息
+   - 包含 conv_id、im_conv_id、contact_qiao_id、contact_type 等字段
 
 **目标用户收到**: ContactResponse（完整联系人信息）
 
@@ -433,60 +259,29 @@
 
 ### 流程
 
-1. **检查联系人关系**:
+1. **检查联系人关系**：
 
-   ```python
-   existing = await contact_crud.get_user_contact_including_deleted(
-       db,
-       user_qiao_id=user_qiao_id,
-       contact_qiao_id=request.to_qiao_id,
-   )
-   ```
+   - 查询包括已删除的联系人记录
+   - 使用 user_qiao_id 和 contact_qiao_id 进行查询
 
-2. **判断是否已删除**:
+2. **判断是否已删除**：
 
-   ```python
-   if existing and existing.is_deleted == 1:
-       # 恢复联系人
-       restored_contact = await contact_crud.restore_contact(
-           db,
-           contact=existing,
-           alias=request.alias,
-           tags={"tags": request.tags} if request.tags else None,
-       )
-   ```
+   - 如果 existing.is_deleted == 1，则恢复联系人
+   - 调用 restore_contact 方法恢复联系人关系
 
-3. **恢复逻辑** (`crud/contact.py`):
+3. **恢复逻辑**：
 
-   ```python
-   async def restore_contact(
-       self,
-       db: AsyncSession,
-       *,
-       contact: Contact,
-       alias: Optional[str] = None,
-       tags: Optional[dict] = None,
-   ) -> Contact:
-       """Restore a soft-deleted contact with new settings."""
-       contact.is_deleted = 0
-       contact.deleted_at = None
-       contact.alias = alias
-       contact.tags = tags
-       contact.remark = None  # Reset remark, not preserving old value
-       # conv_id is preserved
-       
-       db.add(contact)
-       await db.commit()
-       await db.refresh(contact)
-       
-       return contact
-   ```
+   - 设置 is_deleted = 0
+   - 清空 deleted_at
+   - 更新 alias（备注名）为新值
+   - 更新 tags（标签）为新值
+   - 重置 remark（备注信息）为 NULL
+   - 保留 conv_id（对话ID）
+   - 提交到数据库并刷新记录
 
-4. **返回统一响应**:
+4. **返回统一响应**：
 
-   ```python
-   return {"message": "请求已发送"}
-   ```
+   - 返回 {"message": "请求已发送"}
 
 ### 重要说明
 
@@ -611,40 +406,19 @@
 
 **原则**: 前端应做前置验证，后端验证失败时不返回详细错误信息
 
-**示例**:
-
-```python
-# ❌ 错误示例
-raise HTTPException(detail="AI联系人数量已达上限")
-
-# ✅ 正确示例（如果前端已验证）
-# 不返回任何内容，或返回通用错误
-raise HTTPException(detail="操作异常")
-```
+**处理方式**: 返回通用错误信息，不暴露内部细节
 
 ### AI验证失败
 
 **处理**: AI模块验证失败时，返回通用错误，不暴露内部细节
 
-```python
-try:
-    decision = await handle_ai_contact_request(...)
-except ValueError as e:
-    logger.error("ai_validation_failed", error=str(e))
-    raise HTTPException(detail="添加失败，请稍后再试")
-```
+**记录**: 记录错误日志，包含详细错误信息用于调试
 
 ### 通知发送失败
 
 **处理**: 非关键操作，记录日志但不中断流程
 
-```python
-try:
-    await send_contact_request_notification(...)
-except Exception as e:
-    logger.error("notification_send_failed", error=str(e))
-    # 继续执行，不抛出异常
-```
+**记录**: 记录错误日志，但继续执行后续流程
 
 ---
 
@@ -720,14 +494,17 @@ PROCESSING (8)
 ### 状态说明
 
 #### PENDING (1) - 待处理
+
 **定义**: 请求已创建，等待处理
 
 **触发场景**:
+
 - 用户发送联系人请求后的初始状态
 - AI请求：等待后台worker处理
 - 用户请求：等待目标用户手动接受/拒绝
 
 **特点**:
+
 - 有过期时间(`expires_at`)
 - Worker只处理未过期的PENDING请求
 - 过期的PENDING请求不会被处理，但保留在数据库中
@@ -735,13 +512,16 @@ PROCESSING (8)
 ---
 
 #### PROCESSING (8) - 处理中
+
 **定义**: Worker正在处理该请求
 
 **触发场景**:
+
 - Worker锁定PENDING请求后立即标记为PROCESSING
 - 防止其他worker重复处理
 
 **特点**:
+
 - 只有AI请求会进入此状态
 - 用户请求不经过此状态
 - 标记后立即commit，释放数据库锁
@@ -749,33 +529,40 @@ PROCESSING (8)
 ---
 
 #### ACCEPTED (2) - 已接受
+
 **定义**: 请求被接受，联系人关系已创建
 
 **触发场景**:
+
 - AI接受请求，成功创建AI角色和联系人记录
 - 用户手动接受请求，成功创建联系人记录
 
 **特点**:
+
 - 终态，不会再变更
 - 对应的`contact`记录已创建
 
 ---
 
 #### IGNORED (3) - 已忽略
+
 **定义**: 业务逻辑判断后的正常拒绝
 
 **触发场景**:
+
 - ✅ 用户已达AI联系人上限
 - ✅ AI决定不接受该请求（业务逻辑）
 - ✅ 用户主动拒绝请求
 - ✅ 管理端明确拒绝（例如人工审核不通过）
 
 **特点**:
+
 - 终态，不会再变更
 - 这是正常的业务流程，不需要告警
 - 记录info级别日志
 
 **代码示例**:
+
 ```python
 # AI模块验证失败
 if not template or template.status != 1:
@@ -790,9 +577,11 @@ except ValueError as e:
 ---
 
 #### FAILED (9) - 失败
+
 **定义**: 系统错误导致处理失败
 
 **触发场景**:
+
 - ❌ 数据库连接失败
 - ❌ 网络超时
 - ❌ 代码bug导致的未捕获异常
@@ -800,12 +589,14 @@ except ValueError as e:
 - ❌ 数据完整性错误
 
 **特点**:
+
 - 终态，不会再变更
 - 需要监控和告警
 - 记录error级别日志（带exc_info=True）
 - 理论上可以重试（修复后）
 
 **代码示例**:
+
 ```python
 # 系统错误
 except Exception as e:
@@ -823,29 +614,22 @@ except Exception as e:
 
 **工作流程**:
 
-1. **轮询查询** (每2秒):
-   ```python
-   SELECT * FROM contact_requests
-   WHERE status = 1  -- PENDING
-     AND to_type = 2  -- AI
-     AND expires_at > NOW()  -- 未过期
-   FOR UPDATE SKIP LOCKED
-   LIMIT 10
-   ```
+1. **轮询查询**（每2秒）：
 
-2. **立即标记PROCESSING**:
-   ```python
-   for req in batch:
-       req.status = ContactRequestStatus.PROCESSING
-   await db.commit()  # 释放锁
-   ```
+   - 查询 status=PENDING 且 to_type=AI 且未过期的请求
+   - 使用 FOR UPDATE SKIP LOCKED 防止并发冲突
+   - 每次最多处理 10 条记录
 
-3. **独立处理每个请求**:
-   ```python
-   for req in batch:
-       async with SessionLocal() as process_db:
-           await _process_one(process_db, req)
-   ```
+2. **立即标记PROCESSING**：
+
+   - 遍历批次中的每个请求
+   - 将 status 更新为 PROCESSING
+   - 立即提交事务，释放数据库锁
+
+3. **独立处理每个请求**：
+
+   - 为每个请求创建独立的数据库 session
+   - 调用处理函数处理单个请求
 
 4. **更新最终状态**:
    - 成功 → ACCEPTED
@@ -857,19 +641,18 @@ except Exception as e:
 **策略**: 查询时过滤，不主动标记
 
 **原因**:
+
 - ✅ 符合YAGNI原则，MVP不需要额外的定时任务
 - ✅ 节省系统资源，不处理无效请求
 - ✅ 简单直接，通过`expires_at > NOW()`过滤
 
-**查询示例**:
-```sql
--- Worker只处理未过期的请求
-SELECT * FROM contact_requests
-WHERE status = 1 
-  AND expires_at > NOW()  -- 过滤过期
-```
+**查询示例**：
+
+- Worker 只处理未过期的请求
+- 使用 expires_at > NOW() 过滤过期请求
 
 **过期请求状态**:
+
 - 保持PENDING状态
 - 不会被worker处理
 - 可以通过查询识别: `status = 1 AND expires_at < NOW()`
@@ -881,12 +664,14 @@ WHERE status = 1
 **问题**: 如果在事务中锁定并处理，会导致长事务
 
 **解决方案**:
+
 1. 在事务中锁定请求
 2. 立即标记为PROCESSING并commit（释放锁）
 3. 每个请求使用独立session处理
 4. 处理失败不影响其他请求
 
 **优势**:
+
 - ✅ 避免长事务
 - ✅ 防止重复处理（PROCESSING状态保护）
 - ✅ 支持水平扩展（多worker）
@@ -998,5 +783,57 @@ ON contact_requests(expires_at);
 - 数据库中status=4,5的旧记录不会被处理
 - 新代码不会创建status=4,5的记录
 - 建议清理: 可以将旧的4,5状态批量更新为3(IGNORED)
+
 > 只有 `status=PENDING` 且 `expires_at` 大于当前时间的记录可以被上述逻辑复用。`ACCEPTED`、`IGNORED`、`FAILED`、`PROCESSING` 以及已过期的记录都视为终态，新的请求会重新写入 `contact_requests`。
 
+---
+
+## 模板选择策略
+
+### 选择规则
+
+当用户添加 AI 联系人时，系统按以下策略选择模板：
+
+1. **优先不可复用模板**：优先选择 `is_reusable=0` 的单次使用模板
+2. **优先级降序排列**：按 `priority DESC` 排序（数字越大优先级越高）
+3. **同优先级随机选择**：如果最高优先级有多个模板，随机选择一个
+4. **回退到可复用模板**：如果没有不可复用模板，对 `is_reusable=1` 的模板应用相同规则
+
+### 实现逻辑
+
+**选择策略**：
+
+1. 优先查询不可复用模板（is_reusable=0）
+   - 按 priority DESC 排序（数字越大优先级越高）
+   - 同优先级使用随机排序
+   - 限制返回 1 条记录
+   - 使用 FOR UPDATE SKIP LOCKED 防止并发冲突
+
+2. 如果没有不可复用模板，回退到可复用模板（is_reusable=1）
+   - 应用相同的排序和选择规则
+
+3. 返回选中的模板或 NULL
+
+### 优先级字段说明
+
+- **字段名称**：`ai_templates.priority`
+- **数据类型**：INTEGER
+- **默认值**：1
+- **排序规则**：DESC（降序）
+- **优先级含义**：数字越大，优先级越高
+
+**示例**：
+
+| 模板 | priority | is_reusable | 选择顺序 |
+|------|----------|-------------|----------|
+| 模板A | 10 | 0 | 1（最高优先级，不可复用） |
+| 模板B | 10 | 0 | 1（同优先级，随机） |
+| 模板C | 5 | 0 | 2 |
+| 模板D | 10 | 1 | 3（可复用，最高优先级） |
+| 模板E | 1 | 1 | 4 |
+
+### 并发控制
+
+- 使用 `FOR UPDATE SKIP LOCKED` 防止并发冲突
+- 单次使用模板被选中后立即标记为 `status=3`（已使用）
+- 事务内完成模板选择、实例创建、联系人创建的原子操作

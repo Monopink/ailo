@@ -82,7 +82,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
     ) -> List[AIPersonality]:
         """
-        Get available personalities for character creation.
+        Get available personalities for instance creation.
 
         Args:
             db: Database session

@@ -1,89 +1,89 @@
 """
-AI Character Dimension CRUD operations.
+AI Instance Dimension CRUD operations.
 
-This module provides CRUD operations for AI character dimension scores.
+This module provides CRUD operations for AI instance dimension scores.
 """
 
 from typing import List, Dict, Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.ai.character_dimension import AICharacterDimension
+from models.ai.instance_dimension import AIInstanceDimension
 from models.ai.style import AIStyleDimension, AIDimension
-from models.ai.character import AICharacter
+from models.ai.instance import AIInstance
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def get_by_character(db: AsyncSession, character_id: int) -> List[Dict[str, Any]]:
-    """Get all dimensions for a character with style dimension info."""
+async def get_by_instance(db: AsyncSession, instance_id: int) -> List[Dict[str, Any]]:
+    """Get all dimensions for an instance with style dimension info."""
     try:
         stmt = (
             select(
-                AICharacterDimension.dimension_id,
+                AIInstanceDimension.dimension_id,
                 AIDimension.name.label("dimension_name"),
-                AICharacterDimension.score,
-                AICharacterDimension.position,
-                AICharacterDimension.position_mapping_algorithm,
-                AICharacterDimension.position_mapping_params,
+                AIInstanceDimension.score,
+                AIInstanceDimension.position,
+                AIInstanceDimension.position_mapping_algorithm,
+                AIInstanceDimension.position_mapping_params,
                 AIStyleDimension.initial_position,
             )
-            .join(AIDimension, AICharacterDimension.dimension_id == AIDimension.id)
-            .join(AICharacter, AICharacter.id == AICharacterDimension.character_id)
+            .join(AIDimension, AIInstanceDimension.dimension_id == AIDimension.id)
+            .join(AIInstance, AIInstance.id == AIInstanceDimension.instance_id)
             .join(
                 AIStyleDimension,
-                (AIStyleDimension.style_id == AICharacter.style_id)
-                & (AIStyleDimension.dimension_id == AICharacterDimension.dimension_id),
+                (AIStyleDimension.style_id == AIInstance.style_id)
+                & (AIStyleDimension.dimension_id == AIInstanceDimension.dimension_id),
             )
-            .where(AICharacterDimension.character_id == character_id)
+            .where(AIInstanceDimension.instance_id == instance_id)
         )
         result = await db.execute(stmt)
         return [dict(row._mapping) for row in result]
     except Exception as e:
-        logger.error("get_by_character_failed", character_id=character_id, error=str(e))
+        logger.error("get_by_instance_failed", instance_id=instance_id, error=str(e))
         return []
 
 
 async def update_dimension(
-    db: AsyncSession, character_id: int, dimension_id: int, update_data: Dict[str, Any]
+    db: AsyncSession, instance_id: int, dimension_id: int, update_data: Dict[str, Any]
 ) -> bool:
     """Update a single dimension."""
     try:
-        stmt = select(AICharacterDimension).where(
-            AICharacterDimension.character_id == character_id,
-            AICharacterDimension.dimension_id == dimension_id,
+        stmt = select(AIInstanceDimension).where(
+            AIInstanceDimension.instance_id == instance_id,
+            AIInstanceDimension.dimension_id == dimension_id,
         )
         result = await db.execute(stmt)
         dimension = result.scalar_one_or_none()
 
         if not dimension:
-            logger.warning("dimension_not_found", character_id=character_id, dimension_id=dimension_id)
+            logger.warning("dimension_not_found", instance_id=instance_id, dimension_id=dimension_id)
             return False
 
         for key, value in update_data.items():
             setattr(dimension, key, value)
 
         await db.commit()
-        logger.debug("dimension_updated", character_id=character_id, dimension_id=dimension_id)
+        logger.debug("dimension_updated", instance_id=instance_id, dimension_id=dimension_id)
         return True
     except Exception as e:
         logger.error(
-            "update_dimension_failed", character_id=character_id, dimension_id=dimension_id, error=str(e)
+            "update_dimension_failed", instance_id=instance_id, dimension_id=dimension_id, error=str(e)
         )
         await db.rollback()
         return False
 
 
 async def update_dimensions_batch(
-    db: AsyncSession, character_id: int, dimensions_data: List[Dict[str, Any]]
+    db: AsyncSession, instance_id: int, dimensions_data: List[Dict[str, Any]]
 ) -> Dict[str, int]:
     """
-    Batch update/create character dimensions.
+    Batch update/create instance dimensions.
 
     Args:
         db: Database session
-        character_id: Character ID
+        instance_id: Instance ID
         dimensions_data: List of dimension data dicts with keys:
             - dimension_id: int
             - score: int
@@ -96,22 +96,22 @@ async def update_dimensions_batch(
     try:
         from services.ai.utils.position_mapping import map_score_to_position
 
-        # Resolve character style_id
-        style_res = await db.execute(select(AICharacter.style_id).where(AICharacter.id == character_id))
+        # Resolve instance style_id
+        style_res = await db.execute(select(AIInstance.style_id).where(AIInstance.id == instance_id))
         style_id = style_res.scalar_one_or_none()
         if style_id is None:
-            logger.error("character_style_not_found", character_id=character_id)
+            logger.error("instance_style_not_found", instance_id=instance_id)
             return {"updated": 0, "created": 0}
 
         # Get existing dimensions with initial_position via style join
         stmt = (
-            select(AICharacterDimension, AIStyleDimension.initial_position)
+            select(AIInstanceDimension, AIStyleDimension.initial_position)
             .join(
                 AIStyleDimension,
                 (AIStyleDimension.style_id == style_id)
-                & (AIStyleDimension.dimension_id == AICharacterDimension.dimension_id),
+                & (AIStyleDimension.dimension_id == AIInstanceDimension.dimension_id),
             )
-            .where(AICharacterDimension.character_id == character_id)
+            .where(AIInstanceDimension.instance_id == instance_id)
         )
         result = await db.execute(stmt)
         existing_dimensions = {dim.dimension_id: (dim, initial_pos) for dim, initial_pos in result}
@@ -144,7 +144,7 @@ async def update_dimensions_batch(
                 if initial_position is None:
                     logger.error(
                         "initial_position_not_found",
-                        character_id=character_id,
+                        instance_id=instance_id,
                         dimension_id=dimension_id,
                     )
                     # Skip this dimension (no default values)
@@ -180,8 +180,8 @@ async def update_dimensions_batch(
                 updated += 1
             else:
                 # Create new dimension
-                new_dimension = AICharacterDimension(
-                    character_id=character_id,
+                new_dimension = AIInstanceDimension(
+                    instance_id=instance_id,
                     dimension_id=dimension_id,
                     score=score,
                     position=position,
@@ -195,7 +195,7 @@ async def update_dimensions_batch(
 
         logger.info(
             "dimensions_batch_updated",
-            character_id=character_id,
+            instance_id=instance_id,
             updated=updated,
             created=created,
         )
@@ -204,7 +204,7 @@ async def update_dimensions_batch(
 
     except Exception as e:
         logger.error(
-            "update_dimensions_batch_failed", character_id=character_id, error=str(e), exc_info=True
+            "update_dimensions_batch_failed", instance_id=instance_id, error=str(e), exc_info=True
         )
         await db.rollback()
         raise

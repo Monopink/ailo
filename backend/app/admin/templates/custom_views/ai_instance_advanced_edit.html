@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}<title>Character</title>{% endblock %}
+{% block title %}<title>Instance</title>{% endblock %}
 
 {# Ensure admin fixes and theme are available even if base override cache not reloaded #}
 {% block head_css %}
@@ -10,14 +10,14 @@
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
  <div>
-  <h1>Edit Character</h1>
+  <h1>Edit Instance</h1>
  </div>
  <ol class="breadcrumb">
   <li class="breadcrumb-item">
    <a href="{{ url_for(__name__ ~ ':index') }}">Admin</a>
   </li>
   <li class="breadcrumb-item">
-   <a href="{{ url_for(__name__ ~ ':list', identity='ai_character') }}">AI Characters</a>
+   <a href="{{ url_for(__name__ ~ ':list', identity='ai_instance') }}">AI Instances</a>
   </li>
   <li class="breadcrumb-item active">Advanced Edit</li>
  </ol>
@@ -28,47 +28,47 @@
 <div class="container-fluid">
  <div class="row">
   <div class="col-12">
-   <!-- Character Information Card -->
+   <!-- Instance Information Card -->
    <div class="card">
     <div class="card-header">
-     <h3 class="card-title">Character Information</h3>
+     <h3 class="card-title">Instance Information</h3>
     </div>
     <div class="card-body">
      <div class="row">
       <div class="col-md-3">
        <div class="mb-2">
-        <span class="text-muted">Character ID:</span>
-        <strong>{{ character.qiao_id }}</strong>
+        <span class="text-muted">Qiao ID:</span>
+        <strong>{{ instance.qiao_id }}</strong>
        </div>
       </div>
       <div class="col-md-3">
        <div class="mb-2">
         <span class="text-muted">Personality:</span>
-        <strong>{{ character.personality_display_name }}</strong>
+        <strong>{{ instance.personality_display_name }}</strong>
        </div>
       </div>
       <div class="col-md-3">
        <div class="mb-2">
         <span class="text-muted">Style:</span>
-        <strong>{{ character.style_display_name }}</strong>
+        <strong>{{ instance.style_display_name }}</strong>
        </div>
       </div>
       <div class="col-md-3">
        <div class="mb-2">
         <span class="text-muted">Current Relationship:</span>
-        <strong id="current-relationship-display">{{ character.relationship_display_name or 'Not set' }}</strong>
+        <strong id="current-relationship-display">{{ instance.relationship_display_name or 'Not set' }}</strong>
        </div>
       </div>
       <div class="col-md-3">
        <div class="mb-2">
         <span class="text-muted">Typing Speed:</span>
-        <strong>{{ character.typing_speed_wpm or '-' }} WPM</strong>
+        <strong>{{ instance.typing_speed_wpm or '-' }} WPM</strong>
        </div>
       </div>
       <div class="col-md-3">
        <div class="mb-2">
         <span class="text-muted">Timezone:</span>
-        <strong>{{ character.timezone or 'Asia/Shanghai' }}</strong>
+        <strong>{{ instance.timezone or 'Asia/Shanghai' }}</strong>
        </div>
       </div>
      </div>
@@ -97,7 +97,7 @@
       {% else %}
       {# Detect and render extra variables that are not defined in placeholders #}
       {% set ns = namespace(has_extra=false) %}
-      {% for k, v in (character.prompt_variables or {}).items() %}
+      {% for k, v in (instance.prompt_variables or {}).items() %}
         {% if k not in placeholder_keys %}
           {% set ns.has_extra = true %}
         {% endif %}
@@ -108,7 +108,7 @@
         有不在 Personality 的占位符列表中的字段，如果留空将被删除；填写非空则会被保留。
       </div>
       <div class="row">
-        {% for k, v in (character.prompt_variables or {}).items() %}
+        {% for k, v in (instance.prompt_variables or {}).items() %}
           {% if k not in placeholder_keys %}
           <div class="col-12 mb-3">
             <label for="var_{{ k }}" class="form-label text-warning">
@@ -131,7 +131,7 @@
         </label>
         <input type="text" class="form-control" id="var_{{ placeholder.placeholder_key }}"
          name="var_{{ placeholder.placeholder_key }}"
-         value="{{ character.prompt_variables.get(placeholder.placeholder_key, '') }}"
+         value="{{ instance.prompt_variables.get(placeholder.placeholder_key, '') }}"
          {% if placeholder.is_required %}required{% endif %}
          placeholder="{{ placeholder.example_value or '' }}">
         {% if placeholder.description %}
@@ -185,18 +185,18 @@
         </div>
        </div>
        <div class="col-md-4">
-        <div class="card {% if character_status == 'success' %}border-success{% else %}border-warning{% endif %}">
+        <div class="card {% if instance_status == 'success' %}border-success{% else %}border-warning{% endif %}">
          <div class="card-body p-2">
           <div class="d-flex align-items-center justify-content-center">
-           {% if character_status == 'success' %}
+           {% if instance_status == 'success' %}
            <i class="fas fa-check-circle text-success fs-4 me-2"></i>
-           <strong class="text-success">Character</strong>
+           <strong class="text-success">Instance</strong>
            {% else %}
            <i class="fas fa-exclamation-triangle text-warning fs-4 me-2"></i>
-           <strong class="text-warning">Character</strong>
+           <strong class="text-warning">Instance</strong>
            {% endif %}
           </div>
-          {% for warning in character_warnings %}
+          {% for warning in instance_warnings %}
           <div class="text-warning small mt-1">{{ warning }}</div>
           {% endfor %}
          </div>
@@ -206,7 +206,7 @@
       {% if not dimensions %}
       <div class="alert alert-warning">
         <i class="fas fa-exclamation-triangle me-2"></i>
-        No dimensions found for this character.
+        No dimensions found for this instance.
       </div>
       {% else %}
       {% for dim in dimensions %}
@@ -292,7 +292,7 @@
     <div class="card mt-3">
       <div class="card-body text-black">
         <div class="btn-list ms-auto justify-content-end">
-          <a href="{{ url_for(__name__ ~ ':list', identity='ai_character') }}" class="btn btn-danger">Cancel</a>
+          <a href="{{ url_for(__name__ ~ ':list', identity='ai_instance') }}" class="btn btn-danger">Cancel</a>
           <button type="submit" data-action="continue" class="btn" {% if schema_mismatch %}disabled{% endif %}>Save and continue editing</button>
           <button type="submit" data-action="save" class="btn btn-success" {% if schema_mismatch %}disabled{% endif %}>Save</button>
         </div>
@@ -444,7 +444,7 @@
   const relationshipId = relationshipIdInput && relationshipIdInput.value ? parseInt(relationshipIdInput.value) : null;
 
   try {
-   const response = await fetch('/admin-api/ai/ai_character/{{ character.id }}/save', {
+   const response = await fetch('/admin-api/ai/ai_instance/{{ instance.id }}/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -457,7 +457,7 @@
 
    if (response.ok) {
     if (action === 'save') {
-      window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_character') }}";
+      window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_instance') }}";
     } else {
       alert('Saved successfully');
       location.reload();
@@ -526,7 +526,7 @@ document.getElementById('generate-relationship-btn')?.addEventListener('click', 
      return;
    }
 
-   const response = await fetch('/admin-api/ai/ai_character/{{ character.id }}/generate-relationship', {
+   const response = await fetch('/admin-api/ai/ai_instance/{{ instance.id }}/generate-relationship', {
      method: 'POST',
      headers: { 'Content-Type': 'application/json' },
      body: JSON.stringify({ overrides, preview: true }),

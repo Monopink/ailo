@@ -173,16 +173,16 @@
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center">
-              <div class="subheader">AI Characters</div>
+              <div class="subheader">AI Instances</div>
             </div>
-            <div class="h1 mb-3" id="ai-characters-value">
+            <div class="h1 mb-3" id="ai-instances-value">
               <span
                 class="spinner-border spinner-border-sm"
                 role="status"
               ></span>
             </div>
             <div class="d-flex align-items-center">
-              <div id="ai-characters-change" class="text-muted">
+              <div id="ai-instances-change" class="text-muted">
                 <span
                   class="spinner-border spinner-border-sm"
                   role="status"
@@ -314,13 +314,13 @@
       metrics.total_users.trend
     );
 
-    // AI Characters
-    document.getElementById("ai-characters-value").textContent =
-      metrics.ai_characters.value.toLocaleString();
-    const aiChange = document.getElementById("ai-characters-change");
+    // AI Instances
+    document.getElementById("ai-instances-value").textContent =
+      metrics.ai_instances.value.toLocaleString();
+    const aiChange = document.getElementById("ai-instances-change");
     aiChange.innerHTML = getTrendHTML(
-      metrics.ai_characters.change,
-      metrics.ai_characters.trend
+      metrics.ai_instances.change,
+      metrics.ai_instances.trend
     );
 
     // Total Messages

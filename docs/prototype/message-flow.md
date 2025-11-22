@@ -78,7 +78,7 @@ flowchart TB
     n6 --> n7["频率限制 (rate_limiter.py)"]
     n7 --> n8["消息缓冲 (buffer.py)"]
     n8 --> n9["AI服务 (ai/core.py)"]
-    n9 --> n10["角色识别 (character.py)"]
+    n9 --> n10["角色识别 (instance.py)"]
     n10 --> n11["上下文构建 (context.py)"]
     n11 --> n12["提示词生成 (prompt.py)"]
     n12 --> n13["LLM调用 (llm_client.py)"]
@@ -348,7 +348,7 @@ await send_chat_info(
 **场景2：AI角色Block用户**
 
 - LLM响应中包含block_user动作
-- 更新ai_characters.status = 3 (blocked)
+- 更新ai_instances.status = 3 (blocked)
 - 用户发送消息时，只存储消息和上下文，不进行AI处理
 - 发送CHAT_INFO消息：`"消息已发出，但对方拒收了"`
 

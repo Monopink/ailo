@@ -241,7 +241,7 @@ class JSONSchemaNotSupportedError(LLMConfigurationError):
     ):
         if not message:
             message = (
-                f"配置 '{config_name}' 不支持JSON Schema，无法用于AI Character功能。"
+                f"配置 '{config_name}' 不支持JSON Schema，无法用于AI Instance功能。"
                 f"此配置只能用于查看测试响应。"
                 f"建议使用其他支持JSON Schema的配置。"
             )

@@ -2,7 +2,7 @@
 
 ## 背景
 
-当同一个 `template_type` 没有可用模板时，当前实现会直接抛错或静默失败，导致：
+当同一个 `ai_type` 没有可用模板时，当前实现会直接抛错或静默失败，导致：
 - 用户端收到模糊错误或无法得知进展。
 - 管理员无法准确获知缺模板的 `qiao_id` / 类型。
 - 重复提交会生成多条 `contact_requests` 记录，幂等性被破坏。
@@ -25,7 +25,7 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `failure_code` | VARCHAR(50) | 失败原因枚举：`NO_TEMPLATE_AVAILABLE`、`MANUAL_PROVISION_REQUIRED` 等 |
-| `failure_detail` | JSONB | 结构化信息，至少包含 `template_type_id`、`qiao_id`、`request_id` |
+| `failure_detail` | JSONB | 结构化信息，至少包含 `ai_type_id`、`qiao_id`、`request_id` |
 | `retry_count` | INTEGER | 系统维护的重试次数 |
 | `last_retry_at` | TIMESTAMPTZ | 最近一次尝试时间 |
 
@@ -79,7 +79,7 @@ Admin 点击“重试”或用户再次发起同一请求
 ## 前端/后台需求
 
 1. **Admin Dashboard**
-   - 列表列：`request_id`、`from_qiao_id`、`to_qiao_id`、`template_type_id`、`failure_code`、`retry_count`、`updated_at`。
+  - 列表列：`request_id`、`from_qiao_id`、`to_qiao_id`、`ai_type_id`、`failure_code`、`retry_count`、`updated_at`。
    - 操作：`补模板`（跳转模板页面）、`重试`。
 2. **Contacts 视图**
    - 在“我的联系人申请”中，当状态显示“等待库存”时展示 `重试` 按钮（调用同一 API）。
@@ -93,8 +93,27 @@ Admin 点击“重试”或用户再次发起同一请求
 - 并发重试需要事务保障：使用 `(SELECT ... FOR UPDATE)` 锁住 `contact_requests` 行，防止同时重试。
 - 监控：建议加入 PENDING 超时扫描，避免无限期挂起（可在后续任务实现）。
 
+## 模板选择策略
+
+### 选择规则
+
+系统按以下策略选择模板：
+
+1. **优先不可复用模板**：优先选择 `is_reusable=0` 的单次使用模板
+2. **优先级降序排列**：按 `priority DESC` 排序（数字越大优先级越高）
+3. **同优先级随机选择**：如果最高优先级有多个模板，随机选择一个
+4. **回退到可复用模板**：如果没有不可复用模板，对 `is_reusable=1` 的模板应用相同规则
+
+### 优先级字段
+
+- **字段名称**：`ai_templates.priority`
+- **数据类型**：INTEGER
+- **默认值**：1
+- **排序规则**：DESC（降序）
+- **优先级含义**：数字越大，优先级越高
+
 ## 参考
 
 - `docs/development/contact-request-flow.md`
 - `backend/database/init/01_schema.sql`
-- `docs/task/character-profile-architecture.md`
+- `docs/task/ai-persona-architecture.md`

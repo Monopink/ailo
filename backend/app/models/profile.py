@@ -11,17 +11,17 @@ from sqlalchemy.ext.hybrid import hybrid_property
 
 from enums import Gender, ProfileOwnerType, ProfileModifierType
 from models.base import SnowflakeModel, ImmutableSnowflakeModel
+from models.ai.template import AIType
 
 if TYPE_CHECKING:
     from models.user import User
-    from models.ai.character import AICharacter
 
 
 class Profile(SnowflakeModel):
     """
     Profile model.
 
-    Unified profile data for users, AI characters, and official accounts.
+    Unified profile data for users, AI instances, and official accounts.
     """
 
     __tablename__ = "profiles"
@@ -66,10 +66,19 @@ class Profile(SnowflakeModel):
         viewonly=True,
     )
 
-    # owner_type=2 (AI) → ai_characters table
-    _owner_character: Mapped[Optional["AICharacter"]] = relationship(
-        "AICharacter",
-        primaryjoin="and_(Profile.owner_id == AICharacter.id, Profile.owner_type == 2)",
+    # owner_type=2 (AI_PERSONA) → ai_personas table
+    _owner_persona: Mapped[Optional["AIPersona"]] = relationship(
+        "AIPersona",
+        primaryjoin="and_(Profile.owner_id == AIPersona.id, Profile.owner_type == 2)",
+        foreign_keys=[owner_id],
+        lazy="select",
+        viewonly=True,
+    )
+
+    # owner_type=3 (AI_INSTANCE) → ai_instances table
+    _owner_instance: Mapped[Optional["AIInstance"]] = relationship(
+        "AIInstance",
+        primaryjoin="and_(Profile.owner_id == AIInstance.id, Profile.owner_type == 3)",
         foreign_keys=[owner_id],
         lazy="select",
         viewonly=True,
@@ -78,10 +87,12 @@ class Profile(SnowflakeModel):
     @hybrid_property
     def owner(self):
         """Return the appropriate owner object based on owner_type."""
-        if self.owner_type == 1:  # USER
+        if self.owner_type == ProfileOwnerType.USER:
             return self._owner_user
-        elif self.owner_type == 2:  # AI
-            return self._owner_character
+        elif self.owner_type == ProfileOwnerType.AI_PERSONA:
+            return self._owner_persona
+        elif self.owner_type == ProfileOwnerType.AI_INSTANCE:
+            return self._owner_instance
         return None
 
     # Constraints

@@ -19,51 +19,51 @@ from services.ai.utils.position_mapping import get_algorithm_param_specs
 logger = get_logger(__name__)
 
 
-class CharacterAdvancedEditView(CustomView):
-    """Edit character with per-dimension position mapping configuration."""
+class InstanceAdvancedEditView(CustomView):
+    """Edit instance with per-dimension position mapping configuration."""
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         """Render the advanced editing page."""
-        character_id = request.path_params.get("id")
+        instance_id = request.path_params.get("id")
 
-        if not character_id:
-            raise HTTPException(status_code=400, detail="Character ID is required")
+        if not instance_id:
+            raise HTTPException(status_code=400, detail="Instance ID is required")
 
         try:
-            character_id = int(character_id)
+            instance_id = int(instance_id)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid character ID")
+            raise HTTPException(status_code=400, detail="Invalid instance ID")
 
         try:
             async with SessionLocal() as db:
-                # Get character with eager loading
+                # Get instance with eager loading
                 from sqlalchemy.orm import selectinload
                 from sqlalchemy import select
-                from models.ai.character import AICharacter
+                from models.ai.instance import AIInstance
                 from models.ai.style import AIStyleDimension, AIDimension
-                from crud.ai.character_dimension import get_by_character
+                from crud.ai.instance_dimension import get_by_instance
 
                 result = await db.execute(
-                    select(AICharacter)
-                    .where(AICharacter.id == character_id)
+                    select(AIInstance)
+                    .where(AIInstance.id == instance_id)
                     .options(
-                        selectinload(AICharacter.personality),
-                        selectinload(AICharacter.style),
-                        selectinload(AICharacter.relationship),
+                        selectinload(AIInstance.personality),
+                        selectinload(AIInstance.style),
+                        selectinload(AIInstance.relationship),
                     )
                 )
-                character = result.scalar_one_or_none()
+                instance = result.scalar_one_or_none()
 
-                if not character:
-                    raise HTTPException(status_code=404, detail="Character not found")
+                if not instance:
+                    raise HTTPException(status_code=404, detail="Instance not found")
 
                 # Get placeholders for the personality
                 placeholders = await personality_crud.get_placeholders_by_personality(
-                    db, personality_id=character.personality_id
+                    db, personality_id=instance.personality_id
                 )
 
                 # Get JSON Schema from personality
-                json_schema = character.personality.json_schema or {}
+                json_schema = instance.personality.json_schema or {}
                 score_props = json_schema.get("properties", {}).get("score", {}).get("properties", {})
 
                 # Extract schema dimensions
@@ -78,7 +78,7 @@ class CharacterAdvancedEditView(CustomView):
                 style_dimensions_result = await db.execute(
                     select(AIDimension, AIStyleDimension.initial_position)
                     .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
-                    .where(AIStyleDimension.style_id == character.style_id)
+                    .where(AIStyleDimension.style_id == instance.style_id)
                     .order_by(AIDimension.name)
                 )
                 style_dimensions = [
@@ -100,11 +100,11 @@ class CharacterAdvancedEditView(CustomView):
                 style_dim_names = {d.name for d in style_dimensions}
                 schema_mismatch = schema_dim_names != style_dim_names
 
-                # Get character dimensions
-                character_dimensions = await get_by_character(db, character_id)
+                # Get instance dimensions
+                instance_dimensions = await get_by_instance(db, instance_id)
 
                 # Build dimension map
-                char_dim_map = {d["dimension_id"]: d for d in character_dimensions}
+                char_dim_map = {d["dimension_id"]: d for d in instance_dimensions}
 
                 # Check for mismatches
                 warnings = []
@@ -126,7 +126,7 @@ class CharacterAdvancedEditView(CustomView):
                         warnings.append(
                             {
                                 "level": "warning",
-                                "message": f"Missing character dimension: {style_dim.display_name}",
+                                "message": f"Missing instance dimension: {style_dim.display_name}",
                             }
                         )
 
@@ -141,7 +141,7 @@ class CharacterAdvancedEditView(CustomView):
                             "schema_exists": style_dim.name in schema_dims,
                             # Style dimension info
                             "initial_position": style_dim.initial_position,
-                            # Character dimension info
+                            # Instance dimension info
                             "score": char_dim["score"] if char_dim else None,
                             "position": char_dim["position"] if char_dim else None,
                             "current_relationship": (
@@ -150,34 +150,36 @@ class CharacterAdvancedEditView(CustomView):
                             "position_mapping_algorithm": (
                                 char_dim["position_mapping_algorithm"] if char_dim else None
                             ),
-                            "position_mapping_params": char_dim["position_mapping_params"] if char_dim else None,
+                            "position_mapping_params": (
+                                char_dim["position_mapping_params"] if char_dim else None
+                            ),
                         }
                     )
 
                 # Check for extra dimensions
                 style_dim_ids = {d.id for d in style_dimensions}
-                for char_dim in character_dimensions:
+                for char_dim in instance_dimensions:
                     if char_dim["dimension_id"] not in style_dim_ids:
                         warnings.append(
                             {
                                 "level": "warning",
-                                "message": f"Extra character dimension: {char_dim['dimension_name']}",
+                                "message": f"Extra instance dimension: {char_dim['dimension_name']}",
                             }
                         )
 
-                # Extract character data
-                character_data = {
-                    "id": character.id,
-                    "qiao_id": character.qiao_id,
+                # Extract instance data
+                instance_data = {
+                    "id": instance.id,
+                    "qiao_id": instance.qiao_id,
                     "personality_display_name": (
-                        character.personality.display_name if character.personality else "N/A"
+                        instance.personality.display_name if instance.personality else "N/A"
                     ),
-                    "style_display_name": (character.style.display_name if character.style else "N/A"),
-                    "prompt_variables": character.prompt_variables or {},
+                    "style_display_name": (instance.style.display_name if instance.style else "N/A"),
+                    "prompt_variables": instance.prompt_variables or {},
                     "relationship_display_name": (
-                        character.relationship.display_name if character.relationship else None
+                        instance.relationship.display_name if instance.relationship else None
                     ),
-                    "typing_speed_wpm": character.typing_speed_wpm,
+                    "typing_speed_wpm": instance.typing_speed_wpm,
                 }
 
             # Prepare status indicators
@@ -187,14 +189,14 @@ class CharacterAdvancedEditView(CustomView):
             style_status = "success"  # Style is always OK if loaded
             style_errors = []
 
-            character_status = "success"
-            character_warnings = [w["message"] for w in warnings if w.get("level") == "warning"]
-            if character_warnings:
-                character_status = "warning"
+            instance_status = "success"
+            instance_warnings = [w["message"] for w in warnings if w.get("level") == "warning"]
+            if instance_warnings:
+                instance_status = "warning"
 
             context = {
                 "request": request,
-                "character": character_data,
+                "instance": instance_data,
                 "dimensions": dimension_data,
                 "warnings": warnings,
                 "placeholders": placeholders,
@@ -203,24 +205,24 @@ class CharacterAdvancedEditView(CustomView):
                 "schema_errors": schema_errors,
                 "style_status": style_status,
                 "style_errors": style_errors,
-                "character_status": character_status,
-                "character_warnings": character_warnings,
+                "instance_status": instance_status,
+                "instance_warnings": instance_warnings,
                 "algorithm_param_specs": get_algorithm_param_specs(),
             }
 
-            return templates.TemplateResponse("custom_views/ai_character_advanced_edit.html", context)
+            return templates.TemplateResponse("custom_views/ai_instance_advanced_edit.html", context)
 
         except HTTPException:
             raise
         except Exception as e:
             logger.error(
-                "ai_character_advanced_edit_error", character_id=character_id, error=str(e), exc_info=True
+                "ai_instance_advanced_edit_error", instance_id=instance_id, error=str(e), exc_info=True
             )
-            raise HTTPException(status_code=500, detail=f"Failed to load character edit page: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to load instance edit page: {str(e)}")
 
 
-class CharacterTemplateAdvancedEditView(CustomView):
-    """Edit character template with per-dimension position mapping configuration."""
+class TemplateAdvancedEditView(CustomView):
+    """Edit template with per-dimension position mapping configuration."""
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         """Render the advanced editing page."""
@@ -238,15 +240,15 @@ class CharacterTemplateAdvancedEditView(CustomView):
             # Get template with eager loading
             from sqlalchemy.orm import selectinload
             from sqlalchemy import select
-            from models.ai.template import AICharacterTemplate
+            from models.ai.template import AITemplate
             from models.ai.style import AIStyleDimension, AIDimension
 
             result = await db.execute(
-                select(AICharacterTemplate)
-                .where(AICharacterTemplate.id == template_id)
+                select(AITemplate)
+                .where(AITemplate.id == template_id)
                 .options(
-                    selectinload(AICharacterTemplate.personality),
-                    selectinload(AICharacterTemplate.style),
+                    selectinload(AITemplate.personality),
+                    selectinload(AITemplate.style),
                 )
             )
             template = result.scalar_one_or_none()
@@ -335,21 +337,21 @@ class CharacterTemplateAdvancedEditView(CustomView):
             "algorithm_param_specs": get_algorithm_param_specs(),
         }
 
-        return templates.TemplateResponse("custom_views/ai_character_template_advanced_edit.html", context)
+        return templates.TemplateResponse("custom_views/ai_template_advanced_edit.html", context)
 
 
 # Create view instances
-character_advanced_edit_view = CharacterAdvancedEditView(
-    label="Edit Character",
-    name="character_advanced_edit",
-    path="/ai_character/advanced-edit/{id:int}",
+instance_advanced_edit_view = InstanceAdvancedEditView(
+    label="Edit Instance",
+    name="instance_advanced_edit",
+    path="/ai_instance/advanced-edit/{id:int}",
     add_to_menu=False,
 )
 
-character_template_advanced_edit_view = CharacterTemplateAdvancedEditView(
-    label="Edit Character Template",
-    name="character_template_advanced_edit",
-    path="/ai_character_template/advanced-edit/{id:int}",
+template_advanced_edit_view = TemplateAdvancedEditView(
+    label="Edit AI Template",
+    name="ai_template_advanced_edit",
+    path="/ai_template/advanced-edit/{id:int}",
     add_to_menu=False,
 )
 

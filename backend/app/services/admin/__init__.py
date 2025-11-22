@@ -6,8 +6,8 @@ clean architecture principles with stateless services and clear separation of co
 
 Architecture:
 - data/: Data query services (dashboard stats, style dimensions)
-- testing/: Testing services (LLM config, character chat, style algorithm)
-- character_relationship.py: Character relationship generation
+- testing/: Testing services (LLM config, instance chat, style algorithm)
+- instance_relationship.py: Instance relationship generation
 
 Note: Basic CRUD operations (list, view, edit, delete) should be handled
 by Starlette-Admin ModelView directly, not through service functions.

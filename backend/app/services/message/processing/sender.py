@@ -23,25 +23,25 @@ logger = get_logger(__name__)
 _active_sending_tasks: Dict[Tuple[str, str], asyncio.Event] = {}
 
 
-def interrupt_sending_task(user_qiao_id: str, character_qiao_id: str) -> None:
+def interrupt_sending_task(user_qiao_id: str, instance_qiao_id: str) -> None:
     """
     Interrupt in-flight sending task for a conversation (single instance only).
     """
-    key = (user_qiao_id, character_qiao_id)
+    key = (user_qiao_id, instance_qiao_id)
     event = _active_sending_tasks.get(key)
     if event and not event.is_set():
         event.set()
         logger.info(
             "sending_task_interrupted",
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
 
 
 async def send_ai_messages_with_typing(
     session_factory: async_sessionmaker[AsyncSession],
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     buffer_id: Optional[int],
     outgoing_messages: List[str],
     followup_messages: List[str],
@@ -54,16 +54,16 @@ async def send_ai_messages_with_typing(
 
     if not outgoing_messages and not followup_messages:
         async with session_factory() as db:
-            await _clear_pending_messages(db, user_qiao_id, character_qiao_id)
+            await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
             await db.commit()
         logger.info(
             "sending_task_skipped_empty_payload",
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         return
 
-    conversation_key = (user_qiao_id, character_qiao_id)
+    conversation_key = (user_qiao_id, instance_qiao_id)
     interrupt_event = asyncio.Event()
     _active_sending_tasks[conversation_key] = interrupt_event
 
@@ -73,7 +73,7 @@ async def send_ai_messages_with_typing(
                 success, sent = await _send_message_list(
                     db=db,
                     user_qiao_id=user_qiao_id,
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                     buffer_id=buffer_id,
                     messages=outgoing_messages,
                     typing_speed=typing_speed_seconds_per_word,
@@ -83,7 +83,7 @@ async def send_ai_messages_with_typing(
                     await _save_pending_messages(
                         db,
                         user_qiao_id,
-                        character_qiao_id,
+                        instance_qiao_id,
                         outgoing_messages[sent:],
                         followup_messages,
                     )
@@ -91,7 +91,7 @@ async def send_ai_messages_with_typing(
                     logger.info(
                         "sending_interrupted_during_outgoing",
                         user_qiao_id=user_qiao_id,
-                        character_qiao_id=character_qiao_id,
+                        instance_qiao_id=instance_qiao_id,
                         sent_count=sent,
                     )
                     return
@@ -100,7 +100,7 @@ async def send_ai_messages_with_typing(
                     logger.debug(
                         "waiting_before_followup",
                         user_qiao_id=user_qiao_id,
-                        character_qiao_id=character_qiao_id,
+                        instance_qiao_id=instance_qiao_id,
                         delay_seconds=followup_delay_seconds,
                     )
                     try:
@@ -108,7 +108,7 @@ async def send_ai_messages_with_typing(
                         await _save_pending_messages(
                             db,
                             user_qiao_id,
-                            character_qiao_id,
+                            instance_qiao_id,
                             [],
                             followup_messages,
                         )
@@ -116,7 +116,7 @@ async def send_ai_messages_with_typing(
                         logger.info(
                             "sending_interrupted_during_followup_delay",
                             user_qiao_id=user_qiao_id,
-                            character_qiao_id=character_qiao_id,
+                            instance_qiao_id=instance_qiao_id,
                         )
                         return
                     except asyncio.TimeoutError:
@@ -126,7 +126,7 @@ async def send_ai_messages_with_typing(
                     success, followup_sent = await _send_message_list(
                         db=db,
                         user_qiao_id=user_qiao_id,
-                        character_qiao_id=character_qiao_id,
+                        instance_qiao_id=instance_qiao_id,
                         buffer_id=buffer_id,
                         messages=followup_messages,
                         typing_speed=typing_speed_seconds_per_word,
@@ -136,7 +136,7 @@ async def send_ai_messages_with_typing(
                         await _save_pending_messages(
                             db,
                             user_qiao_id,
-                            character_qiao_id,
+                            instance_qiao_id,
                             [],
                             followup_messages[followup_sent:],
                         )
@@ -144,17 +144,17 @@ async def send_ai_messages_with_typing(
                         logger.info(
                             "sending_interrupted_during_followup",
                             user_qiao_id=user_qiao_id,
-                            character_qiao_id=character_qiao_id,
+                            instance_qiao_id=instance_qiao_id,
                             sent_count=followup_sent,
                         )
                         return
 
-                await _clear_pending_messages(db, user_qiao_id, character_qiao_id)
+                await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
                 await db.commit()
                 logger.info(
                     "all_messages_sent_successfully",
                     user_qiao_id=user_qiao_id,
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                     buffer_id=buffer_id,
                 )
 
@@ -164,7 +164,7 @@ async def send_ai_messages_with_typing(
                     "sending_task_failed",
                     error=str(exc),
                     user_qiao_id=user_qiao_id,
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                 )
                 raise
 
@@ -176,7 +176,7 @@ async def _send_message_list(
     db: AsyncSession,
     *,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     buffer_id: Optional[int],
     messages: List[str],
     typing_speed: float,
@@ -200,7 +200,7 @@ async def _send_message_list(
                 logger.debug(
                     "interrupted_during_typing",
                     user_qiao_id=user_qiao_id,
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                     position=idx,
                 )
                 return False, idx
@@ -213,7 +213,7 @@ async def _send_message_list(
         await _send_and_record_message(
             db=db,
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             buffer_id=buffer_id,
             message=message,
         )
@@ -225,7 +225,7 @@ async def _send_and_record_message(
     db: AsyncSession,
     *,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     buffer_id: Optional[int],
     message: str,
 ) -> None:
@@ -233,16 +233,14 @@ async def _send_and_record_message(
     Send single message via provider transport and persist conversation item.
     """
     contact = await contact_crud.get_user_contact(
-        db, user_qiao_id=user_qiao_id, contact_qiao_id=character_qiao_id
+        db, user_qiao_id=user_qiao_id, contact_qiao_id=instance_qiao_id
     )
     if not contact:
-        raise ValueError(
-            f"Contact between user {user_qiao_id} and character {character_qiao_id} not found"
-        )
+        raise ValueError(f"Contact between user {user_qiao_id} and instance {instance_qiao_id} not found")
 
     await send_message(
         db=db,
-        from_qiao_id=character_qiao_id,
+        from_qiao_id=instance_qiao_id,
         to_qiao_id=user_qiao_id,
         conv_id=contact.conv_id,
         content=message,
@@ -252,7 +250,7 @@ async def _send_and_record_message(
     await create_conversation_item(
         db,
         {
-            "character_qiao_id": character_qiao_id,
+            "instance_qiao_id": instance_qiao_id,
             "user_qiao_id": user_qiao_id,
             "role": "assistant",
             "message_type": "text",
@@ -268,7 +266,7 @@ async def _send_and_record_message(
 async def _save_pending_messages(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     outgoing_remaining: List[str],
     followup_remaining: List[str],
 ) -> None:
@@ -282,13 +280,13 @@ async def _save_pending_messages(
         "total_pending": total,
     }
 
-    state = await db.get(AIConversationState, (user_qiao_id, character_qiao_id))
+    state = await db.get(AIConversationState, (user_qiao_id, instance_qiao_id))
     now = datetime.now(timezone.utc)
 
     if not state:
         state = AIConversationState(
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             pending_messages=payload,
             interrupted_at=now,
         )
@@ -301,12 +299,12 @@ async def _save_pending_messages(
 async def _clear_pending_messages(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
 ) -> None:
     """
     Remove pending messages for the conversation (if any).
     """
-    state = await db.get(AIConversationState, (user_qiao_id, character_qiao_id))
+    state = await db.get(AIConversationState, (user_qiao_id, instance_qiao_id))
     if state:
         await db.delete(state)
 

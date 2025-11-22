@@ -252,7 +252,7 @@ async def _handle_interrupted_reply(self):
 1. 立即中止 Doubao 流式读取
 2. 检查哪些消息已通过 LeanCloud 发送
 3. 只将已发送的消息写入 `ai_contexts`
-4. 将未发送的内容保存到 `ai_characters.unsent_message` 字段
+4. 将未发送的内容保存到 `ai_instances.unsent_message` 字段
 5. 下次构建上下文时，在 system prompt 中包含：`[上次被打断，未发送的内容：{unsent_message}]`
 
 ## 5. Typing 模拟系统
@@ -339,7 +339,7 @@ async def send_ai_response(
             await send_message(msg)
 ```
 
-**配置位置（Legacy）**: `ai_personalities.typing_speed` 字段（现已迁移到 `ai_character_templates.typing_speed_wpm` / `ai_characters.typing_speed_wpm`，本章节仅保留旧设计记录）
+**配置位置（Legacy）**: `ai_personalities.typing_speed` 字段（现已迁移到 `ai_templates.typing_speed_wpm` / `ai_instances.typing_speed_wpm`，本章节仅保留旧设计记录）
 
 ## 6. 配置驱动的设计
 
@@ -403,8 +403,8 @@ prepared_wait_max = 16.0
    - `llm_retry_delay_secs`: 2
 
 3. **数据库表字段**（角色级配置）：
-   - `ai_characters.typing_speed_wpm`: 35（运行态按 60/WPM 计算秒/词，旧设计曾挂在 personalities 上）
-   - `ai_characters.relationship_wait_multiplier`: JSON
+   - `ai_instances.typing_speed_wpm`: 35（运行态按 60/WPM 计算秒/词，旧设计曾挂在 personalities 上）
+   - `ai_instances.relationship_wait_multiplier`: JSON
 
 **配置读取示例**：
 

@@ -53,27 +53,27 @@ async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Dict
         return None
 
 
-async def get_character_profile(db: AsyncSession, character_qiao_id: str) -> Optional[Dict[str, Any]]:
+async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> Optional[Dict[str, Any]]:
     """
-    Get character profile information.
+    Get instance profile information.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
 
     Returns:
-        Dictionary containing character profile, or None if not found
+        Dictionary containing instance profile, or None if not found
     """
     try:
         result = await db.execute(
             select(Profile).where(
-                and_(Profile.owner_qiao_id == character_qiao_id, Profile.owner_type == 2)  # AI type
+                and_(Profile.owner_qiao_id == instance_qiao_id, Profile.owner_type == 2)  # AI type
             )
         )
 
         profile = result.scalar_one_or_none()
         if not profile:
-            logger.warning("character_profile_not_found", character_qiao_id=character_qiao_id)
+            logger.warning("instance_profile_not_found", instance_qiao_id=instance_qiao_id)
             return None
 
         return {
@@ -87,7 +87,7 @@ async def get_character_profile(db: AsyncSession, character_qiao_id: str) -> Opt
         }
 
     except Exception as e:
-        logger.error("character_profile_query_failed", error=str(e), character_qiao_id=character_qiao_id)
+        logger.error("instance_profile_query_failed", error=str(e), instance_qiao_id=instance_qiao_id)
         return None
 
 

@@ -41,11 +41,11 @@
 ### 约束与索引
 
 - 同会话唯一锁（限制活跃处理窗口）：
-  `UNIQUE(user_qiao_id, character_qiao_id) WHERE aggregate_state=2`
+  `UNIQUE(user_qiao_id, instance_qiao_id) WHERE aggregate_state=2`
 - 微计时器扫描索引：
-  `CREATE INDEX idx_buffer_micro_expire ON ai_message_buffer(user_qiao_id, character_qiao_id, micro_expires_at_ms) WHERE aggregate_state=1 AND micro_expires_at_ms IS NOT NULL`
+  `CREATE INDEX idx_buffer_micro_expire ON ai_message_buffer(user_qiao_id, instance_qiao_id, micro_expires_at_ms) WHERE aggregate_state=1 AND micro_expires_at_ms IS NOT NULL`
 - 宏计时器扫描索引：
-  `CREATE INDEX idx_buffer_macro_expire ON ai_message_buffer(user_qiao_id, character_qiao_id, macro_expires_at_ms) WHERE aggregate_state=1 AND macro_expires_at_ms IS NOT NULL`
+  `CREATE INDEX idx_buffer_macro_expire ON ai_message_buffer(user_qiao_id, instance_qiao_id, macro_expires_at_ms) WHERE aggregate_state=1 AND macro_expires_at_ms IS NOT NULL`
 - 时间基准：聚合到期相关计算/比较统一使用数据库时钟
   `NOW()` → `(EXTRACT(EPOCH FROM NOW())*1000)::BIGINT`
 
@@ -178,7 +178,7 @@
 ```sql
 -- 查询最近的 OPEN 窗口
 SELECT * FROM ai_message_buffer
-WHERE user_qiao_id = $1 AND character_qiao_id = $2
+WHERE user_qiao_id = $1 AND instance_qiao_id = $2
   AND aggregate_state = 1
 ORDER BY created_at DESC LIMIT 1;
 ```
@@ -206,7 +206,7 @@ ORDER BY created_at DESC LIMIT 1;
 ```sql
 -- 创建新的 buffer 窗口
 INSERT INTO ai_message_buffer (
-  user_qiao_id, character_qiao_id, aggregate_state,
+  user_qiao_id, instance_qiao_id, aggregate_state,
   first_msg_id_client, last_msg_id_client,
   message_count, micro_expires_at_ms, macro_expires_at_ms,
   last_message_category, last_msg_time_ms, created_at
@@ -219,7 +219,7 @@ INSERT INTO ai_message_buffer (
 
 -- 同时将消息内容写入 ai_conversation_items
 INSERT INTO ai_conversation_items (
-  user_qiao_id, character_qiao_id, role,
+  user_qiao_id, instance_qiao_id, role,
   message_type, text_content, media_url, media_metadata,
   buffer_id, client_msg_ids, is_excluded_from_context, created_at
 ) VALUES (
@@ -252,7 +252,7 @@ WHERE aggregate_state = 1
     OR
     (macro_expires_at_ms IS NOT NULL AND macro_expires_at_ms <= $now_ms)
   )
-ORDER BY user_qiao_id, character_qiao_id, created_at;
+ORDER BY user_qiao_id, instance_qiao_id, created_at;
 ```
 
 **对每个会话执行抢占式锁定**（事务内）：
@@ -262,7 +262,7 @@ BEGIN;
 
 -- 1. 取消该会话所有旧的 OPEN/LOCKED 窗口
 UPDATE ai_message_buffer SET aggregate_state = 4  -- CANCELLED
-WHERE user_qiao_id = $user_id AND character_qiao_id = $char_id
+WHERE user_qiao_id = $user_id AND instance_qiao_id = $char_id
   AND aggregate_state IN (1, 2);
 
 -- 2. 锁定最新且到期的窗口
@@ -276,7 +276,7 @@ RETURNING *;
 COMMIT;
 ```
 
-**并发处理**：唯一索引 `UNIQUE(user_qiao_id, character_qiao_id) WHERE aggregate_state=2` 保证同会话最多一个 LOCKED，冲突时重试。
+**并发处理**：唯一索引 `UNIQUE(user_qiao_id, instance_qiao_id) WHERE aggregate_state=2` 保证同会话最多一个 LOCKED，冲突时重试。
 
 ### 3) 执行与落地（processor）
 
@@ -295,6 +295,7 @@ WHERE id = $buffer_id AND aggregate_state = 2;
 ```
 
 **重要说明**：
+
 - ❌ **不在此阶段写入 assistant 消息**到 `ai_conversation_items`
 - ✅ **assistant 消息在实际发送时写入**（见下一节）
 - 理由：保持 `ImmutableSnowflakeModel` 的不可变性，每条消息独立插入，记录真实发送时间
@@ -304,6 +305,7 @@ WHERE id = $buffer_id AND aggregate_state = 2;
 **架构决策**：消息发送不再是 buffer 处理流程的一部分，而是由 `process_llm_response` 统一处理。
 
 **流程**：
+
 1. Buffer 标记为 `COMPLETE` 后，调用 `process_llm_response` 处理 LLM 响应中的所有操作：
    - `attack_detected`：标记攻击消息
    - `should_block`：阻断角色
@@ -340,6 +342,7 @@ async def _send_message_list(...):
 ```
 
 **重要说明**：
+
 - ✅ `buffer_id`：关联到触发此次 LLM 请求的 buffer
 - ✅ LLM 元数据（`llm_config_id`、`response_id`）存储在 `ai_request_logs` 表中
 - ✅ 通过 `buffer_id` 可以关联到 `ai_request_logs`，查询 LLM 请求的完整元数据
@@ -356,7 +359,7 @@ async def _send_message_list(...):
 SELECT role, content
 FROM ai_conversation_items
 WHERE user_qiao_id = $user_id
-  AND character_qiao_id = $char_id
+  AND instance_qiao_id = $char_id
   AND is_excluded_from_context = false  -- 排除攻击消息
 ORDER BY created_at DESC
 LIMIT 20;
@@ -386,3 +389,4 @@ LIMIT 20;
 
 - 处理轨迹审计：如需，可增加 `locked_at/canceled_at` 等审计列（当前不必需）。
 - 归档策略：定期将 `ai_conversation_items` 中超过 14 天的记录迁移到 `ai_conversation_items_archive`。
+- 归档后立即从主表删除对应记录，并执行 `VACUUM ANALYZE ai_conversation_items` 保持索引健康

@@ -35,6 +35,7 @@ class ContactCreate(BaseModel):
     custom_avatar_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
     tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, max_length=500, description="Contact remark/notes")
+    source: Optional[str] = Field("unknown", max_length=32, description="Contact creation source identifier")
 
 
 class ContactUpdate(BaseModel):
@@ -59,6 +60,7 @@ class ContactResponse(ContactBase):
     is_muted: bool = Field(..., description="Is muted")
     is_blocked: bool = Field(..., description="Is blocked")
     is_deleted: bool = Field(..., description="Is deleted")
+    source: str = Field(..., description="Contact creation source identifier")
     created_at: datetime = Field(..., description="Contact creation time")
     updated_at: datetime = Field(..., description="Last update time")
 
@@ -75,6 +77,7 @@ class ContactListResponse(BaseSchema):
     is_pinned: bool = Field(..., description="Is pinned")
     is_muted: bool = Field(..., description="Is muted")
     is_blocked: bool = Field(..., description="Is blocked")
+    source: str = Field(..., description="Contact creation source identifier")
     created_at: datetime = Field(..., description="Contact creation time")
     # Profile fields
     nickname: Optional[str] = Field(None, description="Contact nickname from profile")

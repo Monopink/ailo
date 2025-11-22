@@ -128,13 +128,13 @@ class ContactRequestInventoryPendingError(BaseAppException):
 
     def __init__(
         self,
-        template_type_id: Optional[int] = None,
+        type_id: Optional[int] = None,
         message: str = "Contact request is waiting for template inventory",
         details: Optional[Dict[str, Any]] = None,
     ):
         error_details = details or {}
-        if template_type_id is not None:
-            error_details["template_type_id"] = template_type_id
+        if type_id is not None:
+            error_details["type_id"] = type_id
 
         super().__init__(
             message=message,
@@ -237,7 +237,7 @@ class AIServiceError(BaseAppException):
 
 
 class AIDataAccessError(AIServiceError):
-    """Exception raised when character/AI data queries fail."""
+    """Exception raised when AI instance data queries fail."""
 
     def __init__(
         self,
@@ -251,7 +251,7 @@ class AIDataAccessError(AIServiceError):
             error_details["query"] = query
 
         super().__init__(
-            ai_service="character_data",
+            ai_service="instance_data",
             reason=reason,
             message=message,
             details=error_details,
@@ -259,40 +259,40 @@ class AIDataAccessError(AIServiceError):
         self.error_code = "AI_DATA_ACCESS_ERROR"
 
 
-class AICharacterNotFoundError(NotFoundError):
-    """Exception raised when an AI character is not found."""
+class AIInstanceNotFoundError(NotFoundError):
+    """Exception raised when an AI instance is not found."""
 
     def __init__(
         self,
-        character_id: Optional[str] = None,
-        message: str = "AI character not found",
+        instance_id: Optional[str] = None,
+        message: str = "AI instance not found",
         details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
-            message=message, resource_type="ai_character", resource_id=character_id, details=details
+            message=message, resource_type="ai_instance", resource_id=instance_id, details=details
         )
-        self.error_code = "AI_CHARACTER_NOT_FOUND"
+        self.error_code = "AI_INSTANCE_NOT_FOUND"
 
 
-class AICharacterInactiveError(BaseAppException):
-    """Exception raised when AI character is inactive or blocked."""
+class AIInstanceInactiveError(BaseAppException):
+    """Exception raised when an AI instance is inactive or blocked."""
 
     def __init__(
         self,
-        character_id: Optional[str] = None,
+        instance_id: Optional[str] = None,
         status: Optional[int] = None,
-        message: str = "AI character is inactive",
+        message: str = "AI instance is inactive",
         details: Optional[Dict[str, Any]] = None,
     ):
         error_details = details or {}
-        if character_id:
-            error_details["character_id"] = character_id
+        if instance_id:
+            error_details["instance_id"] = instance_id
         if status:
             error_details["status"] = status
 
         super().__init__(
             message=message,
-            error_code="AI_CHARACTER_INACTIVE",
+            error_code="AI_INSTANCE_INACTIVE",
             status_code=http_status.HTTP_403_FORBIDDEN,
             details=error_details,
         )
@@ -344,14 +344,14 @@ class AIRelationshipError(AIServiceError):
         self.error_code = "AI_RELATIONSHIP_ERROR"
 
 
-class AICharacterCreationError(AIServiceError):
-    """Exception raised for character creation errors."""
+class AIInstanceCreationError(AIServiceError):
+    """Exception raised for instance creation errors."""
 
     def __init__(
         self,
         template_id: Optional[str] = None,
         reason: Optional[str] = None,
-        message: str = "Character creation failed",
+        message: str = "Instance creation failed",
         details: Optional[Dict[str, Any]] = None,
     ):
         error_details = details or {}
@@ -359,12 +359,12 @@ class AICharacterCreationError(AIServiceError):
             error_details["template_id"] = template_id
 
         super().__init__(
-            ai_service="character_creation",
+            ai_service="instance_creation",
             reason=reason,
             message=message,
             details=error_details,
         )
-        self.error_code = "AI_CHARACTER_CREATION_ERROR"
+        self.error_code = "AI_INSTANCE_CREATION_ERROR"
 
 
 # Security Exceptions

@@ -19,7 +19,7 @@ from .views import (
     user_profile_log_view,
     contact_view,
     # AI Management
-    ai_character_view,
+    ai_instance_view,
     ai_personality_view,
     ai_personality_placeholder_view,
     ai_style_view,
@@ -27,12 +27,14 @@ from .views import (
     ai_dimension_view,
     ai_style_dimension_view,
     ai_dimension_relationship_mapping_view,
-    ai_character_template_view,
-    ai_profile_template_view,
+    ai_template_view,
+    ai_persona_view,
+    ai_type_view,
     ai_request_log_view,
     ai_message_buffer_view,
     ai_conversation_item_view,
     ai_conversation_item_archive_view,
+    square_type_entry_view,
     # Message Management
     message_history_view,
     notification_push_history_view,
@@ -57,9 +59,10 @@ from .views import (
     user_auth_view,
     # Business Management
     contact_request_view,
+    pending_contact_request_view,
     message_delivery_failure_view,
     # AI Extended Management
-    ai_character_dimension_view,
+    ai_instance_dimension_view,
     # Statistics Management
     stats_user_daily_view,
     stats_user_weekly_view,
@@ -74,7 +77,7 @@ from .views import (
     stats_ai_weekly_view,
     stats_ai_monthly_view,
     # AI Testing (for routing only, not in menu)
-    ai_character_chat_test_view,
+    ai_instance_chat_test_view,
     ai_style_test_view,
     # LLM Testing (for routing only, not in menu)
     llm_config_test_view,
@@ -82,8 +85,8 @@ from .views import (
 from .views.dashboard_view import DashboardView
 from .views.system_settings_view import SystemSettingsView
 from .views.ai_advanced_edit_views import (
-    character_advanced_edit_view,
-    character_template_advanced_edit_view,
+    instance_advanced_edit_view,
+    template_advanced_edit_view,
     personality_advanced_edit_view,
     style_advanced_edit_view,
 )
@@ -139,6 +142,7 @@ user_group = DropDown(
         profile_view,
         contact_view,
         contact_request_view,
+        pending_contact_request_view,
         user_profile_log_view,
     ],
     always_open=False,
@@ -157,14 +161,25 @@ message_group = DropDown(
 )
 admin.add_view(message_group)
 
+discovery_group = DropDown(
+    "Discovery",
+    icon="fa fa-compass",
+    views=[
+        square_type_entry_view,
+    ],
+    always_open=False,
+)
+admin.add_view(discovery_group)
+
 ai_group = DropDown(
     "AI",
     icon="fa fa-robot",
     views=[
-        ai_profile_template_view,
-        ai_character_template_view,
-        ai_character_view,
-        ai_character_dimension_view,
+        ai_type_view,
+        ai_persona_view,
+        ai_template_view,
+        ai_instance_view,
+        ai_instance_dimension_view,
         ai_style_view,
         ai_personality_view,
         ai_relationship_view,
@@ -182,7 +197,7 @@ ai_group = DropDown(
 admin.add_view(ai_group)
 
 # Register test views separately (not in menu, accessed via row actions only)
-admin.add_view(ai_character_chat_test_view)
+admin.add_view(ai_instance_chat_test_view)
 admin.add_view(ai_style_test_view)
 admin.add_view(llm_config_test_view)
 
@@ -271,8 +286,8 @@ system_group = DropDown(
 admin.add_view(system_group)
 
 # Register advanced editing custom views (not in menu, accessed via buttons)
-admin.add_view(character_advanced_edit_view)
-admin.add_view(character_template_advanced_edit_view)
+admin.add_view(instance_advanced_edit_view)
+admin.add_view(template_advanced_edit_view)
 admin.add_view(personality_advanced_edit_view)
 admin.add_view(style_advanced_edit_view)
 

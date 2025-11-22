@@ -19,14 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import SessionLocal
 from enums.common import AIMessageBufferState
-from models.ai.character import AIMessageBuffer
+from models.ai.instance import AIMessageBuffer
 from services.message.processing.buffer import (
     finalize_buffer_if_locked,
     get_locked_context,
     lock_conversation_preemptively,
     _get_db_now_ms,
 )
-from services.ai.queries.character_queries import get_character_relationship_config
+from services.ai.queries.instance_queries import get_instance_relationship_config
 from services.ai.conversation_flow import process_conversation
 from utils.logging import get_logger
 
@@ -112,7 +112,7 @@ async def _scan_and_process() -> None:
     Steps:
     1. Promote WAITING_WAKEUP buffers whose wake timers expired
     2. Query expired OPEN contexts (buffer_expires_at_ms <= now)
-    3. Group by conversation (user_qiao_id, character_qiao_id)
+    3. Group by conversation (user_qiao_id, instance_qiao_id)
     4. For each conversation, attempt preemptive lock
     5. If locked successfully, trigger AI processing asynchronously
     """
@@ -144,7 +144,7 @@ async def _scan_and_process() -> None:
             result = await db.execute(
                 select(
                     AIMessageBuffer.user_qiao_id,
-                    AIMessageBuffer.character_qiao_id,
+                    AIMessageBuffer.instance_qiao_id,
                 )
                 .where(
                     AIMessageBuffer.aggregate_state == AIMessageBufferState.OPEN,
@@ -174,8 +174,8 @@ async def _scan_and_process() -> None:
             )
 
             # Process each conversation asynchronously without blocking the scanner loop
-            for user_qiao_id, character_qiao_id in conversations:
-                _schedule_processing_task(user_qiao_id, character_qiao_id)
+            for user_qiao_id, instance_qiao_id in conversations:
+                _schedule_processing_task(user_qiao_id, instance_qiao_id)
 
         except Exception as e:
             logger.error("scan_and_process_error", error=str(e), exc_info=True)
@@ -183,7 +183,7 @@ async def _scan_and_process() -> None:
 
 async def _process_conversation_async(
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
 ) -> None:
     """
     Process a single conversation asynchronously.
@@ -196,7 +196,7 @@ async def _process_conversation_async(
 
     Args:
         user_qiao_id: User external ID
-        character_qiao_id: Character external ID
+        instance_qiao_id: Instance external ID
     """
     try:
         async with SessionLocal() as db:
@@ -204,7 +204,7 @@ async def _process_conversation_async(
             buffer_id = await lock_conversation_preemptively(
                 db=db,
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
             )
 
             if not buffer_id:
@@ -212,7 +212,7 @@ async def _process_conversation_async(
                 logger.debug(
                     "lock_failed_for_conversation",
                     user_qiao_id=user_qiao_id,
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                 )
                 return
 
@@ -226,7 +226,7 @@ async def _process_conversation_async(
                 )
                 return
 
-            relationship_config = await get_character_relationship_config(db, character_qiao_id)
+            relationship_config = await get_instance_relationship_config(db, instance_qiao_id)
             no_reply_prob = float((relationship_config or {}).get("no_reply_probability", 0.0))
             should_reply = random.random() >= no_reply_prob
 
@@ -247,7 +247,7 @@ async def _process_conversation_async(
                 "triggering_ai_processing",
                 buffer_id=buffer_id,
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
             )
 
             # Step 3: Trigger AI processing
@@ -255,7 +255,7 @@ async def _process_conversation_async(
             await process_conversation(
                 db=db,
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 message_content=context.content,
                 message_type="text",
                 locked_buffer_id=buffer_id,
@@ -268,7 +268,7 @@ async def _process_conversation_async(
                 "ai_processing_completed",
                 buffer_id=buffer_id,
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
             )
 
     except Exception as e:
@@ -276,20 +276,20 @@ async def _process_conversation_async(
             "process_conversation_async_error",
             error=str(e),
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             exc_info=True,
         )
         # Don't re-raise - let scanner continue with other conversations
 
 
-def _schedule_processing_task(user_qiao_id: str, character_qiao_id: str) -> None:
+def _schedule_processing_task(user_qiao_id: str, instance_qiao_id: str) -> None:
     """
     Schedule conversation processing in background with concurrency limits.
     """
 
     async def _runner() -> None:
         async with _processing_semaphore:
-            await _process_conversation_async(user_qiao_id, character_qiao_id)
+            await _process_conversation_async(user_qiao_id, instance_qiao_id)
 
     task = asyncio.create_task(_runner())
     _processing_tasks.add(task)
@@ -305,7 +305,7 @@ def _schedule_processing_task(user_qiao_id: str, character_qiao_id: str) -> None
             logger.error(
                 "processing_task_failed",
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 error=str(exc),
             )
 

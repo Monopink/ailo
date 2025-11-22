@@ -20,7 +20,7 @@ class AIRequestLogView(ModelView):
 
     exclude_fields_from_create = [
         "id",
-        "character_id",
+        "instance_id",
         "user_id",
         "style_id",
         "personality_id",
@@ -37,7 +37,7 @@ class AIRequestLogView(ModelView):
     ]
     exclude_fields_from_edit = [
         "id",
-        "character_id",
+        "instance_id",
         "user_id",
         "style_id",
         "personality_id",
@@ -67,7 +67,7 @@ class AIRequestLogView(ModelView):
     fields_default_sort = [("created_at", True)]
     searchable_fields = [
         "id",
-        "character_id",
+        "instance_id",
         "user_id",
         "provider_name",
         "model_name",
@@ -76,7 +76,7 @@ class AIRequestLogView(ModelView):
     ]
     sortable_fields = [
         "id",
-        "character_id",
+        "instance_id",
         "user_id",
         "request_type",
         "status",
@@ -88,7 +88,7 @@ class AIRequestLogView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal request log ID"),
-        StringField("character_id", label="AI Character ID", help_text="AI character snowflake ID"),
+        StringField("instance_id", label="AI Instance ID", help_text="AI instance snowflake ID"),
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         IntegerField("style_id", label="AI Style ID"),
         IntegerField("personality_id", label="AI Personality ID"),

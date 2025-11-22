@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 
 async def create_system_conversation(
-    app_id: str, master_key: str, base_url: str, name: str = "系统对话"
+    app_id: str, master_key: str, base_url: str, name: str = "uni_conversation_id"
 ) -> tuple[bool, Optional[str], Optional[str]]:
     """
     Create LeanCloud system conversation (service conversation).
@@ -24,7 +24,7 @@ async def create_system_conversation(
         app_id: LeanCloud App ID
         master_key: LeanCloud Master Key
         base_url: LeanCloud base URL (e.g., https://zcuk19lc.lc-cn-n1-shared.com)
-        name: System conversation name (default: "系统对话")
+        name: System conversation name
 
     Returns:
         Tuple of (success, conversation_id, error_message)
@@ -37,7 +37,7 @@ async def create_system_conversation(
             app_id="xxx",
             master_key="yyy",
             base_url="https://xxx.lc-cn-n1-shared.com",
-            name="系统对话"
+            name="uni_conversation_id"
         )
     """
     url = f"{base_url}/1.2/rtm/service-conversations"

@@ -4,9 +4,9 @@ AI system models module.
 This module imports all AI-related SQLAlchemy models.
 """
 
-# Character and conversation models
-from .character import (
-    AICharacter,
+# Instance and conversation models
+from .instance import (
+    AIInstance,
     AIMessageBuffer,
     AIConversationItem,
     AIConversationItemArchive,
@@ -14,7 +14,7 @@ from .character import (
 )
 
 # Template models
-from .template import AICharacterTemplate, AIProfileTemplate
+from .template import AIType, AITemplate, AIPersona
 
 # Personality models
 from .personality import AIPersonality, AIPersonalityPlaceholder
@@ -23,22 +23,23 @@ from .personality import AIPersonality, AIPersonalityPlaceholder
 from .style import AIStyle, AIRelationship, AIDimension, AIStyleDimension, AIDimensionRelationshipMapping
 
 # Score models
-from .character_dimension import AICharacterDimension
+from .instance_dimension import AIInstanceDimension
 
 # Log models
 from .log import AIRequestLog
 
 # Export all AI models
 __all__ = [
-    # Character and conversation
-    "AICharacter",
+    # Instance and conversation
+    "AIInstance",
     "AIMessageBuffer",
     "AIConversationItem",
     "AIConversationItemArchive",
     "AIConversationState",
     # Templates
-    "AICharacterTemplate",
-    "AIProfileTemplate",
+    "AIType",
+    "AITemplate",
+    "AIPersona",
     # Personality
     "AIPersonality",
     "AIPersonalityPlaceholder",
@@ -48,8 +49,8 @@ __all__ = [
     "AIDimension",
     "AIStyleDimension",
     "AIDimensionRelationshipMapping",
-    # Character Dimension
-    "AICharacterDimension",
+    # Instance Dimension
+    "AIInstanceDimension",
     # Log
     "AIRequestLog",
 ]

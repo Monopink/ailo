@@ -61,11 +61,11 @@ from .message import (
 
 # AI schemas
 from .ai import (
-    AICharacterBase,
-    AICharacterCreate,
-    AICharacterUpdate,
-    AICharacterResponse,
-    AICharacterListResponse,
+    AIInstanceBase,
+    AIInstanceCreate,
+    AIInstanceUpdate,
+    AIInstanceResponse,
+    AIInstanceListResponse,
     AIStyleBase,
     AIStyleCreate,
     AIStyleResponse,
@@ -77,7 +77,7 @@ from .ai import (
     AIRequestLogResponse,
     AIChatRequest,
     AIChatResponse,
-    BatchAICharacterDelete,
+    BatchAIInstanceDelete,
 )
 
 # Admin schemas
@@ -158,11 +158,11 @@ __all__ = [
     "MediaFileUpload",
     "MediaFileResponse",
     # AI
-    "AICharacterBase",
-    "AICharacterCreate",
-    "AICharacterUpdate",
-    "AICharacterResponse",
-    "AICharacterListResponse",
+    "AIInstanceBase",
+    "AIInstanceCreate",
+    "AIInstanceUpdate",
+    "AIInstanceResponse",
+    "AIInstanceListResponse",
     "AIStyleBase",
     "AIStyleCreate",
     "AIStyleResponse",
@@ -174,7 +174,7 @@ __all__ = [
     "AIRequestLogResponse",
     "AIChatRequest",
     "AIChatResponse",
-    "BatchAICharacterDelete",
+    "BatchAIInstanceDelete",
     # Admin
     "AdminUserBase",
     "AdminUserCreate",

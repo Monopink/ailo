@@ -31,10 +31,6 @@ class AIPersonality(AutoIncrementModel):
         JSONB, nullable=True, comment="JSON schema definition (JSONB for better performance)"
     )
 
-    usage_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Reference count"
-    )
-
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -45,6 +41,10 @@ class AIPersonality(AutoIncrementModel):
 
     # Constraints
     __table_args__ = (UniqueConstraint("name", name="ai_personalities_name_key"),)
+
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        return f"<span>[{self.id}] {escape(self.name)} / {escape(self.display_name)}</span>"
 
 
 class AIPersonalityPlaceholder(AutoIncrementModel):

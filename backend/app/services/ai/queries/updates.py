@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.ai import AIConversationItem, AICharacterDimension, AICharacter
+from models.ai import AIConversationItem, AIInstanceDimension, AIInstance
 from utils.logging import get_logger
 from enums.common import ConversationItemContextStatus
 
@@ -47,7 +47,7 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
     Persist a new conversation item row using simple content fields.
     """
     try:
-        required_fields = {"user_qiao_id", "character_qiao_id", "role", "message_type"}
+        required_fields = {"user_qiao_id", "instance_qiao_id", "role", "message_type"}
         missing = required_fields - set(item_data.keys())
         if missing:
             logger.error("conversation_item_missing_fields", missing=list(missing))
@@ -78,7 +78,7 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
 
         item = AIConversationItem(
             user_qiao_id=item_data["user_qiao_id"],
-            character_qiao_id=item_data["character_qiao_id"],
+            instance_qiao_id=item_data["instance_qiao_id"],
             role=item_data["role"],
             message_type=message_type,
             text_content=text_content,
@@ -101,7 +101,7 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
             "conversation_item_saved",
             item_id=item.id,
             user_qiao_id=item.user_qiao_id,
-            character_qiao_id=item.character_qiao_id,
+            instance_qiao_id=item.instance_qiao_id,
             role=item.role,
             message_type=message_type,
         )
@@ -113,30 +113,30 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
         return None
 
 
-async def update_relationship_scores(
-    db: AsyncSession, character_id: int, new_scores: Dict[str, int]
+async def update_instance_relationship_scores(
+    db: AsyncSession, instance_id: int, new_scores: Dict[str, int]
 ) -> bool:
     """
-    Update relationship scores for a character.
+    Update relationship scores for an instance.
 
     Args:
         db: Database session
-        character_id: Character ID
+        instance_id: Instance ID
         new_scores: Dictionary of score updates {dimension_name: new_value}
 
     Returns:
         True if successful, False otherwise
     """
     try:
-        # Get existing scores for this character with dimension names
+        # Get existing scores for this instance with dimension names
         from models.ai import AIDimension
         result = await db.execute(
-            select(AICharacterDimension, AIDimension.name)
+            select(AIInstanceDimension, AIDimension.name)
             .join(
                 AIDimension,
-                AICharacterDimension.dimension_id == AIDimension.id,
+                AIInstanceDimension.dimension_id == AIDimension.id,
             )
-            .where(AICharacterDimension.character_id == character_id)
+            .where(AIInstanceDimension.instance_id == instance_id)
         )
         rows = result.all()
         existing_scores = {dim_name: score for (score, dim_name) in rows}
@@ -158,7 +158,7 @@ async def update_relationship_scores(
 
                 logger.debug(
                     "relationship_score_updated",
-                    character_id=character_id,
+                    instance_id=instance_id,
                     dimension_name=dimension_name,
                     old_value=old_value,
                     new_value=new_value,
@@ -169,13 +169,13 @@ async def update_relationship_scores(
             await db.flush()
             logger.debug(
                 "relationship_scores_batch_updated",
-                character_id=character_id,
+                instance_id=instance_id,
                 updated_count=updated_count,
             )
         else:
             logger.warning(
                 "relationship_scores_no_dimension_matched",
-                character_id=character_id,
+                instance_id=instance_id,
                 provided_dimensions=list(new_scores.keys()),
                 existing_dimensions=list(existing_scores.keys()),
             )
@@ -186,21 +186,21 @@ async def update_relationship_scores(
         logger.error(
             "relationship_scores_update_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
             new_scores=new_scores,
         )
         return False
 
 
-async def set_current_relationship(
-    db: AsyncSession, character_id: int, relationship_id: int, relationship_display_name: str
+async def set_instance_current_relationship(
+    db: AsyncSession, instance_id: int, relationship_id: int, relationship_display_name: str
 ) -> bool:
     """
-    Set current relationship for all score rows of a character.
+    Set current relationship for all score rows of an instance.
 
     Args:
         db: Database session
-        character_id: Character ID
+        instance_id: Instance ID
         relationship_id: Selected relationship ID
         relationship_display_name: Display name of relationship
 
@@ -208,31 +208,31 @@ async def set_current_relationship(
         True if updated at least one row, False otherwise
     """
     try:
-        result = await db.execute(select(AICharacter).where(AICharacter.id == character_id))
-        character = result.scalar_one_or_none()
-        if not character:
-            logger.warning("character_not_found_for_relationship_update", character_id=character_id)
+        result = await db.execute(select(AIInstance).where(AIInstance.id == instance_id))
+        instance = result.scalar_one_or_none()
+        if not instance:
+            logger.warning("instance_not_found_for_relationship_update", instance_id=instance_id)
             return False
 
-        old_id = character.relationship_id
-        character.relationship_id = relationship_id
+        old_id = instance.relationship_id
+        instance.relationship_id = relationship_id
         await db.flush()
 
         # Increment relationship_counts only when relationship actually changes
         if old_id != relationship_id:
             try:
-                await increment_relationship_count(db, character_id, relationship_id)
+                await increment_instance_relationship_count(db, instance_id, relationship_id)
             except Exception as inc_err:
                 logger.error(
-                    "increment_relationship_count_failed",
+                    "instance_increment_relationship_count_failed",
                     error=str(inc_err),
-                    character_id=character_id,
+                    instance_id=instance_id,
                     relationship_id=relationship_id,
                 )
 
         logger.debug(
             "current_relationship_set",
-            character_id=character_id,
+            instance_id=instance_id,
             relationship_id=relationship_id,
             relationship_display_name=relationship_display_name,
         )
@@ -240,45 +240,45 @@ async def set_current_relationship(
 
     except Exception as e:
         logger.error(
-            "set_current_relationship_failed",
+            "set_instance_current_relationship_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
             relationship_id=relationship_id,
         )
         return False
 
 
-async def increment_relationship_count(db: AsyncSession, character_id: int, relationship_id: int) -> bool:
+async def increment_instance_relationship_count(db: AsyncSession, instance_id: int, relationship_id: int) -> bool:
     """
-    Increment relationship usage count in ai_characters.relationship_counts (JSONB).
+    Increment relationship usage count in ai_instances.relationship_counts (JSONB).
 
     Args:
         db: Database session
-        character_id: Character ID
+        instance_id: Instance ID
         relationship_id: Relationship ID to increment
 
     Returns:
         True if updated, False otherwise
     """
     try:
-        result = await db.execute(select(AICharacter).where(AICharacter.id == character_id))
-        character = result.scalar_one_or_none()
-        if not character:
-            logger.warning("character_not_found_for_count_increment", character_id=character_id)
+        result = await db.execute(select(AIInstance).where(AIInstance.id == instance_id))
+        instance = result.scalar_one_or_none()
+        if not instance:
+            logger.warning("instance_not_found_for_count_increment", instance_id=instance_id)
             return False
 
-        counts = character.relationship_counts or {}
+        counts = instance.relationship_counts or {}
         key = str(int(relationship_id))
         try:
             counts[key] = int(counts.get(key, 0)) + 1
         except Exception:
             counts[key] = 1
-        character.relationship_counts = counts
+        instance.relationship_counts = counts
         await db.flush()
 
         logger.debug(
             "relationship_count_incremented",
-            character_id=character_id,
+            instance_id=instance_id,
             relationship_id=relationship_id,
             new_count=counts.get(key, 0),
         )
@@ -288,7 +288,7 @@ async def increment_relationship_count(db: AsyncSession, character_id: int, rela
         logger.error(
             "relationship_count_increment_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
             relationship_id=relationship_id,
         )
         return False
@@ -317,7 +317,7 @@ async def mark_conversation_item_as_excluded(
             "conversation_item_marked_excluded",
             item_id=conversation_item_id,
             user_qiao_id=item.user_qiao_id,
-            character_qiao_id=item.character_qiao_id,
+            instance_qiao_id=item.instance_qiao_id,
         )
         return True
 
@@ -330,33 +330,33 @@ async def mark_conversation_item_as_excluded(
         return False
 
 
-async def update_character_memory(db: AsyncSession, character_qiao_id: str, new_memory: str) -> bool:
+async def update_instance_memory(db: AsyncSession, instance_qiao_id: str, new_memory: str) -> bool:
     """
-    Update character memory.
+    Update instance memory.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
         new_memory: New memory content
 
     Returns:
         True if successful, False otherwise
     """
     try:
-        result = await db.execute(select(AICharacter).where(AICharacter.qiao_id == character_qiao_id))
-        character = result.scalar_one_or_none()
+        result = await db.execute(select(AIInstance).where(AIInstance.qiao_id == instance_qiao_id))
+        instance = result.scalar_one_or_none()
 
-        if not character:
-            logger.warning("character_not_found_for_memory_update", character_qiao_id=character_qiao_id)
+        if not instance:
+            logger.warning("instance_not_found_for_memory_update", instance_qiao_id=instance_qiao_id)
             return False
 
-        old_memory = character.memory
-        character.memory = new_memory
+        old_memory = instance.memory
+        instance.memory = new_memory
         await db.flush()
 
         logger.debug(
-            "character_memory_updated",
-            character_qiao_id=character_qiao_id,
+            "instance_memory_updated",
+            instance_qiao_id=instance_qiao_id,
             old_memory_length=len(old_memory) if old_memory else 0,
             new_memory_length=len(new_memory),
         )
@@ -365,40 +365,40 @@ async def update_character_memory(db: AsyncSession, character_qiao_id: str, new_
 
     except Exception as e:
         logger.error(
-            "character_memory_update_failed",
+            "instance_memory_update_failed",
             error=str(e),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         return False
 
 
-async def update_character_status(db: AsyncSession, character_qiao_id: str, status: int) -> bool:
+async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status: int) -> bool:
     """
-    Update character status.
+    Update instance status.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
         status: New status (1=active, 2=inactive, 3=blocked)
 
     Returns:
         True if successful, False otherwise
     """
     try:
-        result = await db.execute(select(AICharacter).where(AICharacter.qiao_id == character_qiao_id))
-        character = result.scalar_one_or_none()
+        result = await db.execute(select(AIInstance).where(AIInstance.qiao_id == instance_qiao_id))
+        instance = result.scalar_one_or_none()
 
-        if not character:
-            logger.warning("character_not_found_for_status_update", character_qiao_id=character_qiao_id)
+        if not instance:
+            logger.warning("instance_not_found_for_status_update", instance_qiao_id=instance_qiao_id)
             return False
 
-        old_status = character.status
-        character.status = status
+        old_status = instance.status
+        instance.status = status
         await db.flush()
 
         logger.debug(
-            "character_status_updated",
-            character_qiao_id=character_qiao_id,
+            "instance_status_updated",
+            instance_qiao_id=instance_qiao_id,
             old_status=old_status,
             new_status=status,
         )
@@ -407,9 +407,9 @@ async def update_character_status(db: AsyncSession, character_qiao_id: str, stat
 
     except Exception as e:
         logger.error(
-            "character_status_update_failed",
+            "instance_status_update_failed",
             error=str(e),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             status=status,
         )
         return False

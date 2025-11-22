@@ -13,7 +13,7 @@ from api.deps import get_current_user
 from models.user import User
 from schemas.discovery import SquareContactListResponse, StrangerProfileResponse
 from services.discovery import service as discovery_service
-from enums import AIProfileCategory, PROFILE_CATEGORY_API_TO_DB
+from enums import SquareCategory
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -37,11 +37,10 @@ async def get_square_contacts(
     """Get square page contacts with pagination."""
     try:
         # Validate and convert category
-        category_db = None
+        category_enum = None
         if category is not None:
             try:
-                api_enum = AIProfileCategory(category)
-                category_db = PROFILE_CATEGORY_API_TO_DB[api_enum]
+                category_enum = SquareCategory(category)
             except ValueError:
                 logger.warning("invalid_category", user_qiao_id=current_user.qiao_id, category=category)
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的分类参数")
@@ -49,7 +48,7 @@ async def get_square_contacts(
         return await discovery_service.get_square_contacts(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            category=category_db,
+            category=category_enum,
             page=page,
             page_size=page_size,
         )
@@ -78,7 +77,7 @@ async def get_stranger_profile(
     """Get stranger profile by qiao_id.
 
     This endpoint is public and does not require authentication.
-    It returns basic profile information from ai_profile_templates.
+    It returns basic profile information from ai_personas.
     """
     try:
         profile = await discovery_service.get_stranger_profile(db=db, qiao_id=qiao_id)

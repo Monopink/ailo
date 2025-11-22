@@ -119,7 +119,7 @@ async def test_json_schema_compatibility(
             return {
                 "success": True,
                 "mode": "strict",
-                "message": f"✅ JSON Schema is supported! Mode updated from '{old_mode}' to 'strict' (AI Character ready)",
+                "message": f"✅ JSON Schema is supported! Mode updated from '{old_mode}' to 'strict' (AI Instance ready)",
                 "response": llm_result.get("response"),
                 "usage": usage,
                 "model": llm_result.get("model"),

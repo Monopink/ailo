@@ -1,5 +1,5 @@
 """
-AI Character Chat Test Executor Service
+AI Instance Chat Test Executor Service
 
 Handles test execution by directly calling the main conversation logic.
 Manages test session logging and result formatting while maintaining
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from enums import MessageType
-from models.ai.character import AICharacter
+from models.ai.instance import AIInstance
 from models.ai.log import AIRequestLog
 from models.user import User
 from services.ai.conversation_flow import process_conversation
@@ -38,12 +38,12 @@ class ExecutorError(Exception):
 
 
 class ExecutorService:
-    """Stateless service for AI character chat test execution"""
+    """Stateless service for AI instance chat test execution"""
 
-    async def execute_character_chat_test(
+    async def execute_instance_chat_test(
         self,
         db: AsyncSession,
-        character_qiao_id: str,
+        instance_qiao_id: str,
         user_qiao_id: str,
         llm_config_name: str,
         test_message: str,
@@ -52,7 +52,7 @@ class ExecutorService:
         contact_conv_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Execute AI character chat test by calling main conversation logic.
+        Execute AI instance chat test by calling main conversation logic.
 
         This method ensures 100% reuse of the main business logic by directly
         calling process_conversation() while managing test-specific logging.
@@ -62,7 +62,7 @@ class ExecutorService:
 
         Args:
             db: Database session
-            character_qiao_id: Character's qiao_id
+            instance_qiao_id: Instance's qiao_id
             user_qiao_id: Test user's qiao_id
             llm_config_name: LLM configuration name
             test_message: Test message content
@@ -76,23 +76,23 @@ class ExecutorService:
         log_id = None
 
         try:
-            # Query character and user IDs
-            character_result = await db.execute(
-                select(AICharacter.id, AICharacter.style_id, AICharacter.personality_id).where(
-                    AICharacter.qiao_id == character_qiao_id
+            # Query instance and user IDs
+            instance_result = await db.execute(
+                select(AIInstance.id, AIInstance.style_id, AIInstance.personality_id).where(
+                    AIInstance.qiao_id == instance_qiao_id
                 )
             )
-            character = character_result.one()
+            instance = instance_result.one()
 
             user_result = await db.execute(select(User.id).where(User.qiao_id == user_qiao_id))
             user_id = user_result.scalar_one()
 
             # Create test request log
             log_entry = AIRequestLog(
-                character_id=character.id,
+                instance_id=instance.id,
                 user_id=user_id,
-                style_id=character.style_id,
-                personality_id=character.personality_id,
+                style_id=instance.style_id,
+                personality_id=instance.personality_id,
                 request_type="test",
                 request={"message": test_message, "config_name": llm_config_name},
                 status=1,  # pending
@@ -102,8 +102,8 @@ class ExecutorService:
             log_id = log_entry.id
 
             logger.info(
-                "ai_character_test_started",
-                character_qiao_id=character_qiao_id,
+                "ai_instance_test_started",
+                instance_qiao_id=instance_qiao_id,
                 user_qiao_id=user_qiao_id,
                 log_id=log_id,
             )
@@ -119,7 +119,7 @@ class ExecutorService:
                 locked_buffer_id, user_message_item_id = await self._seed_test_user_context(
                     db=db,
                     user_qiao_id=user_qiao_id,
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                     conv_id=contact_conv_id,
                     test_message=test_message,
                 )
@@ -130,7 +130,7 @@ class ExecutorService:
             conversation_result = await process_conversation(
                 db=db,
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 message_content=test_message,
                 config_name=llm_config_name,
                 request_overrides=request_overrides,
@@ -232,8 +232,8 @@ class ExecutorService:
                     )
 
             logger.info(
-                "ai_character_test_completed",
-                character_qiao_id=character_qiao_id,
+                "ai_instance_test_completed",
+                instance_qiao_id=instance_qiao_id,
                 response_time_ms=response_time_ms,
                 messages_count=len(all_messages),
             )
@@ -252,8 +252,8 @@ class ExecutorService:
                     pass  # Don't fail on logging error
 
             logger.error(
-                "ai_character_test_failed",
-                character_qiao_id=character_qiao_id,
+                "ai_instance_test_failed",
+                instance_qiao_id=instance_qiao_id,
                 error=str(e),
                 exc_info=True,
             )
@@ -265,7 +265,7 @@ class ExecutorService:
         *,
         db: AsyncSession,
         user_qiao_id: str,
-        character_qiao_id: str,
+        instance_qiao_id: str,
         conv_id: str,
         test_message: str,
     ) -> Tuple[int, int]:
@@ -282,7 +282,7 @@ class ExecutorService:
         event = InboundMessageEvent(
             conversation_id=conv_id,
             from_qiao_id=user_qiao_id,
-            to_qiao_id=character_qiao_id,
+            to_qiao_id=instance_qiao_id,
             content=test_message,
             message_type=MessageType.TEXT,
             sent_at_ms=now_ms,
@@ -291,8 +291,8 @@ class ExecutorService:
             supports_typing=False,
         )
 
-        await add_message_to_buffer(db, event, character_qiao_id)
-        locked_window = await force_lock_latest_window(db, user_qiao_id, character_qiao_id)
+        await add_message_to_buffer(db, event, instance_qiao_id)
+        locked_window = await force_lock_latest_window(db, user_qiao_id, instance_qiao_id)
         if not locked_window:
             raise ExecutorError(
                 "Unable to lock buffered user context for testing",
@@ -301,7 +301,7 @@ class ExecutorService:
 
         logger.debug(
             "test_user_context_locked",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
             buffer_id=locked_window.buffer_id,
             conversation_item_id=locked_window.conversation_item_id,

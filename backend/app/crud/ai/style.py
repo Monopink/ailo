@@ -145,7 +145,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
     ) -> List[AIStyle]:
         """
-        Get available styles for character creation.
+        Get available styles for instance creation.
 
         Args:
             db: Database session

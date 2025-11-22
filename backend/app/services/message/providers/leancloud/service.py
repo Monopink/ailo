@@ -158,7 +158,7 @@ async def initialize_service(db: AsyncSession) -> bool:
         # Create system conversation
         logger.info("leancloud_creating_system_conversation")
         success, conversation_id, error_msg = await create_system_conversation(
-            app_id=app_id, master_key=master_key, base_url=base_url, name="系统对话"
+            app_id=app_id, master_key=master_key, base_url=base_url, name="uni_conversation_id"
         )
 
         if not success:
@@ -238,7 +238,7 @@ async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, Optional[
         # Create new system conversation
         logger.info("leancloud_refreshing_system_conversation")
         success, conversation_id, error_msg = await create_system_conversation(
-            app_id=app_id, master_key=master_key, base_url=base_url, name="系统对话"
+            app_id=app_id, master_key=master_key, base_url=base_url, name="uni_conversation_id"
         )
 
         if not success:

@@ -7,7 +7,15 @@ This module contains Starlette-Admin views for managing LLM providers and config
 from typing import Dict, Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, IntegerField, FloatField, JSONField, HasOne, EnumField, BooleanField
+from starlette_admin import (
+    StringField,
+    IntegerField,
+    FloatField,
+    JSONField,
+    HasOne,
+    EnumField,
+    BooleanField,
+)
 from starlette_admin.actions import link_row_action, row_action
 from starlette_admin.exceptions import FormValidationError
 from admin.views.base import IntegerEnumField
@@ -160,7 +168,13 @@ class LLMConfigView(ModelView):
     async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
         """Normalize field types before persisting."""
         # Convert empty strings to None for optional JSON fields
-        json_fields = ["default_tools", "default_extra_headers", "default_extra_query", "extra_params", "stop_sequences"]
+        json_fields = [
+            "default_tools",
+            "default_extra_headers",
+            "default_extra_query",
+            "extra_params",
+            "stop_sequences",
+        ]
         for field in json_fields:
             if field in data and data[field] == "":
                 data[field] = None
@@ -232,7 +246,7 @@ class LLMConfigView(ModelView):
             help_text=(
                 "JSON Schema support status. "
                 "This field is automatically updated after testing. "
-                "strict=Verified supported (can be used for AI Character), "
+                "strict=Verified supported (can be used for AI Instance), "
                 "disabled=Verified not supported (test only), "
                 "auto=Not verified (please test first)"
             ),

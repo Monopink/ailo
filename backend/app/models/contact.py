@@ -16,14 +16,14 @@ from models.base import SnowflakeModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
     from models.user import User
-    from models.ai.character import AICharacter
+    from models.ai.instance import AIInstance
 
 
 class Contact(SnowflakeModel, SoftDeleteMixin):
     """
     Contact relationship model.
 
-    Manages contact relationships between users and AI characters.
+    Manages contact relationships between users and AI instances.
     """
 
     __tablename__ = "contacts"
@@ -60,6 +60,14 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
 
     remark: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Contact remark/notes")
 
+    source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unknown",
+        server_default=text("'unknown'"),
+        comment="Contact creation source (discovery/search/recommend/etc.)",
+    )
+
     is_pinned: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), comment="Is pinned: 1=yes, 0=no"
     )
@@ -89,9 +97,9 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         lazy="select",
         viewonly=True,
     )
-    _contact_character: Mapped[Optional["AICharacter"]] = relationship(
-        "AICharacter",
-        primaryjoin="and_(Contact.contact_id == AICharacter.id, Contact.contact_type == 2)",
+    _contact_instance: Mapped[Optional["AIInstance"]] = relationship(
+        "AIInstance",
+        primaryjoin="and_(Contact.contact_id == AIInstance.id, Contact.contact_type == 2)",
         foreign_keys=[contact_id],
         lazy="select",
         viewonly=True,
@@ -102,8 +110,8 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         """Return the appropriate contact object based on contact_type."""
         if self.contact_type == 1:  # User
             return self._contact_user
-        elif self.contact_type == 2:  # AI Character
-            return self._contact_character
+        elif self.contact_type == 2:  # AI Instance
+            return self._contact_instance
         return None
 
     # Indexes - Only essential indexes for MVP
@@ -112,7 +120,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         Index("idx_contacts_user_qiao_id", "user_qiao_id"),
         Index("idx_contacts_contact_qiao_id", "contact_qiao_id"),
         # Unique constraint: one owner can only have one contact record for each contact
-        UniqueConstraint("user_id", "contact_id", "contact_type", name="contacts_user_contact_unique"),
+        UniqueConstraint("user_id", "contact_qiao_id", name="contacts_user_contact_qiao_unique"),
     )
 
 
@@ -140,7 +148,7 @@ class ContactRequest(SnowflakeModel):
     )
 
     to_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True, comment="Target internal ID (NULL when AI character not created yet)"
+        BigInteger, nullable=True, comment="Target internal ID (NULL when AI instance not created yet)"
     )
 
     message: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Application message")
@@ -154,7 +162,33 @@ class ContactRequest(SnowflakeModel):
         nullable=False,
         default=ContactRequestStatus.PENDING,
         server_default=text("1"),
-        comment="Status: 1=pending, 2=accepted, 3=ignored, 4=expired, 5=rejected",
+        comment="Status: 1=pending, 2=accepted, 3=ignored, 8=processing, 9=failed",
+    )
+
+    failure_code: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Failure code explaining why request is pending (e.g., NO_TEMPLATE_AVAILABLE)",
+    )
+
+    failure_detail: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Structured failure metadata (template shortage details, etc.)",
+    )
+
+    retry_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Number of manual/system retries for this request",
+    )
+
+    last_retry_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
+        comment="Timestamp of last retry (manual or automated)",
     )
 
     expires_at: Mapped[datetime] = mapped_column(
@@ -171,10 +205,10 @@ class ContactRequest(SnowflakeModel):
         viewonly=True,
     )
 
-    # from_type=2 (AI) → ai_characters table
-    _from_character: Mapped[Optional["AICharacter"]] = relationship(
-        "AICharacter",
-        primaryjoin="and_(ContactRequest.from_id == AICharacter.id, ContactRequest.from_type == 2)",
+    # from_type=2 (AI) → ai_instances table
+    _from_instance: Mapped[Optional["AIInstance"]] = relationship(
+        "AIInstance",
+        primaryjoin="and_(ContactRequest.from_id == AIInstance.id, ContactRequest.from_type == 2)",
         foreign_keys=[from_id],
         lazy="select",
         viewonly=True,
@@ -190,10 +224,10 @@ class ContactRequest(SnowflakeModel):
         viewonly=True,
     )
 
-    # to_type=2 (AI) → ai_characters table
-    _to_character: Mapped[Optional["AICharacter"]] = relationship(
-        "AICharacter",
-        primaryjoin="and_(ContactRequest.to_id == AICharacter.id, ContactRequest.to_type == 2)",
+    # to_type=2 (AI) → ai_instances table
+    _to_instance: Mapped[Optional["AIInstance"]] = relationship(
+        "AIInstance",
+        primaryjoin="and_(ContactRequest.to_id == AIInstance.id, ContactRequest.to_type == 2)",
         foreign_keys=[to_id],
         lazy="select",
         viewonly=True,

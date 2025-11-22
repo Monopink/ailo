@@ -1,75 +1,42 @@
 """
 AI Template admin views.
 
-This module contains Starlette-Admin views for AI character and profile templates.
+This module contains Starlette-Admin views for AI instance configuration and persona inventory.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Sequence
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import StringField, TextAreaField, HasOne, IntegerField, JSONField
+from starlette_admin.fields import RelationField
+from starlette_admin._types import RequestAction
 from admin.fields import LocalDateTimeField
 from starlette_admin.actions import link_row_action
 from starlette_admin.exceptions import FormValidationError
 
-from models.ai.template import AICharacterTemplate, AIProfileTemplate
-from admin.views.base import IntegerEnumField, CategoryEnumField
-from enums import (
-    AIProfileCategory,
-    AIStyleStatus,
-    Gender,
-    ReusableStatus,
-    PROFILE_CATEGORY_API_TO_DB,
-    PROFILE_CATEGORY_DB_TO_API,
-)
+from models.ai.template import AITemplate, AIPersona
+from admin.views.base import IntegerEnumField
+from enums import AIStyleStatus, ReusableStatus, AIPersonaStatus
 
 
-class _CharacterTemplateDisplayNameField(StringField):
-    """Computed field to show associated Character Template display_name for AIProfileTemplate list."""
+class AITemplateView(ModelView):
+    """Enhanced AI Template view with proper field configuration."""
 
-    def __init__(
-        self, name: str = "character_template_display_name", label: str = "Character Template Name"
-    ):
-        super().__init__(name=name, label=label)
-        self.read_only = True
-        self.searchable = False
-        self.orderable = False
-
-    async def parse_obj(self, request, obj):  # type: ignore[override]
-        try:
-            # Prefer already-loaded relation
-            if hasattr(obj, "character_template") and obj.character_template is not None:
-                value = getattr(obj.character_template, "display_name", None)
-                if value:
-                    return str(value)
-
-            # Fallback: query by character_template_id
-            from sqlalchemy import select
-            from models.ai.template import AICharacterTemplate
-
-            character_template_id = getattr(obj, "character_template_id", None)
-            if not character_template_id:
-                return ""
-
-            session = request.state.session
-            result = await session.execute(
-                select(AICharacterTemplate.display_name).where(
-                    AICharacterTemplate.id == character_template_id
-                )
-            )
-            value = result.scalar_one_or_none()
-            return "" if value is None else str(value)
-        except Exception:
-            return ""
-
-
-
-class AICharacterTemplateView(ModelView):
-    """Enhanced AI Character Template view with proper field configuration."""
-
-    exclude_fields_from_create = ["id", "profile_count", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "profile_count", "created_at", "updated_at"]
-    exclude_fields_from_list = []
+    exclude_fields_from_create = [
+        "id",
+        "created_at",
+        "updated_at",
+        "type_id",  # Auto-filled from ai_type relationship
+    ]
+    exclude_fields_from_edit = [
+        "id",
+        "created_at",
+        "updated_at",
+        "type_id",  # Auto-filled from ai_type relationship
+    ]
+    exclude_fields_from_list = [
+        "type_id",  # Redundant with ai_type relationship field
+    ]
 
     def is_active(self, request: Request) -> bool:
         """Check if current page is related to this model (including advanced-edit)."""
@@ -85,20 +52,22 @@ class AICharacterTemplateView(ModelView):
         return False
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Auto-fill foreign keys before creating character template."""
+        """Auto-fill foreign keys before creating template."""
         # Auto-fill foreign keys from HasOne relationships
+        if hasattr(obj, "ai_type") and obj.ai_type is not None:
+            obj.type_id = obj.ai_type.id
         if hasattr(obj, "style") and obj.style is not None:
             obj.style_id = obj.style.id
         if hasattr(obj, "personality") and obj.personality is not None:
             obj.personality_id = obj.personality.id
-        if hasattr(obj, "profile") and obj.profile is not None:
-            obj.profile_id = obj.profile.id
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
 
         # Validate required foreign keys
         errors = {}
+        if not hasattr(obj, "type_id") or obj.type_id is None:
+            errors["ai_type"] = "AI Type is required"
         if not hasattr(obj, "style_id") or obj.style_id is None:
             errors["style"] = "AI Style is required"
         if not hasattr(obj, "personality_id") or obj.personality_id is None:
@@ -111,8 +80,10 @@ class AICharacterTemplateView(ModelView):
     searchable_fields = []
     sortable_fields = [
         "id",
+        "type_id",
         "style_id",
         "personality_id",
+        "priority",
         "status",
         "is_reusable",
         "profile_count",
@@ -121,11 +92,23 @@ class AICharacterTemplateView(ModelView):
     ]
 
     fields = [
-        StringField("id", label="ID", help_text="Internal character template ID"),
+        StringField("id", label="ID", help_text="Internal AI template ID"),
         StringField(
             "display_name",
             label="Display Name",
-            help_text="Human-readable name for this character template",
+            help_text="Human-readable name for this AI template",
+        ),
+        HasOne(
+            "ai_type",
+            identity="ai_type",
+            label="AI Type",
+            help_text="AI type grouping for this template",
+            required=True,
+        ),
+        IntegerField(
+            "type_id",
+            label="AI Type ID",
+            help_text="AI type grouped for this template",
         ),
         HasOne(
             "style",
@@ -144,24 +127,24 @@ class AICharacterTemplateView(ModelView):
         TextAreaField(
             "memory",
             label="Memory Settings",
-            help_text="Default memory settings for characters using this template",
+            help_text="Default memory settings for AI instances using this template",
         ),
         "prompt_variables",
         JSONField(
             "request_params",
             label="Request Parameters",
-            help_text="LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
+            help_text="LLM request parameters (temperature, max_tokens, etc.) - inherited by AI instances",
         ),
         StringField(
             "timezone",
             label="Timezone",
-            help_text="IANA timezone for instantiated characters (e.g., Asia/Shanghai)",
+            help_text="IANA timezone for instantiated AI instances (e.g., Asia/Shanghai)",
             required=True,
         ),
         IntegerField(
             "typing_speed_wpm",
             label="Typing Speed (WPM)",
-            help_text="Default typing speed that downstream characters inherit (words per minute)",
+            help_text="Default typing speed that downstream AI instances inherit (words per minute)",
             required=True,
         ),
         JSONField(
@@ -176,12 +159,11 @@ class AICharacterTemplateView(ModelView):
             help_text="Whether this template can be used multiple times",
             required=True,
         ),
-        HasOne(
-            "profile",
-            identity="ai_profile_template",
-            label="Profile Template",
-            help_text="Associated profile template (for single-use templates)",
-            required=False,
+        IntegerField(
+            "priority",
+            label="Priority",
+            help_text="Selection priority (lower number chosen first)",
+            required=True,
         ),
         IntegerEnumField(
             "status",
@@ -190,10 +172,23 @@ class AICharacterTemplateView(ModelView):
             help_text="Active templates can be used",
             required=True,
         ),
-        IntegerField("profile_count", label="Profile Count", help_text="Associated profile count"),
         LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
+
+    def get_fields_list(
+        self,
+        request: Request,
+        action: RequestAction = RequestAction.LIST,
+    ) -> Sequence[Any]:
+        """Skip relation fields that point to missing model attributes."""
+        base_fields = super().get_fields_list(request, action)
+        filtered_fields = []
+        for field in base_fields:
+            if isinstance(field, RelationField) and not hasattr(self.model, field.name):
+                continue
+            filtered_fields.append(field)
+        return filtered_fields
 
     row_actions = ["view", "edit", "advanced_edit"]
 
@@ -203,210 +198,211 @@ class AICharacterTemplateView(ModelView):
         icon_class="fas fa-cogs",
     )
     def advanced_edit_row_action(self, request: Request, pk: Any) -> str:
-        """Link to edit character template JSON fields."""
-        return f"/qiao-dash/ai_character_template/advanced-edit/{pk}"
+        """Link to edit AI template JSON fields."""
+        return f"/qiao-dash/ai_template/advanced-edit/{pk}"
 
 
-class AIProfileTemplateView(ModelView):
-    """Enhanced AI Profile Template view with proper field configuration."""
+class _PersonaRelatedStringField(StringField):
+    """Computed field showing Profile attribute for an AIPersona."""
+
+    def __init__(self, name: str, profile_attr: str, label: str):
+        super().__init__(name=name, label=label)
+        self._profile_attr = profile_attr
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request, obj):  # type: ignore[override]
+        try:
+            from sqlalchemy import select
+            from models.profile import Profile
+            from enums import ProfileOwnerType
+
+            session = request.state.session
+            if not getattr(obj, "qiao_id", None):
+                return ""
+            stmt = select(getattr(Profile, self._profile_attr)).where(
+                Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
+            )
+            result = await session.execute(stmt)
+            value = result.scalar_one_or_none()
+            return "" if value is None else str(value)
+        except Exception:
+            return ""
+
+
+class _PersonaGenderField(StringField):
+    """Computed field showing Profile.gender as enum name for an AIPersona."""
+
+    def __init__(self, name: str = "profile_gender", label: str = "Profile Gender"):
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request, obj):  # type: ignore[override]
+        try:
+            from sqlalchemy import select
+            from models.profile import Profile
+            from enums import ProfileOwnerType, Gender
+
+            session = request.state.session
+            if not getattr(obj, "qiao_id", None):
+                return ""
+            stmt = select(Profile.gender).where(
+                Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
+            )
+            result = await session.execute(stmt)
+            value = result.scalar_one_or_none()
+            if value is None:
+                return ""
+            try:
+                return Gender(int(value)).name
+            except Exception:
+                return str(value)
+        except Exception:
+            return ""
+
+
+class AIPersonaView(ModelView):
+    """AI persona inventory view."""
 
     exclude_fields_from_create = [
         "id",
-        "character_template_display_name",
-        "qiao_id",
+        "type_id",
+        "profile_nickname",
+        "profile_gender",
         "created_at",
         "updated_at",
     ]
     exclude_fields_from_edit = [
         "id",
-        "character_template_display_name",
-        "qiao_id",
+        "type_id",
+        "profile_nickname",
+        "profile_gender",
         "created_at",
         "updated_at",
     ]
 
+    async def create(self, request: Request, data: Dict[str, Any]) -> Any:
+        """Ensure qiao_id is generated if the admin did not override it."""
+        if not data.get("qiao_id"):
+            from models.base import generate_qiao_id
+
+            data["qiao_id"] = generate_qiao_id()
+
+        # Set default is_reusable to REUSABLE if not provided
+        if data.get("is_reusable") is None:
+            from enums import ReusableStatus
+
+            data["is_reusable"] = ReusableStatus.REUSABLE
+
+        return await super().create(request, data)
+
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        self._sync_ai_type(obj)
+        await super().before_create(request, data, obj)  # type: ignore[attr-defined]
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        self._sync_ai_type(obj)
+        await super().before_edit(request, data, obj)  # type: ignore[attr-defined]
+
+    def _sync_ai_type(self, obj: Any) -> None:
+        if hasattr(obj, "ai_type") and obj.ai_type is not None:
+            obj.type_id = getattr(obj.ai_type, "id", obj.type_id)
+
     def can_delete(self, request):
         return False
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Auto-fill foreign keys and generate IDs before creating profile template."""
-        # Auto-fill character_template_id from HasOne relationship
-        if hasattr(obj, "character_template") and obj.character_template is not None:
-            obj.character_template_id = obj.character_template.id
-
-        # Validate required foreign key
-        if not hasattr(obj, "character_template_id") or obj.character_template_id is None:
-            raise FormValidationError({"character_template": "Character Template is required"})
-
-        # Generate qiao_id if not provided
-        if not hasattr(obj, "qiao_id") or not obj.qiao_id:
-            from models.base import generate_qiao_id
-
-            obj.qiao_id = generate_qiao_id()
-
-        # Generate id if not provided (Snowflake ID)
-        if not hasattr(obj, "id") or not obj.id:
-            from utils.snowflake import generate_snowflake_id
-
-            obj.id = generate_snowflake_id()
-
-        # Convert category from form (int) or from obj to DB string value
-        # Ensures DB receives canonical strings even if the UI didn't touch category
-        raw = data.get("category", getattr(obj, "category", None))
-        if raw is None or raw == "":
-            data["category"] = None
-            obj.category = None
-        else:
-            mapped = None
-            try:
-                num = int(raw)
-                enum_val = AIProfileCategory(num)
-                mapped = PROFILE_CATEGORY_API_TO_DB.get(enum_val)
-            except Exception:
-                raw_str = str(raw)
-                if raw_str in PROFILE_CATEGORY_DB_TO_API:
-                    mapped = raw_str
-            data["category"] = mapped
-            obj.category = mapped
-
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Convert category from int to string before editing."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-
-        # Convert category from int (API enum) or pass-through canonical string
-        # Also handles when UI didn't submit category but after_find converted obj.category to int
-        raw = data.get("category", getattr(obj, "category", None))
-        logger.info(
-            f"[AIProfileTemplate before_edit] raw category from data: {data.get('category')}, from obj: {getattr(obj, 'category', None)}, final raw: {raw}"
-        )
-        if raw is None or raw == "":
-            data["category"] = None
-            obj.category = None
-        else:
-            mapped = None
-            try:
-                num = int(raw)
-                enum_val = AIProfileCategory(num)
-                mapped = PROFILE_CATEGORY_API_TO_DB.get(enum_val)
-            except Exception:
-                raw_str = str(raw)
-                if raw_str in PROFILE_CATEGORY_DB_TO_API:
-                    mapped = raw_str
-            data["category"] = mapped
-            obj.category = mapped
-
-        logger.info(
-            f"[AIProfileTemplate before_edit] final mapped category: {mapped}, data['category']: {data.get('category')}, obj.category: {obj.category}"
-        )
-
-    async def after_find(self, obj: Any) -> None:
-        """Convert category from DB string to int for IntegerEnumField display.
-
-        This ensures the dropdown shows the correct selected value in the admin UI.
-        """
-        import logging
-
-        logger = logging.getLogger(__name__)
-
-        # Convert DB string to API integer for display
-        if hasattr(obj, "category") and obj.category:
-            db_value = obj.category
-            api_enum = PROFILE_CATEGORY_DB_TO_API.get(db_value)
-            if api_enum:
-                obj.category = api_enum.value
-                logger.info(
-                    f"[AIProfileTemplate after_find] Converted category from '{db_value}' to {obj.category}"
-                )
-            else:
-                logger.warning(f"[AIProfileTemplate after_find] Unknown category value: {db_value}")
-        else:
-            logger.info(
-                f"[AIProfileTemplate after_find] obj.id: {getattr(obj, 'id', None)}, category is None or empty"
-            )
-
-        return None
-
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["qiao_id", "nickname", "category"]
+    searchable_fields = ["qiao_id"]
     sortable_fields = [
         "id",
         "qiao_id",
-        "category",
-        "nickname",
-        "gender",
-        "status",
         "is_reusable",
+        "status",
         "created_at",
         "updated_at",
     ]
 
     fields = [
-        StringField("id", label="ID", help_text="Internal profile template ID"),
-        StringField("qiao_id", label="Qiao ID", help_text="External external identifier for this template"),
-        CategoryEnumField(
-            "category",
-            enum=AIProfileCategory,
-            db_to_api_map=PROFILE_CATEGORY_DB_TO_API,
-            api_to_db_map=PROFILE_CATEGORY_API_TO_DB,
-            label="Category",
-            help_text="Profile template category (交友/恋爱/倾诉/闺蜜/同好)",
-            required=False,
+        StringField("id", label="ID", help_text="Internal persona identifier"),
+        StringField(
+            "qiao_id",
+            label="Persona Qiao ID",
+            help_text="System-generated qiao_id (editable if you need to override)",
         ),
+        _PersonaRelatedStringField("profile_nickname", profile_attr="nickname", label="Profile Nickname"),
+        _PersonaGenderField(),
         HasOne(
-            "character_template",
-            identity="ai_character_template",
-            label="Character Template",
-            help_text="Associated AI character template",
+            "ai_type",
+            identity="ai_type",
+            label="AI Type",
+            help_text="Select the AI type that owns this persona",
             required=True,
         ),
-        _CharacterTemplateDisplayNameField(),
-        StringField("nickname", label="Nickname", help_text="Character nickname"),
-        IntegerEnumField(
-            "gender", enum=Gender, label="Gender", help_text="Character gender (optional)", required=False
-        ),
-        StringField("avatar_url", label="Avatar URL", help_text="Character avatar image URL"),
-        TextAreaField("bio", label="Bio", help_text="Character biography and description"),
-        StringField("region", label="Region", help_text="Character location/region"),
         IntegerEnumField(
             "is_reusable",
             enum=ReusableStatus,
             label="Reusable",
-            help_text="Whether this template can be used multiple times",
+            help_text="1=reusable, 0=single-use",
             required=True,
         ),
         IntegerEnumField(
             "status",
-            enum=AIStyleStatus,
+            enum=AIPersonaStatus,
             label="Status",
-            help_text="Active templates can be used",
+            help_text="Persona lifecycle status",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At"),
-        LocalDateTimeField("updated_at", label="Updated At"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
+
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Ensure ai_type is set before creating a persona."""
+        if hasattr(obj, "ai_type") and obj.ai_type is not None:
+            obj.type_id = obj.ai_type.id
+
+        errors = {}
+        if not hasattr(obj, "type_id") or obj.type_id is None:
+            errors["ai_type"] = "AI Type is required"
+
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Ensure ai_type stays synchronized during edits."""
+        if hasattr(obj, "ai_type") and obj.ai_type is not None:
+            obj.type_id = obj.ai_type.id
+
+        errors = {}
+        if not hasattr(obj, "type_id") or obj.type_id is None:
+            errors["ai_type"] = "AI Type is required"
+
+        if errors:
+            raise FormValidationError(errors)
 
 
 # Create view instances
-ai_character_template_view = AICharacterTemplateView(
-    AICharacterTemplate,
-    name="AI Character Templates",
-    label="Character Templates",
+ai_template_view = AITemplateView(
+    AITemplate,
+    name="AI Templates",
+    label="Templates",
     icon="fa fa-file-text",
-    identity="ai_character_template",
+    identity="ai_template",
 )
 
-ai_profile_template_view = AIProfileTemplateView(
-    AIProfileTemplate,
-    name="AI Profile Templates",
-    label="Profile Templates",
-    icon="fa fa-file-user",
-    identity="ai_profile_template",
+ai_persona_view = AIPersonaView(
+    AIPersona,
+    name="AI Persona Inventory",
+    label="Personas",
+    icon="fa fa-user-robot",
+    identity="ai_persona",
 )
 
 # Export template views
 AI_TEMPLATE_VIEWS = [
-    ai_character_template_view,
-    ai_profile_template_view,
+    ai_template_view,
+    ai_persona_view,
 ]

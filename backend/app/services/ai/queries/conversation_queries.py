@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 async def get_conversation_contexts(
     db: AsyncSession,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     user_qiao_id: str,
     limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
@@ -33,7 +33,7 @@ async def get_conversation_contexts(
             .where(
                 and_(
                     AIConversationItem.user_qiao_id == user_qiao_id,
-                    AIConversationItem.character_qiao_id == character_qiao_id,
+                    AIConversationItem.instance_qiao_id == instance_qiao_id,
                     AIConversationItem.is_excluded_from_context
                     == ConversationItemContextStatus.INCLUDED,
                 )
@@ -53,7 +53,7 @@ async def get_conversation_contexts(
 
         logger.debug(
             "conversation_items_retrieved",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
             item_count=len(formatted),
         )
@@ -64,7 +64,7 @@ async def get_conversation_contexts(
         logger.error(
             "conversation_items_query_failed",
             error=str(exc),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
         )
         return []
@@ -73,7 +73,7 @@ async def get_conversation_contexts(
 async def get_conversation_history(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     limit: int = 20,
 ) -> List[Dict[str, Any]]:
     """
@@ -85,7 +85,7 @@ async def get_conversation_history(
             .where(
                 and_(
                     AIConversationItem.user_qiao_id == user_qiao_id,
-                    AIConversationItem.character_qiao_id == character_qiao_id,
+                    AIConversationItem.instance_qiao_id == instance_qiao_id,
                 )
             )
             .order_by(desc(AIConversationItem.created_at))
@@ -105,7 +105,7 @@ async def get_conversation_history(
         logger.debug(
             "conversation_history_retrieved",
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             count=len(history),
         )
 
@@ -116,7 +116,7 @@ async def get_conversation_history(
             "conversation_history_query_failed",
             error=str(exc),
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         return []
 
@@ -151,7 +151,7 @@ async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> Optiona
 
 async def get_items_for_archiving(
     db: AsyncSession,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     user_qiao_id: str,
     max_age_seconds: int = 604800,
     max_count: int = 100,
@@ -167,7 +167,7 @@ async def get_items_for_archiving(
             select(AIConversationItem)
             .where(
                 and_(
-                    AIConversationItem.character_qiao_id == character_qiao_id,
+                    AIConversationItem.instance_qiao_id == instance_qiao_id,
                     AIConversationItem.user_qiao_id == user_qiao_id,
                 )
             )
@@ -190,7 +190,7 @@ async def get_items_for_archiving(
 
         logger.debug(
             "conversation_items_for_archiving_identified",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
             total_items=len(items),
             to_archive=len(to_archive),
@@ -202,7 +202,7 @@ async def get_items_for_archiving(
         logger.error(
             "conversation_item_archiving_query_failed",
             error=str(exc),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
         )
         return [], 0
@@ -213,7 +213,7 @@ def _serialize_item(item: AIConversationItem) -> Dict[str, Any]:
     return {
         "id": item.id,
         "user_qiao_id": item.user_qiao_id,
-        "character_qiao_id": item.character_qiao_id,
+        "instance_qiao_id": item.instance_qiao_id,
         "role": item.role,
         "message_type": item.message_type,
         "text_content": item.text_content,

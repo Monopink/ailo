@@ -2,7 +2,7 @@
 Message Validation Service
 
 Validates message sending permissions based on bidirectional relationships
-between users and AI characters. Implements the Block functionality design
+between users and AI instances. Implements the Block functionality design
 from docs/prototype/message-flow.md (lines 486-554).
 """
 
@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.contact import Contact
-from models.ai.character import AICharacter
+from models.ai.instance import AIInstance
 from enums import ChatInfoType
 from utils.logging import get_logger
 
@@ -34,63 +34,63 @@ class MessageValidationService:
     Validates message sending permissions based on relationships.
 
     Implements two validation checks:
-    1. User blocked AI character (contact.is_blocked)
-    2. AI character blocked user (character.status == 3)
+    1. User blocked AI instance (contact.is_blocked)
+    2. AI instance blocked user (instance.status == 3)
     """
 
     async def validate_message_permission(
-        self, db: AsyncSession, from_qiao_id: str, character: AICharacter, contact: Contact
+        self, db: AsyncSession, from_qiao_id: str, instance: AIInstance, contact: Contact
     ) -> ValidationResult:
         """
-        Validate if user can send message to AI character.
+        Validate if user can send message to AI instance.
 
         Args:
             db: Database session
             from_qiao_id: User's qiao_id
-            character: AI character instance
+            instance: AI instance
             contact: Contact relationship instance
 
         Returns:
             ValidationResult with permission status and reason
         """
-        # Check 1: User blocked AI character
+        # Check 1: User blocked AI instance
         if contact.is_blocked:
             logger.info(
                 "message_blocked_by_user",
                 user_qiao_id=from_qiao_id,
-                character_qiao_id=character.qiao_id,
+                instance_qiao_id=instance.qiao_id,
                 contact_id=contact.id,
             )
             return ValidationResult(
                 allowed=False,
-                reason="User has blocked this AI character",
+                reason="User has blocked this AI instance",
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
-                error_code="USER_BLOCKED_CHARACTER",
+                error_code="USER_BLOCKED_INSTANCE",
             )
 
-        # Check 2: AI character blocked user
-        if character.status == 3:  # BLOCKED status
+        # Check 2: AI instance blocked user
+        if instance.status == 3:  # BLOCKED status
             logger.info(
-                "message_blocked_by_character",
+                "message_blocked_by_instance",
                 user_qiao_id=from_qiao_id,
-                character_qiao_id=character.qiao_id,
-                character_status=character.status,
+                instance_qiao_id=instance.qiao_id,
+                instance_status=instance.status,
             )
             return ValidationResult(
                 allowed=False,
-                reason="AI character has blocked this user",
+                reason="AI instance has blocked this user",
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
-                error_code="CHARACTER_BLOCKED_USER",
+                error_code="INSTANCE_BLOCKED_USER",
             )
 
         # All checks passed
         logger.debug(
-            "message_permission_granted", user_qiao_id=from_qiao_id, character_qiao_id=character.qiao_id
+            "message_permission_granted", user_qiao_id=from_qiao_id, instance_qiao_id=instance.qiao_id
         )
         return ValidationResult(allowed=True)
 
     async def validate_test_user_permission(
-        self, db: AsyncSession, test_user_qiao_id: str, character: AICharacter, contact: Contact
+        self, db: AsyncSession, test_user_qiao_id: str, instance: AIInstance, contact: Contact
     ) -> ValidationResult:
         """
         Validate test user permission for chat testing.
@@ -101,35 +101,35 @@ class MessageValidationService:
         Args:
             db: Database session
             test_user_qiao_id: Test user's qiao_id
-            character: AI character instance
+            instance: AI instance
             contact: Contact relationship instance
 
         Returns:
             ValidationResult with permission status and detailed suggestions
         """
-        # Check 1: User blocked AI character
+        # Check 1: User blocked AI instance
         if contact.is_blocked:
             return ValidationResult(
                 allowed=False,
-                reason=f"Test user '{test_user_qiao_id}' has blocked AI character '{character.qiao_id}'",
+                reason=f"Test user '{test_user_qiao_id}' has blocked AI instance '{instance.qiao_id}'",
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
-                error_code="TEST_USER_BLOCKED_CHARACTER",
+                error_code="TEST_USER_BLOCKED_INSTANCE",
                 suggestions=[
-                    "Unblock the AI character in Contacts management",
+                    "Unblock the AI instance in Contacts management",
                     "Set contact.is_blocked = 0",
                 ],
             )
 
-        # Check 2: AI character blocked user
-        if character.status == 3:  # BLOCKED status
+        # Check 2: AI instance blocked user
+        if instance.status == 3:  # BLOCKED status
             return ValidationResult(
                 allowed=False,
-                reason=f"AI character '{character.qiao_id}' has blocked test user '{test_user_qiao_id}'",
+                reason=f"AI instance '{instance.qiao_id}' has blocked test user '{test_user_qiao_id}'",
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
-                error_code="CHARACTER_BLOCKED_TEST_USER",
+                error_code="INSTANCE_BLOCKED_TEST_USER",
                 suggestions=[
-                    "Change character status from BLOCKED to ACTIVE",
-                    "Check AI Character management to update status",
+                    "Change instance status from BLOCKED to ACTIVE",
+                    "Check AI Instance management to update status",
                 ],
             )
 

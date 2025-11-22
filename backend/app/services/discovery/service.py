@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.system import system_configs
-from enums import PROFILE_CATEGORY_DB_TO_API
+from enums import SquareCategory
 from schemas.discovery import SquareContactResponse, SquareContactListResponse, PaginationInfo, StrangerProfileResponse
 from services.discovery import data as discovery_data
 from services.security.rate_limiter import check_rate_limit
@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 async def get_square_contacts(
     db: AsyncSession,
     user_qiao_id: str,
-    category: Optional[str] = None,
+    category: Optional[SquareCategory] = None,
     page: int = 1,
     page_size: Optional[int] = None,
 ) -> SquareContactListResponse:
@@ -30,7 +30,7 @@ async def get_square_contacts(
     Args:
         db: Database session
         user_qiao_id: Current user's qiao_id
-        category: Optional category filter (DB string format)
+        category: Optional category filter (SquareCategory enum)
         page: Page number (1-indexed)
         page_size: Items per page (None = use config default)
 
@@ -48,7 +48,8 @@ async def get_square_contacts(
             )
 
         # Check rate limit
-        rate_key = f"{user_qiao_id}:{category or 'all'}"
+        category_key = category.name if category else "all"
+        rate_key = f"{user_qiao_id}:{category_key}"
         allowed, error_code, retry_after = await check_rate_limit(
             identifier=rate_key, group="square", db=db
         )
@@ -62,27 +63,33 @@ async def get_square_contacts(
             )
             raise ValueError(f"Request too frequent, wait {retry_after} seconds")
 
-        # Query templates with pagination
-        templates, total = await discovery_data.get_random_templates(
-            db=db, user_qiao_id=user_qiao_id, category=category, page=page, page_size=page_size
+        # Query square entries with pagination
+        category_value = category.value if category else None
+        entries, total = await discovery_data.get_random_persona_entries(
+            db=db, user_qiao_id=user_qiao_id, category=category_value, page=page, page_size=page_size
         )
 
         # Transform to response format
         items = []
-        for template in templates:
-            api_enum = PROFILE_CATEGORY_DB_TO_API.get(template.category) if template.category else None
-            category_api = api_enum.value if api_enum is not None else None
+        for entry, persona, profile in entries:
+            category_api = None
+            if entry.square_category is not None:
+                try:
+                    category_api = SquareCategory(entry.square_category).value
+                except ValueError:
+                    category_api = None
 
             items.append(
-                SquareContactResponse(
-                    qiao_id=template.qiao_id,
-                    category=category_api,
-                    nickname=template.nickname,
-                    gender=template.gender,
-                    avatar_url=template.avatar_url,
-                    bio=template.bio,
-                    region=template.region,
-                )
+            SquareContactResponse(
+                qiao_id=persona.qiao_id,
+                type_id=entry.type_id,
+                category=category_api,
+                nickname=getattr(profile, "nickname", None),
+                gender=getattr(profile, "gender", None),
+                avatar_url=getattr(profile, "avatar_url", None),
+                bio=getattr(profile, "bio", None),
+                region=getattr(profile, "region", None),
+            )
             )
 
         # Build pagination info
@@ -111,8 +118,8 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[Stran
     """
     Get stranger profile by qiao_id.
 
-    This is a public endpoint that returns basic profile information
-    from ai_profile_templates without requiring authentication.
+    This is a public endpoint that returns basic persona metadata (profiles + square entries)
+    without requiring authentication.
 
     Args:
         db: Database session
@@ -122,25 +129,29 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[Stran
         StrangerProfileResponse or None if not found
     """
     try:
-        # Query profile template by qiao_id
-        template = await discovery_data.get_template_by_qiao_id(db=db, qiao_id=qiao_id)
+        profile, category = await discovery_data.get_persona_profile_by_qiao_id(
+            db=db, qiao_id=qiao_id
+        )
 
-        if not template:
+        if not profile:
             logger.warning("stranger_profile_not_found", qiao_id=qiao_id)
             return None
 
         # Transform to response format
-        # Convert DB string category to API integer (Profile category)
-        api_enum = PROFILE_CATEGORY_DB_TO_API.get(template.category) if template.category else None
-        category_api = api_enum.value if api_enum is not None else None
+        category_api = None
+        if category is not None:
+            try:
+                category_api = SquareCategory(category).value
+            except ValueError:
+                category_api = None
 
         profile = StrangerProfileResponse(
-            qiao_id=template.qiao_id,
-            nickname=template.nickname,
-            gender=template.gender,
-            avatar_url=template.avatar_url,
-            bio=template.bio,
-            region=template.region,
+            qiao_id=profile.owner_qiao_id,
+            nickname=profile.nickname,
+            gender=profile.gender,
+            avatar_url=profile.avatar_url,
+            bio=profile.bio,
+            region=profile.region,
             category=category_api,
         )
 

@@ -4,14 +4,14 @@ AI system schemas module.
 This module imports all AI-related Pydantic schemas.
 """
 
-# Character schemas
-from .character import (
-    AICharacterBase,
-    AICharacterCreate,
-    AICharacterUpdate,
-    AICharacterResponse,
-    AICharacterListResponse,
-    BatchAICharacterDelete,
+# Instance schemas
+from .instance import (
+    AIInstanceBase,
+    AIInstanceCreate,
+    AIInstanceUpdate,
+    AIInstanceResponse,
+    AIInstanceListResponse,
+    BatchAIInstanceDelete,
 )
 
 # Chat schemas
@@ -58,16 +58,20 @@ from .personality import (
     AIPersonalityPlaceholderCreate,
     AIPersonalityPlaceholderUpdate,
     AIPersonalityPlaceholderResponse,
-    AIProfileTemplateBase,
-    AIProfileTemplateCreate,
-    AIProfileTemplateUpdate,
-    AIProfileTemplateResponse,
 )
 from .template import (
-    AICharacterTemplateBase,
-    AICharacterTemplateCreate,
-    AICharacterTemplateUpdate,
-    AICharacterTemplate as AICharacterTemplateResponse,
+    AITypeBase,
+    AITypeCreate,
+    AITypeUpdate,
+    AIType as AITypeResponse,
+    AITemplateBase,
+    AITemplateCreate,
+    AITemplateUpdate,
+    AITemplate as AITemplateResponse,
+    AIPersonaBase,
+    AIPersonaCreate,
+    AIPersonaUpdate,
+    AIPersona as AIPersonaResponse,
 )
 
 # Log schemas
@@ -76,20 +80,20 @@ from .log import (
     AIRequestLogCreate,
     AIRequestLogUpdate,
     AIRequestLogResponse,
-    AICharacterStats,
+    AIInstanceStats,
     AIUserStats,
     AISystemStats,
 )
 
 # Export all AI schemas
 __all__ = [
-    # Character
-    "AICharacterBase",
-    "AICharacterCreate",
-    "AICharacterUpdate",
-    "AICharacterResponse",
-    "AICharacterListResponse",
-    "BatchAICharacterDelete",
+    # Instance
+    "AIInstanceBase",
+    "AIInstanceCreate",
+    "AIInstanceUpdate",
+    "AIInstanceResponse",
+    "AIInstanceListResponse",
+    "BatchAIInstanceDelete",
     # Chat
     "AIChatRequest",
     "AIChatResponse",
@@ -123,20 +127,24 @@ __all__ = [
     "AIPersonalityPlaceholderCreate",
     "AIPersonalityPlaceholderUpdate",
     "AIPersonalityPlaceholderResponse",
-    "AICharacterTemplateBase",
-    "AICharacterTemplateCreate",
-    "AICharacterTemplateUpdate",
-    "AICharacterTemplateResponse",
-    "AIProfileTemplateBase",
-    "AIProfileTemplateCreate",
-    "AIProfileTemplateUpdate",
-    "AIProfileTemplateResponse",
+    "AITypeBase",
+    "AITypeCreate",
+    "AITypeUpdate",
+    "AITypeResponse",
+    "AITemplateBase",
+    "AITemplateCreate",
+    "AITemplateUpdate",
+    "AITemplateResponse",
+    "AIPersonaBase",
+    "AIPersonaCreate",
+    "AIPersonaUpdate",
+    "AIPersonaResponse",
     # Log
     "AIRequestLogBase",
     "AIRequestLogCreate",
     "AIRequestLogUpdate",
     "AIRequestLogResponse",
-    "AICharacterStats",
+    "AIInstanceStats",
     "AIUserStats",
     "AISystemStats",
 ]

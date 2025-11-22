@@ -42,7 +42,7 @@ class MediaFile(SnowflakeModel):
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="File size in bytes")
 
     upload_by_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Uploader type: 1=user, 2=ai_character, 3=system"
+        Integer, nullable=False, comment="Uploader type: 1=user, 2=ai_instance, 3=system"
     )
 
     upload_by_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Uploader internal ID")

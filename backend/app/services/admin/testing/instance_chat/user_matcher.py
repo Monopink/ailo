@@ -1,8 +1,8 @@
 """
-AI Character Chat Test User Matcher Service
+AI Instance Chat Test User Matcher Service
 
 Provides utilities to list and validate user contacts that can be used for
-chat testing with AI characters.
+chat testing with AI instances.
 """
 
 from typing import Any, Dict, List, Optional
@@ -13,7 +13,7 @@ from enums import ContactType, UserType, ProfileOwnerType
 from models.contact import Contact
 from models.user import User
 from models.profile import Profile
-from services.ai.types import CharacterContext
+from services.ai.types import InstanceContext
 from utils.logging import get_logger
 from crud.profile import profile as profile_crud
 from schemas.profile import ProfileCreate
@@ -34,7 +34,7 @@ class UserMatcherError(Exception):
 
 
 class UserMatcherService:
-    """Stateless service for selecting and validating character contacts"""
+    """Stateless service for selecting and validating instance contacts"""
 
     async def _fetch_virtual_test_users(self, db: AsyncSession) -> List[Dict[str, Any]]:
         """Load all virtual (test) users for selection."""
@@ -64,24 +64,24 @@ class UserMatcherService:
             )
         return virtual_users
 
-    async def find_test_user_for_character(
+    async def find_test_user_for_instance(
         self,
         db: AsyncSession,
-        character_context: CharacterContext,
+        instance_context: InstanceContext,
         preferred_user_qiao_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Find and validate test user associated with the given AI character.
+        Find and validate test user associated with the given AI instance.
 
         Args:
             db: Database session
-            character_context: AI character context from validation
+            instance_context: AI instance context from validation
             preferred_user_qiao_id: Optional user qiao_id selected by admin
 
         Returns:
             Dict containing selected test user info (if resolved) and available contacts.
         """
-        contacts = await self._fetch_character_contacts(db, character_context["character_qiao_id"])
+        contacts = await self._fetch_instance_contacts(db, instance_context["instance_qiao_id"])
         virtual_users = await self._fetch_virtual_test_users(db)
 
         if not virtual_users:
@@ -172,7 +172,7 @@ class UserMatcherService:
 
         logger.info(
             "test_user_match_success",
-            character_qiao_id=character_context["character_qiao_id"],
+            instance_qiao_id=instance_context["instance_qiao_id"],
             test_user_qiao_id=test_user_info["qiao_id"],
             conversation_id=test_user_info.get("conversation_id"),
         )
@@ -225,11 +225,11 @@ class UserMatcherService:
         )
         return created.to_dict()
 
-    async def _fetch_character_contacts(
-        self, db: AsyncSession, character_qiao_id: str
+    async def _fetch_instance_contacts(
+        self, db: AsyncSession, instance_qiao_id: str
     ) -> List[Dict[str, Any]]:
         """
-        Load all active user contacts linked to this AI character.
+        Load all active user contacts linked to this AI instance.
         """
         stmt = (
             select(Contact, User, Profile)
@@ -242,7 +242,7 @@ class UserMatcherService:
                 ),
             )
             .where(
-                Contact.contact_qiao_id == character_qiao_id,
+                Contact.contact_qiao_id == instance_qiao_id,
                 Contact.contact_type == ContactType.AI,
                 Contact.is_deleted == 0,
                 User.user_type == UserType.VIRTUAL,

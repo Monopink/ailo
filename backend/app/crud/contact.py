@@ -130,6 +130,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             "custom_avatar_url": obj_in.custom_avatar_url,
             "tags": obj_in.tags,
             "remark": obj_in.remark,
+            "source": (obj_in.source or "unknown"),
         }
 
         db_obj = self.model(**contact_data)
@@ -357,6 +358,13 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
             await db.commit()
             await db.refresh(request)
         return request
+
+    async def get_for_update(self, db: AsyncSession, *, request_id: int) -> Optional[ContactRequest]:
+        """Fetch a contact request row with FOR UPDATE locking."""
+        result = await db.execute(
+            select(self.model).where(self.model.id == request_id).with_for_update()
+        )
+        return result.scalar_one_or_none()
 
 
 # Create CRUD instances

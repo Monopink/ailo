@@ -105,7 +105,7 @@
           <div class="col-md-6">
             <label for="current_relationship" class="form-label">Current Relationship</label>
             <select class="form-select" id="current_relationship" name="current_relationship">
-              <option value="" {% if not form_data or not form_data.get('current_relationship') %}selected{% endif %}>None (New Character)</option>
+              <option value="" {% if not form_data or not form_data.get('current_relationship') %}selected{% endif %}>None (New Instance)</option>
               {% if relationships %}
               {% for relationship in relationships %}
               <option value="{{ relationship.id }}" {% if form_data and form_data.get('current_relationship')==relationship.id|string %}selected{% endif %}>{{

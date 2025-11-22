@@ -44,8 +44,8 @@ class _DimensionDisplayNameField(StringField):
 class AIStyleView(ModelView):
     """Enhanced AI Style view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "usage_count", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "usage_count", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
 
     def is_active(self, request: Request) -> bool:
         """Check if current page is related to this model (including advanced-edit and test)."""
@@ -60,16 +60,9 @@ class AIStyleView(ModelView):
     def can_delete(self, request):
         return False
 
-    async def before_edit(self, request: Request, data: Dict, obj: Any) -> None:
-        """Validate status change before editing."""
-        from services.ai.usage_tracking import validate_status_change
-
-        if "status" in data:
-            await validate_status_change(request.state.session, "style", obj.id, data["status"])
-
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at", "updated_at"]
+    sortable_fields = ["id", "name", "display_name", "status", "created_at", "updated_at"]
 
     fields = [
         StringField("id", label="ID", help_text="Internal style ID"),
@@ -77,7 +70,6 @@ class AIStyleView(ModelView):
         StringField(
             "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
         ),
-        IntegerField("usage_count", label="Usage Count", help_text="Number of characters using this style"),
         IntegerEnumField(
             "status",
             enum=AIStyleStatus,
@@ -128,19 +120,12 @@ WAKE_ADJUSTMENT_CHOICES = [
 class AIRelationshipView(ModelView):
     """Enhanced AI Relationship view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "usage_count", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "usage_count", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
     exclude_fields_from_list = []
 
     def can_delete(self, request):
         return False
-
-    async def before_edit(self, request: Request, data: Dict, obj: Any) -> None:
-        """Validate status change before editing."""
-        from services.ai.usage_tracking import validate_status_change
-
-        if "status" in data:
-            await validate_status_change(request.state.session, "relationship", obj.id, data["status"])
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["name", "display_name"]
@@ -152,7 +137,6 @@ class AIRelationshipView(ModelView):
         "wake_time_max_ms",
         "wake_window_ms",
         "no_reply_probability",
-        "usage_count",
         "status",
         "created_at",
         "updated_at",
@@ -226,7 +210,6 @@ class AIRelationshipView(ModelView):
             help_text="Active relationships can be used",
             required=True,
         ),
-        IntegerField("usage_count", label="Usage Count", help_text="Usage count"),
         LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]

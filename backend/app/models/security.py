@@ -27,12 +27,12 @@ class UserViolationLog(SnowflakeModel):
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
 
-    character_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True, comment="Character ID if related to specific AI"
+    instance_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Instance ID if violation relates to a specific AI"
     )
 
-    character_qiao_id: Mapped[Optional[str]] = mapped_column(
-        String(32), nullable=True, comment="Character external ID"
+    instance_qiao_id: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True, comment="Instance external qiao_id"
     )
 
     violation_type: Mapped[int] = mapped_column(

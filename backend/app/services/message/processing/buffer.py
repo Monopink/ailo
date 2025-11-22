@@ -21,8 +21,8 @@ from sqlalchemy.exc import IntegrityError
 
 from enums import MessageType
 from enums.common import AIMessageBufferState, ConversationRole
-from models.ai.character import AIMessageBuffer, AIConversationItem
-from services.ai.queries.character_queries import get_character_relationship_config
+from models.ai.instance import AIMessageBuffer, AIConversationItem
+from services.ai.queries.instance_queries import get_instance_relationship_config
 from services.ai.queries.updates import create_conversation_item
 from services.message.processing.sender import interrupt_sending_task
 from services.message.schemas import InboundMessageEvent
@@ -72,7 +72,7 @@ class LockedConversationWindow:
     buffer_id: int
     conversation_item_id: int
     user_qiao_id: str
-    character_qiao_id: str
+    instance_qiao_id: str
     content: str
 
 
@@ -84,7 +84,7 @@ class LockedConversationWindow:
 async def add_message_to_buffer(
     db: AsyncSession,
     event: InboundMessageEvent,
-    character_qiao_id: str,
+    instance_qiao_id: str,
 ) -> None:
     """
     Buffer inbound message according to dual-timer rules.
@@ -92,9 +92,9 @@ async def add_message_to_buffer(
     Args:
         db: Database session
         event: Inbound message payload
-        character_qiao_id: Character external ID
+        instance_qiao_id: Instance external ID
     """
-    interrupt_sending_task(event.from_qiao_id, character_qiao_id)
+    interrupt_sending_task(event.from_qiao_id, instance_qiao_id)
 
     category = _categorize_event(event)
     if category is None:
@@ -105,7 +105,7 @@ async def add_message_to_buffer(
     current_time = await _get_db_now_ms(db)
 
     buffer_obj, buffer_item = await _get_latest_open_buffer(
-        db, event.from_qiao_id, character_qiao_id, for_update=True
+        db, event.from_qiao_id, instance_qiao_id, for_update=True
     )
 
     if buffer_obj is None:
@@ -113,18 +113,18 @@ async def add_message_to_buffer(
             logger.debug(
                 "typing_event_without_open_buffer",
                 user_qiao_id=event.from_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 message_type=event.message_type,
             )
             return
 
-        relationship_config = await get_character_relationship_config(db, character_qiao_id)
+        relationship_config = await get_instance_relationship_config(db, instance_qiao_id)
         needs_wake = False
         if relationship_config:
             needs_wake = await _check_needs_wake(
                 db=db,
                 user_qiao_id=event.from_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 relationship_config=relationship_config,
                 current_time=current_time,
             )
@@ -133,7 +133,7 @@ async def add_message_to_buffer(
             await _create_wake_buffer(
                 db=db,
                 user_qiao_id=event.from_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 event=event,
                 category=category,
                 config=buffer_config,
@@ -144,7 +144,7 @@ async def add_message_to_buffer(
             await _create_new_buffer_window(
                 db=db,
                 user_qiao_id=event.from_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 event=event,
                 category=category,
                 config=buffer_config,
@@ -178,7 +178,7 @@ async def add_message_to_buffer(
 async def lock_conversation_preemptively(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
 ) -> Optional[int]:
     """
     Lock the latest expired OPEN buffer window for processing.
@@ -190,7 +190,7 @@ async def lock_conversation_preemptively(
             update(AIMessageBuffer)
             .where(
                 AIMessageBuffer.user_qiao_id == user_qiao_id,
-                AIMessageBuffer.character_qiao_id == character_qiao_id,
+                AIMessageBuffer.instance_qiao_id == instance_qiao_id,
                 AIMessageBuffer.aggregate_state.in_(
                     [AIMessageBufferState.OPEN, AIMessageBufferState.LOCKED]
                 ),
@@ -202,7 +202,7 @@ async def lock_conversation_preemptively(
             select(AIMessageBuffer)
             .where(
                 AIMessageBuffer.user_qiao_id == user_qiao_id,
-                AIMessageBuffer.character_qiao_id == character_qiao_id,
+                AIMessageBuffer.instance_qiao_id == instance_qiao_id,
                 AIMessageBuffer.aggregate_state == AIMessageBufferState.CANCELLED,
                 _buffer_expired_clause(now_ms),
             )
@@ -217,7 +217,7 @@ async def lock_conversation_preemptively(
             logger.debug(
                 "no_expired_buffer_to_lock",
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
             )
             return None
 
@@ -232,7 +232,7 @@ async def lock_conversation_preemptively(
             "buffer_locked",
             buffer_id=buffer_obj.id,
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         return buffer_obj.id
 
@@ -241,7 +241,7 @@ async def lock_conversation_preemptively(
         logger.debug(
             "buffer_lock_conflict",
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         return None
     except Exception as exc:
@@ -250,7 +250,7 @@ async def lock_conversation_preemptively(
             "buffer_lock_failed",
             error=str(exc),
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             exc_info=True,
         )
         raise
@@ -259,7 +259,7 @@ async def lock_conversation_preemptively(
 async def force_lock_latest_window(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
 ) -> Optional[LockedConversationWindow]:
     """
     Force lock the most recent buffer regardless of timer state.
@@ -269,14 +269,14 @@ async def force_lock_latest_window(
     """
     try:
         buffer_obj, buffer_item = await _get_latest_open_buffer(
-            db, user_qiao_id, character_qiao_id, for_update=True
+            db, user_qiao_id, instance_qiao_id, for_update=True
         )
 
         if not buffer_obj or not buffer_item:
             logger.warning(
                 "force_lock_no_buffer",
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
             )
             await db.rollback()
             return None
@@ -294,14 +294,14 @@ async def force_lock_latest_window(
             "buffer_force_locked",
             buffer_id=buffer_obj.id,
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
 
         return LockedConversationWindow(
             buffer_id=buffer_obj.id,
             conversation_item_id=buffer_item.id,
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             content=buffer_item.text_content or "",
         )
 
@@ -311,7 +311,7 @@ async def force_lock_latest_window(
             "buffer_force_lock_failed",
             error=str(exc),
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             exc_info=True,
         )
         raise
@@ -360,7 +360,7 @@ async def get_locked_context(
             buffer_id=buffer_obj.id,
             conversation_item_id=item_obj.id,
             user_qiao_id=buffer_obj.user_qiao_id,
-            character_qiao_id=buffer_obj.character_qiao_id,
+            instance_qiao_id=buffer_obj.instance_qiao_id,
             content=content_text,
         )
 
@@ -445,7 +445,7 @@ async def reset_open_conversation_windows(db: AsyncSession) -> int:
 async def _check_needs_wake(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     relationship_config: Dict[str, Any],
     current_time: int,
 ) -> bool:
@@ -459,7 +459,7 @@ async def _check_needs_wake(
         select(AIMessageBuffer)
         .where(
             AIMessageBuffer.user_qiao_id == user_qiao_id,
-            AIMessageBuffer.character_qiao_id == character_qiao_id,
+            AIMessageBuffer.instance_qiao_id == instance_qiao_id,
             AIMessageBuffer.aggregate_state == AIMessageBufferState.COMPLETE,
         )
         .order_by(AIMessageBuffer.created_at.desc())
@@ -483,7 +483,7 @@ async def _create_wake_buffer(
     *,
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     event: InboundMessageEvent,
     category: BufferMessageCategory,
     config: BufferTimerConfig,
@@ -514,7 +514,7 @@ async def _create_wake_buffer(
 
     buffer_obj = AIMessageBuffer(
         user_qiao_id=user_qiao_id,
-        character_qiao_id=character_qiao_id,
+        instance_qiao_id=instance_qiao_id,
         aggregate_state=AIMessageBufferState.WAITING_WAKEUP,
         micro_expires_at_ms=timer_state.micro_expires_at_ms,
         macro_expires_at_ms=timer_state.macro_expires_at_ms,
@@ -534,7 +534,7 @@ async def _create_wake_buffer(
         db,
         {
             "user_qiao_id": user_qiao_id,
-            "character_qiao_id": character_qiao_id,
+            "instance_qiao_id": instance_qiao_id,
             "role": ConversationRole.USER.value,
             "message_type": "text",
             "text_content": event.content or "",
@@ -547,7 +547,7 @@ async def _create_wake_buffer(
         "wake_buffer_created",
         buffer_id=buffer_obj.id,
         user_qiao_id=user_qiao_id,
-        character_qiao_id=character_qiao_id,
+        instance_qiao_id=instance_qiao_id,
         wake_duration_ms=sampled_delay,
     )
 
@@ -572,7 +572,7 @@ async def _handle_wake_adjustment(
         )
         return
 
-    relationship_config = await get_character_relationship_config(db, buffer_obj.character_qiao_id)
+    relationship_config = await get_instance_relationship_config(db, buffer_obj.instance_qiao_id)
     if not relationship_config:
         relationship_config = _default_relationship_timing()
 
@@ -624,7 +624,7 @@ async def _handle_wake_adjustment(
             db,
             {
                 "user_qiao_id": buffer_obj.user_qiao_id,
-                "character_qiao_id": buffer_obj.character_qiao_id,
+                "instance_qiao_id": buffer_obj.instance_qiao_id,
                 "role": ConversationRole.USER.value,
                 "message_type": "text",
                 "text_content": event.content or "",
@@ -718,7 +718,7 @@ def _default_relationship_timing() -> Dict[str, Any]:
 async def _get_latest_open_buffer(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     *,
     for_update: bool = False,
 ) -> Tuple[Optional[AIMessageBuffer], Optional[AIConversationItem]]:
@@ -726,7 +726,7 @@ async def _get_latest_open_buffer(
         select(AIMessageBuffer)
         .where(
             AIMessageBuffer.user_qiao_id == user_qiao_id,
-            AIMessageBuffer.character_qiao_id == character_qiao_id,
+            AIMessageBuffer.instance_qiao_id == instance_qiao_id,
             AIMessageBuffer.aggregate_state.in_(
                 [AIMessageBufferState.WAITING_WAKEUP, AIMessageBufferState.OPEN]
             ),
@@ -779,7 +779,7 @@ async def _get_buffer_and_item(
 async def _create_new_buffer_window(
     db: AsyncSession,
     user_qiao_id: str,
-    character_qiao_id: str,
+    instance_qiao_id: str,
     event: InboundMessageEvent,
     category: BufferMessageCategory,
     config: BufferTimerConfig,
@@ -802,7 +802,7 @@ async def _create_new_buffer_window(
 
     buffer_obj = AIMessageBuffer(
         user_qiao_id=user_qiao_id,
-        character_qiao_id=character_qiao_id,
+        instance_qiao_id=instance_qiao_id,
         aggregate_state=AIMessageBufferState.OPEN,
         micro_expires_at_ms=timer_state.micro_expires_at_ms,
         macro_expires_at_ms=timer_state.macro_expires_at_ms,
@@ -820,7 +820,7 @@ async def _create_new_buffer_window(
         db,
         {
             "user_qiao_id": user_qiao_id,
-            "character_qiao_id": character_qiao_id,
+            "instance_qiao_id": instance_qiao_id,
             "role": ConversationRole.USER.value,
             "message_type": "text",
             "text_content": event.content or "",
@@ -832,7 +832,7 @@ async def _create_new_buffer_window(
     logger.info(
         "buffer_window_created",
         user_qiao_id=user_qiao_id,
-        character_qiao_id=character_qiao_id,
+        instance_qiao_id=instance_qiao_id,
         buffer_id=buffer_obj.id,
     )
 
@@ -889,7 +889,7 @@ async def _update_buffer_window(
                 db,
                 {
                     "user_qiao_id": buffer_obj.user_qiao_id,
-                    "character_qiao_id": buffer_obj.character_qiao_id,
+                    "instance_qiao_id": buffer_obj.instance_qiao_id,
                     "role": ConversationRole.USER.value,
                     "message_type": "text",
                     "text_content": event.content or "",

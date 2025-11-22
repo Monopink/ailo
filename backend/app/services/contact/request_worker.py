@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import SessionLocal
 from models.contact import ContactRequest
+from crud.contact import contact_request as contact_request_crud
 from enums import ContactRequestStatus, ContactType
 from utils.logging import get_logger
 
@@ -39,6 +40,7 @@ async def _lock_pending_requests(db: AsyncSession, batch_size: int) -> List[Cont
         .where(
             ContactRequest.status == ContactRequestStatus.PENDING,
             ContactRequest.to_type == ContactType.AI,
+            ContactRequest.failure_code.is_(None),
             ContactRequest.expires_at > datetime.now(timezone.utc),  # Filter expired requests
         )
         .with_for_update(skip_locked=True)
@@ -86,19 +88,18 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
             tags=None,
         )
 
-        # Check final status after processing
-        await db.refresh(req)
+        updated_req = await contact_request_crud.get(db, id=req.id)
+        if not updated_req:
+            return
 
-        # If still PROCESSING after successful execution, AI didn't accept
-        # This is a business decision, mark as IGNORED
-        if req.status == ContactRequestStatus.PROCESSING:
-            req.status = ContactRequestStatus.IGNORED
+        if updated_req.status == ContactRequestStatus.PROCESSING:
+            updated_req.status = ContactRequestStatus.IGNORED
             await db.commit()
             logger.info(
                 "request_marked_ignored_no_acceptance",
-                request_id=req.id,
+                request_id=updated_req.id,
                 from_qiao_id=user_qiao_id,
-                to_qiao_id=req.to_qiao_id,
+                to_qiao_id=updated_req.to_qiao_id,
             )
 
     except Exception as e:

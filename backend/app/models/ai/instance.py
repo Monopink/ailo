@@ -1,7 +1,7 @@
 """
-AI character and context related models.
+AI instance and context related models.
 
-This module contains SQLAlchemy models for AI characters and conversation contexts.
+This module contains SQLAlchemy models for AI instances and conversation contexts.
 """
 
 from datetime import datetime
@@ -29,16 +29,20 @@ if TYPE_CHECKING:
     from models.ai.personality import AIPersonality
 
 
-class AICharacter(SnowflakeQiaoModel):
+class AIInstance(SnowflakeQiaoModel):
     """
-    AI character model.
+    AI instance model.
 
-    AI character instances created by users or system.
+    Represents a user-specific instantiation of a persona/template.
     """
 
-    __tablename__ = "ai_characters"
+    __tablename__ = "ai_instances"
 
-    category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Character category")
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Owning user ID, references users.id"
+    )
+
+    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Owning user qiao_id")
 
     style_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Style ID, references ai_styles.id"
@@ -46,6 +50,13 @@ class AICharacter(SnowflakeQiaoModel):
 
     personality_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Personality ID, references ai_personalities.id"
+    )
+
+    creation_metadata: Mapped[Dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+        comment="Snapshot of instance creation data for auditing",
     )
 
     status: Mapped[int] = mapped_column(
@@ -56,7 +67,7 @@ class AICharacter(SnowflakeQiaoModel):
         comment="Status: 1=active, 2=inactive, 3=blocked",
     )
 
-    memory: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Character memory settings")
+    memory: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Instance-specific memory")
 
     prompt_variables: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
@@ -67,17 +78,13 @@ class AICharacter(SnowflakeQiaoModel):
     request_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
-        comment="AI character request parameters configuration (can override default LLM settings)",
+        comment="AI instance request parameter overrides (LLM settings)",
     )
 
     typing_speed_wpm: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         comment="Typing speed (words per minute) used for message delays",
-    )
-
-    created_from_profile_qiao_id: Mapped[Optional[str]] = mapped_column(
-        String(32), nullable=True, comment="Source profile template qiao_id (if created from template)"
     )
 
     relationship_id: Mapped[Optional[int]] = mapped_column(
@@ -104,29 +111,36 @@ class AICharacter(SnowflakeQiaoModel):
     )
 
     # Relationships
+    user: Mapped["User"] = relationship(
+        "User",
+        primaryjoin="AIInstance.user_id == User.id",
+        foreign_keys=[user_id],
+        lazy="select",
+        viewonly=True,
+    )
     style: Mapped["AIStyle"] = relationship(
         "AIStyle",
-        primaryjoin="AICharacter.style_id == AIStyle.id",
+        primaryjoin="AIInstance.style_id == AIStyle.id",
         foreign_keys=[style_id],
         lazy="select",
         viewonly=True,
     )
     personality: Mapped["AIPersonality"] = relationship(
         "AIPersonality",
-        primaryjoin="AICharacter.personality_id == AIPersonality.id",
+        primaryjoin="AIInstance.personality_id == AIPersonality.id",
         foreign_keys=[personality_id],
         lazy="select",
         viewonly=True,
     )
-    dimensions: Mapped[List["AICharacterDimension"]] = relationship(
-        "AICharacterDimension",
-        primaryjoin="AICharacter.id == foreign(AICharacterDimension.character_id)",
+    instance_dimensions: Mapped[List["AIInstanceDimension"]] = relationship(
+        "AIInstanceDimension",
+        primaryjoin="AIInstance.id == foreign(AIInstanceDimension.instance_id)",
         lazy="select",
         viewonly=True,
     )
     relationship: Mapped[Optional["AIRelationship"]] = relationship(
         "AIRelationship",
-        primaryjoin="AICharacter.relationship_id == AIRelationship.id",
+        primaryjoin="AIInstance.relationship_id == AIRelationship.id",
         foreign_keys=[relationship_id],
         lazy="select",
         viewonly=True,
@@ -135,9 +149,15 @@ class AICharacter(SnowflakeQiaoModel):
     # Indexes - Only essential indexes for MVP
     # Note: qiao_id already has unique index
     __table_args__ = (
-        Index("idx_ai_characters_style_id", "style_id"),
-        Index("idx_ai_characters_personality_id", "personality_id"),
+        Index("idx_ai_instances_user_id", "user_id"),
+        Index("idx_ai_instances_user_qiao_id", "user_qiao_id"),
+        Index("idx_ai_instances_style_id", "style_id"),
+        Index("idx_ai_instances_personality_id", "personality_id"),
     )
+
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        return f"<span>[{self.id}] {escape(self.qiao_id)} / {escape(self.user_qiao_id)}</span>"
 
 
 class AIMessageBuffer(SnowflakeModel):
@@ -148,8 +168,8 @@ class AIMessageBuffer(SnowflakeModel):
     __tablename__ = "ai_message_buffer"
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
-    character_qiao_id: Mapped[str] = mapped_column(
-        String(32), nullable=False, comment="Character external ID"
+    instance_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Instance external ID"
     )
     aggregate_state: Mapped[int] = mapped_column(
         SmallInteger,
@@ -197,9 +217,7 @@ class AIMessageBuffer(SnowflakeModel):
     )
 
     __table_args__ = (
-        Index(
-            "idx_ai_message_buffer_session_state", "user_qiao_id", "character_qiao_id", "aggregate_state"
-        ),
+        Index("idx_ai_message_buffer_session_state", "user_qiao_id", "instance_qiao_id", "aggregate_state"),
         Index(
             "idx_ai_message_buffer_micro",
             "micro_expires_at_ms",
@@ -213,14 +231,14 @@ class AIMessageBuffer(SnowflakeModel):
         Index(
             "idx_ai_message_buffer_locked",
             "user_qiao_id",
-            "character_qiao_id",
+            "instance_qiao_id",
             unique=True,
             postgresql_where=text("aggregate_state = 2"),
         ),
         Index(
             "idx_ai_message_buffer_expire_scan",
             "user_qiao_id",
-            "character_qiao_id",
+            "instance_qiao_id",
             "buffer_expires_at_ms",
             postgresql_where=text("aggregate_state = 1 AND buffer_expires_at_ms IS NOT NULL"),
         ),
@@ -238,8 +256,8 @@ class AIConversationItem(ImmutableSnowflakeModel):
     __tablename__ = "ai_conversation_items"
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
-    character_qiao_id: Mapped[str] = mapped_column(
-        String(32), nullable=False, comment="Character external ID"
+    instance_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Instance external ID"
     )
     role: Mapped[str] = mapped_column(
         String(20), nullable=False, comment="Message role: system/user/assistant"
@@ -287,7 +305,7 @@ class AIConversationItem(ImmutableSnowflakeModel):
     )
 
     __table_args__ = (
-        Index("idx_ai_conv_items_session", "user_qiao_id", "character_qiao_id", "created_at"),
+        Index("idx_ai_conv_items_session", "user_qiao_id", "instance_qiao_id", "created_at"),
         Index(
             "idx_ai_conv_items_buffer",
             "buffer_id",
@@ -296,7 +314,7 @@ class AIConversationItem(ImmutableSnowflakeModel):
         Index(
             "idx_ai_conv_items_excluded",
             "user_qiao_id",
-            "character_qiao_id",
+            "instance_qiao_id",
             "created_at",
             postgresql_where=text(
                 f"is_excluded_from_context = {int(ConversationItemContextStatus.EXCLUDED)}"
@@ -328,7 +346,7 @@ class AIConversationState(Base, TimestampMixin):
     __tablename__ = "ai_conversation_state"
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    character_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    instance_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     pending_messages: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
@@ -338,9 +356,7 @@ class AIConversationState(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True, comment="Timestamp when the last interruption occurred"
     )
 
-    __table_args__ = (
-        Index("idx_ai_conversation_state_updated", "updated_at"),
-    )
+    __table_args__ = (Index("idx_ai_conversation_state_updated", "updated_at"),)
 
 
 class AIConversationItemArchive(ImmutableSnowflakeModel):
@@ -349,8 +365,8 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
     __tablename__ = "ai_conversation_items_archive"
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
-    character_qiao_id: Mapped[str] = mapped_column(
-        String(32), nullable=False, comment="Character external ID"
+    instance_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Instance external ID"
     )
     role: Mapped[str] = mapped_column(
         String(20), nullable=False, comment="Message role: system/user/assistant"
@@ -401,5 +417,5 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
     )
 
     __table_args__ = (
-        Index("idx_ai_conv_items_archive_session", "user_qiao_id", "character_qiao_id", "created_at"),
+        Index("idx_ai_conv_items_archive_session", "user_qiao_id", "instance_qiao_id", "created_at"),
     )

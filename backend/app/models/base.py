@@ -9,7 +9,7 @@ import secrets
 import string
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, DateTime, Integer, String, func, text
+from sqlalchemy import BigInteger, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -135,7 +135,7 @@ class SnowflakeModel(BaseModel, SnowflakeIDMixin):
     """
     Base model for entities that use Snowflake IDs.
 
-    Use this for core business entities like users, messages, AI characters, etc.
+    Use this for core business entities like users, messages, AI instances, etc.
     """
 
     __abstract__ = True

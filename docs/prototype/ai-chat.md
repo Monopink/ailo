@@ -5,20 +5,21 @@
 ```mermaid
 flowchart TB
     n1["用户在Square选择qiao_id"] --> n2["通过qiao_id查找ai_personas"]
-    n2 --> n3["获取template_type_id"]
+    n2 --> n3["获取type_id"]
     n3 --> n4["在该类型下查找可用ai_templates"]
     n4 --> n5{"是否有可用模板?"}
     n5 -->|有| n6["选择模板（优先不可复用）"]
     n5 -->|无| n15["请求挂起，等待管理员创建模板"]
-    n6 --> n7["从模板创建ai_characters实例"]
-    n7 --> n8["设置qiao_id和character_profile_id"]
-    n8 --> n9["写入contacts"]
+    n6 --> n7["创建ai_instances实例"]
+    n7 --> n8["继承persona.qiao_id（不生成新qiao_id）"]
+    n8 --> n8b["不创建profile（共享persona的profile，owner_type=2）"]
+    n8b --> n9["写入contacts"]
     n9 --> n10{"模板是否可复用?"}
     n10 -->|不可复用| n11["标记模板status=3"]
     n10 -->|可复用| n12["跳过"]
-    n11 --> n13{"角色档案是否可复用?"}
+    n11 --> n13{"persona是否可复用?"}
     n12 --> n13
-    n13 -->|不可复用| n14["标记档案status=3，并增加usage_count"]
+    n13 -->|不可复用| n14["标记persona status=3，并增加usage_count"]
     n13 -->|可复用| n16["仅增加usage_count"]
     n14 --> n17["构建新联系人消息"]
     n16 --> n17
@@ -26,12 +27,18 @@ flowchart TB
 ```
 
 **重要说明**：
-- `square_character_entries` 控制 qiao_id 的分类、曝光策略与上下架，属于纯展示层
-- 模板类型、模板、角色档案只负责联系人创建流程，状态字段仅表示是否允许实例化
+
+- `square_type_entries` 控制 AI 类型的分类、曝光策略与上下架，属于纯展示层
+- 模板类型、模板、persona 只负责联系人创建流程，状态字段仅表示是否允许实例化
 - 用户看到的是 qiao_id（来自 ai_personas）
 - 多个用户可以添加同一个 qiao_id
-- 每个用户获得独立的 ai_characters 实例
-- 通过 template_type_id 管理模板库存
+- 每个用户获得独立的 ai_instances 实例，但**共享同一个 qiao_id**（继承自 persona）
+- **正常流程创建的 instance 不拥有 profile**，而是共享 persona 的 profile（owner_type=2）
+- **手动创建的 instance 拥有独立的 qiao_id 和 profile**（owner_type=3）
+- 通过 type_id 管理模板库存
+- 聊天时通过 instance.qiao_id 查询 profile：
+  - 正常流程：查询 persona 的 profile（owner_qiao_id = instance.qiao_id AND owner_type = 2）
+  - 手动创建：查询 instance 自己的 profile（owner_qiao_id = instance.qiao_id AND owner_type = 3）
 
 ## 对话流程
 
@@ -39,14 +46,14 @@ flowchart TB
 flowchart TB
     n1["收到消息"] --> n2["合并短时间消息"]
     n2 --> n3["写入ai_conversation_items（仅消息内容）"]
-    n3 --> n4["找到对应的ai_character"]
+    n3 --> n4["找到对应的ai_instance"]
     n4 --> n5["找到对应的relationship_score"]
     n5 --> n6["根据对应的ai_style找到对应的relationship"]
     n6 --> n7["将relationship的prompt和占位符覆盖内容应用到personality的提示词模板，生成完整system提示词"]
     n7 --> n8["从ai_conversation_items构建上下文并与system提示词合并"]
     n8 --> n9["请求大模型"]
     n9 --> n11["使用json_schema验证"]
-    n11 --> n12["更新ai_character_dimensions和其他相关内容"]
+    n11 --> n12["更新ai_instance_dimensions和其他相关内容"]
     n12 --> n13["回复消息"]
 ```
 
@@ -149,7 +156,7 @@ flowchart TB
    - relationship_id和relationship_display_name设置为NULL
    - 记录ERROR级别日志
    - 对应的{{relationship_prompt}}占位符内容为空
-6. 创建ai_character_dimensions记录并提交到数据库
+6. 创建ai_instance_dimensions记录并提交到数据库
 
 **实现位置**：`backend/app/services/ai/relationship.py` 中的 `initialize_relationship_scores` 函数
 
@@ -164,7 +171,7 @@ flowchart TB
    - 位置映射计算异常（参数不合法、除零等）同样记录错误并终止，结果为空关系。
 4. 候选收集：在 `ai_dimension_relationship_mappings` 中查找每个维度 `start_position <= position <= end_position` 的关系，合并去重。
 5. 非当前关系过滤：同一维度中，如果包含当前关系，则只候选当前关系，过滤其他关系。若无当前关系，则所有选中都为候选。
-6. 次数限制过滤：对候选根据 `ai_dimension_relationship_mappings.limit_count` 与 `ai_characters.relationship_counts` 进行过滤。
+6. 次数限制过滤：对候选根据 `ai_dimension_relationship_mappings.limit_count` 与 `ai_instances.relationship_counts` 进行过滤。
    - 当 `limit_count` 为 NULL/0 视为无限制；
    - 当 `counts >= limit_count` 时剔除；当 `counts > limit_count`（异常）时剔除并记录错误日志。
 7. 优先级选择：在筛选后的候选集合中，选择“优先级数值更大”的唯一关系。
@@ -182,7 +189,7 @@ flowchart TB
 
 占位符在ai_personalities.prompt使用 {{variable_name}} 书写。
 
-除了角色在数据库ai_characters.prompt_variable存储占位符之外，还有预设的系统占位符，如果存在冲突，则系统占位符优先。
+除了角色在数据库ai_instances.prompt_variable存储占位符之外，还有预设的系统占位符，如果存在冲突，则系统占位符优先。
 
 #### 系统占位符
 
@@ -190,13 +197,13 @@ flowchart TB
 
 {{score:dimension_name}} dimension_name值为ai_style_dimensions.name的值，通过position和位置映射算法反向计算得出。
 
-{{self_profile}} 自身资料描述。来自profiles表。
+{{self_profile}} 自身资料描述。来自profiles表，通过instance.qiao_id查询：
 
 {{other_profile}} 对方资料描述，包含近期修改内容的描述。来自profiles表和user_profile_logs表。
 
 {{current_datetime}} 现在(+8:00)的日期、农历、时间。
 
-{{memory}} ai_characters.memory值。
+{{memory}} ai_instances.memory值。
 
 {{pending_messages}} 如果上一次发送被打断，则包含 `ai_conversation_state.pending_messages` 中的待发内容列表，提示 LLM 需要优先处理这些文本。
 
@@ -293,7 +300,7 @@ position = ip ± space * offset_ratio
 
 **参数配置**：
 
-ai_character_dimensions.position_mapping_params 示例：
+ai_instance_dimensions.position_mapping_params 示例：
 
 ```json
 {
@@ -548,7 +555,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ## 程序功能
 
-后端对应大模型输出内容的处理逻辑。对于实际的ai_characters，json schema内容可以自由增减，系统只会对名称匹配的内容进行处理，额外的内容系统不做处理，类似`internal_thoughts`。
+后端对应大模型输出内容的处理逻辑。对于实际的ai_instances，json schema内容可以自由增减，系统只会对名称匹配的内容进行处理，额外的内容系统不做处理，类似`internal_thoughts`。
 
 ### `current_state`
 
@@ -572,7 +579,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ### `score`
 
-按照规则更新ai_character_dimension表。
+按照规则更新ai_instance_dimension表。
 
 ### `followup_messages`
 
@@ -580,7 +587,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ### `should_block`
 
-如果为true则将ai_characters.status设置为blocked。
+如果为true则将ai_instances.status设置为blocked。
 
 ### `should_update_memory`
 
@@ -588,7 +595,7 @@ JSON Schema 用于约束大模型输出内容。
 
 ### `memory_operations`
 
-按照步骤更新ai_characters.memory。
+按照步骤更新ai_instances.memory。
 
 ## 消息回复规则
 
@@ -609,7 +616,6 @@ JSON Schema 用于约束大模型输出内容。
 
 ## 打字速度计算
 
-`typing_speed_wpm = ai_characters.typing_speed_wpm`（词/分钟），等效秒/词为 `60 / typing_speed_wpm`，总耗时为 `60 / typing_speed_wpm * 词数`。若配置缺失或<=0，则运行期退回 35 WPM，避免出现 0 延迟。
+`typing_speed_wpm = ai_instances.typing_speed_wpm`（词/分钟），等效秒/词为 `60 / typing_speed_wpm`，总耗时为 `60 / typing_speed_wpm * 词数`。若配置缺失或<=0，则运行期退回 35 WPM，避免出现 0 延迟。
 
 1词数 = 1全角字符 = 3半角字符 = 1emoji = 1特殊字符
-

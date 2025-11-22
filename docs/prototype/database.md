@@ -101,24 +101,23 @@ created_at
 updated_at
 ```
 
-## square_character_entries
+## square_type_entries
 
-Square 曝光表，决定哪些 `qiao_id` 被展示给用户以及采用何种曝光策略。
+Square 曝光表，决定哪些 `type_id` 被上架到 Square 以及采用何种曝光策略。
 
 ```txt
 id -- 自增ID
-square_category -- Square 分类标识（客户端写死的枚举）
-qiao_id -- 曝光的角色外部ID
-entry_group -- 曝光分组（用于分配不同曝光位或实验）
-exposure_strategy -- 曝光策略：random/fixed 等
-status -- 1=active, 2=inactive（inactive 时该 qiao_id 不出现在 Square）
-metadata -- JSONB，扩展字段（如标签、城市等）
-last_featured_at -- 最近一次被前端拉取时的时间戳
+square_category -- Square 分类枚举：1=friend, 2=love, 3=talk, 4=bestie, 5=hobby
+type_id -- 关联 ai_types.id，代表被曝光的角色类型
+exposure_strategy -- 曝光策略枚举：1=random
+status -- 1=active, 2=inactive（inactive 时该 type_id 不出现在 Square）
 created_at
 updated_at
 ```
 
-Square 只消费该表的数据，与模板库存隔离；模板体系的状态不会直接影响 Square 曝光。
+Square 只消费该表的数据，与模板库存隔离；模板体系的状态不会直接影响 Square 曝光。接口端会根据 `type_id` 实时选择可用 persona/qiao_id，并直接复用 persona/profile 的展示信息。每个 Square 分类下，每个 AI 类型只能出现一次（UNIQUE 约束：square_category, type_id）。
+
+- `square_category` 现在直接存储整数（无需额外的字符串映射），`exposure_strategy` 只保留 `random=1`，`fixed/weighted` 枚举已移除，并且 `last_featured_at` 字段不再存在，Square 只控制分类/策略/状态。
 
 ## login_records
 
@@ -237,16 +236,19 @@ updated_at
 ```txt
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
-character_qiao_id -- AI external ID
-aggregate_state -- 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED
+instance_qiao_id -- AI external ID
+aggregate_state -- 0=WAKE, 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED
 micro_expires_at_ms -- 微计时器到期时间（毫秒）
 macro_expires_at_ms -- 宏计时器到期时间（毫秒，可为空）
+buffer_expires_at_ms -- 缓冲窗口到期时间（毫秒）
+wake_expires_at_ms -- Wake timer expiration (ms), NULL if already awake or in OPEN state
 last_message_category -- VARCHAR(32)，CONTENT_TYPING / CONTENT_NO_TYPING / typing_start / typing_end
 first_msg_id_client -- 窗口内第一条客户端消息ID
 last_msg_id_client -- 窗口内最后一条客户端消息ID
 message_count -- 窗口内消息条数，默认1
 last_msg_time_ms -- 窗口最后一条消息的毫秒时间戳
 locked_at -- 进入 LOCKED 状态的时间（用于超时检测）
+wake_adjustment_count -- Number of times wake time was adjusted by new messages
 created_at
 updated_at
 ```
@@ -258,7 +260,7 @@ updated_at
 ```txt
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
-character_qiao_id -- AI external ID
+instance_qiao_id -- AI external ID
 role -- system / user / assistant
 message_type -- text / image / audio
 text_content -- 文本内容（message_type=text 必填）
@@ -270,18 +272,6 @@ is_excluded_from_context -- 是否从 LLM 上下文中剔除（攻击/敏感内�
 created_at
 ```
 
-检查约束：
-
-- `ck_ai_conversation_items_content`: text 需有 text_content 且 media_url 为空；image/audio 需有 media_url
-- `ck_ai_conversation_items_user_buffer`: role=user 必须有 buffer_id
-
-索引：
-
-- `idx_ai_conv_items_session (user_qiao_id, character_qiao_id, created_at)`
-- `idx_ai_conv_items_buffer (buffer_id) WHERE buffer_id IS NOT NULL`
-- `idx_ai_conv_items_excluded (user_qiao_id, character_qiao_id, created_at) WHERE is_excluded_from_context = true`
-- `idx_ai_conv_items_text_search` GIN(trgm) on text_content
-
 ## ai_conversation_items_archive
 
 与主表结构一致，存放冷数据（同样使用 message_type/text_content/media_* 字段）。
@@ -289,7 +279,7 @@ created_at
 ```txt
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
-character_qiao_id -- AI external ID
+instance_qiao_id -- AI external ID
 role -- system / user / assistant
 message_type -- text / image / audio
 text_content -- 文本内容
@@ -301,11 +291,6 @@ is_excluded_from_context -- 是否排除上下文
 created_at -- 原始创建时间
 archived_at -- 归档时间
 ```
-
-**归档策略**
-
-- 定期任务（pg_cron / APScheduler / 外部 Cron）每日搬迁 `created_at < NOW() - INTERVAL '14 days'` 的记录
-- 归档后立即从主表删除对应记录，并执行 `VACUUM ANALYZE ai_conversation_items` 保持索引健康
 
 ## preset_assets
 
@@ -335,7 +320,7 @@ updated_at
 id -- Snowflake ID
 owner_id -- 所有者内部ID
 owner_qiao_id -- 所有者外部ID
-owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai
+owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai_persona (AI角色原型，被多个instance共享), 3=ai_instance (仅限管理员手动创建的instance)
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
 avatar_file_id -- 头像文件ID，关联media_files.id（自定义头像）
@@ -355,7 +340,7 @@ updated_at
 id -- Snowflake ID
 owner_id -- 所有者内部ID
 owner_qiao_id -- 所有者外部ID
-owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai
+owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai_persona (AI角色原型，被多个instance共享), 3=ai_instance (仅限管理员手动创建的instance)
 modified_by_type -- 修改者类型：1=user, 2=admin, 3=system
 field_name -- 修改的字段名，例如 nickname, avatar_url, bio
 old_value -- 旧值
@@ -366,19 +351,21 @@ created_at
 
 ## ai_relationships
 
-AI关系类型表，定义AI角色的关系类型。usage_count不为0不允许修改status。
+AI关系类型表，定义AI角色的关系类型。
 
 ```txt
 id -- 自增ID
 name -- 关系名称（唯一）
 display_name -- 显示名称
 prompt_fragment -- 提示词片段
-usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
-response_time_min_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器下限（毫秒），CHECK >= 500
-response_time_max_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器上限（毫秒），CHECK >= response_time_min_ms
-response_time_bias -- VARCHAR(20) NOT NULL DEFAULT 'balanced'，响应时间倾向，CHECK IN ('balanced', 'centered', 'fast', 'slow', 'very_fast', 'very_slow')
+wake_time_min_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器下限（毫秒），CHECK >= 500
+wake_time_max_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器上限（毫秒），CHECK >= wake_time_min_ms
+wake_time_bias -- VARCHAR(20) NOT NULL DEFAULT 'balanced'，响应时间倾向，CHECK IN ('balanced', 'centered', 'fast', 'slow', 'very_fast', 'very_slow')
+wake_window_ms -- INTEGER NOT NULL DEFAULT 60000，跳过唤醒窗口（毫秒），CHECK >= 0
+wake_time_adjustment -- VARCHAR(20) NOT NULL DEFAULT 'random_half'，等待时间调整策略
 no_reply_probability -- DECIMAL(3,2) NOT NULL DEFAULT 0.00，不回复概率（0.00-1.00），CHECK >= 0 AND <= 1
+followup_delay_ms -- INTEGER NOT NULL DEFAULT 5000，跟进消息延迟（毫秒），CHECK >= 0
 created_at
 updated_at
 ```
@@ -391,7 +378,6 @@ AI风格表，定义AI角色的风格类型和评分维度。
 id -- 自增ID
 name -- 风格名称
 display_name -- 用于显示的名称
-usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
 created_at
 updated_at
@@ -401,7 +387,6 @@ updated_at
 
 ```txt
 id -- 自增ID
-style_id
 name -- 用于通过llm响应查询的名称
 display_name -- 用于显示的名称
 description -- 用于管理后台参考
@@ -445,7 +430,6 @@ name -- 人格名称
 desplay_name -- 显示名称
 prompt -- 人格提示词模板
 json_schema -- JSON模式定义
-usage_count -- 被引用的数量
 status -- 状态：1=active, 2=inactive
 created_at
 updated_at
@@ -467,30 +451,27 @@ created_at
 updated_at
 ```
 
-## ai_template_types
+## ai_types
 
 AI模板类型表，用于内部管理分组。
 
 ```txt
 id -- 自增ID
-name -- 类型标识（唯一）
 display_name -- 显示名称
 description -- 描述说明
-status -- 1=active，2=inactive（inactive 表示暂停实例化）
 created_at
 updated_at
 ```
 
 ## ai_personas
 
-AI角色档案表，管理角色的唯一qiao_id（类似商品SKU）。
+AI设定表，管理角色的唯一qiao_id（类似商品SKU）。
 
 ```txt
 id -- Snowflake ID
 qiao_id -- qiao_+随机字符，外部使用，唯一标识
-template_type_id -- 关联ai_template_types.id（内部管理）
+type_id -- 关联ai_types.id（内部管理）
 is_reusable -- 是否可以复用：1=reusable（多用户可添加）, 0=single_use（仅一个用户可添加）
-usage_count -- 被添加次数统计
 status -- 状态：1=active, 2=inactive, 3=used
 created_at
 updated_at
@@ -502,13 +483,14 @@ AI模板表，管理角色实例化时所需的 Prompt、记忆、维度配置�
 
 ```txt
 id -- 自增ID
-template_type_id -- 关联ai_template_types.id（内部管理）
+type_id -- 关联ai_types.id（内部管理）
 display_name -- 显示名称
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
 memory -- 记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
 request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
+timezone -- 默认 IANA 时区标识（如 Asia/Shanghai），用于实例化拷贝
 typing_speed_wpm -- 模板层的打字速度（词/分钟，整数，必填），角色创建时拷贝，运行阶段若遇到非法值再退回 35 WPM
 position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
 {
@@ -532,27 +514,26 @@ created_at
 updated_at
 ```
 
-## ai_characters
+## ai_instances
 
-AI角色表，存储具体的AI角色实例。
+AI角色实例表，存储"用户 × persona"实例化后的联系人。
 
 ```txt
 id -- Snowflake ID
-qiao_id -- qiao_+随机字符，外部使用（可重复，多个用户可添加同一角色）
-template_type_id -- 关联ai_template_types.id（内部管理）
-character_profile_id -- 关联ai_personas.id
-status -- 状态：1=active, 2=inactive，3=blocking
-style_id -- 关联ai_styles.id
-personality_id -- 关联ai_personalities.id
-relationship_id -- 当前的关系ID
-relationship_counts -- 各关系类型使用次数统计，JSON格式：{"friend":5,"lover":2}
-memory -- 角色记忆设定
-prompt_variables -- 占位符覆盖值，JSON格式
-request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
-  示例：{"temperature": 0.8, "max_tokens": 2000, "top_p": 0.9, "frequency_penalty": 0.5}
-  参数优先级：显式调用参数 > request_params > LLM配置默认值
-typing_speed_wpm -- 角色级打字速度（词/分钟），用于模拟打字等待，实例化时由模板赋值；运行阶段若缺失/异常则退回 35 WPM
-timezone -- IANA时区标识（如Asia/Shanghai），用于时间相关功能
+user_id -- 关联 users.id
+user_qiao_id -- 用户的 qiao_id
+qiao_id -- persona 的对外 ID（可重复，多个用户可添加同一 persona）
+style_id -- 关联 ai_styles.id
+personality_id -- 关联 ai_personalities.id
+status -- 状态：1=active, 2=inactive, 3=blocking
+relationship_id -- 当前关系ID
+relationship_counts -- 各关系类型使用次数统计，JSONB，如 {"friend":5,"lover":2}
+memory -- 实例级记忆
+prompt_variables -- 实例级占位符覆盖
+request_params -- 实例级LLM请求参数覆盖
+typing_speed_wpm -- 打字速度（词/分钟），默认沿用模板值
+timezone -- IANA时区标识（如 Asia/Shanghai）
+creation_metadata -- JSONB，创建时的完整快照（不可变），包含 source、persona_id、persona_qiao_id、persona_type_id、persona_type_name、persona_is_reusable、template_id、template_display_name、template_priority、assigned_at、assigned_by 等字段
 created_by -- 创建者类型：1=user, 2=admin, 3=system
 created_at
 updated_at
@@ -560,20 +541,20 @@ updated_at
 
 **设计说明**：
 
-- `qiao_id` 不再唯一，多个用户可以添加同一个qiao_id的角色
-- `template_type_id` 用于内部管理和追踪
-- `character_profile_id` 关联到角色档案，获取qiao_id和分类信息
-- 不再存储 `user_id` 和 `user_qiao_id`，通过 `contacts` 表关联用户
-- 通过 `contacts` 表的约束保证同一用户不能重复添加同一个qiao_id
+- `user_id + qiao_id` 保证同一用户对同一 persona 只有一个实例（UNIQUE 约束）。
+- `creation_metadata` 保存创建时的完整快照（persona、template、type 信息），用于审计和溯源，不受后续数据变更影响。
+- 运行时只依赖 `qiao_id`（通过 profiles 获取展示信息）和实例自身的配置字段，不需要读取 persona 或 template 表。
+- 所有与联系人、关系状态、消息记忆相关的字段仅保存在 `ai_instances`。
+- persona 元数据（昵称、头像等）统一从 `profiles` 获取。
 
-## ai_character_dimensions
+## ai_instance_dimensions
 
-AI关系评分表，存储AI角色的关系评分数据和关系使用统计。
+AI实例关系评分表，存储每个 `ai_instance` 的维度分值与位置。
 
 ```txt
 id -- Snowflake ID
-character_id -- 关联ai_characters.id
-dimension_id -- 关联ai_dimensions.id
+instance_id -- 关联 ai_instances.id
+dimension_id -- 关联 ai_dimensions.id
 score -- 当前分数值
 position -- 千分比位置（0-1000）
 position_mapping_algorithm -- 位置映射算法：1=直接映射, 2=V1独立双向偏移
@@ -619,7 +600,7 @@ frequency_penalty -- 频率惩罚系数，[-2,2]
 presence_penalty -- 存在惩罚系数，[-2,2]
 stop_sequences -- 停止序列（JSONB，字符串数组）
 json_schema_mode -- JSON Schema支持状态
-  - 'strict': 已验证支持JSON Schema（测试通过，可用于AI Character）
+  - 'strict': 已验证支持JSON Schema（测试通过，可用于AI Instance）
   - 'disabled': 已验证不支持JSON Schema（测试失败，仅供查看测试响应）
   - 'auto': 未验证（默认值，需要先测试）
 default_tools -- 默认工具定义（JSONB数组），如[{"type": "web_search"}]
@@ -641,7 +622,7 @@ AI请求日志表，记录所有AI请求和响应（包括生产环境和测试�
 
 ```txt
 id -- Snowflake ID
-character_id -- 关联ai_characters.id
+instance_id -- 关联ai_instances.id
 user_id -- 关联users.id
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
@@ -703,7 +684,7 @@ message -- 附加申请说明（例如“我是xxx”）
 source -- 来源渠道：1=search, 2=admin, 3=system, 4=recommend
 status -- 申请状态：1=pending, 2=accepted, 3=ignored, 8=processing, 9=failed
 failure_code -- 模板不足等业务失败原因（挂起记录会填写）
-failure_detail -- JSONB，包含 template_type_id、qiao_id、request_id 等定位信息
+failure_detail -- JSONB，包含 type_id、qiao_id、request_id 等定位信息
 retry_count -- 手动或自动重试次数
 last_retry_at -- 最近一次重试时间
 expires_at -- 申请过期时间
@@ -719,8 +700,8 @@ updated_at
 id -- Snowflake ID
 user_id -- 关联users.id
 user_qiao_id -- 关联users.qiao_id
-character_id -- 关联ai_characters.id（如果涉及特定AI）
-character_qiao_id -- 关联ai_characters.qiao_id
+instance_id -- 关联ai_instances.id（如果涉及特定AI）
+instance_qiao_id -- 关联ai_instances.qiao_id
 violation_type -- 违规类型：1=prompt_injection, 2=abuse_content, 3=spam, 4=harassment, 5=other
 severity_level -- 严重程度：1=low, 2=medium, 3=high, 4=critical
 original_message -- 原始用户消息
@@ -821,8 +802,8 @@ AI统计表（按日/周/月）。
 ```txt
 id -- 自增ID
 stat_date -- 统计日期
-ai_characters -- 角色总数
-active_ai_characters -- 活跃角色数
+ai_personas -- Persona 总数
+active_ai_personas -- 活跃 Persona 数
 ai_requests_count -- 请求总数
 avg_ai_requests_per_user -- 人均请求数
 created_at
@@ -853,7 +834,7 @@ updated_at
 id -- 自增ID
 admin_user_id -- 关联admin_users.id
 operation_type -- 操作类型：1=CREATE, 2=UPDATE, 3=DELETE, 4=ENABLE, 5=DISABLE
-resource_type -- 资源类型：1=user, 2=ai_character, 3=config, 4=admin等
+resource_type -- 资源类型：1=user, 2=ai_persona, 3=config, 4=admin等
 resource_id -- 资源ID
 resource_name -- 资源名称
 operation_desc -- 操作描述
@@ -1031,4 +1012,3 @@ status -- pending,paid,failed,refunded
 created_at
 paid_at
 ```
-

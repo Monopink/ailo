@@ -106,6 +106,7 @@ def _build_contact_list_response(
         is_pinned=bool(contact.is_pinned),
         is_muted=bool(contact.is_muted),
         is_blocked=bool(contact.is_blocked),
+        source=contact.source,
         created_at=contact.created_at,
         # Add profile fields
         nickname=profile.nickname if profile else None,
@@ -143,6 +144,7 @@ def _build_contact_response(
         is_muted=bool(contact.is_muted),
         is_blocked=bool(contact.is_blocked),
         is_deleted=bool(contact.is_deleted),
+        source=contact.source,
         created_at=contact.created_at,
         updated_at=contact.updated_at,
     )

@@ -23,8 +23,8 @@ class AIRequestLog(ImmutableSnowflakeModel):
 
     __tablename__ = "ai_request_logs"
 
-    character_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="Character ID, references ai_characters.id"
+    instance_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Instance ID, references ai_instances.id"
     )
 
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="User ID, references users.id")

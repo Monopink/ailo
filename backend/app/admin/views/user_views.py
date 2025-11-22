@@ -5,12 +5,15 @@ Creates ModelView instances for user management and admin system models.
 
 from typing import Dict, Any
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from starlette_admin.contrib.sqla import ModelView
+from starlette_admin import CustomView
 from .base import BaseRoleAwareModelView
 from admin.fields import LocalDateTimeField
-from starlette_admin import StringField, TextAreaField, HasOne
+from starlette_admin import StringField, TextAreaField, HasOne, JSONField, IntegerField
 from admin.views.base import IntegerEnumField
 from starlette_admin.exceptions import FormValidationError
+from starlette_admin.actions import link_row_action
 
 from models.user import User
 from models.profile import Profile, UserProfileLog
@@ -28,6 +31,7 @@ from enums import (
     ContactRequestSource,
     ContactRequestStatus,
 )
+from services.contact.request_service import retry_pending_contact_request
 
 
 class UserView(BaseRoleAwareModelView):
@@ -188,10 +192,17 @@ class ProfileView(BaseRoleAwareModelView):
             required=False,
         ),
         HasOne(
-            "_owner_character",
-            identity="ai_character",
-            label="Owner (AI Character)",
-            help_text="Select an AI character",
+            "_owner_persona",
+            identity="ai_persona",
+            label="Owner (AI Persona)",
+            help_text="Select an AI persona",
+            required=False,
+        ),
+        HasOne(
+            "_owner_instance",
+            identity="ai_instance",
+            label="Owner (AI Instance)",
+            help_text="Select an AI instance",
             required=False,
         ),
         StringField("owner_qiao_id", label="Owner Qiao ID", help_text="External ID of the profile owner"),
@@ -213,20 +224,23 @@ class ProfileView(BaseRoleAwareModelView):
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
         """Custom validation for polymorphic owner fields."""
         owner_user = data.get("_owner_user")
-        owner_character = data.get("_owner_character")
+        owner_persona = data.get("_owner_persona")
+        owner_instance = data.get("_owner_instance")
 
         # Must select exactly one owner
-        if not owner_user and not owner_character:
+        selected_count = sum([bool(owner_user), bool(owner_persona), bool(owner_instance)])
+        if selected_count == 0:
             raise FormValidationError(
-                {"_owner_user": "Please select either Owner (User) or Owner (AI Character)"}
+                {"_owner_user": "Please select one owner: User, AI Persona, or AI Instance"}
             )
-        if owner_user and owner_character:
+        if selected_count > 1:
             raise FormValidationError({"_owner_user": "Please select only one owner"})
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         from models.user import User
-        from models.ai.character import AICharacter
+        from models.ai.template import AIPersona
+        from models.ai.instance import AIInstance
         from models.profile import Profile
         from sqlalchemy import select
         from starlette_admin.exceptions import FormValidationError
@@ -237,16 +251,21 @@ class ProfileView(BaseRoleAwareModelView):
 
         # Auto-infer owner_type and fill owner_id, owner_qiao_id
         owner_user = data.get("_owner_user")
-        owner_character = data.get("_owner_character")
+        owner_persona = data.get("_owner_persona")
+        owner_instance = data.get("_owner_instance")
 
         if owner_user and isinstance(owner_user, User):
             obj.owner_type = ProfileOwnerType.USER
             obj.owner_id = owner_user.id
             obj.owner_qiao_id = owner_user.qiao_id
-        elif owner_character and isinstance(owner_character, AICharacter):
-            obj.owner_type = ProfileOwnerType.AI
-            obj.owner_id = owner_character.id
-            obj.owner_qiao_id = owner_character.qiao_id
+        elif owner_persona and isinstance(owner_persona, AIPersona):
+            obj.owner_type = ProfileOwnerType.AI_PERSONA
+            obj.owner_id = owner_persona.id
+            obj.owner_qiao_id = owner_persona.qiao_id
+        elif owner_instance and isinstance(owner_instance, AIInstance):
+            obj.owner_type = ProfileOwnerType.AI_INSTANCE
+            obj.owner_id = owner_instance.id
+            obj.owner_qiao_id = owner_instance.qiao_id
 
         # Check for duplicate profile (use no_autoflush to prevent premature flush)
         session = request.state.session
@@ -257,9 +276,12 @@ class ProfileView(BaseRoleAwareModelView):
             result = await session.execute(stmt)
             existing_profile = result.scalar_one_or_none()
             if existing_profile:
-                field_name = (
-                    "_owner_user" if obj.owner_type == ProfileOwnerType.USER else "_owner_character"
-                )
+                if obj.owner_type == ProfileOwnerType.USER:
+                    field_name = "_owner_user"
+                elif obj.owner_type == ProfileOwnerType.AI_PERSONA:
+                    field_name = "_owner_persona"
+                else:
+                    field_name = "_owner_instance"
                 raise FormValidationError(
                     {field_name: f"Profile already exists for this owner (ID: {existing_profile.id})"}
                 )
@@ -267,7 +289,8 @@ class ProfileView(BaseRoleAwareModelView):
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         from models.user import User
-        from models.ai.character import AICharacter
+        from models.ai.template import AIPersona
+        from models.ai.instance import AIInstance
 
         # Convert empty string to None for integer fields
         if obj.avatar_file_id == "":
@@ -275,16 +298,21 @@ class ProfileView(BaseRoleAwareModelView):
 
         # Auto-infer owner_type and fill owner_id, owner_qiao_id
         owner_user = data.get("_owner_user")
-        owner_character = data.get("_owner_character")
+        owner_persona = data.get("_owner_persona")
+        owner_instance = data.get("_owner_instance")
 
         if owner_user and isinstance(owner_user, User):
             obj.owner_type = ProfileOwnerType.USER
             obj.owner_id = owner_user.id
             obj.owner_qiao_id = owner_user.qiao_id
-        elif owner_character and isinstance(owner_character, AICharacter):
-            obj.owner_type = ProfileOwnerType.AI
-            obj.owner_id = owner_character.id
-            obj.owner_qiao_id = owner_character.qiao_id
+        elif owner_persona and isinstance(owner_persona, AIPersona):
+            obj.owner_type = ProfileOwnerType.AI_PERSONA
+            obj.owner_id = owner_persona.id
+            obj.owner_qiao_id = owner_persona.qiao_id
+        elif owner_instance and isinstance(owner_instance, AIInstance):
+            obj.owner_type = ProfileOwnerType.AI_INSTANCE
+            obj.owner_id = owner_instance.id
+            obj.owner_qiao_id = owner_instance.qiao_id
 
 
 class UserProfileLogView(ModelView):
@@ -430,10 +458,10 @@ class ContactView(BaseRoleAwareModelView):
             required=False,
         ),
         HasOne(
-            "_contact_character",
-            identity="ai_character",
-            label="Contact (AI Character)",
-            help_text="Select an AI character as contact",
+            "_contact_instance",
+            identity="ai_instance",
+            label="Contact (AI Instance)",
+            help_text="Select an AI instance as contact",
             required=False,
         ),
         StringField("contact_qiao_id", label="Contact Qiao ID", help_text="Contact external ID"),
@@ -477,14 +505,14 @@ class ContactView(BaseRoleAwareModelView):
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
         """Custom validation for polymorphic contact fields."""
         contact_user = data.get("_contact_user")
-        contact_character = data.get("_contact_character")
+        contact_instance = data.get("_contact_instance")
 
         # Must select exactly one contact
-        if not contact_user and not contact_character:
+        if not contact_user and not contact_instance:
             raise FormValidationError(
-                {"_contact_user": "Please select either Contact (User) or Contact (AI Character)"}
+                {"_contact_user": "Please select either Contact (User) or Contact (AI Instance)"}
             )
-        if contact_user and contact_character:
+        if contact_user and contact_instance:
             raise FormValidationError({"_contact_user": "Please select only one contact"})
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
@@ -493,7 +521,7 @@ class ContactView(BaseRoleAwareModelView):
         import string
         from sqlalchemy import select
         from models.user import User
-        from models.ai.character import AICharacter
+        from models.ai.instance import AIInstance
         from models.contact import Contact
         from starlette_admin.exceptions import FormValidationError
 
@@ -505,16 +533,16 @@ class ContactView(BaseRoleAwareModelView):
 
         # Auto-infer contact_type and fill contact_id, contact_qiao_id
         contact_user = data.get("_contact_user")
-        contact_character = data.get("_contact_character")
+        contact_instance = data.get("_contact_instance")
 
         if contact_user and isinstance(contact_user, User):
             obj.contact_type = ContactType.USER
             obj.contact_id = contact_user.id
             obj.contact_qiao_id = contact_user.qiao_id
-        elif contact_character and isinstance(contact_character, AICharacter):
+        elif contact_instance and isinstance(contact_instance, AIInstance):
             obj.contact_type = ContactType.AI
-            obj.contact_id = contact_character.id
-            obj.contact_qiao_id = contact_character.qiao_id
+            obj.contact_id = contact_instance.id
+            obj.contact_qiao_id = contact_instance.qiao_id
 
         # Validate and handle conv_id generation with reverse contact checking
         session = request.state.session
@@ -532,7 +560,7 @@ class ContactView(BaseRoleAwareModelView):
                 existing_contact = duplicate_result.scalar_one_or_none()
                 if existing_contact:
                     errors[
-                        "_contact_user" if obj.contact_type == ContactType.USER else "_contact_character"
+                        "_contact_user" if obj.contact_type == ContactType.USER else "_contact_instance"
                     ] = (
                         f"Contact already exists for this user (ID: {existing_contact.id}). "
                         f"Each user can only have one contact record per contact."
@@ -571,7 +599,7 @@ class ContactView(BaseRoleAwareModelView):
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         from models.user import User
-        from models.ai.character import AICharacter
+        from models.ai.instance import AIInstance
 
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
@@ -581,16 +609,16 @@ class ContactView(BaseRoleAwareModelView):
 
         # Auto-infer contact_type and fill contact_id, contact_qiao_id
         contact_user = data.get("_contact_user")
-        contact_character = data.get("_contact_character")
+        contact_instance = data.get("_contact_instance")
 
         if contact_user and isinstance(contact_user, User):
             obj.contact_type = ContactType.USER
             obj.contact_id = contact_user.id
             obj.contact_qiao_id = contact_user.qiao_id
-        elif contact_character and isinstance(contact_character, AICharacter):
+        elif contact_instance and isinstance(contact_instance, AIInstance):
             obj.contact_type = ContactType.AI
-            obj.contact_id = contact_character.id
-            obj.contact_qiao_id = contact_character.qiao_id
+            obj.contact_id = contact_instance.id
+            obj.contact_qiao_id = contact_instance.qiao_id
 
 
 class ContactRequestView(ModelView):
@@ -652,10 +680,10 @@ class ContactRequestView(ModelView):
             required=False,
         ),
         HasOne(
-            "_from_character",
-            identity="ai_character",
-            label="From (AI Character)",
-            help_text="Select an AI character as applicant",
+            "_from_instance",
+            identity="ai_instance",
+            label="From (AI Instance)",
+            help_text="Select an AI instance as applicant",
             required=False,
         ),
         StringField("from_qiao_id", label="From Qiao ID", help_text="Applicant external identifier"),
@@ -668,10 +696,10 @@ class ContactRequestView(ModelView):
             required=False,
         ),
         HasOne(
-            "_to_character",
-            identity="ai_character",
-            label="To (AI Character)",
-            help_text="Select an AI character as target",
+            "_to_instance",
+            identity="ai_instance",
+            label="To (AI Instance)",
+            help_text="Select an AI instance as target",
             required=False,
         ),
         StringField("to_qiao_id", label="To Qiao ID", help_text="Target external identifier"),
@@ -688,30 +716,61 @@ class ContactRequestView(ModelView):
             label="Status",
             help_text="Current status of the request",
         ),
+        StringField(
+            "failure_code",
+            label="Failure Code",
+            help_text="Reason code when the request is pending due to inventory issues",
+        ),
+        JSONField(
+            "failure_detail",
+            label="Failure Detail",
+            help_text="Structured detail for troubleshooting template shortages",
+        ),
+        IntegerField(
+            "retry_count",
+            label="Retry Count",
+            help_text="Number of times this request has been retried",
+        ),
+        LocalDateTimeField(
+            "last_retry_at",
+            label="Last Retry At",
+            help_text="Timestamp of the most recent retry attempt",
+        ),
         LocalDateTimeField("expires_at", label="Expires At", help_text="Request expiration time"),
         LocalDateTimeField("created_at", label="Created At", help_text="Request creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
+    row_actions = ["view", "retry_request"]
+
+    @link_row_action(
+        name="retry_request",
+        text="Retry",
+        icon_class="fa fa-undo",
+    )
+    def retry_request_action(self, request: Request, pk: Any) -> str:
+        """Trigger retry for hanging requests."""
+        return f"/qiao-dash/contact-requests/{pk}/retry"
+
     async def validate(self, request: Request, data: Dict[str, Any]) -> None:
         """Custom validation for contact requests."""
         from_user = data.get("_from_user")
-        from_character = data.get("_from_character")
+        from_instance = data.get("_from_instance")
         to_user = data.get("_to_user")
-        to_character = data.get("_to_character")
+        to_instance = data.get("_to_instance")
 
         # Must select exactly one from entity
-        if not from_user and not from_character:
+        if not from_user and not from_instance:
             raise FormValidationError(
-                {"_from_user": "Please select either From (User) or From (AI Character)"}
+                {"_from_user": "Please select either From (User) or From (AI Instance)"}
             )
-        if from_user and from_character:
+        if from_user and from_instance:
             raise FormValidationError({"_from_user": "Please select only one from entity"})
 
         # Must select exactly one to entity
-        if not to_user and not to_character:
-            raise FormValidationError({"_to_user": "Please select either To (User) or To (AI Character)"})
-        if to_user and to_character:
+        if not to_user and not to_instance:
+            raise FormValidationError({"_to_user": "Please select either To (User) or To (AI Instance)"})
+        if to_user and to_instance:
             raise FormValidationError({"_to_user": "Please select only one to entity"})
 
         # Validate status changes
@@ -726,36 +785,36 @@ class ContactRequestView(ModelView):
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         from models.user import User
-        from models.ai.character import AICharacter
+        from models.ai.instance import AIInstance
 
         # Auto-fill source as ADMIN for admin panel creations
         obj.source = ContactRequestSource.ADMIN
 
         # Auto-infer from_type and fill from_id, from_qiao_id
         from_user = data.get("_from_user")
-        from_character = data.get("_from_character")
+        from_instance = data.get("_from_instance")
 
         if from_user and isinstance(from_user, User):
             obj.from_type = 1  # USER
             obj.from_id = from_user.id
             obj.from_qiao_id = from_user.qiao_id
-        elif from_character and isinstance(from_character, AICharacter):
+        elif from_instance and isinstance(from_instance, AIInstance):
             obj.from_type = 2  # AI
-            obj.from_id = from_character.id
-            obj.from_qiao_id = from_character.qiao_id
+            obj.from_id = from_instance.id
+            obj.from_qiao_id = from_instance.qiao_id
 
         # Auto-infer to_type and fill to_id, to_qiao_id
         to_user = data.get("_to_user")
-        to_character = data.get("_to_character")
+        to_instance = data.get("_to_instance")
 
         if to_user and isinstance(to_user, User):
             obj.to_type = 1  # USER
             obj.to_id = to_user.id
             obj.to_qiao_id = to_user.qiao_id
-        elif to_character and isinstance(to_character, AICharacter):
+        elif to_instance and isinstance(to_instance, AIInstance):
             obj.to_type = 2  # AI
-            obj.to_id = to_character.id
-            obj.to_qiao_id = to_character.qiao_id
+            obj.to_id = to_instance.id
+            obj.to_qiao_id = to_instance.qiao_id
 
         # Auto-set status to PENDING
         obj.status = ContactRequestStatus.PENDING
@@ -771,37 +830,84 @@ class ContactRequestView(ModelView):
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         from models.user import User
-        from models.ai.character import AICharacter
+        from models.ai.instance import AIInstance
 
         # Auto-infer from_type and fill from_id, from_qiao_id
         from_user = data.get("_from_user")
-        from_character = data.get("_from_character")
+        from_instance = data.get("_from_instance")
 
         if from_user and isinstance(from_user, User):
             obj.from_type = 1  # USER
             obj.from_id = from_user.id
             obj.from_qiao_id = from_user.qiao_id
-        elif from_character and isinstance(from_character, AICharacter):
+        elif from_instance and isinstance(from_instance, AIInstance):
             obj.from_type = 2  # AI
-            obj.from_id = from_character.id
-            obj.from_qiao_id = from_character.qiao_id
+            obj.from_id = from_instance.id
+            obj.from_qiao_id = from_instance.qiao_id
 
         # Auto-infer to_type and fill to_id, to_qiao_id
         to_user = data.get("_to_user")
-        to_character = data.get("_to_character")
+        to_instance = data.get("_to_instance")
 
         if to_user and isinstance(to_user, User):
             obj.to_type = 1  # USER
             obj.to_id = to_user.id
             obj.to_qiao_id = to_user.qiao_id
-        elif to_character and isinstance(to_character, AICharacter):
+        elif to_instance and isinstance(to_instance, AIInstance):
             obj.to_type = 2  # AI
-            obj.to_id = to_character.id
-            obj.to_qiao_id = to_character.qiao_id
+            obj.to_id = to_instance.id
+            obj.to_qiao_id = to_instance.qiao_id
 
     def can_delete(self, request: Request) -> bool:
         """Contact requests should not be deleted for audit purposes."""
         return False
+
+
+class PendingContactRequestView(CustomView):
+    """Custom dashboard for hanging contact requests."""
+
+    async def render(self, request: Request, templates):
+        session = request.state.session
+        from sqlalchemy import select, desc
+
+        stmt = (
+            select(ContactRequest)
+            .where(
+                ContactRequest.status == ContactRequestStatus.PENDING,
+                ContactRequest.failure_code.is_not(None),
+            )
+            .order_by(desc(ContactRequest.updated_at))
+        )
+        result = await session.execute(stmt)
+        pending_requests = result.scalars().all()
+
+        context = {
+            "request": request,
+            "items": pending_requests,
+        }
+        return templates.TemplateResponse("custom_views/contact_request_pending.html", context)
+
+
+class ContactRequestRetryView(CustomView):
+    """Internal redirect view to trigger retries via row actions."""
+
+    add_to_menu = False
+
+    async def render(self, request: Request, templates):
+        session = request.state.session
+        request_id = request.path_params.get("id")
+        if not request_id:
+            raise FormValidationError({"id": "Request ID missing"})
+
+        try:
+            request_id = int(request_id)
+        except ValueError as exc:
+            raise FormValidationError({"id": f"Invalid Request ID: {exc}"})
+
+        await retry_pending_contact_request(session, request_id=request_id)
+
+        referer = request.headers.get("referer") or str(request.url_for("admin:index"))
+        return RedirectResponse(url=referer, status_code=303)
 
 
 # Create view instances
@@ -814,6 +920,18 @@ contact_view = ContactView(Contact, name="Contacts", icon="fa fa-address-book", 
 contact_request_view = ContactRequestView(
     ContactRequest, name="Contact Requests", icon="fa fa-user-plus", identity="contact_request"
 )
+pending_contact_request_view = PendingContactRequestView(
+    label="Pending AI Requests",
+    name="contact_request_pending",
+    path="/contact-requests/pending",
+    icon="fa fa-hourglass-half",
+)
+contact_request_retry_view = ContactRequestRetryView(
+    label="Retry Contact Request",
+    name="contact_request_retry",
+    path="/contact-requests/{id:int}/retry",
+    add_to_menu=False,
+)
 # Export all user views
 USER_MODEL_VIEWS = [
     user_view,
@@ -821,4 +939,5 @@ USER_MODEL_VIEWS = [
     user_profile_log_view,
     contact_view,
     contact_request_view,
+    pending_contact_request_view,
 ]

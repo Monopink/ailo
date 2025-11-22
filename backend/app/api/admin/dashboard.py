@@ -33,7 +33,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         return {
             "metrics": {
                 "total_users": {"value": 0, "change": 0.0, "trend": "stable"},
-                "ai_characters": {"value": 0, "change": 0.0, "trend": "stable"},
+                "ai_instances": {"value": 0, "change": 0.0, "trend": "stable"},
                 "total_messages": {"value": 0, "change": 0.0, "trend": "stable"},
                 "active_sessions": {"value": 0, "change": 0.0, "trend": "stable"},
             },

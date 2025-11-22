@@ -130,7 +130,7 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
     )
 
     resource_type: Mapped[str] = mapped_column(
-        String(50), nullable=False, comment="Resource type: user, ai_character, config, admin, etc."
+        String(50), nullable=False, comment="Resource type: user, ai_instance, config, admin, etc."
     )
 
     resource_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Resource ID")

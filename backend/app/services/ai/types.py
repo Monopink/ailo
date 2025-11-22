@@ -1,7 +1,7 @@
 """Shared AI service data structures.
 
 Defines strict TypedDict models used across AI services to keep
-character-related data consistent and detached from ORM objects.
+instance-related data consistent and detached from ORM objects.
 """
 
 from __future__ import annotations
@@ -39,6 +39,13 @@ class ProfileInfo(TypedDict):
     region: Optional[str]
 
 
+class AITypeInfo(TypedDict):
+    """AI type metadata used in instance context."""
+
+    id: int
+    display_name: str
+
+
 class DimensionSpec(TypedDict):
     """Dimension definition for schema generation and scoring."""
 
@@ -60,13 +67,13 @@ class CurrentRelationship(TypedDict):
 RelationshipCounts = Dict[str, int]
 
 
-class CharacterContext(TypedDict):
-    """Single source of truth for AI character runtime context."""
+class InstanceContext(TypedDict):
+    """Single source of truth for AI instance runtime context."""
 
     # Core identifiers
-    character_id: int
-    character_qiao_id: str
-    category: Optional[str]
+    instance_id: int
+    instance_qiao_id: str
+    ai_type: Optional[AITypeInfo]
     status: int
     created_by: int
 
@@ -93,11 +100,12 @@ class CharacterContext(TypedDict):
 
 
 __all__ = [
-    "CharacterContext",
+    "InstanceContext",
     "CurrentRelationship",
     "DimensionSpec",
     "PersonalityInfo",
     "ProfileInfo",
     "RelationshipCounts",
     "StyleInfo",
+    "AITypeInfo",
 ]

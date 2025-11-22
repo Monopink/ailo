@@ -67,8 +67,8 @@ async def refresh_leancloud_conversation(
                 operation_type=AdminOperationType.REFRESH,
                 resource_type="leancloud_system",
                 resource_id="system_conversation",
-                resource_name="系统对话",
-                operation_desc=f"刷新LeanCloud系统对话成功，新对话ID: {result}",
+                resource_name="uni_conversation_id",
+                operation_desc=f"Refreshed LeanCloud system conversation successfully. New conversation ID: {result}",
                 request=request,
             )
 
@@ -90,8 +90,8 @@ async def refresh_leancloud_conversation(
                 operation_type=AdminOperationType.REFRESH,
                 resource_type="leancloud_system",
                 resource_id="system_conversation",
-                resource_name="系统对话",
-                operation_desc=f"刷新LeanCloud系统对话失败: {result}",
+                resource_name="uni_conversation_id",
+                operation_desc=f"Failed to refresh LeanCloud system conversation: {result}",
                 request=request,
             )
 
@@ -111,8 +111,8 @@ async def refresh_leancloud_conversation(
                 operation_type=AdminOperationType.REFRESH,
                 resource_type="leancloud_system",
                 resource_id="system_conversation",
-                resource_name="系统对话",
-                operation_desc=f"刷新LeanCloud系统对话异常: {str(e)}",
+                resource_name="uni_conversation_id",
+                operation_desc=f"Exception while refreshing LeanCloud system conversation: {str(e)}",
                 request=request,
             )
         except Exception as log_error:

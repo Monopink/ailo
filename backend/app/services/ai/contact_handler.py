@@ -1,24 +1,30 @@
 """
 AI contact request handler.
 
-This module handles contact requests for AI characters.
+This module evaluates whether an AI persona can accept a contact request.
 """
 
+from dataclasses import dataclass
+from typing import Optional
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import AICharacter
-from crud.ai import ai_character as ai_character_crud, ai_profile_template as ai_profile_template_crud
+from enums import AIPersonaStatus, AITemplateStatus, ReusableStatus
+from models.ai.template import AIPersona, AITemplate
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+@dataclass
 class ContactRequestDecision:
     """Contact request decision result."""
 
-    def __init__(self, accepted: bool, reason: str = ""):
-        self.accepted = accepted
-        self.reason = reason
+    accepted: bool
+    reason: str = ""
+    persona: Optional[AIPersona] = None
+    template: Optional[AITemplate] = None
 
 
 async def handle_ai_contact_request(
@@ -30,83 +36,116 @@ async def handle_ai_contact_request(
     message: str,
 ) -> ContactRequestDecision:
     """
-    Handle contact request for AI character.
+    Handle contact request for a persona.
 
-    This function determines whether an AI character should accept
-    a contact request from a user.
-
-    Args:
-        db: Database session
-        request_id: Contact request ID
-        from_qiao_id: Requester's qiao_id
-        to_qiao_id: AI character's qiao_id
-        message: Request message from user
-
-    Returns:
-        ContactRequestDecision with accept/reject decision
-
-    Raises:
-        ValueError: If AI character not found or not available
+    Determines whether the requested persona is available and selects
+    an appropriate template for instantiation.
     """
-    # Validate AI profile template
-    template = await ai_profile_template_crud.get_by_qiao_id(db, qiao_id=to_qiao_id)
+
+    persona = await _lock_persona_by_qiao_id(db, qiao_id=to_qiao_id)
+    if not persona:
+        logger.error(
+            "persona_not_found",
+            request_id=request_id,
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+        )
+        return ContactRequestDecision(
+            accepted=False,
+            reason="PERSONA_NOT_FOUND",
+        )
+
+    if int(persona.status) != AIPersonaStatus.ACTIVE:
+        logger.info(
+            "persona_inactive",
+            request_id=request_id,
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+            persona_status=persona.status,
+        )
+        return ContactRequestDecision(
+            accepted=False,
+            reason="PERSONA_INACTIVE",
+        )
+
+    template = await _select_template_for_ai_type(db, type_id=persona.type_id)
     if not template:
-        logger.error(
-            "ai_template_not_found",
+        logger.info(
+            "no_template_available",
             request_id=request_id,
             from_qiao_id=from_qiao_id,
             to_qiao_id=to_qiao_id,
+            type_id=persona.type_id,
         )
-        # No response, similar to no one responding
-        return ContactRequestDecision(accepted=False, reason="AI template not found")
-
-    if template.status != 1:  # 1 = active
-        logger.error(
-            "ai_template_inactive",
-            request_id=request_id,
-            from_qiao_id=from_qiao_id,
-            to_qiao_id=to_qiao_id,
-            template_status=template.status,
+        return ContactRequestDecision(
+            accepted=False,
+            reason="WAIT_TEMPLATE",
+            persona=persona,
         )
-        # No response, similar to no one responding
-        return ContactRequestDecision(accepted=False, reason="AI template not active")
 
-    # MVP: Accept all requests by default
-    # Future: Implement AI personality-based decision logic
     logger.info(
         "ai_contact_request_accepted",
         request_id=request_id,
         from_qiao_id=from_qiao_id,
         to_qiao_id=to_qiao_id,
+        persona_id=persona.id,
+        template_id=template.id,
     )
 
-    return ContactRequestDecision(accepted=True)
+    return ContactRequestDecision(
+        accepted=True,
+        persona=persona,
+        template=template,
+    )
 
 
-# Future extension: AI personality-based decision
-async def _evaluate_request_with_ai_personality(
-    db: AsyncSession,
-    ai_character: AICharacter,
-    from_qiao_id: str,
-    message: str,
-) -> ContactRequestDecision:
+async def _lock_persona_by_qiao_id(db: AsyncSession, *, qiao_id: str) -> Optional[AIPersona]:
+    """Lock persona row for update by qiao_id."""
+
+    stmt = (
+        select(AIPersona)
+        .where(AIPersona.qiao_id == qiao_id)
+        .with_for_update()
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def _select_template_for_ai_type(db: AsyncSession, *, type_id: int) -> Optional[AITemplate]:
+    """Select a template for the AI type, preferring single-use templates.
+    
+    Selection strategy:
+    1. Prioritize single-use templates over reusable ones
+    2. Sort by priority DESC (higher number = higher priority)
+    3. If multiple templates share the highest priority, randomly select one
     """
-    Evaluate contact request based on AI personality.
 
-    This is a placeholder for future implementation.
-    Can use LLM to make decision based on:
-    - AI character's personality
-    - User's request message
-    - User's history (if any)
+    single_use_stmt = (
+        select(AITemplate)
+        .where(
+            AITemplate.type_id == type_id,
+            AITemplate.status == AITemplateStatus.ACTIVE,
+            AITemplate.is_reusable == ReusableStatus.SINGLE_USE,
+        )
+        .order_by(AITemplate.priority.desc(), func.random())
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+    result = await db.execute(single_use_stmt)
+    template = result.scalar_one_or_none()
+    if template:
+        return template
 
-    Args:
-        db: Database session
-        ai_character: AI character model
-        from_qiao_id: Requester's qiao_id
-        message: Request message
-
-    Returns:
-        ContactRequestDecision
-    """
-    # TODO: Implement LLM-based decision logic
-    pass
+    reusable_stmt = (
+        select(AITemplate)
+        .where(
+            AITemplate.type_id == type_id,
+            AITemplate.status == AITemplateStatus.ACTIVE,
+            AITemplate.is_reusable == ReusableStatus.REUSABLE,
+        )
+        .order_by(AITemplate.priority.desc(), func.random())
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+    reusable_result = await db.execute(reusable_stmt)
+    return reusable_result.scalar_one_or_none()

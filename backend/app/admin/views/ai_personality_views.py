@@ -20,8 +20,8 @@ from enums import AIPersonalityStatus, RequiredStatus
 class AIPersonalityView(ModelView):
     """Enhanced AI Personality view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "usage_count", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "usage_count", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
     exclude_fields_from_list = []
 
     row_actions = ["view", "edit", "advanced_edit"]
@@ -39,16 +39,9 @@ class AIPersonalityView(ModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    async def before_edit(self, request: Request, data: Dict, obj: Any) -> None:
-        """Validate status change before editing."""
-        from services.ai.usage_tracking import validate_status_change
-
-        if "status" in data:
-            await validate_status_change(request.state.session, "personality", obj.id, data["status"])
-
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "name", "display_name", "status", "usage_count", "created_at", "updated_at"]
+    sortable_fields = ["id", "name", "display_name", "status", "created_at", "updated_at"]
 
     @link_row_action(
         name="advanced_edit",
@@ -77,9 +70,6 @@ class AIPersonalityView(ModelView):
             required=True,
         ),
         JSONField("json_schema", label="JSON Schema", help_text="JSON schema for AI response validation"),
-        IntegerField(
-            "usage_count", label="Usage Count", help_text="Number of characters using this personality"
-        ),
         IntegerEnumField(
             "status",
             enum=AIPersonalityStatus,

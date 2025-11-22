@@ -43,11 +43,11 @@ class UserViolationLogView(ModelView):
 
     exclude_fields_from_list = []
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["user_qiao_id", "character_qiao_id"]
+    searchable_fields = ["user_qiao_id", "instance_qiao_id"]
     sortable_fields = [
         "id",
         "user_qiao_id",
-        "character_qiao_id",
+        "instance_qiao_id",
         "violation_type",
         "severity_level",
         "auto_action_taken",
@@ -61,9 +61,9 @@ class UserViolationLogView(ModelView):
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         StringField(
-            "character_id", label="Character ID", help_text="AI character snowflake ID (if applicable)"
+            "instance_id", label="Instance ID", help_text="AI instance snowflake ID (if applicable)"
         ),
-        StringField("character_qiao_id", label="Character Qiao ID", help_text="AI character qiao ID"),
+        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="AI instance qiao ID"),
         IntegerEnumField(
             "violation_type",
             enum=ViolationType,

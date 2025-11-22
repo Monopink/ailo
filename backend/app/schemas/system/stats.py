@@ -119,8 +119,8 @@ class MessageStatsMonthlyResponse(MessageStatsBase):
 class AIStatsBase(BaseStatsSchema):
     """Base AI statistics schema."""
 
-    ai_characters: int = Field(..., ge=0, description="Total AI character count")
-    active_ai_characters: int = Field(..., ge=0, description="Active AI character count")
+    ai_instances: int = Field(..., ge=0, description="Total AI instance count")
+    active_ai_instances: int = Field(..., ge=0, description="Active AI instance count")
     ai_requests_count: int = Field(..., ge=0, description="AI request count")
     avg_ai_requests_per_user: float = Field(..., ge=0, description="Average AI requests per user")
 
@@ -170,7 +170,7 @@ class DashboardStats(BaseSchema):
     total_users: int = Field(..., description="Total user count")
     active_users: int = Field(..., description="Active user count")
     total_messages: int = Field(..., description="Total message count")
-    total_ai_characters: int = Field(..., description="Total AI character count")
+    total_ai_instances: int = Field(..., description="Total AI instance count")
     daily_new_users: int = Field(..., description="Daily new user count")
     daily_messages: int = Field(..., description="Daily message count")
     daily_revenue: float = Field(..., description="Daily revenue")

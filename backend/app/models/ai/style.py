@@ -24,10 +24,6 @@ class AIStyle(AutoIncrementModel):
 
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
 
-    usage_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Reference count"
-    )
-
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -46,6 +42,11 @@ class AIStyle(AutoIncrementModel):
 
     # Constraints
     __table_args__ = (UniqueConstraint("name", name="ai_styles_name_key"),)
+
+
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 
 class AIDimension(AutoIncrementModel):
@@ -81,6 +82,11 @@ class AIDimension(AutoIncrementModel):
         primaryjoin="AIDimension.id == foreign(AIDimensionRelationshipMapping.dimension_id)",
         cascade="all, delete-orphan",
     )
+
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        display = escape(self.display_name) if self.display_name else escape(self.name)
+        return f"<span>[{self.id}] {display}</span>"
 
 
 class AIStyleDimension(AutoIncrementModel):
@@ -143,10 +149,6 @@ class AIRelationship(AutoIncrementModel):
 
     prompt_fragment: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, comment="Prompt fragment for this relationship type"
-    )
-
-    usage_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Usage count"
     )
 
     status: Mapped[int] = mapped_column(
@@ -228,6 +230,10 @@ class AIRelationship(AutoIncrementModel):
             name="ck_ai_relationships_no_reply_probability",
         ),
     )
+
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 
 class AIDimensionRelationshipMapping(AutoIncrementModel):

@@ -61,7 +61,7 @@ async def route_message(db: AsyncSession, event: InboundMessageEvent) -> None:
                 await buffer.add_message_to_buffer(
                     db=db,
                     event=event,
-                    character_qiao_id=contact.contact_qiao_id,
+                    instance_qiao_id=contact.contact_qiao_id,
                 )
                 logger.info("message_buffered", conv_id=contact.conv_id)
             except Exception as e:

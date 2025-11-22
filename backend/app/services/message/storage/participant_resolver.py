@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from enums import MessageParticipantType
-from models.ai.character import AICharacter
+from models.ai.instance import AIInstance
 from crud.user import user as user_crud
 from utils.logging import get_logger
 
@@ -38,11 +38,11 @@ async def get_participant_info(db: AsyncSession, qiao_id: str) -> tuple[MessageP
     if user:
         return MessageParticipantType.USER, user.id
 
-    # Try AI character
-    result = await db.execute(select(AICharacter).where(AICharacter.qiao_id == qiao_id))
-    character = result.scalar_one_or_none()
-    if character:
-        return MessageParticipantType.AI, character.id
+    # Try AI instance
+    result = await db.execute(select(AIInstance).where(AIInstance.qiao_id == qiao_id))
+    instance = result.scalar_one_or_none()
+    if instance:
+        return MessageParticipantType.AI, instance.id
 
     # Not found
     logger.error("participant_not_found", qiao_id=qiao_id)

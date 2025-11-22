@@ -1,7 +1,7 @@
 """
-AI Character admin views.
+AI Instance admin views.
 
-This module contains Starlette-Admin views for AI character system.
+This module contains Starlette-Admin views for AI instance system.
 """
 
 from typing import Any, Dict
@@ -11,20 +11,20 @@ from starlette_admin import IntegerField, StringField, TextAreaField, HasOne, JS
 from starlette_admin.actions import link_row_action
 from starlette_admin.exceptions import FormValidationError
 
-from models.ai.character import AICharacter
-from models.ai import AICharacterDimension
+from models.ai.instance import AIInstance
+from models.ai import AIInstanceDimension
 from admin.views.base import IntegerEnumField
 from admin.fields import LocalDateTimeField
 from enums import (
-    AICharacterCreator,
-    AICharacterStatus,
+    AIInstanceCreator,
+    AIInstanceStatus,
     Gender,
     ProfileOwnerType,
 )
 
 
 class _ProfileRelatedStringField(StringField):
-    """Computed field showing Profile attribute for an AICharacter.
+    """Computed field showing Profile attribute for an AIInstance.
 
     It looks up profiles where owner_type=AI and owner_id=obj.id and returns
     the selected attribute as string.
@@ -43,8 +43,11 @@ class _ProfileRelatedStringField(StringField):
             from models.profile import Profile
 
             session = request.state.session
+            if not getattr(obj, "qiao_id", None):
+                return ""
             stmt = select(getattr(Profile, self._profile_attr)).where(
-                Profile.owner_id == obj.id, Profile.owner_type == ProfileOwnerType.AI
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type.in_([ProfileOwnerType.AI_INSTANCE, ProfileOwnerType.AI_PERSONA]),
             )
             result = await session.execute(stmt)
             value = result.scalar_one_or_none()
@@ -54,7 +57,7 @@ class _ProfileRelatedStringField(StringField):
 
 
 class _ProfileGenderField(StringField):
-    """Computed field showing Profile.gender as enum name for an AICharacter."""
+    """Computed field showing Profile.gender as enum name for an AIInstance."""
 
     def __init__(self, name: str = "profile_gender", label: str = "Profile Gender"):
         super().__init__(name=name, label=label)
@@ -68,8 +71,11 @@ class _ProfileGenderField(StringField):
             from models.profile import Profile
 
             session = request.state.session
+            if not getattr(obj, "qiao_id", None):
+                return ""
             stmt = select(Profile.gender).where(
-                Profile.owner_id == obj.id, Profile.owner_type == ProfileOwnerType.AI
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type.in_([ProfileOwnerType.AI_INSTANCE, ProfileOwnerType.AI_PERSONA]),
             )
             result = await session.execute(stmt)
             value = result.scalar_one_or_none()
@@ -83,8 +89,41 @@ class _ProfileGenderField(StringField):
             return ""
 
 
+class _ProfileOwnerTypeField(StringField):
+    """Computed field showing Profile.owner_type as enum name for an AIInstance."""
+
+    def __init__(self, name: str = "profile_owner_type", label: str = "Profile Type"):
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request, obj):  # type: ignore[override]
+        try:
+            from sqlalchemy import select
+            from models.profile import Profile
+
+            session = request.state.session
+            if not getattr(obj, "qiao_id", None):
+                return ""
+            stmt = select(Profile.owner_type).where(
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type.in_([ProfileOwnerType.AI_INSTANCE, ProfileOwnerType.AI_PERSONA]),
+            )
+            result = await session.execute(stmt)
+            value = result.scalar_one_or_none()
+            if value is None:
+                return ""
+            try:
+                return ProfileOwnerType(int(value)).name
+            except Exception:
+                return str(value)
+        except Exception:
+            return ""
+
+
 class _RelationshipDisplayNameField(StringField):
-    """Computed field to show relationship display_name for AICharacter."""
+    """Computed field to show relationship display_name for AIInstance."""
 
     def __init__(self, name: str = "relationship_display_name", label: str = "Current Relationship"):
         super().__init__(name=name, label=label)
@@ -102,7 +141,7 @@ class _RelationshipDisplayNameField(StringField):
 
 
 class _DimensionDisplayNameField(StringField):
-    """Computed field to show dimension display_name for AICharacterDimension."""
+    """Computed field to show dimension display_name for AIInstanceDimension."""
 
     def __init__(self, name: str = "dimension_display_name", label: str = "Dimension Name"):
         super().__init__(name=name, label=label)
@@ -119,30 +158,39 @@ class _DimensionDisplayNameField(StringField):
             return ""
 
 
-class AICharacterView(ModelView):
-    """Enhanced AI Character view with proper field configuration and chat test functionality."""
+class AIInstanceView(ModelView):
+    """Enhanced AI Instance view with proper field configuration and chat test functionality."""
 
     exclude_fields_from_create = [
         "id",
         "qiao_id",
+        "user_id",
+        "user_qiao_id",
         "created_by",
         "created_at",
         "updated_at",
         "profile_nickname",
         "profile_gender",
+        "profile_owner_type",
         "relationship_display_name",
     ]
     exclude_fields_from_edit = [
         "id",
         "qiao_id",
+        "user",
+        "user_id",
+        "user_qiao_id",
         "created_by",
         "created_at",
         "updated_at",
         "profile_nickname",
         "profile_gender",
+        "profile_owner_type",
         "relationship_display_name",
     ]
-    exclude_fields_from_list = []
+    exclude_fields_from_list = [
+        "creation_metadata",
+    ]
 
     def is_active(self, request: Request) -> bool:
         """Check if current page is related to this model (including advanced-edit and chat-test)."""
@@ -178,42 +226,21 @@ class AICharacterView(ModelView):
 
     async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
         """Override edit to handle data processing."""
-        # Convert empty string to None for category
-        if "category" in data and data["category"] == "":
-            data["category"] = None
         return await super().edit(request, pk, data)
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Auto-fill foreign keys and required fields before creating character."""
+        """Auto-fill foreign keys and required fields before creating instance."""
+        from models.user import User
+
         # Set created_by to 2 (Admin) for admin panel creations
         obj.created_by = 2
 
-        # Convert empty string to None for category
-        if hasattr(obj, "category") and obj.category == "":
-            obj.category = None
+        # Auto-fill user_id and user_qiao_id from selected user
+        user = data.get("user")
+        if user and isinstance(user, User):
+            obj.user_id = user.id
+            obj.user_qiao_id = user.qiao_id
 
-        if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
-            obj.timezone = "Asia/Shanghai"
-
-        # Auto-fill foreign keys from HasOne relationships
-        # starlette-admin's HasOne sets the relationship object but not the FK field
-        if hasattr(obj, "style") and obj.style is not None:
-            obj.style_id = obj.style.id
-        if hasattr(obj, "personality") and obj.personality is not None:
-            obj.personality_id = obj.personality.id
-
-        # Validate required foreign keys
-        errors = {}
-        if not hasattr(obj, "style_id") or obj.style_id is None:
-            errors["style"] = "AI Style is required"
-        if not hasattr(obj, "personality_id") or obj.personality_id is None:
-            errors["personality"] = "AI Personality is required"
-
-        if errors:
-            raise FormValidationError(errors)
-
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        """Auto-fill foreign keys before editing character."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "style") and obj.style is not None:
             obj.style_id = obj.style.id
@@ -227,6 +254,39 @@ class AICharacterView(ModelView):
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
 
+        if not hasattr(obj, "creation_metadata") or obj.creation_metadata is None:
+            obj.creation_metadata = {}
+
+        # Validate required foreign keys
+        errors = {}
+        if not hasattr(obj, "user_id") or obj.user_id is None:
+            errors["user"] = "Owner User is required"
+        if not hasattr(obj, "style_id") or obj.style_id is None:
+            errors["style"] = "AI Style is required"
+        if not hasattr(obj, "personality_id") or obj.personality_id is None:
+            errors["personality"] = "AI Personality is required"
+
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Auto-fill foreign keys before editing instance."""
+        # Auto-fill foreign keys from HasOne relationships
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+        if hasattr(obj, "personality") and obj.personality is not None:
+            obj.personality_id = obj.personality.id
+        if hasattr(obj, "relationship") and obj.relationship is not None:
+            obj.relationship_id = obj.relationship.id
+        else:
+            obj.relationship_id = None
+
+        if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
+            obj.timezone = "Asia/Shanghai"
+
+        if not hasattr(obj, "creation_metadata") or obj.creation_metadata is None:
+            obj.creation_metadata = {}
+
         # Validate required foreign keys
         errors = {}
         if not hasattr(obj, "style_id") or obj.style_id is None:
@@ -238,27 +298,35 @@ class AICharacterView(ModelView):
             raise FormValidationError(errors)
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["qiao_id", "category"]
-    sortable_fields = ["id", "qiao_id", "category", "status", "created_by", "created_at", "updated_at"]
+    searchable_fields = ["qiao_id", "user_qiao_id"]
+    sortable_fields = ["id", "user_id", "qiao_id", "status", "created_by", "created_at", "updated_at"]
 
     fields = [
-        StringField("id", label="ID", help_text="Internal character ID"),
-        StringField("qiao_id", label="Character ID", help_text="Unique character identifier"),
-        StringField("category", label="Category", help_text="Character category classification"),
+        StringField("id", label="ID", help_text="Internal instance ID"),
+        HasOne(
+            "user",
+            identity="user",
+            label="Owner User",
+            help_text="User who owns this instance",
+            required=True,
+        ),
+        StringField("user_qiao_id", label="User Qiao ID", help_text="Owning user qiao_id"),
+        StringField("qiao_id", label="Qiao ID", help_text="External AI identifier"),
         _ProfileRelatedStringField("profile_nickname", profile_attr="nickname", label="Profile Nickname"),
         _ProfileGenderField(),
+        _ProfileOwnerTypeField(),
         HasOne(
             "style",
             identity="ai_style",
             label="AI Style",
-            help_text="AI style for this character",
+            help_text="AI style for this instance",
             required=True,
         ),
         HasOne(
             "personality",
             identity="ai_personality",
             label="AI Personality",
-            help_text="AI personality for this character",
+            help_text="AI personality for this instance",
             required=True,
         ),
         HasOne(
@@ -272,12 +340,12 @@ class AICharacterView(ModelView):
         TextAreaField(
             "memory",
             label="Memory",
-            help_text="Character-specific memory and background information",
+            help_text="Instance-specific memory and background information",
         ),
         JSONField(
             "prompt_variables",
             label="Prompt Variables",
-            help_text="Character-specific prompt variable values",
+            help_text="Instance-specific prompt variable values",
         ),
         JSONField(
             "relationship_counts",
@@ -292,7 +360,7 @@ class AICharacterView(ModelView):
         StringField(
             "timezone",
             label="Timezone",
-            help_text="IANA timezone for this character (e.g., Asia/Shanghai)",
+            help_text="IANA timezone for this instance (e.g., Asia/Shanghai)",
             required=True,
         ),
         IntegerField(
@@ -301,20 +369,25 @@ class AICharacterView(ModelView):
             help_text="Words per minute used for typing simulation",
             required=True,
         ),
+        JSONField(
+            "creation_metadata",
+            label="Creation Metadata",
+            help_text="Snapshot of the payload recorded when this instance was created",
+        ),
         IntegerEnumField(
             "created_by",
-            enum=AICharacterCreator,
+            enum=AIInstanceCreator,
             label="Created By",
-            help_text="Who created this character",
+            help_text="Who created this instance",
         ),
         IntegerEnumField(
             "status",
-            enum=AICharacterStatus,
+            enum=AIInstanceStatus,
             label="Status",
-            help_text="Character status: Active characters can be used (default: Active)",
+            help_text="Instance status: Active instances can be used (default: Active)",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Character creation time"),
+        LocalDateTimeField("created_at", label="Created At", help_text="Instance creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
@@ -326,8 +399,8 @@ class AICharacterView(ModelView):
         icon_class="fas fa-cogs",
     )
     def advanced_edit_row_action(self, request: Request, pk: Any) -> str:
-        """Link to edit character JSON fields."""
-        return f"/qiao-dash/ai_character/advanced-edit/{pk}"
+        """Link to instance advanced edit."""
+        return f"/qiao-dash/ai_instance/advanced-edit/{pk}"
 
     @link_row_action(
         name="chat_test",
@@ -335,21 +408,21 @@ class AICharacterView(ModelView):
         icon_class="fas fa-flask",
     )
     def chat_test_row_action(self, request: Request, pk: Any) -> str:
-        """Link to AI character chat test page."""
-        return f"/qiao-dash/ai_character/chat-test/{pk}"
+        """Link to AI instance chat test page."""
+        return f"/qiao-dash/ai_instance/chat-test/{pk}"
 
 
-class AICharacterDimensionView(ModelView):
-    """AI Character Dimension score view for per-dimension scoring management."""
+class AIInstanceDimensionView(ModelView):
+    """AI Instance Dimension score view for per-dimension scoring management."""
 
-    label = "Character Dimensions"
-    name = "Character Dimensions"
+    label = "Instance Dimensions"
+    name = "Instance Dimensions"
 
     exclude_fields_from_create = ["id", "dimension_display_name", "created_at", "updated_at"]
     exclude_fields_from_edit = [
         "id",
         "dimension_display_name",
-        "character_id",
+        "instance_id",
         "dimension_id",
         "created_at",
         "updated_at",
@@ -363,7 +436,7 @@ class AICharacterDimensionView(ModelView):
     searchable_fields = []
     sortable_fields = [
         "id",
-        "character_id",
+        "instance_id",
         "dimension_id",
         "score",
         "position",
@@ -372,12 +445,12 @@ class AICharacterDimensionView(ModelView):
     ]
 
     fields = [
-        StringField("id", label="ID", help_text="Internal character dimension ID"),
+        StringField("id", label="ID", help_text="Internal instance dimension ID"),
         HasOne(
-            "character",
-            identity="ai_character",
-            label="AI Character",
-            help_text="AI character",
+            "instance",
+            identity="ai_instance",
+            label="AI Instance",
+            help_text="AI instance",
             required=True,
         ),
         HasOne(
@@ -436,33 +509,33 @@ class AICharacterDimensionView(ModelView):
         from services.ai.utils.position_mapping import map_score_to_position
 
         # Auto-fill foreign keys from HasOne relationships
-        if hasattr(obj, "character") and obj.character is not None:
-            obj.character_id = obj.character.id
+        if hasattr(obj, "instance") and obj.instance is not None:
+            obj.instance_id = obj.instance.id
         if hasattr(obj, "dimension") and obj.dimension is not None:
             obj.dimension_id = obj.dimension.id
 
         # Validate required foreign keys
         errors = {}
-        if not getattr(obj, "character_id", None):
-            errors["character"] = "AI Character is required"
+        if not getattr(obj, "instance_id", None):
+            errors["instance"] = "AI Instance is required"
         if not getattr(obj, "dimension_id", None):
             errors["dimension"] = "Relationship Dimension is required"
 
         session = request.state.session
 
-        # Check uniqueness constraint: same character + dimension
+        # Check uniqueness constraint: same instance + dimension
         if not errors:
             with session.no_autoflush:
-                stmt = select(AICharacterDimension).where(
-                    AICharacterDimension.character_id == obj.character_id,
-                    AICharacterDimension.dimension_id == obj.dimension_id,
+                stmt = select(AIInstanceDimension).where(
+                    AIInstanceDimension.instance_id == obj.instance_id,
+                    AIInstanceDimension.dimension_id == obj.dimension_id,
                 )
                 result = await session.execute(stmt)
                 existing_score = result.scalar_one_or_none()
                 if existing_score:
                     errors["dimension"] = (
-                        f"Dimension score already exists for this character and dimension "
-                        f"(ID: {existing_score.id}). Each character can only have one score per dimension."
+                        f"Dimension score already exists for this instance and dimension "
+                        f"(ID: {existing_score.id}). Each instance can only have one score per dimension."
                     )
 
         if errors:
@@ -476,11 +549,11 @@ class AICharacterDimensionView(ModelView):
 
             # Prevent premature autoflush while we read prerequisites and compute
             with session.no_autoflush:
-                # Fetch character style_id
-                char_stmt = select(AICharacter.style_id).where(AICharacter.id == obj.character_id)
+                # Fetch instance style_id
+                char_stmt = select(AIInstance.style_id).where(AIInstance.id == obj.instance_id)
                 style_id = (await session.execute(char_stmt)).scalar_one_or_none()
                 if style_id is None:
-                    raise FormValidationError({"character": "Selected character has no style configured"})
+                    raise FormValidationError({"instance": "Selected instance has no style configured"})
 
                 # Fetch initial_position for (style_id, dimension_id)
                 init_stmt = select(AIStyleDimension.initial_position).where(
@@ -527,16 +600,16 @@ class AICharacterDimensionView(ModelView):
 
 
 # Create view instances
-ai_character_view = AICharacterView(
-    AICharacter, name="AI Characters", label="Characters", icon="fa fa-robot", identity="ai_character"
+ai_instance_view = AIInstanceView(
+    AIInstance, name="AI Instances", label="Instances", icon="fa fa-robot", identity="ai_instance"
 )
 
-ai_character_dimension_view = AICharacterDimensionView(
-    AICharacterDimension, name="Character Dimensions", icon="fa fa-ruler", identity="ai_character_dimension"
+ai_instance_dimension_view = AIInstanceDimensionView(
+    AIInstanceDimension, name="Instance Dimensions", icon="fa fa-ruler", identity="ai_instance_dimension"
 )
 
-# Export character views
-AI_CHARACTER_VIEWS = [
-    ai_character_view,
-    ai_character_dimension_view,
+# Export instance views
+AI_INSTANCE_VIEWS = [
+    ai_instance_view,
+    ai_instance_dimension_view,
 ]

@@ -8,8 +8,8 @@ context status updates, and context archiving.
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .queries import get_character_context, get_items_for_archiving
-from .queries.updates import update_character_memory
+from .queries import get_instance_context, get_items_for_archiving
+from .queries.updates import update_instance_memory
 from .queries.transactions import archive_contexts_transaction
 from services.config import config_service
 
@@ -23,16 +23,16 @@ logger = get_logger(__name__)
 
 
 async def process_memory_operations(
-    db: AsyncSession, character_qiao_id: str, operations: List[Dict[str, Any]]
+    db: AsyncSession, instance_qiao_id: str, operations: List[Dict[str, Any]]
 ) -> bool:
     """
-    Process memory operations for AI character.
+    Process memory operations for AI instance.
 
-    Operations are executed in sequence on the character's memory.
+    Operations are executed in sequence on the instance's memory.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
         operations: List of memory operation dictionaries
 
     Returns:
@@ -40,14 +40,14 @@ async def process_memory_operations(
     """
     try:
         if not operations:
-            logger.debug("no_memory_operations_to_process", character_qiao_id=character_qiao_id)
+            logger.debug("no_memory_operations_to_process", instance_qiao_id=instance_qiao_id)
             return True
 
-        # Get character context
-        context = await get_character_context(db, character_qiao_id=character_qiao_id)
+        # Get instance context
+        context = await get_instance_context(db, instance_qiao_id=instance_qiao_id)
 
         if not context:
-            logger.error("character_not_found_for_memory", character_qiao_id=character_qiao_id)
+            logger.error("instance_not_found_for_memory", instance_qiao_id=instance_qiao_id)
             return False
 
         current_memory = context.get("memory") or ""
@@ -58,7 +58,7 @@ async def process_memory_operations(
                 current_memory = _apply_memory_operation(current_memory, operation)
                 logger.debug(
                     "memory_operation_applied",
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                     operation_index=i,
                     operation_type=operation.get("operation"),
                     memory_length=len(current_memory),
@@ -67,22 +67,22 @@ async def process_memory_operations(
                 logger.error(
                     "memory_operation_failed",
                     error=str(e),
-                    character_qiao_id=character_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
                     operation_index=i,
                     operation=operation,
                 )
                 # Continue with other operations
                 continue
 
-        # Update character memory
-        success = await update_character_memory(db, character_qiao_id, current_memory)
+        # Update instance memory
+        success = await update_instance_memory(db, instance_qiao_id, current_memory)
         if not success:
-            logger.error("character_memory_update_failed", character_qiao_id=character_qiao_id)
+            logger.error("instance_memory_update_failed", instance_qiao_id=instance_qiao_id)
             return False
 
         logger.info(
             "memory_operations_completed",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             operations_count=len(operations),
             final_memory_length=len(current_memory),
         )
@@ -93,7 +93,7 @@ async def process_memory_operations(
         logger.error(
             "memory_operations_processing_failed",
             error=str(e),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             operations=operations,
         )
         return False
@@ -102,14 +102,14 @@ async def process_memory_operations(
 # Context status updates are handled by the data.mutations layer
 
 
-async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qiao_id: str) -> int:
+async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, instance_qiao_id: str) -> int:
     """
     Archive old conversation items to ai_conversation_items_archive table.
 
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
 
     Returns:
         Number of contexts archived
@@ -124,7 +124,7 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
 
         items_to_archive, total_count = await get_items_for_archiving(
             db,
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
             max_age_seconds=int(archive_time_seconds),
             max_count=int(archive_max_count),
@@ -134,7 +134,7 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
         if total_count <= archive_min_count:
             logger.debug(
                 "no_contexts_to_archive",
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 user_qiao_id=user_qiao_id,
                 reason="below_min_count",
             )
@@ -143,19 +143,19 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
         if not items_to_archive:
             logger.debug(
                 "no_contexts_to_archive",
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
                 user_qiao_id=user_qiao_id,
                 reason="no_candidates",
             )
             return 0
 
         archived_count = await archive_contexts_transaction(
-            db, contexts_to_archive=items_to_archive, character_qiao_id=character_qiao_id
+            db, contexts_to_archive=items_to_archive, instance_qiao_id=instance_qiao_id
         )
 
         logger.info(
             "contexts_archived",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
             archived_count=archived_count,
             total_contexts=len(items_to_archive),
@@ -167,7 +167,7 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, character_qi
         logger.error(
             "context_archiving_failed",
             error=str(e),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
         )
         return 0

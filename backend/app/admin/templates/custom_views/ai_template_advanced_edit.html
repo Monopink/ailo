@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}<title>Edit Character Template</title>{% endblock %}
+{% block title %}<title>Edit AI Template</title>{% endblock %}
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/admin-fixes.css') }}">
 {% endblock %}
@@ -8,14 +8,14 @@
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
   <div>
-    <h1>Edit Character Template</h1>
+    <h1>Edit AI Template</h1>
   </div>
   <ol class="breadcrumb">
     <li class="breadcrumb-item">
       <a href="{{ url_for(__name__ ~ ':index') }}">Admin</a>
     </li>
     <li class="breadcrumb-item">
-      <a href="{{ url_for(__name__ ~ ':list', identity='ai_character_template') }}">Character Templates</a>
+      <a href="{{ url_for(__name__ ~ ':list', identity='ai_template') }}">AI Templates</a>
     </li>
     <li class="breadcrumb-item active">Advanced Edit</li>
   </ol>
@@ -189,7 +189,7 @@
         <div class="card mt-3">
           <div class="card-body text-black">
             <div class="btn-list ms-auto justify-content-end">
-              <a href="{{ url_for(__name__ ~ ':list', identity='ai_character_template') }}" class="btn btn-danger">Cancel</a>
+              <a href="{{ url_for(__name__ ~ ':list', identity='ai_template') }}" class="btn btn-danger">Cancel</a>
               <button type="submit" data-action="continue" class="btn">Save and continue editing</button>
               <button type="submit" data-action="save" class="btn btn-success">Save</button>
             </div>
@@ -303,7 +303,7 @@
     }
 
     try {
-      const response = await fetch('/admin-api/ai/ai_character_template/{{ template.id }}/save', {
+      const response = await fetch('/admin-api/ai/ai_template/{{ template.id }}/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -314,7 +314,7 @@
 
       if (response.ok) {
         if (action === 'save') {
-          window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_character_template') }}";
+          window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_template') }}";
         } else {
           alert('Saved successfully');
           location.reload();

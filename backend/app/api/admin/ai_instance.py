@@ -1,6 +1,6 @@
 """
-Admin AI Character API endpoints.
-Handles character management including prompt variables, dimensions, and relationships.
+Admin AI Instance API endpoints.
+Handles instance management including prompt variables, dimensions, and relationships.
 """
 
 from typing import Any, Dict
@@ -8,27 +8,27 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from crud.ai import ai_character as character_crud
+from crud.ai import ai_instance as ai_instance_crud
 from enums.common import PositionMappingAlgorithm
 from services.ai.utils.position_mapping import parse_algorithm_params
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-character_router = APIRouter()
+ai_instance_router = APIRouter()
 
 
-@character_router.post("/ai_character/{character_id}/save")
-async def save_character(
-    character_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
+@ai_instance_router.post("/ai_instance/{instance_id}/save")
+async def save_instance(
+    instance_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
-    """Save character prompt_variables and dimensions."""
-    from crud.ai.character_dimension import update_dimensions_batch
+    """Save instance prompt_variables and dimensions."""
+    from crud.ai.instance_dimension import update_dimensions_batch
 
-    # Get character
-    character = await character_crud.get(db, id=character_id)
-    if not character:
-        raise HTTPException(status_code=404, detail="Character not found")
+    # Get instance
+    instance = await ai_instance_crud.get(db, id=instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
 
     update_data: Dict[str, Any] = {}
 
@@ -96,14 +96,14 @@ async def save_character(
         if cleaned_dimensions:
             # Batch update only when we have valid dimensions
             result = await update_dimensions_batch(
-                db, character_id=character_id, dimensions_data=cleaned_dimensions
+                db, instance_id=instance_id, dimensions_data=cleaned_dimensions
             )
             updated_dims = result["updated"]
             created_dims = result["created"]
 
     # Optional positions mapping from preview: { dimension_id: position }
     if "positions" in data and isinstance(data["positions"], dict):
-        from crud.ai.character_dimension import update_dimension
+        from crud.ai.instance_dimension import update_dimension
 
         for key, val in data["positions"].items():
             try:
@@ -111,7 +111,7 @@ async def save_character(
                 pv = int(val)
                 if 0 <= pv <= 1000:
                     await update_dimension(
-                        db, character_id=character_id, dimension_id=dim_id, update_data={"position": pv}
+                        db, instance_id=instance_id, dimension_id=dim_id, update_data={"position": pv}
                     )
             except Exception:
                 continue
@@ -122,7 +122,7 @@ async def save_character(
             relationship_id = int(data["relationship_id"])
             update_data["relationship_id"] = relationship_id
         except Exception as e:
-            logger.error("update_relationship_id_failed", character_id=character_id, error=str(e))
+            logger.error("update_relationship_id_failed", instance_id=instance_id, error=str(e))
 
     if "typing_speed_wpm" in data:
         raw_value = data["typing_speed_wpm"]
@@ -135,11 +135,11 @@ async def save_character(
         update_data["typing_speed_wpm"] = typing_speed
 
     if update_data:
-        await character_crud.update(db, db_obj=character, obj_in=update_data)
+        await ai_instance_crud.update(db, db_obj=instance, obj_in=update_data)
 
     logger.info(
-        "character_saved",
-        character_id=character_id,
+        "instance_saved",
+        instance_id=instance_id,
         updated_dimensions=updated_dims,
         created_dimensions=created_dims,
     )
@@ -152,9 +152,9 @@ async def save_character(
     }
 
 
-@character_router.post("/ai_character/{character_id}/generate-relationship")
-async def generate_character_relationship(
-    character_id: int, data: Dict[str, Any] | None = None, db: AsyncSession = Depends(get_db)
+@ai_instance_router.post("/ai_instance/{instance_id}/generate-relationship")
+async def generate_instance_relationship(
+    instance_id: int, data: Dict[str, Any] | None = None, db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Preview or persist generate-relationship using admin service (overrides + preview)."""
     try:
@@ -169,10 +169,10 @@ async def generate_character_relationship(
                 except Exception:
                     preview = True
 
-        from services.admin.character_relationship import generate_relationship_for_character
+        from services.admin.instance_relationship import generate_relationship_for_instance
 
-        result = await generate_relationship_for_character(
-            db, character_id=int(character_id), overrides=overrides, preview=preview
+        result = await generate_relationship_for_instance(
+            db, instance_id=int(instance_id), overrides=overrides, preview=preview
         )
         if not result.get("success"):
             raise HTTPException(status_code=400, detail=result.get("message", "Generate failed"))
@@ -180,24 +180,24 @@ async def generate_character_relationship(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("generate_relationship_service_failed", character_id=character_id, error=str(e))
+        logger.error("instance_generate_relationship_failed", instance_id=instance_id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to generate relationship")
 
 
-@character_router.put("/ai_character/{character_id}/dimension/{dimension_id}")
-async def update_character_dimension(
-    character_id: int, dimension_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
+@ai_instance_router.put("/ai_instance/{instance_id}/dimension/{dimension_id}")
+async def update_instance_dimension(
+    instance_id: int, dimension_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    DEPRECATED: Use /ai_character/{character_id}/save instead.
+    DEPRECATED: Use /ai_instance/{instance_id}/save instead.
 
-    Update character dimension (score, algorithm, params).
+    Update instance dimension (score, algorithm, params).
     """
-    from crud.ai.character_dimension import update_dimension
+    from crud.ai.instance_dimension import update_dimension
 
-    character = await character_crud.get(db, id=character_id)
-    if not character:
-        raise HTTPException(status_code=404, detail="Character not found")
+    instance = await ai_instance_crud.get(db, id=instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
 
     # Validate data
     if "score" not in data:
@@ -228,12 +228,12 @@ async def update_character_dimension(
         "position_mapping_params": params,
     }
     success = await update_dimension(
-        db, character_id=character_id, dimension_id=dimension_id, update_data=update_data
+        db, instance_id=instance_id, dimension_id=dimension_id, update_data=update_data
     )
 
     if not success:
         raise HTTPException(status_code=404, detail="Dimension not found")
 
-    logger.info("character_dimension_updated", character_id=character_id, dimension_id=dimension_id)
+    logger.info("instance_dimension_updated", instance_id=instance_id, dimension_id=dimension_id)
 
     return {"success": True, "message": "Dimension updated successfully"}

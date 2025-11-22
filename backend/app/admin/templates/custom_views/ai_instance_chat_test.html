@@ -1,15 +1,15 @@
 {% extends "layout.html" %}
 
-{% block title %}<title>AI Character Chat Test</title>{% endblock %}
+{% block title %}<title>AI Instance Chat Test</title>{% endblock %}
 
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
   <div>
-    <h1>AI Character Chat Test</h1>
+    <h1>AI Instance Chat Test</h1>
   </div>
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':index') }}">Admin</a></li>
-    <li class="breadcrumb-item"><a href="/qiao-dash/ai_character/list">Characters</a></li>
+    <li class="breadcrumb-item"><a href="/qiao-dash/ai_instance/list">Instances</a></li>
     <li class="breadcrumb-item active">Chat Test</li>
   </ol>
 </div>
@@ -68,17 +68,17 @@ pre {
           <h3 class="card-title">测试配置</h3>
         </div>
         <div class="card-body">
-          <h4 class="fw-bold mb-2">Character</h4>
+          <h4 class="fw-bold mb-2">Instance</h4>
           <table class="table table-sm table-borderless mb-3">
             <tbody>
-              <tr><td class="text-muted" style="width:40%">ID</td><td id="characterQiaoId">-</td></tr>
+              <tr><td class="text-muted" style="width:40%">ID</td><td id="instanceQiaoId">-</td></tr>
               <tr><td class="text-muted">Nickname</td><td id="aiNickname">-</td></tr>
               <tr><td class="text-muted">Gender</td><td id="aiGender">-</td></tr>
               <tr><td class="text-muted">Region</td><td id="aiRegion">-</td></tr>
               <tr><td class="text-muted">Bio</td><td id="aiBio">-</td></tr>
               <tr><td class="text-muted">Avatar URL</td><td id="aiAvatarUrl" class="text-break small">-</td></tr>
               <tr><td class="text-muted">Avatar Prompt</td><td id="aiAvatarPrompt" class="text-break small">-</td></tr>
-              <tr><td class="text-muted">Category</td><td id="characterCategory">-</td></tr>
+              <tr><td class="text-muted">AI Type</td><td id="instanceCategory">-</td></tr>
             </tbody>
           </table>
 
@@ -245,7 +245,7 @@ pre {
   </div>
 
   <script>
-    var characterId = "{{ character_id }}";
+    var instanceId = "{{ instance_id }}";
     var llmConfigMap = {};
     var currentDebugInfo = null;
     var availableTestUsers = [];
@@ -270,15 +270,15 @@ pre {
     });
 
     function loadReadinessInfo() {
-      fetch('/qiao-dash/ai_character/chat-test/' + characterId + '?action=readiness')
+      fetch('/qiao-dash/ai_instance/chat-test/' + instanceId + '?action=readiness')
         .then(r => r.json())
         .then(data => {
           if (!data.ready) { showError('Not ready: ' + (data.error_message || '')); return; }
-          document.getElementById('characterQiaoId').textContent = data.character_info.qiao_id;
-          document.getElementById('characterCategory').textContent = data.character_info.category;
+        document.getElementById('instanceQiaoId').textContent = data.instance_info.qiao_id;
+        document.getElementById('instanceCategory').textContent = data.instance_info.ai_type_display;
           updateParticipantsAndSettings(data);
 
-          // Current relationship display (from character's current_relationship)
+        // Current relationship display (from instance's current_relationship)
           updateCurrentRelationship(data.current_relationship);
 
           var llmSelect = document.getElementById('llmSelect');
@@ -296,7 +296,7 @@ pre {
           renderScoreInputs(dims, rangesMap);
 
           // Render dimensions table
-          renderDimensionsList(data.character_dimensions || [], rangesMap, data.relationship_scores || []);
+        renderDimensionsList(data.instance_dimensions || [], rangesMap, data.relationship_scores || []);
 
           function toggleMock() {
             var cfg = llmConfigMap[llmSelect.value];
@@ -474,7 +474,7 @@ pre {
       archiveBtn.disabled = true;
       archiveBtn.textContent = '归档中...';
 
-      fetch('/qiao-dash/ai_character/chat-test/' + characterId + '?action=archive')
+      fetch('/qiao-dash/ai_instance/chat-test/' + instanceId + '?action=archive')
         .then(r => r.json())
         .then(function (data) {
           if (data.success) {
@@ -516,7 +516,7 @@ pre {
       document.querySelector('.container-fluid').classList.add('loading', 'opacity-50');
 
       var formData = new FormData();
-      formData.append('character_id', characterId);
+      formData.append('instance_id', instanceId);
       formData.append('llm_config_name', key);
       formData.append('test_message', message);
       if (selectedTestUserId) {
@@ -543,7 +543,7 @@ pre {
 
       var persist = document.getElementById('persistSwitch').checked ? '1' : '0';
       formData.append('persist', persist);
-      fetch('/qiao-dash/ai_character/chat-test/' + characterId, { method: 'POST', body: formData })
+      fetch('/qiao-dash/ai_instance/chat-test/' + instanceId, { method: 'POST', body: formData })
         .then(r => r.json())
         .then(function (data) {
           if (!data.success) { showError(data.error || 'Request failed'); return; }
@@ -595,7 +595,7 @@ pre {
 
     function updateRelationshipAndDimensionsAfterTest(data) {
       // Refresh dimensions and current relationship with latest DB state
-      fetch('/qiao-dash/ai_character/chat-test/' + characterId + '?action=readiness')
+      fetch('/qiao-dash/ai_instance/chat-test/' + instanceId + '?action=readiness')
         .then(r => r.json())
         .then(function (rd) {
           if (!rd || !rd.ready) return;
@@ -603,7 +603,7 @@ pre {
           updateCurrentRelationship(rd.current_relationship);
           // Update dimensions
           var rangesMap = buildRangesMapFromSchema(rd.response_schema || {});
-          renderDimensionsList(rd.character_dimensions || [], rangesMap, rd.relationship_scores || []);
+        renderDimensionsList(rd.instance_dimensions || [], rangesMap, rd.relationship_scores || []);
         })
         .catch(function () { /* ignore */ });
     }
@@ -759,18 +759,20 @@ pre {
         renderTestUserOptions(defaultUserId);
         updateTestUserSummary(selectedTestUserId, testUserProfiles[selectedTestUserId] || null);
 
-        var cp = data.character_profile || {};
+        var cp = data.instance_profile || {};
         document.getElementById('aiNickname').textContent = valueOrDash(cp.nickname);
         document.getElementById('aiGender').textContent = formatGenderValue(cp.gender);
         document.getElementById('aiRegion').textContent = valueOrDash(cp.region);
         document.getElementById('aiBio').textContent = valueOrDash(cp.bio);
         document.getElementById('aiAvatarUrl').textContent = valueOrDash(cp.avatar_url);
         document.getElementById('aiAvatarPrompt').textContent = valueOrDash(cp.avatar_prompt);
-        document.getElementById('characterCategory').textContent = valueOrDash((data.character_info || {}).category);
+        document.getElementById('instanceCategory').textContent = valueOrDash(
+          (data.instance_info || {}).ai_type_display
+        );
 
         document.getElementById('aiStyleName').textContent = valueOrDash(data.style && data.style.display_name);
         document.getElementById('aiPersonalityName').textContent = valueOrDash(data.personality && data.personality.display_name);
-        var settings = data.character_settings || {};
+        var settings = data.instance_settings || {};
         document.getElementById('aiMemory').textContent = valueOrDash(settings.memory);
         try {
           var pv = settings.prompt_variables;

@@ -22,14 +22,14 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
     """AI Request Log CRUD operations with complex queries."""
 
     async def get_usage_stats(
-        self, db: AsyncSession, *, character_id: Optional[int] = None, days: int = 7
+        self, db: AsyncSession, *, instance_id: Optional[int] = None, days: int = 7
     ) -> Dict[str, Any]:
         """
         Get usage statistics for AI requests.
 
         Args:
             db: Database session
-            character_id: Character ID (optional, for specific character stats)
+            instance_id: Instance ID (optional, for specific instance stats)
             days: Number of days to look back
 
         Returns:
@@ -47,8 +47,8 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
                 func.sum(AIRequestLog.token_count).label("total_tokens"),
             ).where(AIRequestLog.created_at >= cutoff_date)
 
-            if character_id:
-                query = query.where(AIRequestLog.character_id == character_id)
+            if instance_id:
+                query = query.where(AIRequestLog.instance_id == instance_id)
 
             result = await db.execute(query)
             row = result.first()
@@ -67,7 +67,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
             logger.debug(
                 "usage_stats_retrieved",
-                character_id=character_id,
+                instance_id=instance_id,
                 days=days,
                 total_requests=stats["total_requests"],
             )
@@ -75,7 +75,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
             return stats
 
         except Exception as e:
-            logger.error("usage_stats_query_failed", error=str(e), character_id=character_id, days=days)
+            logger.error("usage_stats_query_failed", error=str(e), instance_id=instance_id, days=days)
             # Return empty stats on error
             return {
                 "total_requests": 0,
@@ -88,14 +88,14 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
             }
 
     async def get_error_logs(
-        self, db: AsyncSession, *, character_id: Optional[int] = None, limit: int = 50
+        self, db: AsyncSession, *, instance_id: Optional[int] = None, limit: int = 50
     ) -> List[AIRequestLog]:
         """
         Get recent error logs.
 
         Args:
             db: Database session
-            character_id: Character ID (optional, for specific character errors)
+            instance_id: Instance ID (optional, for specific instance errors)
             limit: Maximum number of error logs to return
 
         Returns:
@@ -104,32 +104,32 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
         try:
             query = select(AIRequestLog).where(AIRequestLog.status == 2)  # failed status
 
-            if character_id:
-                query = query.where(AIRequestLog.character_id == character_id)
+            if instance_id:
+                query = query.where(AIRequestLog.instance_id == instance_id)
 
             query = query.order_by(desc(AIRequestLog.created_at)).limit(limit)
 
             result = await db.execute(query)
             error_logs = result.scalars().all()
 
-            logger.debug("error_logs_retrieved", character_id=character_id, count=len(error_logs))
+            logger.debug("error_logs_retrieved", instance_id=instance_id, count=len(error_logs))
 
             return error_logs
 
         except Exception as e:
-            logger.error("error_logs_query_failed", error=str(e), character_id=character_id)
+            logger.error("error_logs_query_failed", error=str(e), instance_id=instance_id)
             # Non-fatal error: return empty list
             return []
 
-    async def get_character_logs(
-        self, db: AsyncSession, *, character_id: int, skip: int = 0, limit: int = 100
+    async def get_instance_logs(
+        self, db: AsyncSession, *, instance_id: int, skip: int = 0, limit: int = 100
     ) -> List[AIRequestLog]:
         """
-        Get request logs for a specific character.
+        Get request logs for a specific instance.
 
         Args:
             db: Database session
-            character_id: Character ID
+            instance_id: Instance ID
             skip: Number of records to skip
             limit: Maximum number of records to return
 
@@ -139,7 +139,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
         try:
             result = await db.execute(
                 select(AIRequestLog)
-                .where(AIRequestLog.character_id == character_id)
+                .where(AIRequestLog.instance_id == instance_id)
                 .order_by(desc(AIRequestLog.created_at))
                 .offset(skip)
                 .limit(limit)
@@ -147,12 +147,12 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
             logs = result.scalars().all()
 
-            logger.debug("character_logs_retrieved", character_id=character_id, count=len(logs))
+            logger.debug("instance_logs_retrieved", instance_id=instance_id, count=len(logs))
 
             return logs
 
         except Exception as e:
-            logger.error("character_logs_query_failed", error=str(e), character_id=character_id)
+            logger.error("instance_logs_query_failed", error=str(e), instance_id=instance_id)
             # Non-fatal error: return empty list
             return []
 
@@ -192,14 +192,14 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
             return []
 
     async def get_daily_stats(
-        self, db: AsyncSession, *, character_id: Optional[int] = None, days: int = 30
+        self, db: AsyncSession, *, instance_id: Optional[int] = None, days: int = 30
     ) -> List[Dict[str, Any]]:
         """
         Get daily usage statistics.
 
         Args:
             db: Database session
-            character_id: Character ID (optional, for specific character stats)
+            instance_id: Instance ID (optional, for specific instance stats)
             days: Number of days to look back
 
         Returns:
@@ -217,8 +217,8 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
                 func.sum(AIRequestLog.token_count).label("total_tokens"),
             ).where(AIRequestLog.created_at >= cutoff_date)
 
-            if character_id:
-                query = query.where(AIRequestLog.character_id == character_id)
+            if instance_id:
+                query = query.where(AIRequestLog.instance_id == instance_id)
 
             query = query.group_by(func.date(AIRequestLog.created_at)).order_by(
                 func.date(AIRequestLog.created_at)
@@ -245,13 +245,13 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
                 )
 
             logger.debug(
-                "daily_stats_retrieved", character_id=character_id, days=days, records=len(daily_stats)
+                "daily_stats_retrieved", instance_id=instance_id, days=days, records=len(daily_stats)
             )
 
             return daily_stats
 
         except Exception as e:
-            logger.error("daily_stats_query_failed", error=str(e), character_id=character_id, days=days)
+            logger.error("daily_stats_query_failed", error=str(e), instance_id=instance_id, days=days)
             # Non-fatal error: return empty list
             return []
 

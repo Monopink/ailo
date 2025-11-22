@@ -60,23 +60,23 @@ async def get_total_users(db: AsyncSession) -> Dict[str, Any]:
         return {"value": 0, "change": 0.0, "trend": "stable"}
 
 
-async def get_ai_characters_stats(db: AsyncSession) -> Dict[str, Any]:
+async def get_ai_instances_stats(db: AsyncSession) -> Dict[str, Any]:
     """
-    Get AI characters count and growth rate.
+    Get AI instances count and growth rate.
 
     Returns:
         Dict with value, change percentage, and trend
     """
     try:
-        # Total active AI characters
-        result = await db.execute(text("SELECT COUNT(*) FROM ai_characters WHERE status = 1"))
+        # Total active AI instances
+        result = await db.execute(text("SELECT COUNT(*) FROM ai_instances WHERE status = 1"))
         total = result.scalar() or 0
 
-        # New AI characters this week
+        # New AI instances this week
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM ai_characters
+                SELECT COUNT(*) FROM ai_instances
                 WHERE created_at >= date_trunc('week', CURRENT_DATE)
                   AND status = 1
             """
@@ -84,11 +84,11 @@ async def get_ai_characters_stats(db: AsyncSession) -> Dict[str, Any]:
         )
         this_week = result.scalar() or 0
 
-        # New AI characters last week
+        # New AI instances last week
         result = await db.execute(
             text(
                 """
-                SELECT COUNT(*) FROM ai_characters
+                SELECT COUNT(*) FROM ai_instances
                 WHERE created_at >= date_trunc('week', CURRENT_DATE - INTERVAL '7 days')
                   AND created_at < date_trunc('week', CURRENT_DATE)
                   AND status = 1
@@ -107,7 +107,7 @@ async def get_ai_characters_stats(db: AsyncSession) -> Dict[str, Any]:
 
         return {"value": total, "change": round(change, 1), "trend": trend}
     except Exception as e:
-        logger.error("get_ai_characters_stats_error", error=str(e), exc_info=True)
+        logger.error("get_ai_instances_stats_error", error=str(e), exc_info=True)
         return {"value": 0, "change": 0.0, "trend": "stable"}
 
 
@@ -292,7 +292,7 @@ async def get_dashboard_stats(db: AsyncSession) -> Dict[str, Any]:
     try:
         # Get all metrics
         total_users = await get_total_users(db)
-        ai_characters = await get_ai_characters_stats(db)
+        ai_instances = await get_ai_instances_stats(db)
         total_messages = await get_total_messages_stats(db)
         active_sessions = await get_active_sessions_stats(db)
 
@@ -303,7 +303,7 @@ async def get_dashboard_stats(db: AsyncSession) -> Dict[str, Any]:
         return {
             "metrics": {
                 "total_users": total_users,
-                "ai_characters": ai_characters,
+                "ai_instances": ai_instances,
                 "total_messages": total_messages,
                 "active_sessions": active_sessions,
             },
@@ -315,7 +315,7 @@ async def get_dashboard_stats(db: AsyncSession) -> Dict[str, Any]:
         return {
             "metrics": {
                 "total_users": {"value": 0, "change": 0.0, "trend": "stable"},
-                "ai_characters": {"value": 0, "change": 0.0, "trend": "stable"},
+                "ai_instances": {"value": 0, "change": 0.0, "trend": "stable"},
                 "total_messages": {"value": 0, "change": 0.0, "trend": "stable"},
                 "active_sessions": {"value": 0, "change": 0.0, "trend": "stable"},
             },

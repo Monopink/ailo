@@ -10,14 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from .queries import (
-    get_character_relationship_scores,
-    get_character_id_by_qiao_id,
+    get_instance_relationship_scores,
+    get_instance_id_by_qiao_id,
     get_style_with_relationships,
 )
-from .queries.updates import update_relationship_scores, set_current_relationship
+from .queries.updates import (
+    update_instance_relationship_scores as _update_instance_relationship_scores,
+    set_instance_current_relationship,
+)
 from exceptions import AIRelationshipError
 from utils.logging import get_logger
-from services.ai.types import CharacterContext
+from services.ai.types import InstanceContext
 
 logger = get_logger(__name__)
 
@@ -26,65 +29,65 @@ logger = get_logger(__name__)
 
 
 async def get_relationship_scores(
-    db: AsyncSession, character_qiao_id: str, auto_initialize: bool = True
+    db: AsyncSession, instance_qiao_id: str, auto_initialize: bool = True
 ) -> Optional[List[Dict[str, Any]]]:
     """
-    Get relationship scores for a character.
+    Get relationship scores for an instance.
     Auto-initialize scores based on initial_position if missing.
 
     Args:
         db: Database session
-        character_qiao_id: Character's qiao_id
+        instance_qiao_id: Instance's qiao_id
         auto_initialize: Whether to auto-initialize scores if missing (default: True)
 
     Returns:
         List of score dictionaries, or None if not found
     """
     try:
-        character_id = await get_character_id_by_qiao_id(db, character_qiao_id)
-        if not character_id:
-            logger.warning("character_not_found_for_scores", character_qiao_id=character_qiao_id)
+        instance_id = await get_instance_id_by_qiao_id(db, instance_qiao_id)
+        if not instance_id:
+            logger.warning("instance_not_found_for_scores", instance_qiao_id=instance_qiao_id)
             return None
 
-        scores = await get_character_relationship_scores(db, character_id)
+        scores = await get_instance_relationship_scores(db, instance_id)
 
         if not scores and auto_initialize:
-            style_id = await _get_character_style_id(db, character_id)
+            style_id = await _get_instance_style_id(db, instance_id)
             if not style_id:
                 logger.error(
-                    "character_style_missing_for_score_init",
-                    character_qiao_id=character_qiao_id,
-                    character_id=character_id,
+                    "instance_style_missing_for_score_init",
+                    instance_qiao_id=instance_qiao_id,
+                    instance_id=instance_id,
                 )
             else:
                 try:
-                    await initialize_relationship_scores(db, character_id, style_id)
-                    scores = await get_character_relationship_scores(db, character_id)
+                    await initialize_relationship_scores(db, instance_id, style_id)
+                    scores = await get_instance_relationship_scores(db, instance_id)
                     if scores:
                         logger.info(
                             "relationship_scores_auto_initialized",
-                            character_qiao_id=character_qiao_id,
+                            instance_qiao_id=instance_qiao_id,
                             style_id=style_id,
                         )
                 except AIRelationshipError as init_error:
                     logger.error(
                         "relationship_score_autoinit_failed",
                         error=str(init_error),
-                        character_qiao_id=character_qiao_id,
-                        character_id=character_id,
+                        instance_qiao_id=instance_qiao_id,
+                        instance_id=instance_id,
                     )
                     return None
 
         if not scores:
             logger.info(
                 "no_relationship_scores_found",
-                character_qiao_id=character_qiao_id,
+                instance_qiao_id=instance_qiao_id,
             )
             return None
 
         logger.debug(
             "relationship_scores_retrieved",
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
             score_count=len(scores),
         )
 
@@ -94,39 +97,42 @@ async def get_relationship_scores(
         logger.error(
             "relationship_scores_retrieval_failed",
             error=str(e),
-            character_qiao_id=character_qiao_id,
+            instance_qiao_id=instance_qiao_id,
         )
         # Non-fatal error: return None and log error
         return None
 
 
-async def _get_character_style_id(db: AsyncSession, character_id: int) -> Optional[int]:
+async def _get_instance_style_id(db: AsyncSession, instance_id: int) -> Optional[int]:
     """
-    Fetch the style_id for a given character.
+    Fetch the style_id for a given instance.
     """
-    from models.ai import AICharacter
+    from models.ai import AIInstance
 
     try:
-        result = await db.execute(select(AICharacter.style_id).where(AICharacter.id == character_id))
+        result = await db.execute(select(AIInstance.style_id).where(AIInstance.id == instance_id))
         return result.scalar_one_or_none()
     except Exception as e:
         logger.error(
-            "character_style_lookup_failed",
+            "instance_style_lookup_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
         )
         return None
 
 
 async def initialize_relationship_scores(
-    db: AsyncSession, character_id: int, style_id: int, position_mapping_config: Optional[Dict[str, Any]] = None
+    db: AsyncSession,
+    instance_id: int,
+    style_id: int,
+    position_mapping_config: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Initialize relationship scores based on dimension initial_position.
 
     Args:
         db: Database session
-        character_id: Character ID
+        instance_id: Instance ID
         style_id: Style ID
         position_mapping_config: Per-dimension position mapping configuration from template
 
@@ -137,7 +143,7 @@ async def initialize_relationship_scores(
         AIRelationshipError: If initialization fails
     """
     try:
-        from models.ai.character_dimension import AICharacterDimension
+        from models.ai.instance_dimension import AIInstanceDimension
         from models.ai.style import AIStyleDimension, AIDimension
         from sqlalchemy.orm import selectinload
 
@@ -167,8 +173,8 @@ async def initialize_relationship_scores(
             algorithm = dim_config.get("algorithm", 1)
             params = dim_config.get("params", {})
 
-            dimension_record = AICharacterDimension(
-                character_id=character_id,
+            dimension_record = AIInstanceDimension(
+                instance_id=instance_id,
                 dimension_id=style_dimension.dimension_id,
                 score=style_dimension.initial_position,
                 position=style_dimension.initial_position,
@@ -181,7 +187,7 @@ async def initialize_relationship_scores(
 
         logger.info(
             "relationship_scores_initialized",
-            character_id=character_id,
+            instance_id=instance_id,
             scores_count=len(style_dimensions),
         )
 
@@ -191,7 +197,7 @@ async def initialize_relationship_scores(
         logger.error(
             "relationship_scores_initialization_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
             exc_info=True,
         )
         raise AIRelationshipError(
@@ -202,14 +208,14 @@ async def initialize_relationship_scores(
 
 
 async def determine_relationship_type(
-    db: AsyncSession, context: CharacterContext, scores: Optional[List[Dict[str, Any]]]
+    db: AsyncSession, context: InstanceContext, scores: Optional[List[Dict[str, Any]]]
 ) -> Optional[Dict[str, Any]]:
     """
-    Determine relationship type based on character style and scores.
+    Determine relationship type based on instance style and scores.
 
     Args:
         db: Database session
-        context: Character context dictionary
+        context: Instance context dictionary
         scores: List of relationship scores
 
     Returns:
@@ -220,7 +226,7 @@ async def determine_relationship_type(
         if not style_id:
             logger.warning(
                 "no_style_id_in_context",
-                character_qiao_id=context.get("character_qiao_id"),
+                instance_qiao_id=context.get("instance_qiao_id"),
             )
             return None
 
@@ -279,7 +285,7 @@ async def determine_relationship_type(
         logger.error(
             "relationship_type_determination_failed",
             error=str(e),
-            character_qiao_id=context.get("character_qiao_id"),
+            instance_qiao_id=context.get("instance_qiao_id"),
             scores=scores,
         )
         raise AIRelationshipError(
@@ -289,33 +295,33 @@ async def determine_relationship_type(
         )
 
 
-async def update_character_relationship_scores(
-    db: AsyncSession, character_id: int, new_scores: Dict[int, int]
+async def update_instance_relationship_scores(
+    db: AsyncSession, instance_id: int, new_scores: Dict[int, int]
 ) -> bool:
     """
-    Update relationship scores for a character.
+    Update relationship scores for an instance.
 
     Args:
         db: Database session
-        character_id: Character ID
+        instance_id: Instance ID
         new_scores: Dictionary of score_order -> score_value
 
     Returns:
         True if successful, False otherwise
     """
     try:
-        success = await update_relationship_scores(db, character_id, new_scores)
+        success = await _update_instance_relationship_scores(db, instance_id, new_scores)
 
         if success:
             logger.debug(
                 "relationship_scores_updated",
-                character_id=character_id,
+                instance_id=instance_id,
                 scores=new_scores,
             )
         else:
             logger.warning(
                 "relationship_scores_update_failed",
-                character_id=character_id,
+                instance_id=instance_id,
                 scores=new_scores,
             )
 
@@ -323,26 +329,26 @@ async def update_character_relationship_scores(
 
     except Exception as e:
         logger.error(
-            "character_relationship_scores_update_failed",
+            "instance_relationship_scores_update_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
             scores=new_scores,
         )
         raise AIRelationshipError(
-            operation="update_relationship_scores",
+            operation="update_instance_relationship_scores",
             reason="update_failed",
             message=f"Failed to update relationship scores: {str(e)}",
         )
 
 
-async def update_current_relationship(
-    db: AsyncSession, character_id: int, relationship_id: int, relationship_display_name: str
+async def update_instance_current_relationship(
+    db: AsyncSession, instance_id: int, relationship_id: int, relationship_display_name: str
 ) -> bool:
-    """Persist the selected current relationship across all score rows for a character."""
+    """Persist the selected current relationship across all score rows for an instance."""
     try:
-        success = await set_current_relationship(
+        success = await set_instance_current_relationship(
             db,
-            character_id=character_id,
+            instance_id=instance_id,
             relationship_id=relationship_id,
             relationship_display_name=relationship_display_name,
         )
@@ -350,14 +356,14 @@ async def update_current_relationship(
         if success:
             logger.debug(
                 "current_relationship_persisted",
-                character_id=character_id,
+                instance_id=instance_id,
                 relationship_id=relationship_id,
                 relationship_display_name=relationship_display_name,
             )
         else:
             logger.warning(
                 "current_relationship_persist_failed",
-                character_id=character_id,
+                instance_id=instance_id,
                 relationship_id=relationship_id,
             )
 
@@ -367,7 +373,7 @@ async def update_current_relationship(
         logger.error(
             "update_current_relationship_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
             relationship_id=relationship_id,
         )
         raise AIRelationshipError(
@@ -421,7 +427,7 @@ def _find_matching_relationship(
         score_positions: Dictionary of dimension_name -> position
         relationship_mappings: List of relationship mapping dictionaries
         current_relationship_id: Current relationship ID for per-dimension filtering
-        relationship_counts: Character-level relationship counts for limit_count enforcement
+        relationship_counts: Instance-level relationship counts for limit_count enforcement
 
     Returns:
         Matching relationship mapping, or None if no match
@@ -466,7 +472,9 @@ def _find_matching_relationship(
                 if current_in_dim:
                     # Filter to keep only current relationship in this dimension
                     dim_candidates = [
-                        m for m in dim_candidates if int(m["relationship"].id) == int(current_relationship_id)
+                        m
+                        for m in dim_candidates
+                        if int(m["relationship"].id) == int(current_relationship_id)
                     ]
             matching_mappings.extend(dim_candidates)
 
@@ -593,14 +601,14 @@ def _get_default_relationship_mapping(
 
 
 async def calculate_new_scores(
-    db: AsyncSession, context: CharacterContext, llm_response_scores: Dict[str, int]
+    db: AsyncSession, context: InstanceContext, llm_response_scores: Dict[str, int]
 ) -> Dict[str, int]:
     """
     Calculate new relationship scores based on LLM response.
 
     Args:
         db: Database session
-        context: Character context dictionary
+        context: Instance context dictionary
         llm_response_scores: Scores from LLM response
 
     Returns:
@@ -610,22 +618,23 @@ async def calculate_new_scores(
         AIRelationshipError: If calculation fails
     """
     try:
-        character_id = context.get("character_id")
-        if not character_id:
+        instance_id = context.get("instance_id")
+        if not instance_id:
             raise AIRelationshipError(
                 operation="calculate_new_scores",
-                reason="missing_character_id",
-                message="Character context missing character_id",
+                reason="missing_instance_id",
+                message="Instance context missing instance_id",
             )
 
         # Get all dimensions with offset config in one query
-        from crud.ai.character_dimension import get_by_character
-        current_scores = await get_by_character(db, character_id)
+        from crud.ai.instance_dimension import get_by_instance
+
+        current_scores = await get_by_instance(db, instance_id)
 
         if not current_scores:
             logger.warning(
                 "no_current_scores_for_calculation",
-                character_id=character_id,
+                instance_id=instance_id,
             )
             return llm_response_scores
 
@@ -638,9 +647,7 @@ async def calculate_new_scores(
         schema = build_response_schema(context)
         # Validate schema structure
         try:
-            score_schema_props = (
-                schema.get("properties", {}).get("score", {}).get("properties", {})
-            )
+            score_schema_props = schema.get("properties", {}).get("score", {}).get("properties", {})
             if not isinstance(score_schema_props, dict) or not score_schema_props:
                 raise KeyError("invalid_score_schema")
         except Exception as e:
@@ -703,7 +710,7 @@ async def calculate_new_scores(
 
         logger.debug(
             "new_scores_calculated",
-            character_id=character_id,
+            instance_id=instance_id,
             current_scores_count=len(current_scores),
             new_scores_count=len(new_scores),
         )
@@ -714,7 +721,7 @@ async def calculate_new_scores(
         logger.error(
             "new_scores_calculation_failed",
             error=str(e),
-            character_qiao_id=context.get("character_qiao_id"),
+            instance_qiao_id=context.get("instance_qiao_id"),
             llm_response_scores=llm_response_scores,
         )
         raise AIRelationshipError(
@@ -725,14 +732,14 @@ async def calculate_new_scores(
 
 
 async def update_relationship_positions(
-    db: AsyncSession, character_id: int, new_scores: Dict[str, int]
+    db: AsyncSession, instance_id: int, new_scores: Dict[str, int]
 ) -> bool:
     """
     Update relationship positions based on new scores.
 
     Args:
         db: Database session
-        character_id: Character ID
+        instance_id: Instance ID
         new_scores: Dictionary of dimension_name -> new_score
 
     Returns:
@@ -743,23 +750,23 @@ async def update_relationship_positions(
     """
     try:
         # Convert dimension names to IDs for the update function
-        # The update_relationship_scores function expects Dict[int, int]
+        # The update_instance_relationship_scores function expects Dict[int, int]
         # but we have Dict[str, int], so we need to convert
 
-        # For now, we'll use the existing update_relationship_scores function
+        # For now, we'll use the existing update_instance_relationship_scores function
         # which handles the position calculation internally
-        success = await update_relationship_scores(db, character_id, new_scores)
+        success = await _update_instance_relationship_scores(db, instance_id, new_scores)
 
         if success:
             logger.debug(
                 "relationship_positions_updated",
-                character_id=character_id,
+                instance_id=instance_id,
                 scores_count=len(new_scores),
             )
         else:
             logger.warning(
                 "relationship_positions_update_failed",
-                character_id=character_id,
+                instance_id=instance_id,
                 scores_count=len(new_scores),
             )
 
@@ -769,7 +776,7 @@ async def update_relationship_positions(
         logger.error(
             "relationship_positions_update_failed",
             error=str(e),
-            character_id=character_id,
+            instance_id=instance_id,
             new_scores=new_scores,
         )
         raise AIRelationshipError(

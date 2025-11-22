@@ -1,7 +1,7 @@
 """
-AI Character Chat Test Service - Facade
+AI Instance Chat Test Service - Facade
 
-This module provides a unified interface for AI character chat testing,
+This module provides a unified interface for AI instance chat testing,
 combining validation, user matching, and execution services following
 the facade pattern for clean separation of concerns.
 """
@@ -17,13 +17,13 @@ from crud.contact import contact as contact_crud
 from schemas.contact import ContactCreate
 from enums import ContactType
 from models.base import generate_conv_id
-from services.ai.types import CharacterContext
+from services.ai.types import InstanceContext
 
 logger = get_logger(__name__)
 
 
-class AICharacterChatTestError(Exception):
-    """Main exception for AI character chat test service"""
+class AIInstanceChatTestError(Exception):
+    """Main exception for AI instance chat test service"""
 
     def __init__(
         self, message: str, error_code: str = "CHAT_TEST_ERROR", suggestions: Optional[list] = None
@@ -34,9 +34,9 @@ class AICharacterChatTestError(Exception):
         super().__init__(message)
 
 
-class AICharacterChatTestService:
+class AIInstanceChatTestService:
     """
-    Facade service for AI character chat testing.
+    Facade service for AI instance chat testing.
 
     Orchestrates the complete test flow: validation -> user matching -> execution
     while maintaining stateless design and clear error handling.
@@ -45,7 +45,7 @@ class AICharacterChatTestService:
     async def prepare_and_execute_test(
         self,
         db: AsyncSession,
-        character_id: int,
+        instance_id: int,
         llm_config_name: str,
         test_message: str,
         mock_overrides: Optional[Dict[str, Any]] = None,
@@ -57,7 +57,7 @@ class AICharacterChatTestService:
 
         Args:
             db: Database session
-            character_id: AI character ID
+            instance_id: AI instance ID
             llm_config_name: LLM configuration name
             test_message: Test message content
 
@@ -65,24 +65,24 @@ class AICharacterChatTestService:
             Dictionary containing test results and all relevant information
 
         Raises:
-            AICharacterChatTestError: If any step fails
+            AIInstanceChatTestError: If any step fails
         """
         try:
             # Step 1: Validate all prerequisites
-            logger.info("ai_chat_test_validation_start", character_id=character_id)
-            validation_result = await validation_service.validate_character_test_prerequisites(
-                db=db, character_id=character_id
+            logger.info("ai_chat_test_validation_start", instance_id=instance_id)
+            validation_result = await validation_service.validate_instance_test_prerequisites(
+                db=db, instance_id=instance_id
             )
 
             # Step 2: Find and validate test user
-            logger.info("ai_chat_test_user_matching_start", character_id=character_id)
-            user_match_result = await user_matcher_service.find_test_user_for_character(
+            logger.info("ai_chat_test_user_matching_start", instance_id=instance_id)
+            user_match_result = await user_matcher_service.find_test_user_for_instance(
                 db=db,
-                character_context=validation_result["character"],
+                instance_context=validation_result["instance"],
                 preferred_user_qiao_id=test_user_qiao_id,
             )
             if not user_match_result["test_user"]:
-                raise AICharacterChatTestError(
+                raise AIInstanceChatTestError(
                     "请选择测试用户后再执行测试",
                     error_code="TEST_USER_REQUIRED",
                     suggestions=["在页面中选择 virtual 测试用户", "刷新页面同步最新测试用户列表"],
@@ -92,8 +92,8 @@ class AICharacterChatTestService:
             locked_user_qiao_id = user_match_result.get("locked_test_user_qiao_id")
             if selection_locked:
                 if test_user_qiao_id and test_user_qiao_id != locked_user_qiao_id:
-                    raise AICharacterChatTestError(
-                        "该角色已绑定测试用户，无法切换到其他账号",
+                    raise AIInstanceChatTestError(
+                        "该 AI 实例已绑定测试用户，无法切换到其他账号",
                         error_code="TEST_USER_LOCKED",
                         suggestions=["清理旧的测试联系人后再尝试更换测试用户"],
                     )
@@ -103,7 +103,7 @@ class AICharacterChatTestService:
                 db=db,
                 user_id=user_match_result["test_user"]["id"],
                 user_qiao_id=user_match_result["test_user"]["qiao_id"],
-                character_context=validation_result["character"],
+                instance_context=validation_result["instance"],
             )
             contact_for_response = self._serialize_contact(ensured_contact)
             user_match_result["contact"] = contact_for_response
@@ -112,12 +112,12 @@ class AICharacterChatTestService:
             # Step 3: Execute test with main conversation logic
             logger.info(
                 "ai_chat_test_execution_start",
-                character_id=character_id,
+                instance_id=instance_id,
                 test_user_qiao_id=user_match_result["test_user"]["qiao_id"],
             )
-            execution_result = await executor_service.execute_character_chat_test(
+            execution_result = await executor_service.execute_instance_chat_test(
                 db=db,
-                character_qiao_id=validation_result["character"]["character_qiao_id"],
+                instance_qiao_id=validation_result["instance"]["instance_qiao_id"],
                 user_qiao_id=user_match_result["test_user"]["qiao_id"],
                 llm_config_name=llm_config_name,
                 test_message=test_message,
@@ -136,7 +136,7 @@ class AICharacterChatTestService:
                 from services.ai.relationship_scoring import get_relationship_scores
                 latest_scores = await get_relationship_scores(
                     db=db,
-                    character_qiao_id=validation_result["character"]["character_qiao_id"],
+                    instance_qiao_id=validation_result["instance"]["instance_qiao_id"],
                     auto_initialize=False,
                 ) or []
             except Exception:
@@ -147,7 +147,7 @@ class AICharacterChatTestService:
                 from services.ai.relationship_scoring import determine_relationship_type as _determine
                 selected_rel = None
                 if latest_scores:
-                    rel_info = await _determine(db, validation_result["character"], latest_scores)
+                    rel_info = await _determine(db, validation_result["instance"], latest_scores)
                     if rel_info and rel_info.get("relationship"):
                         r = rel_info["relationship"]
                         selected_rel = {"id": r.id, "name": getattr(r, "name", None), "display_name": getattr(r, "display_name", None)}
@@ -157,8 +157,8 @@ class AICharacterChatTestService:
             complete_result = {
                 "test_execution": execution_result,
                 "validation_info": {
-                    "character": validation_result["character"],
-                    "character_profile": validation_result["character_profile"],
+                    "instance": validation_result["instance"],
+                    "instance_profile": validation_result["instance_profile"],
                     "style": validation_result["style"],
                     "personality": validation_result["personality"],
                     "relationship_scores": validation_result["relationship_scores"],
@@ -183,91 +183,94 @@ class AICharacterChatTestService:
 
             logger.info(
                 "ai_chat_test_complete_success",
-                character_id=character_id,
+                instance_id=instance_id,
                 response_time_ms=execution_result["performance"]["response_time_ms"],
             )
 
             return complete_result
 
         except ValidationError as e:
-            logger.error("ai_chat_test_validation_failed", character_id=character_id, error=str(e))
-            raise AICharacterChatTestError(
+            logger.error("ai_chat_test_validation_failed", instance_id=instance_id, error=str(e))
+            raise AIInstanceChatTestError(
                 f"Test validation failed: {e.message}",
                 error_code=e.error_code,
                 suggestions=e.suggestions,
             )
 
         except UserMatcherError as e:
-            logger.error("ai_chat_test_user_matching_failed", character_id=character_id, error=str(e))
-            raise AICharacterChatTestError(
+            logger.error("ai_chat_test_user_matching_failed", instance_id=instance_id, error=str(e))
+            raise AIInstanceChatTestError(
                 f"Test user matching failed: {e.message}",
                 error_code=e.error_code,
                 suggestions=e.suggestions,
             )
 
         except ExecutorError as e:
-            logger.error("ai_chat_test_execution_failed", character_id=character_id, error=str(e))
-            raise AICharacterChatTestError(
+            logger.error("ai_chat_test_execution_failed", instance_id=instance_id, error=str(e))
+            raise AIInstanceChatTestError(
                 f"Test execution failed: {e.message}",
                 error_code=e.error_code,
             )
 
         except Exception as e:
             logger.error(
-                "ai_chat_test_unexpected_error", character_id=character_id, error=str(e), exc_info=True
+                "ai_chat_test_unexpected_error", instance_id=instance_id, error=str(e), exc_info=True
             )
-            raise AICharacterChatTestError(
+            raise AIInstanceChatTestError(
                 f"Unexpected error during test: {str(e)}",
                 error_code="UNEXPECTED_ERROR",
             )
 
-    async def validate_test_readiness(self, db: AsyncSession, character_id: int) -> Dict[str, Any]:
+    async def validate_test_readiness(self, db: AsyncSession, instance_id: int) -> Dict[str, Any]:
         """
         Check test readiness without executing the test.
 
         Args:
             db: Database session
-            character_id: AI character ID
+            instance_id: AI instance ID
 
         Returns:
             Dictionary containing validation status and prerequisites info
 
         Raises:
-            AICharacterChatTestError: If validation fails
+            AIInstanceChatTestError: If validation fails
         """
         try:
             # Validate prerequisites
-            validation_result = await validation_service.validate_character_test_prerequisites(
-                db=db, character_id=character_id
+            validation_result = await validation_service.validate_instance_test_prerequisites(
+                db=db, instance_id=instance_id
             )
 
             # Check test user availability
-            user_match_result = await user_matcher_service.find_test_user_for_character(
-                db=db, character_context=validation_result["character"]
+            user_match_result = await user_matcher_service.find_test_user_for_instance(
+                db=db, instance_context=validation_result["instance"]
             )
             contacts_for_response = user_match_result.get("recomputed_contacts") or user_match_result.get("available_contacts", [])
             selected_user = user_match_result.get("test_user")
             if not selected_user:
                 logger.warning(
                     "test_readiness_multiple_contacts",
-                    character_id=character_id,
+                    instance_id=instance_id,
                     contacts=len(contacts_for_response),
                 )
 
-            # Get response JSON schema for this character (used by main flow)
+            # Get response JSON schema for this instance (used by main flow)
             try:
                 from services.ai.conversation_prompt import build_response_schema
 
-                response_schema = build_response_schema(validation_result["character"])
+                response_schema = build_response_schema(validation_result["instance"])
             except Exception:
                 response_schema = None
 
-            # Fetch character dimensions for detailed display (score/position/offsets)
+            # Fetch instance dimensions for detailed display (score/position/offsets)
             try:
-                from crud.ai.character_dimension import get_by_character as _get_char_dims
-                character_dimensions = await _get_char_dims(db, validation_result["character"]["character_id"])
+                from crud.ai.instance_dimension import get_by_instance as _get_instance_dims
+
+                instance_dimensions = await _get_instance_dims(
+                    db, validation_result["instance"]["instance_id"]
+                )
             except Exception:
-                character_dimensions = []
+                instance_dimensions = []
 
             test_user_summary = None
             if selected_user:
@@ -277,26 +280,32 @@ class AICharacterChatTestService:
                     "nickname": (user_match_result["test_user_profile"] or {}).get("nickname"),
                 }
 
+            instance_ai_type = validation_result["instance"].get("ai_type")
+            ai_type_display = (
+                instance_ai_type["display_name"] if isinstance(instance_ai_type, dict) and instance_ai_type.get("display_name") else None
+            )
+
             return {
                 "ready": True,
-                "character_info": {
-                    "qiao_id": validation_result["character"]["character_qiao_id"],
-                    "category": validation_result["character"]["category"],
+                "instance_info": {
+                    "qiao_id": validation_result["instance"]["instance_qiao_id"],
+                    "ai_type_display": ai_type_display,
+                    "ai_type": instance_ai_type,
                     "style": validation_result["style"]["display_name"],
                     "personality": validation_result["personality"]["display_name"],
                 },
                 # Full profiles for richer UI (non-breaking addition)
-                "character_profile": validation_result["character_profile"],
+                "instance_profile": validation_result["instance_profile"],
                 "test_user_profile": user_match_result["test_user_profile"],
                 # Raw style/personality objects for advanced info panel
                 "style": validation_result["style"],
                 "personality": validation_result["personality"],
-                # Current relationship from character table
+                # Current relationship from instance data
                 "current_relationship": validation_result.get("current_relationship"),
-                # Character settings snapshot needed by UI
-                "character_settings": {
-                    "memory": validation_result["character"].get("memory"),
-                    "prompt_variables": validation_result["character"].get("prompt_variables"),
+                # Instance settings snapshot needed by UI
+                "instance_settings": {
+                    "memory": validation_result["instance"].get("memory"),
+                    "prompt_variables": validation_result["instance"].get("prompt_variables"),
                 },
                 "test_user_info": test_user_summary,
                 "available_contacts": contacts_for_response,
@@ -306,7 +315,7 @@ class AICharacterChatTestService:
                 "relationship_scores": validation_result["relationship_scores"],
                 "available_llm_configs": validation_result["llm_configs"],
                 "response_schema": response_schema,
-                "character_dimensions": character_dimensions,
+                "instance_dimensions": instance_dimensions,
             }
 
         except (ValidationError, UserMatcherError) as e:
@@ -318,7 +327,7 @@ class AICharacterChatTestService:
             }
 
         except Exception as e:
-            logger.error("test_readiness_check_error", character_id=character_id, error=str(e))
+            logger.error("test_readiness_check_error", instance_id=instance_id, error=str(e))
             return {
                 "ready": False,
                 "error_code": "SYSTEM_ERROR",
@@ -326,26 +335,26 @@ class AICharacterChatTestService:
                 "suggestions": ["Check system logs", "Contact administrator"],
             }
 
-    async def archive_all_test_conversations(self, db: AsyncSession, character_id: int) -> Dict[str, Any]:
+    async def archive_all_test_conversations(self, db: AsyncSession, instance_id: int) -> Dict[str, Any]:
         """
-        Archive all conversation items for test character and test user.
+        Archive all conversation items for test instance and test user.
 
         Args:
             db: Database session
-            character_id: AI character ID
+            instance_id: AI instance ID
 
         Returns:
             Dictionary with archived count
 
         Raises:
-            AICharacterChatTestError: If archiving fails
+            AIInstanceChatTestError: If archiving fails
         """
         try:
-            validation_result = await validation_service.validate_character_test_prerequisites(
-                db=db, character_id=character_id
+            validation_result = await validation_service.validate_instance_test_prerequisites(
+                db=db, instance_id=instance_id
             )
-            user_match_result = await user_matcher_service.find_test_user_for_character(
-                db=db, character_context=validation_result["character"]
+            user_match_result = await user_matcher_service.find_test_user_for_instance(
+                db=db, instance_context=validation_result["instance"]
             )
 
             from services.ai.queries.transactions import archive_all_conversation_items
@@ -353,14 +362,14 @@ class AICharacterChatTestService:
             archived_count = await archive_all_conversation_items(
                 db=db,
                 user_qiao_id=user_match_result["test_user"]["qiao_id"],
-                character_qiao_id=validation_result["character"]["character_qiao_id"],
+                instance_qiao_id=validation_result["instance"]["instance_qiao_id"],
             )
 
             return {"success": True, "archived_count": archived_count}
 
         except Exception as e:
-            logger.error("archive_test_conversations_failed", character_id=character_id, error=str(e))
-            raise AICharacterChatTestError(
+            logger.error("archive_test_conversations_failed", instance_id=instance_id, error=str(e))
+            raise AIInstanceChatTestError(
                 f"Failed to archive conversations: {str(e)}", error_code="ARCHIVE_FAILED"
             )
 
@@ -370,13 +379,13 @@ class AICharacterChatTestService:
         *,
         user_id: int,
         user_qiao_id: str,
-        character_context: CharacterContext,
+        instance_context: InstanceContext,
     ):
         """Create or restore contact relationship for virtual test user."""
         existing = await contact_crud.get_user_contact_including_deleted(
             db,
             user_qiao_id=user_qiao_id,
-            contact_qiao_id=character_context["character_qiao_id"],
+            contact_qiao_id=instance_context["instance_qiao_id"],
         )
 
         if existing:
@@ -391,14 +400,14 @@ class AICharacterChatTestService:
             logger.info(
                 "virtual_contact_restored_for_test",
                 user_qiao_id=user_qiao_id,
-                character_qiao_id=character_context["character_qiao_id"],
+                instance_qiao_id=instance_context["instance_qiao_id"],
                 conv_id=restored.conv_id,
             )
             return restored
 
         contact_input = ContactCreate(
             contact_type=ContactType.AI,
-            contact_qiao_id=character_context["character_qiao_id"],
+            contact_qiao_id=instance_context["instance_qiao_id"],
             alias=None,
             custom_avatar_url=None,
             tags=None,
@@ -412,7 +421,7 @@ class AICharacterChatTestService:
             user_id=user_id,
             conv_id=conv_id,
         )
-        contact.contact_id = character_context["character_id"]
+        contact.contact_id = instance_context["instance_id"]
         db.add(contact)
         await db.flush()
         await db.commit()
@@ -421,7 +430,7 @@ class AICharacterChatTestService:
         logger.info(
             "virtual_contact_created_for_test",
             user_qiao_id=user_qiao_id,
-            character_qiao_id=character_context["character_qiao_id"],
+            instance_qiao_id=instance_context["instance_qiao_id"],
             conv_id=contact.conv_id,
         )
         return contact
@@ -444,11 +453,11 @@ class AICharacterChatTestService:
 
 
 # Global instance for dependency injection
-ai_character_chat_test_service = AICharacterChatTestService()
+ai_instance_chat_test_service = AIInstanceChatTestService()
 
 # Export main service and exceptions for easy import
 __all__ = [
-    "AICharacterChatTestService",
-    "AICharacterChatTestError",
-    "ai_character_chat_test_service",
+    "AIInstanceChatTestService",
+    "AIInstanceChatTestError",
+    "ai_instance_chat_test_service",
 ]

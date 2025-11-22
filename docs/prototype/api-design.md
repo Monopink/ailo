@@ -1068,7 +1068,7 @@ Authorization: Bearer <token>
 **核心设计原则**:
 
 - **统一API设计**: 无论添加AI还是真人用户，都使用同一个API
-- **后端自动路由**: 后端通过查询数据库判断目标类型（先查users表，再查ai_characters表）
+- **后端自动路由**: 后端通过查询数据库判断目标类型（先查users表，再查ai_instances表）
 - **统一返回格式**: 所有请求都返回 `{"message": "请求已发送"}`，不立即创建联系人
 - **防重复请求**: 相同的请求在有效期内只能有一条
   - 如果已有pending状态的请求，返回200但不创建新请求
@@ -1337,10 +1337,10 @@ Authorization: Bearer <token>
 **说明**:
 
 - 公开访问,无需认证
-- 返回ai_profile_templates表中的基本信息
-- 只返回active状态的模板
-- 不返回是否已添加联系人的状态
-- 用于发现页面点击联系人后查看详情
+- 返回由 `ai_personas` 驱动的 `profiles` 视图数据（square_type_entries + profile 信息）
+    - 只返回 active 状态的 persona/profile rows
+    - 不返回是否已添加联系人的状态
+    - 用于发现页面点击联系人后查看详情
 
 ### 7. 预设资源(2.0功能,暂不实现)
 

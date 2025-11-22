@@ -1,10 +1,10 @@
 """
-AI character dimension related models.
+AI instance dimension related models.
 
-This module contains SQLAlchemy models for AI character dimension scores.
+This module contains SQLAlchemy models for AI instance dimension scores.
 """
 
-from sqlalchemy import BigInteger, Integer, String, Index, UniqueConstraint, text
+from sqlalchemy import BigInteger, Integer, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, TYPE_CHECKING, Dict, Any
@@ -12,21 +12,21 @@ from typing import Optional, TYPE_CHECKING, Dict, Any
 from models.base import SnowflakeModel
 
 if TYPE_CHECKING:
-    from models.ai.character import AICharacter
+    from models.ai.instance import AIInstance
     from models.ai.style import AIDimension, AIStyleDimension, AIRelationship
 
 
-class AICharacterDimension(SnowflakeModel):
+class AIInstanceDimension(SnowflakeModel):
     """
-    AI character dimension score model.
+    AI instance dimension score model.
 
-    Dimension scoring for each character.
+    Dimension scoring for each instance.
     """
 
-    __tablename__ = "ai_character_dimensions"
+    __tablename__ = "ai_instance_dimensions"
 
-    character_id: Mapped[int] = mapped_column(
-        BigInteger, nullable=False, comment="Character ID, references ai_characters.id"
+    instance_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Instance ID, references ai_instances.id"
     )
 
     dimension_id: Mapped[int] = mapped_column(
@@ -53,16 +53,16 @@ class AICharacterDimension(SnowflakeModel):
     )
 
     # Relationships
-    character: Mapped["AICharacter"] = relationship(
-        "AICharacter",
-        primaryjoin="AICharacterDimension.character_id == AICharacter.id",
-        foreign_keys=[character_id],
+    instance: Mapped["AIInstance"] = relationship(
+        "AIInstance",
+        primaryjoin="AIInstanceDimension.instance_id == AIInstance.id",
+        foreign_keys=[instance_id],
         lazy="select",
         viewonly=True,
     )
     dimension: Mapped["AIDimension"] = relationship(
         "AIDimension",
-        primaryjoin="AICharacterDimension.dimension_id == AIDimension.id",
+        primaryjoin="AIInstanceDimension.dimension_id == AIDimension.id",
         foreign_keys=[dimension_id],
         lazy="select",
         viewonly=True,
@@ -71,8 +71,8 @@ class AICharacterDimension(SnowflakeModel):
     # Indexes and constraints - Only essential indexes for MVP
     __table_args__ = (
         UniqueConstraint(
-            "character_id", "dimension_id", name="ai_character_dimensions_character_id_dimension_id_key"
+            "instance_id", "dimension_id", name="ai_instance_dimensions_instance_id_dimension_id_key"
         ),
-        Index("idx_ai_character_dimensions_character_id", "character_id"),
-        Index("idx_ai_character_dimensions_dimension_id", "dimension_id"),
+        Index("idx_ai_instance_dimensions_instance_id", "instance_id"),
+        Index("idx_ai_instance_dimensions_dimension_id", "dimension_id"),
     )

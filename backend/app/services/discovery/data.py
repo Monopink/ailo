@@ -1,140 +1,201 @@
 """
 Discovery data layer.
 
-This module handles complex queries for discovery page operations.
+This module handles discovery page queries that rely on square exposure entries
+and the corresponding AI persona profiles.
 """
 
-from typing import List, Optional, Tuple
-from sqlalchemy import select, and_, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict, List, Optional, Tuple
 
-from models.ai.template import AIProfileTemplate
-from models.ai.character import AICharacter
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from enums import (
+    AIPersonaStatus,
+    ContactType,
+    ProfileOwnerType,
+    SquareEntryStatus,
+)
+from models.ai import AIPersona
 from models.contact import Contact
-from enums import ContactType
+from models.discovery import SquareTypeEntry
+from models.profile import Profile
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def get_random_templates(
+async def get_random_persona_entries(
     db: AsyncSession,
+    *,
     user_qiao_id: str,
-    category: Optional[str] = None,
+    category: Optional[int] = None,
     page: int = 1,
     page_size: int = 20,
-) -> Tuple[List[AIProfileTemplate], int]:
+) -> Tuple[List[Tuple[SquareTypeEntry, AIPersona, Profile]], int]:
     """
-    Get random AI profile templates with pagination.
+    Select random square entries with pagination.
 
-    Args:
-        db: Database session
-        user_qiao_id: Current user's qiao_id
-        category: Optional category filter
-        page: Page number (1-indexed)
-        page_size: Items per page
-
-    Returns:
-        Tuple of (templates list, total count)
+    Only active entries with an AI profile that the current user does not
+    already have in contacts are returned.
     """
     try:
-        # Build subquery for excluded templates (optimized)
-        excluded_subquery = (
-            select(AICharacter.created_from_profile_qiao_id)
-            .join(Contact, Contact.contact_qiao_id == AICharacter.qiao_id)
+        page = max(page, 1)
+        limit = max(page_size, 1)
+        offset = (page - 1) * limit
+
+        excluded_qiao_ids = (
+            select(Contact.contact_qiao_id)
             .where(
-                and_(
-                    Contact.user_qiao_id == user_qiao_id,
-                    Contact.contact_type == ContactType.AI,
-                    Contact.is_deleted == 0,
-                    AICharacter.created_from_profile_qiao_id.isnot(None),
-                )
+                Contact.user_qiao_id == user_qiao_id,
+                Contact.contact_type == ContactType.AI,
+                Contact.is_deleted == 0,
             )
             .scalar_subquery()
         )
 
-        # Build base query
-        base_conditions = [AIProfileTemplate.status == 1]
-
+        base_conditions = [SquareTypeEntry.status == SquareEntryStatus.ACTIVE]
         if category is not None:
-            base_conditions.append(AIProfileTemplate.category == category)
+            base_conditions.append(SquareTypeEntry.square_category == category)
 
-        # Count query
-        count_query = select(func.count()).select_from(AIProfileTemplate).where(
-            and_(
-                *base_conditions,
-                AIProfileTemplate.qiao_id.notin_(excluded_subquery),
-            )
-        )
-        total_result = await db.execute(count_query)
+        total_query = select(func.count()).select_from(SquareTypeEntry).where(and_(*base_conditions))
+        total_result = await db.execute(total_query)
         total = total_result.scalar() or 0
 
-        # Data query with pagination
-        offset = (page - 1) * page_size
         data_query = (
-            select(AIProfileTemplate)
-            .where(
-                and_(
-                    *base_conditions,
-                    AIProfileTemplate.qiao_id.notin_(excluded_subquery),
-                )
-            )
+            select(SquareTypeEntry)
+            .where(and_(*base_conditions))
             .order_by(func.random())
             .offset(offset)
-            .limit(page_size)
+            .limit(limit)
         )
 
         result = await db.execute(data_query)
-        templates = list(result.scalars().all())
+        square_entries = result.scalars().all()
 
-        logger.info(
-            "random_templates_retrieved",
+        persona_cache: Dict[int, Tuple[AIPersona, Profile]] = {}
+        resolved_entries: List[Tuple[SquareTypeEntry, AIPersona, Profile]] = []
+
+        for entry in square_entries:
+            cached = persona_cache.get(entry.type_id)
+            if cached is None:
+                persona_profile = await _pick_persona_for_ai_type(
+                    db,
+                    type_id=entry.type_id,
+                    excluded_qiao_ids=excluded_qiao_ids,
+                )
+                if not persona_profile:
+                    logger.debug(
+                        "square_entry_skipped_no_persona",
+                        entry_id=entry.id,
+                        type_id=entry.type_id,
+                    )
+                    continue
+                persona_cache[entry.type_id] = persona_profile
+                cached = persona_profile
+
+            persona, profile = cached
+            resolved_entries.append((entry, persona, profile))
+
+        logger.debug(
+            "square_entries_selected",
             user_qiao_id=user_qiao_id,
-            count=len(templates),
-            total=total,
             category=category,
-            page=page,
+            requested_page=page,
+            returned=len(resolved_entries),
+            total=total,
         )
 
-        return templates, total
+        return resolved_entries, total
 
-    except Exception as e:
+    except Exception as exc:
         logger.error(
-            "random_templates_query_failed",
+            "fetch_square_entries_failed",
             user_qiao_id=user_qiao_id,
             category=category,
-            page=page,
-            error=str(e),
+            error=str(exc),
         )
         raise
 
 
-async def get_template_by_qiao_id(db: AsyncSession, qiao_id: str) -> Optional[AIProfileTemplate]:
+async def get_persona_profile_by_qiao_id(
+    db: AsyncSession,
+    *,
+    qiao_id: str,
+) -> Tuple[Optional[Profile], Optional[str]]:
     """
-    Get AI profile template by qiao_id.
-
-    Args:
-        db: Database session
-        qiao_id: Template qiao_id
-
-    Returns:
-        AIProfileTemplate or None if not found
+    Load the AI persona profile along with its latest square category.
     """
     try:
-        query = select(AIProfileTemplate).where(
-            and_(AIProfileTemplate.qiao_id == qiao_id, AIProfileTemplate.status == 1)  # active only
+        profile_stmt = select(Profile).where(
+            Profile.owner_qiao_id == qiao_id,
+            Profile.owner_type == ProfileOwnerType.AI,
         )
+        profile_result = await db.execute(profile_stmt)
+        profile = profile_result.scalar_one_or_none()
 
-        result = await db.execute(query)
-        template = result.scalar_one_or_none()
+        if not profile:
+            return None, None
 
-        if template:
-            logger.debug("template_found", qiao_id=qiao_id)
-        else:
-            logger.debug("template_not_found", qiao_id=qiao_id)
+        persona_stmt = select(AIPersona.type_id).where(
+            AIPersona.qiao_id == qiao_id,
+            AIPersona.status == AIPersonaStatus.ACTIVE,
+        )
+        persona_result = await db.execute(persona_stmt)
+        type_id = persona_result.scalar_one_or_none()
 
-        return template
+        if type_id is None:
+            return profile, None
 
-    except Exception as e:
-        logger.error("template_query_failed", qiao_id=qiao_id, error=str(e))
+        category_stmt = (
+            select(SquareTypeEntry.square_category)
+            .where(
+                SquareTypeEntry.type_id == type_id,
+                SquareTypeEntry.status == SquareEntryStatus.ACTIVE,
+            )
+            .limit(1)
+        )
+        category_result = await db.execute(category_stmt)
+        category = category_result.scalar_one_or_none()
+
+        return profile, category
+    except Exception as exc:
+        logger.error("fetch_persona_profile_failed", qiao_id=qiao_id, error=str(exc))
         raise
+
+
+async def _pick_persona_for_ai_type(
+    db: AsyncSession,
+    *,
+    type_id: int,
+    excluded_qiao_ids,
+) -> Optional[Tuple[AIPersona, Profile]]:
+    """
+    Pick an active persona + profile pair for the given AI type that is not already in the user's contacts.
+    """
+
+    stmt = (
+        select(AIPersona, Profile)
+        .join(
+            Profile,
+            and_(
+                Profile.owner_qiao_id == AIPersona.qiao_id,
+                Profile.owner_type == ProfileOwnerType.AI,
+            ),
+        )
+        .where(
+            and_(
+                AIPersona.type_id == type_id,
+                AIPersona.status == AIPersonaStatus.ACTIVE,
+                AIPersona.qiao_id.notin_(excluded_qiao_ids),
+            )
+        )
+        .order_by(func.random())
+        .limit(1)
+    )
+
+    result = await db.execute(stmt)
+    row = result.first()
+    if not row:
+        return None
+    persona, profile = row
+    return persona, profile

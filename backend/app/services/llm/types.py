@@ -17,7 +17,7 @@ class LLMSessionContext:
     """Conversation session identifiers used for caching."""
 
     user_qiao_id: str
-    character_qiao_id: str
+    instance_qiao_id: str
 
 
 @dataclass

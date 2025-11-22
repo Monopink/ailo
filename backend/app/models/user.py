@@ -75,6 +75,10 @@ class User(SnowflakeQiaoModel, StatusMixin):
     # Note: phone, email already have unique indexes
     __table_args__ = tuple()
 
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        return f"<span>[{self.id}] {escape(self.qiao_id)} / {escape(self.username)}</span>"
+
 
 class UserToken(SnowflakeModel):
     """

@@ -39,7 +39,7 @@ async def invoke_llm(
     max_tokens: Optional[int] = None,
     thinking_mode: Optional[str] = None,
     name: Optional[str] = None,
-    character_request_params: Optional[Dict[str, Any]] = None,
+    instance_request_params: Optional[Dict[str, Any]] = None,
     preemption_checker: Optional[Callable[[], Awaitable[bool]]] = None,
     session_context: Optional[LLMSessionContext] = None,
 ) -> Dict[str, Any]:
@@ -54,9 +54,9 @@ async def invoke_llm(
         max_tokens: Explicit max tokens override.
         thinking_mode: Explicit thinking mode override.
         name: LLM config name (defaults to primary).
-        character_request_params: Per-character overrides (tools, caching, etc.).
+        instance_request_params: Per-instance overrides (tools, caching, etc.).
         preemption_checker: Optional async callback to stop streaming early.
-        session_context: Conversation identifiers (user+character) used for caching.
+        session_context: Conversation identifiers (user+instance) used for caching.
     """
     try:
         configs_to_try = await _get_configs_to_try(db, name)
@@ -78,7 +78,7 @@ async def invoke_llm(
                     temperature=temperature,
                     max_tokens=max_tokens,
                     thinking_mode=thinking_mode,
-                    character_request_params=character_request_params,
+                    instance_request_params=instance_request_params,
                     preemption_checker=preemption_checker,
                     session_context=session_context,
                 )
@@ -182,7 +182,7 @@ async def select_config_for_ai(
     name: Optional[str] = None,
 ) -> Tuple[LLMConfig, LLMProvider]:
     """
-    Select and validate LLM config for AI Character usage.
+    Select and validate LLM config for AI Instance usage.
 
     Ensures the selected config supports JSON Schema.
     """
@@ -278,12 +278,12 @@ async def _call_provider(
     temperature: Optional[float],
     max_tokens: Optional[int],
     thinking_mode: Optional[str],
-    character_request_params: Optional[Dict[str, Any]],
+    instance_request_params: Optional[Dict[str, Any]],
     preemption_checker: Optional[Callable[[], Awaitable[bool]]],
     session_context: Optional[LLMSessionContext],
 ) -> Dict[str, Any]:
     try:
-        overrides = character_request_params if isinstance(character_request_params, dict) else {}
+        overrides = instance_request_params if isinstance(instance_request_params, dict) else {}
         options = await _build_request_options(
             db=db,
             config=config,
@@ -293,7 +293,7 @@ async def _call_provider(
             temperature=temperature,
             max_tokens=max_tokens,
             thinking_mode=thinking_mode,
-            character_request_params=overrides,
+            instance_request_params=overrides,
             session_context=session_context,
         )
 
@@ -374,10 +374,10 @@ async def _build_request_options(
     temperature: Optional[float],
     max_tokens: Optional[int],
     thinking_mode: Optional[str],
-    character_request_params: Optional[Dict[str, Any]],
+    instance_request_params: Optional[Dict[str, Any]],
     session_context: Optional[LLMSessionContext],
 ) -> LLMRequestOptions:
-    overrides = character_request_params if isinstance(character_request_params, dict) else {}
+    overrides = instance_request_params if isinstance(instance_request_params, dict) else {}
 
     resolved_temperature = (
         float(temperature)
@@ -520,8 +520,7 @@ def _normalize_thinking_mode(value: Optional[str], *, config_name: str) -> Optio
             "Please disable thinking or switch to a provider that supports it."
         )
     raise LLMConfigurationError(
-        f"Unknown thinking_mode '{value}' for config '{config_name}'. "
-        "Allowed values: auto/disabled."
+        f"Unknown thinking_mode '{value}' for config '{config_name}'. " "Allowed values: auto/disabled."
     )
 
 

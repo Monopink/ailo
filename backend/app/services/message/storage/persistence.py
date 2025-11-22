@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from services.message.schemas import InboundMessageEvent, OutboundMessageEvent
 from models.message.message import MessageHistory
 from models.user import User
-from models.ai.character import AICharacter
+from models.ai.instance import AIInstance
 from crud.user import user as user_crud
 from utils.snowflake import generate_snowflake_id
 from utils.logging import get_logger

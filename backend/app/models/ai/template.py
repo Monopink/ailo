@@ -16,15 +16,38 @@ if TYPE_CHECKING:
     from models.ai.personality import AIPersonality
 
 
-class AICharacterTemplate(AutoIncrementModel):
+class AIType(AutoIncrementModel):
     """
-    AI character template model.
+    AI type model for grouping templates and personas.
+    """
+
+    __tablename__ = "ai_types"
+
+    display_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Admin-visible name for this AI type",
+    )
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Description")
+
+
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        return f"<span>[{self.id}] {escape(self.display_name)}</span>"
+
+
+class AITemplate(AutoIncrementModel):
+    """
+    AI template model.
 
     AI core configuration templates.
     """
 
-    __tablename__ = "ai_character_templates"
+    __tablename__ = "ai_templates"
 
+    type_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="AI type ID, references ai_types.id"
+    )
     style_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Style ID, references ai_styles.id"
     )
@@ -44,7 +67,7 @@ class AICharacterTemplate(AutoIncrementModel):
     request_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
-        comment="Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances",
+        comment="Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by instance instances",
     )
 
     timezone: Mapped[str] = mapped_column(
@@ -52,18 +75,18 @@ class AICharacterTemplate(AutoIncrementModel):
         nullable=False,
         default="Asia/Shanghai",
         server_default=text("'Asia/Shanghai'"),
-        comment="Default IANA timezone for instantiated characters",
+        comment="Default IANA timezone for instantiated instances",
     )
 
     typing_speed_wpm: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        comment="Typing speed (words per minute) applied when instantiating characters",
+        comment="Typing speed (words per minute) applied when instantiating instances",
     )
 
     # Display name for admin/UI list and association views
     display_name: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Display name for character template"
+        String(100), nullable=True, comment="Display name for template"
     )
 
     position_mapping_config: Mapped[Optional[Dict[str, Any]]] = mapped_column(
@@ -80,16 +103,12 @@ class AICharacterTemplate(AutoIncrementModel):
         comment="Is reusable: 1=reusable, 0=single_use",
     )
 
-    profile_count: Mapped[int] = mapped_column(
+    priority: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        default=0,
-        server_default=text("0"),
-        comment="Associated profile template count",
-    )
-
-    profile_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Associated profile template ID (for single-use)"
+        default=1,
+        server_default=text("1"),
+        comment="Selection priority (lower number chosen first)",
     )
 
     status: Mapped[int] = mapped_column(
@@ -103,75 +122,63 @@ class AICharacterTemplate(AutoIncrementModel):
     # Relationships
     style: Mapped["AIStyle"] = relationship(
         "AIStyle",
-        primaryjoin="AICharacterTemplate.style_id == AIStyle.id",
+        primaryjoin="AITemplate.style_id == AIStyle.id",
         foreign_keys=[style_id],
         lazy="select",
         viewonly=True,
     )
     personality: Mapped["AIPersonality"] = relationship(
         "AIPersonality",
-        primaryjoin="AICharacterTemplate.personality_id == AIPersonality.id",
+        primaryjoin="AITemplate.personality_id == AIPersonality.id",
         foreign_keys=[personality_id],
         lazy="select",
         viewonly=True,
     )
-    profile: Mapped[Optional["AIProfileTemplate"]] = relationship(
-        "AIProfileTemplate",
-        primaryjoin="AICharacterTemplate.profile_id == AIProfileTemplate.id",
-        foreign_keys=[profile_id],
+    ai_type: Mapped["AIType"] = relationship(
+        "AIType",
+        primaryjoin="AITemplate.type_id == AIType.id",
+        foreign_keys=[type_id],
         lazy="select",
         viewonly=True,
     )
 
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        display = escape(self.display_name) if self.display_name else f"Template {self.id}"
+        return f"<span>[{self.id}] {display}</span>"
 
-class AIProfileTemplate(SnowflakeQiaoModel):
+
+class AIPersona(SnowflakeQiaoModel):
     """
-    AI profile template model.
-
-    AI social profile templates.
+    AI persona inventory model (SKU-level definition).
     """
 
-    __tablename__ = "ai_profile_templates"
+    __tablename__ = "ai_personas"
 
-    category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Category")
-
-    character_template_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Associated character template ID, references ai_character_templates.id"
-    )
-
-    nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Nickname")
-
-    gender: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other, 4=unknown"
-    )
-
-    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="Avatar URL")
-
-    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Bio/description")
-
-    region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Region/location")
-
+    type_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="AI type association")
     is_reusable: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=1,
         server_default=text("1"),
-        comment="Is reusable: 1=reusable, 0=single_use",
+        comment="1=reusable, 0=single_use",
     )
-
     status: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=1,
         server_default=text("1"),
-        comment="Status: 1=active, 2=inactive",
+        comment="1=active, 2=inactive, 3=used",
     )
 
-    # Relationships
-    character_template: Mapped["AICharacterTemplate"] = relationship(
-        "AICharacterTemplate",
-        primaryjoin="AIProfileTemplate.character_template_id == AICharacterTemplate.id",
-        foreign_keys=[character_template_id],
+    ai_type: Mapped["AIType"] = relationship(
+        "AIType",
+        primaryjoin="AIPersona.type_id == AIType.id",
+        foreign_keys=[type_id],
         lazy="select",
         viewonly=True,
     )
+
+    def __admin_select2_repr__(self, request) -> str:
+        from markupsafe import escape
+        return f"<span>[{self.id}] {escape(self.qiao_id)}</span>"

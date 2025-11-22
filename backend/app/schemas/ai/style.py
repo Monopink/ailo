@@ -30,7 +30,6 @@ class AIStyleUpdate(BaseModel):
     """Schema for updating an AI style."""
 
     name: Optional[str] = Field(None, max_length=100, description="Style name")
-    usage_count: Optional[int] = Field(None, ge=0, description="Reference count")
     status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
@@ -38,7 +37,6 @@ class AIStyleResponse(AIStyleBase):
     """Schema for AI style response data."""
 
     initial_relationship_id: Optional[int] = Field(None, description="Initial relationship type ID")
-    usage_count: int = Field(..., description="Reference count")
     status: int = Field(..., description="Status")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
@@ -143,7 +141,6 @@ class AIRelationshipUpdate(BaseModel):
 class AIRelationshipResponse(AIRelationshipBase):
     """Schema for AI relationship response data."""
 
-    usage_count: int = Field(..., description="Usage count")
     status: int = Field(..., description="Status")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")

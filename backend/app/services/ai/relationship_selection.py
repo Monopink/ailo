@@ -3,7 +3,7 @@ Relationship selection helpers shared by business logic and admin tools.
 
 Responsibilities:
 - Collect relationship candidates for a given (style, dimension, position)
-- Enforce limit_count based on character-level relationship_counts
+- Enforce limit_count based on instance-level relationship_counts
 - Select final relationship using unified rules
 
 All functions are stateless. DB access is restricted to candidate collection.
@@ -77,7 +77,7 @@ def enforce_limit_count(
     candidates: List[Candidate], relationship_counts: Optional[Dict[str, Any]]
 ) -> List[Candidate]:
     """
-    Filter candidates using limit_count and character-level counts.
+    Filter candidates using limit_count and instance-level counts.
 
     - limit_count NULL/0 => unlimited
     - counts >= limit_count => drop

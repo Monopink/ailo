@@ -1,7 +1,7 @@
 """
-Admin character relationship generation service.
+Admin instance relationship generation service.
 
-Provides functionality for generating and previewing character relationships
+Provides functionality for generating and previewing instance relationships
 based on dimension scores and mapping algorithms.
 """
 
@@ -10,33 +10,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from models.ai.character import AICharacter
+from models.ai.instance import AIInstance
 from models.ai.style import AIDimension, AIStyleDimension
-from crud.ai.character_dimension import get_by_character
+from crud.ai.instance_dimension import get_by_instance
 from services.ai.utils.score_mapping import map_to_permille
 from services.ai.utils.position_mapping import map_score_to_position
 from services.ai.relationship_selection import collect_candidates, select_final_relationship
 from services.ai.relationship_scoring import (
     calculate_new_scores,
     update_relationship_positions,
-    update_current_relationship,
+    update_instance_current_relationship,
 )
-from services.ai.queries import get_character_context
-from services.ai.types import CharacterContext
+from services.ai.queries import get_instance_context
+from services.ai.types import InstanceContext
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def generate_relationship_for_character(
+async def generate_relationship_for_instance(
     db: AsyncSession,
     *,
-    character_id: int,
+    instance_id: int,
     overrides: Optional[Dict[str, Any]] = None,
     preview: bool = True,
 ) -> Dict[str, Any]:
     """
-    Generate relationship for a character using current or overridden per-dimension inputs.
+    Generate relationship for an instance using current or overridden per-dimension inputs.
 
     - Uses JSON Schema min/max for mapping to [0,1000].
     - Applies per-dimension offset and collects candidates.
@@ -44,25 +44,25 @@ async def generate_relationship_for_character(
     - Selects final relationship by priority (tie->empty).
     - preview=True -> does not persist; preview=False -> persist positions and current relationship.
     """
-    # Load character with style, personality and qiao_id
+    # Load instance with style, personality and qiao_id
     result = await db.execute(
-        select(AICharacter)
-        .where(AICharacter.id == character_id)
-        .options(selectinload(AICharacter.style), selectinload(AICharacter.personality))
+        select(AIInstance)
+        .where(AIInstance.id == instance_id)
+        .options(selectinload(AIInstance.style), selectinload(AIInstance.personality))
     )
-    character = result.scalar_one_or_none()
-    if not character:
-        return {"success": False, "message": "Character not found"}
+    instance = result.scalar_one_or_none()
+    if not instance:
+        return {"success": False, "message": "Instance not found"}
 
-    context = await get_character_context(db, character_id=character_id)
+    context = await get_instance_context(db, instance_id=instance_id)
     if not context:
-        return {"success": False, "message": "Character context not found"}
+        return {"success": False, "message": "Instance context not found"}
 
     # Load dimensions for style
     dims_result = await db.execute(
         select(AIDimension, AIStyleDimension.initial_position)
         .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
-        .where(AIStyleDimension.style_id == character.style_id)
+        .where(AIStyleDimension.style_id == instance.style_id)
         .order_by(AIDimension.name)
     )
     style_dims = [
@@ -82,11 +82,11 @@ async def generate_relationship_for_character(
         return {"success": False, "message": "No dimensions configured for this style"}
 
     # Read JSON Schema for mapping ranges from personality
-    json_schema = character.personality.json_schema or {}
+    json_schema = instance.personality.json_schema or {}
     score_props = json_schema.get("properties", {}).get("score", {}).get("properties", {})
 
-    # Read current character dimensions
-    char_scores = await get_by_character(db, character_id)
+    # Read current instance dimensions
+    char_scores = await get_by_instance(db, instance_id)
     score_map = {row["dimension_id"]: row for row in char_scores} if char_scores else {}
 
     # Build override map for quick lookup by dimension_id
@@ -137,8 +137,8 @@ async def generate_relationship_for_character(
             mapped = map_to_permille(score, float(min_v), float(max_v))
         except Exception as e:
             logger.error(
-                "character_generate_mapping_failed",
-                character_id=character_id,
+                "instance_generate_mapping_failed",
+                instance_id=instance_id,
                 dimension=dim.name,
                 error=str(e),
             )
@@ -155,11 +155,11 @@ async def generate_relationship_for_character(
 
         # Collect candidates
         candidates = await collect_candidates(
-            db, style_id=int(character.style_id), dimension_id=int(dim.id), position=final_i
+            db, style_id=int(instance.style_id), dimension_id=int(dim.id), position=final_i
         )
 
         # Per-dimension current relationship filtering
-        current_rel_id = getattr(character, "relationship_id", None)
+        current_rel_id = getattr(instance, "relationship_id", None)
         if current_rel_id is not None and candidates:
             current_in_candidates = any(
                 int(c.get("relationship_id")) == int(current_rel_id) for c in candidates
@@ -198,14 +198,14 @@ async def generate_relationship_for_character(
             # Use overrides.score as llm_response_scores; calculate_new_scores will map via schema again
             llm_scores = {dr["dimension_name"]: int(dr["input_score"]) for dr in dimension_results}
             new_scores = await calculate_new_scores(db, context, llm_scores)
-            await update_relationship_positions(db, character_id, new_scores)
+            await update_relationship_positions(db, instance_id, new_scores)
             if selected:
                 disp = selected.get("relationship_display_name") or selected.get("relationship_name") or ""
-                await update_current_relationship(
-                    db, character_id, int(selected.get("relationship_id")), disp
+                await update_instance_current_relationship(
+                    db, instance_id, int(selected.get("relationship_id")), disp
                 )
         except Exception as e:
-            logger.error("character_generate_persist_failed", character_id=character_id, error=str(e))
+            logger.error("instance_generate_persist_failed", instance_id=instance_id, error=str(e))
             return {"success": False, "message": f"Persist failed: {str(e)}"}
 
     return {

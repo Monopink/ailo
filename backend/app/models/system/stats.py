@@ -282,12 +282,12 @@ class StatsAIDaily(ImmutableAutoIncrementModel):
 
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
 
-    ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI character count"
+    ai_instances: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI instance count"
     )
 
-    active_ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI character count"
+    active_ai_instances: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI instance count"
     )
 
     ai_requests_count: Mapped[int] = mapped_column(
@@ -310,12 +310,12 @@ class StatsAIWeekly(ImmutableAutoIncrementModel):
 
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
 
-    ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI character count"
+    ai_instances: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI instance count"
     )
 
-    active_ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI character count"
+    active_ai_instances: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI instance count"
     )
 
     ai_requests_count: Mapped[int] = mapped_column(
@@ -338,12 +338,12 @@ class StatsAIMonthly(ImmutableAutoIncrementModel):
 
     stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
 
-    ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI character count"
+    ai_instances: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI instance count"
     )
 
-    active_ai_characters: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI character count"
+    active_ai_instances: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI instance count"
     )
 
     ai_requests_count: Mapped[int] = mapped_column(

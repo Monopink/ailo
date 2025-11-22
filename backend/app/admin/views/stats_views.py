@@ -328,14 +328,14 @@ class StatsAIDailyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "ai_characters", "active_ai_characters", "ai_requests_count"]
+    sortable_fields = ["id", "stat_date", "ai_instances", "active_ai_instances", "ai_requests_count"]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
         DateField("stat_date", label="Date", help_text="Statistics date"),
-        IntegerField("ai_characters", label="AI Characters", help_text="Total AI character count"),
+        IntegerField("ai_instances", label="AI Instances", help_text="Total AI instance count"),
         IntegerField(
-            "active_ai_characters", label="Active AI Characters", help_text="Active AI character count"
+            "active_ai_instances", label="Active AI Instances", help_text="Active AI instance count"
         ),
         IntegerField("ai_requests_count", label="AI Requests", help_text="AI request count"),
         "avg_ai_requests_per_user",
@@ -360,14 +360,14 @@ class StatsAIWeeklyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "ai_characters", "active_ai_characters", "ai_requests_count"]
+    sortable_fields = ["id", "stat_date", "ai_instances", "active_ai_instances", "ai_requests_count"]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
         DateField("stat_date", label="Week Start", help_text="Week start date"),
-        IntegerField("ai_characters", label="AI Characters", help_text="Total AI character count"),
+        IntegerField("ai_instances", label="AI Instances", help_text="Total AI instance count"),
         IntegerField(
-            "active_ai_characters", label="Active AI Characters", help_text="Active AI character count"
+            "active_ai_instances", label="Active AI Instances", help_text="Active AI instance count"
         ),
         IntegerField("ai_requests_count", label="AI Requests", help_text="AI request count"),
         "avg_ai_requests_per_user",
@@ -392,14 +392,14 @@ class StatsAIMonthlyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "ai_characters", "active_ai_characters", "ai_requests_count"]
+    sortable_fields = ["id", "stat_date", "ai_instances", "active_ai_instances", "ai_requests_count"]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
         DateField("stat_date", label="Month Start", help_text="Month start date"),
-        IntegerField("ai_characters", label="AI Characters", help_text="Total AI character count"),
+        IntegerField("ai_instances", label="AI Instances", help_text="Total AI instance count"),
         IntegerField(
-            "active_ai_characters", label="Active AI Characters", help_text="Active AI character count"
+            "active_ai_instances", label="Active AI Instances", help_text="Active AI instance count"
         ),
         IntegerField("ai_requests_count", label="AI Requests", help_text="AI request count"),
         "avg_ai_requests_per_user",

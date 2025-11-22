@@ -106,6 +106,44 @@ class ContactAlreadyExistsError(ConflictError):
         self.error_code = "CONTACT_ALREADY_EXISTS"
 
 
+class ContactRequestPendingError(ConflictError):
+    """Exception raised when a similar contact request is still pending."""
+
+    def __init__(
+        self,
+        user_qiao_id: str,
+        contact_qiao_id: str,
+        message: str = "Contact request already pending",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        error_details.update({"user_qiao_id": user_qiao_id, "contact_qiao_id": contact_qiao_id})
+
+        super().__init__(message=message, details=error_details)
+        self.error_code = "CONTACT_REQUEST_PENDING"
+
+
+class ContactRequestInventoryPendingError(BaseAppException):
+    """Exception raised when a contact request is waiting for inventory."""
+
+    def __init__(
+        self,
+        template_type_id: Optional[int] = None,
+        message: str = "Contact request is waiting for template inventory",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details or {}
+        if template_type_id is not None:
+            error_details["template_type_id"] = template_type_id
+
+        super().__init__(
+            message=message,
+            error_code="CONTACT_REQUEST_WAITING_INVENTORY",
+            status_code=http_status.HTTP_409_CONFLICT,
+            details=error_details,
+        )
+
+
 class ContactLimitExceededError(BaseAppException):
     """Exception raised when contact limit is exceeded."""
 

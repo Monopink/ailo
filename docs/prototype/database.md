@@ -101,6 +101,25 @@ created_at
 updated_at
 ```
 
+## square_character_entries
+
+Square 曝光表，决定哪些 `qiao_id` 被展示给用户以及采用何种曝光策略。
+
+```txt
+id -- 自增ID
+square_category -- Square 分类标识（客户端写死的枚举）
+qiao_id -- 曝光的角色外部ID
+entry_group -- 曝光分组（用于分配不同曝光位或实验）
+exposure_strategy -- 曝光策略：random/fixed 等
+status -- 1=active, 2=inactive（inactive 时该 qiao_id 不出现在 Square）
+metadata -- JSONB，扩展字段（如标签、城市等）
+last_featured_at -- 最近一次被前端拉取时的时间戳
+created_at
+updated_at
+```
+
+Square 只消费该表的数据，与模板库存隔离；模板体系的状态不会直接影响 Square 曝光。
+
 ## login_records
 
 用户登录记录表，记录所有登录尝试。
@@ -252,10 +271,12 @@ created_at
 ```
 
 检查约束：
+
 - `ck_ai_conversation_items_content`: text 需有 text_content 且 media_url 为空；image/audio 需有 media_url
 - `ck_ai_conversation_items_user_buffer`: role=user 必须有 buffer_id
 
 索引：
+
 - `idx_ai_conv_items_session (user_qiao_id, character_qiao_id, created_at)`
 - `idx_ai_conv_items_buffer (buffer_id) WHERE buffer_id IS NOT NULL`
 - `idx_ai_conv_items_excluded (user_qiao_id, character_qiao_id, created_at) WHERE is_excluded_from_context = true`
@@ -446,32 +467,42 @@ created_at
 updated_at
 ```
 
-## ai_profile_templates
+## ai_template_types
 
-AI资料模板表，存储AI角色的资料模板。索引nickname字段。is_reusable字段需要和info一致才能关联，关联info后不允许修改status。
+AI模板类型表，用于内部管理分组。
 
 ```txt
 id -- 自增ID
-qiao_id -- qiao_+随机字符，外部使用
-category -- 分类，可选项写死
-character_template_id -- 绑定的ai_character_templates.id
-nickname -- 昵称
-gender -- 性别：1=male, 2=female, 3=other, 4=unknown
-avatar_url -- 头像URL（客户端预设：assets://1234；云端：https://...）
-bio -- 个人简介
-region -- 地区
-is_reusable -- 是否可以复用：1=reusable, 0=single_use（不可复用使用完后改为inactive）
-status -- 状态：1=active, 2=inactive
+name -- 类型标识（唯一）
+display_name -- 显示名称
+description -- 描述说明
+status -- 1=active，2=inactive（inactive 表示暂停实例化）
 created_at
 updated_at
 ```
 
-## ai_character_templates
+## ai_personas
 
-AI角色信息模板表，存储AI角色的核心配置信息。
+AI角色档案表，管理角色的唯一qiao_id（类似商品SKU）。
+
+```txt
+id -- Snowflake ID
+qiao_id -- qiao_+随机字符，外部使用，唯一标识
+template_type_id -- 关联ai_template_types.id（内部管理）
+is_reusable -- 是否可以复用：1=reusable（多用户可添加）, 0=single_use（仅一个用户可添加）
+usage_count -- 被添加次数统计
+status -- 状态：1=active, 2=inactive, 3=used
+created_at
+updated_at
+```
+
+## ai_templates
+
+AI模板表，管理角色实例化时所需的 Prompt、记忆、维度配置与打字参数。
 
 ```txt
 id -- 自增ID
+template_type_id -- 关联ai_template_types.id（内部管理）
 display_name -- 显示名称
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
@@ -494,10 +525,9 @@ position_mapping_config -- JSON格式，存储各维度的mapping配置,示例�
     }
   }
 }
-is_reusable -- 是否可以复用：1=reusable, 0=single_use
-profile_count -- 统计关联的资料模板数量
-profile_id -- 如果不可复用则存入对应资料模板id
-status -- 状态：1=active, 2=inactive
+is_reusable -- 是否可以复用：1=reusable（可创建多个角色）, 0=single_use（仅创建一次）
+priority -- 优先级，数字越小优先级越高（不可复用模板优先）
+status -- 状态：1=active, 2=inactive, 3=used（仅单次模板会被置为已使用）
 created_at
 updated_at
 ```
@@ -508,11 +538,10 @@ AI角色表，存储具体的AI角色实例。
 
 ```txt
 id -- Snowflake ID
-qiao_id -- qiao_+随机字符，外部使用
-created_from_profile_id -- 来源资料模板ID（内部ID，用于高效查询和统计）
-created_from_profile_qiao_id -- 来源资料模板qiao_id（外部ID，用于审计和历史追溯）
-category -- 角色分类
-status -- 状态：1=active, 2=inactive，3=blocked
+qiao_id -- qiao_+随机字符，外部使用（可重复，多个用户可添加同一角色）
+template_type_id -- 关联ai_template_types.id（内部管理）
+character_profile_id -- 关联ai_personas.id
+status -- 状态：1=active, 2=inactive，3=blocking
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
 relationship_id -- 当前的关系ID
@@ -530,10 +559,12 @@ updated_at
 ```
 
 **设计说明**：
-- `created_from_profile_id` 和 `created_from_profile_qiao_id` 采用双字段设计，符合项目一致性原则
-- 内部ID用于高效的JOIN查询和统计分析
-- 外部qiao_id用于审计日志、历史追溯，即使Profile Template被删除仍保留来源信息
+
+- `qiao_id` 不再唯一，多个用户可以添加同一个qiao_id的角色
+- `template_type_id` 用于内部管理和追踪
+- `character_profile_id` 关联到角色档案，获取qiao_id和分类信息
 - 不再存储 `user_id` 和 `user_qiao_id`，通过 `contacts` 表关联用户
+- 通过 `contacts` 表的约束保证同一用户不能重复添加同一个qiao_id
 
 ## ai_character_dimensions
 
@@ -670,7 +701,11 @@ to_type -- 申请接收者类型：1=user (包括所有用户类型), 2=ai
 to_id -- 申请接收者内部ID
 message -- 附加申请说明（例如“我是xxx”）
 source -- 来源渠道：1=search, 2=admin, 3=system, 4=recommend
-status -- 申请状态：1=pending, 2=accepted, 3=rejected, 4=expired
+status -- 申请状态：1=pending, 2=accepted, 3=ignored, 8=processing, 9=failed
+failure_code -- 模板不足等业务失败原因（挂起记录会填写）
+failure_detail -- JSONB，包含 template_type_id、qiao_id、request_id 等定位信息
+retry_count -- 手动或自动重试次数
+last_retry_at -- 最近一次重试时间
 expires_at -- 申请过期时间
 created_at
 updated_at
@@ -996,3 +1031,4 @@ status -- pending,paid,failed,refunded
 created_at
 paid_at
 ```
+

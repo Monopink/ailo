@@ -6,6 +6,12 @@
 
 ## 核心设计原则
 
+### Square 曝光与联系人处理
+
+- `square_character_entries` 决定哪些 `qiao_id` 对用户可见，包含分类、曝光策略、状态等字段
+- 模板类型与模板库存只控制“用户拿到 qiao_id 后能否创建联系人”，不会影响 Square 曝光
+- 所有文案对外只出现 `qiao_id`，后台根据 `ai_personas` 管理 persona 与 `profiles` 展示信息
+
 ### 1. 统一API设计
 
 **原则**: 用户不应区分添加AI还是普通用户，使用同一个API
@@ -128,16 +134,31 @@
 4. **AI模块验证**:
 
    ```python
-   # 验证AI资料模板是否可用
-   template = await ai_template_crud.get_by_qiao_id(db, qiao_id=to_qiao_id)
-   if not template or not template.is_active:
-       raise ValueError("AI template not available")
-   
-   # 验证信息模板是否可用
-   profile_template = await profile_template_crud.get_by_qiao_id(...)
-   if not profile_template or not profile_template.is_active:
-       raise ValueError("Profile template not available")
-   
+   # 通过qiao_id查找角色档案
+   character_profile = await character_profile_crud.get_by_qiao_id(db, qiao_id=to_qiao_id)
+   if not character_profile or character_profile.status != 1:
+       raise ValueError("Character profile not available")
+
+   # 检查角色档案是否可用
+   if character_profile.is_reusable == 0 and character_profile.status == 3:
+       raise ValueError("Character profile already used")
+
+   # 查找该分类下的可用模板
+  template_type_id = character_profile.template_type_id
+  available_template = await select_available_template(db, template_type_id)
+
+   if not available_template:
+       await contact_request_crud.mark_pending_failure(
+           db=db,
+           request_id=request_id,
+           failure_code="NO_TEMPLATE_AVAILABLE",
+           failure_detail={
+               "template_type_id": template_type_id,
+               "qiao_id": to_qiao_id,
+           },
+       )
+       return AIContactDecision(accepted=False, reason="WAIT_TEMPLATE")
+
    # 返回决策
    return AIContactDecision(accepted=True, reason="")
    ```
@@ -146,19 +167,20 @@
 
    ```python
    if decision.accepted:
-       # 创建AI角色
+       # 从模板创建AI角色
        ai_character = await create_character_from_template(
            db=db,
-           template_qiao_id=request.to_qiao_id,
+           character_profile=character_profile,
+           template=available_template,
            user_qiao_id=user_qiao_id,
        )
-       
+
        # 创建联系人记录
        contact = await contact_crud.create_with_user(
            db,
            obj_in=ContactCreate(
                contact_type=ContactType.AI,
-               contact_qiao_id=ai_character.qiao_id,
+               contact_qiao_id=character_profile.qiao_id,  # 使用档案的qiao_id
                alias=request.alias,
                tags={"tags": request.tags} if request.tags else None,
                ...
@@ -167,7 +189,16 @@
            user_id=user_id,
            conv_id=conv_id,
        )
-       
+
+       # 如果模板不可复用，标记为已使用
+   if available_template.is_reusable == 0:
+       available_template.status = 3
+
+       # 更新角色档案使用统计
+       character_profile.usage_count += 1
+   if character_profile.is_reusable == 0:
+       character_profile.status = 3
+
        # 更新请求状态
        contact_request.status = ContactRequestStatus.ACCEPTED
        
@@ -283,6 +314,31 @@
 **用户收到**: `{"message": "请求已发送"}`
 
 **目标用户收到**: NOTIFICATION消息推送
+
+---
+
+## 模板不足与重试流程
+
+当某个 `template_type` 暂时没有可用模板时，请求不会被拒绝或失败，而是保持在 `PENDING` 状态并记录失败原因：
+
+1. **记录失败元数据**
+   - `contact_requests.failure_code`：例如 `NO_TEMPLATE_AVAILABLE`, `MANUAL_PROVISION_REQUIRED`。
+   - `contact_requests.failure_detail`：JSON，建议至少包含 `template_type_id`、`qiao_id`、`request_id` 等信息，方便后台定位问题。
+   - `retry_count`：每次自动或手动重试都会递增，用于运营监控。
+   - `last_retry_at`：最近一次重试尝试的时间。
+2. **Admin 视图**
+   - 后台和 Starlette Admin 需要提供“待补库存”列表，筛选 `(status=1 AND failure_code IS NOT NULL)` 的记录。
+   - 管理员补充模板后，可直接在该视图触发“重试”；前端 contacts 视图也需要同样的按钮。
+3. **重试逻辑**
+   - 重试会清空 `failure_code`/`failure_detail`，更新 `last_retry_at`、`retry_count`，然后重新执行模板选择流程。
+   - 成功 → `status=ACCEPTED`，`failure_*` 字段保持 NULL。
+   - 再次失败 → 重新写入 `failure_code`/`failure_detail`，以便管理员继续处理。
+4. **用户端幂等**
+   - 用户重复提交相同 `(from_qiao_id, to_qiao_id)` 的请求时，系统不会新建 `contact_requests`，而是触发同一条记录的重试。
+   - 客户端始终只收到统一文案 `{"message": "请求已发送"}`，无需了解挂起细节。
+   - 若上一条请求已经过期或进入终态，新的请求会生成新的记录并重新走审批流程。
+
+所有挂起数据都通过 `contact_requests` 维护，不需要额外的工作队列或表。后续实现必须确保代码层面校验与数据库约束一致，避免重复创建记录。
 
 ---
 
@@ -512,6 +568,10 @@
 - `to_qiao_id`: 目标qiao_id
 - `message`: 申请消息
 - `status`: 请求状态（1=待处理, 2=已接受, 3=已忽略, 8=处理中, 9=失败）
+- `failure_code`: 模板不足等业务失败原因（挂起才会填写）
+- `failure_detail`: JSON，描述缺失的模板类型、qiao_id、重试次数等
+- `retry_count`: 手动/自动重试计数
+- `last_retry_at`: 最近一次重试时间
 - `created_at`: 创建时间
 
 ### contact 表
@@ -705,11 +765,10 @@ PROCESSING (8)
 **定义**: 业务逻辑判断后的正常拒绝
 
 **触发场景**:
-- ✅ AI模板不存在
-- ✅ AI模板状态为inactive（不可用）
 - ✅ 用户已达AI联系人上限
 - ✅ AI决定不接受该请求（业务逻辑）
 - ✅ 用户主动拒绝请求
+- ✅ 管理端明确拒绝（例如人工审核不通过）
 
 **特点**:
 - 终态，不会再变更
@@ -939,3 +998,5 @@ ON contact_requests(expires_at);
 - 数据库中status=4,5的旧记录不会被处理
 - 新代码不会创建status=4,5的记录
 - 建议清理: 可以将旧的4,5状态批量更新为3(IGNORED)
+> 只有 `status=PENDING` 且 `expires_at` 大于当前时间的记录可以被上述逻辑复用。`ACCEPTED`、`IGNORED`、`FAILED`、`PROCESSING` 以及已过期的记录都视为终态，新的请求会重新写入 `contact_requests`。
+

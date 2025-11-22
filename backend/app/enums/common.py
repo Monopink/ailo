@@ -93,6 +93,20 @@ class ContactRequestStatus(IntEnum):
     FAILED = 9  # Processing failed due to system error  # Processing by worker (prevents duplicate processing)  # Rejected (future: explicit rejection with notification)
 
 
+class ContactRequestFailureCode(str, Enum):
+    """Contact request failure codes (contact_requests.failure_code)"""
+
+    NO_TEMPLATE_AVAILABLE = "NO_TEMPLATE_AVAILABLE"
+    MANUAL_PROVISION_REQUIRED = "MANUAL_PROVISION_REQUIRED"
+
+
+class SquareEntryStatus(IntEnum):
+    """Square exposure status (square_character_entries.status)"""
+
+    ACTIVE = 1
+    INACTIVE = 2
+
+
 # Message System Related Enums
 
 
@@ -274,6 +288,14 @@ PROFILE_CATEGORY_API_TO_DB = {
 }
 
 PROFILE_CATEGORY_DB_TO_API = {v: k for k, v in PROFILE_CATEGORY_API_TO_DB.items()}
+
+
+class AITemplateStatus(IntEnum):
+    """AI template status (ai_templates.status)"""
+
+    ACTIVE = 1
+    INACTIVE = 2
+    USED = 3
 
 
 class AICharacterStatus(IntEnum):

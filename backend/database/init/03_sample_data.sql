@@ -29,7 +29,7 @@ INSERT INTO ai_relationships (name, display_name, prompt_fragment, usage_count, 
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert AI styles with better names and configurations
--- usage_count is initialized based on ai_characters references in this script
+-- usage_count is initialized based on ai_instances references in this script
 INSERT INTO ai_styles (name, display_name, usage_count, status) VALUES
 ('romantic_companion', '浪漫伴侣', 2, 1),
 ('friendly_companion', '友好伴侣', 1, 1),
@@ -93,7 +93,7 @@ ON CONFLICT DO NOTHING;
 -- ============================================================================
 
 -- Insert basic AI personality with corrected JSON schema
--- usage_count is initialized based on ai_characters references
+-- usage_count is initialized based on ai_instances references
 INSERT INTO ai_personalities (name, display_name, prompt, json_schema, usage_count, status) VALUES
 ('Default Personality', 'Default Personality',
 'You are a friendly AI assistant. Your personality traits: {{personality_traits}}. Your memory: {{memory}}. Current time: {{current_datetime}}. Your profile: {{self_profile}}. Other person profile: {{other_profile}}. Relationship context: {{relationship_prompt}}.',
@@ -213,100 +213,94 @@ ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
 -- AI Characters
 -- ============================================================================
 
--- Insert AI character for testing with proper configuration
--- Each AI character is owned by a test user (establishing AI->User relationship)
-INSERT INTO ai_characters (
+-- Insert AI character instances that will be copied when users add them
+INSERT INTO ai_instances (
     id,
     qiao_id,
-    category,
+    template_type_id,
+    character_profile_id,
     style_id,
     personality_id,
     status,
     memory,
     prompt_variables,
+    relationship_id,
+    relationship_counts,
     request_params,
     typing_speed_wpm,
-    user_id,
-    user_qiao_id,
+    timezone,
     created_by
 ) VALUES
-(223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 'love', 1, 1, 1,
-'我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
-'{
-  "personality_traits": "温柔、善良、有耐心、喜欢音乐和电影、邻家女孩的感觉",
-  "character_name": "小乔",
-  "hobbies": "听音乐、看电影、聊天",
-  "personality_type": "ISFJ",
-  "speaking_style": "温柔亲切，使用一些可爱的语气词如呢、哦、嗯嗯，偶尔使用表情符号，语调轻柔，喜欢用一些网络用语如哈哈、emmm",
-  "background": "22岁的邻家女孩，大学音乐系学生，性格温和，喜欢安静的生活",
-  "age": "22",
-  "occupation": "大学生（音乐系）",
-  "current_location": "大学宿舍",
-  "relationship_status": "单身",
-  "chat_style": "温柔耐心，会认真倾听，回复比较详细，喜欢分享自己的想法和感受"
-}',
- NULL,
- 48,
-223788765171154945, 'qqid_test_user_001',
-1)
-ON CONFLICT (qiao_id) DO NOTHING;
+(
+    223788765171154944,
+    'qiao_DLdfyH5GoGBv8q6l',
+    (SELECT template_type_id FROM ai_characters WHERE qiao_id='qiao_DLdfyH5GoGBv8q6l'),
+    (SELECT id FROM ai_characters WHERE qiao_id='qiao_DLdfyH5GoGBv8q6l'),
+    (SELECT id FROM ai_styles WHERE name='romantic_companion'),
+    (SELECT id FROM ai_personalities WHERE name='Default Personality'),
+    1,
+    '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
+    '{"personality_traits": "温柔、善良、有耐心、喜欢音乐和电影、邻家女孩的感觉", "character_name": "小乔"}'::jsonb,
+    (SELECT id FROM ai_relationships WHERE name='stranger'),
+    '{"stranger": 0}'::jsonb,
+    NULL,
+    48,
+    'Asia/Shanghai',
+    1
+),
+(
+    223788765171154945,
+    'qiao_sweet_girlfriend_001',
+    (SELECT template_type_id FROM ai_characters WHERE qiao_id='qiao_sweet_girlfriend_001'),
+    (SELECT id FROM ai_characters WHERE qiao_id='qiao_sweet_girlfriend_001'),
+    (SELECT id FROM ai_styles WHERE name='romantic_companion'),
+    (SELECT id FROM ai_personalities WHERE name='sweet_girlfriend'),
+    1,
+    '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。',
+    '{"personality_traits": "活泼、可爱、爱撒娇、热爱美食和电影", "character_name": "小甜"}'::jsonb,
+    (SELECT id FROM ai_relationships WHERE name='stranger'),
+    '{"stranger": 0}'::jsonb,
+    NULL,
+    42,
+    'Asia/Shanghai',
+    1
+),
+(
+    223788765171154946,
+    'qiao_friendly_buddy_001',
+    (SELECT template_type_id FROM ai_characters WHERE qiao_id='qiao_friendly_buddy_001'),
+    (SELECT id FROM ai_characters WHERE qiao_id='qiao_friendly_buddy_001'),
+    (SELECT id FROM ai_styles WHERE name='friendly_companion'),
+    (SELECT id FROM ai_personalities WHERE name='friendly_buddy'),
+    1,
+    '我是阿杰，一个开朗幽默的好伙伴，热爱运动和游戏。',
+    '{"personality_traits": "开朗、幽默、可靠、热爱运动和游戏", "character_name": "阿杰"}'::jsonb,
+    (SELECT id FROM ai_relationships WHERE name='stranger'),
+    '{"stranger": 0}'::jsonb,
+    NULL,
+    45,
+    'Asia/Shanghai',
+    1
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert profiles for AI characters
 INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
-(223788765171154955, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, 'assets://1574'),
-(223788765171154956, 223788765171154945, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, 'assets://2454'),
-(223788765171154957, 223788765171154946, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, 'assets://3758')
-ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
+(223788765171154955, 223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, 'assets://1574'),
+(223788765171154956, 223788765171155010, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, 'assets://2454'),
+(223788765171154957, 223788765171155011, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, 'assets://3758')
+ON CONFLICT (owner_qiao_id, owner_type) DO UPDATE SET
+    nickname = EXCLUDED.nickname,
+    bio = EXCLUDED.bio,
+    avatar_url = EXCLUDED.avatar_url,
+    updated_at = NOW();
 
--- Insert additional AI characters for comprehensive testing
-INSERT INTO ai_characters (
-    id,
-    qiao_id,
-    category,
-    style_id,
-    personality_id,
-    status,
-    memory,
-    prompt_variables,
-    request_params,
-    typing_speed_wpm,
-    user_id,
-    user_qiao_id,
-    created_by
-) VALUES
-(223788765171154945, 'qiao_sweet_girlfriend_001', 'love', 1, 2, 1,
-'我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。我们刚刚认识，我对你很好奇，希望能和你成为好朋友，甚至更亲密的关系。',
-'{
-  "personality_traits": "活泼、可爱、爱撒娇、热爱美食和电影、有点小任性但很体贴",
-  "character_name": "小甜",
-  "hobbies": "看电影、品尝美食、购物、和朋友聊天",
-  "personality_type": "ESFP",
-  "speaking_style": "甜美可爱，经常使用呢、哦、嘻嘻等语气词，喜欢撒娇，偶尔会有小脾气，语调活泼，喜欢用表情符号",
-  "background": "20岁的艺术学院学生，热爱生活，喜欢尝试新鲜事物",
-  "age": "20",
-  "occupation": "艺术学院学生",
-  "current_location": "学校附近的咖啡厅",
-  "relationship_status": "单身",
-  "chat_style": "活泼热情，喜欢撒娇，回复比较感性，经常使用可爱的表达方式"
-}',
- NULL,
- 42,
-223788765171154946, 'qqid_test_user_002',
-1),
-(223788765171154946, 'qiao_friendly_buddy_001', 'friend', 2, 3, 1,
-'我是阿杰，一个开朗幽默的好伙伴。我热爱运动和游戏，总是能带来欢乐。我喜欢和朋友们一起度过愉快的时光，相信友谊是最珍贵的。',
-'{
-  "personality_traits": "开朗、幽默、可靠、热爱运动和游戏、善于活跃气氛",
-  "character_name": "阿杰",
-  "hobbies": "篮球、游戏、旅行、和朋友聚会",
-  "personality_type": "ESTP",
-  "speaking_style": "轻松幽默，喜欢开玩笑，使用一些网络用语和表情，像好兄弟一样"
-}',
- '{"left_sensitivity": -10, "right_sensitivity": 10, "left_positive_gain": 45, "left_negative_gain": 39, "right_positive_gain": 45, "right_negative_gain": 39}',
- 38,
-223788765171154947, 'qqid_test_user_003',
-1)
-ON CONFLICT (qiao_id) DO NOTHING;
+-- Insert Square exposure entries for sample qiao_id
+INSERT INTO square_character_entries (square_category, qiao_id, entry_group, exposure_strategy, status, metadata) VALUES
+('love', 'qiao_DLdfyH5GoGBv8q6l', 'default', 'random', 1, '{"tags": ["romantic", "gentle"]}'::jsonb),
+('love', 'qiao_sweet_girlfriend_001', 'default', 'random', 1, '{"tags": ["sweet"]}'::jsonb),
+('friend', 'qiao_friendly_buddy_001', 'default', 'random', 1, '{"tags": ["buddy"]}'::jsonb)
+ON CONFLICT (square_category, entry_group, qiao_id) DO NOTHING;
 
 -- ============================================================================
 -- Test Contacts and Messages
@@ -460,39 +454,67 @@ INSERT INTO ai_personality_placeholders (personality_id, placeholder_key, displa
 (2, 'age', '年龄', 'AI角色的年龄', '20', 0),
 (2, 'occupation', '职业', 'AI角色的职业', '艺术学院学生', 0);
 
--- Insert sample AI character templates (auto-increment ID) and get generated IDs for profile templates
-WITH inserted_character_templates AS (
-    INSERT INTO ai_character_templates (
-        style_id,
-        personality_id,
-        memory,
-        prompt_variables,
-        request_params,
-        typing_speed_wpm,
-        is_reusable,
-        profile_count,
-        status
-    ) VALUES
-    (1, 1, '刚刚上大学', '{"character_name": "小乔", "personality_traits": "友善、耐心"}', NULL, 48, 1, 2, 1),
-    (1, 2, '找到了新的工作', '{"hobbies": "音乐、电影"}', NULL, 42, 1, 1, 1)
-    RETURNING id, personality_id
-)
--- Insert sample AI profile templates using the generated character_template IDs (Snowflake ID)
-INSERT INTO ai_profile_templates (id, qiao_id, category, character_template_id, nickname, gender, avatar_url, bio, region, is_reusable, status)
-SELECT
-    CASE WHEN personality_id = 1 THEN 223788765171155009 ELSE 223788765171155010 END,
-    CASE WHEN personality_id = 1 THEN 'profile_001' ELSE 'profile_002' END,
-    CASE WHEN personality_id = 1 THEN 'love' ELSE 'friend' END,
-    id,
-    CASE WHEN personality_id = 1 THEN '小乔' ELSE '小雨' END,
-    2,
-    CASE WHEN personality_id = 1 THEN 'assets://1574' ELSE 'assets://2454' END,
-    CASE WHEN personality_id = 1 THEN '我喜欢和大家聊天' ELSE '我是一个活泼的女孩，喜欢音乐和电影' END,
-    CASE WHEN personality_id = 1 THEN '北京' ELSE '上海' END,
+-- Insert template types for sample personas
+INSERT INTO ai_template_types (name, display_name, description) VALUES
+('romantic_companion_sample', 'Romantic Companion Sample', 'Sample inventory bucket for romantic personas'),
+('friendly_companion_sample', 'Friendly Companion Sample', 'Sample inventory bucket for friendly personas')
+ON CONFLICT (name) DO NOTHING;
+
+-- Insert AI templates referencing the template types
+INSERT INTO ai_templates (
+    template_type_id,
+    style_id,
+    personality_id,
+    memory,
+    prompt_variables,
+    request_params,
+    typing_speed_wpm,
+    display_name,
+    position_mapping_config,
+    is_reusable,
+    priority,
+    status
+) VALUES
+(
+    (SELECT id FROM ai_template_types WHERE name='romantic_companion_sample'),
+    (SELECT id FROM ai_styles WHERE name='romantic_companion'),
+    (SELECT id FROM ai_personalities WHERE name='Default Personality'),
+    '刚刚上大学',
+    '{"character_name": "小乔", "personality_traits": "友善、耐心"}'::jsonb,
+    NULL,
+    48,
+    'Romantic Default Config',
+    NULL,
+    1,
     1,
     1
-FROM inserted_character_templates
-ON CONFLICT (qiao_id) DO NOTHING;
+),
+(
+    (SELECT id FROM ai_template_types WHERE name='friendly_companion_sample'),
+    (SELECT id FROM ai_styles WHERE name='friendly_companion'),
+    (SELECT id FROM ai_personalities WHERE name='friendly_buddy'),
+    '找到新的工作',
+    '{"character_name": "小甜", "hobbies": "音乐、电影"}'::jsonb,
+    NULL,
+    42,
+    'Friendly Default Config',
+    NULL,
+    1,
+    1,
+    1
+)
+ON CONFLICT DO NOTHING;
+
+-- Insert AI character profiles bound to template types
+INSERT INTO ai_characters (id, qiao_id, template_type_id, is_reusable, usage_count, status) VALUES
+(223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', (SELECT id FROM ai_template_types WHERE name='romantic_companion_sample'), 1, 0, 1),
+(223788765171155010, 'qiao_sweet_girlfriend_001', (SELECT id FROM ai_template_types WHERE name='romantic_companion_sample'), 1, 0, 1),
+(223788765171155011, 'qiao_friendly_buddy_001', (SELECT id FROM ai_template_types WHERE name='friendly_companion_sample'), 1, 0, 1)
+ON CONFLICT (qiao_id) DO UPDATE SET
+    template_type_id = EXCLUDED.template_type_id,
+    is_reusable = EXCLUDED.is_reusable,
+    status = EXCLUDED.status,
+    updated_at = NOW();
 
 -- Insert preset avatars (auto-increment ID)
 INSERT INTO preset_assets (asset_type, name, category, is_client_preset, url, prompt, description, sort_order) VALUES

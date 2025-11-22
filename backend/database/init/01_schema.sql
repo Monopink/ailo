@@ -142,8 +142,8 @@ CREATE TABLE IF NOT EXISTS contacts (
     deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    -- Ensure one owner can only have one contact record for each contact
-    CONSTRAINT contacts_user_contact_unique UNIQUE (user_id, contact_id, contact_type)
+    -- Ensure one user cannot add the same qiao_id contact twice
+    CONSTRAINT contacts_user_contact_qiao_unique UNIQUE (user_id, contact_qiao_id)
 );
 
 -- Create indexes for contacts table
@@ -162,6 +162,10 @@ CREATE TABLE IF NOT EXISTS contact_requests (
     message TEXT,
     source INTEGER NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
+    failure_code VARCHAR(50),
+    failure_detail JSONB,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    last_retry_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -171,6 +175,40 @@ CREATE TABLE IF NOT EXISTS contact_requests (
 CREATE INDEX idx_contact_requests_expires_at ON contact_requests(expires_at);
 -- Composite index for worker query (status + to_type + expires_at for AI requests)
 CREATE INDEX idx_contact_requests_worker_query ON contact_requests(status, to_type, expires_at) WHERE status IN (1, 8);  -- PENDING=1, PROCESSING=8
+CREATE UNIQUE INDEX uniq_contact_requests_pending_pair ON contact_requests(from_qiao_id, to_qiao_id) WHERE status IN (1, 8);
+
+
+-- ============================================================================
+-- Square Discovery Tables
+-- ============================================================================
+
+-- Square character entries - decouple Square exposure from core profile data
+CREATE TABLE IF NOT EXISTS square_character_entries (
+    id SERIAL PRIMARY KEY,
+    square_category VARCHAR(50) NOT NULL,
+    qiao_id VARCHAR(32) NOT NULL,
+    template_type_id INTEGER NOT NULL REFERENCES ai_template_types(id),
+    entry_group VARCHAR(50) NOT NULL DEFAULT 'default',
+    exposure_strategy VARCHAR(30) NOT NULL DEFAULT 'random',
+    status INTEGER NOT NULL DEFAULT 1,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_featured_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE(square_category, entry_group, qiao_id)
+);
+
+COMMENT ON TABLE square_character_entries IS 'Square discovery entries - decoupled from template/profile inventory';
+COMMENT ON COLUMN square_character_entries.square_category IS 'Hardcoded Square category identifier (friend, lover, etc.)';
+COMMENT ON COLUMN square_character_entries.entry_group IS 'Optional grouping for experiments/exposure slots';
+COMMENT ON COLUMN square_character_entries.exposure_strategy IS 'Selection strategy hint (random/default/fixed)';
+COMMENT ON COLUMN square_character_entries.status IS '1=active, 2=inactive';
+COMMENT ON COLUMN square_character_entries.template_type_id IS 'Template type for filtering/experimentation (references ai_template_types)';
+COMMENT ON COLUMN square_character_entries.qiao_id IS 'qiao_id validated by service layer (must correspond to ai_instances.qiao_id)';
+
+CREATE INDEX idx_square_character_entries_status ON square_character_entries(status);
+CREATE INDEX idx_square_character_entries_category ON square_character_entries(square_category);
+CREATE INDEX idx_square_character_entries_template_type ON square_character_entries(template_type_id);
 
 
 -- ============================================================================
@@ -480,9 +518,28 @@ CREATE TABLE IF NOT EXISTS ai_personality_placeholders (
 -- Note: No additional indexes needed for MVP
 
 
--- AI character templates table - AI core configuration templates
-CREATE TABLE IF NOT EXISTS ai_character_templates (
+-- AI template types table - Internal management types (NOT related to Square categories)
+CREATE TABLE IF NOT EXISTS ai_template_types (
     id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    display_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE ai_template_types IS 'AI template types - INTERNAL inventory groupings, NOT related to Square categories';
+COMMENT ON COLUMN ai_template_types.name IS 'Internal type identifier';
+COMMENT ON COLUMN ai_template_types.display_name IS 'Display name for admin dashboard';
+
+-- Create indexes for ai_template_types table
+-- Note: No additional indexes needed for MVP
+
+
+-- AI templates table - AI core configuration templates (renamed from ai_character_templates)
+CREATE TABLE IF NOT EXISTS ai_templates (
+    id SERIAL PRIMARY KEY,
+    template_type_id INTEGER NOT NULL REFERENCES ai_template_types(id),
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
     memory TEXT,
@@ -492,48 +549,56 @@ CREATE TABLE IF NOT EXISTS ai_character_templates (
     display_name VARCHAR(100),
     position_mapping_config JSONB,
     is_reusable INTEGER NOT NULL DEFAULT 1,
-    profile_count INTEGER NOT NULL DEFAULT 0,
-    profile_id INTEGER,
+    priority INTEGER NOT NULL DEFAULT 1,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Add comment for request_params field
-COMMENT ON COLUMN ai_character_templates.request_params IS 'Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances';
+COMMENT ON TABLE ai_templates IS 'AI templates - core configuration templates for AI characters';
+COMMENT ON COLUMN ai_templates.template_type_id IS 'Template type ID (internal management), NOT related to Square categories';
+COMMENT ON COLUMN ai_templates.request_params IS 'Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by character instances';
+COMMENT ON COLUMN ai_templates.is_reusable IS '1=reusable (can create multiple characters), 0=non-reusable (can only create once)';
+COMMENT ON COLUMN ai_templates.priority IS 'Priority for selection, lower number = higher priority (non-reusable templates have priority)';
+COMMENT ON COLUMN ai_templates.status IS '1=active, 2=inactive, 3=used (only for is_reusable=0, after being used once)';
 
--- Create indexes for ai_character_templates table
--- Note: No additional indexes needed for MVP
+-- Create indexes for ai_templates table
+CREATE INDEX idx_ai_templates_template_type ON ai_templates(template_type_id);
+CREATE INDEX idx_ai_templates_usage ON ai_templates(template_type_id, status, is_reusable);
 
 
--- AI profile templates table - AI profile templates
-CREATE TABLE IF NOT EXISTS ai_profile_templates (
-    id BIGINT PRIMARY KEY,  -- Changed from SERIAL to BIGINT for Snowflake ID
+-- AI character profiles table - Manages unique qiao_id for characters (replaces ai_profile_templates)
+CREATE TABLE IF NOT EXISTS ai_instances (
+    id BIGINT PRIMARY KEY,
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
-    category VARCHAR(50),
-    character_template_id INTEGER NOT NULL,  -- Changed from nullable to NOT NULL (matches model)
-    nickname VARCHAR(100),
-    gender INTEGER,
-    avatar_url VARCHAR(500),
-    bio TEXT,
-    region VARCHAR(100),
+    template_type_id INTEGER NOT NULL REFERENCES ai_template_types(id),
     is_reusable INTEGER NOT NULL DEFAULT 1,
+    usage_count INTEGER NOT NULL DEFAULT 0,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for ai_profile_templates table
--- Note: No additional indexes needed for MVP
+COMMENT ON TABLE ai_instances IS 'AI character profiles - manages unique qiao_id and reusability (similar to product SKU)';
+COMMENT ON COLUMN ai_instances.qiao_id IS 'External unique identifier, visible to users in Square';
+COMMENT ON COLUMN ai_instances.template_type_id IS 'Template type ID (internal management), NOT related to Square categories';
+COMMENT ON COLUMN ai_instances.is_reusable IS '1=reusable (multiple users can add), 0=non-reusable (only one user can add)';
+COMMENT ON COLUMN ai_instances.usage_count IS 'Number of times this profile has been added (statistics)';
+COMMENT ON COLUMN ai_instances.status IS '1=active (visible in Square), 2=inactive (hidden from Square), 3=used (only for is_reusable=0, after being added once)';
+
+-- Create indexes for ai_instances table
+CREATE INDEX idx_ai_instances_template_type ON ai_instances(template_type_id);
+CREATE INDEX idx_ai_instances_status ON ai_instances(status);
 
 
 -- AI characters table - AI character instances
-CREATE TABLE IF NOT EXISTS ai_characters (
+CREATE TABLE IF NOT EXISTS ai_instances (
     id BIGINT PRIMARY KEY,
-    qiao_id VARCHAR(32) NOT NULL UNIQUE,
-    user_id BIGINT,
-    user_qiao_id VARCHAR(32),
-    category VARCHAR(50),
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    user_qiao_id VARCHAR(32) NOT NULL,
+    qiao_id VARCHAR(32) NOT NULL,
+    template_type_id INTEGER NOT NULL REFERENCES ai_template_types(id),
+    character_profile_id BIGINT NOT NULL REFERENCES ai_instances(id),
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
@@ -543,18 +608,32 @@ CREATE TABLE IF NOT EXISTS ai_characters (
     relationship_counts JSONB,
     request_params JSONB,
     typing_speed_wpm INTEGER NOT NULL,
+    timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Shanghai',
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT ai_instances_user_profile_unique UNIQUE (user_id, character_profile_id)
 );
 
--- Create indexes for ai_characters table
-CREATE INDEX idx_ai_characters_user_qiao_id ON ai_characters(user_qiao_id);
-CREATE INDEX idx_ai_characters_style_id ON ai_characters(style_id);
-CREATE INDEX idx_ai_characters_personality_id ON ai_characters(personality_id);
+-- Create indexes for ai_instances table
+CREATE INDEX idx_ai_instances_user_id ON ai_instances(user_id);
+CREATE INDEX idx_ai_instances_user_qiao_id ON ai_instances(user_qiao_id);
+CREATE INDEX idx_ai_instances_qiao_id ON ai_instances(qiao_id);
+CREATE INDEX idx_ai_instanceslate_type ON ai_instances(template_type_id);
+CREATE INDEX idx_ai_instances_profile ON ai_instances(character_profile_id);
+CREATE INDEX idx_ai_instances_style_id ON ai_instances(style_id);
+CREATE INDEX idx_ai_instances_personality_id ON ai_instances(personality_id);
 
--- Add comment for new field
-COMMENT ON COLUMN ai_characters.request_params IS 'AI character request parameters configuration (JSON format) - can override default LLM settings';
+-- Add comments for fields
+COMMENT ON TABLE ai_instances IS 'AI character instances - created when users add contacts';
+COMMENT ON COLUMN ai_instances.qiao_id IS 'External character identifier (can be duplicate, multiple users can add same character)';
+COMMENT ON COLUMN ai_instances.template_type_id IS 'Template type ID (internal management)';
+COMMENT ON COLUMN ai_instances.character_profile_id IS 'Associated character profile ID';
+COMMENT ON COLUMN ai_instances.user_id IS 'Owning user ID (each row belongs to exactly one user)';
+COMMENT ON COLUMN ai_instances.user_qiao_id IS 'Owning user qiao_id';
+COMMENT ON COLUMN ai_instances.status IS '1=active, 2=inactive, 3=blocking (AI has blocked the user)';
+COMMENT ON COLUMN ai_instances.request_params IS 'AI character request parameters configuration (JSON format) - can override default LLM settings';
+COMMENT ON COLUMN ai_instances.timezone IS 'IANA timezone for the character (e.g., Asia/Shanghai)';
 
 -- AI message buffer table - aggregation windows for inbound messages
 CREATE TABLE IF NOT EXISTS ai_message_buffer (
@@ -869,8 +948,8 @@ CREATE TABLE IF NOT EXISTS stats_message_monthly (
 CREATE TABLE IF NOT EXISTS stats_ai_daily (
     id SERIAL PRIMARY KEY,
     stat_date DATE NOT NULL UNIQUE,
-    ai_characters INTEGER NOT NULL DEFAULT 0,
-    active_ai_characters INTEGER NOT NULL DEFAULT 0,
+    ai_instances INTEGER NOT NULL DEFAULT 0,
+    active_ai_instances INTEGER NOT NULL DEFAULT 0,
     ai_requests_count INTEGER NOT NULL DEFAULT 0,
     avg_ai_requests_per_user DECIMAL(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -879,8 +958,8 @@ CREATE TABLE IF NOT EXISTS stats_ai_daily (
 CREATE TABLE IF NOT EXISTS stats_ai_weekly (
     id SERIAL PRIMARY KEY,
     stat_date DATE NOT NULL UNIQUE,
-    ai_characters INTEGER NOT NULL DEFAULT 0,
-    active_ai_characters INTEGER NOT NULL DEFAULT 0,
+    ai_instances INTEGER NOT NULL DEFAULT 0,
+    active_ai_instances INTEGER NOT NULL DEFAULT 0,
     ai_requests_count INTEGER NOT NULL DEFAULT 0,
     avg_ai_requests_per_user DECIMAL(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -889,8 +968,8 @@ CREATE TABLE IF NOT EXISTS stats_ai_weekly (
 CREATE TABLE IF NOT EXISTS stats_ai_monthly (
     id SERIAL PRIMARY KEY,
     stat_date DATE NOT NULL UNIQUE,
-    ai_characters INTEGER NOT NULL DEFAULT 0,
-    active_ai_characters INTEGER NOT NULL DEFAULT 0,
+    ai_instances INTEGER NOT NULL DEFAULT 0,
+    active_ai_instances INTEGER NOT NULL DEFAULT 0,
     ai_requests_count INTEGER NOT NULL DEFAULT 0,
     avg_ai_requests_per_user DECIMAL(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -1111,6 +1190,7 @@ DROP TRIGGER IF EXISTS update_user_tokens_updated_at ON user_tokens;
 DROP TRIGGER IF EXISTS update_user_auths_updated_at ON user_auths;
 DROP TRIGGER IF EXISTS update_contacts_updated_at ON contacts;
 DROP TRIGGER IF EXISTS update_contact_requests_updated_at ON contact_requests;
+DROP TRIGGER IF EXISTS update_square_character_entries_updated_at ON square_character_entries;
 DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 DROP TRIGGER IF EXISTS update_message_delivery_failures_updated_at ON message_delivery_failures;
 DROP TRIGGER IF EXISTS update_media_files_updated_at ON media_files;
@@ -1121,9 +1201,10 @@ DROP TRIGGER IF EXISTS update_ai_style_dimensions_updated_at ON ai_style_dimensi
 DROP TRIGGER IF EXISTS update_ai_dimension_relationship_mappings_updated_at ON ai_dimension_relationship_mappings;
 DROP TRIGGER IF EXISTS update_ai_personalities_updated_at ON ai_personalities;
 DROP TRIGGER IF EXISTS update_ai_personality_placeholders_updated_at ON ai_personality_placeholders;
-DROP TRIGGER IF EXISTS update_ai_character_templates_updated_at ON ai_character_templates;
-DROP TRIGGER IF EXISTS update_ai_profile_templates_updated_at ON ai_profile_templates;
-DROP TRIGGER IF EXISTS update_ai_characters_updated_at ON ai_characters;
+DROP TRIGGER IF EXISTS update_ai_template_types_updated_at ON ai_template_types;
+DROP TRIGGER IF EXISTS update_ai_templates_updated_at ON ai_templates;
+DROP TRIGGER IF EXISTS update_ai_instances_updated_at ON ai_instances;
+DROP TRIGGER IF EXISTS update_ai_instances_updated_at ON ai_instances;
 DROP TRIGGER IF EXISTS update_ai_message_buffer_updated_at ON ai_message_buffer;
 DROP TRIGGER IF EXISTS update_ai_character_dimensions_updated_at ON ai_character_dimensions;
 DROP TRIGGER IF EXISTS update_user_violation_logs_updated_at ON user_violation_logs;
@@ -1139,6 +1220,7 @@ CREATE TRIGGER update_user_tokens_updated_at BEFORE UPDATE ON user_tokens FOR EA
 CREATE TRIGGER update_user_auths_updated_at BEFORE UPDATE ON user_auths FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contacts_updated_at BEFORE UPDATE ON contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contact_requests_updated_at BEFORE UPDATE ON contact_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_square_character_entries_updated_at BEFORE UPDATE ON square_character_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_message_delivery_failures_updated_at BEFORE UPDATE ON message_delivery_failures FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_media_files_updated_at BEFORE UPDATE ON media_files FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -1149,9 +1231,10 @@ CREATE TRIGGER update_ai_style_dimensions_updated_at BEFORE UPDATE ON ai_style_d
 CREATE TRIGGER update_ai_dimension_relationship_mappings_updated_at BEFORE UPDATE ON ai_dimension_relationship_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personalities_updated_at BEFORE UPDATE ON ai_personalities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personality_placeholders_updated_at BEFORE UPDATE ON ai_personality_placeholders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_character_templates_updated_at BEFORE UPDATE ON ai_character_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_profile_templates_updated_at BEFORE UPDATE ON ai_profile_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_ai_characters_updated_at BEFORE UPDATE ON ai_characters FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_template_types_updated_at BEFORE UPDATE ON ai_template_types FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_templates_updated_at BEFORE UPDATE ON ai_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_instances_updated_at BEFORE UPDATE ON ai_instances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_instances_updated_at BEFORE UPDATE ON ai_instances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_message_buffer_updated_at BEFORE UPDATE ON ai_message_buffer FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_character_dimensions_updated_at BEFORE UPDATE ON ai_character_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_violation_logs_updated_at BEFORE UPDATE ON user_violation_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

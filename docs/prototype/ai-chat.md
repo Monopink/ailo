@@ -4,15 +4,34 @@
 
 ```mermaid
 flowchart TB
-    n1["用户选择ai_profile_template"] --> n2["找到对应ai_character_template"]
-    n2 --> n3["将新的信息写入ai_characters"]
-    n3 --> n4["写入profiles"]
-    n4 --> n5["写入contacts"]
-    n5 --> n6["ai_profile_templates如果不可复用删除项目"]
-    n6 --> n7["ai_character_templates如果不可复用删除项目"]
-    n7 --> n8["构建新联系人消息"]
-    n8 --> n9["发送消息流程"]
+    n1["用户在Square选择qiao_id"] --> n2["通过qiao_id查找ai_personas"]
+    n2 --> n3["获取template_type_id"]
+    n3 --> n4["在该类型下查找可用ai_templates"]
+    n4 --> n5{"是否有可用模板?"}
+    n5 -->|有| n6["选择模板（优先不可复用）"]
+    n5 -->|无| n15["请求挂起，等待管理员创建模板"]
+    n6 --> n7["从模板创建ai_characters实例"]
+    n7 --> n8["设置qiao_id和character_profile_id"]
+    n8 --> n9["写入contacts"]
+    n9 --> n10{"模板是否可复用?"}
+    n10 -->|不可复用| n11["标记模板status=3"]
+    n10 -->|可复用| n12["跳过"]
+    n11 --> n13{"角色档案是否可复用?"}
+    n12 --> n13
+    n13 -->|不可复用| n14["标记档案status=3，并增加usage_count"]
+    n13 -->|可复用| n16["仅增加usage_count"]
+    n14 --> n17["构建新联系人消息"]
+    n16 --> n17
+    n17 --> n18["发送消息流程"]
 ```
+
+**重要说明**：
+- `square_character_entries` 控制 qiao_id 的分类、曝光策略与上下架，属于纯展示层
+- 模板类型、模板、角色档案只负责联系人创建流程，状态字段仅表示是否允许实例化
+- 用户看到的是 qiao_id（来自 ai_personas）
+- 多个用户可以添加同一个 qiao_id
+- 每个用户获得独立的 ai_characters 实例
+- 通过 template_type_id 管理模板库存
 
 ## 对话流程
 
@@ -593,3 +612,4 @@ JSON Schema 用于约束大模型输出内容。
 `typing_speed_wpm = ai_characters.typing_speed_wpm`（词/分钟），等效秒/词为 `60 / typing_speed_wpm`，总耗时为 `60 / typing_speed_wpm * 词数`。若配置缺失或<=0，则运行期退回 35 WPM，避免出现 0 延迟。
 
 1词数 = 1全角字符 = 3半角字符 = 1emoji = 1特殊字符
+

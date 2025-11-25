@@ -351,7 +351,7 @@ created_at
 
 ## ai_relationships
 
-AI关系类型表，定义AI角色的关系类型。
+AI关系类型表，定义 AI 实例的关系类型。
 
 ```txt
 id -- 自增ID
@@ -372,7 +372,7 @@ updated_at
 
 ## ai_styles
 
-AI风格表，定义AI角色的风格类型和评分维度。
+AI风格表，定义 AI 实例的风格类型和评分维度。
 
 ```txt
 id -- 自增ID
@@ -422,7 +422,7 @@ updated_at
 
 ## ai_personalities
 
-AI人格表，定义AI角色的人格特征和提示词模板。
+AI人格表，定义 AI 实例的人格特征和提示词模板。
 
 ```txt
 id -- 自增ID
@@ -453,7 +453,7 @@ updated_at
 
 ## ai_types
 
-AI模板类型表，用于内部管理分组。
+AI类型表，用于内部管理分组。
 
 ```txt
 id -- 自增ID
@@ -479,7 +479,7 @@ updated_at
 
 ## ai_templates
 
-AI模板表，管理角色实例化时所需的 Prompt、记忆、维度配置与打字参数。
+AI模板表，管理实例化时所需的 Prompt、记忆、维度配置与打字参数。
 
 ```txt
 id -- 自增ID
@@ -516,7 +516,7 @@ updated_at
 
 ## ai_instances
 
-AI角色实例表，存储"用户 × persona"实例化后的联系人。
+AI实例表，存储"用户 × persona"实例化后的联系人。
 
 ```txt
 id -- Snowflake ID
@@ -635,7 +635,7 @@ status -- 请求状态：1=success, 2=failed, 3=timeout
 token_count -- 消耗的token数量
 response_time -- 响应时间（毫秒）
 llm_config_id -- 使用的LLM配置ID
-conversation_history_id -- 关联的 ai_conversation_history.id（assistant 消息）
+buffer_id -- 关联的 ai_message_buffer.id（assistant 消息）
 created_at -- 请求创建时间
 completed_at -- 请求完成时间
 ```

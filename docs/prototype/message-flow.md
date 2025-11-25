@@ -338,21 +338,21 @@ await send_chat_info(
 
 #### 6.1 Block场景
 
-**场景1：用户Block AI角色**
+**场景1：用户Block AI实例**
 
 - 用户在联系人详情页点击"屏蔽"按钮
 - 更新contacts.is_blocked = 1
 - 用户发送消息时，只存储消息和上下文，不进行AI处理
 - 发送CHAT_INFO消息：`"消息已发出，但对方拒收了"`
 
-**场景2：AI角色Block用户**
+**场景2：AI实例Block用户**
 
 - LLM响应中包含block_user动作
 - 更新ai_instances.status = 3 (blocked)
 - 用户发送消息时，只存储消息和上下文，不进行AI处理
 - 发送CHAT_INFO消息：`"消息已发出，但对方拒收了"`
 
-**场景3：用户不是AI角色的所有者（不是对方好友）**
+**场景3：用户不是AI实例的所有者（不是对方好友）**
 
 - 在 contacts 表中检查是否存在 `user_qiao_id = 当前用户`、`contact_qiao_id = AI qiao_id` 且 `contact_type = 2`、`is_deleted = 0` 的记录
 - 如果没有有效联系人，只存储消息和上下文
@@ -373,7 +373,7 @@ await send_chat_info(
 **业务层面发送失败（拒收）：**
 
 - 用户被屏蔽
-- AI角色屏蔽用户
+- AI实例屏蔽用户
 - 用户不是对方好友
 
 #### 7.2 服务端拒收标记
@@ -456,7 +456,7 @@ await send_chat_info(
 
 处理步骤：
 
-- 角色识别: 根据conversation_id识别AI角色
+- 实例识别: 根据conversation_id识别AI实例
 - 上下文管理: 获取历史对话，构建上下文
 - 提示词构建: 根据角色特征生成系统提示词
 - LLM调用: 调用大模型生成回复
@@ -481,3 +481,153 @@ AI服务异常：
 - 网络异常: 记录到message_delivery_failures表
 - 重试机制: 指数退避重试，最多重试3次
 - 最终失败: 记录日志，通知管理员
+
+## 消息事件 Schema
+
+本节定义消息系统在"Webhook → 管线 → 缓冲/AI → 发送"各阶段共享的事件结构。
+
+### 版本与命名
+
+- `schema_version`：当前文档版本 `1.0.0`，语义化版本号
+- `event_type`：小写蛇形命名，区分 `inbound_message`、`outbound_message` 等
+- 所有时间均为 Unix 毫秒时间戳
+- 所有身份字段使用 `qiao_id`（对外 ID）
+
+### 公共字段
+
+| 字段名 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `schema_version` | string | ✅ | 文档版本 `1.0.0` |
+| `event_type` | string | ✅ | 事件类型：`inbound_message` / `outbound_message` |
+| `message_type` | int | ✅ | 消息类别：`1=TEXT`, `2=TYPING_START`, `3=TYPING_END`, `4=CHAT_INFO`, `9=NOTIFICATION` |
+| `conversation_id` | string | ✅ | 系统内部 conv_id |
+| `from_qiao_id` | string | ✅ | 发送方 qiao_id |
+| `to_qiao_id` | string | ✅ | 接收方 qiao_id |
+| `content` | string | ✅ | 文本内容；typing 类事件可为空字符串 |
+| `sent_at_ms` | int | ✅ | 发送时间（毫秒） |
+| `msg_id_server` | string | ✅ | 服务端 Snowflake ID |
+| `msg_id_client` | string/null | 条件 | 客户端生成的 ID，仅用户消息必填 |
+| `msg_id_provider_inbound` | string/null | 条件 | 第三方入站 ID（LeanCloud `msgId`） |
+| `msg_id_provider_outbound` | string/null | 条件 | 第三方出站 ID（发送成功后回填） |
+| `supports_typing` | bool | ✅ | 客户端是否支持 typing |
+| `client_sent_time` | int/null | 条件 | 客户端发送时间 |
+| `metadata` | object | ✅ | 业务扩展字段 |
+| `provider_metadata` | object | ✅ | 第三方原始字段 |
+
+**metadata 白名单**：
+
+- `action`：系统消息附带的 action 描述
+- `notification_type`：通知类型枚举
+- `rate_limit_bucket`：速率限制统计窗口
+- `encryption` / `encryption_version`：传输加密算法与版本
+
+### InboundMessageEvent 示例
+
+```jsonc
+{
+  "schema_version": "1.0.0",
+  "event_type": "inbound_message",
+  "message_type": 1,
+  "conversation_id": "conv_xyz789",
+  "from_qiao_id": "qiao_user001",
+  "to_qiao_id": "qiao_xm001",
+  "content": "你好",
+  "sent_at_ms": 1710001111222,
+  "msg_id_server": "msg_223788765171154945",
+  "msg_id_client": "client_1710001111222_abc123",
+  "msg_id_provider_inbound": "nYH9iBSBS_uogCEgvZwE7Q",
+  "msg_id_provider_outbound": null,
+  "supports_typing": true,
+  "client_sent_time": 1710001111222,
+  "metadata": {
+    "encryption": "base64",
+    "encryption_version": "v1"
+  },
+  "provider_metadata": {
+    "lc_from": "qiao_user001",
+    "lc_conv_id": "68edda0a554ecc6e8843b246"
+  }
+}
+```
+
+### OutboundMessageEvent 示例
+
+```jsonc
+{
+  "schema_version": "1.0.0",
+  "event_type": "outbound_message",
+  "message_type": 1,
+  "conversation_id": "conv_xyz789",
+  "from_qiao_id": "qiao_xm001",
+  "to_qiao_id": "qiao_user001",
+  "content": "我在呢，刚才看到你发的消息啦～",
+  "sent_at_ms": 1710002222333,
+  "msg_id_server": "msg_223788765171155999",
+  "msg_id_client": null,
+  "msg_id_provider_inbound": null,
+  "msg_id_provider_outbound": null,
+  "supports_typing": true,
+  "client_sent_time": null,
+  "metadata": {
+    "encryption": "base64",
+    "encryption_version": "v1"
+  },
+  "provider_metadata": {
+    "lc_conv_id": "68edda0a554ecc6e8843b246"
+  }
+}
+```
+
+## 消息加密机制
+
+### 背景
+
+客户端与服务端支持统一的"消息加密"机制，短期内以 **Base64 编码** 作为占位，实现接口与 metadata 约束；后期再切换到 **AES-256-GCM** 或其他算法。
+
+### 架构
+
+```
+客户端 → LeanCloud → Webhook
+    ↑                 ↓
+  Base64 encode   decrypt_from_transport()
+```
+
+**Outbound（服务端→客户端）**：
+- `services/message/sender.py` 在 `_send_message_internal` 中调用 `encrypt_for_transport()`
+- 返回的 `encrypted_content` 写入 LeanCloud payload
+- `metadata.encryption/encryption_version` 合并到消息 JSON
+
+**Inbound（客户端→服务端）**：
+- Webhook 解析 `inner_message` 时读取 `encryption/enc_version`
+- 调用 `decrypt_from_transport()`，得到明文后再进入 buffer/AI
+- 若客户端发送明文，则缺少 `encryption` 字段，服务端直接透传
+
+**持久化**：
+- `metadata` 新增 `encryption / encryption_version` 字段
+- 映射到 `message_history.message_metadata`
+
+### 模块说明
+
+文件：`backend/app/services/message/encryption.py`
+
+| 函数 | 作用 |
+|------|------|
+| `encrypt()` / `decrypt()` | 算法无关的基础接口，支持 `BASE64`、`AES_256_GCM` |
+| `_encode_base64` / `_decode_base64` | MVP 占位实现，**不需要 key** |
+| `_encrypt_aes_256_gcm` / `_decrypt_aes_256_gcm` | 预留真实加密方案（key 必须 32 bytes） |
+| `encrypt_for_transport()` | 使用默认算法（当前 Base64）封装传输逻辑 |
+| `decrypt_from_transport()` | 根据 metadata 自动解密；metadata 缺失时返回原文 |
+
+### 配置与后续计划
+
+- 目前 `DEFAULT_ENCRYPTION = base64`，`DEFAULT_VERSION = v1`，不依赖任何 key
+- 未来切换 AES：
+  - 在配置中心（如 system_configs）保存 key/版本
+  - 在 `encrypt_for_transport()` / `decrypt_from_transport()` 中读取 key
+  - metadata 中新增 `key_id`、`iv` 等字段
+
+### 注意事项
+
+- `cryptography` 已加入 `backend/app/requirements.txt`（版本 `46.0.3`）
+- 解密失败会记录 `leancloud_decrypt_failed` 日志，并回退到原文，避免消息丢失
+- 任何新增算法必须在 `EncryptionType`、`EncryptionVersion` 枚举与 schema 文档中登记

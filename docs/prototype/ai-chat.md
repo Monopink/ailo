@@ -57,11 +57,11 @@ flowchart TB
     n12 --> n13["回复消息"]
 ```
 
-## 合并短时间消息流程 (buffer)
+## 消息聚合与响应机制
 
 ### 唤醒等待（Wake Mechanism）
 
-在消息聚合前，系统会根据关系等级进行唤醒等待，模拟真人"看到消息后思考"的行为：
+在消息聚合前，系统根据关系等级进行唤醒等待，模拟真人"看到消息后思考"的行为：
 
 1. **判断是否需要唤醒**：
    - 初次对话：跳过唤醒，直接进入消息聚合
@@ -75,7 +75,7 @@ flowchart TB
 3. **唤醒完成后**：
    - 进入下述的消息聚合流程（双计时器机制）
 
-详细技术实现参见 [ai-message-processing.md](../development/ai-message-processing.md) 和 [relationship-response-timing.md](../development/relationship-response-timing.md)
+详细技术实现参见 [ai-message-processing.md](../development/ai-message-processing.md)
 
 ### 消息聚合
 
@@ -142,7 +142,7 @@ flowchart TB
 
 说明：本流程依赖 `ai_message_buffer` 的 `micro_expires_at_ms`、`macro_expires_at_ms`、`last_message_category` 字段与 `aggregate_state` 状态机，确保"新消息可抢占旧处理"，且只在 `role=user` 的窗口使用聚合状态字段。
 
-实现细节请参见[技术文档](ai-message-processing.md)。
+详细技术实现参见 [ai-message-processing.md](../development/ai-message-processing.md)
 
 ## 分数初始化
 

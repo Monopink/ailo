@@ -16,12 +16,48 @@
 - 数据迁移统一使用 Alembic 系统，[操作文档](docs/README_MIGRATION.md)
 - 在发送短信等操作时，需要进行人机验证，暂时使用阿里云Captcha
 - 暂未选定短信验证码发送服务商
-- 项目开发环境运行在WSL的docker中，不要尝试在Windows环境进行构建或运行。后端容器是代码热更新的不要频繁重启
 - [数据库初始化脚本](backend\database\init)
 - 配置管理使用环境变量+数据库表system_configs管理的方式，不会变更、需要保证安全的设置项在环境变量，其他设置项在数据库
 - 用户（非管理员用户）登录验证方式为Hybrid模式。JWT+Token store模式
 
 相关参考内容:[Doubao文档目录](references\doubao-docs), [Leancloud文档目录](references\leancloud-docs), [Leancloud示例Web Demo目录](references\leancloud-message-web-demo),[starlette-admin源码及文档](references\starlette-admin)
+
+## Docker 和数据库操作
+
+### Docker Compose 基本信息
+
+**工作目录**: `deployment/`
+**配置文件**: `docker-compose.yml`
+**环境变量**: `.env` (位于项目根目录)
+
+### 容器信息（开发环境）
+
+- **数据库容器**: `postgres_db_container`
+  - 数据库名: `says`
+  - 用户名: `says_user`
+  - 端口: `5432`
+  - Volume: `says_dev_postgres_data`
+
+- **后端容器**: `backend_container`
+  - 端口: `8000`
+  - 代码热更新: 已启用，无需频繁重启
+
+### 数据库初始化脚本
+
+**位置**: `backend/database/init/`
+
+执行顺序：
+
+1. `00_init_database.sh` - 初始化脚本（自动执行）
+2. `01_schema.sql` - 数据库表结构
+3. `02_required_data.sql` - 必需的系统数据（开发环境）
+4. `03_sample_data.sql` - 示例测试数据（可选，通过 `LOAD_SAMPLE_DATA` 环境变量控制）
+
+**注意**: 初始化脚本仅在首次创建容器时执行。如需重新初始化，必须删除 volume。
+
+### Alembic 数据库迁移
+
+详细文档: [docs/README_MIGRATION.md](docs/README_MIGRATION.md)
 
 ## 遵守的原则
 

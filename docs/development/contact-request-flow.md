@@ -92,10 +92,7 @@
    - 设置 creation_metadata.source = "persona"
    - 创建联系人记录，使用 persona.qiao_id
    - 如果模板不可复用，标记模板为已使用（status=3）
-   - 更新 persona 使用统计（usage_count += 1）
    - 如果 persona 不可复用，标记为已使用（status=3）
-   - 更新请求状态为 ACCEPTED
-   - 发送 CHAT_INFO 消息（类型为 CONTACT_ADDED）
 
 6. **返回统一响应**：
 
@@ -184,9 +181,10 @@
 
 1. **记录失败元数据**
    - `contact_requests.failure_code`：例如 `NO_TEMPLATE_AVAILABLE`, `MANUAL_PROVISION_REQUIRED`。
-  - `contact_requests.failure_detail`：JSON，建议至少包含 `ai_type_id`、`qiao_id`、`request_id` 等信息，方便后台定位问题。
+   - `contact_requests.failure_detail`：JSON，建议至少包含 `ai_type_id`、`qiao_id`、`request_id` 等信息，方便后台定位问题。
    - `retry_count`：每次自动或手动重试都会递增，用于运营监控。
    - `last_retry_at`：最近一次重试尝试的时间。
+
 2. **Admin 视图**
    - 后台和 Starlette Admin 需要提供“待补库存”列表，筛选 `(status=1 AND failure_code IS NOT NULL)` 的记录。
    - 管理员补充模板后，可直接在该视图触发“重试”；前端 contacts 视图也需要同样的按钮。
@@ -534,7 +532,7 @@ PROCESSING (8)
 
 **触发场景**:
 
-- AI接受请求，成功创建AI角色和联系人记录
+- AI接受请求，成功创建 AI instance 和联系人记录
 - 用户手动接受请求，成功创建联系人记录
 
 **特点**:

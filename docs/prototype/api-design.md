@@ -18,7 +18,7 @@
 ### 铁律：拟人化设计
 
 1. **避免AI相关字眼**：在所有用户界面、API响应、提示信息中避免使用"AI"、"机器人"、"助手"等字眼
-2. **一视同仁原则**：在设计和交互中将用户和AI角色一视同仁，使用统一的称谓如"联系人"、"好友"等
+2. **一视同仁原则**：在设计和交互中将用户和AI实例一视同仁，使用统一的称谓如"联系人"、"好友"等
 3. **真人化体验**：所有交互设计都要营造真人聊天的感觉，包括响应时间、语言风格、行为模式等
 4. **隐藏技术细节**：对用户隐藏所有技术实现细节，如模型调用、上下文管理等
 5. **禁止暴露第三方**: API路径中不应包含第三方服务名称(如LeanCloud、Aliyun等)
@@ -891,7 +891,7 @@ Authorization: Bearer <token>
 **说明**:
 
 - im_conv_id: IM provider conversation ID, used for message client connection
-- contact_type: 1=真人用户, 2=AI角色
+- contact_type: 1=真人用户, 2=AI实例
 - 不返回last_message（客户端本地管理）
 - `im_conv_id` 来源于系统接口 `GET /api/v1/system/lc-im-conversation`，此处仅作为派生字段提供给业务页面。
 
@@ -1091,7 +1091,7 @@ Authorization: Bearer <token>
    - 验证信息模板是否可用
    - AI返回同意/拒绝决策
 4. **AI接受后创建联系人**：
-   - 创建AI角色（从模板）
+   - 创建 AI instance（从 persona + template）
    - 创建联系人记录（`contact` 表）
    - 更新请求状态为ACCEPTED
    - 发送CHAT_INFO消息（message_type=4）
@@ -1185,7 +1185,7 @@ Authorization: Bearer <token>
 **字段说明**:
 
 - `status`: 请求状态（1=待处理, 2=已接受, 3=已忽略, 4=已过期, 5=已拒绝）
-- `from_type`: 申请人类型（1=真人用户, 2=AI角色, 3=官方账号）
+- `from_type`: 申请人类型（1=真人用户, 2=AI实例, 3=官方账号）
 
 #### 4.3 接受联系人申请
 

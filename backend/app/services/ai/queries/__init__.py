@@ -50,6 +50,7 @@ from .updates import (
 # Complex transactions
 from .transactions import (
     create_instance_with_relations,
+    save_ai_request_log,
 )
 
 __all__ = [
@@ -80,4 +81,5 @@ __all__ = [
     "update_instance_status",
     # Transactions
     "create_instance_with_relations",
+    "save_ai_request_log",
 ]

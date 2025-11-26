@@ -21,6 +21,7 @@ from .queries.updates import (
 from exceptions import AIRelationshipError
 from utils.logging import get_logger
 from services.ai.types import InstanceContext
+from services.ai.response_schema import build_response_schema
 
 logger = get_logger(__name__)
 
@@ -640,7 +641,6 @@ async def calculate_new_scores(
 
         # Build dimension config map
         from .utils.position_mapping import map_score_to_position
-        from .conversation_prompt import build_response_schema
         from .utils.score_mapping import map_to_permille
 
         # Load JSON Schema to get per-dimension min/max for mapping

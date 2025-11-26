@@ -11,31 +11,35 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.ai.queries import get_instance_context, get_conversation_history
-from services.ai.queries.updates import update_instance_status, mark_conversation_item_as_excluded
-from services.ai.relationship_scoring import (
+from ..queries import (
+    get_instance_context,
+    get_instance_relationship_scores,
+)
+from ..queries.updates import update_instance_status, mark_conversation_item_as_excluded
+from ..relationship_scoring import (
     get_relationship_scores,
     determine_relationship_type,
     calculate_new_scores,
     update_relationship_positions,
     update_instance_current_relationship,
 )
-from services.ai.conversation_prompt import (
+from ..conversation_prompt import (
     build_system_prompt,
-    build_response_schema,
     build_conversation_context,
 )
-from services.ai.conversation_memory import process_memory_operations, archive_old_contexts
+from ..response_schema import build_response_schema
+from ..conversation_memory import process_memory_operations, archive_old_contexts
 from services.message.processing.buffer import is_buffer_cancelled
-from services.ai.utils.validator import invoke_llm_with_validation
+from ..utils.validator import invoke_llm_with_validation
 from services.llm.client import select_config_for_ai, validate_ai_response
 from services.llm.types import LLMSessionContext
 from services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
 from exceptions import AIInstanceNotFoundError, AIInstanceInactiveError, AIConversationError
-from services.ai.types import InstanceContext
+from ..types import InstanceContext
 from utils.logging import get_logger
 from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 from services.message.outbound.helpers import send_chat_info
+from .llm_response_handler import process_llm_response
 
 logger = get_logger(__name__)
 
@@ -334,9 +338,7 @@ async def process_conversation(
             name=config_name,
             instance_request_params=instance_request_params,
             preemption_checker=preemption_checker,
-            session_context=LLMSessionContext(
-                user_qiao_id=user_qiao_id, instance_qiao_id=instance_qiao_id
-            ),
+            session_context=LLMSessionContext(user_qiao_id=user_qiao_id, instance_qiao_id=instance_qiao_id),
         )
 
         # Check if request was preempted
@@ -376,7 +378,6 @@ async def process_conversation(
         assistant_item_id: Optional[int] = None
         if persist:
             from core.database import SessionLocal
-            from .queries.transactions import process_llm_response
 
             await process_llm_response(
                 db=db,
@@ -507,8 +508,6 @@ async def process_ai_response_updates(
                 await update_relationship_positions(db, instance_id, new_scores)
 
                 # Re-evaluate and persist current relationship after score update
-                from .queries import get_instance_relationship_scores
-
                 latest_scores = await get_instance_relationship_scores(db, instance_id)
                 if persist and latest_scores:
                     rel = await determine_relationship_type(db, context, latest_scores)

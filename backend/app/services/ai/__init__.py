@@ -4,7 +4,7 @@ AI services module.
 This module provides AI-related functionality. Import directly from submodules:
 
 Example:
-    from services.ai.conversation_flow import process_conversation
+    from services.ai.orchestrators.conversation_flow import process_conversation
     from services.ai.queries import get_instance_context
     from services.ai.instance_creation import create_instance_from_persona
 

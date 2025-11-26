@@ -15,7 +15,6 @@ import random
 from typing import Optional, Set
 
 from sqlalchemy import and_, or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import SessionLocal
 from enums.common import AIMessageBufferState
@@ -27,7 +26,7 @@ from services.message.processing.buffer import (
     _get_db_now_ms,
 )
 from services.ai.queries.instance_queries import get_instance_relationship_config
-from services.ai.conversation_flow import process_conversation
+from services.ai.orchestrators.conversation_flow import process_conversation
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

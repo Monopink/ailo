@@ -5,8 +5,9 @@ This module handles system prompt construction, placeholder replacement,
 and JSON schema building for AI responses.
 """
 
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+import re
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from enums.common import ConversationRole
 from .queries import get_personality_with_placeholders
 from exceptions import AIServiceError
 from services.ai.types import InstanceContext
+from services.ai.response_schema import build_response_schema
 from utils.logging import get_logger
 from models.ai import AIConversationState
 
@@ -162,45 +164,6 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
     )
 
     return result
-
-
-def build_response_schema(context: InstanceContext) -> Dict[str, Any]:
-    """Build JSON schema directly from instance context."""
-
-    try:
-        dimensions = context.get("dimensions", [])
-        if not dimensions:
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="dimensions_not_found",
-                message=f"Style {context['style']['id']} has no configured dimensions",
-            )
-
-        schema = _build_dynamic_response_schema(context["style"], dimensions)
-
-        logger.debug(
-            "response_schema_built",
-            instance_qiao_id=context["instance_qiao_id"],
-            style_id=context["style"]["id"],
-            dimensions_count=len(dimensions),
-        )
-
-        return schema
-
-    except AIServiceError:
-        raise
-    except Exception as exc:
-        logger.error(
-            "response_schema_build_failed",
-            error=str(exc),
-            instance_qiao_id=context.get("instance_qiao_id"),
-        )
-        raise AIServiceError(
-            ai_service="schema_building",
-            reason="unexpected_error",
-            message=f"Failed to build response schema: {str(exc)}",
-        ) from exc
-
 
 async def _build_placeholder_values(
     db: AsyncSession,
@@ -434,72 +397,6 @@ def _get_current_datetime(context: Dict[str, Any]) -> str:
     except Exception as e:
         logger.error("datetime_formatting_failed", error=str(e))
         return "时间获取失败"
-
-
-def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Build dynamic JSON schema based on AI style and dimensions.
-
-    Args:
-        style: AI style instance
-        dimensions: List of dimension dictionaries
-
-    Returns:
-        JSON schema dictionary
-
-    Raises:
-        AIServiceError: If style configuration is invalid
-    """
-    try:
-        style_id = style.get("id") if isinstance(style, dict) else getattr(style, "id", None)
-
-        if not dimensions:
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="empty_dimensions",
-                message=f"Style {style_id} has no active dimensions. "
-                f"This indicates a database configuration error.",
-            )
-
-        # Build score properties dynamically from dimensions
-        score_properties = {}
-        score_required = []
-
-        for dimension in dimensions:
-            dimension_name = dimension.get("name")
-            if not dimension_name or not isinstance(dimension_name, str):
-                raise AIServiceError(
-                    ai_service="schema_building",
-                    reason="invalid_dimension_name",
-                    message=f"Style {style_id} contains invalid dimension name: {dimension_name}. "
-                    f"All dimension names must be non-empty strings.",
-                )
-            score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
-            score_required.append(dimension_name)
-
-        logger.debug(
-            "dynamic_schema_built_successfully",
-            style_id=style_id,
-            score_names=list(score_properties.keys()),
-            score_count=len(score_properties),
-        )
-
-        return _get_base_response_schema(score_properties, score_required)
-
-    except AIServiceError:
-        # Re-raise AI service errors
-        raise
-    except Exception as e:
-        logger.error(
-            "dynamic_schema_build_failed",
-            error=str(e),
-            style_id=style_id if "style_id" in locals() else getattr(style, "id", "unknown"),
-        )
-        raise AIServiceError(
-            ai_service="schema_building",
-            reason="build_failed",
-            message=f"Failed to build dynamic schema: {str(e)}",
-        )
 
 
 def _get_base_response_schema(

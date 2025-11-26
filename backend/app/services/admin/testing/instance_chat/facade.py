@@ -250,7 +250,7 @@ class AIInstanceChatTestService:
 
             # Get response JSON schema for this instance (used by main flow)
             try:
-                from services.ai.conversation_prompt import build_response_schema
+                from services.ai.response_schema import build_response_schema
 
                 response_schema = build_response_schema(validation_result["instance"])
             except Exception:

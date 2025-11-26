@@ -1,9 +1,17 @@
 """
-AI Personality JSON Schema Generator.
-Generates JSON Schema from structured configuration.
+AI response schema utilities.
+
+This module centralizes JSON schema generation so that business layers
+can share the same implementation without introducing circular imports.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+from exceptions import AIServiceError
+from services.ai.types import InstanceContext
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def generate_json_schema(schema_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -131,3 +139,138 @@ def generate_json_schema(schema_config: Dict[str, Any]) -> Dict[str, Any]:
             schema["required"].append(field_name)
 
     return schema
+
+
+def build_response_schema(context: InstanceContext) -> Dict[str, Any]:
+    """Build JSON schema directly from instance context."""
+
+    try:
+        dimensions = context.get("dimensions", [])
+        if not dimensions:
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="dimensions_not_found",
+                message=f"Style {context['style']['id']} has no configured dimensions",
+            )
+
+        schema = _build_dynamic_response_schema(context["style"], dimensions)
+
+        logger.debug(
+            "response_schema_built",
+            instance_qiao_id=context["instance_qiao_id"],
+            style_id=context["style"]["id"],
+            dimensions_count=len(dimensions),
+        )
+
+        return schema
+
+    except AIServiceError:
+        raise
+    except Exception as exc:
+        logger.error(
+            "response_schema_build_failed",
+            error=str(exc),
+            instance_qiao_id=context.get("instance_qiao_id"),
+        )
+        raise AIServiceError(
+            ai_service="schema_building",
+            reason="unexpected_error",
+            message=f"Failed to build response schema: {str(exc)}",
+        ) from exc
+
+
+def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Build dynamic JSON schema based on AI style and dimensions.
+    """
+    try:
+        style_id = style.get("id") if isinstance(style, dict) else getattr(style, "id", None)
+
+        if not dimensions:
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="empty_dimensions",
+                message=f"Style {style_id} has no active dimensions. "
+                f"This indicates a database configuration error.",
+            )
+
+        score_properties = {}
+        score_required = []
+
+        for dimension in dimensions:
+            dimension_name = dimension.get("name")
+            if not dimension_name or not isinstance(dimension_name, str):
+                raise AIServiceError(
+                    ai_service="schema_building",
+                    reason="invalid_dimension_name",
+                    message=f"Style {style_id} contains invalid dimension name: {dimension_name}. "
+                    f"All dimension names must be non-empty strings.",
+                )
+            score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
+            score_required.append(dimension_name)
+
+        logger.debug(
+            "dynamic_schema_built_successfully",
+            style_id=style_id,
+            score_names=list(score_properties.keys()),
+            score_count=len(score_properties),
+        )
+
+        return _get_base_response_schema(score_properties, score_required)
+
+    except AIServiceError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.error(
+            "dynamic_schema_build_failed",
+            error=str(exc),
+            style_id=style_id if "style_id" in locals() else getattr(style, "id", "unknown"),
+        )
+        raise AIServiceError(
+            ai_service="schema_building",
+            reason="build_failed",
+            message=f"Failed to build dynamic schema: {str(exc)}",
+        )
+
+
+def _get_base_response_schema(
+    score_properties: Dict[str, Any], score_required: List[str]
+) -> Dict[str, Any]:
+    """Get base JSON schema structure with dynamic score fields."""
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "AI Response Schema with Memory Operations",
+        "type": "object",
+        "properties": {
+            "current_state": {
+                "type": "string",
+                "description": "根据当前时间等信息，推测补充你当前的所处的地点环境、正在做的事情、你的心情",
+            },
+            "internal_thoughts": {
+                "type": "string",
+                "description": "回复前的思考（整理你与{USER}的关系，{USER}的身份、意图，回复的原则）",
+            },
+            "should_block": {"type": "boolean"},
+            "should_reply": {"type": "boolean"},
+            "attack_detected": {"type": "boolean"},
+            "should_update_memory": {"type": "boolean"},
+            "memory_operations": {"type": "array"},
+            "score": {
+                "type": "object",
+                "required": score_required,
+                "properties": score_properties,
+                "additionalProperties": False,
+            },
+        },
+        "required": [
+            "current_state",
+            "internal_thoughts",
+            "should_block",
+            "should_reply",
+            "attack_detected",
+            "should_update_memory",
+            "memory_operations",
+            "score",
+        ],
+        "additionalProperties": True,
+    }

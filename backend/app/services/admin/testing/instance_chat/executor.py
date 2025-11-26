@@ -16,7 +16,7 @@ from enums import MessageType
 from models.ai.instance import AIInstance
 from models.ai.log import AIRequestLog
 from models.user import User
-from services.ai.conversation_flow import process_conversation
+from services.ai.orchestrators.conversation_flow import process_conversation
 from services.message.processing.buffer import (
     add_message_to_buffer,
     finalize_buffer_if_locked,

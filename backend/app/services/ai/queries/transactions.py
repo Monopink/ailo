@@ -5,9 +5,10 @@ This module provides complex transaction operations that involve multiple
 database operations and require atomicity.
 """
 
-import asyncio
+import secrets
+import string
 from typing import Any, Dict, Optional
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
 from models.ai import AIInstance, AIConversationItemArchive, AIRequestLog
@@ -20,14 +21,10 @@ from .updates import (
     mark_conversation_item_as_excluded,
 )
 from .instance_queries import get_user_id_by_qiao_id, get_instance_relationship_config
-from services.message.processing.sender import send_ai_messages_with_typing
 from utils.logging import get_logger
 from services.ai.types import InstanceContext
 
 logger = get_logger(__name__)
-
-DEFAULT_TYPING_SPEED_WPM = 50
-DEFAULT_TYPING_SPEED_SECONDS_PER_WORD = 60.0 / DEFAULT_TYPING_SPEED_WPM
 
 
 async def create_instance_with_relations(db: AsyncSession, instance_data: Dict[str, Any]) -> str:
@@ -81,8 +78,6 @@ async def create_instance_with_relations(db: AsyncSession, instance_data: Dict[s
         db.add(profile)
 
         if instance_data.get("user_qiao_id"):
-            import secrets, string
-
             random_chars = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
             conv_id = f"conv_{random_chars}"
 
@@ -113,124 +108,7 @@ async def create_instance_with_relations(db: AsyncSession, instance_data: Dict[s
         raise RuntimeError(f"Failed to create instance with relations: {str(e)}")
 
 
-async def process_llm_response(
-    db: AsyncSession,
-    session_factory: async_sessionmaker[AsyncSession],
-    user_qiao_id: str,
-    instance_qiao_id: str,
-    instance_context: InstanceContext,
-    ai_response: Dict[str, Any],
-    llm_result: Dict[str, Any],
-    locked_buffer_id: Optional[int],
-    user_message_item_id: Optional[int],
-) -> Dict[str, Any]:
-    """
-    Persist LLM side effects (scores, memory, logs) and launch message sending task.
-    """
-
-    try:
-        new_scores = ai_response.get("score")
-        memory_operations = ai_response.get("memory_operations")
-
-        if new_scores:
-            await update_instance_relationship_scores(db, instance_context["instance_id"], new_scores)
-
-            from .relationship_queries import get_instance_relationship_scores
-            from ..relationship_scoring import determine_relationship_type
-
-            latest_scores = await get_instance_relationship_scores(db, instance_context["instance_id"])
-            if latest_scores:
-                rel = await determine_relationship_type(db, instance_context, latest_scores)
-                if rel and rel.get("relationship"):
-                    relationship = rel["relationship"]
-                    display_name = getattr(relationship, "display_name", getattr(relationship, "name", ""))
-                    await set_instance_current_relationship(
-                        db, instance_context["instance_id"], relationship.id, display_name
-                    )
-
-        if memory_operations:
-            from ..conversation_memory import process_memory_operations
-
-            await process_memory_operations(db, instance_qiao_id, memory_operations)
-
-        if ai_response.get("attack_detected") and user_message_item_id:
-            await mark_conversation_item_as_excluded(db, user_message_item_id)
-
-        if ai_response.get("should_block"):
-            await update_instance_status(db, instance_qiao_id, status=3)
-
-        await _save_ai_request_log(
-            db=db,
-            instance_context=instance_context,
-            user_qiao_id=user_qiao_id,
-            ai_response=ai_response,
-            llm_result=llm_result,
-            buffer_id=locked_buffer_id,
-        )
-
-        if locked_buffer_id:
-            from services.message.processing.buffer import finalize_buffer_if_locked
-
-            await finalize_buffer_if_locked(db, locked_buffer_id)
-
-        await db.commit()
-
-        logger.info(
-            "conversation_result_saved",
-            user_qiao_id=user_qiao_id,
-            instance_qiao_id=instance_qiao_id,
-            buffer_id=locked_buffer_id,
-        )
-
-    except Exception as e:
-        await db.rollback()
-        logger.error(
-            "conversation_result_save_failed",
-            error=str(e),
-            user_qiao_id=user_qiao_id,
-            instance_qiao_id=instance_qiao_id,
-            exc_info=True,
-        )
-        raise
-
-    # Launch asynchronous sending task (typing simulation lives outside transaction)
-    outgoing_messages = ai_response.get("outgoing_messages", [])
-    followup_messages = ai_response.get("followup_messages", [])
-
-    should_reply = ai_response.get("should_reply", True)
-    typing_speed_seconds_per_word = DEFAULT_TYPING_SPEED_SECONDS_PER_WORD
-    followup_delay_seconds = 0.0
-
-    if should_reply and (outgoing_messages or followup_messages):
-        typing_speed_seconds_per_word = await _get_typing_speed_seconds_per_word(db, instance_qiao_id)
-        followup_delay_ms = await _get_followup_delay_ms(db, instance_qiao_id)
-        if followup_delay_ms is None:
-            raise ValueError("Missing followup_delay_ms configuration")
-        followup_delay_seconds = followup_delay_ms / 1000.0
-    else:
-        outgoing_messages = []
-        followup_messages = []
-
-    asyncio.create_task(
-        send_ai_messages_with_typing(
-            session_factory=session_factory,
-            user_qiao_id=user_qiao_id,
-            instance_qiao_id=instance_qiao_id,
-            buffer_id=locked_buffer_id,
-            outgoing_messages=outgoing_messages,
-            followup_messages=followup_messages,
-            typing_speed_seconds_per_word=typing_speed_seconds_per_word,
-            followup_delay_seconds=followup_delay_seconds,
-        )
-    )
-
-    return {
-        "success": True,
-        "buffer_id": locked_buffer_id,
-    }
-
-
-async def _save_ai_request_log(
+async def save_ai_request_log(
     db: AsyncSession,
     instance_context: InstanceContext,
     user_qiao_id: str,
@@ -316,36 +194,6 @@ async def _save_ai_request_log(
         logger.error("ai_request_log_save_failed", error=str(e), user_qiao_id=user_qiao_id, exc_info=True)
         # Don't raise - logging failure shouldn't break the conversation
         pass
-
-
-async def _get_typing_speed_seconds_per_word(db: AsyncSession, instance_qiao_id: str) -> float:
-    """Fetch the per-word typing latency derived from instance-level WPM configuration."""
-
-    stmt = select(AIInstance.typing_speed_wpm).where(AIInstance.qiao_id == instance_qiao_id)
-    result = await db.execute(stmt)
-    value = result.scalar_one_or_none()
-
-    wpm = DEFAULT_TYPING_SPEED_WPM if value is None else int(value)
-    if wpm <= 0:
-        logger.warning(
-            "invalid_typing_speed_wpm",
-            instance_qiao_id=instance_qiao_id,
-            configured_value=wpm,
-        )
-        wpm = DEFAULT_TYPING_SPEED_WPM
-
-    return 60.0 / float(wpm)
-
-
-async def _get_followup_delay_ms(db: AsyncSession, instance_qiao_id: str) -> Optional[int]:
-    """
-    Fetch relationship-specific followup delay.
-    """
-    config = await get_instance_relationship_config(db, instance_qiao_id)
-    if not config:
-        return None
-    delay = config.get("followup_delay_ms")
-    return int(delay) if delay is not None else None
 
 
 async def archive_contexts_transaction(

@@ -13,7 +13,20 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- AI System Base Data
+-- Test Users (Level 0 - No dependencies)
+-- ============================================================================
+
+-- Insert test users for AI instance testing (user_type=3)
+INSERT INTO users (id, qiao_id, username, phone, status, user_type) VALUES
+(223788765171154945, 'qqid_test_user_001', 'test_user_001', '+86-13800000001', 1, 3),
+(223788765171154946, 'qqid_test_user_002', 'test_user_002', '+86-13800000002', 1, 3),
+(223788765171154947, 'qqid_test_user_003', 'test_user_003', '+86-13800000003', 1, 3),
+(223788765171154948, 'qqid_test_user_004', 'test_user_004', '+86-13800000004', 1, 3),
+(223788765171154949, 'qqid_test_user_005', 'test_user_005', '+86-13800000005', 1, 3)
+ON CONFLICT (qiao_id) DO NOTHING;
+
+-- ============================================================================
+-- AI System Base Data (Level 0 - No dependencies)
 -- ============================================================================
 
 -- Insert basic AI relationship types
@@ -257,6 +270,15 @@ ON CONFLICT (owner_qiao_id) DO UPDATE SET
     avatar_url = EXCLUDED.avatar_url,
     updated_at = NOW();
 
+-- Insert profiles for test users
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
+(223788765171154950, 223788765171154945, 'qqid_test_user_001', 1, '小雨', '喜欢看书和旅行的文艺青年，最近在学习摄影', 2, NULL),
+(223788765171154951, 223788765171154946, 'qqid_test_user_002', 1, '阿杰', '热爱运动的阳光男孩，篮球和游泳都很在行', 1, NULL),
+(223788765171154952, 223788765171154947, 'qqid_test_user_003', 1, '晓晓', '甜品师，喜欢烘焙和美食，梦想开一家自己的咖啡店', 2, NULL),
+(223788765171154953, 223788765171154948, 'qqid_test_user_004', 1, '大熊', '程序员，业余时间喜欢打游戏和看动漫', 1, NULL),
+(223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL)
+ON CONFLICT (owner_qiao_id) DO NOTHING;
+
 INSERT INTO square_type_entries (square_category, type_id, exposure_strategy, status) VALUES
 (
     2,
@@ -271,28 +293,6 @@ INSERT INTO square_type_entries (square_category, type_id, exposure_strategy, st
     1
 )
 ON CONFLICT (square_category, type_id) DO NOTHING;
-
--- ============================================================================
--- Test Users
--- ============================================================================
-
--- Insert test users for AI instance testing (user_type=3)
-INSERT INTO users (id, qiao_id, username, phone, status, user_type) VALUES
-(223788765171154945, 'qqid_test_user_001', 'test_user_001', '+86-13800000001', 1, 3),
-(223788765171154946, 'qqid_test_user_002', 'test_user_002', '+86-13800000002', 1, 3),
-(223788765171154947, 'qqid_test_user_003', 'test_user_003', '+86-13800000003', 1, 3),
-(223788765171154948, 'qqid_test_user_004', 'test_user_004', '+86-13800000004', 1, 3),
-(223788765171154949, 'qqid_test_user_005', 'test_user_005', '+86-13800000005', 1, 3)
-ON CONFLICT (qiao_id) DO NOTHING;
-
--- Insert profiles for test users
-INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
-(223788765171154950, 223788765171154945, 'qqid_test_user_001', 1, '小雨', '喜欢看书和旅行的文艺青年，最近在学习摄影', 2, NULL),
-(223788765171154951, 223788765171154946, 'qqid_test_user_002', 1, '阿杰', '热爱运动的阳光男孩，篮球和游泳都很在行', 1, NULL),
-(223788765171154952, 223788765171154947, 'qqid_test_user_003', 1, '晓晓', '甜品师，喜欢烘焙和美食，梦想开一家自己的咖啡店', 2, NULL),
-(223788765171154953, 223788765171154948, 'qqid_test_user_004', 1, '大熊', '程序员，业余时间喜欢打游戏和看动漫', 1, NULL),
-(223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL)
-ON CONFLICT (owner_qiao_id) DO NOTHING;
 
 -- ============================================================================
 -- AI Instances

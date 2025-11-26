@@ -4,7 +4,6 @@ AI Log admin views.
 This module contains Starlette-Admin views for AI request logging.
 """
 
-from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import IntegerField, StringField, BooleanField
 from starlette_admin.fields import JSONField

@@ -70,6 +70,8 @@ class InstanceContext(TypedDict):
     # Core identifiers
     instance_id: int
     instance_qiao_id: str
+    user_id: int
+    user_qiao_id: str
     ai_type: Optional[AITypeInfo]
     status: int
     created_by: int

@@ -2,13 +2,12 @@
 
 ## 设计原则
 
-1. 不使用外键约束：通过代码逻辑维护数据一致性，提高性能和灵活性
-2. 统一标识符命名：外部标识符统一使用`qiao_id`格式，内部使用Snowflake ID
-3. 枚举值使用整型：所有枚举字段使用TINYINT类型，在代码中定义枚举约束
-4. 核心业务表使用Snowflake ID：用户、消息、AI等核心表使用BIGINT类型的Snowflake ID
-5. 配置表使用自增ID：系统配置、统计等辅助表使用AUTO_INCREMENT
-6. 完善的索引设计：为高频查询字段添加合适的索引
-7. 时间字段自动管理：created_at和updated_at字段自动设置和更新
+- 统一标识符命名：外部标识符统一使用`qiao_id`格式，内部使用Snowflake ID
+- 枚举值使用整型：所有枚举字段使用TINYINT类型，在代码中定义枚举约束
+- 核心业务表使用Snowflake ID：用户、消息、AI等核心表使用BIGINT类型的Snowflake ID
+- 配置表使用自增ID：系统配置、统计等辅助表使用AUTO_INCREMENT
+- 完善的索引设计：为高频查询字段添加合适的索引
+- 时间字段自动管理：created_at和updated_at字段自动设置和更新
 
 ## 详细表结构
 
@@ -249,6 +248,19 @@ message_count -- 窗口内消息条数，默认1
 last_msg_time_ms -- 窗口最后一条消息的毫秒时间戳
 locked_at -- 进入 LOCKED 状态的时间（用于超时检测）
 wake_adjustment_count -- Number of times wake time was adjusted by new messages
+created_at
+updated_at
+```
+
+## ai_conversation_state
+
+AI 对话状态表，管理对话状态和待发送消息队列。
+
+```txt
+user_qiao_id -- 用户 external ID（主键之一）
+instance_qiao_id -- AI instance external ID（主键之一）
+pending_messages -- 待发送消息队列，JSONB 数组格式
+interrupted_at -- 对话被用户消息打断的时间戳
 created_at
 updated_at
 ```

@@ -34,6 +34,7 @@ from .views import (
     ai_message_buffer_view,
     ai_conversation_item_view,
     ai_conversation_item_archive_view,
+    ai_conversation_state_view,
     square_type_entry_view,
     # Message Management
     message_history_view,
@@ -190,6 +191,7 @@ ai_group = DropDown(
         ai_message_buffer_view,
         ai_conversation_item_view,
         ai_conversation_item_archive_view,
+        ai_conversation_state_view,
         ai_request_log_view,
     ],
     always_open=False,

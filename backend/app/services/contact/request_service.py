@@ -961,6 +961,7 @@ async def accept_contact_request_service(
             custom_avatar_url=None,
             tags=tags_dict,
             remark=None,
+            source="contact_request",
         )
 
         contact = await contact_crud.create_with_user(

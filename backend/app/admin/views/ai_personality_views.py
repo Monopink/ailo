@@ -4,10 +4,10 @@ AI Personality admin views.
 This module contains Starlette-Admin views for AI personality system.
 """
 
-from typing import Any, Dict
+from typing import Any
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import IntegerField, StringField, TextAreaField, HasOne
+from starlette_admin import StringField, TextAreaField, HasOne
 from starlette_admin.actions import link_row_action
 from starlette_admin.fields import JSONField
 from admin.fields import LocalDateTimeField

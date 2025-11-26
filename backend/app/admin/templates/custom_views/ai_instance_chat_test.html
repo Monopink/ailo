@@ -37,6 +37,12 @@
   background-color: var(--tblr-bg-surface-secondary, var(--tblr-secondary-lt));
   border-color: var(--tblr-border-color, var(--tblr-border-color-light));
 }
+.message-system {
+  align-self: center;
+  background-color: transparent;
+  border-style: dashed;
+  color: var(--tblr-muted, #6c757d);
+}
 
 /* LLM select responsive flex behavior */
 .llm-select-wrapper {
@@ -83,11 +89,6 @@ pre {
           </table>
 
           <h4 class="fw-bold mb-2">Test User</h4>
-          <div class="mb-2">
-            <label for="testUserSelect" class="form-label text-muted">选择测试用户</label>
-            <select id="testUserSelect" class="form-select"></select>
-            <div class="form-text">仅支持 user_type=virtual 的测试用户，若缺少联系人将自动创建。</div>
-          </div>
           <table class="table table-sm table-borderless mb-3">
             <tbody>
               <tr><td class="text-muted" style="width:40%">ID</td><td id="userQiaoId">-</td></tr>
@@ -248,12 +249,8 @@ pre {
     var instanceId = "{{ instance_id }}";
     var llmConfigMap = {};
     var currentDebugInfo = null;
-    var availableTestUsers = [];
-    var testUserSelectionLocked = false;
-    var lockedTestUserId = "";
-    var testUserMap = {};
-    var selectedTestUserId = "";
-    var testUserProfiles = {};
+    var currentTestUserInfo = null;
+    var currentTestUserProfile = null;
 
     function valueOrDash(x) {
       return (x === undefined || x === null || x === '') ? '-' : String(x);
@@ -273,7 +270,7 @@ pre {
       fetch('/qiao-dash/ai_instance/chat-test/' + instanceId + '?action=readiness')
         .then(r => r.json())
         .then(data => {
-          if (!data.ready) { showError('Not ready: ' + (data.error_message || '')); return; }
+          if (!data.ready) { showError('未满足测试条件：' + (data.error_message || '')); return; }
         document.getElementById('instanceQiaoId').textContent = data.instance_info.qiao_id;
         document.getElementById('instanceCategory').textContent = data.instance_info.ai_type_display;
           updateParticipantsAndSettings(data);
@@ -310,7 +307,7 @@ pre {
           });
           toggleMock();
         })
-        .catch(e => showError('Readiness failed: ' + e.message));
+        .catch(e => showError('自检失败：' + e.message));
     }
 
     function buildRangesMapFromSchema(schema) {
@@ -390,64 +387,24 @@ pre {
       });
     }
 
-    function renderTestUserOptions(selectedId) {
-      var select = document.getElementById('testUserSelect');
-      if (!select) return;
-      testUserMap = {};
-      select.innerHTML = '';
-
-      if (!availableTestUsers.length) {
-        var opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = '无可用测试用户';
-        select.appendChild(opt);
-        select.disabled = true;
-        updateTestUserSummary('', null);
-        selectedTestUserId = '';
-        return;
-      }
-
-      select.disabled = !!testUserSelectionLocked;
-      availableTestUsers.forEach(function (user) {
-        testUserMap[user.user_qiao_id] = user;
-        var opt = document.createElement('option');
-        opt.value = user.user_qiao_id;
-        var profile = user.profile || {};
-        var label = profile.nickname || user.nickname || user.username || user.user_qiao_id;
-        opt.textContent = label + ' (' + user.user_qiao_id + ')';
-        select.appendChild(opt);
-      });
-
-      if (testUserSelectionLocked && lockedTestUserId && testUserMap[lockedTestUserId]) {
-        select.value = lockedTestUserId;
-        selectedId = lockedTestUserId;
-      } else if (selectedId && testUserMap[selectedId]) {
-        select.value = selectedId;
-      } else if (availableTestUsers.length > 0) {
-        select.value = availableTestUsers[0].user_qiao_id;
-        selectedId = select.value;
-      }
-
-      selectedTestUserId = select.value;
-      select.onchange = function () {
-        selectedTestUserId = select.value;
-        updateTestUserSummary(selectedTestUserId, null);
-        updateSendButtonState();
-      };
-
-      updateTestUserSummary(selectedTestUserId, null);
-    }
-
-    function updateTestUserSummary(qiaoId, profileOverride) {
-      var info = (qiaoId && testUserMap[qiaoId]) ? testUserMap[qiaoId] : {};
-      var profile = profileOverride || info.profile || testUserProfiles[qiaoId] || null;
-      document.getElementById('userQiaoId').textContent = valueOrDash(info.user_qiao_id);
-      document.getElementById('userNickname').textContent = valueOrDash((profile && profile.nickname) || info.nickname || info.username);
-      document.getElementById('userGender').textContent = formatGenderValue((profile && profile.gender) || info.gender);
-      document.getElementById('userRegion').textContent = valueOrDash((profile && profile.region) || info.region);
-      document.getElementById('userBio').textContent = valueOrDash((profile && profile.bio));
-      document.getElementById('userAvatarUrl').textContent = valueOrDash((profile && profile.avatar_url));
-      document.getElementById('userAvatarPrompt').textContent = valueOrDash((profile && profile.avatar_prompt));
+    function updateTestUserSummaryFromData(userInfo, profileOverride) {
+      currentTestUserInfo = userInfo || null;
+      currentTestUserProfile = profileOverride || null;
+      var info = currentTestUserInfo || {};
+      var profile = currentTestUserProfile || {};
+      var qiaoId = info.qiao_id || info.user_qiao_id || '';
+      var nickname =
+        profile.nickname ||
+        info.nickname ||
+        info.username ||
+        qiaoId;
+      document.getElementById('userQiaoId').textContent = valueOrDash(qiaoId);
+      document.getElementById('userNickname').textContent = valueOrDash(nickname);
+      document.getElementById('userGender').textContent = formatGenderValue(profile.gender || info.gender);
+      document.getElementById('userRegion').textContent = valueOrDash(profile.region || info.region);
+      document.getElementById('userBio').textContent = valueOrDash(profile.bio);
+      document.getElementById('userAvatarUrl').textContent = valueOrDash(profile.avatar_url);
+      document.getElementById('userAvatarPrompt').textContent = valueOrDash(profile.avatar_prompt);
       document.getElementById('userUsername').textContent = valueOrDash(info.username);
     }
 
@@ -486,7 +443,7 @@ pre {
           }
         })
         .catch(function (e) {
-          showError('归档请求失败: ' + e.message);
+          showError('归档请求失败：' + e.message);
         })
         .finally(function () {
           archiveBtn.disabled = false;
@@ -519,10 +476,6 @@ pre {
       formData.append('instance_id', instanceId);
       formData.append('llm_config_name', key);
       formData.append('test_message', message);
-      if (selectedTestUserId) {
-        formData.append('test_user_qiao_id', selectedTestUserId);
-      }
-
       var cfg = llmConfigMap[key];
       var isMock = cfg && cfg.provider_name && String(cfg.provider_name).toLowerCase() === 'mock';
       if (isMock) {
@@ -546,38 +499,10 @@ pre {
       fetch('/qiao-dash/ai_instance/chat-test/' + instanceId, { method: 'POST', body: formData })
         .then(r => r.json())
         .then(function (data) {
-          if (!data.success) { showError(data.error || 'Request failed'); return; }
+          if (!data.success) { showError(data.error || '请求失败'); return; }
 
           // Display full conversation
-          var chatArea = document.getElementById('chatArea');
-          chatArea.innerHTML = '';
-
-          // Display history messages (excludes current user message per backend logic)
-          var historyMessages = Array.isArray(data.history_messages) ? data.history_messages : [];
-          historyMessages.forEach(function (msg) {
-            if (!msg || !msg.text) return;
-            var role = (msg.role === 'assistant') ? 'ai' : 'user';
-            appendMessage(role, msg.text);
-          });
-
-          // Display current user message only if not already in history
-          var currentUserMessage = (data.current_user_message || '').trim();
-          var alreadyInHistory = historyMessages.some(function(msg) {
-            return msg.role === 'user' && msg.text === currentUserMessage;
-          });
-          if (currentUserMessage && !alreadyInHistory) {
-            appendMessage('user', currentUserMessage);
-          }
-
-          // Display the latest AI response (outgoing + followup)
-          if (data.conversation && Array.isArray(data.conversation.all_messages)) {
-            data.conversation.all_messages.forEach(function (m) {
-              appendMessage('ai', m);
-            });
-          }
-
-          // Ensure scroll to bottom after all messages are displayed
-          scrollChatToBottom();
+          renderChatHistoryFromPayload(data);
 
           updateParticipantsAndSettings(data);
           updateResponseDetails(data);
@@ -585,7 +510,7 @@ pre {
           currentDebugInfo = data;
           updateDebugInfo();
         })
-        .catch(function (e) { showError('Request failed: ' + e.message); })
+        .catch(function (e) { showError('请求失败：' + e.message); })
         .finally(function () {
           document.querySelector('.container-fluid').classList.remove('loading', 'opacity-50');
           sendBtn.disabled = false;
@@ -609,10 +534,6 @@ pre {
     }
 
     function appendMessage(type, content) {
-      if (type === 'system') {
-        // Do not display system prompt in chat area; moved to analysis tab
-        return;
-      }
       var area = document.getElementById('chatArea');
       // Hide empty state on first message
       var emptyState = document.getElementById('chatEmptyState');
@@ -620,11 +541,111 @@ pre {
         emptyState.remove();
       }
       var d = document.createElement('div');
-      d.className = 'message message-' + type + ' d-inline-block m-0 p-2 border rounded-2 text-break lh-base';
+      var roleClass = 'message-' + type;
+      d.className = 'message ' + roleClass + ' d-inline-block m-0 p-2 border rounded-2 text-break lh-base';
       d.textContent = content;
       area.appendChild(d);
       // Auto-scroll to bottom
       scrollChatToBottom();
+    }
+
+    function flattenMessageContentBlocks(content) {
+      if (typeof content === 'string') {
+        return content;
+      }
+      if (Array.isArray(content)) {
+        var parts = [];
+        content.forEach(function (block) {
+          if (block && typeof block.text === 'string') {
+            parts.push(block.text);
+          }
+        });
+        return parts.join('');
+      }
+      if (!content) {
+        return '';
+      }
+      return String(content);
+    }
+
+    function extractMessagesFromPayload(payload) {
+      if (!payload || typeof payload !== 'object') {
+        return [];
+      }
+      var rawMessages = [];
+      if (Array.isArray(payload.input)) {
+        rawMessages = payload.input;
+      } else if (Array.isArray(payload.messages)) {
+        rawMessages = payload.messages;
+      } else if (payload.payload && Array.isArray(payload.payload.messages)) {
+        rawMessages = payload.payload.messages;
+      }
+      return rawMessages
+        .filter(function (item) { return item && typeof item === 'object'; })
+        .map(function (item) {
+          var role = (item.role || 'user').toString().toLowerCase();
+          var text = flattenMessageContentBlocks(item.content);
+          if (!text && typeof item.text === 'string') {
+            text = item.text;
+          }
+          if (!text && typeof item.text_content === 'string') {
+            text = item.text_content;
+          }
+          return { role: role, text: text };
+        })
+        .filter(function (item) { return item.text && item.text.trim(); });
+    }
+
+    function renderChatHistoryFromPayload(data) {
+      var chatArea = document.getElementById('chatArea');
+      if (!chatArea) return;
+      chatArea.innerHTML = '';
+      var combinedMessages = [];
+
+      var payloadMessages = extractMessagesFromPayload(data.request_payload);
+      if (payloadMessages.length) {
+        payloadMessages.forEach(function (item) {
+          var role = item.role === 'assistant' ? 'ai' : (item.role === 'system' ? 'system' : 'user');
+          combinedMessages.push({ role: role, text: item.text });
+        });
+      } else {
+        var historyList = Array.isArray(data.history_messages) ? data.history_messages : [];
+        historyList.forEach(function (item) {
+          if (!item || !item.text) return;
+          var role = item.role === 'assistant' ? 'ai' : 'user';
+          combinedMessages.push({ role: role, text: item.text });
+        });
+        var currentInput = (data.current_user_message || '').trim();
+        if (currentInput) {
+          combinedMessages.push({ role: 'user', text: currentInput });
+        }
+      }
+
+      var convo = data.conversation || {};
+      var aiOutputs = [];
+      if (Array.isArray(convo.all_messages) && convo.all_messages.length) {
+        aiOutputs = aiOutputs.concat(convo.all_messages);
+      } else {
+        if (Array.isArray(convo.outgoing_messages)) {
+          aiOutputs = aiOutputs.concat(convo.outgoing_messages);
+        }
+        if (Array.isArray(convo.followup_messages)) {
+          aiOutputs = aiOutputs.concat(convo.followup_messages);
+        }
+      }
+      aiOutputs.forEach(function (msg) {
+        if (typeof msg === 'string' && msg.trim()) {
+          combinedMessages.push({ role: 'ai', text: msg });
+        }
+      });
+
+      if (!combinedMessages.length) {
+        chatArea.innerHTML = '<div class="empty" id="chatEmptyState"><p class="empty-subtitle text-secondary">Send a message to begin the conversation</p></div>';
+        return;
+      }
+      combinedMessages.forEach(function (item) {
+        appendMessage(item.role, item.text);
+      });
     }
 
     function scrollChatToBottom() {
@@ -681,7 +702,7 @@ pre {
     function updateSendButtonState() {
       var message = document.getElementById('messageInput').value.trim();
       var llmSelected = !!document.getElementById('llmSelect').value;
-      var enabled = !!selectedTestUserId && llmSelected && !!message;
+      var enabled = llmSelected && !!message;
       var sendBtn = document.getElementById('sendBtn');
       if (sendBtn) {
         sendBtn.disabled = !enabled;
@@ -691,74 +712,6 @@ pre {
     function updateParticipantsAndSettings(data) {
       if (!data) return;
       try {
-        testUserSelectionLocked = !!data.test_user_selection_locked;
-        lockedTestUserId = data.locked_test_user_qiao_id || "";
-
-        var rawUsers = [];
-        var hasFreshUserList = false;
-        var owns = Object.prototype.hasOwnProperty;
-        if (owns.call(data, 'available_test_users')) {
-          hasFreshUserList = true;
-          rawUsers = Array.isArray(data.available_test_users) ? data.available_test_users : [];
-        } else if (data.test_user_info && owns.call(data.test_user_info, 'available_test_users')) {
-          hasFreshUserList = true;
-          rawUsers = Array.isArray(data.test_user_info.available_test_users) ? data.test_user_info.available_test_users : [];
-        } else if (owns.call(data, 'available_contacts')) {
-          hasFreshUserList = true;
-          rawUsers = Array.isArray(data.available_contacts) ? data.available_contacts : [];
-        } else if (data.test_user_info && owns.call(data.test_user_info, 'available_contacts')) {
-          hasFreshUserList = true;
-          rawUsers = Array.isArray(data.test_user_info.available_contacts) ? data.test_user_info.available_contacts : [];
-        }
-
-        if (!hasFreshUserList && availableTestUsers.length > 0) {
-          rawUsers = availableTestUsers.slice();
-        }
-
-        availableTestUsers = rawUsers.map(function (user) {
-          if (!user) return null;
-          if (user.profile || typeof user.has_contact !== 'undefined') {
-            return user;
-          }
-          return {
-            user_qiao_id: user.user_qiao_id,
-            username: user.username,
-            nickname: user.nickname,
-            has_contact: true,
-            conv_id: user.conv_id,
-            profile: {
-              nickname: user.nickname,
-              gender: user.gender,
-              region: user.region,
-              bio: user.bio,
-              avatar_url: user.avatar_url,
-              avatar_prompt: user.avatar_prompt,
-            },
-          };
-        }).filter(Boolean);
-
-        availableTestUsers.forEach(function (user) {
-          if (user.user_qiao_id && user.profile) {
-            testUserProfiles[user.user_qiao_id] = user.profile;
-          }
-        });
-
-        if (data.test_user_info && data.test_user_info.qiao_id && data.test_user_profile) {
-          testUserProfiles[data.test_user_info.qiao_id] = data.test_user_profile;
-        }
-
-        var defaultUserId = selectedTestUserId;
-        if (data.test_user_info && data.test_user_info.qiao_id) {
-          defaultUserId = data.test_user_info.qiao_id;
-        } else if (testUserSelectionLocked && lockedTestUserId) {
-          defaultUserId = lockedTestUserId;
-        } else if (!defaultUserId && availableTestUsers.length > 0) {
-          defaultUserId = availableTestUsers[0].user_qiao_id;
-        }
-
-        renderTestUserOptions(defaultUserId);
-        updateTestUserSummary(selectedTestUserId, testUserProfiles[selectedTestUserId] || null);
-
         var cp = data.instance_profile || {};
         document.getElementById('aiNickname').textContent = valueOrDash(cp.nickname);
         document.getElementById('aiGender').textContent = formatGenderValue(cp.gender);
@@ -781,6 +734,41 @@ pre {
         } catch (e) {
           document.getElementById('aiPromptVars').textContent = '';
         }
+
+        var testUserInfo = null;
+        var testUserProfile = null;
+        if (data.test_user_info && data.test_user_info.test_user) {
+          testUserInfo = data.test_user_info.test_user;
+          testUserProfile = data.test_user_info.test_user_profile || null;
+        } else if (data.test_user_info) {
+          testUserInfo = {
+            qiao_id: data.test_user_info.qiao_id,
+            user_qiao_id: data.test_user_info.qiao_id,
+            username: data.test_user_info.username,
+            nickname: data.test_user_info.nickname,
+            gender: data.test_user_info.gender,
+            region: data.test_user_info.region,
+            bio: data.test_user_info.bio,
+            avatar_url: data.test_user_info.avatar_url,
+            avatar_prompt: data.test_user_info.avatar_prompt,
+          };
+          testUserProfile = data.test_user_profile || null;
+        } else if (Array.isArray(data.available_test_users) && data.available_test_users.length > 0) {
+          var fallback = data.available_test_users[0];
+          testUserInfo = {
+            qiao_id: fallback.user_qiao_id,
+            user_qiao_id: fallback.user_qiao_id,
+            username: fallback.username,
+            nickname: fallback.nickname,
+            gender: fallback.gender,
+            region: fallback.region,
+            bio: fallback.bio,
+            avatar_url: fallback.avatar_url,
+            avatar_prompt: fallback.avatar_prompt,
+          };
+          testUserProfile = fallback.profile || null;
+        }
+        updateTestUserSummaryFromData(testUserInfo, testUserProfile);
 
         updateSendButtonState();
       } catch (_) { }

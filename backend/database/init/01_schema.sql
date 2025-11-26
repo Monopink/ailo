@@ -73,6 +73,10 @@ CREATE TABLE IF NOT EXISTS user_tokens (
 -- Create indexes for user_tokens table
 CREATE INDEX idx_user_tokens_user_qiao_id ON user_tokens(user_qiao_id);
 
+-- Add foreign key constraint for user_tokens
+ALTER TABLE user_tokens ADD CONSTRAINT fk_user_tokens_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 -- User auths table - Third-party identity bindings (WeChat/Apple/etc.)
 CREATE TABLE IF NOT EXISTS user_auths (
     id BIGINT PRIMARY KEY,
@@ -98,7 +102,11 @@ BEGIN
         ALTER TABLE user_auths ADD CONSTRAINT uq_user_auths_type_provider UNIQUE (auth_type, provider_uid);
     END IF;
 END $$;
-CREATE INDEX IF NOT EXISTS idx_user_auths_user_qiao_id ON user_auths(user_qiao_id);
+CREATE INDEX idx_user_auths_user_qiao_id ON user_auths(user_qiao_id);
+
+-- Add foreign key constraint for user_auths
+ALTER TABLE user_auths ADD CONSTRAINT fk_user_auths_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- Login records table - Login attempt tracking
 CREATE TABLE IF NOT EXISTS login_records (
@@ -144,12 +152,16 @@ CREATE TABLE IF NOT EXISTS contacts (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     -- Ensure one user cannot add the same qiao_id contact twice
-    CONSTRAINT contacts_user_contact_qiao_unique UNIQUE (user_id, contact_qiao_id)
+    CONSTRAINT uq_contacts_user_contact_qiao UNIQUE (user_id, contact_qiao_id)
 );
 
 -- Create indexes for contacts table
 CREATE INDEX idx_contacts_user_qiao_id ON contacts(user_qiao_id);
 CREATE INDEX idx_contacts_contact_qiao_id ON contacts(contact_qiao_id);
+
+-- Add foreign key constraint for contacts
+ALTER TABLE contacts ADD CONSTRAINT fk_contacts_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- Contact requests table - Contact application management
 CREATE TABLE IF NOT EXISTS contact_requests (
@@ -428,6 +440,12 @@ CREATE TABLE IF NOT EXISTS ai_style_dimensions (
 CREATE INDEX idx_ai_style_dimensions_style_id ON ai_style_dimensions(style_id);
 CREATE INDEX idx_ai_style_dimensions_dimension_id ON ai_style_dimensions(dimension_id);
 
+-- Add foreign key constraints for ai_style_dimensions
+ALTER TABLE ai_style_dimensions ADD CONSTRAINT fk_ai_style_dimensions_style
+    FOREIGN KEY (style_id) REFERENCES ai_styles(id) ON DELETE CASCADE;
+ALTER TABLE ai_style_dimensions ADD CONSTRAINT fk_ai_style_dimensions_dimension
+    FOREIGN KEY (dimension_id) REFERENCES ai_dimensions(id) ON DELETE CASCADE;
+
 
 -- AI dimension relationship mappings table - Dimension to relationship mapping
 CREATE TABLE IF NOT EXISTS ai_dimension_relationship_mappings (
@@ -445,6 +463,12 @@ CREATE TABLE IF NOT EXISTS ai_dimension_relationship_mappings (
 -- Create indexes for ai_dimension_relationship_mappings table
 CREATE INDEX idx_ai_dim_rel_mappings_dimension_id ON ai_dimension_relationship_mappings(dimension_id);
 CREATE INDEX idx_ai_dim_rel_mappings_relationship_id ON ai_dimension_relationship_mappings(relationship_id);
+
+-- Add foreign key constraints for ai_dimension_relationship_mappings
+ALTER TABLE ai_dimension_relationship_mappings ADD CONSTRAINT fk_ai_dim_rel_mappings_dimension
+    FOREIGN KEY (dimension_id) REFERENCES ai_dimensions(id) ON DELETE CASCADE;
+ALTER TABLE ai_dimension_relationship_mappings ADD CONSTRAINT fk_ai_dim_rel_mappings_relationship
+    FOREIGN KEY (relationship_id) REFERENCES ai_relationships(id) ON DELETE CASCADE;
 
 
 -- AI personalities table - Personality templates
@@ -478,6 +502,10 @@ CREATE TABLE IF NOT EXISTS ai_personality_placeholders (
 -- Create indexes for ai_personality_placeholders table
 -- Note: No additional indexes needed for MVP
 
+-- Add foreign key constraint for ai_personality_placeholders
+ALTER TABLE ai_personality_placeholders ADD CONSTRAINT fk_ai_personality_placeholders_personality
+    FOREIGN KEY (personality_id) REFERENCES ai_personalities(id) ON DELETE CASCADE;
+
 
 -- AI template types table - Internal management types (NOT related to Square categories)
 CREATE TABLE IF NOT EXISTS ai_types (
@@ -503,7 +531,7 @@ COMMENT ON COLUMN ai_types.display_name IS 'Display name for admin dashboard';
 CREATE TABLE IF NOT EXISTS square_type_entries (
     id SERIAL PRIMARY KEY,
     square_category INTEGER NOT NULL,
-    type_id INTEGER NOT NULL REFERENCES ai_types(id),
+    type_id INTEGER NOT NULL,
     exposure_strategy INTEGER NOT NULL DEFAULT 1,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -521,11 +549,15 @@ CREATE INDEX idx_square_type_entries_status ON square_type_entries(status);
 CREATE INDEX idx_square_type_entries_category ON square_type_entries(square_category);
 CREATE INDEX idx_square_type_entries_ai_type ON square_type_entries(type_id);
 
+-- Add foreign key constraint for square_type_entries
+ALTER TABLE square_type_entries ADD CONSTRAINT fk_square_type_entries_type
+    FOREIGN KEY (type_id) REFERENCES ai_types(id) ON DELETE RESTRICT;
+
 
 -- AI templates table - AI core configuration templates (renamed from ai_templates)
 CREATE TABLE IF NOT EXISTS ai_templates (
     id SERIAL PRIMARY KEY,
-    type_id INTEGER NOT NULL REFERENCES ai_types(id),
+    type_id INTEGER NOT NULL,
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
     memory TEXT,
@@ -554,12 +586,20 @@ COMMENT ON COLUMN ai_templates.status IS '1=active, 2=inactive, 3=used (only for
 CREATE INDEX idx_ai_templates_ai_type ON ai_templates(type_id);
 CREATE INDEX idx_ai_templates_usage ON ai_templates(type_id, status, is_reusable);
 
+-- Add foreign key constraints for ai_templates
+ALTER TABLE ai_templates ADD CONSTRAINT fk_ai_templates_type
+    FOREIGN KEY (type_id) REFERENCES ai_types(id) ON DELETE RESTRICT;
+ALTER TABLE ai_templates ADD CONSTRAINT fk_ai_templates_style
+    FOREIGN KEY (style_id) REFERENCES ai_styles(id) ON DELETE RESTRICT;
+ALTER TABLE ai_templates ADD CONSTRAINT fk_ai_templates_personality
+    FOREIGN KEY (personality_id) REFERENCES ai_personalities(id) ON DELETE RESTRICT;
+
 
 -- AI persona table - Manages unique qiao_id for instances (replaces ai_profile_templates)
 CREATE TABLE IF NOT EXISTS ai_personas (
     id BIGINT PRIMARY KEY,
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
-    type_id INTEGER NOT NULL REFERENCES ai_types(id),
+    type_id INTEGER NOT NULL,
     is_reusable INTEGER NOT NULL DEFAULT 1,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -576,11 +616,15 @@ COMMENT ON COLUMN ai_personas.status IS '1=active (visible), 2=inactive (hidden)
 CREATE INDEX idx_ai_personas_ai_type ON ai_personas(type_id);
 CREATE INDEX idx_ai_personas_status ON ai_personas(status);
 
+-- Add foreign key constraint for ai_personas
+ALTER TABLE ai_personas ADD CONSTRAINT fk_ai_personas_type
+    FOREIGN KEY (type_id) REFERENCES ai_types(id) ON DELETE RESTRICT;
+
 
 -- AI instances table - user-specific persona instantiations
 CREATE TABLE IF NOT EXISTS ai_instances (
     id BIGINT PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users(id),
+    user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
     qiao_id VARCHAR(32) NOT NULL,
     creation_metadata JSONB NOT NULL,
@@ -597,7 +641,7 @@ CREATE TABLE IF NOT EXISTS ai_instances (
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT ai_instances_user_qiao_unique UNIQUE (user_id, qiao_id)
+    CONSTRAINT uq_ai_instances_user_qiao UNIQUE (user_id, qiao_id)
 );
 
 -- Create indexes for ai_instances table
@@ -608,6 +652,16 @@ CREATE INDEX idx_ai_instances_style_id ON ai_instances(style_id);
 CREATE INDEX idx_ai_instances_personality_id ON ai_instances(personality_id);
 CREATE INDEX idx_ai_instances_creation_persona ON ai_instances USING gin((creation_metadata -> 'persona_id'));
 
+-- Add foreign key constraints for ai_instances
+ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_style
+    FOREIGN KEY (style_id) REFERENCES ai_styles(id) ON DELETE RESTRICT;
+ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_personality
+    FOREIGN KEY (personality_id) REFERENCES ai_personalities(id) ON DELETE RESTRICT;
+ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_relationship
+    FOREIGN KEY (relationship_id) REFERENCES ai_relationships(id) ON DELETE RESTRICT;
+
 -- Add comments for fields
 COMMENT ON TABLE ai_instances IS 'AI instances - created when users add personas';
 COMMENT ON COLUMN ai_instances.qiao_id IS 'External persona identifier (multiple users can add same persona)';
@@ -617,6 +671,23 @@ COMMENT ON COLUMN ai_instances.user_qiao_id IS 'Owning user qiao_id (redundant f
 COMMENT ON COLUMN ai_instances.status IS '1=active, 2=inactive, 3=blocking (AI has blocked the user)';
 COMMENT ON COLUMN ai_instances.request_params IS 'AI instance request parameters configuration (JSON)';
 COMMENT ON COLUMN ai_instances.timezone IS 'IANA timezone for the instance (e.g., Asia/Shanghai)';
+
+-- AI conversation state table - manages conversation state and pending messages
+CREATE TABLE IF NOT EXISTS ai_conversation_state (
+    user_qiao_id VARCHAR(32) NOT NULL,
+    instance_qiao_id VARCHAR(32) NOT NULL,
+    pending_messages JSONB,
+    interrupted_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_qiao_id, instance_qiao_id)
+);
+
+CREATE INDEX idx_ai_conversation_state_updated ON ai_conversation_state(updated_at);
+
+COMMENT ON TABLE ai_conversation_state IS 'AI conversation state - tracks pending messages and interruption state';
+COMMENT ON COLUMN ai_conversation_state.pending_messages IS 'Queue of pending outgoing messages (JSONB array)';
+COMMENT ON COLUMN ai_conversation_state.interrupted_at IS 'Timestamp when conversation was interrupted by user message';
 
 -- AI message buffer table - aggregation windows for inbound messages
 CREATE TABLE IF NOT EXISTS ai_message_buffer (
@@ -646,7 +717,7 @@ CREATE TABLE IF NOT EXISTS ai_message_buffer (
 CREATE INDEX idx_ai_message_buffer_session_state ON ai_message_buffer(user_qiao_id, instance_qiao_id, aggregate_state);
 CREATE INDEX idx_ai_message_buffer_micro ON ai_message_buffer(micro_expires_at_ms) WHERE aggregate_state = 1 AND micro_expires_at_ms IS NOT NULL;
 CREATE INDEX idx_ai_message_buffer_macro ON ai_message_buffer(macro_expires_at_ms) WHERE aggregate_state = 1 AND macro_expires_at_ms IS NOT NULL;
-CREATE UNIQUE INDEX idx_ai_message_buffer_locked ON ai_message_buffer(user_qiao_id, instance_qiao_id) WHERE aggregate_state = 2;
+CREATE UNIQUE INDEX uniq_ai_message_buffer_locked ON ai_message_buffer(user_qiao_id, instance_qiao_id) WHERE aggregate_state = 2;
 CREATE INDEX idx_ai_message_buffer_expire_scan ON ai_message_buffer(user_qiao_id, instance_qiao_id, buffer_expires_at_ms) WHERE aggregate_state = 1 AND buffer_expires_at_ms IS NOT NULL;
 CREATE INDEX idx_ai_message_buffer_wake_scan ON ai_message_buffer(wake_expires_at_ms) WHERE aggregate_state = 0 AND wake_expires_at_ms IS NOT NULL;
 
@@ -726,6 +797,12 @@ CREATE TABLE IF NOT EXISTS ai_instance_dimensions (
 -- Create indexes for ai_instance_dimensions table
 CREATE INDEX idx_ai_instance_dimensions_instance_id ON ai_instance_dimensions(instance_id);
 CREATE INDEX idx_ai_instance_dimensions_dimension_id ON ai_instance_dimensions(dimension_id);
+
+-- Add foreign key constraints for ai_instance_dimensions
+ALTER TABLE ai_instance_dimensions ADD CONSTRAINT fk_ai_instance_dimensions_instance
+    FOREIGN KEY (instance_id) REFERENCES ai_instances(id) ON DELETE CASCADE;
+ALTER TABLE ai_instance_dimensions ADD CONSTRAINT fk_ai_instance_dimensions_dimension
+    FOREIGN KEY (dimension_id) REFERENCES ai_dimensions(id) ON DELETE CASCADE;
 
 
 -- AI request logs table - AI request and response logging
@@ -1094,12 +1171,12 @@ CREATE TABLE IF NOT EXISTS llm_configs (
     extra_params JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT check_thinking_mode CHECK (thinking_mode <> ''),
-    CONSTRAINT check_top_p CHECK (top_p >= 0 AND top_p <= 1),
-    CONSTRAINT check_frequency_penalty CHECK (frequency_penalty >= -2 AND frequency_penalty <= 2),
-    CONSTRAINT check_presence_penalty CHECK (presence_penalty >= -2 AND presence_penalty <= 2),
-    CONSTRAINT check_default_tool_choice CHECK (default_tool_choice <> ''),
-    CONSTRAINT check_max_tool_calls CHECK (max_tool_calls >= 0)
+    CONSTRAINT ck_llm_configs_thinking_mode CHECK (thinking_mode <> ''),
+    CONSTRAINT ck_llm_configs_top_p CHECK (top_p >= 0 AND top_p <= 1),
+    CONSTRAINT ck_llm_configs_frequency_penalty CHECK (frequency_penalty >= -2 AND frequency_penalty <= 2),
+    CONSTRAINT ck_llm_configs_presence_penalty CHECK (presence_penalty >= -2 AND presence_penalty <= 2),
+    CONSTRAINT ck_llm_configs_default_tool_choice CHECK (default_tool_choice <> ''),
+    CONSTRAINT ck_llm_configs_max_tool_calls CHECK (max_tool_calls >= 0)
 );
 
 COMMENT ON COLUMN llm_configs.json_schema_mode IS 'JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified (default)';
@@ -1118,6 +1195,10 @@ COMMENT ON COLUMN llm_configs.enable_streaming IS 'Enable streaming output (expe
 
 -- Create indexes for llm_configs table
 CREATE INDEX idx_llm_configs_provider_id ON llm_configs(provider_id);
+
+-- Add foreign key constraint for llm_configs
+ALTER TABLE llm_configs ADD CONSTRAINT fk_llm_configs_provider
+    FOREIGN KEY (provider_id) REFERENCES llm_providers(id) ON DELETE RESTRICT;
 
 -- LLM test logs table - LLM configuration testing logs
 CREATE TABLE IF NOT EXISTS llm_test_logs (
@@ -1145,7 +1226,7 @@ CREATE TABLE IF NOT EXISTS llm_test_logs (
 );
 
 ALTER TABLE llm_test_logs
-    ADD CONSTRAINT check_llm_test_logs_thinking_mode CHECK (thinking_mode <> '');
+    ADD CONSTRAINT ck_llm_test_logs_thinking_mode CHECK (thinking_mode <> '');
 
 COMMENT ON COLUMN llm_test_logs.thinking_mode IS 'Thinking mode: enabled/disabled/auto';
 
@@ -1188,6 +1269,7 @@ DROP TRIGGER IF EXISTS update_ai_types_updated_at ON ai_types;
 DROP TRIGGER IF EXISTS update_ai_templates_updated_at ON ai_templates;
 DROP TRIGGER IF EXISTS update_ai_personas_updated_at ON ai_personas;
 DROP TRIGGER IF EXISTS update_ai_instances_updated_at ON ai_instances;
+DROP TRIGGER IF EXISTS update_ai_conversation_state_updated_at ON ai_conversation_state;
 DROP TRIGGER IF EXISTS update_ai_message_buffer_updated_at ON ai_message_buffer;
 DROP TRIGGER IF EXISTS update_ai_instance_dimensions_updated_at ON ai_instance_dimensions;
 DROP TRIGGER IF EXISTS update_user_violation_logs_updated_at ON user_violation_logs;
@@ -1218,6 +1300,7 @@ CREATE TRIGGER update_ai_types_updated_at BEFORE UPDATE ON ai_types FOR EACH ROW
 CREATE TRIGGER update_ai_templates_updated_at BEFORE UPDATE ON ai_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_personas_updated_at BEFORE UPDATE ON ai_personas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_instances_updated_at BEFORE UPDATE ON ai_instances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_conversation_state_updated_at BEFORE UPDATE ON ai_conversation_state FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_message_buffer_updated_at BEFORE UPDATE ON ai_message_buffer FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_instance_dimensions_updated_at BEFORE UPDATE ON ai_instance_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_violation_logs_updated_at BEFORE UPDATE ON user_violation_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

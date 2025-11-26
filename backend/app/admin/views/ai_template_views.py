@@ -4,7 +4,7 @@ AI Template admin views.
 This module contains Starlette-Admin views for AI instance configuration and persona inventory.
 """
 
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Sequence
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import StringField, TextAreaField, HasOne, IntegerField, JSONField
@@ -16,7 +16,7 @@ from starlette_admin.exceptions import FormValidationError
 
 from models.ai.template import AITemplate, AIPersona
 from admin.views.base import IntegerEnumField
-from enums import AIStyleStatus, ReusableStatus, AIPersonaStatus
+from enums import AITemplateStatus, ReusableStatus, AIPersonaStatus
 
 
 class AITemplateView(ModelView):
@@ -167,7 +167,7 @@ class AITemplateView(ModelView):
         ),
         IntegerEnumField(
             "status",
-            enum=AIStyleStatus,
+            enum=AITemplateStatus,
             label="Status",
             help_text="Active templates can be used",
             required=True,
@@ -221,18 +221,18 @@ class _PersonaRelatedStringField(StringField):
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
                 return "(No Qiao ID)"
-            
+
             # Query both the field value and check if profile exists
             stmt = select(Profile.id, getattr(Profile, self._profile_attr)).where(
                 Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
             )
             result = await session.execute(stmt)
             row = result.first()
-            
+
             # No profile record exists
             if row is None:
                 return "(No Profile)"
-            
+
             # Profile exists, check field value
             profile_id, value = row
             if value is None:
@@ -262,18 +262,18 @@ class _PersonaGenderField(StringField):
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
                 return "(No Qiao ID)"
-            
+
             # Query both profile existence and gender value
             stmt = select(Profile.id, Profile.gender).where(
                 Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
             )
             result = await session.execute(stmt)
             row = result.first()
-            
+
             # No profile record exists
             if row is None:
                 return "(No Profile)"
-            
+
             # Profile exists, check gender value
             profile_id, value = row
             if value is None:
@@ -320,14 +320,6 @@ class AIPersonaView(ModelView):
             data["is_reusable"] = ReusableStatus.REUSABLE
 
         return await super().create(request, data)
-
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        self._sync_ai_type(obj)
-        await super().before_create(request, data, obj)  # type: ignore[attr-defined]
-
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
-        self._sync_ai_type(obj)
-        await super().before_edit(request, data, obj)  # type: ignore[attr-defined]
 
     def _sync_ai_type(self, obj: Any) -> None:
         if hasattr(obj, "ai_type") and obj.ai_type is not None:

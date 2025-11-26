@@ -15,6 +15,7 @@ from utils.logging import get_logger
 from services.ai.queries import get_instance_context
 from services.ai.types import InstanceContext
 from enums import ContactType, UserType, ProfileOwnerType
+from exceptions import AIDataAccessError
 from models.ai.instance import AIInstance
 from models.contact import Contact
 from models.user import User
@@ -70,9 +71,7 @@ class ValidationService:
             current_relationship = instance_context.get("current_relationship")
 
             # Step 5: Validate relationship scores exist
-            relationship_scores = await self._validate_relationship_scores(
-                db, instance_context, style_info
-            )
+            relationship_scores = await self._validate_relationship_scores(db, instance_context, style_info)
 
             # Step 6: Validate LLM configurations available
             llm_configs = await self._validate_llm_configs(db)
@@ -102,12 +101,29 @@ class ValidationService:
         except Exception as e:
             logger.error("ai_instance_test_validation_error", instance_id=instance_id, error=str(e))
             raise ValidationError(
-                f"Validation failed due to system error: {str(e)}", error_code="SYSTEM_ERROR"
+                f"系统校验失败：{str(e)}",
+                error_code="SYSTEM_ERROR",
+                suggestions=["查看系统日志确认具体原因", "修复错误后重试"],
             )
 
     async def _validate_instance(self, db: AsyncSession, instance_id: int) -> InstanceContext:
         """Validate AI instance exists and is active, returning context."""
-        context = await get_instance_context(db, instance_id=instance_id)
+        try:
+            context = await get_instance_context(db, instance_id=instance_id)
+        except AIDataAccessError as exc:
+            reason_hint = None
+            if isinstance(getattr(exc, "details", None), dict):
+                reason_hint = exc.details.get("reason") or exc.details.get("query")
+            readable_reason = reason_hint or getattr(exc, "reason", None) or str(exc)
+            raise ValidationError(
+                f"无法加载实例上下文：{readable_reason}",
+                error_code="INSTANCE_CONTEXT_QUERY_FAILED",
+                suggestions=[
+                    "确认该实例的 Profile、风格、人格配置是否完整",
+                    "检查 ai_instances.qiao_id 与 profiles.owner_qiao_id 是否匹配",
+                    "查看后台日志获取更详细的 SQL 错误",
+                ],
+            )
 
         if not context:
             stmt = select(AIInstance).where(AIInstance.id == instance_id)
@@ -125,29 +141,29 @@ class ValidationService:
 
             if instance_record:
                 raise ValidationError(
-                    f"AI instance with ID {instance_id} exists but context could not be loaded",
+                    f"ID 为 {instance_id} 的 AI 实例存在，但无法加载运行上下文",
                     error_code="INSTANCE_CONTEXT_MISSING",
                     suggestions=[
-                        "Check if instance profile and style/personality are configured correctly",
-                        "Ensure AIInstance.qiao_id matches Profile.owner_qiao_id",
+                        "检查该实例是否已经正确配置头像、风格与性格",
+                        "确保 AIInstance.qiao_id 与 profiles.owner_qiao_id 一致",
                     ],
                 )
             raise ValidationError(
-                f"AI instance with ID {instance_id} not found in database",
+                f"数据库中未找到 ID 为 {instance_id} 的 AI 实例",
                 error_code="INSTANCE_NOT_FOUND",
                 suggestions=[
-                    "Check if the instance ID is correct",
-                    "Verify the instance exists in AI Instances list",
+                    "确认实例 ID 是否填写正确",
+                    "在 AI 实例列表中确认该实例是否存在",
                 ],
             )
 
         if context["status"] != 1:
             raise ValidationError(
-                f"AI instance '{context['instance_qiao_id']}' is not active (status: {context['status']})",
+                f"AI 实例 {context['instance_qiao_id']} 未处于激活状态 (status={context['status']})",
                 error_code="INSTANCE_INACTIVE",
                 suggestions=[
-                    "Activate the instance in AI Instances management",
-                    "Check instance status settings",
+                    "在 AI 实例管理中将该实例设为启用",
+                    "检查实例状态配置是否正确",
                 ],
             )
 
@@ -166,18 +182,16 @@ class ValidationService:
             "region": profile.get("region"),
         }
 
-    def _validate_ai_configuration(
-        self, context: InstanceContext
-    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    def _validate_ai_configuration(self, context: InstanceContext) -> tuple[Dict[str, Any], Dict[str, Any]]:
         """Validate AI style and personality configuration from context."""
         style = context["style"]
         personality = context["personality"]
 
         if personality.get("status") != 1:
             raise ValidationError(
-                f"AI personality '{personality.get('name')}' is not active",
+                f"AI 人格 {personality.get('name')} 未启用",
                 error_code="PERSONALITY_INACTIVE",
-                suggestions=["Activate the personality", "Check personality status"],
+                suggestions=["在 AI 人格管理中启用该人格", "检查人格状态配置"],
             )
 
         style_info = {
@@ -213,13 +227,12 @@ class ValidationService:
         if not scores:
             # If still no scores after auto-initialization, this is a critical error
             raise ValidationError(
-                f"Failed to initialize relationship scores for instance '{instance_context['instance_qiao_id']}' "
-                f"(ID: {instance_context['instance_id']}, Style: {style_info['display_name']})",
+                f"无法为实例 {instance_context['instance_qiao_id']} 初始化关系分数（Style: {style_info['display_name']}）",
                 error_code="RELATIONSHIP_SCORES_INIT_FAILED",
                 suggestions=[
-                    f"Verify style '{style_info['name']}' has dimensions configured in ai_style_dimensions",
-                    "Check database logs for initialization errors",
-                    "Ensure ai_style_dimensions table has initial_position values",
+                    f"确认风格 {style_info['name']} 已在 ai_style_dimensions 中配置维度",
+                    "查看数据库日志是否有初始化错误",
+                    "确保 ai_style_dimensions 表写入了 initial_position",
                 ],
             )
 
@@ -240,12 +253,12 @@ class ValidationService:
 
         if not configs:
             raise ValidationError(
-                "No LLM configurations available",
+                "暂无可用的 LLM 配置",
                 error_code="LLM_CONFIGS_MISSING",
                 suggestions=[
-                    "Configure at least one LLM provider and config",
-                    "Check LLM Configurations management",
-                    "Verify LLM provider API keys are set",
+                    "至少配置并启用一个 LLM 服务商",
+                    "在 LLM 配置管理中检查配置状态",
+                    "确认 LLM 提供商的 API Key 已正确设置",
                 ],
             )
 
@@ -285,18 +298,18 @@ class ValidationService:
                 json.loads(prompt_variables)
         except (json.JSONDecodeError, TypeError) as e:
             raise ValidationError(
-                f"Invalid JSON format in prompt_variables: {str(e)}",
+                f"prompt_variables 字段不是合法的 JSON：{str(e)}",
                 error_code="PROMPT_VARIABLES_INVALID_JSON",
                 suggestions=[
-                    "Fix JSON format in prompt_variables field",
-                    'Ensure it\'s a valid JSON object like {"key": "value"}',
+                    "请修复 prompt_variables 字段中的 JSON 字符串",
+                    '示例格式：{"key": "value"}',
                 ],
             )
 
     async def _ensure_instance_profile_exists(self, db: AsyncSession, instance: AIInstance) -> None:
         """Ensure AI instance has a profile record (create empty profile if needed)."""
         existing = await profile_crud.get_by_owner_qiao_id(
-            db, owner_qiao_id=instance.qiao_id, owner_type=ProfileOwnerType.AI
+            db, owner_qiao_id=instance.qiao_id, owner_type=ProfileOwnerType.AI_INSTANCE
         )
         if existing:
             return
@@ -306,7 +319,7 @@ class ValidationService:
             obj_in=ProfileCreate(),
             owner_id=instance.id,
             owner_qiao_id=instance.qiao_id,
-            owner_type=ProfileOwnerType.AI,
+            owner_type=ProfileOwnerType.AI_INSTANCE,
             commit=False,
         )
         await db.flush()

@@ -9,8 +9,7 @@ Responsibilities:
 All functions are stateless. DB access is restricted to candidate collection.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
-from starlette.datastructures import State
+from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 

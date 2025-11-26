@@ -5,7 +5,7 @@ This module provides both standard CRUD operations and helper queries
 for template and persona management.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Optional, Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,25 +25,6 @@ logger = get_logger(__name__)
 class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
     """AI Template CRUD operations with complex queries."""
 
-    async def get_by_name(self, db: AsyncSession, *, name: str) -> Optional[AITemplate]:
-        """
-        Get template by name.
-
-        Args:
-            db: Database session
-            name: Template name
-
-        Returns:
-            Template object or None if not found
-        """
-        try:
-            result = await db.execute(select(AITemplate).where(AITemplate.display_name == name))
-            return result.scalar_one_or_none()
-
-        except Exception as e:
-            logger.error("ai_template_get_by_name_failed", error=str(e), name=name)
-            return None
-
     async def get_available_templates(
         self,
         db: AsyncSession,
@@ -51,7 +32,7 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
         type_id: Optional[int] = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[AITemplate]:
+    ) -> Sequence[AITemplate]:
         """
         Get available templates.
 
@@ -68,7 +49,7 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
             stmt = select(AITemplate).where(AITemplate.status == 1)  # active
             if type_id is not None:
                 stmt = stmt.where(AITemplate.type_id == type_id)
-            stmt = stmt.order_by(AITemplate.name).offset(skip).limit(limit)
+            stmt = stmt.order_by(AITemplate.display_name).offset(skip).limit(limit)
 
             result = await db.execute(stmt)
 

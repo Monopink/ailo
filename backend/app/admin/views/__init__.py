@@ -58,6 +58,7 @@ from .ai_log_views import (
 )
 
 from .ai_conversation_views import (
+    ai_conversation_state_view,
     ai_message_buffer_view,
     ai_conversation_item_view,
     ai_conversation_item_archive_view,
@@ -179,6 +180,7 @@ __all__ = [
     "ai_type_view",
     "ai_persona_view",
     "ai_request_log_view",
+    "ai_conversation_state_view",
     "ai_message_buffer_view",
     "ai_conversation_item_view",
     "ai_conversation_item_archive_view",

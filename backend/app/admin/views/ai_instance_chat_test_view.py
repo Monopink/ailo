@@ -62,8 +62,8 @@ class AIInstanceChatTestView(CustomView):
                     "custom_views/ai_instance_chat_test.html",
                     {
                         "request": request,
-                        "error": "Instance ID is required in URL path",
-                        "page_title": "AI Instance Chat Test - Error",
+                        "error": "URL 中缺少实例 ID",
+                        "page_title": "AI 实例测试 - 错误",
                     },
                 )
 
@@ -75,8 +75,8 @@ class AIInstanceChatTestView(CustomView):
                     "custom_views/ai_instance_chat_test.html",
                     {
                         "request": request,
-                        "error": f"Invalid instance_id: {instance_id_str}",
-                        "page_title": "AI Instance Chat Test - Error",
+                        "error": f"实例 ID 无效：{instance_id_str}",
+                        "page_title": "AI 实例测试 - 错误",
                     },
                 )
 
@@ -109,8 +109,8 @@ class AIInstanceChatTestView(CustomView):
                 "custom_views/ai_instance_chat_test.html",
                 {
                     "request": request,
-                    "error": f"Failed to load AI instance chat test interface: {str(e)}",
-                    "page_title": "AI Instance Chat Test - Error",
+                    "error": f"加载测试页面失败：{str(e)}",
+                    "page_title": "AI 实例测试 - 错误",
                 },
             )
 
@@ -130,17 +130,11 @@ class AIInstanceChatTestView(CustomView):
                 llm_config_name = get_text_field(form_data, "llm_config_name")
                 test_message = get_text_field(form_data, "test_message")
             except FormFieldError as e:
-                return JSONResponse(
-                    {"error": str(e)},
-                    status_code=400,
-                )
+                return JSONResponse({"error": f"字段校验失败：{str(e)}"}, status_code=400)
 
             # Validate message content
             if not test_message.strip():
-                return JSONResponse(
-                    {"error": "Test message cannot be empty"},
-                    status_code=400,
-                )
+                return JSONResponse({"error": "测试信息不能为空"}, status_code=400)
 
             async with SessionLocal() as db:
                 # Use the unified facade service for complete test execution
@@ -155,7 +149,9 @@ class AIInstanceChatTestView(CustomView):
                         if isinstance(parsed, dict):
                             mock_overrides = parsed
                     except Exception:
-                        return JSONResponse({"error": "Invalid mock_overrides_json"}, status_code=400)
+                        return JSONResponse(
+                            {"error": "mock_overrides_json 不是合法 JSON"}, status_code=400
+                        )
 
                 # Persist switch (default ON)
                 persist_raw = form_data.get("persist")
@@ -266,7 +262,7 @@ class AIInstanceChatTestView(CustomView):
                 error=str(e),
             )
             return JSONResponse(
-                {"success": False, "error": str(e)},
+                {"success": False, "error": f"字段校验失败：{str(e)}"},
                 status_code=400,
             )
 
@@ -293,7 +289,7 @@ class AIInstanceChatTestView(CustomView):
                 exc_info=True,
             )
             return JSONResponse(
-                {"success": False, "error": f"Test request failed: {str(e)}"},
+                {"success": False, "error": f"测试请求异常：{str(e)}"},
                 status_code=500,
             )
 
@@ -302,18 +298,12 @@ class AIInstanceChatTestView(CustomView):
         try:
             instance_id_str = request.path_params.get("id")
             if not instance_id_str:
-                return JSONResponse(
-                    {"error": "Missing instance_id in URL path"},
-                    status_code=400,
-                )
+                return JSONResponse({"error": "URL 中缺少实例 ID"}, status_code=400)
 
             try:
                 instance_id = int(instance_id_str)
             except (ValueError, TypeError):
-                return JSONResponse(
-                    {"error": "Invalid instance_id format"},
-                    status_code=400,
-                )
+                return JSONResponse({"error": "实例 ID 格式错误"}, status_code=400)
 
             async with SessionLocal() as db:
                 readiness = await ai_instance_chat_test_service.validate_test_readiness(
@@ -329,7 +319,7 @@ class AIInstanceChatTestView(CustomView):
                 error=str(e),
             )
             return JSONResponse(
-                {"error": f"Failed to check test readiness: {str(e)}"},
+                {"error": f"获取测试自检状态失败：{str(e)}"},
                 status_code=500,
             )
 
@@ -338,12 +328,12 @@ class AIInstanceChatTestView(CustomView):
         try:
             instance_id_str = request.path_params.get("id")
             if not instance_id_str:
-                return JSONResponse({"error": "Missing instance_id in URL path"}, status_code=400)
+                return JSONResponse({"error": "URL 中缺少实例 ID"}, status_code=400)
 
             try:
                 instance_id = int(instance_id_str)
             except (ValueError, TypeError):
-                return JSONResponse({"error": "Invalid instance_id format"}, status_code=400)
+                return JSONResponse({"error": "实例 ID 格式错误"}, status_code=400)
 
             async with SessionLocal() as db:
                 result = await ai_instance_chat_test_service.archive_all_test_conversations(
@@ -357,7 +347,7 @@ class AIInstanceChatTestView(CustomView):
 
         except Exception as e:
             logger.error("archive_conversations_failed", instance_id=instance_id_str, error=str(e))
-            return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+            return JSONResponse({"success": False, "error": f"归档失败：{str(e)}"}, status_code=500)
 
 
 # Create view instance

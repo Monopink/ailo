@@ -9,9 +9,14 @@ from typing import Any, Dict
 
 from starlette.requests import Request
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import IntegerField, StringField, TextAreaField, BooleanField, JSONField
+from starlette_admin import IntegerField, StringField, TextAreaField, JSONField
 
-from models.ai.instance import AIMessageBuffer, AIConversationItem, AIConversationItemArchive
+from models.ai.instance import (
+    AIMessageBuffer,
+    AIConversationItem,
+    AIConversationItemArchive,
+    AIConversationState,
+)
 from admin.views.base import IntegerEnumField
 from admin.fields import LocalDateTimeField
 from enums import AIMessageBufferState
@@ -328,6 +333,75 @@ class AIConversationItemArchiveView(ModelView):
     ]
 
 
+class AIConversationStateView(ModelView):
+    """AI Conversation State view - manages pending messages and interruption state."""
+
+    exclude_fields_from_create = [
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_edit = [
+        "user_qiao_id",
+        "instance_qiao_id",
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_list = []
+
+    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+        """Normalize optional fields before persisting."""
+        # Ensure pending_messages is None if empty
+        if not data.get("pending_messages"):
+            data["pending_messages"] = None
+
+        # Ensure interrupted_at is None if empty
+        if data.get("interrupted_at") == "":
+            data["interrupted_at"] = None
+
+        return await super().edit(request, pk, data)
+
+    def can_create(self, request: Request) -> bool:
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        return False
+
+    fields_default_sort = [("updated_at", True)]
+    searchable_fields = ["user_qiao_id", "instance_qiao_id"]
+    sortable_fields = [
+        "user_qiao_id",
+        "instance_qiao_id",
+        "interrupted_at",
+        "created_at",
+        "updated_at",
+    ]
+
+    fields = [
+        StringField(
+            "user_qiao_id",
+            label="User Qiao ID",
+            help_text="User external ID (primary key)",
+        ),
+        StringField(
+            "instance_qiao_id",
+            label="Instance Qiao ID",
+            help_text="Instance external ID (primary key)",
+        ),
+        JSONField(
+            "pending_messages",
+            label="Pending Messages",
+            help_text='Pending messages structure: {"outgoing": [...], "followup": [...], "total_pending": N}',
+        ),
+        LocalDateTimeField(
+            "interrupted_at",
+            label="Interrupted At",
+            help_text="Timestamp when the last interruption occurred",
+        ),
+        LocalDateTimeField("created_at", label="Created At", help_text="State creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+    ]
+
+
 # Create view instances
 ai_message_buffer_view = AIMessageBufferView(
     AIMessageBuffer,
@@ -353,8 +427,17 @@ ai_conversation_item_archive_view = AIConversationItemArchiveView(
     identity="ai_conversation_item_archive",
 )
 
+ai_conversation_state_view = AIConversationStateView(
+    AIConversationState,
+    name="Conversation State",
+    label="Conversation State",
+    icon="fa fa-exchange-alt",
+    identity="ai_conversation_state",
+)
+
 # Export conversation views
 AI_CONVERSATION_VIEWS = [
+    ai_conversation_state_view,
     ai_message_buffer_view,
     ai_conversation_item_view,
     ai_conversation_item_archive_view,

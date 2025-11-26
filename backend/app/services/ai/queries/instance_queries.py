@@ -57,7 +57,7 @@ async def get_instance_context(
             .join(AIStyle, AIInstance.style_id == AIStyle.id)
             .join(
                 Profile,
-                and_(Profile.owner_qiao_id == AIInstance.qiao_id, Profile.owner_type == 2),
+                and_(Profile.owner_qiao_id == AIInstance.qiao_id, Profile.owner_type.in_([2, 3])),
             )
             .outerjoin(AIRelationship, AIInstance.relationship_id == AIRelationship.id)
         )
@@ -84,6 +84,8 @@ async def get_instance_context(
         context: InstanceContext = {
             "instance_id": instance.id,
             "instance_qiao_id": instance.qiao_id,
+            "user_id": instance.user_id,
+            "user_qiao_id": instance.user_qiao_id,
             "ai_type": ai_type_info,
             "status": instance.status,
             "created_by": instance.created_by,
@@ -92,7 +94,7 @@ async def get_instance_context(
             "request_params": dict(instance.request_params or {}),
             "typing_speed_wpm": instance.typing_speed_wpm,
             "timezone": instance.timezone or "Asia/Shanghai",
-            "created_from_profile_qiao_id": instance.created_from_profile_qiao_id,
+            "created_from_profile_qiao_id": getattr(instance, "created_from_profile_qiao_id", None),
             "relationship_id": instance.relationship_id,
             "relationship_counts": _normalize_relationship_counts(instance.relationship_counts),
             "style": _build_style(style),

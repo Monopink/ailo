@@ -187,7 +187,7 @@ CREATE UNIQUE INDEX uniq_contact_requests_pending_pair ON contact_requests(from_
 CREATE TABLE IF NOT EXISTS profiles (
     id BIGINT PRIMARY KEY,
     owner_id BIGINT NOT NULL,
-    owner_qiao_id VARCHAR(32) NOT NULL,
+    owner_qiao_id VARCHAR(32) NOT NULL UNIQUE,
     owner_type INTEGER NOT NULL,
     nickname VARCHAR(100),
     gender INTEGER,
@@ -197,8 +197,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     bio TEXT,
     region VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(owner_qiao_id, owner_type)
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for profiles table
@@ -360,7 +359,6 @@ CREATE INDEX idx_preset_assets_sort_order ON preset_assets(sort_order);
 -- AI styles table - AI style definitions
 CREATE TABLE IF NOT EXISTS ai_styles (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
     display_name VARCHAR(100) NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -374,7 +372,6 @@ CREATE TABLE IF NOT EXISTS ai_styles (
 -- AI relationships table - Relationship type definitions
 CREATE TABLE IF NOT EXISTS ai_relationships (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
     display_name VARCHAR(100) NOT NULL,
     prompt_fragment TEXT,
     status INTEGER NOT NULL DEFAULT 1,
@@ -453,7 +450,6 @@ CREATE INDEX idx_ai_dim_rel_mappings_relationship_id ON ai_dimension_relationshi
 -- AI personalities table - Personality templates
 CREATE TABLE IF NOT EXISTS ai_personalities (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
     display_name VARCHAR(100) NOT NULL,
     prompt TEXT NOT NULL,
     json_schema JSONB,

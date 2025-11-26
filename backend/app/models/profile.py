@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for user profiles and profile change logs
 """
 
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import BigInteger, Integer, String, Text, Index, and_, UniqueConstraint
+from sqlalchemy import BigInteger, Integer, String, Text, Index, and_
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -28,7 +28,9 @@ class Profile(SnowflakeModel):
 
     owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Owner internal ID")
 
-    owner_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Owner external ID")
+    owner_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, unique=True, comment="Owner external ID (globally unique)"
+    )
 
     owner_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Owner type: 1=user (all user types), 2=ai"
@@ -94,11 +96,6 @@ class Profile(SnowflakeModel):
         elif self.owner_type == ProfileOwnerType.AI_INSTANCE:
             return self._owner_instance
         return None
-
-    # Constraints
-    __table_args__ = (
-        UniqueConstraint("owner_qiao_id", "owner_type", name="profiles_owner_qiao_id_owner_type_key"),
-    )
 
 
 class UserProfileLog(ImmutableSnowflakeModel):

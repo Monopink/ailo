@@ -178,7 +178,6 @@ async def run_style_score_test(
         if rid not in unique:
             unique[rid] = {
                 "relationship_id": rid,
-                "relationship_name": c.get("relationship_name"),
                 "relationship_display_name": c.get("relationship_display_name"),
                 "prompt_fragment": c.get("prompt_fragment"),
                 "count": 0,
@@ -206,5 +205,4 @@ async def run_style_score_test(
         "selected_relationship": selected_relationship,
         "selection_reason": reason,
         "current_relationship_id": current_relationship_id,
-        "current_relationship_name": None,
     }

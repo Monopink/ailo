@@ -554,7 +554,7 @@ document.getElementById('generate-relationship-btn')?.addEventListener('click', 
     const relDisplay = document.getElementById('current-relationship-display');
     const relInput = document.getElementById('selected-relationship-id');
     if (rel) {
-      const relName = rel.relationship_display_name || rel.relationship_name || 'Unknown';
+      const relName = rel.relationship_display_name || ('ID ' + (rel.relationship_id || 'Unknown'));
       if (relDisplay) relDisplay.textContent = relName;
       if (relInput) relInput.value = rel.relationship_id;
       alert('Generated successfully!\nRelationship: ' + relName + '\nPlease click Save to persist changes.');
@@ -583,7 +583,8 @@ document.getElementById('generate-relationship-btn')?.addEventListener('click', 
      panel.style.display = 'block';
      const rel = result.selected_relationship;
     if (rel) {
-      summary.innerHTML = `<div class="alert alert-success">Selected Relationship: <strong>${rel.relationship_display_name || rel.relationship_name || rel.relationship_id}</strong></div>`;
+      const relName = rel.relationship_display_name || ('ID ' + (rel.relationship_id || 'Unknown'));
+      summary.innerHTML = `<div class="alert alert-success">Selected Relationship: <strong>${relName}</strong></div>`;
     } else {
       summary.innerHTML = `<div class="alert alert-warning">No relationship selected. Reason: ${result.selection_reason || 'n/a'}</div>`;
     }
@@ -614,7 +615,7 @@ document.getElementById('generate-relationship-btn')?.addEventListener('click', 
          const relDisplay = document.getElementById('current-relationship-display');
          const relInput = document.getElementById('selected-relationship-id');
          if (rel) {
-           const relName = rel.relationship_display_name || rel.relationship_name || 'Unknown';
+           const relName = rel.relationship_display_name || ('ID ' + (rel.relationship_id || 'Unknown'));
            if (relDisplay) relDisplay.textContent = relName;
            if (relInput) relInput.value = rel.relationship_id;
          } else {

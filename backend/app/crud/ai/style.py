@@ -127,7 +127,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
                         "priority": mapping.priority,
                         "limit_count": mapping.limit_count,
                         "relationship_id": relationship.id,
-                        "relationship_name": relationship.name,
+                        "relationship_display_name": relationship.display_name,
                         "relationship_prompt": relationship.prompt_fragment,
                     }
                 )
@@ -159,7 +159,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             result = await db.execute(
                 select(AIStyle)
                 .where(AIStyle.status == 1)  # active
-                .order_by(AIStyle.name)
+                .order_by(AIStyle.display_name)
                 .offset(skip)
                 .limit(limit)
             )
@@ -223,25 +223,6 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
     """AI Relationship CRUD operations."""
 
-    async def get_by_name(self, db: AsyncSession, *, name: str) -> Optional[AIRelationship]:
-        """
-        Get relationship by name.
-
-        Args:
-            db: Database session
-            name: Relationship name
-
-        Returns:
-            Relationship object or None if not found
-        """
-        try:
-            result = await db.execute(select(AIRelationship).where(AIRelationship.name == name))
-            return result.scalar_one_or_none()
-
-        except Exception as e:
-            logger.error("relationship_get_by_name_failed", error=str(e), name=name)
-            return None
-
     async def get_available_relationships(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
     ) -> List[AIRelationship]:
@@ -258,7 +239,7 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
         """
         try:
             result = await db.execute(
-                select(AIRelationship).order_by(AIRelationship.name).offset(skip).limit(limit)
+                select(AIRelationship).order_by(AIRelationship.display_name).offset(skip).limit(limit)
             )
 
             relationships = result.scalars().all()

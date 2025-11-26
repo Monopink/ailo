@@ -44,16 +44,29 @@ class _ProfileRelatedStringField(StringField):
 
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
-                return ""
-            stmt = select(getattr(Profile, self._profile_attr)).where(
+                return "(No Qiao ID)"
+            
+            # Query both the field value and check if profile exists
+            stmt = select(Profile.id, getattr(Profile, self._profile_attr)).where(
                 Profile.owner_qiao_id == obj.qiao_id,
                 Profile.owner_type.in_([ProfileOwnerType.AI_INSTANCE, ProfileOwnerType.AI_PERSONA]),
             )
             result = await session.execute(stmt)
-            value = result.scalar_one_or_none()
-            return "" if value is None else str(value)
+            row = result.first()
+            
+            # No profile record exists
+            if row is None:
+                return "(No Profile)"
+            
+            # Profile exists, check field value
+            profile_id, value = row
+            if value is None:
+                return None  # Framework will display as -null-
+            if value == "":
+                return "(Empty)"
+            return str(value)
         except Exception:
-            return ""
+            return "(Error)"
 
 
 class _ProfileGenderField(StringField):
@@ -72,21 +85,30 @@ class _ProfileGenderField(StringField):
 
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
-                return ""
-            stmt = select(Profile.gender).where(
+                return "(No Qiao ID)"
+            
+            # Query both profile existence and gender value
+            stmt = select(Profile.id, Profile.gender).where(
                 Profile.owner_qiao_id == obj.qiao_id,
                 Profile.owner_type.in_([ProfileOwnerType.AI_INSTANCE, ProfileOwnerType.AI_PERSONA]),
             )
             result = await session.execute(stmt)
-            value = result.scalar_one_or_none()
+            row = result.first()
+            
+            # No profile record exists
+            if row is None:
+                return "(No Profile)"
+            
+            # Profile exists, check gender value
+            profile_id, value = row
             if value is None:
-                return ""
+                return None  # Framework will display as -null-
             try:
                 return Gender(int(value)).name
             except Exception:
                 return str(value)
         except Exception:
-            return ""
+            return "(Error)"
 
 
 class _ProfileOwnerTypeField(StringField):
@@ -105,27 +127,36 @@ class _ProfileOwnerTypeField(StringField):
 
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
-                return ""
-            stmt = select(Profile.owner_type).where(
+                return "(No Qiao ID)"
+            
+            # Query both profile existence and owner_type value
+            stmt = select(Profile.id, Profile.owner_type).where(
                 Profile.owner_qiao_id == obj.qiao_id,
                 Profile.owner_type.in_([ProfileOwnerType.AI_INSTANCE, ProfileOwnerType.AI_PERSONA]),
             )
             result = await session.execute(stmt)
-            value = result.scalar_one_or_none()
+            row = result.first()
+            
+            # No profile record exists
+            if row is None:
+                return "(No Profile)"
+            
+            # Profile exists, check owner_type value
+            profile_id, value = row
             if value is None:
-                return ""
+                return None  # Framework will display as -null-
             try:
                 return ProfileOwnerType(int(value)).name
             except Exception:
                 return str(value)
         except Exception:
-            return ""
+            return "(Error)"
 
 
 class _RelationshipDisplayNameField(StringField):
     """Computed field to show relationship display_name for AIInstance."""
 
-    def __init__(self, name: str = "relationship_display_name", label: str = "Current Relationship"):
+    def __init__(self, name: str = "relationship_display_name", label: str = "Relationship Name"):
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
@@ -133,11 +164,23 @@ class _RelationshipDisplayNameField(StringField):
 
     async def parse_obj(self, request, obj):  # type: ignore[override]
         try:
-            if hasattr(obj, "relationship") and obj.relationship is not None:
-                return str(obj.relationship.display_name)
-            return ""
+            # Check if relationship exists
+            if not hasattr(obj, "relationship"):
+                return "(No Relationship Attr)"
+            
+            # Relationship is None (not assigned)
+            if obj.relationship is None:
+                return None  # Framework will display as -null-
+            
+            # Relationship exists, get display_name
+            display_name = getattr(obj.relationship, "display_name", None)
+            if display_name is None:
+                return None  # Framework will display as -null-
+            if display_name == "":
+                return "(Empty)"
+            return str(display_name)
         except Exception:
-            return ""
+            return "(Error)"
 
 
 class _DimensionDisplayNameField(StringField):

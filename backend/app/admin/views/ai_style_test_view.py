@@ -98,7 +98,7 @@ class AIStyleTestView(CustomView):
                     style_info_result = await db.execute(
                         text(
                             """
-                            SELECT id, name, display_name
+                            SELECT id, display_name, status
                             FROM ai_styles
                             WHERE id = :style_id
                             """
@@ -109,8 +109,8 @@ class AIStyleTestView(CustomView):
                     if srow:
                         context["style_info"] = {
                             "id": srow.id,
-                            "name": getattr(srow, "name", None),
                             "display_name": getattr(srow, "display_name", None),
+                            "status": getattr(srow, "status", None),
                         }
 
                     dimensions_result = await db.execute(
@@ -149,7 +149,7 @@ class AIStyleTestView(CustomView):
                     relationships_result = await db.execute(
                         text(
                             """
-                            SELECT DISTINCT r.id, r.name, r.display_name
+                            SELECT DISTINCT r.id, r.display_name
                             FROM ai_relationships r
                             JOIN ai_dimension_relationship_mappings drm ON r.id = drm.relationship_id
                             JOIN ai_style_dimensions asd ON asd.dimension_id = drm.dimension_id
@@ -162,7 +162,6 @@ class AIStyleTestView(CustomView):
                     context["relationships"] = [
                         {
                             "id": row.id,
-                            "name": row.name,
                             "display_name": row.display_name,
                         }
                         for row in relationships_result.fetchall()

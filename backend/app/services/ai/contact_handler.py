@@ -102,18 +102,14 @@ async def handle_ai_contact_request(
 async def _lock_persona_by_qiao_id(db: AsyncSession, *, qiao_id: str) -> Optional[AIPersona]:
     """Lock persona row for update by qiao_id."""
 
-    stmt = (
-        select(AIPersona)
-        .where(AIPersona.qiao_id == qiao_id)
-        .with_for_update()
-    )
+    stmt = select(AIPersona).where(AIPersona.qiao_id == qiao_id).with_for_update()
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 
 async def _select_template_for_ai_type(db: AsyncSession, *, type_id: int) -> Optional[AITemplate]:
     """Select a template for the AI type, preferring single-use templates.
-    
+
     Selection strategy:
     1. Prioritize single-use templates over reusable ones
     2. Sort by priority DESC (higher number = higher priority)

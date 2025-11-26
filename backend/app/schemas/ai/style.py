@@ -17,19 +17,19 @@ from schemas.common import BaseSchema
 class AIStyleBase(BaseSchema):
     """Base AI style schema."""
 
-    name: str = Field(..., max_length=100, description="Style name")
+    display_name: str = Field(..., max_length=100, description="Display name")
 
 
 class AIStyleCreate(BaseModel):
     """Schema for creating an AI style."""
 
-    name: str = Field(..., max_length=100, description="Style name")
+    display_name: str = Field(..., max_length=100, description="Display name")
 
 
 class AIStyleUpdate(BaseModel):
     """Schema for updating an AI style."""
 
-    name: Optional[str] = Field(None, max_length=100, description="Style name")
+    display_name: Optional[str] = Field(None, max_length=100, description="Display name")
     status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
@@ -119,23 +119,15 @@ class AIStyleDimensionResponse(AIStyleDimensionBase):
 class AIRelationshipBase(BaseSchema):
     """Base AI relationship schema."""
 
-    name: str = Field(..., max_length=100, description="Relationship name")
-    description: str = Field(..., max_length=500, description="Relationship description")
+    display_name: str = Field(..., max_length=100, description="Display name")
+    prompt_fragment: Optional[str] = Field(None, description="Prompt fragment for this relationship")
 
 
 class AIRelationshipCreate(BaseModel):
     """Schema for creating an AI relationship."""
 
-    name: str = Field(..., max_length=100, description="Relationship name")
+    display_name: str = Field(..., max_length=100, description="Display name")
     prompt_fragment: Optional[str] = Field(None, description="Prompt fragment for this relationship")
-
-
-class AIRelationshipUpdate(BaseModel):
-    """Schema for updating an AI relationship."""
-
-    name: Optional[str] = Field(None, max_length=100, description="Relationship name")
-    prompt_fragment: Optional[str] = Field(None, description="Prompt fragment for this relationship")
-    status: Optional[int] = Field(None, description="Status")
 
 
 class AIRelationshipResponse(AIRelationshipBase):

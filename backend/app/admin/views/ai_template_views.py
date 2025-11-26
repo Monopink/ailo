@@ -220,15 +220,28 @@ class _PersonaRelatedStringField(StringField):
 
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
-                return ""
-            stmt = select(getattr(Profile, self._profile_attr)).where(
+                return "(No Qiao ID)"
+            
+            # Query both the field value and check if profile exists
+            stmt = select(Profile.id, getattr(Profile, self._profile_attr)).where(
                 Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
             )
             result = await session.execute(stmt)
-            value = result.scalar_one_or_none()
-            return "" if value is None else str(value)
+            row = result.first()
+            
+            # No profile record exists
+            if row is None:
+                return "(No Profile)"
+            
+            # Profile exists, check field value
+            profile_id, value = row
+            if value is None:
+                return None  # Framework will display as -null-
+            if value == "":
+                return "(Empty)"
+            return str(value)
         except Exception:
-            return ""
+            return "(Error)"
 
 
 class _PersonaGenderField(StringField):
@@ -248,20 +261,29 @@ class _PersonaGenderField(StringField):
 
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
-                return ""
-            stmt = select(Profile.gender).where(
+                return "(No Qiao ID)"
+            
+            # Query both profile existence and gender value
+            stmt = select(Profile.id, Profile.gender).where(
                 Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
             )
             result = await session.execute(stmt)
-            value = result.scalar_one_or_none()
+            row = result.first()
+            
+            # No profile record exists
+            if row is None:
+                return "(No Profile)"
+            
+            # Profile exists, check gender value
+            profile_id, value = row
             if value is None:
-                return ""
+                return None  # Framework will display as -null-
             try:
                 return Gender(int(value)).name
             except Exception:
                 return str(value)
         except Exception:
-            return ""
+            return "(Error)"
 
 
 class AIPersonaView(ModelView):

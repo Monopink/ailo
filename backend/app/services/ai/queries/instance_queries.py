@@ -221,13 +221,12 @@ def _normalize_relationship_counts(raw_counts: Optional[Dict[str, Any]]) -> Rela
 
 
 def _build_style(style: AIStyle) -> StyleInfo:
-    return StyleInfo(id=style.id, name=style.name, display_name=style.display_name)
+    return StyleInfo(id=style.id, display_name=style.display_name)
 
 
 def _build_personality(personality: AIPersonality) -> PersonalityInfo:
     return PersonalityInfo(
         id=personality.id,
-        name=personality.name,
         display_name=personality.display_name,
         prompt=personality.prompt,
         status=personality.status,
@@ -277,7 +276,6 @@ def _build_current_relationship(relationship: Optional[AIRelationship]) -> Optio
 
     return CurrentRelationship(
         id=relationship.id,
-        name=relationship.name,
         display_name=relationship.display_name,
         prompt_fragment=relationship.prompt_fragment,
     )

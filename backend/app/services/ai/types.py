@@ -13,7 +13,6 @@ class StyleInfo(TypedDict):
     """Style metadata exposed to AI services."""
 
     id: int
-    name: str
     display_name: str
 
 
@@ -21,7 +20,6 @@ class PersonalityInfo(TypedDict):
     """Personality metadata and prompt template."""
 
     id: int
-    name: str
     display_name: str
     prompt: str
     status: int
@@ -59,7 +57,6 @@ class CurrentRelationship(TypedDict):
     """Currently selected relationship metadata."""
 
     id: int
-    name: str
     display_name: str
     prompt_fragment: str
 

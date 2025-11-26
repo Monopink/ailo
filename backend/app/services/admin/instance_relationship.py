@@ -200,7 +200,9 @@ async def generate_relationship_for_instance(
             new_scores = await calculate_new_scores(db, context, llm_scores)
             await update_relationship_positions(db, instance_id, new_scores)
             if selected:
-                disp = selected.get("relationship_display_name") or selected.get("relationship_name") or ""
+                disp = selected.get("relationship_display_name") or str(
+                    selected.get("relationship_id") or ""
+                )
                 await update_instance_current_relationship(
                     db, instance_id, int(selected.get("relationship_id")), disp
                 )

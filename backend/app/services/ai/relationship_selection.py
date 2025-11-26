@@ -38,7 +38,6 @@ async def collect_candidates(
             drm.start_position,
             drm.end_position,
             COALESCE(drm.limit_count, 0) AS limit_count,
-            ar.name AS relationship_name,
             ar.display_name AS relationship_display_name,
             ar.prompt_fragment AS prompt_fragment
         FROM ai_dimension_relationship_mappings drm
@@ -61,7 +60,6 @@ async def collect_candidates(
         candidates.append(
             {
                 "relationship_id": r.relationship_id,
-                "relationship_name": r.relationship_name,
                 "relationship_display_name": r.relationship_display_name,
                 "prompt_fragment": r.prompt_fragment,
                 "priority": r.priority,
@@ -160,7 +158,6 @@ def select_final_relationship(
         if rid not in agg:
             agg[rid] = {
                 "relationship_id": rid,
-                "relationship_name": c.get("relationship_name"),
                 "relationship_display_name": c.get("relationship_display_name"),
                 "prompt_fragment": c.get("prompt_fragment"),
                 "max_priority": pr,

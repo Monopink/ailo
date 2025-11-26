@@ -61,12 +61,11 @@ class AIStyleView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "name", "display_name", "status", "created_at", "updated_at"]
+    searchable_fields = ["display_name"]
+    sortable_fields = ["id", "display_name", "status", "created_at", "updated_at"]
 
     fields = [
         StringField("id", label="ID", help_text="Internal style ID"),
-        StringField("name", label="Style Name", help_text="Unique identifier for the style", required=True),
         StringField(
             "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
         ),
@@ -127,11 +126,117 @@ class AIRelationshipView(ModelView):
     def can_delete(self, request):
         return False
 
+    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Validate constraints before creating relationship."""
+        errors = {}
+
+        # Validate wake_time_min_ms >= 500
+        if hasattr(obj, "wake_time_min_ms") and obj.wake_time_min_ms is not None:
+            if obj.wake_time_min_ms < 500:
+                errors["wake_time_min_ms"] = "Minimum wake time must be at least 500ms"
+
+        # Validate wake_time_max_ms >= wake_time_min_ms
+        if (
+            hasattr(obj, "wake_time_min_ms")
+            and obj.wake_time_min_ms is not None
+            and hasattr(obj, "wake_time_max_ms")
+            and obj.wake_time_max_ms is not None
+        ):
+            if obj.wake_time_max_ms < obj.wake_time_min_ms:
+                errors["wake_time_max_ms"] = "Maximum wake time must be greater than or equal to minimum wake time"
+
+        # Validate wake_time_bias not empty (handled by EnumField, but double-check)
+        if hasattr(obj, "wake_time_bias") and obj.wake_time_bias is not None:
+            if not obj.wake_time_bias or obj.wake_time_bias.strip() == "":
+                errors["wake_time_bias"] = "Wake time bias cannot be empty"
+
+        # Validate wake_window_ms >= 0
+        if hasattr(obj, "wake_window_ms") and obj.wake_window_ms is not None:
+            if obj.wake_window_ms < 0:
+                errors["wake_window_ms"] = "Wake window must be non-negative"
+
+        # Validate wake_time_adjustment not empty (handled by EnumField, but double-check)
+        if hasattr(obj, "wake_time_adjustment") and obj.wake_time_adjustment is not None:
+            if not obj.wake_time_adjustment or obj.wake_time_adjustment.strip() == "":
+                errors["wake_time_adjustment"] = "Wake time adjustment cannot be empty"
+
+        # Validate no_reply_probability range (0.0-1.0)
+        if hasattr(obj, "no_reply_probability") and obj.no_reply_probability is not None:
+            if obj.no_reply_probability < 0 or obj.no_reply_probability > 1:
+                errors["no_reply_probability"] = "No reply probability must be between 0.0 and 1.0"
+
+        # Validate followup_delay_ms >= 0
+        if hasattr(obj, "followup_delay_ms") and obj.followup_delay_ms is not None:
+            if obj.followup_delay_ms < 0:
+                errors["followup_delay_ms"] = "Followup delay must be non-negative"
+
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+        """Validate constraints before editing relationship."""
+        errors = {}
+
+        # Validate wake_time_min_ms >= 500
+        if hasattr(obj, "wake_time_min_ms") and obj.wake_time_min_ms is not None:
+            if obj.wake_time_min_ms < 500:
+                errors["wake_time_min_ms"] = "Minimum wake time must be at least 500ms"
+
+        # Validate wake_time_max_ms >= wake_time_min_ms
+        if (
+            hasattr(obj, "wake_time_min_ms")
+            and obj.wake_time_min_ms is not None
+            and hasattr(obj, "wake_time_max_ms")
+            and obj.wake_time_max_ms is not None
+        ):
+            if obj.wake_time_max_ms < obj.wake_time_min_ms:
+                errors["wake_time_max_ms"] = "Maximum wake time must be greater than or equal to minimum wake time"
+
+        # Validate wake_time_bias not empty (handled by EnumField, but double-check)
+        if hasattr(obj, "wake_time_bias") and obj.wake_time_bias is not None:
+            if not obj.wake_time_bias or obj.wake_time_bias.strip() == "":
+                errors["wake_time_bias"] = "Wake time bias cannot be empty"
+
+        # Validate wake_window_ms >= 0
+        if hasattr(obj, "wake_window_ms") and obj.wake_window_ms is not None:
+            if obj.wake_window_ms < 0:
+                errors["wake_window_ms"] = "Wake window must be non-negative"
+
+        # Validate wake_time_adjustment not empty (handled by EnumField, but double-check)
+        if hasattr(obj, "wake_time_adjustment") and obj.wake_time_adjustment is not None:
+            if not obj.wake_time_adjustment or obj.wake_time_adjustment.strip() == "":
+                errors["wake_time_adjustment"] = "Wake time adjustment cannot be empty"
+
+        # Validate no_reply_probability range (0.0-1.0)
+        if hasattr(obj, "no_reply_probability") and obj.no_reply_probability is not None:
+            if obj.no_reply_probability < 0 or obj.no_reply_probability > 1:
+                errors["no_reply_probability"] = "No reply probability must be between 0.0 and 1.0"
+
+        # Validate followup_delay_ms >= 0
+        if hasattr(obj, "followup_delay_ms") and obj.followup_delay_ms is not None:
+            if obj.followup_delay_ms < 0:
+                errors["followup_delay_ms"] = "Followup delay must be non-negative"
+
+        if errors:
+            raise FormValidationError(errors)
+
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["name", "display_name"]
+    searchable_fields = ["display_name", "prompt_fragment"]
     sortable_fields = [
         "id",
-        "name",
+        "display_name",
+        "wake_time_min_ms",
+        "wake_time_max_ms",
+        "wake_window_ms",
+        "no_reply_probability",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
+
+    fields = ["display_name", "prompt_fragment"]
+    sortable_fields = [
+        "id",
         "display_name",
         "wake_time_min_ms",
         "wake_time_max_ms",
@@ -144,12 +249,6 @@ class AIRelationshipView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal relationship ID"),
-        StringField(
-            "name",
-            label="Relationship Name",
-            help_text="Unique identifier for the relationship",
-            required=True,
-        ),
         StringField(
             "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
         ),

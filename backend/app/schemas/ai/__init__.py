@@ -39,7 +39,6 @@ from .style import (
     # Relationships
     AIRelationshipBase,
     AIRelationshipCreate,
-    AIRelationshipUpdate,
     AIRelationshipResponse,
     # Dimension relationship mappings
     AIDimensionRelationshipMappingBase,
@@ -112,7 +111,6 @@ __all__ = [
     "AIStyleDimensionResponse",
     "AIRelationshipBase",
     "AIRelationshipCreate",
-    "AIRelationshipUpdate",
     "AIRelationshipResponse",
     "AIDimensionRelationshipMappingBase",
     "AIDimensionRelationshipMappingCreate",

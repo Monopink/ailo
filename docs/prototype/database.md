@@ -319,7 +319,7 @@ updated_at
 ```txt
 id -- Snowflake ID
 owner_id -- 所有者内部ID
-owner_qiao_id -- 所有者外部ID
+owner_qiao_id -- 所有者外部ID（全局唯一，每个 qiao_id 只能有一个 profile）
 owner_type -- 所有者类型：1=user (包括所有用户类型: normal, official, virtual), 2=ai_persona (AI角色原型，被多个instance共享), 3=ai_instance (仅限管理员手动创建的instance)
 nickname -- 昵称
 gender -- 性别：1=male, 2=female, 3=other, 4=unknown
@@ -355,7 +355,6 @@ AI关系类型表，定义 AI 实例的关系类型。
 
 ```txt
 id -- 自增ID
-name -- 关系名称（唯一）
 display_name -- 显示名称
 prompt_fragment -- 提示词片段
 status -- 状态：1=active, 2=inactive
@@ -376,7 +375,6 @@ AI风格表，定义 AI 实例的风格类型和评分维度。
 
 ```txt
 id -- 自增ID
-name -- 风格名称
 display_name -- 用于显示的名称
 status -- 状态：1=active, 2=inactive
 created_at
@@ -426,8 +424,7 @@ AI人格表，定义 AI 实例的人格特征和提示词模板。
 
 ```txt
 id -- 自增ID
-name -- 人格名称
-desplay_name -- 显示名称
+display_name -- 显示名称
 prompt -- 人格提示词模板
 json_schema -- JSON模式定义
 status -- 状态：1=active, 2=inactive

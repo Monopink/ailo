@@ -28,6 +28,7 @@
           <h3 class="card-title">Style Information</h3>
         </div>
         <div class="card-body">
+          {% set style_status = 'Active' if style.status == 1 else 'Inactive' if style.status == 2 else '-' %}
           <div class="row">
             <div class="col-md-4">
               <div class="mb-2">
@@ -37,14 +38,14 @@
             </div>
             <div class="col-md-4">
               <div class="mb-2">
-                <span class="text-muted">Name:</span>
-                <strong>{{ style.name }}</strong>
+                <span class="text-muted">Display Name:</span>
+                <strong>{{ style.display_name }}</strong>
               </div>
             </div>
             <div class="col-md-4">
               <div class="mb-2">
-                <span class="text-muted">Display Name:</span>
-                <strong>{{ style.display_name }}</strong>
+                <span class="text-muted">Status:</span>
+                <strong>{{ style_status }}</strong>
               </div>
             </div>
           </div>
@@ -750,7 +751,7 @@
       const count = data.count || 0;
       otherStylesCounts[dimensionId] = count;
       if (count > 0) {
-        const names = (data.items || []).map(it => it.display_name || it.name).join(', ');
+        const names = (data.items || []).map(it => it.display_name || `ID ${it.id}`).join(', ');
         const el = document.getElementById('other-styles-' + dimensionId);
         if (el) {
           const box = document.createElement('div');
@@ -935,7 +936,7 @@
     relationships.forEach(rel => {
       const option = document.createElement('option');
       option.value = rel.id;
-      option.textContent = rel.display_name || rel.name;
+      option.textContent = rel.display_name || `ID ${rel.id}`;
       if (mapping.relationship_id === rel.id) {
         option.selected = true;
       }

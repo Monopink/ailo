@@ -55,6 +55,7 @@
           <h3 class="card-title">Personality Information</h3>
         </div>
         <div class="card-body">
+          {% set personality_status = 'Active' if personality.status == 1 else 'Inactive' if personality.status == 2 else '-' %}
           <div class="row">
             <div class="col-md-4">
               <div class="mb-2">
@@ -64,14 +65,14 @@
             </div>
             <div class="col-md-4">
               <div class="mb-2">
-                <span class="text-muted">Name:</span>
-                <strong>{{ personality.name }}</strong>
+                <span class="text-muted">Display Name:</span>
+                <strong>{{ personality.display_name }}</strong>
               </div>
             </div>
             <div class="col-md-4">
               <div class="mb-2">
-                <span class="text-muted">Display Name:</span>
-                <strong>{{ personality.display_name }}</strong>
+                <span class="text-muted">Status:</span>
+                <strong>{{ personality_status }}</strong>
               </div>
             </div>
           </div>
@@ -400,7 +401,7 @@ const SYSTEM_PLACEHOLDERS = [
     activeStyles.forEach(style => {
       const option = document.createElement('option');
       option.value = style.id;
-      option.textContent = style.display_name || style.name;
+      option.textContent = style.display_name || `ID ${style.id}`;
       selector.appendChild(option);
       this.state.styleOptionsMap[style.id] = option;
     });
@@ -419,7 +420,7 @@ const SYSTEM_PLACEHOLDERS = [
 
   // Build option label: "StyleName — dim1, dim2, dim3, ..."
   formatStyleOptionText(style, dims) {
-    const base = (style.display_name || style.name || '').toString();
+    const base = (style.display_name || `ID ${style.id}` || '').toString();
     const list = Array.isArray(dims) ? dims : [];
     if (list.length === 0) return base;
     const names = list.map(d => d.display_name || d.name).filter(Boolean).map(String);

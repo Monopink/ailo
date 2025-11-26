@@ -143,9 +143,7 @@ async def _sync_profile_from_persona(
         region = _trim(persona_profile.region, 100)
         gender = persona_profile.gender
 
-        existing = await profile_crud.get_by_owner(
-            db, owner_id=instance.id, owner_type=ProfileOwnerType.AI
-        )
+        existing = await profile_crud.get_by_owner(db, owner_id=instance.id, owner_type=ProfileOwnerType.AI)
 
         profile_payload = {
             "nickname": nickname,

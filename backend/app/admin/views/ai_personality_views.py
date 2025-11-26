@@ -40,8 +40,8 @@ class AIPersonalityView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "name", "display_name", "status", "created_at", "updated_at"]
+    searchable_fields = ["display_name", "prompt"]
+    sortable_fields = ["id", "display_name", "status", "created_at", "updated_at"]
 
     @link_row_action(
         name="advanced_edit",
@@ -54,12 +54,6 @@ class AIPersonalityView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal personality ID"),
-        StringField(
-            "name",
-            label="Personality Name",
-            help_text="Unique identifier for the personality",
-            required=True,
-        ),
         StringField(
             "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
         ),

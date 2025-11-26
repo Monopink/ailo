@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for AI personality templates and placehol
 """
 
 from typing import Any, Dict, Optional
-from sqlalchemy import Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,8 +20,6 @@ class AIPersonality(AutoIncrementModel):
     """
 
     __tablename__ = "ai_personalities"
-
-    name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Personality name")
 
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
 
@@ -39,12 +37,9 @@ class AIPersonality(AutoIncrementModel):
         comment="Status: 1=active, 2=inactive",
     )
 
-    # Constraints
-    __table_args__ = (UniqueConstraint("name", name="ai_personalities_name_key"),)
-
     def __admin_select2_repr__(self, request) -> str:
         from markupsafe import escape
-        return f"<span>[{self.id}] {escape(self.name)} / {escape(self.display_name)}</span>"
+        return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 
 class AIPersonalityPlaceholder(AutoIncrementModel):

@@ -96,7 +96,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
             result = await db.execute(
                 select(AIPersonality)
                 .where(AIPersonality.status == 1)  # active
-                .order_by(AIPersonality.name)
+                .order_by(AIPersonality.display_name)
                 .offset(skip)
                 .limit(limit)
             )
@@ -112,30 +112,11 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
             # Non-fatal error: return empty list
             return []
 
-    async def get_by_name(self, db: AsyncSession, *, name: str) -> Optional[AIPersonality]:
-        """
-        Get personality by name.
-
-        Args:
-            db: Database session
-            name: Personality name
-
-        Returns:
-            Personality object or None if not found
-        """
-        try:
-            result = await db.execute(select(AIPersonality).where(AIPersonality.name == name))
-            return result.scalar_one_or_none()
-
-        except Exception as e:
-            logger.error("personality_get_by_name_failed", error=str(e), name=name)
-            return None
-
     async def search_personalities(
         self, db: AsyncSession, *, query: str, skip: int = 0, limit: int = 20
     ) -> List[AIPersonality]:
         """
-        Search personalities by name or description.
+        Search personalities by display name or prompt text.
 
         Args:
             db: Database session
@@ -153,12 +134,12 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
                 select(AIPersonality)
                 .where(
                     or_(
-                        AIPersonality.name.ilike(search_pattern),
-                        AIPersonality.description.ilike(search_pattern),
+                        AIPersonality.display_name.ilike(search_pattern),
+                        AIPersonality.prompt.ilike(search_pattern),
                     )
                 )
                 .where(AIPersonality.status == 1)  # active only
-                .order_by(AIPersonality.name)
+                .order_by(AIPersonality.display_name)
                 .offset(skip)
                 .limit(limit)
             )

@@ -365,8 +365,8 @@ async def get_other_styles_using_dimension(
             AIStyleDimension.dimension_id == dimension_id,
             AIStyle.id != style_id,
         )
-        .order_by(AIStyle.name)
+        .order_by(AIStyle.display_name)
     )
     styles = result.scalars().all()
-    items = [{"id": s.id, "name": s.name, "display_name": s.display_name} for s in styles]
+    items = [{"id": s.id, "display_name": s.display_name} for s in styles]
     return {"items": items, "count": len(items)}

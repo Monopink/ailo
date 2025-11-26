@@ -134,34 +134,3 @@ class AIPersona(AIPersonaBase):
 
     class Config:
         from_attributes = True
-
-
-class AIRelationshipBase(BaseModel):
-    """Base schema for AI relationship."""
-
-    name: str = Field(..., max_length=50, description="Relationship name")
-    description: Optional[str] = Field(default=None, description="Relationship description")
-
-
-class AIRelationshipCreate(AIRelationshipBase):
-    """Schema for creating AI relationship."""
-
-    pass
-
-
-class AIRelationshipUpdate(BaseModel):
-    """Schema for updating AI relationship."""
-
-    name: Optional[str] = Field(default=None, description="Relationship name")
-    description: Optional[str] = Field(default=None, description="Relationship description")
-
-
-class AIRelationship(AIRelationshipBase):
-    """Schema for AI relationship response."""
-
-    id: int = Field(..., description="Relationship ID")
-    created_at: Optional[str] = Field(default=None, description="Creation timestamp")
-    updated_at: Optional[str] = Field(default=None, description="Update timestamp")
-
-    class Config:
-        from_attributes = True

@@ -56,7 +56,6 @@ async def get_dimension_relationship_mappings(
             drm.end_position,
             drm.priority,
             COALESCE(drm.limit_count, 0) AS limit_count,
-            ar.name AS relationship_name,
             ar.display_name AS relationship_display_name,
             ar.prompt_fragment AS prompt_fragment
         FROM ai_dimension_relationship_mappings drm
@@ -85,7 +84,6 @@ async def get_dimension_relationship_mappings(
             "end_position": r.end_position,
             "priority": r.priority,
             "limit_count": r.limit_count,
-            "relationship_name": r.relationship_name,
             "relationship_display_name": r.relationship_display_name,
             "prompt_fragment": r.prompt_fragment,
         }

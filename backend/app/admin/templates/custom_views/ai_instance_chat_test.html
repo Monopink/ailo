@@ -877,11 +877,11 @@ pre {
       var relSelEl = document.getElementById('respParsedRelationshipSelection');
       try {
         var relSelText = '-';
-        if (data.selected_relationship_after && data.selected_relationship_after.display_name) {
-          relSelText = data.selected_relationship_after.display_name;
-          if (data.selected_relationship_after.name) {
-            relSelText += ' (' + data.selected_relationship_after.name + ')';
-          }
+        if (data.selected_relationship_after) {
+          const relAfter = data.selected_relationship_after;
+          relSelText =
+            relAfter.display_name ||
+            (relAfter.relationship_id ? `ID ${relAfter.relationship_id}` : relSelText);
         } else if (data.relationship_scores && Array.isArray(data.relationship_scores)) {
           // Fallback: try to infer from relationship_scores
           data.relationship_scores.some(function (s) {

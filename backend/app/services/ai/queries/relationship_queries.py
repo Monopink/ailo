@@ -170,7 +170,7 @@ async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List
             ranges.append(
                 {
                     "relationship_id": relationship.id,
-                    "relationship_name": relationship.name,
+                    "relationship_display_name": relationship.display_name,
                     "dimension_id": mapping.dimension_id,
                     "dimension_display_name": dimension_display_name,
                     "start_position": mapping.start_position,

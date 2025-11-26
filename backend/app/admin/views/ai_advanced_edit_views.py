@@ -390,8 +390,8 @@ class PersonalityAdvancedEditView(CustomView):
             # Extract data while session is active
             personality_data = {
                 "id": personality.id,
-                "name": personality.name,
                 "display_name": personality.display_name,
+                "status": personality.status,
                 "prompt": personality.prompt or "",
                 "json_schema": personality.json_schema or {},
             }
@@ -503,7 +503,9 @@ class StyleAdvancedEditView(CustomView):
 
             # Get all active relationships for dropdown
             relationships_result = await db.execute(
-                select(AIRelationship).where(AIRelationship.status == 1).order_by(AIRelationship.name)
+                select(AIRelationship)
+                .where(AIRelationship.status == 1)
+                .order_by(AIRelationship.display_name)
             )
             relationships = relationships_result.scalars().all()
 
@@ -536,7 +538,6 @@ class StyleAdvancedEditView(CustomView):
             relationships_data = [
                 {
                     "id": r.id,
-                    "name": r.name,
                     "display_name": r.display_name,
                 }
                 for r in relationships

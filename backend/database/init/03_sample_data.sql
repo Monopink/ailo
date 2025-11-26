@@ -18,23 +18,21 @@ END $$;
 
 -- Insert basic AI relationship types
 -- usage_count is initialized based on ai_dimension_relationship_mappings references
-INSERT INTO ai_relationships (name, display_name, prompt_fragment, status) VALUES
-('stranger', '陌生人', '你们刚刚认识，保持礼貌和适当的距离感。态度友善但不过分亲密。', 1),
-('acquaintance', '熟人', '你们有一定了解，可以进行日常交流。表现得友好但还不够深入。', 1),
-('friend', '朋友', '你们是好朋友，可以分享日常生活和想法。表现得温暖、关心和支持。', 1),
-('close_friend', '密友', '你们关系很亲密，可以谈论私人话题。表现得理解、深度关怀和信任。', 1),
-('best_friend', '挚友', '你们是最亲密的朋友，无话不谈。表现得像家人一样亲密和依赖。', 1),
-('romantic_interest', '有好感', '你们之间有一些浪漫的氛围和互相吸引。表现得温柔、关怀并带有轻微的暧昧。', 1),
-('lover', '恋人', '你们是恋人关系，充满爱意和亲密。表现得深情、体贴和浪漫。', 1)
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO ai_relationships (display_name, prompt_fragment, status) VALUES
+('陌生人', '你们刚刚认识，保持礼貌和适当的距离感。态度友善但不过分亲密。', 1),
+('熟人', '你们有一定了解，可以进行日常交流。表现得友好但还不够深入。', 1),
+('朋友', '你们是好朋友，可以分享日常生活和想法。表现得温暖、关心和支持。', 1),
+('密友', '你们关系很亲密，可以谈论私人话题。表现得理解、深度关怀和信任。', 1),
+('挚友', '你们是最亲密的朋友，无话不谈。表现得像家人一样亲密和依赖。', 1),
+('有好感', '你们之间有一些浪漫的氛围和互相吸引。表现得温柔、关怀并带有轻微的暧昧。', 1),
+('恋人', '你们是恋人关系，充满爱意和亲密。表现得深情、体贴和浪漫。', 1);
 
 -- Insert AI styles with better names and configurations
 -- usage_count is initialized based on ai_instances references in this script
-INSERT INTO ai_styles (name, display_name, status) VALUES
-('romantic_companion', '浪漫伴侣', 1),
-('friendly_companion', '友好伴侣', 1),
-('professional_assistant', '专业助手', 1)
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO ai_styles (display_name, status) VALUES
+('浪漫伴侣', 1),
+('友好伴侣', 1),
+('专业助手', 1);
 
 -- Insert global AI dimensions (normalized schema)
 INSERT INTO ai_dimensions (name, display_name, description) VALUES
@@ -47,13 +45,12 @@ ON CONFLICT (name) DO NOTHING;
 
 -- Insert AI style dimensions (style-specific dimension configurations)
 INSERT INTO ai_style_dimensions (style_id, dimension_id, initial_position) VALUES
-((SELECT id FROM ai_styles WHERE name='romantic_companion'), (SELECT id FROM ai_dimensions WHERE name='friendship'), 400),
-((SELECT id FROM ai_styles WHERE name='romantic_companion'), (SELECT id FROM ai_dimensions WHERE name='romance'), 200),
-((SELECT id FROM ai_styles WHERE name='friendly_companion'), (SELECT id FROM ai_dimensions WHERE name='friendship'), 500),
-((SELECT id FROM ai_styles WHERE name='friendly_companion'), (SELECT id FROM ai_dimensions WHERE name='trust'), 300),
-((SELECT id FROM ai_styles WHERE name='professional_assistant'), (SELECT id FROM ai_dimensions WHERE name='professionalism'), 600),
-((SELECT id FROM ai_styles WHERE name='professional_assistant'), (SELECT id FROM ai_dimensions WHERE name='helpfulness'), 500)
-ON CONFLICT (style_id, dimension_id) DO NOTHING;
+(1, 1, 400),  -- romantic_companion + friendship
+(1, 2, 200),  -- romantic_companion + romance
+(2, 1, 500),  -- friendly_companion + friendship
+(2, 3, 300),  -- friendly_companion + trust
+(3, 4, 600),  -- professional_assistant + professionalism
+(3, 5, 500);  -- professional_assistant + helpfulness
 
 -- Insert comprehensive AI dimension relationship mappings (normalized schema)
 INSERT INTO ai_dimension_relationship_mappings (dimension_id, start_position, end_position, relationship_id, priority) VALUES
@@ -93,8 +90,8 @@ ON CONFLICT DO NOTHING;
 -- ============================================================================
 
 -- Insert basic AI personality with corrected JSON schema
-INSERT INTO ai_personalities (name, display_name, prompt, json_schema, status) VALUES
-('Default Personality', 'Default Personality',
+INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
+('Default Personality',
 'You are a friendly AI assistant. Your personality traits: {{personality_traits}}. Your memory: {{memory}}. Current time: {{current_datetime}}. Your profile: {{self_profile}}. Other person profile: {{other_profile}}. Relationship context: {{relationship_prompt}}.',
 '{
   "type": "object",
@@ -134,12 +131,11 @@ INSERT INTO ai_personalities (name, display_name, prompt, json_schema, status) V
   },
   "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"],
   "additionalProperties": true
-}', 1)
-ON CONFLICT (name) DO NOTHING;
+}', 1);
 
 -- Insert additional AI personalities for testing
-INSERT INTO ai_personalities (name, display_name, prompt, json_schema, status) VALUES
-('sweet_girlfriend', '甜美女友',
+INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
+('甜美女友',
 '你是一个温柔甜美的女孩，性格开朗活泼，喜欢和用户聊天。
 
 基本设定：
@@ -162,7 +158,7 @@ INSERT INTO ai_personalities (name, display_name, prompt, json_schema, status) V
 '{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "romance": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "romance"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "array", "items": {"type": "object"}}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
 1),
 
-('friendly_buddy', '友好伙伴',
+('友好伙伴',
 '你是一个友好开朗的伙伴，喜欢和朋友聊天交流。
 
 基本设定：
@@ -183,8 +179,7 @@ INSERT INTO ai_personalities (name, display_name, prompt, json_schema, status) V
 
 请根据当前的关系状态和分数，以及对话历史，自然地回复用户的消息。',
 '{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "trust": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "trust"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "array", "items": {"type": "object"}}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
-1)
-ON CONFLICT (name) DO NOTHING;
+1);
 
 -- ============================================================================
 -- AI Template Types, Templates, and Personas
@@ -212,8 +207,8 @@ INSERT INTO ai_templates (
 ) VALUES
 (
     (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'),
-    (SELECT id FROM ai_styles WHERE name='romantic_companion'),
-    (SELECT id FROM ai_personalities WHERE name='Default Personality'),
+    1,  -- romantic_companion style
+    1,  -- Default Personality
     '刚刚上大学',
     '{"instance_name": "小乔", "personality_traits": "友善、耐心"}'::jsonb,
     NULL,
@@ -226,8 +221,8 @@ INSERT INTO ai_templates (
 ),
 (
     (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'),
-    (SELECT id FROM ai_styles WHERE name='friendly_companion'),
-    (SELECT id FROM ai_personalities WHERE name='friendly_buddy'),
+    2,  -- friendly_companion style
+    3,  -- friendly_buddy personality
     '找到新的工作',
     '{"instance_name": "小甜", "hobbies": "音乐、电影"}'::jsonb,
     NULL,
@@ -256,7 +251,7 @@ INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, ge
 (223788765171154955, 223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, 'assets://1574'),
 (223788765171154956, 223788765171155010, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, 'assets://2454'),
 (223788765171154957, 223788765171155011, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, 'assets://3758')
-ON CONFLICT (owner_qiao_id, owner_type) DO UPDATE SET
+ON CONFLICT (owner_qiao_id) DO UPDATE SET
     nickname = EXCLUDED.nickname,
     bio = EXCLUDED.bio,
     avatar_url = EXCLUDED.avatar_url,
@@ -297,7 +292,7 @@ INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, ge
 (223788765171154952, 223788765171154947, 'qqid_test_user_003', 1, '晓晓', '甜品师，喜欢烘焙和美食，梦想开一家自己的咖啡店', 2, NULL),
 (223788765171154953, 223788765171154948, 'qqid_test_user_004', 1, '大熊', '程序员，业余时间喜欢打游戏和看动漫', 1, NULL),
 (223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL)
-ON CONFLICT (owner_qiao_id, owner_type) DO NOTHING;
+ON CONFLICT (owner_qiao_id) DO NOTHING;
 
 -- ============================================================================
 -- AI Instances
@@ -340,12 +335,12 @@ INSERT INTO ai_instances (
         'assigned_at', NOW(),
         'assigned_by', 'system'
     ),
-    (SELECT id FROM ai_styles WHERE name='romantic_companion'),
-    (SELECT id FROM ai_personalities WHERE name='Default Personality'),
+    1,  -- romantic_companion style
+    1,  -- Default Personality
     1,
     '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
     '{"personality_traits": "温柔、善良、有耐心、喜欢音乐和电影、邻家女孩的感觉", "instance_name": "小乔"}'::jsonb,
-    (SELECT id FROM ai_relationships WHERE name='stranger'),
+    1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
     NULL,
     48,
@@ -370,12 +365,12 @@ INSERT INTO ai_instances (
         'assigned_at', NOW(),
         'assigned_by', 'system'
     ),
-    (SELECT id FROM ai_styles WHERE name='romantic_companion'),
-    (SELECT id FROM ai_personalities WHERE name='sweet_girlfriend'),
+    1,  -- romantic_companion style
+    2,  -- sweet_girlfriend personality
     1,
     '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。',
     '{"personality_traits": "活泼、可爱、爱撒娇、热爱美食和电影", "instance_name": "小甜"}'::jsonb,
-    (SELECT id FROM ai_relationships WHERE name='stranger'),
+    1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
     NULL,
     42,
@@ -400,12 +395,12 @@ INSERT INTO ai_instances (
         'assigned_at', NOW(),
         'assigned_by', 'system'
     ),
-    (SELECT id FROM ai_styles WHERE name='friendly_companion'),
-    (SELECT id FROM ai_personalities WHERE name='friendly_buddy'),
+    2,  -- friendly_companion style
+    3,  -- friendly_buddy personality
     1,
     '我是阿杰，一个开朗幽默的好伙伴，热爱运动和游戏。',
     '{"personality_traits": "开朗、幽默、可靠、热爱运动和游戏", "instance_name": "阿杰"}'::jsonb,
-    (SELECT id FROM ai_relationships WHERE name='stranger'),
+    1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
     NULL,
     45,

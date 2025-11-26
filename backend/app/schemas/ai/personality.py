@@ -17,7 +17,6 @@ from schemas.common import BaseSchema
 class AIPersonalityBase(BaseSchema):
     """Base AI personality schema."""
 
-    name: str = Field(..., max_length=100, description="Personality name")
     display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., description="Personality prompt template")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
@@ -26,7 +25,6 @@ class AIPersonalityBase(BaseSchema):
 class AIPersonalityCreate(BaseModel):
     """Schema for creating an AI personality."""
 
-    name: str = Field(..., max_length=100, description="Personality name")
     display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., min_length=1, description="Personality prompt template")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
@@ -35,7 +33,7 @@ class AIPersonalityCreate(BaseModel):
 class AIPersonalityUpdate(BaseModel):
     """Schema for updating an AI personality."""
 
-    name: Optional[str] = Field(None, max_length=100, description="Personality name")
+    display_name: Optional[str] = Field(None, max_length=100, description="Display name")
     prompt: Optional[str] = Field(None, min_length=1, description="Personality prompt template")
     json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
     status: Optional[int] = Field(

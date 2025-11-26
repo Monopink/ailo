@@ -20,8 +20,6 @@ class AIStyle(AutoIncrementModel):
 
     __tablename__ = "ai_styles"
 
-    name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Style name")
-
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
 
     status: Mapped[int] = mapped_column(
@@ -39,10 +37,6 @@ class AIStyle(AutoIncrementModel):
         primaryjoin="AIStyle.id == foreign(AIStyleDimension.style_id)",
         cascade="all, delete-orphan",
     )
-
-    # Constraints
-    __table_args__ = (UniqueConstraint("name", name="ai_styles_name_key"),)
-
 
     def __admin_select2_repr__(self, request) -> str:
         from markupsafe import escape
@@ -140,10 +134,6 @@ class AIRelationship(AutoIncrementModel):
     """
 
     __tablename__ = "ai_relationships"
-
-    name: Mapped[str] = mapped_column(
-        String(100), nullable=False, unique=True, comment="Relationship name (unique identifier)"
-    )
 
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
 

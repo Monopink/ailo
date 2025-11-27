@@ -1,5 +1,6 @@
 *.log
 *.pyc
+__pycache__/
 node_modules/
 /venv/
 /logs/
@@ -12,3 +13,4 @@ node_modules/
 /frontend/wxminipg/libs/
 !/frontend/wxminipg/libs/libs.md
 /.claude/settings.json
+/docs/task-finished

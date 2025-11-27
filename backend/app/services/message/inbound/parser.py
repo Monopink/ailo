@@ -4,7 +4,7 @@ Inbound message parser (business layer).
 Converts intermediate format to InboundMessageEvent with business logic.
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from enums import MessageType
 from services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata

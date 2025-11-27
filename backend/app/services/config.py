@@ -9,12 +9,12 @@ For write operations, use crud.system.config and reload cache.
 """
 
 import os
-from typing import Any, Optional, Dict
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Dict, Optional
 
-from core.config import settings
-from services.system_config import SystemConfigService
+from core.config import get_settings
 from exceptions import ConfigurationError, MissingConfigurationError
+from services.system_config import SystemConfigService
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class ConfigService:
@@ -61,7 +61,7 @@ class ConfigService:
         config = {
             "app_id": await self.get_config(db, "leancloud_im_app_id", required=False),
             "app_key": await self.get_config(db, "leancloud_im_app_key", required=False),
-            "master_key": settings.LEANCLOUD_MASTER_KEY,  # Always from env
+            "master_key": get_settings().LEANCLOUD_MASTER_KEY,  # Always from env
             "base_url": await self.get_config(db, "leancloud_im_server_url", required=False),
         }
         return config

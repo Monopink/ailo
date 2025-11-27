@@ -5,21 +5,24 @@ This module provides webhook handling for LeanCloud messaging service,
 parsing incoming messages and converting them to standardized format.
 """
 
+from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from crud.contact import contact as contact_crud
 from enums import MessageType
 from services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
 from services.message.security.encryption import decrypt_from_transport
-from crud.contact import contact as contact_crud
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
+
 from .adapter import parse_webhook_to_dict
 
 logger = get_logger(__name__)
 
 
-async def parse_leancloud_webhook(db: AsyncSession, message: Dict[str, Any]) -> Optional[InboundMessageEvent]:
+async def parse_leancloud_webhook(
+    db: AsyncSession, message: Dict[str, Any]
+) -> Optional[InboundMessageEvent]:
     """
     Parse incoming webhook data from LeanCloud.
 

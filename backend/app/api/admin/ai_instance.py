@@ -4,13 +4,15 @@ Handles instance management including prompt variables, dimensions, and relation
 """
 
 from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from crud.ai import ai_instance as ai_instance_crud
+from crud.ai.instance_dimension import update_dimension, update_dimensions_batch
 from enums.common import PositionMappingAlgorithm
+from fastapi import APIRouter, Depends, HTTPException
+from services.admin.instance_relationship import generate_relationship_for_instance
 from services.ai.utils.position_mapping import parse_algorithm_params
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -23,7 +25,6 @@ async def save_instance(
     instance_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Save instance prompt_variables and dimensions."""
-    from crud.ai.instance_dimension import update_dimensions_batch
 
     # Get instance
     instance = await ai_instance_crud.get(db, id=instance_id)
@@ -103,8 +104,6 @@ async def save_instance(
 
     # Optional positions mapping from preview: { dimension_id: position }
     if "positions" in data and isinstance(data["positions"], dict):
-        from crud.ai.instance_dimension import update_dimension
-
         for key, val in data["positions"].items():
             try:
                 dim_id = int(key)
@@ -169,8 +168,6 @@ async def generate_instance_relationship(
                 except Exception:
                     preview = True
 
-        from services.admin.instance_relationship import generate_relationship_for_instance
-
         result = await generate_relationship_for_instance(
             db, instance_id=int(instance_id), overrides=overrides, preview=preview
         )
@@ -193,7 +190,6 @@ async def update_instance_dimension(
 
     Update instance dimension (score, algorithm, params).
     """
-    from crud.ai.instance_dimension import update_dimension
 
     instance = await ai_instance_crud.get(db, id=instance_id)
     if not instance:

@@ -7,19 +7,18 @@ This module contains Starlette-Admin views for AI conversation management
 
 from typing import Any, Dict
 
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import IntegerField, StringField, TextAreaField, JSONField
-
+from admin.fields import LocalDateTimeField
+from admin.views.base import IntegerEnumField
+from enums import AIMessageBufferState
 from models.ai.instance import (
-    AIMessageBuffer,
     AIConversationItem,
     AIConversationItemArchive,
     AIConversationState,
+    AIMessageBuffer,
 )
-from admin.views.base import IntegerEnumField
-from admin.fields import LocalDateTimeField
-from enums import AIMessageBufferState
+from starlette.requests import Request
+from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin.contrib.sqla import ModelView
 
 
 class AIMessageBufferView(ModelView):

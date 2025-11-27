@@ -5,22 +5,6 @@ This module provides the data access layer for AI services with clear
 separation of concerns across different query types.
 """
 
-# Instance-related query functions
-from .instance_queries import (
-    get_instance_context,
-    get_personality_with_placeholders,
-    get_style_with_relationships,
-    get_instance_id_by_qiao_id,
-    get_user_id_by_qiao_id,
-    get_all_instances,
-)
-
-# Relationship scoring query functions
-from .relationship_queries import (
-    get_instance_relationship_scores,
-    get_relationship_score_ranges,
-)
-
 # Context and conversation query functions
 from .conversation_queries import (
     get_conversation_contexts,
@@ -29,28 +13,32 @@ from .conversation_queries import (
     get_items_for_archiving,
 )
 
-# Profile-related query functions
-from .profile_queries import (
-    get_user_profile,
-    get_instance_profile,
-    get_profile_by_owner,
+# Instance-related query functions
+from .instance_queries import (
+    get_all_instances,
+    get_instance_context,
+    get_instance_id_by_qiao_id,
+    get_personality_with_placeholders,
+    get_style_with_relationships,
+    get_user_id_by_qiao_id,
 )
 
-# Database updates (simple operations)
+# Profile-related query functions
+from .profile_queries import get_instance_profile, get_profile_by_owner, get_user_profile
+
+# Relationship scoring query functions
+from .relationship_queries import get_instance_relationship_scores, get_relationship_score_ranges
+
+# Complex transactions
+from .transactions import create_instance_with_relations, save_ai_request_log
+
 # Database updates (simple operations)
 from .updates import (
     create_conversation_item,
-    update_instance_relationship_scores,
     mark_conversation_item_as_excluded,
     update_instance_memory,
+    update_instance_relationship_scores,
     update_instance_status,
-)
-
-# Complex transactions
-# Complex transactions
-from .transactions import (
-    create_instance_with_relations,
-    save_ai_request_log,
 )
 
 __all__ = [

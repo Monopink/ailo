@@ -4,16 +4,17 @@ Profile management related models.
 This module contains SQLAlchemy models for user profiles and profile change logs.
 """
 
-from typing import Optional, TYPE_CHECKING
-from sqlalchemy import BigInteger, Integer, String, Text, Index, and_
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.ext.hybrid import hybrid_property
+from typing import TYPE_CHECKING, Optional
 
-from enums import Gender, ProfileOwnerType, ProfileModifierType
-from models.base import SnowflakeModel, ImmutableSnowflakeModel
-from models.ai.template import AIType
+from enums import ProfileOwnerType
+from models.base import ImmutableSnowflakeModel, SnowflakeModel
+from sqlalchemy import BigInteger, Index, Integer, String, Text
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
+    from models.ai.instance import AIInstance
+    from models.ai.template import AIPersona
     from models.user import User
 
 

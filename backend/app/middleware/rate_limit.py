@@ -5,13 +5,13 @@ Provides fast, unified protection for all API endpoints without accessing the da
 Uses memory cache for best performance.
 """
 
+import time
+from collections import deque
+from typing import Dict
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from collections import deque
-from typing import Dict
-import time
-
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

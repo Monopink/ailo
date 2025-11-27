@@ -5,8 +5,8 @@ This module contains Pydantic schemas for preset asset management.
 """
 
 from typing import Optional
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 from schemas.common import BaseSchema
 
 

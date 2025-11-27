@@ -5,19 +5,18 @@ These functions provide business-level abstractions over the core
 send_message and send_notification functions.
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
+from crud.profile import profile as profile_crud
 from enums import (
     MessageType,
-    NotificationType,
     NotificationActionType,
     NotificationTarget,
+    NotificationType,
     ProfileOwnerType,
 )
-from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 from services.message.outbound.sender import send_message, send_notification
-from crud.profile import profile as profile_crud
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

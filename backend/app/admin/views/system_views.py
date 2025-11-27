@@ -3,17 +3,21 @@ System-related model views for Starlette-Admin.
 Creates ModelView instances for user management and admin system models.
 """
 
-from typing import Dict, Any
-from starlette.requests import Request
-from starlette_admin import JSONField, StringField
-from starlette_admin.exceptions import FormValidationError
-from starlette_admin.contrib.sqla import ModelView
-from .base import BaseRoleAwareModelView
+from typing import Any, Dict
+
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
-
+from core.security import get_password_hash
+from enums import AdminLoginResult, AdminRole, AdminStatus, ConfigType
+from models.admin import AdminLoginLog, AdminOperationLog, AdminUser
 from models.system.config import SystemConfig
-from models.admin import AdminUser, AdminOperationLog, AdminLoginLog
+from sqlalchemy import select
+from starlette.requests import Request
+from starlette_admin import JSONField, StringField
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
+
+from .base import BaseRoleAwareModelView
 
 
 class _AdminUsernameField(StringField):
@@ -30,15 +34,12 @@ class _AdminUsernameField(StringField):
             admin_user_id = getattr(obj, "admin_user_id", None)
             if not admin_user_id:
                 return ""
-            from sqlalchemy import select
             session = request.state.session
             result = await session.execute(select(AdminUser.username).where(AdminUser.id == admin_user_id))
             value = result.scalar_one_or_none()
             return "" if value is None else str(value)
         except Exception:
             return ""
-
-from enums import ConfigType, AdminRole, AdminStatus, AdminLoginResult
 
 
 class SystemConfigView(ModelView):
@@ -80,8 +81,6 @@ class AdminUserView(BaseRoleAwareModelView):
         return False
 
     def can_create(self, request):  # type: ignore[override]
-        from enums import AdminRole
-
         admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
         role = admin_user.get("role") if admin_user else None
         try:
@@ -91,8 +90,6 @@ class AdminUserView(BaseRoleAwareModelView):
         return role_val == AdminRole.SUPER_ADMIN
 
     def can_edit(self, request):  # type: ignore[override]
-        from enums import AdminRole
-
         admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
         role = admin_user.get("role") if admin_user else None
         try:
@@ -171,8 +168,6 @@ class AdminUserView(BaseRoleAwareModelView):
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Hash password before creating admin user."""
-        from core.security import get_password_hash
-
         password = data.pop("password", None)
 
         if password:
@@ -180,8 +175,6 @@ class AdminUserView(BaseRoleAwareModelView):
 
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Hash password before updating admin user if password is changed."""
-        from core.security import get_password_hash
-
         password = data.pop("password", None)
 
         # Only update password if a new one is provided

@@ -4,11 +4,11 @@ Message system models module.
 This module imports all message-related SQLAlchemy models.
 """
 
-# Message models
-from .message import MessageHistory, MessageDeliveryFailure
-
 # Media models
 from .media import MediaFile
+
+# Message models
+from .message import MessageDeliveryFailure, MessageHistory
 
 # Notification models
 from .notification import NotificationPushHistory

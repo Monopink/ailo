@@ -1,8 +1,8 @@
-from typing import Optional, TYPE_CHECKING
-from sqlalchemy import BigInteger, Integer, String, Text, Index, text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING, Optional
 
 from models.base import AutoIncrementModel
+from sqlalchemy import BigInteger, Index, Integer, String, Text, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from models.message import MediaFile

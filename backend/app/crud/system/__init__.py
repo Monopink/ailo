@@ -12,14 +12,14 @@ from .preset_asset import CRUDPresetAsset, preset_assets
 
 # Statistics CRUD
 from .stats import (
-    CRUDStatsUser,
-    CRUDStatsRevenue,
-    CRUDStatsMessage,
     CRUDStatsAI,
-    stats_user_daily,
-    stats_revenue_daily,
-    stats_message_daily,
+    CRUDStatsMessage,
+    CRUDStatsRevenue,
+    CRUDStatsUser,
     stats_ai_daily,
+    stats_message_daily,
+    stats_revenue_daily,
+    stats_user_daily,
 )
 
 # Export all system CRUD classes and instances

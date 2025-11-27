@@ -4,14 +4,25 @@ User management CRUD operations.
 This module contains CRUD operations for user accounts, tokens, and authentication.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-from sqlalchemy import select, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.base import CRUDBaseWithQiaoId, CRUDBase
-from models.user import User, UserToken, LoginRecord, UserAuth
-from schemas.user import UserCreate, UserUpdate, TokenCreate
-from enums import UserStatus, DeviceType, AuthType
+from core.security import verify_password
+from crud.base import CRUDBase, CRUDBaseWithQiaoId, ImmutableCRUDBase
+from enums import AuthType, DeviceType, LoginResult, UserStatus
+from models.user import LoginRecord, User, UserAuth, UserToken
+from schemas.user import (
+    LoginRecordCreate,
+    TokenCreate,
+    TokenUpdate,
+    UserAuthCreate,
+    UserAuthUpdate,
+    UserCreate,
+    UserUpdate,
+)
+from sqlalchemy import and_, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.snowflake import generate_snowflake_id
 
 
 class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
@@ -25,6 +36,11 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
     async def get_by_email(self, db: AsyncSession, *, email: str) -> Optional[User]:
         """Get user by email address."""
         result = await db.execute(select(self.model).where(self.model.email == email))
+        return result.scalar_one_or_none()
+
+    async def get_by_username(self, db: AsyncSession, *, username: str) -> Optional[User]:
+        """Get user by username."""
+        result = await db.execute(select(self.model).where(self.model.username == username))
         return result.scalar_one_or_none()
 
     async def get_by_phone_or_email(
@@ -47,12 +63,15 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         self, db: AsyncSession, *, phone: Optional[str] = None, email: Optional[str] = None, password: str
     ) -> Optional[User]:
         """Authenticate user with phone/email and password."""
-        from core.security import verify_password
 
         user = await self.get_by_phone_or_email(db, phone=phone, email=email)
         if not user:
             return None
-        if not verify_password(password, user.password_hash):
+
+        password_hash = user.password_hash
+        if password_hash is None:
+            return None
+        if not verify_password(password, password_hash):
             return None
         return user
 
@@ -86,7 +105,7 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         return list(result.scalars().all())
 
 
-class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
+class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
     """CRUD operations for UserToken model."""
 
     async def get_by_token(self, db: AsyncSession, *, token: str) -> Optional[UserToken]:
@@ -129,12 +148,11 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
 
     async def revoke_token(self, db: AsyncSession, *, token: str) -> Optional[UserToken]:
         """Revoke a token."""
-        from datetime import datetime
 
         user_token = await self.get_by_token(db, token=token)
         if user_token:
             user_token.status = 2
-            user_token.revoked_at = datetime.utcnow()
+            user_token.revoked_at = datetime.now(timezone.utc)
             db.add(user_token)
             await db.commit()
             await db.refresh(user_token)
@@ -144,7 +162,6 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
         self, db: AsyncSession, *, user_id: int, exclude_token: Optional[str] = None
     ) -> int:
         """Revoke all user tokens except the excluded one."""
-        from datetime import datetime
 
         query = select(self.model).where(and_(self.model.user_id == user_id, self.model.status == 1))
         if exclude_token:
@@ -154,7 +171,7 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
         tokens = result.scalars().all()
 
         count = 0
-        revoked_at = datetime.utcnow()
+        revoked_at = datetime.now(timezone.utc)
         for user_token in tokens:
             user_token.status = 2
             user_token.revoked_at = revoked_at
@@ -168,7 +185,6 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
         self, db: AsyncSession, *, user_id: int, device_type: DeviceType
     ) -> int:
         """Revoke all user tokens for a specific device type."""
-        from datetime import datetime
 
         query = select(self.model).where(
             and_(
@@ -180,7 +196,7 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
         tokens = result.scalars().all()
 
         count = 0
-        revoked_at = datetime.utcnow()
+        revoked_at = datetime.now(timezone.utc)
         for user_token in tokens:
             user_token.status = 2
             user_token.revoked_at = revoked_at
@@ -191,7 +207,7 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, dict]):
         return count
 
 
-class CRUDLoginRecord(CRUDBase[LoginRecord, dict, dict]):
+class CRUDLoginRecord(ImmutableCRUDBase[LoginRecord, LoginRecordCreate]):
     """CRUD operations for LoginRecord model."""
 
     async def get_user_login_history(
@@ -210,18 +226,20 @@ class CRUDLoginRecord(CRUDBase[LoginRecord, dict, dict]):
         self, db: AsyncSession, *, identifier: str, minutes: int = 15
     ) -> List[LoginRecord]:
         """Get recent failed login attempts for phone/email."""
-        from datetime import datetime, timedelta
 
-        cutoff_time = datetime.utcnow() - timedelta(minutes=minutes)
-        result = await db.execute(
-            select(self.model).where(
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        stmt = (
+            select(self.model)
+            .join(User, self.model.user_id == User.id)
+            .where(
                 and_(
-                    or_(self.model.phone == identifier, self.model.email == identifier),
-                    self.model.success.is_(False),
+                    or_(User.phone == identifier, User.email == identifier),
+                    self.model.result == LoginResult.FAIL,
                     self.model.created_at >= cutoff_time,
                 )
             )
         )
+        result = await db.execute(stmt)
         return list(result.scalars().all())
 
 
@@ -231,7 +249,7 @@ user_token = CRUDUserToken(UserToken)
 login_record = CRUDLoginRecord(LoginRecord)
 
 
-class CRUDUserAuth(CRUDBase[UserAuth, dict, dict]):
+class CRUDUserAuth(CRUDBase[UserAuth, UserAuthCreate, UserAuthUpdate]):
     """CRUD operations for UserAuth model (third-party identity bindings)."""
 
     async def get_by_provider_uid(
@@ -256,7 +274,6 @@ class CRUDUserAuth(CRUDBase[UserAuth, dict, dict]):
         app_id: Optional[str] = None,
         extra_data: Optional[dict] = None,
     ) -> UserAuth:
-        from utils.snowflake import generate_snowflake_id
 
         binding = self.model(
             id=generate_snowflake_id(),

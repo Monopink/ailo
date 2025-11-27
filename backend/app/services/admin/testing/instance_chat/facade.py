@@ -6,18 +6,24 @@ combining validation, user matching, and execution services following
 the facade pattern for clean separation of concerns.
 """
 
-from typing import Dict, Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Dict, Optional
 
-from .validation import validation_service, ValidationError
-from .user_matcher import user_matcher_service, UserMatcherError
-from .executor import executor_service, ExecutorError
-from utils.logging import get_logger
+from crud.ai.instance_dimension import get_by_instance as _get_instance_dims
 from crud.contact import contact as contact_crud
-from schemas.contact import ContactCreate
 from enums import ContactType
 from models.base import generate_conv_id
+from schemas.contact import ContactCreate
+from services.ai.queries.transactions import archive_all_conversation_items
+from services.ai.relationship_scoring import determine_relationship_type as _determine
+from services.ai.relationship_scoring import get_relationship_scores
+from services.ai.response_schema import build_response_schema
 from services.ai.types import InstanceContext
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
+
+from .executor import ExecutorError, executor_service
+from .user_matcher import UserMatcherError, user_matcher_service
+from .validation import ValidationError, validation_service
 
 logger = get_logger(__name__)
 
@@ -119,8 +125,6 @@ class AIInstanceChatTestService:
             # Combine all results for comprehensive response
             # Get latest relationship scores after execution
             try:
-                from services.ai.relationship_scoring import get_relationship_scores
-
                 latest_scores = (
                     await get_relationship_scores(
                         db=db,
@@ -134,8 +138,6 @@ class AIInstanceChatTestService:
 
             # Also compute selected relationship after update for immediate feedback
             try:
-                from services.ai.relationship_scoring import determine_relationship_type as _determine
-
                 selected_rel = None
                 if latest_scores:
                     rel_info = await _determine(db, validation_result["instance"], latest_scores)
@@ -250,16 +252,12 @@ class AIInstanceChatTestService:
 
             # Get response JSON schema for this instance (used by main flow)
             try:
-                from services.ai.response_schema import build_response_schema
-
                 response_schema = build_response_schema(validation_result["instance"])
             except Exception:
                 response_schema = None
 
             # Fetch instance dimensions for detailed display (score/position/offsets)
             try:
-                from crud.ai.instance_dimension import get_by_instance as _get_instance_dims
-
                 instance_dimensions = await _get_instance_dims(
                     db, validation_result["instance"]["instance_id"]
                 )
@@ -352,8 +350,6 @@ class AIInstanceChatTestService:
             user_match_result = await user_matcher_service.find_test_user_for_instance(
                 db=db, instance_context=validation_result["instance"]
             )
-
-            from services.ai.queries.transactions import archive_all_conversation_items
 
             archived_count = await archive_all_conversation_items(
                 db=db,

@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-local-imports
+        name: Check for local imports in functions
+        entry: python scripts/check_local_imports.py
+        language: system
+        types: [python]
+        pass_filenames: true
+        
+      - id: import-linter
+        name: Check architecture contracts
+        entry: lint-imports
+        language: system
+        pass_filenames: false
+        files: \.py$

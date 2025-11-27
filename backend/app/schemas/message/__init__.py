@@ -9,12 +9,12 @@ This module imports all message-related Pydantic schemas.
 # Media schemas
 from .media import (
     MediaFileBase,
-    MediaFileUpload,
-    MediaFileResponse,
     MediaFileListResponse,
-    MediaFileUpdate,
     MediaFileQuery,
+    MediaFileResponse,
     MediaFileStats,
+    MediaFileUpdate,
+    MediaFileUpload,
 )
 
 # Emoticon schemas removed - emoticons table renamed to preset_assets

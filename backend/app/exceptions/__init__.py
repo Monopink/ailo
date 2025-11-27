@@ -8,49 +8,49 @@ Exceptions are organized by category and provide structured error information.
 # Base exceptions
 from .base import (
     BaseAppException,
-    ValidationError,
-    NotFoundError,
-    PermissionError,
+    ConfigurationError,
     ConflictError,
     ExternalServiceError,
-    ConfigurationError,
     MissingConfigurationError,
+    NotFoundError,
+    PermissionError,
+    ValidationError,
 )
 
 # Business exceptions
 from .business import (
-    UserNotFoundError,
-    UserAlreadyExistsError,
-    InvalidCredentialsError,
     AccountSuspendedError,
-    ContactNotFoundError,
+    AIConversationError,
+    AIDataAccessError,
+    AIInstanceCreationError,
+    AIInstanceInactiveError,
+    AIInstanceNotFoundError,
+    AIRelationshipError,
+    AIServiceError,
     ContactAlreadyExistsError,
-    ContactRequestPendingError,
-    ContactRequestInventoryPendingError,
     ContactLimitExceededError,
+    ContactNotFoundError,
+    ContactRequestInventoryPendingError,
+    ContactRequestPendingError,
+    InvalidCredentialsError,
     MessageDeliveryError,
     MessageTooLongError,
-    AIServiceError,
-    AIDataAccessError,
-    AIInstanceNotFoundError,
-    AIInstanceInactiveError,
-    AIInstanceCreationError,
-    AIConversationError,
-    AIRelationshipError,
     SecurityViolationError,
     SnowflakeGeneratorError,
+    UserAlreadyExistsError,
+    UserNotFoundError,
 )
 
 # LLM exceptions
 from .llm import (
-    LLMServiceError,
-    LLMEndpointNotFoundError,
     LLMAuthenticationError,
-    LLMRateLimitError,
-    LLMTimeoutError,
-    LLMNetworkError,
     LLMConfigurationError,
+    LLMEndpointNotFoundError,
+    LLMNetworkError,
     LLMNoConfigError,
+    LLMRateLimitError,
+    LLMServiceError,
+    LLMTimeoutError,
 )
 
 __all__ = [

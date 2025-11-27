@@ -11,16 +11,15 @@ Following the architectural pattern of separating concerns:
 import json
 from typing import Any, Dict, Optional
 
-from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
-from starlette.templating import Jinja2Templates
-from starlette_admin import CustomView
-
-from core.database import SessionLocal
+from core.database import get_sessionmaker
 from services.admin.testing.llm_config import execute_llm_config_test
 from services.llm.config import get_llm_config
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+from starlette.templating import Jinja2Templates
+from starlette_admin import CustomView
+from utils.form_helpers import FormFieldError, get_float_field, get_int_field, get_text_field
 from utils.logging import get_logger
-from utils.form_helpers import get_int_field, get_text_field, get_float_field, FormFieldError
 
 logger = get_logger(__name__)
 
@@ -84,7 +83,8 @@ class LLMConfigTestView(CustomView):
                     },
                 )
 
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 # Get configuration details
                 config_result = await get_llm_config(db, config_id=config_id)
                 if not config_result:
@@ -110,27 +110,29 @@ class LLMConfigTestView(CustomView):
                         "model_name": config.model_name or provider.default_model,
                         "status": config.status,
                         "priority": config.priority,
-                        "temperature": float(config.temperature) if config.temperature is not None else None,
+                        "temperature": (
+                            float(config.temperature) if config.temperature is not None else None
+                        ),
                         "max_tokens": config.max_tokens,
                         "timeout_seconds": config.timeout_seconds,
                         "thinking_mode": config.thinking_mode,
                         "json_schema_mode": config.json_schema_mode,
                         "supports_thinking": bool(provider.supports_thinking),
                         "top_p": float(config.top_p) if config.top_p is not None else None,
-                        "frequency_penalty": float(config.frequency_penalty)
-                        if config.frequency_penalty is not None
-                        else None,
-                        "presence_penalty": float(config.presence_penalty)
-                        if config.presence_penalty is not None
-                        else None,
+                        "frequency_penalty": (
+                            float(config.frequency_penalty)
+                            if config.frequency_penalty is not None
+                            else None
+                        ),
+                        "presence_penalty": (
+                            float(config.presence_penalty) if config.presence_penalty is not None else None
+                        ),
                         "stop_sequences": config.stop_sequences or [],
                         "stop_sequences_display": json.dumps(
                             config.stop_sequences or [], ensure_ascii=False
                         ),
                         "default_tools": config.default_tools or [],
-                        "default_tools_display": json.dumps(
-                            config.default_tools or [], ensure_ascii=False
-                        ),
+                        "default_tools_display": json.dumps(config.default_tools or [], ensure_ascii=False),
                         "default_tool_choice": config.default_tool_choice,
                         "parallel_tool_calls": config.parallel_tool_calls,
                         "max_tool_calls": config.max_tool_calls,
@@ -144,9 +146,7 @@ class LLMConfigTestView(CustomView):
                         ),
                         "enable_streaming": config.enable_streaming,
                         "extra_params": config.extra_params or {},
-                        "extra_params_display": json.dumps(
-                            config.extra_params or {}, ensure_ascii=False
-                        ),
+                        "extra_params_display": json.dumps(config.extra_params or {}, ensure_ascii=False),
                     },
                     "page_title": f"Test LLM Config: {config.name}",
                 }
@@ -179,7 +179,9 @@ class LLMConfigTestView(CustomView):
         try:
             form_data = await request.form()
 
-            def parse_json_field(field_name: str, label: str, expected_type: Optional[type]) -> Optional[Any]:
+            def parse_json_field(
+                field_name: str, label: str, expected_type: Optional[type]
+            ) -> Optional[Any]:
                 raw_value = form_data.get(field_name)
                 if raw_value is None:
                     return None
@@ -252,7 +254,8 @@ class LLMConfigTestView(CustomView):
                 )
 
             # Execute test using service layer
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 result = await execute_llm_config_test(
                     db=db,
                     config_id=config_id,

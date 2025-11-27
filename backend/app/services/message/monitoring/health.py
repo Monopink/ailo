@@ -4,11 +4,13 @@ Message service health check.
 Provides provider-agnostic health check functionality for the message service.
 """
 
-from datetime import datetime
-from typing import Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timezone
+from typing import Any, Dict
 
+from crud.system import system_configs
+from services.config import config_service
 from services.message.providers.leancloud import create_leancloud_provider
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -48,7 +50,7 @@ async def check_message_service_health(db: AsyncSession) -> Dict[str, Any]:
             "healthy": is_healthy,
             "provider": "leancloud",
             "error": error_msg,
-            "checked_at": int(datetime.utcnow().timestamp() * 1000),
+            "checked_at": int(datetime.now(timezone.utc).timestamp() * 1000),
         }
 
         if is_healthy:
@@ -68,7 +70,7 @@ async def check_message_service_health(db: AsyncSession) -> Dict[str, Any]:
             "healthy": False,
             "provider": "unknown",
             "error": error_msg,
-            "checked_at": int(datetime.utcnow().timestamp() * 1000),
+            "checked_at": int(datetime.now(timezone.utc).timestamp() * 1000),
         }
 
 
@@ -99,9 +101,6 @@ async def get_message_service_status(db: AsyncSession) -> Dict[str, Any]:
         ...     logger.error("Message service configuration incomplete")
     """
     try:
-        from services.config import config_service
-        from crud.system import system_configs
-
         # Check configuration completeness
         leancloud_config = await config_service.get_leancloud_config(db)
         config_complete = all(
@@ -147,6 +146,6 @@ async def get_message_service_status(db: AsyncSession) -> Dict[str, Any]:
             "healthy": False,
             "provider": "unknown",
             "error": error_msg,
-            "checked_at": int(datetime.utcnow().timestamp() * 1000),
+            "checked_at": int(datetime.now(timezone.utc).timestamp() * 1000),
             "details": {"config_complete": False, "service_initialized": False, "api_accessible": False},
         }

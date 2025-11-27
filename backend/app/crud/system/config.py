@@ -4,14 +4,15 @@ System configuration CRUD operations.
 This module contains CRUD operations for system configuration management.
 """
 
-from typing import List, Optional, Any
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+import json
+from typing import Any, List, Optional
 
 from crud.base import CRUDBase
+from enums import ConfigType
 from models.system import SystemConfig
 from schemas.system import SystemConfigCreate, SystemConfigUpdate
-from enums import ConfigType
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -143,8 +144,6 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
                 )
                 raise ValueError(f"Invalid number configuration for '{config_key}': {config.config_value}")
         elif config.config_type == ConfigType.JSON:
-            import json
-
             try:
                 return json.loads(config.config_value)
             except json.JSONDecodeError as e:

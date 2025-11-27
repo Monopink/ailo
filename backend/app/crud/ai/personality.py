@@ -6,12 +6,12 @@ for AI personality management.
 """
 
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, or_
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.ai import AIPersonality, AIPersonalityPlaceholder
 from schemas.ai import AIPersonalityCreate, AIPersonalityUpdate
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -101,7 +101,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
                 .limit(limit)
             )
 
-            personalities = result.scalars().all()
+            personalities = list(result.scalars().all())
 
             logger.debug("available_personalities_retrieved", count=len(personalities))
 
@@ -144,7 +144,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
                 .limit(limit)
             )
 
-            personalities = result.scalars().all()
+            personalities = list(result.scalars().all())
 
             logger.debug("personalities_search_completed", query=query, count=len(personalities))
 
@@ -188,7 +188,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
                     .order_by(AIPersonalityPlaceholder.placeholder_key)
                 )
 
-            placeholders = result.scalars().all()
+            placeholders = list(result.scalars().all())
 
             logger.debug("placeholders_retrieved", personality_id=personality_id, count=len(placeholders))
 
@@ -257,7 +257,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
                 .order_by(AIPersonalityPlaceholder.placeholder_key)
             )
 
-            placeholders = result.scalars().all()
+            placeholders = list(result.scalars().all())
 
             logger.debug(
                 "placeholders_by_personality_retrieved",

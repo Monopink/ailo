@@ -5,18 +5,21 @@ This module contains Starlette-Admin views for AI instance configuration and per
 """
 
 from typing import Any, Dict, Sequence
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, TextAreaField, HasOne, IntegerField, JSONField
-from starlette_admin.fields import RelationField
-from starlette_admin._types import RequestAction
-from admin.fields import LocalDateTimeField
-from starlette_admin.actions import link_row_action
-from starlette_admin.exceptions import FormValidationError
 
-from models.ai.template import AITemplate, AIPersona
+from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
-from enums import AITemplateStatus, ReusableStatus, AIPersonaStatus
+from enums import AIPersonaStatus, AITemplateStatus, Gender, ProfileOwnerType, ReusableStatus
+from models.ai.template import AIPersona, AITemplate
+from models.base import generate_qiao_id
+from models.profile import Profile
+from sqlalchemy import select
+from starlette.requests import Request
+from starlette_admin import HasOne, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin._types import RequestAction
+from starlette_admin.actions import link_row_action
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
+from starlette_admin.fields import RelationField
 
 
 class AITemplateView(ModelView):
@@ -214,10 +217,6 @@ class _PersonaRelatedStringField(StringField):
 
     async def parse_obj(self, request, obj):  # type: ignore[override]
         try:
-            from sqlalchemy import select
-            from models.profile import Profile
-            from enums import ProfileOwnerType
-
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
                 return "(No Qiao ID)"
@@ -255,10 +254,6 @@ class _PersonaGenderField(StringField):
 
     async def parse_obj(self, request, obj):  # type: ignore[override]
         try:
-            from sqlalchemy import select
-            from models.profile import Profile
-            from enums import ProfileOwnerType, Gender
-
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
                 return "(No Qiao ID)"
@@ -309,14 +304,10 @@ class AIPersonaView(ModelView):
     async def create(self, request: Request, data: Dict[str, Any]) -> Any:
         """Ensure qiao_id is generated if the admin did not override it."""
         if not data.get("qiao_id"):
-            from models.base import generate_qiao_id
-
             data["qiao_id"] = generate_qiao_id()
 
         # Set default is_reusable to REUSABLE if not provided
         if data.get("is_reusable") is None:
-            from enums import ReusableStatus
-
             data["is_reusable"] = ReusableStatus.REUSABLE
 
         return await super().create(request, data)

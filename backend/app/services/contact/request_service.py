@@ -4,44 +4,47 @@ Contact request service business logic.
 This module provides business logic for contact request processing.
 """
 
-from typing import Dict, List, Optional
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import BigInteger, cast, select, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, status
+from typing import List, Optional
 
+from crud.ai import ai_persona as ai_persona_crud
 from crud.contact import contact as contact_crud
 from crud.contact import contact_request as contact_request_crud
-from crud.user import user as user_crud
-from crud.ai import ai_persona as ai_persona_crud
 from crud.profile import profile as profile_crud
 from crud.system import system_configs
-from models.contact import Contact, ContactRequest
-from models.ai.instance import AIInstance
+from crud.user import user as user_crud
 from enums import (
     AIPersonaStatus,
-    ContactType,
-    ContactRequestStatus,
+    ChatInfoType,
     ContactRequestFailureCode,
     ContactRequestSource,
-    ChatInfoType,
+    ContactRequestStatus,
+    ContactType,
     ProfileOwnerType,
 )
+from enums.templates import CHAT_INFO_TEMPLATES
+from fastapi import HTTPException
+from fastapi import status
+from fastapi import status as http_status
+from models.ai.instance import AIInstance
+from models.contact import Contact, ContactRequest
 from schemas.contact import (
-    ContactRequestCreate,
     ContactCreate,
-    ContactRequestWithProfile,
-    ContactRequestListResponse,
+    ContactInfoBase,
     ContactRequestAccept,
+    ContactRequestCreate,
+    ContactRequestListResponse,
+    ContactRequestWithProfile,
     ContactResponse,
 )
-from schemas.contact import ContactInfoBase
-from services.ai.instance_creation import create_instance_from_persona
 from services.ai.contact_handler import handle_ai_contact_request
+from services.ai.instance_creation import create_instance_from_persona
+from services.contact.service import _build_contact_response, _get_contact_profile, _get_im_conv_id
 from services.message.outbound.helpers import send_chat_info, send_contact_request_notification
-from services.contact.service import _get_im_conv_id, _get_contact_profile, _build_contact_response
-from enums.templates import CHAT_INFO_TEMPLATES
+from sqlalchemy import BigInteger, cast, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
+from utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 
@@ -222,8 +225,6 @@ async def _process_ai_contact_request(
             user_id=user_id,
             user_qiao_id=user_qiao_id,
         )
-
-        from utils.snowflake import generate_snowflake_id
 
         conv_id = f"conv_{generate_snowflake_id()}"
 
@@ -448,10 +449,7 @@ async def _check_ai_persona_duplicate(
             .where(
                 Contact.user_qiao_id == user_qiao_id,
                 Contact.contact_type == ContactType.AI,
-                cast(
-                    AIInstance.creation_metadata["persona_id"].astext, BigInteger
-                )
-                == persona.id,
+                cast(AIInstance.creation_metadata["persona_id"].astext, BigInteger) == persona.id,
             )
             .order_by(Contact.id.desc())
         )
@@ -833,7 +831,7 @@ async def get_contact_requests_service(
         for req in requests:
             # Get applicant profile
             profile_owner_type = (
-                ProfileOwnerType.USER if req.from_type == ContactType.USER else ProfileOwnerType.AI
+                ProfileOwnerType.USER if req.from_type == ContactType.USER else ProfileOwnerType.AI_INSTANCE
             )
             profile = await profile_crud.get_by_owner_qiao_id(
                 db, owner_qiao_id=req.from_qiao_id, owner_type=profile_owner_type
@@ -907,7 +905,6 @@ async def accept_contact_request_service(
     Raises:
         HTTPException: If request not found, invalid status, or processing fails
     """
-    from fastapi import status as http_status
 
     try:
         # Get contact request
@@ -1041,7 +1038,6 @@ async def reject_contact_request_service(
     Raises:
         HTTPException: If request not found, invalid status, or processing fails
     """
-    from fastapi import status as http_status
 
     try:
         # Get contact request

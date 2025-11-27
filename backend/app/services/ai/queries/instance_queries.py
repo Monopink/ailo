@@ -5,36 +5,36 @@ This module provides instance-related read/query functions with clear
 separation of concerns and pure function design.
 """
 
-from typing import Dict, Any, Optional, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from typing import Any, Dict, List, Optional
 
+from enums import ContactType
+from exceptions import AIDataAccessError
 from models.ai import (
+    AIDimension,
+    AIDimensionRelationshipMapping,
     AIInstance,
     AIPersonality,
     AIPersonalityPlaceholder,
-    AIStyle,
     AIRelationship,
-    AIDimensionRelationshipMapping,
+    AIStyle,
     AIStyleDimension,
-    AIDimension,
 )
-from models.profile import Profile
 from models.contact import Contact
+from models.profile import Profile
 from models.user import User
-from enums import ContactType
-from utils.logging import get_logger
-from exceptions import AIDataAccessError
 from services.ai.types import (
-    InstanceContext,
+    AITypeInfo,
     CurrentRelationship,
     DimensionSpec,
+    InstanceContext,
+    PersonalityInfo,
     ProfileInfo,
     RelationshipCounts,
     StyleInfo,
-    PersonalityInfo,
-    AITypeInfo,
 )
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -260,10 +260,7 @@ def _build_ai_type(creation_metadata: Optional[Dict[str, Any]]) -> Optional[AITy
             return None
 
     type_id = creation_metadata.get("persona_type_id") or creation_metadata.get("template_type_id")
-    type_name = (
-        creation_metadata.get("persona_type_name")
-        or creation_metadata.get("template_type_name")
-    )
+    type_name = creation_metadata.get("persona_type_name") or creation_metadata.get("template_type_name")
     parsed_type_id = _parse_type_id(type_id)
 
     if parsed_type_id is None or not type_name:

@@ -1,7 +1,5 @@
-"""
-Starlette-Admin configuration and initialization.
-"""
+"""Starlette-Admin configuration and initialization."""
 
-from .main import admin
+from .main import get_admin
 
-__all__ = ["admin"]
+__all__ = ["get_admin"]

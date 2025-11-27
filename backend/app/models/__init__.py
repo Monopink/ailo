@@ -5,59 +5,60 @@ This module imports all database models to ensure they are registered
 with SQLAlchemy's metadata for table creation and migrations.
 """
 
+from .admin import AdminLoginLog, AdminOperationLog, AdminUser
+from .ai import (
+    AIConversationItem,
+    AIConversationItemArchive,
+    AIDimension,
+    AIDimensionRelationshipMapping,
+    AIInstance,
+    AIInstanceDimension,
+    AIMessageBuffer,
+    AIPersona,
+    AIPersonality,
+    AIPersonalityPlaceholder,
+    AIRelationship,
+    AIRequestLog,
+    AIStyle,
+    AIStyleDimension,
+    AITemplate,
+    AIType,
+)
+
 # Import base classes first
 from .base import (
+    AutoIncrementModel,
     Base,
     BaseModel,
-    SnowflakeModel,
-    AutoIncrementModel,
-    SnowflakeQiaoModel,
-    ImmutableSnowflakeModel,
     ImmutableAutoIncrementModel,
+    ImmutableSnowflakeModel,
+    SnowflakeModel,
+    SnowflakeQiaoModel,
+)
+from .contact import Contact, ContactRequest
+from .discovery import SquareTypeEntry
+from .llm import LLMConfig, LLMProvider, LLMTestLog
+from .message import MediaFile, MessageDeliveryFailure, MessageHistory
+from .profile import Profile, UserProfileLog
+from .security import UserRiskStats, UserViolationLog
+from .system import (
+    StatsAIDaily,
+    StatsAIMonthly,
+    StatsAIWeekly,
+    StatsMessageDaily,
+    StatsMessageMonthly,
+    StatsMessageWeekly,
+    StatsRevenueDaily,
+    StatsRevenueMonthly,
+    StatsRevenueWeekly,
+    StatsUserDaily,
+    StatsUserMonthly,
+    StatsUserWeekly,
+    SystemConfig,
 )
 
 # Import all models to register them with SQLAlchemy
-from .user import User, UserToken, LoginRecord
-from .contact import Contact, ContactRequest
-from .message import MessageHistory, MessageDeliveryFailure, MediaFile
-from .profile import Profile, UserProfileLog
-from .ai import (
-    AIRelationship,
-    AIStyle,
-    AIDimension,
-    AIStyleDimension,
-    AIDimensionRelationshipMapping,
-    AIPersonality,
-    AIPersonalityPlaceholder,
-    AIType,
-    AITemplate,
-    AIPersona,
-    AIInstance,
-    AIMessageBuffer,
-    AIConversationItem,
-    AIConversationItemArchive,
-    AIInstanceDimension,
-    AIRequestLog,
-)
-from .discovery import SquareTypeEntry
-from .system import (
-    SystemConfig,
-    StatsUserDaily,
-    StatsUserWeekly,
-    StatsUserMonthly,
-    StatsRevenueDaily,
-    StatsRevenueWeekly,
-    StatsRevenueMonthly,
-    StatsMessageDaily,
-    StatsMessageWeekly,
-    StatsMessageMonthly,
-    StatsAIDaily,
-    StatsAIWeekly,
-    StatsAIMonthly,
-)
-from .admin import AdminUser, AdminOperationLog, AdminLoginLog
-from .security import UserViolationLog, UserRiskStats
-from .llm import LLMProvider, LLMConfig, LLMTestLog
+from .user import LoginRecord, User, UserToken
 
 # Export all models for easy importing
 __all__ = [

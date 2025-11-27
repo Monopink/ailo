@@ -9,24 +9,25 @@ from __future__ import annotations
 
 import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from .config import get_active_configs
-from .providers import factory
-from .streaming_policy import resolve_streaming_decision, extract_stream_override
-from .types import LLMCachingOptions, LLMRequestOptions, LLMSessionContext, LLMStreamingDecision
-from .utils import is_valid_json
-from models.llm import LLMConfig, LLMProvider
-from utils.logging import get_logger
 from exceptions.llm import (
-    LLMNoConfigError,
-    LLMRequestError,
-    LLMTimeoutError,
-    LLMConfigurationError,
     ConfigNotVerifiedError,
     JSONSchemaNotSupportedError,
+    LLMConfigurationError,
+    LLMNoConfigError,
+    LLMRequestError,
     LLMResponseFormatError,
+    LLMTimeoutError,
 )
+from models.llm import LLMConfig, LLMProvider
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
+
+from .config import get_active_configs, get_config_by_provider, get_llm_config, get_primary_config
+from .providers import factory
+from .streaming_policy import extract_stream_override, resolve_streaming_decision
+from .types import LLMCachingOptions, LLMRequestOptions, LLMSessionContext, LLMStreamingDecision
+from .utils import is_valid_json
 
 logger = get_logger(__name__)
 
@@ -138,8 +139,6 @@ async def invoke_llm(
 
 async def get_primary_llm_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, LLMProvider]]:
     """Compatibility helper reused by legacy callers."""
-    from .config import get_primary_config
-
     return await get_primary_config(db)
 
 
@@ -152,7 +151,6 @@ async def invoke_llm_with_provider(
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """Send an LLM invocation request to a specific provider."""
-    from .config import get_config_by_provider
 
     config_result = await get_config_by_provider(db, provider_name)
 
@@ -186,7 +184,6 @@ async def select_config_for_ai(
 
     Ensures the selected config supports JSON Schema.
     """
-    from .config import get_llm_config, get_primary_config
 
     if name:
         config_result = await get_llm_config(db, name)
@@ -529,7 +526,6 @@ async def _get_configs_to_try(
     name: Optional[str],
 ) -> List[Tuple[LLMConfig, LLMProvider]]:
     if name:
-        from .config import get_llm_config
 
         config_result = await get_llm_config(db, name)
         return [config_result] if config_result else []

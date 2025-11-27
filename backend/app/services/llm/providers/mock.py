@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from models.llm import LLMConfig, LLMProvider
-from services.llm.types import LLMRequestOptions, LLMProviderResult
 from services.llm.converters import ResponsesFormatConverter
+from services.llm.types import LLMProviderResult, LLMRequestOptions
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -69,7 +69,7 @@ def _build_mock_content(
 ) -> str:
     """Generate deterministic mock content."""
 
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
 
     if json_schema:
         # Generate mock response matching the required schema structure
@@ -107,7 +107,11 @@ def _build_mock_content(
                 mock_body[field] = True
             elif field == "memory_operations":
                 mock_body[field] = [
-                    {"operation": "add", "content": f"用户说：{user_message[:20]}", "insert_position": "end"}
+                    {
+                        "operation": "add",
+                        "content": f"用户说：{user_message[:20]}",
+                        "insert_position": "end",
+                    }
                 ]
             elif field_type == "string":
                 mock_body[field] = f"mock_{field}"
@@ -198,7 +202,7 @@ async def send_request(
 3. 确定回复策略：友好回应
 4. 生成回复内容"""
 
-    response_identifier = f"mock-{int(datetime.utcnow().timestamp() * 1000)}"
+    response_identifier = f"mock-{int(datetime.now(timezone.utc).timestamp() * 1000)}"
 
     # Build Doubao Responses API compatible raw_response
     content_blocks = [{"type": "output_text", "text": content}]

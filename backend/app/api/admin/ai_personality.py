@@ -4,14 +4,14 @@ Handles personality management including prompts, schemas, and placeholders.
 """
 
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from crud.ai import (
-    ai_personality as personality_crud,
-    ai_personality_placeholder as placeholder_crud,
-)
+from crud.ai import ai_personality as personality_crud
+from crud.ai import ai_personality_placeholder as placeholder_crud
+from fastapi import APIRouter, Depends, HTTPException
+from models.ai.personality import AIPersonalityPlaceholder
+from services.ai.response_schema import generate_json_schema
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -43,7 +43,6 @@ async def save_personality_all(
     personality_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Save personality with auto-generated JSON schema from structured config."""
-    from services.ai.response_schema import generate_json_schema
 
     personality = await personality_crud.get(db, id=personality_id)
     if not personality:
@@ -85,7 +84,6 @@ async def save_personality_all(
                 await placeholder_crud.update(db, db_obj=existing_placeholder, obj_in=placeholder_data)
                 updated += 1
         else:
-            from models.ai.personality import AIPersonalityPlaceholder
 
             placeholder_data["personality_id"] = personality_id
             new_placeholder = AIPersonalityPlaceholder(**placeholder_data)

@@ -3,32 +3,31 @@ Message and media-related model views for Starlette-Admin.
 Creates ModelView instances for message system and media management.
 """
 
-from typing import Dict, Any
-from starlette.requests import Request
-from starlette_admin import IntegerField, StringField, TextAreaField, JSONField
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin.exceptions import FormValidationError
-from admin.views.base import IntegerEnumField
+from typing import Any, Dict
+
 from admin.fields import LocalDateTimeField
-
-from models.message import MessageDeliveryFailure
-from models.message.message import MessageHistory
-from models.message.media import MediaFile
-from models.message.notification import NotificationPushHistory
-from models.system import PresetAsset
-
+from admin.views.base import IntegerEnumField
 from enums import (
-    FileType,
     FileStatus,
-    UploaderType,
+    FileType,
     MessageDirection,
     MessageParticipantType,
-    ServiceProvider,
-    MessageType,
     MessageStatus,
-    NotificationType,
+    MessageType,
     NotificationStatus,
+    NotificationType,
+    ServiceProvider,
+    UploaderType,
 )
+from models.message import MessageDeliveryFailure
+from models.message.media import MediaFile
+from models.message.message import MessageHistory
+from models.message.notification import NotificationPushHistory
+from models.system import PresetAsset
+from starlette.requests import Request
+from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
 
 
 class MessageHistoryView(ModelView):

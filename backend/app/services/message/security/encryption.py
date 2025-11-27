@@ -7,9 +7,9 @@ Provides algorithm-agnostic functions for encrypting and decrypting content.
 
 import base64
 import secrets
-from typing import Dict, Any, Optional, Tuple
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from typing import Any, Dict, Optional, Tuple
 
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from enums import EncryptionType, EncryptionVersion
 from utils.logging import get_logger
 

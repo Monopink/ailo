@@ -6,17 +6,12 @@ for template and persona management.
 """
 
 from typing import Optional, Sequence
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.ai import AIPersona, AITemplate
-from schemas.ai import (
-    AIPersonaCreate,
-    AIPersonaUpdate,
-    AITemplateCreate,
-    AITemplateUpdate,
-)
+from schemas.ai import AIPersonaCreate, AIPersonaUpdate, AITemplateCreate, AITemplateUpdate
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

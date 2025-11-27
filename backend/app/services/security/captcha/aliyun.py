@@ -13,11 +13,12 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
 import asyncio
+import importlib
+from typing import Optional, Tuple
 
+from core.config import get_settings
 from utils.logging import get_logger
-from core.config import settings
 
 logger = get_logger(__name__)
 
@@ -32,6 +33,7 @@ class AliyunCaptchaProvider:
         self.mode = mode  # 'strict' | 'fallback' (on infrastructure errors only)
 
         # Read AK/SK from environment via settings (Optional values)
+        settings = get_settings()
         self.ak = getattr(settings, "ALIYUN_CAPTCHA_ACCESS_KEY_ID", None)
         self.sk = getattr(settings, "ALIYUN_CAPTCHA_ACCESS_KEY_SECRET", None)
 
@@ -72,9 +74,10 @@ class AliyunCaptchaProvider:
 
         # Lazily import SDK to avoid hard dependency when not used
         try:
-            from alibabacloud_tea_openapi import models as open_api_models
-            from alibabacloud_captcha20230305.client import Client as CaptchaClient
-            from alibabacloud_captcha20230305 import models as captcha_models
+            captcha_models = importlib.import_module("alibabacloud_captcha20230305.models")
+            captcha_client_module = importlib.import_module("alibabacloud_captcha20230305.client")
+            CaptchaClient = getattr(captcha_client_module, "Client")
+            open_api_models = importlib.import_module("alibabacloud_tea_openapi.models")
         except Exception as e:
             logger.error("aliyun_captcha_sdk_import_failed", error=str(e))
             if self.mode == "fallback":

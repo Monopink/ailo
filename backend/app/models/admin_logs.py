@@ -3,7 +3,7 @@ Admin log models for operation and login tracking.
 Simplified logging system for admin activities.
 """
 
-from sqlalchemy import Column, String, Integer, Enum, ForeignKey
+from sqlalchemy import Column, Enum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import relationship
 

@@ -5,14 +5,14 @@ Provides a lightweight interface for managing the new ai_types table.
 """
 
 from typing import Any, Sequence
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, TextAreaField, IntegerField
-from admin.fields import LocalDateTimeField
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.ai.template import AIType, AIPersona, AITemplate
+from admin.fields import LocalDateTimeField
+from models.ai.template import AIPersona, AITemplate, AIType
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import Request
+from starlette_admin import IntegerField, StringField, TextAreaField
+from starlette_admin.contrib.sqla import ModelView
 
 
 class CountField(IntegerField):
@@ -25,7 +25,7 @@ class CountField(IntegerField):
         status_filter: int | None = None,
         is_reusable_filter: int | None = None,
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         self.count_model = count_model
         self.foreign_key_field = foreign_key_field
@@ -36,18 +36,20 @@ class CountField(IntegerField):
     async def parse_obj(self, request: Request, obj: Any) -> int:
         """Parse object to get count from database with filters."""
         session: AsyncSession = request.state.session
-        stmt = select(func.count()).select_from(self.count_model).where(
-            getattr(self.count_model, self.foreign_key_field) == obj.id
+        stmt = (
+            select(func.count())
+            .select_from(self.count_model)
+            .where(getattr(self.count_model, self.foreign_key_field) == obj.id)
         )
-        
+
         # Apply status filter if specified
         if self.status_filter is not None:
             stmt = stmt.where(self.count_model.status == self.status_filter)
-        
+
         # Apply is_reusable filter if specified
         if self.is_reusable_filter is not None:
             stmt = stmt.where(self.count_model.is_reusable == self.is_reusable_filter)
-        
+
         result = await session.scalar(stmt)
         return result or 0
 
@@ -56,20 +58,44 @@ class AITypeView(ModelView):
     """CRUD view for ai_types entries."""
 
     exclude_fields_from_create = [
-        "id", "created_at", "updated_at",
-        "persona_count", "template_count",
-        "persona_total", "persona_active", "persona_active_reusable", "persona_active_single_use",
-        "template_total", "template_active", "template_active_reusable", "template_active_single_use"
+        "id",
+        "created_at",
+        "updated_at",
+        "persona_count",
+        "template_count",
+        "persona_total",
+        "persona_active",
+        "persona_active_reusable",
+        "persona_active_single_use",
+        "template_total",
+        "template_active",
+        "template_active_reusable",
+        "template_active_single_use",
     ]
     exclude_fields_from_edit = [
-        "id", "created_at", "updated_at",
-        "persona_count", "template_count",
-        "persona_total", "persona_active", "persona_active_reusable", "persona_active_single_use",
-        "template_total", "template_active", "template_active_reusable", "template_active_single_use"
+        "id",
+        "created_at",
+        "updated_at",
+        "persona_count",
+        "template_count",
+        "persona_total",
+        "persona_active",
+        "persona_active_reusable",
+        "persona_active_single_use",
+        "template_total",
+        "template_active",
+        "template_active_reusable",
+        "template_active_single_use",
     ]
     exclude_fields_from_list: Sequence[str] = [
-        "persona_total", "persona_active", "persona_active_reusable", "persona_active_single_use",
-        "template_total", "template_active", "template_active_reusable", "template_active_single_use"
+        "persona_total",
+        "persona_active",
+        "persona_active_reusable",
+        "persona_active_single_use",
+        "template_total",
+        "template_active",
+        "template_active_reusable",
+        "template_active_single_use",
     ]
 
     fields_default_sort = [("created_at", True)]
@@ -80,23 +106,91 @@ class AITypeView(ModelView):
         StringField("id", label="ID", help_text="Internal AI type identifier"),
         StringField("display_name", label="Display Name", help_text="Admin display label"),
         TextAreaField("description", label="Description", help_text="Optional description"),
-        
         # List page: Active counts only
-        CountField(AIPersona, "type_id", status_filter=1, name="persona_count", label="Personas (Active)", help_text="Number of active personas"),
-        CountField(AITemplate, "type_id", status_filter=1, name="template_count", label="Templates (Active)", help_text="Number of active templates"),
-        
+        CountField(
+            AIPersona,
+            "type_id",
+            status_filter=1,
+            name="persona_count",
+            label="Personas (Active)",
+            help_text="Number of active personas",
+        ),
+        CountField(
+            AITemplate,
+            "type_id",
+            status_filter=1,
+            name="template_count",
+            label="Templates (Active)",
+            help_text="Number of active templates",
+        ),
         # Detail page: Detailed statistics for Personas
-        CountField(AIPersona, "type_id", name="persona_total", label="Personas - Total", help_text="Total personas (all statuses)"),
-        CountField(AIPersona, "type_id", status_filter=1, name="persona_active", label="Personas - Active", help_text="Active personas (status=1)"),
-        CountField(AIPersona, "type_id", status_filter=1, is_reusable_filter=1, name="persona_active_reusable", label="Personas - Active Reusable", help_text="Active + Reusable personas"),
-        CountField(AIPersona, "type_id", status_filter=1, is_reusable_filter=0, name="persona_active_single_use", label="Personas - Active Single-use", help_text="Active + Single-use personas"),
-        
+        CountField(
+            AIPersona,
+            "type_id",
+            name="persona_total",
+            label="Personas - Total",
+            help_text="Total personas (all statuses)",
+        ),
+        CountField(
+            AIPersona,
+            "type_id",
+            status_filter=1,
+            name="persona_active",
+            label="Personas - Active",
+            help_text="Active personas (status=1)",
+        ),
+        CountField(
+            AIPersona,
+            "type_id",
+            status_filter=1,
+            is_reusable_filter=1,
+            name="persona_active_reusable",
+            label="Personas - Active Reusable",
+            help_text="Active + Reusable personas",
+        ),
+        CountField(
+            AIPersona,
+            "type_id",
+            status_filter=1,
+            is_reusable_filter=0,
+            name="persona_active_single_use",
+            label="Personas - Active Single-use",
+            help_text="Active + Single-use personas",
+        ),
         # Detail page: Detailed statistics for Templates
-        CountField(AITemplate, "type_id", name="template_total", label="Templates - Total", help_text="Total templates (all statuses)"),
-        CountField(AITemplate, "type_id", status_filter=1, name="template_active", label="Templates - Active", help_text="Active templates (status=1)"),
-        CountField(AITemplate, "type_id", status_filter=1, is_reusable_filter=1, name="template_active_reusable", label="Templates - Active Reusable", help_text="Active + Reusable templates"),
-        CountField(AITemplate, "type_id", status_filter=1, is_reusable_filter=0, name="template_active_single_use", label="Templates - Active Single-use", help_text="Active + Single-use templates"),
-        
+        CountField(
+            AITemplate,
+            "type_id",
+            name="template_total",
+            label="Templates - Total",
+            help_text="Total templates (all statuses)",
+        ),
+        CountField(
+            AITemplate,
+            "type_id",
+            status_filter=1,
+            name="template_active",
+            label="Templates - Active",
+            help_text="Active templates (status=1)",
+        ),
+        CountField(
+            AITemplate,
+            "type_id",
+            status_filter=1,
+            is_reusable_filter=1,
+            name="template_active_reusable",
+            label="Templates - Active Reusable",
+            help_text="Active + Reusable templates",
+        ),
+        CountField(
+            AITemplate,
+            "type_id",
+            status_filter=1,
+            is_reusable_filter=0,
+            name="template_active_single_use",
+            label="Templates - Active Single-use",
+            help_text="Active + Single-use templates",
+        ),
         LocalDateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]

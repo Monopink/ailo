@@ -5,25 +5,24 @@ This module contains Starlette-Admin views for statistics tables.
 All views are read-only.
 """
 
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, IntegerField, DateField
-
 # Import statistics models
 from models.system.stats import (
-    StatsUserDaily,
-    StatsUserWeekly,
-    StatsUserMonthly,
-    StatsRevenueDaily,
-    StatsRevenueWeekly,
-    StatsRevenueMonthly,
-    StatsMessageDaily,
-    StatsMessageWeekly,
-    StatsMessageMonthly,
     StatsAIDaily,
-    StatsAIWeekly,
     StatsAIMonthly,
+    StatsAIWeekly,
+    StatsMessageDaily,
+    StatsMessageMonthly,
+    StatsMessageWeekly,
+    StatsRevenueDaily,
+    StatsRevenueMonthly,
+    StatsRevenueWeekly,
+    StatsUserDaily,
+    StatsUserMonthly,
+    StatsUserWeekly,
 )
+from starlette.requests import Request
+from starlette_admin import DateField, IntegerField, StringField
+from starlette_admin.contrib.sqla import ModelView
 
 
 class StatsUserDailyView(ModelView):

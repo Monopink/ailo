@@ -5,12 +5,11 @@ This module contains Pydantic schemas for contact relationships and requests.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
+from enums import ContactRequestSource, ContactRequestStatus, ContactType
 from pydantic import BaseModel, Field
-
-from enums import ContactType, ContactRequestSource, ContactRequestStatus
 from schemas.common import BaseSchema
-
 
 # Contact Schemas
 
@@ -35,7 +34,9 @@ class ContactCreate(BaseModel):
     custom_avatar_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
     tags: Optional[Dict[str, Any]] = Field(None, description="Contact tags (JSONB)")
     remark: Optional[str] = Field(None, max_length=500, description="Contact remark/notes")
-    source: Optional[str] = Field("unknown", max_length=32, description="Contact creation source identifier")
+    source: Optional[str] = Field(
+        "unknown", max_length=32, description="Contact creation source identifier"
+    )
 
 
 class ContactUpdate(BaseModel):
@@ -202,7 +203,9 @@ class ContactSearchResult(BaseSchema):
 class BatchContactUpdate(BaseModel):
     """Schema for batch updating contacts."""
 
-    contact_qiao_ids: List[str] = Field(..., min_items=1, max_items=50, description="Contact external IDs")
+    contact_qiao_ids: List[str] = Field(
+        ..., min_length=1, max_length=50, description="Contact external IDs"
+    )
     is_pinned: Optional[bool] = Field(None, description="Pin/unpin contacts")
     is_muted: Optional[bool] = Field(None, description="Mute/unmute contacts")
     is_blocked: Optional[bool] = Field(None, description="Block/unblock contacts")
@@ -211,5 +214,7 @@ class BatchContactUpdate(BaseModel):
 class BatchContactDelete(BaseModel):
     """Schema for batch deleting contacts."""
 
-    contact_qiao_ids: List[str] = Field(..., min_items=1, max_items=50, description="Contact external IDs")
+    contact_qiao_ids: List[str] = Field(
+        ..., min_length=1, max_length=50, description="Contact external IDs"
+    )
     permanent: bool = Field(False, description="Permanent deletion (cannot be restored)")

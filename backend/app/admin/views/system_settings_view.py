@@ -3,11 +3,15 @@ System settings views for non-database functionality.
 All business logic is handled through internal API calls.
 """
 
+from crud.system import system_configs
+from enums import AdminRole
+from services.config import config_service
+from services.system_config import SystemConfigService, get_config, get_configs_by_group
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-
+from utils.admin_logs import create_operation_log
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -35,12 +39,6 @@ class SystemSettingsView(CustomView):
             # Get database session
             db = request.state.session
 
-            # Get grouped configurations from service
-            from services.system_config import get_configs_by_group, get_config, SystemConfigService
-            from crud.system import system_configs
-            from services.config import config_service
-            from utils.admin_logs import create_operation_log
-
             config_groups = await get_configs_by_group(db)
 
             # Check for missing configs
@@ -51,7 +49,9 @@ class SystemSettingsView(CustomView):
             missing_configs = await SystemConfigService.check_missing_configs(db, displayed_keys)
 
             # Get webhook and LeanCloud IM data for System Management section
-            webhook_token = await system_configs.get_config_value(db, config_key="leancloud_im_webhook_token")
+            webhook_token = await system_configs.get_config_value(
+                db, config_key="leancloud_im_webhook_token"
+            )
             api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
             conversation_id = await system_configs.get_config_value(
                 db, config_key="leancloud_im_service_conversation_id"
@@ -102,8 +102,6 @@ class SystemSettingsView(CustomView):
                         admin_role_val = int(admin_role) if admin_role is not None else None
                     except Exception:
                         admin_role_val = None
-
-                    from enums import AdminRole
 
                     if admin_role_val not in (AdminRole.ADMIN, AdminRole.SUPER_ADMIN):
                         context["error"] = "Permission denied"

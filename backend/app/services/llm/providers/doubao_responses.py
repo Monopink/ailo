@@ -9,10 +9,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from openai import AsyncOpenAI
-
 from exceptions.llm import LLMConfigurationError, LLMRequestError, LLMTimeoutError
 from models.llm import LLMConfig, LLMProvider
+from openai import AsyncOpenAI
 from services.llm.converters import ResponsesFormatConverter
 from services.llm.providers.base import ProviderCapabilities
 from services.llm.providers.openai_base import OpenAIBaseAdapter
@@ -173,9 +172,7 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
             raise
         except Exception as exc:
             logger.error("stream_responses_failed", error=str(exc), exc_info=True)
-            raise LLMRequestError(
-                provider="doubao", message=f"Streaming failed: {exc}"
-            ) from exc
+            raise LLMRequestError(provider="doubao", message=f"Streaming failed: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------

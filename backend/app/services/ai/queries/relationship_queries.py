@@ -5,18 +5,18 @@ This module provides relationship scoring and evaluation query functions
 with clear separation of concerns and pure function design.
 """
 
-from typing import Dict, Any, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from typing import Any, Dict, List
 
 from models.ai import (
-    AIInstanceDimension,
-    AIStyleDimension,
     AIDimension,
-    AIInstance,
     AIDimensionRelationshipMapping,
+    AIInstance,
+    AIInstanceDimension,
     AIRelationship,
+    AIStyleDimension,
 )
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -104,8 +104,6 @@ async def get_instance_current_relationship(db: AsyncSession, instance_id: int) 
         Dictionary containing current relationship info, or empty dict if not found
     """
     try:
-        from models.ai import AIInstance
-
         # Current relationship stored at instance level
         result = await db.execute(select(AIInstance).where(AIInstance.id == instance_id))
         instance = result.scalar_one_or_none()

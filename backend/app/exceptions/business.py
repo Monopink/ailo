@@ -6,9 +6,10 @@ that occur during application operations.
 """
 
 from typing import Any, Dict, Optional
-from fastapi import status as http_status
-from .base import BaseAppException, NotFoundError, ConflictError, ValidationError
 
+from fastapi import status as http_status
+
+from .base import BaseAppException, ConflictError, NotFoundError, ValidationError
 
 # User Management Exceptions
 

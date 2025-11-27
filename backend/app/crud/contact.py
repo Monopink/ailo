@@ -5,13 +5,14 @@ This module contains CRUD operations for contact relationships and requests.
 """
 
 from typing import List, Optional
-from sqlalchemy import select, and_, or_, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
+from enums import ContactRequestStatus, ContactType
 from models.contact import Contact, ContactRequest
-from schemas.contact import ContactCreate, ContactUpdate, ContactRequestCreate, ContactRequestUpdate
-from enums import ContactType, ContactRequestStatus
+from schemas.contact import ContactCreate, ContactRequestCreate, ContactRequestUpdate, ContactUpdate
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.snowflake import generate_snowflake_id
 
 
 class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
@@ -116,8 +117,6 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         self, db: AsyncSession, *, obj_in: ContactCreate, user_qiao_id: str, user_id: int, conv_id: str
     ) -> Contact:
         """Create contact with user information."""
-        from utils.snowflake import generate_snowflake_id
-
         contact_data = {
             "id": generate_snowflake_id(),
             "conv_id": conv_id,
@@ -361,9 +360,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
 
     async def get_for_update(self, db: AsyncSession, *, request_id: int) -> Optional[ContactRequest]:
         """Fetch a contact request row with FOR UPDATE locking."""
-        result = await db.execute(
-            select(self.model).where(self.model.id == request_id).with_for_update()
-        )
+        result = await db.execute(select(self.model).where(self.model.id == request_id).with_for_update())
         return result.scalar_one_or_none()
 
 

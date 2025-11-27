@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Awaitable, Callable, Dict, Optional
 
 from models.llm import LLMConfig, LLMProvider
-from services.llm.types import LLMRequestOptions, LLMProviderResult
+from services.llm.types import LLMProviderResult, LLMRequestOptions
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

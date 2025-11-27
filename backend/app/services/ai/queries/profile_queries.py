@@ -5,11 +5,11 @@ This module provides user profile-related read/query functions with clear
 separation of concerns and pure function design.
 """
 
-from typing import Dict, Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from typing import Any, Dict, Optional
 
 from models.profile import Profile
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

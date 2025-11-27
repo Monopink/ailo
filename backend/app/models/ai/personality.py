@@ -5,11 +5,12 @@ This module contains SQLAlchemy models for AI personality templates and placehol
 """
 
 from typing import Any, Dict, Optional
+
+from markupsafe import escape
+from models.base import AutoIncrementModel
 from sqlalchemy import Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from models.base import AutoIncrementModel
 
 
 class AIPersonality(AutoIncrementModel):
@@ -38,7 +39,6 @@ class AIPersonality(AutoIncrementModel):
     )
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 

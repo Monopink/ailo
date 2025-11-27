@@ -3,12 +3,12 @@ Admin Dashboard API endpoints.
 Provides system statistics and monitoring data for admin panel.
 """
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any
+from typing import Any, Dict
 
 from core.database import get_db
+from fastapi import APIRouter, Depends
 from services.admin.data.dashboard import get_dashboard_stats
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

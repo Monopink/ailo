@@ -4,16 +4,17 @@ CAPTCHA Provider Factory
 Creates CAPTCHA provider instances based on configuration.
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from fastapi import Request
 
+from fastapi import Request
 from services.system_config import get_config
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
+
+from .aliyun import AliyunCaptchaProvider
 from .base import CaptchaProvider
 from .none import NoneCaptchaProvider
 from .turnstile import TurnstileProvider
-from .aliyun import AliyunCaptchaProvider
 
 logger = get_logger(__name__)
 

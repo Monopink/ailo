@@ -5,13 +5,12 @@ This module provides functions for validating AI responses against JSON schemas.
 """
 
 import json
-from typing import Dict, Any, Optional, List
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from services.llm import LLMSessionContext, invoke_llm
-from utils.logging import get_logger
+from typing import Any, Dict, List, Optional
 
 import jsonschema
+from services.llm import LLMSessionContext, invoke_llm
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -90,7 +89,7 @@ async def invoke_llm_with_validation(
     json_schema: Optional[Dict[str, Any]] = None,
     preemption_checker: Optional[Any] = None,
     session_context: Optional[LLMSessionContext] = None,
-    **kwargs
+    **kwargs,
 ) -> Dict[str, Any]:
     """
     LLM invocation with optional JSON schema validation and streaming early stop.
@@ -123,7 +122,7 @@ async def invoke_llm_with_validation(
             json_schema=json_schema,
             preemption_checker=preemption_checker,
             session_context=session_context,
-            **kwargs
+            **kwargs,
         )
 
         # Preemption means streaming was stopped intentionally (no validation needed)

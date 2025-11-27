@@ -6,23 +6,17 @@ Provides admin tooling for Square exposure tables.
 
 from typing import Any, Dict, Optional
 
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, HasOne
-from starlette_admin.exceptions import FormValidationError
-from sqlalchemy.exc import IntegrityError
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
-
-from sqlalchemy import select
-
+from enums import ExposureStrategy, SquareCategory, SquareEntryStatus
 from models.discovery import SquareTypeEntry
-from enums import (
-    SquareCategory,
-    ExposureStrategy,
-    SquareEntryStatus,
-)
 from services.discovery.validators import ensure_ai_type_has_active_persona
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from starlette.requests import Request
+from starlette_admin import HasOne, StringField
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
 
 
 class SquareTypeEntryView(ModelView):
@@ -131,12 +125,17 @@ class SquareTypeEntryView(ModelView):
             return await super().create(request, data)
         except IntegrityError as exc:
             # Check if it's a unique constraint violation
-            error_msg = str(exc.orig) if hasattr(exc, 'orig') else str(exc)
-            if 'square_type_entries_square_category_type_id_key' in error_msg or 'duplicate key' in error_msg.lower():
-                raise FormValidationError({
-                    "square_category": "An entry with this category and AI type already exists",
-                    "type_id": "An entry with this category and AI type already exists",
-                })
+            error_msg = str(exc.orig) if hasattr(exc, "orig") else str(exc)
+            if (
+                "square_type_entries_square_category_type_id_key" in error_msg
+                or "duplicate key" in error_msg.lower()
+            ):
+                raise FormValidationError(
+                    {
+                        "square_category": "An entry with this category and AI type already exists",
+                        "type_id": "An entry with this category and AI type already exists",
+                    }
+                )
             # Re-raise other integrity errors
             raise
 

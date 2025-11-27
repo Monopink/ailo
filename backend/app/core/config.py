@@ -1,5 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
 from typing import List, Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -59,7 +61,12 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Constructs the PostgreSQL database URL from settings."""
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DATABASE}"
+        return (
+            "postgresql+asyncpg://"
+            f"{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
+            f"{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/"
+            f"{self.POSTGRES_DATABASE}"
+        )
 
     @property
     def is_development(self) -> bool:
@@ -72,4 +79,17 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT.lower() in ("production", "prod")
 
 
-settings = Settings()
+@lru_cache()
+def get_settings() -> "Settings":
+    """Return cached Settings instance."""
+
+    return Settings()
+
+
+def reset_settings_cache() -> None:
+    """Clear cached Settings instance."""
+
+    get_settings.cache_clear()
+
+
+__all__ = ["Settings", "get_settings", "reset_settings_cache"]

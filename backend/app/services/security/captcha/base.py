@@ -4,7 +4,7 @@ CAPTCHA Provider Protocol
 Defines the interface for CAPTCHA providers.
 """
 
-from typing import Protocol, Tuple, Optional
+from typing import Optional, Protocol, Tuple
 
 
 class CaptchaProvider(Protocol):

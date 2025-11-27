@@ -11,20 +11,14 @@ from .instance import ai_instance
 # AI Personality CRUD
 from .personality import ai_personality, ai_personality_placeholder
 
-# AI Style CRUD
-from .style import (
-    ai_style,
-    ai_relationship,
-    ai_dimension_relationship_mapping,
-    ai_style_dimension,
-)
-
-
-# AI Template CRUD
-from .template import ai_template, ai_persona
-
 # AI Request Log CRUD
 from .request_log import ai_request_log
+
+# AI Style CRUD
+from .style import ai_dimension_relationship_mapping, ai_relationship, ai_style, ai_style_dimension
+
+# AI Template CRUD
+from .template import ai_persona, ai_template
 
 __all__ = [
     # Instance management

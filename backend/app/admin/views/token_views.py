@@ -4,19 +4,20 @@ Token management related admin views.
 This module contains Starlette-Admin views for managing user tokens and login records.
 """
 
-from typing import Dict, Any
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, TextAreaField
-from admin.views.base import IntegerEnumField
-from admin.fields import LocalDateTimeField
-from starlette_admin.exceptions import FormValidationError
+from typing import Any, Dict
 
-# Import token models
-from models.user import UserToken, LoginRecord, UserAuth
+from admin.fields import LocalDateTimeField
+from admin.views.base import IntegerEnumField
 
 # Import enums
-from enums import DeviceType, LoginType, LoginResult, AuthType
+from enums import AuthType, DeviceType, LoginResult, LoginType
+
+# Import token models
+from models.user import LoginRecord, UserAuth, UserToken
+from starlette.requests import Request
+from starlette_admin import StringField, TextAreaField
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
 
 
 class UserTokenView(ModelView):

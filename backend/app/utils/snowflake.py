@@ -5,9 +5,10 @@ A distributed unique ID generator based on Twitter's Snowflake algorithm.
 Generates 64-bit unique IDs with timestamp, machine ID, and sequence components.
 """
 
-import time
 import threading
+import time
 from typing import Optional
+
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

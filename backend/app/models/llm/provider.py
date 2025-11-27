@@ -4,11 +4,11 @@ LLM provider model.
 This module contains the LLMProvider SQLAlchemy model.
 """
 
-from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING, List, Optional
 
 from models.base import AutoIncrementModel
+from sqlalchemy import Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from .config import LLMConfig

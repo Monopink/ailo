@@ -6,23 +6,22 @@ based on dimension scores and mapping algorithms.
 """
 
 from typing import Any, Dict, List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
+from crud.ai.instance_dimension import get_by_instance
 from models.ai.instance import AIInstance
 from models.ai.style import AIDimension, AIStyleDimension
-from crud.ai.instance_dimension import get_by_instance
-from services.ai.utils.score_mapping import map_to_permille
-from services.ai.utils.position_mapping import map_score_to_position
-from services.ai.relationship_selection import collect_candidates, select_final_relationship
+from services.ai.queries import get_instance_context
 from services.ai.relationship_scoring import (
     calculate_new_scores,
-    update_relationship_positions,
     update_instance_current_relationship,
+    update_relationship_positions,
 )
-from services.ai.queries import get_instance_context
-from services.ai.types import InstanceContext
+from services.ai.relationship_selection import collect_candidates, select_final_relationship
+from services.ai.utils.position_mapping import map_score_to_position
+from services.ai.utils.score_mapping import map_to_permille
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

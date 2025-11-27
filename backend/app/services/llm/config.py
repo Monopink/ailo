@@ -4,11 +4,11 @@ LLM configuration functions.
 This module provides functions for retrieving LLM configurations.
 """
 
-from typing import Optional, List, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional, Tuple
 
 from crud.llm import llm_config, llm_provider
 from models.llm import LLMConfig, LLMProvider
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_llm_config(

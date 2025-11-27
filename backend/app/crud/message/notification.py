@@ -3,15 +3,16 @@ Notification push history CRUD operations.
 """
 
 from typing import List, Optional
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
-from models.message.notification import NotificationPushHistory
 from enums.common import NotificationStatus
+from models.message.notification import NotificationPushHistory
+from pydantic import BaseModel
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, dict, dict]):
+class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, BaseModel]):
     """CRUD operations for NotificationPushHistory model."""
 
     async def create_notification(

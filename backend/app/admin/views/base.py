@@ -5,11 +5,12 @@ Provides unified create/edit/delete permissions based on admin role.
 """
 
 from typing import Any, List
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import EnumField
 
 from enums import AdminRole
+from starlette.requests import Request
+from starlette_admin import EnumField
+from starlette_admin._types import RequestAction
+from starlette_admin.contrib.sqla import ModelView
 
 
 def convert_empty_strings_to_none(obj: Any, field_names: List[str]) -> None:
@@ -134,9 +135,6 @@ class IntegerEnumField(EnumField):
             except (ValueError, TypeError):
                 # Invalid string value, return None to display as -null-
                 return None
-
-        # Import RequestAction for comparison
-        from starlette_admin._types import RequestAction
 
         # For list and detail views, show friendly label from choices
         # action is RequestAction enum, compare directly with enum values

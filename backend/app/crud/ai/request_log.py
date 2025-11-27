@@ -5,14 +5,14 @@ This module provides both standard CRUD operations and complex queries
 for AI request logging and analytics.
 """
 
-from typing import Any, Dict, List, Optional
-from sqlalchemy import select, and_, desc, func
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from crud.base import CRUDBase
 from models.ai import AIRequestLog
 from schemas.ai import AIRequestLogCreate, AIRequestLogUpdate
+from sqlalchemy import desc, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -52,16 +52,23 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
             result = await db.execute(query)
             row = result.first()
+            if row:
+                total_requests = row.total_requests or 0
+                successful_requests = row.successful_requests or 0
+                failed_requests = row.failed_requests or 0
+                avg_response_time = float(row.avg_response_time or 0)
+                total_tokens = row.total_tokens or 0
+            else:
+                total_requests = successful_requests = failed_requests = total_tokens = 0
+                avg_response_time = 0.0
 
             stats = {
-                "total_requests": row.total_requests or 0,
-                "successful_requests": row.successful_requests or 0,
-                "failed_requests": row.failed_requests or 0,
-                "success_rate": (
-                    (row.successful_requests / row.total_requests * 100) if row.total_requests else 0
-                ),
-                "avg_response_time": float(row.avg_response_time or 0),
-                "total_tokens": row.total_tokens or 0,
+                "total_requests": total_requests,
+                "successful_requests": successful_requests,
+                "failed_requests": failed_requests,
+                "success_rate": ((successful_requests / total_requests * 100) if total_requests else 0),
+                "avg_response_time": avg_response_time,
+                "total_tokens": total_tokens,
                 "period_days": days,
             }
 
@@ -110,7 +117,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
             query = query.order_by(desc(AIRequestLog.created_at)).limit(limit)
 
             result = await db.execute(query)
-            error_logs = result.scalars().all()
+            error_logs = list(result.scalars().all())
 
             logger.debug("error_logs_retrieved", instance_id=instance_id, count=len(error_logs))
 
@@ -145,7 +152,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
                 .limit(limit)
             )
 
-            logs = result.scalars().all()
+            logs = list(result.scalars().all())
 
             logger.debug("instance_logs_retrieved", instance_id=instance_id, count=len(logs))
 
@@ -180,7 +187,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
                 .limit(limit)
             )
 
-            logs = result.scalars().all()
+            logs = list(result.scalars().all())
 
             logger.debug("user_logs_retrieved", user_qiao_id=user_qiao_id, count=len(logs))
 

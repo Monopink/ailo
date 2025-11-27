@@ -4,9 +4,9 @@ Cloudflare Turnstile CAPTCHA Provider
 Verifies CAPTCHA tokens using Cloudflare Turnstile API.
 """
 
-from typing import Tuple, Optional
-import httpx
+from typing import Optional, Tuple
 
+import httpx
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

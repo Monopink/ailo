@@ -5,25 +5,25 @@ This module provides endpoints for managing contact requests.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
 from api.deps import get_current_user
-from models.user import User
+from core.database import get_db
 from enums import ContactRequestStatus
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from models.user import User
 from schemas.contact import (
+    ContactRequestAccept,
     ContactRequestCreate,
     ContactRequestListResponse,
-    ContactRequestAccept,
     ContactResponse,
 )
 from services.contact import (
+    accept_contact_request_service,
     create_contact_request_service,
     get_contact_requests_service,
-    accept_contact_request_service,
     reject_contact_request_service,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

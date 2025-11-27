@@ -7,11 +7,10 @@ This module evaluates whether an AI persona can accept a contact request.
 from dataclasses import dataclass
 from typing import Optional
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from enums import AIPersonaStatus, AITemplateStatus, ReusableStatus
 from models.ai.template import AIPersona, AITemplate
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

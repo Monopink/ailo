@@ -5,10 +5,10 @@ This module provides utility functions for working with AI templates,
 including placeholder interpolation and validation.
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime
-from zoneinfo import ZoneInfo
 import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from models.ai import AIPersonalityPlaceholder
 from utils.logging import get_logger

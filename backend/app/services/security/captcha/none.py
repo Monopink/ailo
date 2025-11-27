@@ -4,7 +4,7 @@ None CAPTCHA Provider
 Disables CAPTCHA verification (always returns True).
 """
 
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 from utils.logging import get_logger
 

@@ -8,12 +8,11 @@ stored in ai_conversation_items.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from enums.common import ConversationItemContextStatus
+from models.ai import AIConversationItem
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from models.ai import AIConversationItem
 from utils.logging import get_logger
-from enums.common import ConversationItemContextStatus
 
 logger = get_logger(__name__)
 
@@ -34,8 +33,7 @@ async def get_conversation_contexts(
                 and_(
                     AIConversationItem.user_qiao_id == user_qiao_id,
                     AIConversationItem.instance_qiao_id == instance_qiao_id,
-                    AIConversationItem.is_excluded_from_context
-                    == ConversationItemContextStatus.INCLUDED,
+                    AIConversationItem.is_excluded_from_context == ConversationItemContextStatus.INCLUDED,
                 )
             )
             .order_by(desc(AIConversationItem.created_at), desc(AIConversationItem.id))
@@ -137,8 +135,7 @@ async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> Optiona
             {
                 "buffer_id": item.buffer_id,
                 "is_excluded_from_context": (
-                    item.is_excluded_from_context
-                    == ConversationItemContextStatus.EXCLUDED
+                    item.is_excluded_from_context == ConversationItemContextStatus.EXCLUDED
                 ),
             }
         )

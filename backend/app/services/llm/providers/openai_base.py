@@ -12,10 +12,9 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
-from openai import AsyncOpenAI
-
 from exceptions.llm import LLMConfigurationError
 from models.llm import LLMConfig, LLMProvider
+from openai import AsyncOpenAI
 from services.llm.types import LLMProviderResult, LLMRequestOptions
 from utils.logging import get_logger
 
@@ -36,9 +35,7 @@ class OpenAIBaseAdapter(ABC):
         """
         api_key = self._get_api_key(provider)
         if not api_key:
-            raise LLMConfigurationError(
-                f"API key not configured for provider {provider.display_name}"
-            )
+            raise LLMConfigurationError(f"API key not configured for provider {provider.display_name}")
 
         return AsyncOpenAI(
             api_key=api_key,

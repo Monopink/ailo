@@ -6,12 +6,13 @@ This module contains SQLAlchemy models for user accounts, tokens, and login reco
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, Integer, String, Text, Index, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import JSONB, INET, TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
 
-from enums import UserType, AuthType
-from models.base import SnowflakeQiaoModel, SnowflakeModel, StatusMixin, Base, SnowflakeIDMixin
+from enums import UserType
+from markupsafe import escape
+from models.base import Base, SnowflakeIDMixin, SnowflakeModel, SnowflakeQiaoModel, StatusMixin
+from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class User(SnowflakeQiaoModel, StatusMixin):
@@ -52,7 +53,9 @@ class User(SnowflakeQiaoModel, StatusMixin):
     )
 
     verify_source: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, comment="Verification source (e.g., public_security, alipay, wechat, tencentcloud)"
+        String(100),
+        nullable=True,
+        comment="Verification source (e.g., public_security, alipay, wechat, tencentcloud)",
     )
 
     verification_info: Mapped[Optional[Dict[str, Any]]] = mapped_column(
@@ -76,7 +79,6 @@ class User(SnowflakeQiaoModel, StatusMixin):
     __table_args__ = tuple()
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         return f"<span>[{self.id}] {escape(self.qiao_id)} / {escape(self.username)}</span>"
 
 

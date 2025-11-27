@@ -5,13 +5,13 @@ This module provides webhook endpoints for receiving messages from external serv
 """
 
 import secrets
-from fastapi import APIRouter, Request, HTTPException, status, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from crud.system import system_configs
-from services.message.providers.leancloud.webhook import parse_leancloud_webhook
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from services.message.inbound.router import route_message
+from services.message.providers.leancloud.webhook import parse_leancloud_webhook
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

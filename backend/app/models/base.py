@@ -7,12 +7,12 @@ that are shared across all database models.
 
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
 from sqlalchemy import BigInteger, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
 from utils.snowflake import generate_snowflake_id
 
 
@@ -223,7 +223,7 @@ class SoftDeleteMixin:
     def soft_delete(self) -> None:
         """Mark the record as deleted."""
         self.is_deleted = 1
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = datetime.now(timezone.utc)
 
     def restore(self) -> None:
         """Restore a soft-deleted record."""

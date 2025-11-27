@@ -5,21 +5,21 @@ This module contains CRUD operations for media file management.
 """
 
 from typing import List, Optional
-from sqlalchemy import select, and_, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
+from enums import FileStatus
 from models.message import MediaFile
 from schemas.message import MediaFileUpload
-from enums import FileStatus
+from sqlalchemy import and_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):
     """CRUD operations for MediaFile model."""
 
     async def get_by_file_id(self, db: AsyncSession, *, file_id: str) -> Optional[MediaFile]:
-        """Get media file by file ID (qiao_id)."""
-        result = await db.execute(select(self.model).where(self.model.qiao_id == file_id))
+        """Get media file by file ID."""
+        result = await db.execute(select(self.model).where(self.model.file_id == file_id))
         return result.scalar_one_or_none()
 
     async def get_user_files(

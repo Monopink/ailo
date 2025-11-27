@@ -5,15 +5,14 @@ This module handles creating AI instances from personas/templates.
 """
 
 from typing import Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.ai import ai_instance
-from crud.profile import profile as profile_crud
+from enums import AIInstanceCreator
 from models.ai import AIInstance
 from models.ai.template import AIPersona, AITemplate
 from schemas.ai import AIInstanceCreate
-from schemas.profile import ProfileCreate, ProfileUpdate
-from enums import AIInstanceCreator, ProfileOwnerType
+from services.ai.relationship_scoring import initialize_relationship_scores
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -95,11 +94,6 @@ async def create_instance_from_persona(
         template_id=template.id,
     )
 
-    await _sync_profile_from_persona(db, instance, persona)
-
-    # Initialize relationship scores
-    from services.ai.relationship_scoring import initialize_relationship_scores
-
     await initialize_relationship_scores(
         db,
         instance.id,
@@ -110,74 +104,6 @@ async def create_instance_from_persona(
     await _mark_inventory_consumed(db, persona, template)
 
     return instance
-
-
-async def _sync_profile_from_persona(
-    db: AsyncSession,
-    instance: AIInstance,
-    persona: AIPersona,
-) -> None:
-    """Ensure each instance has a dedicated profile cloned from persona metadata."""
-
-    try:
-        persona_profile = await profile_crud.get_by_owner(
-            db, owner_id=persona.id, owner_type=ProfileOwnerType.AI
-        )
-
-        if not persona_profile:
-            logger.warning(
-                "persona_profile_missing",
-                persona_id=persona.id,
-                persona_qiao_id=persona.qiao_id,
-            )
-            return
-
-        def _trim(value: Optional[str], max_len: int) -> Optional[str]:
-            if value is None:
-                return None
-            return value[:max_len]
-
-        nickname = _trim(persona_profile.nickname, 10)
-        avatar_url = _trim(persona_profile.avatar_url, 500)
-        bio = _trim(persona_profile.bio, 70)
-        region = _trim(persona_profile.region, 100)
-        gender = persona_profile.gender
-
-        existing = await profile_crud.get_by_owner(db, owner_id=instance.id, owner_type=ProfileOwnerType.AI)
-
-        profile_payload = {
-            "nickname": nickname,
-            "gender": gender,
-            "avatar_url": avatar_url,
-            "avatar_prompt": getattr(persona_profile, "avatar_prompt", None),
-            "bio": bio,
-            "region": region,
-        }
-
-        if existing:
-            await profile_crud.update_by_owner(
-                db,
-                owner_id=instance.id,
-                owner_type=ProfileOwnerType.AI,
-                obj_in=ProfileUpdate(**profile_payload),
-                commit=False,
-            )
-        else:
-            await profile_crud.create_with_owner(
-                db,
-                obj_in=ProfileCreate(**profile_payload),
-                owner_id=instance.id,
-                owner_qiao_id=instance.qiao_id,
-                owner_type=ProfileOwnerType.AI,
-                commit=False,
-            )
-    except Exception as exc:
-        logger.error(
-            "instance_profile_sync_failed",
-            error=str(exc),
-            instance_id=instance.id,
-            persona_id=persona.id,
-        )
 
 
 async def _mark_inventory_consumed(

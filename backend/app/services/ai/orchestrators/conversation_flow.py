@@ -9,36 +9,36 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..queries import (
-    get_instance_context,
-    get_instance_relationship_scores,
-)
-from ..queries.updates import update_instance_status, mark_conversation_item_as_excluded
+from core.database import get_sessionmaker
+from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
+from exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
+from models.ai.instance import AIInstance
+from models.contact import Contact
+from services.llm.client import select_config_for_ai, validate_ai_response
+from services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
+from services.llm.types import LLMSessionContext
+from services.message.outbound.helpers import send_chat_info
+from services.message.processing.buffer import is_buffer_cancelled
+from services.message.security.validation import message_validation_service
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
+
+from ..conversation_memory import archive_old_contexts, process_memory_operations
+from ..conversation_prompt import build_conversation_context, build_system_prompt
+from ..queries import get_instance_context, get_instance_relationship_scores
+from ..queries.updates import mark_conversation_item_as_excluded, update_instance_status
 from ..relationship_scoring import (
-    get_relationship_scores,
-    determine_relationship_type,
     calculate_new_scores,
-    update_relationship_positions,
+    determine_relationship_type,
+    get_relationship_scores,
     update_instance_current_relationship,
-)
-from ..conversation_prompt import (
-    build_system_prompt,
-    build_conversation_context,
+    update_relationship_positions,
 )
 from ..response_schema import build_response_schema
-from ..conversation_memory import process_memory_operations, archive_old_contexts
-from services.message.processing.buffer import is_buffer_cancelled
-from ..utils.validator import invoke_llm_with_validation
-from services.llm.client import select_config_for_ai, validate_ai_response
-from services.llm.types import LLMSessionContext
-from services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
-from exceptions import AIInstanceNotFoundError, AIInstanceInactiveError, AIConversationError
 from ..types import InstanceContext
-from utils.logging import get_logger
-from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
-from services.message.outbound.helpers import send_chat_info
+from ..utils.validator import invoke_llm_with_validation
 from .llm_response_handler import process_llm_response
 
 logger = get_logger(__name__)
@@ -119,11 +119,6 @@ async def process_conversation(
         # Step 3.5: Validate message permission (bidirectional relationship)
         # Skip contact validation in test mode (persist=False)
         if persist:
-            from models.contact import Contact
-            from models.ai.instance import AIInstance
-            from services.message.security.validation import message_validation_service
-            from sqlalchemy import select
-
             # Find contact by user and instance qiao_ids
             contact_stmt = select(Contact).where(
                 Contact.user_qiao_id == user_qiao_id,
@@ -377,11 +372,10 @@ async def process_conversation(
         # Step 10 & 11: Save all conversation results in single atomic transaction
         assistant_item_id: Optional[int] = None
         if persist:
-            from core.database import SessionLocal
-
+            session_factory = get_sessionmaker()
             await process_llm_response(
                 db=db,
-                session_factory=SessionLocal,
+                session_factory=session_factory,
                 user_qiao_id=user_qiao_id,
                 instance_qiao_id=instance_qiao_id,
                 instance_context=context,

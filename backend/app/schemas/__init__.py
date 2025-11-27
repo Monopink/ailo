@@ -5,112 +5,108 @@ This module imports all Pydantic schemas for API request/response validation
 and serialization.
 """
 
-# Common schemas
-from .common import (
-    BaseResponse,
-    ErrorResponse,
-    PaginationParams,
-    PaginatedResponse,
-    SuccessResponse,
-    IDResponse,
-    BaseSchema,
-)
-
-# User schemas
-from .user import (
-    UserBase,
-    UserCreate,
-    UserUpdate,
-    UserResponse,
-    UserListResponse,
-    TokenCreate,
-    TokenResponse,
-    LoginRequest,
-    LoginResponse,
-    LogoutRequest,
-    ChangePasswordRequest,
-    ResetPasswordRequest,
-    ConfirmResetPasswordRequest,
-)
-
-# Contact schemas
-from .contact import (
-    ContactBase,
-    ContactCreate,
-    ContactUpdate,
-    ContactResponse,
-    ContactListResponse,
-    ContactInfoBase,
-    ConversationInfoResponse,
-    ContactRequestBase,
-    ContactRequestCreate,
-    ContactRequestResponse,
-    ContactRequestUpdate,
-    ContactSearchRequest,
-    ContactSearchResult,
-    BatchContactUpdate,
-    BatchContactDelete,
-)
-
-# Message schemas
-from .message import (
-    MediaFileBase,
-    MediaFileUpload,
-    MediaFileResponse,
+# Admin schemas
+from .admin import (
+    AdminChangePasswordRequest,
+    AdminDashboardStats,
+    AdminLoginLogResponse,
+    AdminLoginRequest,
+    AdminLoginResponse,
+    AdminOperationLogBase,
+    AdminOperationLogCreate,
+    AdminOperationLogResponse,
+    AdminSystemInfo,
+    AdminUserBase,
+    AdminUserCreate,
+    AdminUserListResponse,
+    AdminUserResponse,
+    AdminUserUpdate,
+    BatchAdminUserUpdate,
 )
 
 # AI schemas
 from .ai import (
+    AIChatRequest,
+    AIChatResponse,
     AIInstanceBase,
     AIInstanceCreate,
-    AIInstanceUpdate,
-    AIInstanceResponse,
     AIInstanceListResponse,
-    AIStyleBase,
-    AIStyleCreate,
-    AIStyleResponse,
+    AIInstanceResponse,
+    AIInstanceUpdate,
     AIPersonalityBase,
     AIPersonalityCreate,
     AIPersonalityResponse,
     AIRequestLogBase,
     AIRequestLogCreate,
     AIRequestLogResponse,
-    AIChatRequest,
-    AIChatResponse,
+    AIStyleBase,
+    AIStyleCreate,
+    AIStyleResponse,
     BatchAIInstanceDelete,
 )
 
-# Admin schemas
-from .admin import (
-    AdminUserBase,
-    AdminUserCreate,
-    AdminUserUpdate,
-    AdminUserResponse,
-    AdminUserListResponse,
-    AdminLoginRequest,
-    AdminLoginResponse,
-    AdminChangePasswordRequest,
-    AdminOperationLogBase,
-    AdminOperationLogCreate,
-    AdminOperationLogResponse,
-    AdminLoginLogResponse,
-    AdminDashboardStats,
-    AdminSystemInfo,
-    BatchAdminUserUpdate,
+# Common schemas
+from .common import (
+    BaseResponse,
+    BaseSchema,
+    ErrorResponse,
+    IDResponse,
+    PaginatedResponse,
+    PaginationParams,
+    SuccessResponse,
 )
+
+# Contact schemas
+from .contact import (
+    BatchContactDelete,
+    BatchContactUpdate,
+    ContactBase,
+    ContactCreate,
+    ContactInfoBase,
+    ContactListResponse,
+    ContactRequestBase,
+    ContactRequestCreate,
+    ContactRequestResponse,
+    ContactRequestUpdate,
+    ContactResponse,
+    ContactSearchRequest,
+    ContactSearchResult,
+    ContactUpdate,
+    ConversationInfoResponse,
+)
+
+# Message schemas
+from .message import MediaFileBase, MediaFileResponse, MediaFileUpload
 
 # System schemas
 from .system import (
+    BatchConfigDelete,
+    BatchConfigUpdate,
+    ConfigValueResponse,
+    DashboardStats,
     SystemConfigBase,
     SystemConfigCreate,
-    SystemConfigUpdate,
-    SystemConfigResponse,
     SystemConfigListResponse,
-    ConfigValueResponse,
-    BatchConfigUpdate,
-    BatchConfigDelete,
-    DashboardStats,
+    SystemConfigResponse,
+    SystemConfigUpdate,
     SystemHealthStats,
+)
+
+# User schemas
+from .user import (
+    ChangePasswordRequest,
+    ConfirmResetPasswordRequest,
+    LoginRequest,
+    LoginResponse,
+    LogoutRequest,
+    ResetPasswordRequest,
+    TokenCreate,
+    TokenResponse,
+    UserBase,
+    UserCreate,
+    UserListResponse,
+    UserResponse,
+    UserUpdate,
 )
 
 # Export all schemas

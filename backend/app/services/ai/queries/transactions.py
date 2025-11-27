@@ -8,21 +8,16 @@ database operations and require atomicity.
 import secrets
 import string
 from typing import Any, Dict, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
 
-from models.ai import AIInstance, AIConversationItemArchive, AIRequestLog
-from models.profile import Profile
+from models.ai import AIConversationItem, AIConversationItemArchive, AIInstance, AIRequestLog
 from models.contact import Contact
-from .updates import (
-    update_instance_relationship_scores,
-    set_instance_current_relationship,
-    update_instance_status,
-    mark_conversation_item_as_excluded,
-)
-from .instance_queries import get_user_id_by_qiao_id, get_instance_relationship_config
-from utils.logging import get_logger
+from models.profile import Profile
 from services.ai.types import InstanceContext
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
+
+from .instance_queries import get_user_id_by_qiao_id
 
 logger = get_logger(__name__)
 
@@ -165,6 +160,7 @@ async def save_ai_request_log(
         request_log = AIRequestLog(
             instance_id=instance_context["instance_id"],
             user_id=user_id,  # ✅ FIXED: use user_id (int) not user_qiao_id (str)
+            user_qiao_id=user_qiao_id,
             style_id=instance_context["style"]["id"],
             personality_id=instance_context["personality"]["id"],
             request_type="production",
@@ -278,9 +274,6 @@ async def archive_all_conversation_items(db: AsyncSession, user_qiao_id: str, in
     Returns:
         Number of items archived
     """
-    from models.ai import AIConversationItem
-    from sqlalchemy import and_
-
     try:
         result = await db.execute(
             select(AIConversationItem).where(

@@ -2,14 +2,18 @@
 Admin APIs for discovery management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.database import get_db
 from crud.discovery import square_entry
-from schemas.discovery import SquareEntryCreate, SquareEntryUpdate, SquareEntry, SquareEntryListResponse
-from schemas.discovery import PaginationInfo
+from fastapi import APIRouter, Depends, HTTPException
+from schemas.discovery import (
+    PaginationInfo,
+    SquareEntry,
+    SquareEntryCreate,
+    SquareEntryListResponse,
+    SquareEntryUpdate,
+)
 from services.discovery.validators import ensure_ai_type_has_active_persona
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -29,15 +33,19 @@ async def list_square_entries(
     total = await square_entry.count(db)
     has_more = (page * page_size) < total
 
+    # Convert ORM models to Pydantic schemas
+    items_response = [SquareEntry.model_validate(item) for item in items]
+
     pagination = PaginationInfo(page=page, page_size=page_size, total=total, has_more=has_more)
-    return SquareEntryListResponse(items=items, pagination=pagination)
+    return SquareEntryListResponse(items=items_response, pagination=pagination)
 
 
 @router.post("/entries", response_model=SquareEntry)
 async def create_square_entry(entry: SquareEntryCreate, db: AsyncSession = Depends(get_db)):
     """Create a new discovery entry."""
     await ensure_ai_type_has_active_persona(db, entry.type_id)
-    return await square_entry.create(db, obj_in=entry)
+    db_obj = await square_entry.create(db, obj_in=entry)
+    return SquareEntry.model_validate(db_obj)
 
 
 @router.patch("/entries/{entry_id}", response_model=SquareEntry)
@@ -55,4 +63,5 @@ async def update_square_entry(
     if "type_id" in update_data and update_data["type_id"] is not None:
         await ensure_ai_type_has_active_persona(db, update_data["type_id"])
 
-    return await square_entry.update(db, db_obj=db_obj, obj_in=update_data)
+    updated_obj = await square_entry.update(db, db_obj=db_obj, obj_in=update_data)
+    return SquareEntry.model_validate(updated_obj)

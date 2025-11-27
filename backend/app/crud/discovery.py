@@ -4,14 +4,13 @@ Discovery (Square) CRUD helpers.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 
 from crud.base import CRUDBase
 from models.discovery import SquareTypeEntry
 from schemas.discovery import SquareEntryCreate, SquareEntryUpdate
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CRUDSquareEntry(CRUDBase[SquareTypeEntry, SquareEntryCreate, SquareEntryUpdate]):

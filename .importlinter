@@ -1,0 +1,17 @@
+[importlinter]
+root_package = app
+include_external_packages = True
+
+[importlinter:contract:ai-services-layers]
+name = AI Services Layered Architecture
+type = layers
+layers =
+    app.services.ai.orchestrators
+    app.services.ai.relationship_scoring
+    app.services.ai.conversation_memory
+    app.services.ai.conversation_prompt
+    app.services.ai.response_schema
+    app.services.ai.instance_creation
+    app.services.ai.queries
+containers =
+    app.services.ai

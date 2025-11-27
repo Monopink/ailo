@@ -6,9 +6,8 @@ Provides both operation logging and login logging functionality.
 from typing import Optional
 
 from fastapi import Request
+from models.admin import AdminLoginLog, AdminOperationLog
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from models.admin import AdminOperationLog, AdminLoginLog
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

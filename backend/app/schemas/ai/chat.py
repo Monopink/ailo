@@ -4,12 +4,10 @@ AI chat related schemas.
 This module contains Pydantic schemas for AI chat interactions and relationship scoring.
 """
 
-from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional
+
 from pydantic import BaseModel, Field
-
 from schemas.common import BaseSchema
-
 
 # AI Chat Request/Response Schemas
 
@@ -32,7 +30,3 @@ class AIChatResponse(BaseSchema):
     token_count: Optional[int] = Field(None, description="Token consumption")
     response_time: int = Field(..., description="Response time in milliseconds")
     context_used: int = Field(..., description="Number of context messages used")
-
-
-# Note: Instance dimension schemas removed - these are internal implementation details
-# and should not be exposed through public APIs

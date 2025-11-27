@@ -5,13 +5,13 @@ Implements HMAC-SHA1 signature algorithm for LeanCloud IM authentication.
 Reference: https://docs.leancloud.cn/sdk/im/guide/senior/#%E7%AD%BE%E5%90%8D%E6%A0%BC%E5%BC%8F%E8%AF%B4%E6%98%8E
 """
 
-import hmac
 import hashlib
+import hmac
 import secrets
 import time
-from typing import Dict
+from typing import Any, Dict
 
-from core.config import settings
+from core.config import get_settings
 
 
 def generate_nonce() -> str:
@@ -65,7 +65,7 @@ def generate_signature(app_id: str, client_id: str, timestamp: int, nonce: str, 
     return signature_hex
 
 
-async def create_login_signature(app_id: str, client_id: str) -> Dict[str, any]:
+async def create_login_signature(app_id: str, client_id: str) -> Dict[str, Any]:
     """
     Create a complete login signature package for LeanCloud IM.
 
@@ -84,7 +84,7 @@ async def create_login_signature(app_id: str, client_id: str) -> Dict[str, any]:
     nonce = generate_nonce()
 
     # Get master key from environment
-    master_key = settings.LEANCLOUD_MASTER_KEY
+    master_key = get_settings().LEANCLOUD_MASTER_KEY
 
     # Generate signature
     signature = generate_signature(

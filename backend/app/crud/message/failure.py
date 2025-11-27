@@ -4,16 +4,17 @@ Message delivery failure CRUD operations.
 This module contains CRUD operations for message delivery failures and retry logic.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.message import MessageDeliveryFailure
+from pydantic import BaseModel
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class CRUDMessageFailure(CRUDBase[MessageDeliveryFailure, dict, dict]):
+class CRUDMessageFailure(CRUDBase[MessageDeliveryFailure, BaseModel, BaseModel]):
     """CRUD operations for MessageDeliveryFailure model."""
 
     async def get_by_message_id(
@@ -27,7 +28,7 @@ class CRUDMessageFailure(CRUDBase[MessageDeliveryFailure, dict, dict]):
         self, db: AsyncSession, *, limit: int = 100
     ) -> List[MessageDeliveryFailure]:
         """Get messages pending retry."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         result = await db.execute(
             select(self.model)
             .where(

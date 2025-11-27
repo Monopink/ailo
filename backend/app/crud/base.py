@@ -6,19 +6,28 @@ for all models.
 """
 
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+
+from models.protocols import (
+    IdModelProtocol,
+    ImmutableModelProtocol,
+    QiaoIdModelProtocol,
+    StatusModelProtocol,
+)
 from pydantic import BaseModel
-from sqlalchemy import select, func, desc
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.base import BaseModel as DBBaseModel, Base
-
 # Type variables for generic CRUD operations
-ModelType = TypeVar("ModelType", bound=DBBaseModel)
+ModelType = TypeVar("ModelType", bound=IdModelProtocol)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
+# Specialized type variables for derived CRUD classes
+QiaoIdModelType = TypeVar("QiaoIdModelType", bound=QiaoIdModelProtocol)
+StatusModelType = TypeVar("StatusModelType", bound=StatusModelProtocol)
+
 # Type variables for immutable log CRUD operations
-ImmutableModelType = TypeVar("ImmutableModelType", bound=Base)
+ImmutableModelType = TypeVar("ImmutableModelType", bound=ImmutableModelProtocol)
 ImmutableCreateSchemaType = TypeVar("ImmutableCreateSchemaType", bound=BaseModel)
 
 
@@ -99,14 +108,17 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return (count if count is not None else 0) > 0
 
 
-class CRUDBaseWithQiaoId(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]):
+class CRUDBaseWithQiaoId(
+    CRUDBase[QiaoIdModelType, CreateSchemaType, UpdateSchemaType],
+    Generic[QiaoIdModelType, CreateSchemaType, UpdateSchemaType],
+):
     """
     CRUD base class for models with qiao_id field.
 
     Extends CRUDBase with qiao_id specific operations.
     """
 
-    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[ModelType]:
+    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[QiaoIdModelType]:
         """Get a single record by qiao_id."""
         result = await db.execute(select(self.model).where(self.model.qiao_id == qiao_id))
         return result.scalar_one_or_none()
@@ -117,20 +129,25 @@ class CRUDBaseWithQiaoId(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]
         count = result.scalar()
         return (count if count is not None else 0) > 0
 
-    async def get_multi_by_qiao_ids(self, db: AsyncSession, *, qiao_ids: List[str]) -> List[ModelType]:
+    async def get_multi_by_qiao_ids(
+        self, db: AsyncSession, *, qiao_ids: List[str]
+    ) -> List[QiaoIdModelType]:
         """Get multiple records by qiao_ids."""
         result = await db.execute(select(self.model).where(self.model.qiao_id.in_(qiao_ids)))
         return list(result.scalars().all())
 
 
-class CRUDBaseWithStatus(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]):
+class CRUDBaseWithStatus(
+    CRUDBase[StatusModelType, CreateSchemaType, UpdateSchemaType],
+    Generic[StatusModelType, CreateSchemaType, UpdateSchemaType],
+):
     """
     CRUD base class for models with status field.
 
     Extends CRUDBase with status-specific operations.
     """
 
-    async def get_active(self, db: AsyncSession, id: Any) -> Optional[ModelType]:
+    async def get_active(self, db: AsyncSession, id: Any) -> Optional[StatusModelType]:
         """Get a single active record by ID."""
         result = await db.execute(
             select(self.model).where(self.model.id == id, self.model.status == 1)  # Assuming 1 = active
@@ -139,14 +156,14 @@ class CRUDBaseWithStatus(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]
 
     async def get_multi_active(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> List[ModelType]:
+    ) -> List[StatusModelType]:
         """Get multiple active records with pagination."""
         result = await db.execute(
             select(self.model).where(self.model.status == 1).offset(skip).limit(limit)
         )
         return list(result.scalars().all())
 
-    async def update_status(self, db: AsyncSession, *, id: Any, status: int) -> Optional[ModelType]:
+    async def update_status(self, db: AsyncSession, *, id: Any, status: int) -> Optional[StatusModelType]:
         """Update record status."""
         obj = await self.get(db, id=id)
         if obj:
@@ -156,7 +173,7 @@ class CRUDBaseWithStatus(CRUDBase[ModelType, CreateSchemaType, UpdateSchemaType]
             await db.refresh(obj)
         return obj
 
-    async def soft_delete(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
+    async def soft_delete(self, db: AsyncSession, *, id: Any) -> Optional[StatusModelType]:
         """Soft delete a record by setting status to 0."""
         return await self.update_status(db, id=id, status=0)
 
@@ -208,7 +225,3 @@ class ImmutableCRUDBase(Generic[ImmutableModelType, ImmutableCreateSchemaType]):
         """Count total number of log records."""
         result = await db.execute(select(func.count()).select_from(self.model))
         return result.scalar_one()
-
-    async def restore(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
-        """Restore a soft-deleted record by setting status to 1."""
-        return await self.update_status(db, id=id, status=1)

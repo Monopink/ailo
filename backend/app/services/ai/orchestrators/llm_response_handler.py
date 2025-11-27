@@ -8,10 +8,13 @@ asynchronous message sending tasks.
 import asyncio
 from typing import Any, Dict, Optional
 
+from models.ai import AIInstance
+from services.message.processing.buffer import finalize_buffer_if_locked
+from services.message.processing.sender import send_ai_messages_with_typing
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from utils.logging import get_logger
 
-from models.ai import AIInstance
 from ..conversation_memory import process_memory_operations
 from ..queries.instance_queries import get_instance_relationship_config
 from ..queries.relationship_queries import get_instance_relationship_scores
@@ -24,9 +27,6 @@ from ..queries.updates import (
 )
 from ..relationship_scoring import determine_relationship_type
 from ..types import InstanceContext
-from services.message.processing.buffer import finalize_buffer_if_locked
-from services.message.processing.sender import send_ai_messages_with_typing
-from utils.logging import get_logger
 
 logger = get_logger(__name__)
 

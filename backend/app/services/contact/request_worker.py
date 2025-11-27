@@ -10,14 +10,16 @@ the request path for stability.
 """
 
 import asyncio
+from datetime import datetime, timezone
 from typing import List
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import SessionLocal
-from models.contact import ContactRequest
+from core.database import get_sessionmaker
 from crud.contact import contact_request as contact_request_crud
 from enums import ContactRequestStatus, ContactType
+from models.contact import ContactRequest
+from services.contact.request_service import _process_ai_contact_request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,7 +35,6 @@ async def _lock_pending_requests(db: AsyncSession, batch_size: int) -> List[Cont
 
     Only processes non-expired requests.
     """
-    from datetime import datetime, timezone
 
     stmt = (
         select(ContactRequest)
@@ -73,7 +74,6 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
     - PROCESSING: AI didn't explicitly accept (fallback to IGNORED)
     """
     try:
-        from services.contact.request_service import _process_ai_contact_request
 
         # Cache primitive values to avoid expired attributes later
         user_qiao_id = req.from_qiao_id
@@ -138,11 +138,12 @@ async def contact_request_worker_loop(poll_interval: float = 2.0, batch_size: in
     in a separate session to avoid long transactions.
     """
     logger.info("contact_request_worker_started", interval=poll_interval, batch_size=batch_size)
+    session_factory = get_sessionmaker()
     try:
         while True:
             try:
                 # Lock and mark as PROCESSING in one transaction
-                async with SessionLocal() as db:
+                async with session_factory() as db:
                     batch = await _lock_pending_requests(db, batch_size)
 
                 if not batch:
@@ -151,7 +152,7 @@ async def contact_request_worker_loop(poll_interval: float = 2.0, batch_size: in
 
                 # Process each request with its own session
                 for req in batch:
-                    async with SessionLocal() as process_db:
+                    async with session_factory() as process_db:
                         await _process_one(process_db, req)
 
             except Exception as e:

@@ -6,10 +6,9 @@ This module contains Pydantic schemas for various system statistics.
 
 from datetime import date, datetime
 from typing import Optional
+
 from pydantic import BaseModel, Field
-
 from schemas.common import BaseSchema
-
 
 # Base Statistics Schema
 

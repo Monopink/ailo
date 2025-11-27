@@ -4,14 +4,12 @@ Security utilities for authentication and password management.
 
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 
-import bcrypt
 import jwt
+from core.config import get_settings
 from passlib.context import CryptContext
-
-from core.config import settings
 
 # Password context for hashing and verification
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -70,10 +68,11 @@ def create_access_token(subject: Union[str, int], expires_delta: Optional[timede
     Returns:
         str: The encoded JWT token
     """
+    settings = get_settings()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode = {"exp": expire, "sub": str(subject)}
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
@@ -90,6 +89,7 @@ def decode_access_token(token: str) -> Optional[dict]:
     Returns:
         dict: The decoded payload if valid, None otherwise
     """
+    settings = get_settings()
     try:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return payload

@@ -1,9 +1,9 @@
 """Dashboard data service for admin panel."""
 
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

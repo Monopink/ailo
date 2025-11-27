@@ -4,13 +4,13 @@ LLM test log model.
 This module contains SQLAlchemy model for LLM configuration testing logs.
 """
 
-from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy import Integer, String, Text, DECIMAL, DateTime
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import Any, Dict, Optional
 
 from models.base import ImmutableSnowflakeModel
+from sqlalchemy import DECIMAL, DateTime, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class LLMTestLog(ImmutableSnowflakeModel):

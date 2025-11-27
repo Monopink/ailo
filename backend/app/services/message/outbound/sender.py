@@ -6,18 +6,20 @@ Provider layer handles protocol-specific fields like from_client.
 """
 
 import time
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from crud.message import notification_push_history as notification_crud
 from enums import MessageType
 from services.message.providers.factory import get_default_provider
-from services.message.storage.persistence import store_message as store_message_to_db
-from services.message.security.encryption import encrypt_for_transport
 from services.message.schemas import EventMetadata, OutboundMessageEvent, ProviderMetadata
-from utils.snowflake import generate_snowflake_id
-from crud.message import notification_push_history as notification_crud
+from services.message.security.encryption import encrypt_for_transport
+from services.message.storage.persistence import store_message as store_message_to_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
+from utils.snowflake import generate_snowflake_id
+
+if TYPE_CHECKING:
+    from services.message.providers.base import MessageResult
 
 logger = get_logger(__name__)
 

@@ -4,7 +4,9 @@ LeanCloud message provider implementation.
 This module implements the MessageProvider protocol for LeanCloud messaging service.
 """
 
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
+from services.message.schemas import InboundMessageEvent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..base import MessageProvider, MessageResult
@@ -97,7 +99,7 @@ class LeanCloudProvider:
         end_time: int,
         limit: int = 1000,
         include_start: bool = False,
-    ) -> List[dict]:
+    ) -> List[InboundMessageEvent]:
         """Fetch messages by time range from LeanCloud."""
         return await service.fetch_messages_by_time_range(
             conversation_id, start_time, end_time, limit, include_start

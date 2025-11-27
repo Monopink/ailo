@@ -5,22 +5,24 @@ This module contains Starlette-Admin views for AI instance system.
 """
 
 from typing import Any, Dict
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import IntegerField, StringField, TextAreaField, HasOne, JSONField
-from starlette_admin.actions import link_row_action
-from starlette_admin.exceptions import FormValidationError
 
-from models.ai.instance import AIInstance
-from models.ai import AIInstanceDimension
-from admin.views.base import IntegerEnumField
 from admin.fields import LocalDateTimeField
-from enums import (
-    AIInstanceCreator,
-    AIInstanceStatus,
-    Gender,
-    ProfileOwnerType,
-)
+from admin.views.base import IntegerEnumField
+from enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerType
+from models.ai import AIInstanceDimension
+from models.ai.instance import AIInstance
+from models.ai.style import AIStyleDimension
+from models.base import generate_qiao_id
+from models.profile import Profile
+from models.user import User
+from services.ai.utils.position_mapping import map_score_to_position
+from sqlalchemy import select
+from starlette.requests import Request
+from starlette_admin import HasOne, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin.actions import link_row_action
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
+from utils.snowflake import generate_snowflake_id
 
 
 class _ProfileRelatedStringField(StringField):
@@ -39,13 +41,10 @@ class _ProfileRelatedStringField(StringField):
 
     async def parse_obj(self, request, obj):  # type: ignore[override]
         try:
-            from sqlalchemy import select
-            from models.profile import Profile
-
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
                 return "(No Qiao ID)"
-            
+
             # Query both the field value and check if profile exists
             stmt = select(Profile.id, getattr(Profile, self._profile_attr)).where(
                 Profile.owner_qiao_id == obj.qiao_id,
@@ -53,11 +52,11 @@ class _ProfileRelatedStringField(StringField):
             )
             result = await session.execute(stmt)
             row = result.first()
-            
+
             # No profile record exists
             if row is None:
                 return "(No Profile)"
-            
+
             # Profile exists, check field value
             profile_id, value = row
             if value is None:
@@ -80,13 +79,10 @@ class _ProfileGenderField(StringField):
 
     async def parse_obj(self, request, obj):  # type: ignore[override]
         try:
-            from sqlalchemy import select
-            from models.profile import Profile
-
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
                 return "(No Qiao ID)"
-            
+
             # Query both profile existence and gender value
             stmt = select(Profile.id, Profile.gender).where(
                 Profile.owner_qiao_id == obj.qiao_id,
@@ -94,11 +90,11 @@ class _ProfileGenderField(StringField):
             )
             result = await session.execute(stmt)
             row = result.first()
-            
+
             # No profile record exists
             if row is None:
                 return "(No Profile)"
-            
+
             # Profile exists, check gender value
             profile_id, value = row
             if value is None:
@@ -122,13 +118,10 @@ class _ProfileOwnerTypeField(StringField):
 
     async def parse_obj(self, request, obj):  # type: ignore[override]
         try:
-            from sqlalchemy import select
-            from models.profile import Profile
-
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
                 return "(No Qiao ID)"
-            
+
             # Query both profile existence and owner_type value
             stmt = select(Profile.id, Profile.owner_type).where(
                 Profile.owner_qiao_id == obj.qiao_id,
@@ -136,11 +129,11 @@ class _ProfileOwnerTypeField(StringField):
             )
             result = await session.execute(stmt)
             row = result.first()
-            
+
             # No profile record exists
             if row is None:
                 return "(No Profile)"
-            
+
             # Profile exists, check owner_type value
             profile_id, value = row
             if value is None:
@@ -167,11 +160,11 @@ class _RelationshipDisplayNameField(StringField):
             # Check if relationship exists
             if not hasattr(obj, "relationship"):
                 return "(No Relationship Attr)"
-            
+
             # Relationship is None (not assigned)
             if obj.relationship is None:
                 return None  # Framework will display as -null-
-            
+
             # Relationship exists, get display_name
             display_name = getattr(obj.relationship, "display_name", None)
             if display_name is None:
@@ -255,14 +248,10 @@ class AIInstanceView(ModelView):
 
         # Generate qiao_id if not provided
         if not data.get("qiao_id"):
-            from models.base import generate_qiao_id
-
             data["qiao_id"] = generate_qiao_id()
 
         # Generate id if not provided
         if not data.get("id"):
-            from utils.snowflake import generate_snowflake_id
-
             data["id"] = generate_snowflake_id()
 
         return await super().create(request, data)
@@ -273,8 +262,6 @@ class AIInstanceView(ModelView):
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys and required fields before creating instance."""
-        from models.user import User
-
         # Set created_by to 2 (Admin) for admin panel creations
         obj.created_by = 2
 
@@ -547,10 +534,6 @@ class AIInstanceDimensionView(ModelView):
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Auto-fill FKs, validate uniqueness, and compute default position if missing."""
-        from sqlalchemy import select
-        from models.ai.style import AIStyleDimension
-        from services.ai.utils.position_mapping import map_score_to_position
-
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "instance") and obj.instance is not None:
             obj.instance_id = obj.instance.id

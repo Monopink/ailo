@@ -3,12 +3,13 @@ Admin LLM Management API endpoints.
 Provides LLM testing and management functionality for admin panel.
 """
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 from core.database import get_db
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+from services.llm.config import get_active_configs
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -58,8 +59,6 @@ async def test_llm_configurations(
         Test results with performance metrics and comparison
     """
     try:
-        # Get available configs using module-level function
-        from services.llm.config import get_active_configs
 
         # Get available configs
         configs = await get_active_configs(db)
@@ -130,7 +129,6 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         List of available LLM configurations
     """
     try:
-        from services.llm.config import get_active_configs
 
         # Get actual configs from the service
         configs = await get_active_configs(db)

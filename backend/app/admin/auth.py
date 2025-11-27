@@ -4,24 +4,23 @@ Custom authentication provider for Starlette-Admin with security features.
 
 from typing import Optional
 
-from starlette.requests import Request
-from starlette.responses import Response, RedirectResponse
-from starlette.templating import Jinja2Templates
-from starlette_admin.auth import AdminConfig, AdminUser, AuthProvider
-from starlette_admin import BaseAdmin
-
-from core.database import SessionLocal
+from core.database import get_sessionmaker
+from core.security import verify_password
 from crud.admin import admin_user as admin_user_crud
-from services.system_config import get_config
 from services.security.auth_tracker import (
     check_lockout,
     record_auth_failure,
-    should_require_captcha,
     reset_failures,
+    should_require_captcha,
 )
 from services.security.captcha.factory import create_captcha_provider
+from services.system_config import get_config
+from starlette.requests import Request
+from starlette.responses import RedirectResponse, Response
+from starlette.templating import Jinja2Templates
+from starlette_admin import BaseAdmin
+from starlette_admin.auth import AdminConfig, AdminUser, AuthProvider
 from utils.admin_logs import create_login_log
-from core.security import verify_password
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -39,7 +38,8 @@ class CustomAuthProvider(AuthProvider):
         """
         Handle both GET (display form) and POST (process login) for custom login page.
         """
-        async with SessionLocal() as db:
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
             # Get client IP
             client_ip = request.client.host if request.client else "unknown"
 

@@ -6,23 +6,12 @@ for AI style and relationship mapping management.
 """
 
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
-from models.ai import (
-    AIStyle,
-    AIRelationship,
-    AIDimensionRelationshipMapping,
-    AIStyleDimension,
-    AIDimension,
-)
-from schemas.ai import (
-    AIStyleCreate,
-    AIStyleUpdate,
-    AIStyleDimensionCreate,
-    AIStyleDimensionUpdate,
-)
+from models.ai import AIDimension, AIDimensionRelationshipMapping, AIRelationship, AIStyle, AIStyleDimension
+from schemas.ai import AIStyleCreate, AIStyleDimensionCreate, AIStyleDimensionUpdate, AIStyleUpdate
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -164,7 +153,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
                 .limit(limit)
             )
 
-            styles = result.scalars().all()
+            styles = list(result.scalars().all())
 
             logger.debug("available_styles_retrieved", count=len(styles))
 
@@ -242,7 +231,7 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
                 select(AIRelationship).order_by(AIRelationship.display_name).offset(skip).limit(limit)
             )
 
-            relationships = result.scalars().all()
+            relationships = list(result.scalars().all())
 
             logger.debug("available_relationships_retrieved", count=len(relationships))
 
@@ -281,7 +270,7 @@ class CRUDAIDimensionRelationshipMapping(CRUDBase[AIDimensionRelationshipMapping
                 .order_by(AIDimensionRelationshipMapping.priority.desc())
             )
 
-            mappings = result.scalars().all()
+            mappings = list(result.scalars().all())
 
             logger.debug(
                 "dimension_relationship_mappings_retrieved", style_id=style_id, count=len(mappings)

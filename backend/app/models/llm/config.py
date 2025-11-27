@@ -4,12 +4,12 @@ LLM configuration model.
 This module contains the LLMConfig SQLAlchemy model.
 """
 
-from typing import Optional, TYPE_CHECKING, List, Dict, Any
-from sqlalchemy import Integer, String, DECIMAL, Index, text, CheckConstraint, Boolean
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from models.base import AutoIncrementModel
+from sqlalchemy import DECIMAL, Boolean, CheckConstraint, Index, Integer, String, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from .provider import LLMProvider
@@ -176,7 +176,9 @@ class LLMConfig(AutoIncrementModel):
     )
 
     extra_params: Mapped[Optional[dict]] = mapped_column(
-        JSONB, nullable=True, comment="Provider-specific parameters (e.g., max_completion_tokens, service_tier)"
+        JSONB,
+        nullable=True,
+        comment="Provider-specific parameters (e.g., max_completion_tokens, service_tier)",
     )
 
     # Indexes and constraints
@@ -184,7 +186,9 @@ class LLMConfig(AutoIncrementModel):
         Index("idx_llm_configs_provider_id", "provider_id"),
         CheckConstraint("thinking_mode IN ('enabled', 'disabled', 'auto')", name="check_thinking_mode"),
         CheckConstraint("top_p >= 0 AND top_p <= 1", name="check_top_p"),
-        CheckConstraint("frequency_penalty >= -2 AND frequency_penalty <= 2", name="check_frequency_penalty"),
+        CheckConstraint(
+            "frequency_penalty >= -2 AND frequency_penalty <= 2", name="check_frequency_penalty"
+        ),
         CheckConstraint("presence_penalty >= -2 AND presence_penalty <= 2", name="check_presence_penalty"),
         CheckConstraint(
             "default_tool_choice IN ('auto', 'none', 'required')",

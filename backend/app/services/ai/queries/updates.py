@@ -6,12 +6,12 @@ or perform single-entity updates.
 """
 
 from typing import Any, Dict, Optional
+
+from enums.common import ConversationItemContextStatus
+from models.ai import AIConversationItem, AIDimension, AIInstance, AIInstanceDimension
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from models.ai import AIConversationItem, AIInstanceDimension, AIInstance
 from utils.logging import get_logger
-from enums.common import ConversationItemContextStatus
 
 logger = get_logger(__name__)
 
@@ -23,9 +23,7 @@ def _coerce_context_status(raw_status: Any) -> int:
 
     if isinstance(raw_status, bool):
         return int(
-            ConversationItemContextStatus.EXCLUDED
-            if raw_status
-            else ConversationItemContextStatus.INCLUDED
+            ConversationItemContextStatus.EXCLUDED if raw_status else ConversationItemContextStatus.INCLUDED
         )
 
     if raw_status is None:
@@ -85,9 +83,7 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
             media_url=media_url,
             media_metadata=media_metadata,
             buffer_id=item_data.get("buffer_id"),
-            is_excluded_from_context=_coerce_context_status(
-                item_data.get("is_excluded_from_context")
-            ),
+            is_excluded_from_context=_coerce_context_status(item_data.get("is_excluded_from_context")),
             client_msg_ids=client_msg_ids,
         )
 
@@ -129,7 +125,6 @@ async def update_instance_relationship_scores(
     """
     try:
         # Get existing scores for this instance with dimension names
-        from models.ai import AIDimension
         result = await db.execute(
             select(AIInstanceDimension, AIDimension.name)
             .join(
@@ -248,7 +243,9 @@ async def set_instance_current_relationship(
         return False
 
 
-async def increment_instance_relationship_count(db: AsyncSession, instance_id: int, relationship_id: int) -> bool:
+async def increment_instance_relationship_count(
+    db: AsyncSession, instance_id: int, relationship_id: int
+) -> bool:
     """
     Increment relationship usage count in ai_instances.relationship_counts (JSONB).
 
@@ -294,9 +291,7 @@ async def increment_instance_relationship_count(db: AsyncSession, instance_id: i
         return False
 
 
-async def mark_conversation_item_as_excluded(
-    db: AsyncSession, conversation_item_id: int
-) -> bool:
+async def mark_conversation_item_as_excluded(db: AsyncSession, conversation_item_id: int) -> bool:
     """
     Flag a conversation item so it is omitted from future LLM prompts.
     """

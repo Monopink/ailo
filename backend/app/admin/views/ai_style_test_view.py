@@ -5,15 +5,17 @@ This module provides admin interface for testing AI score algorithms
 and relationship selection logic.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
+from core.database import get_sessionmaker
+from services.admin.data.style_dimensions import get_dimension_relationship_mappings
+from services.admin.testing.style_algorithm import run_style_score_test
+from services.ai.utils.position_mapping import get_algorithm_info, get_algorithm_param_specs
+from sqlalchemy import text
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-from sqlalchemy import text
-
-from core.database import SessionLocal
-from services.ai.utils.position_mapping import get_algorithm_info, get_algorithm_param_specs
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -91,7 +93,8 @@ class AIStyleTestView(CustomView):
             }
 
             # Get database session
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 # Get dimensions and relationships for the selected style (style_id is enforced)
                 try:
                     # Fetch style basic info
@@ -168,8 +171,6 @@ class AIStyleTestView(CustomView):
                     ]
 
                     # Fetch dimension relationship mappings for visualization
-                    from services.admin.data.style_dimensions import get_dimension_relationship_mappings
-
                     mappings = await get_dimension_relationship_mappings(
                         db, style_id=int(style_id), limit=100
                     )
@@ -211,9 +212,8 @@ class AIStyleTestView(CustomView):
     async def _handle_test_algorithm(self, form_data, style_id: int) -> Dict[str, Any]:
         """Handle score algorithm testing via admin service layer."""
         try:
-            async with SessionLocal() as db:
-                from services.admin.testing.style_algorithm import run_style_score_test
-
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 fd = dict(form_data)
                 result = await run_style_score_test(db, style_id=int(style_id), form_data=fd)
                 result["algorithm_info"] = {1: get_algorithm_info(1), 2: get_algorithm_info(2)}

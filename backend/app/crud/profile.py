@@ -2,15 +2,16 @@
 Profile CRUD operations
 """
 
-from typing import Optional, List, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_
+from typing import Any, Dict, List, Optional
 
 from crud.base import CRUDBase
+from enums import ProfileOwnerType
 from models.profile import Profile
 from schemas.profile import ProfileCreate, ProfileUpdate
-from enums import ProfileOwnerType
+from sqlalchemy import and_, delete, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
+from utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 
@@ -69,8 +70,6 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             obj_data["owner_id"] = owner_id
             obj_data["owner_qiao_id"] = owner_qiao_id
             obj_data["owner_type"] = owner_type
-
-            from utils.snowflake import generate_snowflake_id
 
             obj_data["id"] = generate_snowflake_id()
 
@@ -219,8 +218,6 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
     async def get_profile_stats(self, db: AsyncSession) -> Dict[str, Any]:
         """Get profile statistics"""
         try:
-            from sqlalchemy import func
-
             # Total profiles
             total_stmt = select(func.count(self.model.id))
             total_result = await db.execute(total_stmt)

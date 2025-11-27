@@ -5,13 +5,14 @@ This module handles instance information retrieval and validation
 with clear error handling and single responsibility principle.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
+from exceptions import AIInstanceInactiveError, AIInstanceNotFoundError
+from services.ai.types import InstanceContext
 from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
 
 from .queries import get_instance_context
-from exceptions import AIInstanceNotFoundError, AIInstanceInactiveError
-from utils.logging import get_logger
-from services.ai.types import InstanceContext
 
 logger = get_logger(__name__)
 

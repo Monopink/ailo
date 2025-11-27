@@ -7,8 +7,8 @@ used across the application.
 
 from datetime import datetime
 from typing import Any, Dict, Generic, List, Optional, TypeVar
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # Generic type for data responses
 DataT = TypeVar("DataT")

@@ -5,13 +5,13 @@ This module provides database operations for LLM configurations.
 """
 
 from typing import List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
 
+from crud.base import CRUDBase
 from models.llm import LLMConfig
 from schemas.llm import LLMConfigCreate, LLMConfigUpdate
-from crud.base import CRUDBase
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 
 class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):

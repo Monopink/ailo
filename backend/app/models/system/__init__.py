@@ -12,18 +12,18 @@ from .preset_asset import PresetAsset
 
 # Statistics models
 from .stats import (
-    StatsUserDaily,
-    StatsUserWeekly,
-    StatsUserMonthly,
-    StatsRevenueDaily,
-    StatsRevenueWeekly,
-    StatsRevenueMonthly,
-    StatsMessageDaily,
-    StatsMessageWeekly,
-    StatsMessageMonthly,
     StatsAIDaily,
-    StatsAIWeekly,
     StatsAIMonthly,
+    StatsAIWeekly,
+    StatsMessageDaily,
+    StatsMessageMonthly,
+    StatsMessageWeekly,
+    StatsRevenueDaily,
+    StatsRevenueMonthly,
+    StatsRevenueWeekly,
+    StatsUserDaily,
+    StatsUserMonthly,
+    StatsUserWeekly,
 )
 
 # Export all system models

@@ -4,10 +4,13 @@ Handles style management including dimensions, associations, and relationship ma
 """
 
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
+from crud.ai import ai_style as style_crud
+from fastapi import APIRouter, Depends, HTTPException
+from models.ai.style import AIDimension, AIDimensionRelationshipMapping, AIStyle, AIStyleDimension
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,9 +21,6 @@ style_router = APIRouter()
 @style_router.get("/ai_style/{style_id}/dimensions")
 async def get_style_dimensions(style_id: int, db: AsyncSession = Depends(get_db)) -> List[Dict[str, Any]]:
     """Get dimensions for a style."""
-    from sqlalchemy import select
-    from models.ai.style import AIStyleDimension, AIDimension
-
     result = await db.execute(
         select(AIDimension)
         .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
@@ -50,14 +50,6 @@ async def save_style_complete(
     - Only persists data; does not format UI responses.
     - Enforces invariants: no defaults, proper ranges, and referential checks.
     """
-    from crud.ai import ai_style as style_crud
-    from models.ai.style import (
-        AIStyleDimension,
-        AIDimensionRelationshipMapping,
-        AIDimension,
-    )
-    from sqlalchemy import delete, update, select
-
     # Get style
     style = await style_crud.get(db, id=style_id)
     if not style:
@@ -293,7 +285,7 @@ async def save_style_complete(
         "message": "Saved successfully",
         "updated_dimensions": updated_dims,
         "created_dimensions": created_dims,
-        "deleted_dimensions": deleted_associations,
+        "deleted_associations": deleted_associations,
         "deleted_dimensions": deleted_dimensions,
         "updated_mappings": updated_mappings,
         "created_mappings": created_mappings,
@@ -304,9 +296,6 @@ async def save_style_complete(
 @style_router.get("/style/{style_id}/available-dimensions")
 async def get_available_dimensions(style_id: int, db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     """Get dimensions not yet added to this style."""
-    from sqlalchemy import select
-    from models.ai.style import AIStyleDimension, AIDimension, AIDimensionRelationshipMapping
-
     # Get dimensions already in this style
     existing_stmt = select(AIStyleDimension.dimension_id).where(AIStyleDimension.style_id == style_id)
     existing_result = await db.execute(existing_stmt)
@@ -355,9 +344,6 @@ async def get_other_styles_using_dimension(
     style_id: int, dimension_id: int, db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """List other styles using the given dimension (exclude current style)."""
-    from sqlalchemy import select
-    from models.ai.style import AIStyleDimension, AIStyle
-
     result = await db.execute(
         select(AIStyle)
         .join(AIStyleDimension, AIStyleDimension.style_id == AIStyle.id)

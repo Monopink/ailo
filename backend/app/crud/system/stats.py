@@ -6,24 +6,24 @@ This module contains CRUD operations for various system statistics.
 
 from datetime import date, datetime, timedelta
 from typing import List, Optional
-from sqlalchemy import select, and_, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
 from models.system import (
-    StatsUserDaily,
-    StatsUserWeekly,
-    StatsUserMonthly,
-    StatsRevenueDaily,
-    StatsRevenueWeekly,
-    StatsRevenueMonthly,
-    StatsMessageDaily,
-    StatsMessageWeekly,
-    StatsMessageMonthly,
     StatsAIDaily,
-    StatsAIWeekly,
     StatsAIMonthly,
+    StatsAIWeekly,
+    StatsMessageDaily,
+    StatsMessageMonthly,
+    StatsMessageWeekly,
+    StatsRevenueDaily,
+    StatsRevenueMonthly,
+    StatsRevenueWeekly,
+    StatsUserDaily,
+    StatsUserMonthly,
+    StatsUserWeekly,
 )
+from sqlalchemy import and_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CRUDStatsUser(CRUDBase[StatsUserDaily, dict, dict]):

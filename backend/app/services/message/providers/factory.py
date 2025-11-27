@@ -7,8 +7,11 @@ based on configuration.
 
 import os
 from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from .base import MessageProvider
+from .leancloud import create_leancloud_provider
 
 
 def create_message_provider(db: AsyncSession, provider_type: Optional[str] = None) -> MessageProvider:
@@ -29,8 +32,6 @@ def create_message_provider(db: AsyncSession, provider_type: Optional[str] = Non
     # Type assertion since we know provider_type is not None after the check
     assert provider_type is not None
     if provider_type == "leancloud":
-        from .leancloud import create_leancloud_provider
-
         return create_leancloud_provider(db)
 
     raise ValueError(f"Unsupported provider type: {provider_type}")

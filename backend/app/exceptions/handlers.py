@@ -6,15 +6,15 @@ ensuring consistent error responses and proper logging.
 """
 
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from fastapi import Request, status
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import SQLAlchemyError
-from pydantic import ValidationError as PydanticValidationError
 
 from exceptions.base import BaseAppException
+from fastapi import Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -43,7 +43,7 @@ def create_error_response(
     response_data = {
         "success": False,
         "error": {"code": error_code, "message": message},
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
     }
 
     if details:

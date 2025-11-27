@@ -5,16 +5,17 @@ This module handles AI memory operations (add, replace, delete),
 context status updates, and context archiving.
 """
 
-from typing import List, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Dict, List
 
-from .queries import get_instance_context, get_items_for_archiving
-from .queries.updates import update_instance_memory
-from .queries.transactions import archive_contexts_transaction
 from services.config import config_service
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # AIServiceError import removed - memory operations now use tolerant error handling
 from utils.logging import get_logger
+
+from .queries import get_instance_context, get_items_for_archiving
+from .queries.transactions import archive_contexts_transaction
+from .queries.updates import update_instance_memory
 
 logger = get_logger(__name__)
 

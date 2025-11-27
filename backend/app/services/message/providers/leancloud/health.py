@@ -4,9 +4,9 @@ LeanCloud service health check.
 Provides health check functionality for LeanCloud messaging service.
 """
 
-import httpx
 from typing import Optional
 
+import httpx
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +24,7 @@ async def check_leancloud_health(
     Args:
         app_id: LeanCloud App ID
         master_key: LeanCloud Master Key
-        base_url: LeanCloud base URL (e.g., https://xxx.lc-cn-n1-shared.com)
+        base_url: LeanCloud base URL
         timeout: Request timeout in seconds (default: 5.0)
 
     Returns:
@@ -36,7 +36,7 @@ async def check_leancloud_health(
         >>> is_healthy, error = await check_leancloud_health(
         ...     app_id="xxx",
         ...     master_key="yyy",
-        ...     base_url="https://xxx.lc-cn-n1-shared.com"
+        ...     base_url="https://example.com"
         ... )
         >>> if not is_healthy:
         ...     logger.error("LeanCloud unhealthy", error=error)

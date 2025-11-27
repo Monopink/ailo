@@ -4,85 +4,70 @@ AI system schemas module.
 This module imports all AI-related Pydantic schemas.
 """
 
+# Chat schemas
+from .chat import AIChatRequest, AIChatResponse
+
 # Instance schemas
 from .instance import (
     AIInstanceBase,
     AIInstanceCreate,
-    AIInstanceUpdate,
-    AIInstanceResponse,
     AIInstanceListResponse,
+    AIInstanceResponse,
+    AIInstanceUpdate,
     BatchAIInstanceDelete,
 )
 
-# Chat schemas
-from .chat import (
-    AIChatRequest,
-    AIChatResponse,
-)
-
-# Style schemas
-from .style import (
-    AIStyleBase,
-    AIStyleCreate,
-    AIStyleUpdate,
-    AIStyleResponse,
-    # Dimensions
-    AIDimensionBase,
-    AIDimensionCreate,
-    AIDimensionUpdate,
-    AIDimensionResponse,
-    # Style-dimension junction
-    AIStyleDimensionBase,
-    AIStyleDimensionCreate,
-    AIStyleDimensionUpdate,
-    AIStyleDimensionResponse,
-    # Relationships
-    AIRelationshipBase,
-    AIRelationshipCreate,
-    AIRelationshipResponse,
-    # Dimension relationship mappings
-    AIDimensionRelationshipMappingBase,
-    AIDimensionRelationshipMappingCreate,
-    AIDimensionRelationshipMappingUpdate,
-    AIDimensionRelationshipMappingResponse,
+# Log schemas
+from .log import (
+    AIInstanceStats,
+    AIRequestLogBase,
+    AIRequestLogCreate,
+    AIRequestLogResponse,
+    AIRequestLogUpdate,
+    AISystemStats,
+    AIUserStats,
 )
 
 # Personality schemas
 from .personality import (
     AIPersonalityBase,
     AIPersonalityCreate,
-    AIPersonalityUpdate,
-    AIPersonalityResponse,
     AIPersonalityPlaceholderBase,
     AIPersonalityPlaceholderCreate,
-    AIPersonalityPlaceholderUpdate,
     AIPersonalityPlaceholderResponse,
-)
-from .template import (
-    AITypeBase,
-    AITypeCreate,
-    AITypeUpdate,
-    AIType as AITypeResponse,
-    AITemplateBase,
-    AITemplateCreate,
-    AITemplateUpdate,
-    AITemplate as AITemplateResponse,
-    AIPersonaBase,
-    AIPersonaCreate,
-    AIPersonaUpdate,
-    AIPersona as AIPersonaResponse,
+    AIPersonalityPlaceholderUpdate,
+    AIPersonalityResponse,
+    AIPersonalityUpdate,
 )
 
-# Log schemas
-from .log import (
-    AIRequestLogBase,
-    AIRequestLogCreate,
-    AIRequestLogUpdate,
-    AIRequestLogResponse,
-    AIInstanceStats,
-    AIUserStats,
-    AISystemStats,
+# Style schemas
+from .style import (  # Dimensions; Style-dimension junction; Relationships; Dimension relationship mappings
+    AIDimensionBase,
+    AIDimensionCreate,
+    AIDimensionRelationshipMappingBase,
+    AIDimensionRelationshipMappingCreate,
+    AIDimensionRelationshipMappingResponse,
+    AIDimensionRelationshipMappingUpdate,
+    AIDimensionResponse,
+    AIDimensionUpdate,
+    AIRelationshipBase,
+    AIRelationshipCreate,
+    AIRelationshipResponse,
+    AIStyleBase,
+    AIStyleCreate,
+    AIStyleDimensionBase,
+    AIStyleDimensionCreate,
+    AIStyleDimensionResponse,
+    AIStyleDimensionUpdate,
+    AIStyleResponse,
+    AIStyleUpdate,
 )
+from .template import AIPersona as AIPersonaResponse
+from .template import AIPersonaBase, AIPersonaCreate, AIPersonaUpdate
+from .template import AITemplate as AITemplateResponse
+from .template import AITemplateBase, AITemplateCreate, AITemplateUpdate
+from .template import AIType as AITypeResponse
+from .template import AITypeBase, AITypeCreate, AITypeUpdate
 
 # Export all AI schemas
 __all__ = [

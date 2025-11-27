@@ -4,16 +4,16 @@ AI instance dimension related models.
 This module contains SQLAlchemy models for AI instance dimension scores.
 """
 
-from sqlalchemy import BigInteger, Integer, Index, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import Optional, TYPE_CHECKING, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from models.base import SnowflakeModel
+from sqlalchemy import BigInteger, Index, Integer, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from models.ai.instance import AIInstance
-    from models.ai.style import AIDimension, AIStyleDimension, AIRelationship
+    from models.ai.style import AIDimension
 
 
 class AIInstanceDimension(SnowflakeModel):

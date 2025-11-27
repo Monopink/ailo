@@ -5,16 +5,16 @@ This module contains Starlette-Admin views for AI personality system.
 """
 
 from typing import Any
-from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import StringField, TextAreaField, HasOne
-from starlette_admin.actions import link_row_action
-from starlette_admin.fields import JSONField
-from admin.fields import LocalDateTimeField
 
-from models.ai.personality import AIPersonality, AIPersonalityPlaceholder
+from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
 from enums import AIPersonalityStatus, RequiredStatus
+from models.ai.personality import AIPersonality, AIPersonalityPlaceholder
+from starlette.requests import Request
+from starlette_admin import HasOne, StringField, TextAreaField
+from starlette_admin.actions import link_row_action
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.fields import JSONField
 
 
 class AIPersonalityView(ModelView):

@@ -5,19 +5,18 @@ Combines all admin API endpoints for management backend.
 All admin API endpoints require authentication via Starlette-Admin session.
 """
 
+from api.deps import verify_admin_session
 from fastapi import APIRouter, Depends
 
-from api.deps import verify_admin_session
-
-from .dashboard import dashboard_router
-from .llm_management import llm_router
+from .ai_dimension import dimension_router
 from .ai_instance import ai_instance_router
 from .ai_personality import personality_router
-from .ai_template import template_router
 from .ai_style import style_router
-from .ai_dimension import dimension_router
-from .system_management import system_router
+from .ai_template import template_router
+from .dashboard import dashboard_router
 from .discovery import router as discovery_router
+from .llm_management import llm_router
+from .system_management import system_router
 
 # Create main admin API router with global authentication
 admin_api_router = APIRouter(dependencies=[Depends(verify_admin_session)])

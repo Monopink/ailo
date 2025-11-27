@@ -6,21 +6,22 @@ configurations and relationships are properly established before test execution.
 """
 
 import json
-from typing import Dict, Any, Optional, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from typing import Any, Dict, List, Optional
 
-from services.llm.config import get_active_configs
-from utils.logging import get_logger
-from services.ai.queries import get_instance_context
-from services.ai.types import InstanceContext
-from enums import ContactType, UserType, ProfileOwnerType
+from crud.profile import profile as profile_crud
+from enums import ContactType, ProfileOwnerType, UserType
 from exceptions import AIDataAccessError
 from models.ai.instance import AIInstance
 from models.contact import Contact
 from models.user import User
-from crud.profile import profile as profile_crud
 from schemas.profile import ProfileCreate
+from services.ai.queries import get_instance_context
+from services.ai.relationship_scoring import get_relationship_scores
+from services.ai.types import InstanceContext
+from services.llm.config import get_active_configs
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -217,7 +218,6 @@ class ValidationService:
         Validate relationship scores exist for this instance.
         Auto-initialize if missing to match main flow behavior.
         """
-        from services.ai.relationship_scoring import get_relationship_scores
 
         # Use auto_initialize=True to match main flow behavior
         scores = await get_relationship_scores(

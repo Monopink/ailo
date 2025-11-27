@@ -6,14 +6,17 @@ refreshing LeanCloud system conversation and webhook management.
 """
 
 import secrets
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.requests import Request
+from datetime import datetime, timezone
 
+import httpx
 from api.deps import get_db, verify_admin_session
 from crud.system import system_configs
 from enums import AdminOperationType
+from fastapi import APIRouter, Depends, HTTPException
+from services.config import config_service
 from services.message.providers.leancloud import service as leancloud_service
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import Request
 from utils.admin_logs import create_operation_log
 from utils.logging import get_logger
 
@@ -163,9 +166,6 @@ async def get_leancloud_service_status(
     logger.info("admin_get_leancloud_service_status_requested", admin_user=admin_user["username"])
 
     try:
-        from datetime import datetime, timezone
-        from services.config import config_service
-
         # Get LeanCloud IM configuration
         leancloud_config = await config_service.get_leancloud_config(db)
 
@@ -188,8 +188,6 @@ async def get_leancloud_service_status(
 
         # Test LeanCloud API connectivity
         try:
-            import httpx
-
             base_url = leancloud_config["base_url"]
             app_id = leancloud_config["app_id"]
 

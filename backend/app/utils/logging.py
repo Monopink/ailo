@@ -1,8 +1,9 @@
-import os
 import logging
 import logging.handlers
+import os
+from typing import Any, Dict, Optional
+
 import structlog
-from typing import Dict, Any, Optional
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
 from structlog.types import EventDict
 

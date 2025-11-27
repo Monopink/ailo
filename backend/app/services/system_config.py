@@ -10,12 +10,12 @@ After updating configs through CRUD, call SystemConfigService.reload_cache() to 
 
 import json
 from typing import Any, Dict
+
+from exceptions import MissingConfigurationError
+from models.system import SystemConfig
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from models.system import SystemConfig
 from utils.logging import get_logger
-from exceptions import MissingConfigurationError
 
 logger = get_logger(__name__)
 

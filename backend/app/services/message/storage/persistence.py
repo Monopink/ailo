@@ -7,20 +7,15 @@ Unified service for storing all types of messages to message_history table.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, Union, TYPE_CHECKING
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Dict, Optional, Union
 
-
-from enums import MessageParticipantType, ServiceProvider, MessageStatus, MessageDirection
-
-if TYPE_CHECKING:
-    from services.message.schemas import InboundMessageEvent, OutboundMessageEvent
+from enums import MessageDirection, MessageParticipantType, MessageStatus, ServiceProvider
 from models.message.message import MessageHistory
-from models.user import User
-from models.ai.instance import AIInstance
-from crud.user import user as user_crud
-from utils.snowflake import generate_snowflake_id
+from services.message.schemas import InboundMessageEvent, OutboundMessageEvent
+from services.message.storage.participant_resolver import get_participant_info
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
+from utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 
@@ -45,8 +40,6 @@ async def store_message(
     Raises:
         ValueError: If participant not found
     """
-    from services.message.schemas import InboundMessageEvent, OutboundMessageEvent
-
     # Determine direction and provider ID based on event type
     if isinstance(event, InboundMessageEvent):
         direction = MessageDirection.INBOUND
@@ -212,6 +205,4 @@ def _normalize_client_sent_time(
 
 async def _get_participant_info(db: AsyncSession, qiao_id: str) -> tuple[MessageParticipantType, int]:
     """Get participant info (delegates to participant_resolver)."""
-    from services.message.storage.participant_resolver import get_participant_info
-
     return await get_participant_info(db, qiao_id)

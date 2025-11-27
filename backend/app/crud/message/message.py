@@ -6,12 +6,12 @@ This module contains CRUD operations for message history and conversations.
 
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import select, and_, or_, func, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
+from enums import MessageStatus, MessageType
 from models.message import MessageHistory
-from enums import MessageType, MessageStatus
+from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):

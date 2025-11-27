@@ -6,11 +6,10 @@ This module contains Pydantic schemas for admin users and operation logs.
 
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
 
 from enums import AdminRole
+from pydantic import BaseModel, Field
 from schemas.common import BaseSchema
-
 
 # Admin User Schemas
 
@@ -166,6 +165,6 @@ class AdminSystemInfo(BaseSchema):
 class BatchAdminUserUpdate(BaseModel):
     """Schema for batch updating admin users."""
 
-    admin_user_ids: List[int] = Field(..., min_items=1, max_items=50, description="Admin user IDs")
+    admin_user_ids: List[int] = Field(..., min_length=1, max_length=50, description="Admin user IDs")
     status: Optional[int] = Field(None, description="New status")
     role: Optional[AdminRole] = Field(None, description="New role")

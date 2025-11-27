@@ -7,10 +7,8 @@ complete reuse of the core business logic.
 """
 
 import time
-from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from typing import Any, Dict, List, Optional, Tuple
 
 from enums import MessageType
 from models.ai.instance import AIInstance
@@ -23,6 +21,8 @@ from services.message.processing.buffer import (
     force_lock_latest_window,
 )
 from services.message.schemas import InboundMessageEvent
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -91,6 +91,7 @@ class ExecutorService:
             log_entry = AIRequestLog(
                 instance_id=instance.id,
                 user_id=user_id,
+                user_qiao_id=user_qiao_id,
                 style_id=instance.style_id,
                 personality_id=instance.personality_id,
                 request_type="test",

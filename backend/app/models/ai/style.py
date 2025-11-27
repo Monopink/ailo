@@ -4,11 +4,12 @@ AI style and relationship related models.
 This module contains SQLAlchemy models for AI styles and relationship configurations.
 """
 
-from typing import Optional, List
-from sqlalchemy import Integer, Numeric, String, Text, UniqueConstraint, text, CheckConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import List, Optional
 
+from markupsafe import escape
 from models.base import AutoIncrementModel
+from sqlalchemy import CheckConstraint, Integer, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class AIStyle(AutoIncrementModel):
@@ -39,7 +40,6 @@ class AIStyle(AutoIncrementModel):
     )
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 
@@ -78,7 +78,6 @@ class AIDimension(AutoIncrementModel):
     )
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         display = escape(self.display_name) if self.display_name else escape(self.name)
         return f"<span>[{self.id}] {display}</span>"
 
@@ -222,7 +221,6 @@ class AIRelationship(AutoIncrementModel):
     )
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 

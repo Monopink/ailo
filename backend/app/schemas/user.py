@@ -5,12 +5,11 @@ This module contains Pydantic schemas for user accounts, tokens, and authenticat
 """
 
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, Field, validator
+from typing import Any, Optional
 
-from enums import UserStatus, UserType, DeviceType, LoginType
+from enums import AuthType, DeviceType, LoginResult, LoginType, UserStatus, UserType
+from pydantic import BaseModel, Field, model_validator
 from schemas.common import BaseSchema
-
 
 # User Schemas
 
@@ -32,12 +31,12 @@ class UserCreate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=128, description="Password")
     username: Optional[str] = Field(None, min_length=1, max_length=50, description="Custom username")
 
-    @validator("phone", "email")
-    def validate_login_method(cls, v, values):
+    @model_validator(mode="after")
+    def validate_login_method(self) -> "UserCreate":
         """Ensure at least one login method is provided."""
-        if not v and not values.get("phone") and not values.get("email"):
+        if not self.phone and not self.email:
             raise ValueError("Either phone or email must be provided")
-        return v
+        return self
 
 
 class UserUpdate(BaseModel):
@@ -81,6 +80,20 @@ class TokenCreate(BaseModel):
     user_agent: Optional[str] = Field(None, description="User agent string")
 
 
+class TokenUpdate(BaseModel):
+    """Schema for updating a user token."""
+
+    device_type: Optional[DeviceType] = Field(None, description="Device type")
+    device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
+    platform_info: Optional[dict[str, Any]] = Field(None, description="Platform information")
+    ip_address: Optional[str] = Field(None, max_length=45, description="IP address")
+    user_agent: Optional[str] = Field(None, description="User agent string")
+    expires_at: Optional[datetime] = Field(None, description="Token expiration time")
+    status: Optional[int] = Field(None, description="Token status: 1=active, 2=revoked")
+    last_activity_at: Optional[datetime] = Field(None, description="Last activity time")
+    revoked_at: Optional[datetime] = Field(None, description="Token revocation time")
+
+
 class TokenResponse(BaseSchema):
     """Schema for token response data."""
 
@@ -107,15 +120,14 @@ class LoginRequest(BaseModel):
     device_type: DeviceType = Field(..., description="Device type")
     device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
 
-    @validator("phone", "email")
-    def validate_login_identifier(cls, v, values):
+    @model_validator(mode="after")
+    def validate_login_identifier(self) -> "LoginRequest":
         """Validate login identifier based on login type."""
-        login_type = values.get("login_type")
-        if login_type == LoginType.SMS and not values.get("phone"):
+        if self.login_type == LoginType.SMS and not self.phone:
             raise ValueError("Phone number is required for SMS login")
-        if login_type == LoginType.PASSWORD and not (v or values.get("phone") or values.get("email")):
+        if self.login_type == LoginType.PASSWORD and not (self.phone or self.email):
             raise ValueError("Phone or email is required for password login")
-        return v
+        return self
 
 
 class LoginResponse(BaseSchema):
@@ -148,12 +160,12 @@ class ResetPasswordRequest(BaseModel):
     phone: Optional[str] = Field(None, max_length=20, description="Phone number")
     email: Optional[str] = Field(None, max_length=100, description="Email address")
 
-    @validator("phone", "email")
-    def validate_reset_identifier(cls, v, values):
+    @model_validator(mode="after")
+    def validate_reset_identifier(self) -> "ResetPasswordRequest":
         """Ensure at least one identifier is provided."""
-        if not v and not values.get("phone") and not values.get("email"):
+        if not self.phone and not self.email:
             raise ValueError("Either phone or email must be provided")
-        return v
+        return self
 
 
 class ConfirmResetPasswordRequest(BaseModel):
@@ -163,3 +175,49 @@ class ConfirmResetPasswordRequest(BaseModel):
     email: Optional[str] = Field(None, max_length=100, description="Email address")
     verification_code: str = Field(..., min_length=4, max_length=10, description="Verification code")
     new_password: str = Field(..., min_length=8, max_length=128, description="New password")
+
+
+# Third-Party Authentication Schemas
+
+
+class UserAuthCreate(BaseModel):
+    """Schema for creating a user auth binding."""
+
+    user_id: int = Field(..., description="User internal ID")
+    user_qiao_id: str = Field(..., max_length=32, description="User external ID")
+    auth_type: AuthType = Field(..., description="Auth provider type")
+    provider_uid: str = Field(..., max_length=128, description="Provider user unique ID")
+    unionid: Optional[str] = Field(None, max_length=64, description="WeChat unionid")
+    app_id: Optional[str] = Field(None, max_length=64, description="Provider app ID")
+    extra_data: Optional[dict[str, Any]] = Field(None, description="Extra provider data")
+    status: Optional[int] = Field(1, description="Binding status: 1=active, 2=revoked")
+    revoked_at: Optional[datetime] = Field(None, description="Unbind time")
+
+
+class UserAuthUpdate(BaseModel):
+    """Schema for updating a user auth binding."""
+
+    unionid: Optional[str] = Field(None, max_length=64, description="WeChat unionid")
+    app_id: Optional[str] = Field(None, max_length=64, description="Provider app ID")
+    extra_data: Optional[dict[str, Any]] = Field(None, description="Extra provider data")
+    status: Optional[int] = Field(None, description="Binding status: 1=active, 2=revoked")
+    revoked_at: Optional[datetime] = Field(None, description="Unbind time")
+
+
+# Login Record Schemas
+
+
+class LoginRecordCreate(BaseModel):
+    """Schema for creating a login record."""
+
+    user_id: Optional[int] = Field(None, description="User internal ID")
+    user_qiao_id: Optional[str] = Field(None, max_length=32, description="User external ID")
+    login_time: Optional[datetime] = Field(None, description="Login attempt time")
+    login_type: LoginType = Field(..., description="Login method")
+    platform: DeviceType = Field(..., description="Platform used for login")
+    device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
+    ip_address: Optional[str] = Field(None, max_length=45, description="Login IP address")
+    user_agent: Optional[str] = Field(None, description="User agent string")
+    result: LoginResult = Field(..., description="Login result")
+    fail_reason: Optional[str] = Field(None, max_length=255, description="Failure reason")
+    token: Optional[str] = Field(None, max_length=512, description="Associated JWT token")

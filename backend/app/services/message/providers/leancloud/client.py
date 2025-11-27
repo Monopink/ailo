@@ -5,7 +5,8 @@ This module provides pure functions for LeanCloud REST API calls.
 All functions are stateless and return explicit results.
 """
 
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 import httpx
 from utils.logging import get_logger
 
@@ -23,7 +24,7 @@ async def create_system_conversation(
     Args:
         app_id: LeanCloud App ID
         master_key: LeanCloud Master Key
-        base_url: LeanCloud base URL (e.g., https://zcuk19lc.lc-cn-n1-shared.com)
+        base_url: LeanCloud base URL
         name: System conversation name
 
     Returns:
@@ -36,7 +37,7 @@ async def create_system_conversation(
         success, conv_id, error = await create_system_conversation(
             app_id="xxx",
             master_key="yyy",
-            base_url="https://xxx.lc-cn-n1-shared.com",
+            base_url="https://example.com",
             name="uni_conversation_id"
         )
     """

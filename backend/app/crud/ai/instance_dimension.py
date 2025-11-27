@@ -4,13 +4,14 @@ AI Instance Dimension CRUD operations.
 This module provides CRUD operations for AI instance dimension scores.
 """
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
+from models.ai.instance import AIInstance
+from models.ai.instance_dimension import AIInstanceDimension
+from models.ai.style import AIDimension, AIStyleDimension
+from services.ai.utils.position_mapping import map_score_to_position
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from models.ai.instance_dimension import AIInstanceDimension
-from models.ai.style import AIStyleDimension, AIDimension
-from models.ai.instance import AIInstance
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -94,7 +95,6 @@ async def update_dimensions_batch(
         {"updated": int, "created": int}
     """
     try:
-        from services.ai.utils.position_mapping import map_score_to_position
 
         # Resolve instance style_id
         style_res = await db.execute(select(AIInstance.style_id).where(AIInstance.id == instance_id))
@@ -203,8 +203,6 @@ async def update_dimensions_batch(
         return {"updated": updated, "created": created}
 
     except Exception as e:
-        logger.error(
-            "update_dimensions_batch_failed", instance_id=instance_id, error=str(e), exc_info=True
-        )
+        logger.error("update_dimensions_batch_failed", instance_id=instance_id, error=str(e), exc_info=True)
         await db.rollback()
         raise

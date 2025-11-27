@@ -2,11 +2,10 @@
 Public system endpoints (no auth) for client bootstrapping configs.
 """
 
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.database import get_db
 from crud.system import system_configs
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/system", tags=["System Public"])
 
@@ -37,7 +36,9 @@ async def get_captcha_config(request: Request, db: AsyncSession = Depends(get_db
     if not scene_id:
         # Older client-specific key
         if client:
-            scene_id = await system_configs.get_config_value(db, config_key=f"aliyun_{client}_captcha_scene_id")
+            scene_id = await system_configs.get_config_value(
+                db, config_key=f"aliyun_{client}_captcha_scene_id"
+            )
     if not scene_id:
         scene_id = await system_configs.get_config_value(db, config_key="aliyun_captcha_scene_id")
 

@@ -4,14 +4,15 @@ Admin management CRUD operations.
 This module contains CRUD operations for admin users and operation logs.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-from sqlalchemy import select, and_, func, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud.base import CRUDBaseWithStatus, CRUDBase
-from models.admin import AdminUser, AdminOperationLog, AdminLoginLog
-from schemas.admin import AdminUserCreate, AdminUserUpdate, AdminOperationLogCreate
+from crud.base import CRUDBase, CRUDBaseWithStatus
 from enums import AdminRole, AdminStatus
+from models.admin import AdminLoginLog, AdminOperationLog, AdminUser
+from schemas.admin import AdminOperationLogCreate, AdminUserCreate, AdminUserUpdate
+from sqlalchemy import and_, desc, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpdate]):
@@ -67,11 +68,10 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
 
     async def update_last_login(self, db: AsyncSession, *, user_id: int) -> Optional[AdminUser]:
         """Update admin user's last login time."""
-        from datetime import datetime
 
         user = await self.get(db, id=user_id)
         if user:
-            user.last_login = datetime.utcnow()
+            user.last_login = datetime.now(timezone.utc)
             user.login_count += 1
             db.add(user)
             await db.commit()
@@ -159,9 +159,8 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
     ) -> List[AdminOperationLog]:
         """Get recent operations within specified hours."""
-        from datetime import datetime, timedelta
 
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
             .where(self.model.created_at >= cutoff_time)
@@ -177,9 +176,8 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
         conditions = [self.model.admin_user_id == admin_user_id]
 
         if hours:
-            from datetime import datetime, timedelta
 
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             conditions.append(self.model.created_at >= cutoff_time)
 
         result = await db.execute(select(func.count(self.model.id)).where(and_(*conditions)))
@@ -206,9 +204,8 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
         self, db: AsyncSession, *, username: str, hours: int = 1
     ) -> List[AdminLoginLog]:
         """Get recent failed login attempts for username."""
-        from datetime import datetime, timedelta
 
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
             .where(
@@ -226,9 +223,8 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
     ) -> List[AdminLoginLog]:
         """Get recent successful logins."""
-        from datetime import datetime, timedelta
 
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
             .where(and_(self.model.result == 1, self.model.created_at >= cutoff_time))  # Success
@@ -241,9 +237,8 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
         self, db: AsyncSession, *, username: str, hours: int = 24, result: Optional[int] = None
     ) -> int:
         """Count login attempts for username."""
-        from datetime import datetime, timedelta
 
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         conditions = [self.model.username == username, self.model.created_at >= cutoff_time]
 
         if result is not None:

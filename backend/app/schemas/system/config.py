@@ -4,13 +4,13 @@ System configuration related schemas.
 This module contains Pydantic schemas for system configuration management.
 """
 
+import json
 from datetime import datetime
-from typing import Any, Optional, Union
-from pydantic import BaseModel, Field, validator
+from typing import Optional, Union
 
 from enums import ConfigType
+from pydantic import BaseModel, Field, field_validator
 from schemas.common import BaseSchema
-
 
 # System Configuration Schemas
 
@@ -32,26 +32,24 @@ class SystemConfigCreate(BaseModel):
     config_type: ConfigType = Field(..., description="Value type")
     description: Optional[str] = Field(None, max_length=500, description="Configuration description")
 
-    @validator("config_value")
-    def validate_config_value_by_type(cls, v, values):
+    @field_validator("config_value", mode="after")
+    def validate_config_value_by_type(cls, value: str, info):
         """Validate config_value based on config_type."""
-        config_type = values.get("config_type")
+        config_type = info.data.get("config_type")
         if config_type == ConfigType.NUMBER:
             try:
-                float(v)
+                float(value)
             except ValueError:
                 raise ValueError("config_value must be a valid number for NUMBER type")
         elif config_type == ConfigType.BOOLEAN:
-            if v.lower() not in ["true", "false", "1", "0"]:
+            if value.lower() not in ["true", "false", "1", "0"]:
                 raise ValueError("config_value must be true/false or 1/0 for BOOLEAN type")
         elif config_type == ConfigType.JSON:
-            import json
-
             try:
-                json.loads(v)
+                json.loads(value)
             except json.JSONDecodeError:
                 raise ValueError("config_value must be valid JSON for JSON type")
-        return v
+        return value
 
 
 class SystemConfigUpdate(BaseModel):
@@ -61,28 +59,26 @@ class SystemConfigUpdate(BaseModel):
     config_type: Optional[ConfigType] = Field(None, description="Value type")
     description: Optional[str] = Field(None, max_length=500, description="Configuration description")
 
-    @validator("config_value")
-    def validate_config_value_by_type(cls, v, values):
+    @field_validator("config_value", mode="after")
+    def validate_config_value_by_type(cls, value: Optional[str], info):
         """Validate config_value based on config_type."""
-        if v is None:
-            return v
-        config_type = values.get("config_type")
+        if value is None:
+            return value
+        config_type = info.data.get("config_type")
         if config_type == ConfigType.NUMBER:
             try:
-                float(v)
+                float(value)
             except ValueError:
                 raise ValueError("config_value must be a valid number for NUMBER type")
         elif config_type == ConfigType.BOOLEAN:
-            if v.lower() not in ["true", "false", "1", "0"]:
+            if value.lower() not in ["true", "false", "1", "0"]:
                 raise ValueError("config_value must be true/false or 1/0 for BOOLEAN type")
         elif config_type == ConfigType.JSON:
-            import json
-
             try:
-                json.loads(v)
+                json.loads(value)
             except json.JSONDecodeError:
                 raise ValueError("config_value must be valid JSON for JSON type")
-        return v
+        return value
 
 
 class SystemConfigResponse(SystemConfigBase):
@@ -123,17 +119,17 @@ class BatchConfigUpdate(BaseModel):
 
     configs: dict = Field(..., description="Configuration key-value pairs")
 
-    @validator("configs")
-    def validate_configs(cls, v):
+    @field_validator("configs")
+    def validate_configs(cls, value: dict):
         """Validate configuration dictionary."""
-        if not v:
+        if not value:
             raise ValueError("configs cannot be empty")
-        if len(v) > 50:
+        if len(value) > 50:
             raise ValueError("Cannot update more than 50 configurations at once")
-        return v
+        return value
 
 
 class BatchConfigDelete(BaseModel):
     """Schema for batch deleting configurations."""
 
-    config_keys: list = Field(..., min_items=1, max_items=50, description="Configuration keys to delete")
+    config_keys: list = Field(..., min_length=1, max_length=50, description="Configuration keys to delete")

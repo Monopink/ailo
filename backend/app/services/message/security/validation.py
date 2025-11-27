@@ -6,13 +6,13 @@ between users and AI instances. Implements the Block functionality design
 from docs/prototype/message-flow.md (lines 486-554).
 """
 
-from typing import Optional
 from dataclasses import dataclass
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
-from models.contact import Contact
-from models.ai.instance import AIInstance
 from enums import ChatInfoType
+from models.ai.instance import AIInstance
+from models.contact import Contact
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

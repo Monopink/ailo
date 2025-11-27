@@ -4,23 +4,27 @@ LLM (Large Language Model) related admin views.
 This module contains Starlette-Admin views for managing LLM providers and configurations.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
+from admin.fields import LocalDateTimeField
+from admin.views.base import IntegerEnumField
+from core.database import get_sessionmaker
+from models.llm import LLMConfig, LLMProvider, LLMTestLog
+from services.admin.testing.llm_json_schema import test_json_schema_compatibility
+from sqlalchemy import select
 from starlette.requests import Request
-from starlette_admin.contrib.sqla import ModelView
 from starlette_admin import (
-    StringField,
-    IntegerField,
-    FloatField,
-    JSONField,
-    HasOne,
-    EnumField,
     BooleanField,
+    EnumField,
+    FloatField,
+    HasOne,
+    IntegerField,
+    JSONField,
+    StringField,
 )
 from starlette_admin.actions import link_row_action, row_action
+from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
-from admin.views.base import IntegerEnumField
-from admin.fields import LocalDateTimeField
-from models.llm import LLMProvider, LLMConfig, LLMTestLog
 
 
 class LLMProviderView(ModelView):
@@ -101,10 +105,8 @@ class LLMProviderView(ModelView):
 
         # Check if display_name already exists
         if "display_name" in data:
-            from sqlalchemy import select
-            from core.database import SessionLocal
-
-            async with SessionLocal() as session:
+            session_factory = get_sessionmaker()
+            async with session_factory() as session:
                 # For create operation
                 if request.url.path.endswith("/create"):
                     result = await session.execute(
@@ -338,10 +340,8 @@ class LLMConfigView(ModelView):
     )
     async def test_json_schema_action(self, request: Request, pk: Any) -> str:
         """Test JSON Schema compatibility and update json_schema_mode."""
-        from core.database import SessionLocal
-        from services.admin.testing.llm_json_schema import test_json_schema_compatibility
-
-        async with SessionLocal() as session:
+        session_factory = get_sessionmaker()
+        async with session_factory() as session:
             result = await test_json_schema_compatibility(session, int(pk))
 
             # Build detailed message

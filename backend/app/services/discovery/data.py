@@ -7,18 +7,13 @@ and the corresponding AI persona profiles.
 
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from enums import (
-    AIPersonaStatus,
-    ContactType,
-    ProfileOwnerType,
-    SquareEntryStatus,
-)
+from enums import AIPersonaStatus, ContactType, ProfileOwnerType, SquareEntryStatus
 from models.ai import AIPersona
 from models.contact import Contact
 from models.discovery import SquareTypeEntry
 from models.profile import Profile
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -128,7 +123,7 @@ async def get_persona_profile_by_qiao_id(
     try:
         profile_stmt = select(Profile).where(
             Profile.owner_qiao_id == qiao_id,
-            Profile.owner_type == ProfileOwnerType.AI,
+            Profile.owner_type == ProfileOwnerType.AI_PERSONA,
         )
         profile_result = await db.execute(profile_stmt)
         profile = profile_result.scalar_one_or_none()
@@ -179,7 +174,7 @@ async def _pick_persona_for_ai_type(
             Profile,
             and_(
                 Profile.owner_qiao_id == AIPersona.qiao_id,
-                Profile.owner_type == ProfileOwnerType.AI,
+                Profile.owner_type == ProfileOwnerType.AI_PERSONA,
             ),
         )
         .where(

@@ -4,13 +4,13 @@ AI request log related models.
 This module contains SQLAlchemy models for AI service request logging.
 """
 
-from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy import BigInteger, Integer, String, DateTime, text, Boolean
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import Any, Dict, Optional
 
 from models.base import ImmutableSnowflakeModel
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class AIRequestLog(ImmutableSnowflakeModel):
@@ -28,6 +28,8 @@ class AIRequestLog(ImmutableSnowflakeModel):
     )
 
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="User ID, references users.id")
+
+    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
 
     style_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Style ID, references ai_styles.id"

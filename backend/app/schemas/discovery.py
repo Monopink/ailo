@@ -6,8 +6,9 @@ This module contains Pydantic schemas for discovery page operations.
 
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+
 from enums import ExposureStrategy, SquareCategory
+from pydantic import BaseModel, Field
 
 
 class SquareContactResponse(BaseModel):
@@ -45,9 +46,13 @@ class SquareContactListResponse(BaseModel):
 class SquareEntryBase(BaseModel):
     """Base schema for Square exposure entries."""
 
-    square_category: SquareCategory = Field(..., description="Square category (1=friend, 2=love, 3=talk, 4=bestie, 5=hobby)")
+    square_category: SquareCategory = Field(
+        ..., description="Square category (1=friend, 2=love, 3=talk, 4=bestie, 5=hobby)"
+    )
     type_id: int = Field(..., description="AI type exposed in this slot")
-    exposure_strategy: ExposureStrategy = Field(ExposureStrategy.RANDOM, description="Exposure strategy (1=random)")
+    exposure_strategy: ExposureStrategy = Field(
+        ExposureStrategy.RANDOM, description="Exposure strategy (1=random)"
+    )
     status: int = Field(1, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
@@ -64,6 +69,7 @@ class SquareEntryUpdate(BaseModel):
     type_id: Optional[int] = Field(None, description="AI type exposed in this slot")
     exposure_strategy: Optional[ExposureStrategy] = Field(None, description="Exposure strategy (1=random)")
     status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
+
 
 class SquareEntry(SquareEntryBase):
     """Square exposure entry response."""

@@ -6,15 +6,15 @@ for AI instance management.
 """
 
 from typing import Any, List, Optional
-from sqlalchemy import select, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.base import CRUDBase
-from models.ai import AIInstance
-from schemas.ai import AIInstanceCreate, AIInstanceUpdate
-from utils.logging import get_logger
 from enums import AIInstanceCreator, ContactType
+from models.ai import AIInstance
 from models.contact import Contact
+from schemas.ai import AIInstanceCreate, AIInstanceUpdate
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
 
 logger = get_logger(__name__)
 

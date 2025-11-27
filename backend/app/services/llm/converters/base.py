@@ -23,4 +23,3 @@ class MessageConverter(ABC):
         """
         Convert generic messages into provider specific format.
         """
-

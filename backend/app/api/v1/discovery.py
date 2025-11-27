@@ -5,15 +5,15 @@ This module contains API endpoints for discovery page operations.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
 from api.deps import get_current_user
+from core.database import get_db
+from enums import SquareCategory
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.user import User
 from schemas.discovery import SquareContactListResponse, StrangerProfileResponse
 from services.discovery import service as discovery_service
-from enums import SquareCategory
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,7 +30,9 @@ router = APIRouter(prefix="/discovery", tags=["Discovery"])
 async def get_square_contacts(
     category: Optional[int] = Query(None, ge=1, le=5, description="Category filter (1-5, null for all)"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: Optional[int] = Query(None, ge=1, le=50, description="Items per page (default from config, max 50)"),
+    page_size: Optional[int] = Query(
+        None, ge=1, le=50, description="Items per page (default from config, max 50)"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SquareContactListResponse:

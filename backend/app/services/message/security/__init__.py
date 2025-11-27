@@ -4,7 +4,7 @@ Message security layer.
 Handles encryption, decryption, and validation.
 """
 
-from .encryption import encrypt_for_transport, decrypt_from_transport
+from .encryption import decrypt_from_transport, encrypt_for_transport
 
 __all__ = [
     "encrypt_for_transport",

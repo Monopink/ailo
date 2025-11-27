@@ -6,12 +6,12 @@ This module contains SQLAlchemy models for admin users and operation logs.
 
 from datetime import datetime
 from typing import Optional
+
+from enums import AdminOperationType, AdminRole, AdminStatus
+from models.base import AutoIncrementModel, ImmutableAutoIncrementModel, StatusMixin
 from sqlalchemy import Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import INET, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
-
-from enums import AdminRole, AdminStatus
-from models.base import AutoIncrementModel, StatusMixin, ImmutableAutoIncrementModel
 
 
 class AdminUser(AutoIncrementModel, StatusMixin):
@@ -148,8 +148,6 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
     @property
     def operation_type_display(self) -> str:
         """Get display name for operation type."""
-        from enums import AdminOperationType
-
         try:
             return AdminOperationType(self.operation_type).name
         except (ValueError, AttributeError):

@@ -6,20 +6,19 @@ This module provides user profile management endpoints including:
 - Update user profile
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from core.database import get_db
 from api.deps import get_current_user
-from models.user import User
+from core.database import get_db
 from crud.profile import profile as profile_crud
 from crud.user import user as user_crud
-from schemas.user_profile import UserProfileResponse, UserProfileUpdateRequest, UserAccountResponse
-from schemas.profile import ProfileCreate, ProfileUpdate
 from enums import ProfileOwnerType
+from fastapi import APIRouter, Depends, HTTPException
+from models.user import User
+from schemas.profile import ProfileCreate, ProfileUpdate
+from schemas.user_profile import UserAccountResponse, UserProfileResponse, UserProfileUpdateRequest
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.email import mask_email
 from utils.logging import get_logger
 from utils.phone import mask_phone
-from utils.email import mask_email
 
 logger = get_logger(__name__)
 
@@ -66,7 +65,7 @@ async def get_user_profile(
 
     except Exception as e:
         logger.error("get_user_profile_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True)
-        raise HTTPException(status_code=500, detail="获取用户资料失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="获取用户资料失败，请稍后再试") from e
 
 
 @router.get("/account", response_model=UserAccountResponse)
@@ -113,7 +112,7 @@ async def get_user_account(
 
     except Exception as e:
         logger.error("get_user_account_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True)
-        raise HTTPException(status_code=500, detail="获取账户信息失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="获取账户信息失败，请稍后再试") from e
 
 
 @router.put("/profile", response_model=UserProfileResponse)
@@ -142,7 +141,7 @@ async def update_user_profile(
             # Check if username already exists
             existing_user = await user_crud.get_by_username(db, username=body.username)
             if existing_user and existing_user.id != current_user.id:
-                raise HTTPException(status_code=400, detail="该敲敲ID已被使用")
+                raise HTTPException(status_code=400, detail="该用户名已被使用")
 
             # Update username
             await user_crud.update(db, db_obj=current_user, obj_in={"username": body.username})
@@ -166,6 +165,8 @@ async def update_user_profile(
             updated_profile = await profile_crud.update_by_owner(
                 db, owner_id=current_user.id, owner_type=ProfileOwnerType.USER, obj_in=update_data
             )
+            if not updated_profile:
+                raise HTTPException(status_code=500, detail="更新用户资料失败，请稍后再试")
         else:
             # Create new profile
             create_data = ProfileCreate(**profile_data)
@@ -202,4 +203,4 @@ async def update_user_profile(
         logger.error(
             "update_user_profile_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="更新用户资料失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="更新用户资料失败，请稍后再试") from e

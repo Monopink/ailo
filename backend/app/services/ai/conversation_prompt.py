@@ -5,20 +5,21 @@ This module handles system prompt construction, placeholder replacement,
 and JSON schema building for AI responses.
 """
 
-from datetime import datetime
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums.common import ConversationRole
-from .queries import get_personality_with_placeholders
 from exceptions import AIServiceError
-from services.ai.types import InstanceContext
-from services.ai.response_schema import build_response_schema
-from utils.logging import get_logger
 from models.ai import AIConversationState
+from services.ai.types import InstanceContext
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
+
+from .queries import get_conversation_contexts, get_personality_with_placeholders, get_user_profile
+from .relationship_scoring import get_relationship_scores
 
 logger = get_logger(__name__)
 
@@ -114,8 +115,6 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
     Returns:
         Template with placeholders replaced and unknown placeholders cleared
     """
-    import re
-
     result = template
     replaced_count = 0
     failed_count = 0
@@ -164,6 +163,7 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
     )
 
     return result
+
 
 async def _build_placeholder_values(
     db: AsyncSession,
@@ -260,8 +260,6 @@ async def _build_score_placeholders(db: AsyncSession, instance_qiao_id: str) -> 
     Returns:
         Dictionary of score placeholders in format {"score:dimension_name": "value"}
     """
-    from .relationship_scoring import get_relationship_scores
-
     scores = await get_relationship_scores(db, instance_qiao_id)
     if not scores:
         logger.debug(
@@ -372,8 +370,6 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Any
     Returns:
         User profile or None
     """
-    from .queries import get_user_profile
-
     return await get_user_profile(db, user_qiao_id)
 
 
@@ -506,8 +502,6 @@ async def build_conversation_context(
         AIServiceError: If context building fails
     """
     try:
-        from .queries import get_conversation_contexts
-
         # Get conversation contexts; when max_context_length is None, include all
         contexts = await get_conversation_contexts(db, instance_qiao_id, user_qiao_id, max_context_length)
 
@@ -602,8 +596,6 @@ def _format_time_prefix(created_at: Any, instance_timezone: Optional[str]) -> Op
     try:
         if created_at is None:
             return None
-
-        from zoneinfo import ZoneInfo
 
         tz_name = instance_timezone or "Asia/Shanghai"
         try:
@@ -724,9 +716,6 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
         AIServiceError: If score formatting fails
     """
     try:
-        from .relationship_scoring import get_relationship_scores
-        import re
-
         # Find all score placeholders in format {{score:dimension_name}}
         score_pattern = r"\{\{score:([^}]+)\}\}"
         score_matches = re.findall(score_pattern, template)
@@ -809,8 +798,6 @@ def validate_prompt_completeness(
         - warnings: List[str] - List of validation warnings
     """
     try:
-        import re
-
         validation_result = {
             "is_valid": True,
             "missing_placeholders": [],

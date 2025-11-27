@@ -4,8 +4,8 @@ SMS Provider Protocol
 Defines the interface for SMS providers.
 """
 
-from typing import Protocol, Tuple, Optional
 from dataclasses import dataclass
+from typing import Optional, Protocol, Tuple
 
 
 @dataclass

@@ -4,13 +4,15 @@ Handles dimension queries and relationship mappings.
 """
 
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
+from fastapi import APIRouter, Depends, HTTPException
+from models.ai.style import AIDimension
 from services.admin.data.style_dimensions import (
     get_dimension_relationship_mappings as admin_get_dimension_relationship_mappings,
 )
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -23,8 +25,6 @@ async def get_dimensions_by_names(
     data: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> List[Dict[str, Any]]:
     """Get dimension details by names."""
-    from sqlalchemy import select
-    from models.ai.style import AIDimension
 
     names = data.get("names", [])
     if not names:

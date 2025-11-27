@@ -5,13 +5,18 @@ This module provides business logic for discovery page operations.
 """
 
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.system import system_configs
 from enums import SquareCategory
-from schemas.discovery import SquareContactResponse, SquareContactListResponse, PaginationInfo, StrangerProfileResponse
+from schemas.discovery import (
+    PaginationInfo,
+    SquareContactListResponse,
+    SquareContactResponse,
+    StrangerProfileResponse,
+)
 from services.discovery import data as discovery_data
 from services.security.rate_limiter import check_rate_limit
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -80,16 +85,16 @@ async def get_square_contacts(
                     category_api = None
 
             items.append(
-            SquareContactResponse(
-                qiao_id=persona.qiao_id,
-                type_id=entry.type_id,
-                category=category_api,
-                nickname=getattr(profile, "nickname", None),
-                gender=getattr(profile, "gender", None),
-                avatar_url=getattr(profile, "avatar_url", None),
-                bio=getattr(profile, "bio", None),
-                region=getattr(profile, "region", None),
-            )
+                SquareContactResponse(
+                    qiao_id=persona.qiao_id,
+                    type_id=entry.type_id,
+                    category=category_api,
+                    nickname=getattr(profile, "nickname", None),
+                    gender=getattr(profile, "gender", None),
+                    avatar_url=getattr(profile, "avatar_url", None),
+                    bio=getattr(profile, "bio", None),
+                    region=getattr(profile, "region", None),
+                )
             )
 
         # Build pagination info
@@ -110,7 +115,9 @@ async def get_square_contacts(
     except ValueError:
         raise
     except Exception as e:
-        logger.error("square_contacts_service_error", user_qiao_id=user_qiao_id, category=category, error=str(e))
+        logger.error(
+            "square_contacts_service_error", user_qiao_id=user_qiao_id, category=category, error=str(e)
+        )
         raise RuntimeError(f"Failed to get square contacts: {str(e)}")
 
 
@@ -129,9 +136,7 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[Stran
         StrangerProfileResponse or None if not found
     """
     try:
-        profile, category = await discovery_data.get_persona_profile_by_qiao_id(
-            db=db, qiao_id=qiao_id
-        )
+        profile, category = await discovery_data.get_persona_profile_by_qiao_id(db=db, qiao_id=qiao_id)
 
         if not profile:
             logger.warning("stranger_profile_not_found", qiao_id=qiao_id)

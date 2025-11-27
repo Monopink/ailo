@@ -4,16 +4,17 @@ AI template related models.
 This module contains SQLAlchemy models for AI configuration templates.
 """
 
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+from markupsafe import escape
+from models.base import AutoIncrementModel, SnowflakeQiaoModel
 from sqlalchemy import Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models.base import AutoIncrementModel, SnowflakeQiaoModel
-
 if TYPE_CHECKING:
-    from models.ai.style import AIStyle
     from models.ai.personality import AIPersonality
+    from models.ai.style import AIStyle
 
 
 class AIType(AutoIncrementModel):
@@ -30,9 +31,7 @@ class AIType(AutoIncrementModel):
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Description")
 
-
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 
@@ -143,7 +142,6 @@ class AITemplate(AutoIncrementModel):
     )
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         display = escape(self.display_name) if self.display_name else f"Template {self.id}"
         return f"<span>[{self.id}] {display}</span>"
 
@@ -180,5 +178,4 @@ class AIPersona(SnowflakeQiaoModel):
     )
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         return f"<span>[{self.id}] {escape(self.qiao_id)}</span>"

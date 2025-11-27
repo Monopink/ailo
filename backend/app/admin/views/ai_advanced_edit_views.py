@@ -5,16 +5,28 @@ Provides specialized editing interfaces for prompt_variables and position_mappin
 
 import json
 
+from core.database import get_sessionmaker
+from crud.ai import ai_personality_placeholder as personality_crud
+from crud.ai.instance_dimension import get_by_instance
+from models.ai.instance import AIInstance
+from models.ai.personality import AIPersonality
+from models.ai.style import (
+    AIDimension,
+    AIDimensionRelationshipMapping,
+    AIRelationship,
+    AIStyle,
+    AIStyleDimension,
+)
+from models.ai.template import AITemplate
+from services.ai.utils.position_mapping import get_algorithm_param_specs
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-from starlette.exceptions import HTTPException
-
-from core.database import SessionLocal
-from crud.ai import ai_personality_placeholder as personality_crud
 from utils.logging import get_logger
-from services.ai.utils.position_mapping import get_algorithm_param_specs
 
 logger = get_logger(__name__)
 
@@ -35,14 +47,9 @@ class InstanceAdvancedEditView(CustomView):
             raise HTTPException(status_code=400, detail="Invalid instance ID")
 
         try:
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 # Get instance with eager loading
-                from sqlalchemy.orm import selectinload
-                from sqlalchemy import select
-                from models.ai.instance import AIInstance
-                from models.ai.style import AIStyleDimension, AIDimension
-                from crud.ai.instance_dimension import get_by_instance
-
                 result = await db.execute(
                     select(AIInstance)
                     .where(AIInstance.id == instance_id)
@@ -236,13 +243,9 @@ class TemplateAdvancedEditView(CustomView):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid template ID")
 
-        async with SessionLocal() as db:
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
             # Get template with eager loading
-            from sqlalchemy.orm import selectinload
-            from sqlalchemy import select
-            from models.ai.template import AITemplate
-            from models.ai.style import AIStyleDimension, AIDimension
-
             result = await db.execute(
                 select(AITemplate)
                 .where(AITemplate.id == template_id)
@@ -371,11 +374,9 @@ class PersonalityAdvancedEditView(CustomView):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid personality ID")
 
-        async with SessionLocal() as db:
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
             # Get personality
-            from sqlalchemy import select
-            from models.ai.personality import AIPersonality
-
             result = await db.execute(select(AIPersonality).where(AIPersonality.id == personality_id))
             personality = result.scalar_one_or_none()
 
@@ -440,15 +441,8 @@ class StyleAdvancedEditView(CustomView):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid style ID")
 
-        async with SessionLocal() as db:
-            from sqlalchemy import select
-            from models.ai.style import (
-                AIStyle,
-                AIStyleDimension,
-                AIDimensionRelationshipMapping,
-                AIRelationship,
-                AIDimension,
-            )
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
 
             # Get style
             result = await db.execute(select(AIStyle).where(AIStyle.id == style_id))

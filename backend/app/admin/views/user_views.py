@@ -3,35 +3,40 @@ User-related model views for Starlette-Admin.
 Creates ModelView instances for user management and admin system models.
 """
 
-from typing import Dict, Any
-from starlette.requests import Request
-from starlette.responses import RedirectResponse
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin import CustomView
-from .base import BaseRoleAwareModelView
+import secrets
+import string
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict
+
 from admin.fields import LocalDateTimeField
-from starlette_admin import StringField, TextAreaField, HasOne, JSONField, IntegerField
-from admin.views.base import IntegerEnumField
-from starlette_admin.exceptions import FormValidationError
-from starlette_admin.actions import link_row_action
-
-from models.user import User
-from models.profile import Profile, UserProfileLog
-from models.contact import Contact
-
-from models.contact import ContactRequest
-
+from admin.views.base import IntegerEnumField, convert_empty_strings_to_none
+from core.security import get_password_hash
 from enums import (
-    UserStatus,
-    UserType,
-    Gender,
-    ProfileOwnerType,
-    ProfileModifierType,
-    ContactType,
     ContactRequestSource,
     ContactRequestStatus,
+    ContactType,
+    Gender,
+    ProfileModifierType,
+    ProfileOwnerType,
+    UserStatus,
+    UserType,
 )
+from models.ai.instance import AIInstance
+from models.ai.template import AIPersona
+from models.contact import Contact, ContactRequest
+from models.profile import Profile, UserProfileLog
+from models.user import User
 from services.contact.request_service import retry_pending_contact_request
+from services.system_config import get_config
+from sqlalchemy import desc, select
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+from starlette_admin import CustomView, HasOne, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin.actions import link_row_action
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
+
+from .base import BaseRoleAwareModelView
 
 
 class UserView(BaseRoleAwareModelView):
@@ -127,9 +132,6 @@ class UserView(BaseRoleAwareModelView):
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Hash password before creating user. Convert empty unique fields to NULL."""
-        from core.security import get_password_hash
-        from admin.views.base import convert_empty_strings_to_none
-
         password = data.pop("password", None)
 
         if password:
@@ -140,9 +142,6 @@ class UserView(BaseRoleAwareModelView):
 
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Hash password before updating user if password is changed. Convert empty unique fields to NULL."""
-        from core.security import get_password_hash
-        from admin.views.base import convert_empty_strings_to_none
-
         password = data.pop("password", None)
 
         # Only update password if a new one is provided
@@ -238,13 +237,6 @@ class ProfileView(BaseRoleAwareModelView):
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
-        from models.user import User
-        from models.ai.template import AIPersona
-        from models.ai.instance import AIInstance
-        from models.profile import Profile
-        from sqlalchemy import select
-        from starlette_admin.exceptions import FormValidationError
-
         # Convert empty string to None for integer fields FIRST (before any database operations)
         if obj.avatar_file_id == "":
             obj.avatar_file_id = None
@@ -288,10 +280,6 @@ class ProfileView(BaseRoleAwareModelView):
 
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
-        from models.user import User
-        from models.ai.template import AIPersona
-        from models.ai.instance import AIInstance
-
         # Convert empty string to None for integer fields
         if obj.avatar_file_id == "":
             obj.avatar_file_id = None
@@ -517,14 +505,6 @@ class ContactView(BaseRoleAwareModelView):
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
-        import secrets
-        import string
-        from sqlalchemy import select
-        from models.user import User
-        from models.ai.instance import AIInstance
-        from models.contact import Contact
-        from starlette_admin.exceptions import FormValidationError
-
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
         if user and isinstance(user, User):
@@ -598,9 +578,6 @@ class ContactView(BaseRoleAwareModelView):
 
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
-        from models.user import User
-        from models.ai.instance import AIInstance
-
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
         if user and isinstance(user, User):
@@ -784,9 +761,6 @@ class ContactRequestView(ModelView):
 
     async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
-        from models.user import User
-        from models.ai.instance import AIInstance
-
         # Auto-fill source as ADMIN for admin panel creations
         obj.source = ContactRequestSource.ADMIN
 
@@ -819,19 +793,12 @@ class ContactRequestView(ModelView):
         # Auto-set status to PENDING
         obj.status = ContactRequestStatus.PENDING
 
-        # Auto-calculate expires_at from system config
-        from datetime import datetime, timedelta
-        from services.system_config import get_config
-
         # Get expiration time from config (stored in days)
         expiration_days = await get_config(request.state.session, "contact_request_expiration_days")
-        obj.expires_at = datetime.utcnow() + timedelta(days=int(expiration_days))
+        obj.expires_at = datetime.now(timezone.utc) + timedelta(days=int(expiration_days))
 
     async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
-        from models.user import User
-        from models.ai.instance import AIInstance
-
         # Auto-infer from_type and fill from_id, from_qiao_id
         from_user = data.get("_from_user")
         from_instance = data.get("_from_instance")
@@ -868,8 +835,6 @@ class PendingContactRequestView(CustomView):
 
     async def render(self, request: Request, templates):
         session = request.state.session
-        from sqlalchemy import select, desc
-
         stmt = (
             select(ContactRequest)
             .where(

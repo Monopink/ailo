@@ -5,12 +5,12 @@ This module provides database operations for LLM configuration test logs.
 """
 
 from typing import List
-from sqlalchemy import select, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from crud.base import ImmutableCRUDBase
 from models.llm import LLMTestLog
 from schemas.llm import LLMTestLogCreate
-from crud.base import ImmutableCRUDBase
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):

@@ -1,49 +1,62 @@
-"""
-Database connection and session management.
-"""
+"""Database connection and session management."""
 
 import asyncio
+from functools import lru_cache
 from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
+
+from core.config import Settings, get_settings
 from sqlalchemy import text
-from core.config import settings
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Create an async engine to connect to the database
-# echo=False for production to reduce log volume, can be overridden by POSTGRES_ECHO env var
-echo_sql = getattr(settings, "POSTGRES_ECHO", False)
-engine = create_async_engine(
-    settings.database_url,
-    echo=echo_sql,
-    # Disable pre_ping to avoid async ping MissingGreenlet in background tasks
-    pool_pre_ping=False,
-    pool_recycle=3600,  # Recycle connections every hour (PostgreSQL default)
-    pool_size=20,  # Increase pool size for better concurrency
-    max_overflow=30,  # Allow more overflow connections
-    # PostgreSQL-specific optimizations
-    connect_args={
-        "server_settings": {
-            "jit": "off",  # Disable JIT for better performance on small queries
-        }
-    },
-)
 
-# Create a sessionmaker to generate new Session objects
-SessionLocal = async_sessionmaker(
-    autocommit=False, autoflush=False, bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+def _create_engine(settings: Settings) -> AsyncEngine:
+    """Create a configured AsyncEngine for the application."""
+
+    echo_sql = getattr(settings, "POSTGRES_ECHO", False)
+    return create_async_engine(
+        settings.database_url,
+        echo=echo_sql,
+        pool_pre_ping=False,
+        pool_recycle=3600,
+        pool_size=20,
+        max_overflow=30,
+        connect_args={
+            "server_settings": {
+                "jit": "off",
+            }
+        },
+    )
+
+
+@lru_cache()
+def get_engine() -> AsyncEngine:
+    """Return cached AsyncEngine instance."""
+
+    return _create_engine(get_settings())
+
+
+@lru_cache()
+def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """Return cached session factory bound to the engine."""
+
+    return async_sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=get_engine(),
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Dependency to get an async database session.
+    """Dependency to provide a managed database session."""
 
-    Ensures each request either commits successfully or rolls back on error.
-    """
-    async with SessionLocal() as session:
+    session_factory = get_sessionmaker()
+    async with session_factory() as session:
         try:
             yield session
             if session.in_transaction():
@@ -56,16 +69,17 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_database():
     """Initialize database connection with retry mechanism."""
+
     max_retries = 10
     retry_count = 0
-    base_delay = 1  # Initial delay 1 second
-    max_delay = 30  # Maximum delay 30 seconds
+    base_delay = 1
+    max_delay = 30
 
     while True:
         try:
             logger.info("attempting_database_connection")
-            async with SessionLocal() as session:
-                # Test basic connection
+            session_factory = get_sessionmaker()
+            async with session_factory() as session:
                 await session.execute(text("SELECT 1"))
                 logger.info("database_connection_test_successful")
 
@@ -78,7 +92,6 @@ async def init_database():
                 logger.critical("database_initialization_failed", error=str(e), attempts=max_retries)
                 raise Exception(error_msg) from e
 
-            # Calculate delay for next retry (exponential backoff)
             delay = min(base_delay * (2 ** (retry_count - 1)), max_delay)
             logger.warning("database_connection_retry", attempt=retry_count, delay=delay, error=str(e))
             await asyncio.sleep(delay)
@@ -90,8 +103,16 @@ async def init_database():
 
 async def close_database():
     """Close database connections."""
+
     try:
-        await engine.dispose()
+        await get_engine().dispose()
         logger.info("database_connections_closed")
     except Exception as e:
         logger.error("database_close_error", error=str(e), exc_info=True)
+
+
+def reset_database_state() -> None:
+    """Clear cached engine and session maker (useful for tests)."""
+
+    get_sessionmaker.cache_clear()
+    get_engine.cache_clear()

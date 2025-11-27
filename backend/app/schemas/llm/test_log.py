@@ -4,8 +4,9 @@ LLM test log schemas.
 This module contains Pydantic schemas for LLM test logs.
 """
 
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
 
 

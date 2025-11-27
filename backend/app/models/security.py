@@ -6,12 +6,12 @@ This module contains SQLAlchemy models for user security logs and statistics.
 
 from datetime import datetime
 from typing import Any, Dict, Optional
-from sqlalchemy import BigInteger, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
 
 from enums import AutoAction, ManualReviewStatus, RiskLevel
 from models.base import SnowflakeModel
+from sqlalchemy import BigInteger, Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class UserViolationLog(SnowflakeModel):

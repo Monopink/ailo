@@ -5,8 +5,7 @@ All enum values correspond to the integer values defined in the database schema.
 These enums ensure type safety and consistency across the application.
 """
 
-from enum import IntEnum, Enum
-
+from enum import Enum, IntEnum
 
 # User Management Related Enums
 

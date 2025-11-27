@@ -5,17 +5,16 @@ Async AI message sending with typing simulation and interruption support.
 from __future__ import annotations
 
 import asyncio
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from crud.contact import contact as contact_crud
 from enums import MessageType
 from models.ai import AIConversationState
 from services.ai.queries.updates import create_conversation_item
 from services.message.outbound.sender import send_message
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -321,7 +320,6 @@ def _count_words(text: str) -> int:
     """
     word definition: 1 full-width char = 1 word, 3 half-width chars = 1 word, emoji counts as 1.
     """
-    import unicodedata
 
     if not text:
         return 1

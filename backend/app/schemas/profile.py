@@ -2,9 +2,10 @@
 Profile schemas for request/response validation
 """
 
-from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProfileBase(BaseModel):

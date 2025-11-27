@@ -5,8 +5,10 @@ This module defines specific exceptions for LLM service errors.
 """
 
 from typing import Any, Dict, Optional
+
 from fastapi import status as http_status
-from .base import ExternalServiceError, RateLimitError, ConfigurationError
+
+from .base import ConfigurationError, ExternalServiceError, RateLimitError
 
 
 class LLMServiceError(ExternalServiceError):

@@ -13,7 +13,6 @@ Usage:
 
 from enums.common import ChatInfoType
 
-
 # Chat info message templates
 CHAT_INFO_TEMPLATES = {
     ChatInfoType.CONTACT_ADDED: "对方已将你添加为联系人",

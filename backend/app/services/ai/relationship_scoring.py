@@ -5,23 +5,29 @@ This module handles relationship score management and relationship type determin
 based on AI style configurations and score positions.
 """
 
-from typing import Optional, Dict, Any, List
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Dict, List, Optional
+
+from crud.ai.instance_dimension import get_by_instance
+from exceptions import AIRelationshipError
+from models.ai import AIInstance
+from models.ai.instance_dimension import AIInstanceDimension
+from models.ai.style import AIStyleDimension
+from services.ai.response_schema import build_response_schema
+from services.ai.types import InstanceContext
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from utils.logging import get_logger
 
 from .queries import (
-    get_instance_relationship_scores,
     get_instance_id_by_qiao_id,
+    get_instance_relationship_scores,
     get_style_with_relationships,
 )
-from .queries.updates import (
-    update_instance_relationship_scores as _update_instance_relationship_scores,
-    set_instance_current_relationship,
-)
-from exceptions import AIRelationshipError
-from utils.logging import get_logger
-from services.ai.types import InstanceContext
-from services.ai.response_schema import build_response_schema
+from .queries.updates import set_instance_current_relationship
+from .queries.updates import update_instance_relationship_scores as _update_instance_relationship_scores
+from .utils.position_mapping import map_score_to_position
+from .utils.score_mapping import map_to_permille
 
 logger = get_logger(__name__)
 
@@ -108,8 +114,6 @@ async def _get_instance_style_id(db: AsyncSession, instance_id: int) -> Optional
     """
     Fetch the style_id for a given instance.
     """
-    from models.ai import AIInstance
-
     try:
         result = await db.execute(select(AIInstance.style_id).where(AIInstance.id == instance_id))
         return result.scalar_one_or_none()
@@ -144,10 +148,6 @@ async def initialize_relationship_scores(
         AIRelationshipError: If initialization fails
     """
     try:
-        from models.ai.instance_dimension import AIInstanceDimension
-        from models.ai.style import AIStyleDimension, AIDimension
-        from sqlalchemy.orm import selectinload
-
         # Get all dimensions for this style with dimension relationship loaded
         stmt = (
             select(AIStyleDimension)
@@ -628,8 +628,6 @@ async def calculate_new_scores(
             )
 
         # Get all dimensions with offset config in one query
-        from crud.ai.instance_dimension import get_by_instance
-
         current_scores = await get_by_instance(db, instance_id)
 
         if not current_scores:
@@ -640,9 +638,6 @@ async def calculate_new_scores(
             return llm_response_scores
 
         # Build dimension config map
-        from .utils.position_mapping import map_score_to_position
-        from .utils.score_mapping import map_to_permille
-
         # Load JSON Schema to get per-dimension min/max for mapping
         schema = build_response_schema(context)
         # Validate schema structure

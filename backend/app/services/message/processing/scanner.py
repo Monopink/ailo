@@ -14,19 +14,18 @@ import asyncio
 import random
 from typing import Optional, Set
 
-from sqlalchemy import and_, or_, select, update
-
-from core.database import SessionLocal
+from core.database import get_sessionmaker
 from enums.common import AIMessageBufferState
 from models.ai.instance import AIMessageBuffer
+from services.ai.orchestrators.conversation_flow import process_conversation
+from services.ai.queries.instance_queries import get_instance_relationship_config
 from services.message.processing.buffer import (
+    _get_db_now_ms,
     finalize_buffer_if_locked,
     get_locked_context,
     lock_conversation_preemptively,
-    _get_db_now_ms,
 )
-from services.ai.queries.instance_queries import get_instance_relationship_config
-from services.ai.orchestrators.conversation_flow import process_conversation
+from sqlalchemy import and_, or_, select, update
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -115,7 +114,8 @@ async def _scan_and_process() -> None:
     4. For each conversation, attempt preemptive lock
     5. If locked successfully, trigger AI processing asynchronously
     """
-    async with SessionLocal() as db:
+    session_factory = get_sessionmaker()
+    async with session_factory() as db:
         try:
             # Get current DB time
             now_ms = await _get_db_now_ms(db)
@@ -198,7 +198,8 @@ async def _process_conversation_async(
         instance_qiao_id: Instance external ID
     """
     try:
-        async with SessionLocal() as db:
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
             # Step 1: Attempt preemptive lock
             buffer_id = await lock_conversation_preemptively(
                 db=db,

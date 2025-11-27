@@ -5,27 +5,25 @@ This module provides business logic for contact management operations.
 """
 
 from typing import List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from crud.contact import contact as contact_crud
 from crud.profile import profile as profile_crud
 from crud.system import system_configs
+from enums import ContactType, ProfileOwnerType
 from models.contact import Contact
 from models.profile import Profile
-from enums import ContactType, ProfileOwnerType
 from schemas.contact import (
+    ContactInfoBase,
     ContactListResponse,
     ContactResponse,
     ContactUpdate,
-    ContactInfoBase,
     ConversationInfoResponse,
 )
+from services.message.providers.leancloud.service import ensure_system_conversation
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-from services.message.providers.leancloud.service import ensure_system_conversation
 
 
 async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
@@ -70,7 +68,7 @@ async def _get_contact_profile(
     # Map ContactType to ProfileOwnerType
     owner_type_map = {
         ContactType.USER: ProfileOwnerType.USER,
-        ContactType.AI: ProfileOwnerType.AI,
+        ContactType.AI: ProfileOwnerType.AI_INSTANCE,
         ContactType.OFFICIAL: ProfileOwnerType.USER,  # Official accounts use USER type
     }
 

@@ -6,10 +6,9 @@ This module contains Pydantic schemas for AI personalities and templates.
 
 from datetime import datetime
 from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
-
 from schemas.common import BaseSchema
-
 
 # AI Personality Schemas
 
@@ -88,5 +87,3 @@ class AIPersonalityPlaceholderResponse(AIPersonalityPlaceholderBase):
 
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
-
-

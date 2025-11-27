@@ -11,22 +11,21 @@ import math
 import random
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
-
-from sqlalchemy import Select, and_, or_, select, text, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
+from typing import Any, Dict, List, Optional, Tuple
 
 from enums import MessageType
 from enums.common import AIMessageBufferState, ConversationRole
-from models.ai.instance import AIMessageBuffer, AIConversationItem
+from models.ai.instance import AIConversationItem, AIMessageBuffer
 from services.ai.queries.instance_queries import get_instance_relationship_config
 from services.ai.queries.updates import create_conversation_item
+from services.config import config_service
 from services.message.processing.sender import interrupt_sending_task
 from services.message.schemas import InboundMessageEvent
-from services.config import config_service
+from sqlalchemy import and_, or_, select, text, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -222,7 +221,7 @@ async def lock_conversation_preemptively(
             return None
 
         buffer_obj.aggregate_state = AIMessageBufferState.LOCKED
-        buffer_obj.locked_at = datetime.utcnow()
+        buffer_obj.locked_at = datetime.now(timezone.utc)
         buffer_obj.micro_expires_at_ms = None
         buffer_obj.macro_expires_at_ms = None
         await db.flush()
@@ -282,7 +281,7 @@ async def force_lock_latest_window(
             return None
 
         buffer_obj.aggregate_state = AIMessageBufferState.LOCKED
-        buffer_obj.locked_at = datetime.utcnow()
+        buffer_obj.locked_at = datetime.now(timezone.utc)
         buffer_obj.micro_expires_at_ms = None
         buffer_obj.macro_expires_at_ms = None
         buffer_obj.buffer_expires_at_ms = None
@@ -607,9 +606,7 @@ async def _handle_wake_adjustment(
     }
 
     await db.execute(
-        update(AIMessageBuffer)
-        .where(AIMessageBuffer.id == buffer_obj.id)
-        .values(update_values)
+        update(AIMessageBuffer).where(AIMessageBuffer.id == buffer_obj.id).values(update_values)
     )
 
     if buffer_item:
@@ -656,11 +653,11 @@ def sample_wake_time(min_ms: int, max_ms: int, bias: str = "balanced") -> int:
         ratio = random.gauss(mean, std)
         ratio = max(0.0, min(1.0, ratio))
     elif bias == "fast":
-        ratio = u ** 2
+        ratio = u**2
     elif bias == "slow":
         ratio = math.sqrt(u)
     elif bias == "very_fast":
-        ratio = u ** 3
+        ratio = u**3
     elif bias == "very_slow":
         ratio = u ** (1 / 3)
 
@@ -870,9 +867,7 @@ async def _update_buffer_window(
         update_values["last_msg_id_client"] = event.msg_id_client or event.msg_id_provider_inbound
 
     await db.execute(
-        update(AIMessageBuffer)
-        .where(AIMessageBuffer.id == buffer_obj.id)
-        .values(update_values)
+        update(AIMessageBuffer).where(AIMessageBuffer.id == buffer_obj.id).values(update_values)
     )
 
     if event.message_type == MessageType.TEXT:
@@ -963,9 +958,7 @@ def _compute_timer_state(
         new_micro = now_ms + config.typing_end_wait_ms
     elif current_category == BufferMessageCategory.TYPING_START:
         new_micro = None
-        new_macro = (
-            now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
-        )
+        new_macro = now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
 
     if prev_category == BufferMessageCategory.TYPING_START:
         if current_category in (
@@ -974,11 +967,12 @@ def _compute_timer_state(
         ):
             new_macro = None
 
-    if prev_category == BufferMessageCategory.TYPING_END and current_category == BufferMessageCategory.TYPING_START:
+    if (
+        prev_category == BufferMessageCategory.TYPING_END
+        and current_category == BufferMessageCategory.TYPING_START
+    ):
         new_micro = None
-        new_macro = (
-            now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
-        )
+        new_macro = now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
 
     buffer_expires = _compute_buffer_expiration(new_micro, new_macro)
 

@@ -2,12 +2,13 @@
 JWT token generation and validation utilities.
 """
 
-import jwt
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
-from core.config import settings
+import jwt
+from core.config import get_settings
 from enums import DeviceType
+from utils.snowflake import generate_snowflake_id
 
 
 def generate_jwt_token(
@@ -30,9 +31,8 @@ def generate_jwt_token(
     Returns:
         JWT token string
     """
-    from utils.snowflake import generate_snowflake_id
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     exp = now + timedelta(seconds=expires_in_seconds)
 
     payload = {
@@ -45,6 +45,7 @@ def generate_jwt_token(
     }
 
     # Get JWT secret and algorithm from settings
+    settings = get_settings()
     secret = settings.JWT_SECRET_KEY
     algorithm = settings.JWT_ALGORITHM
 
@@ -62,6 +63,7 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         Decoded payload dict, or None if invalid
     """
     try:
+        settings = get_settings()
         secret = settings.JWT_SECRET_KEY
         algorithm = settings.JWT_ALGORITHM
 
@@ -78,4 +80,4 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
 def calculate_token_expiry(expires_in_seconds: int) -> datetime:
     """Calculate token expiration timestamp based on provided duration."""
 
-    return datetime.utcnow() + timedelta(seconds=expires_in_seconds)
+    return datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)

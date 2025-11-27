@@ -5,8 +5,9 @@ Provide data retrieval helpers for style-related admin endpoints.
 """
 
 from typing import Any, Dict, List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logging import get_logger
 
 logger = get_logger(__name__)

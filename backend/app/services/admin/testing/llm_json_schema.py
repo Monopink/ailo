@@ -5,14 +5,17 @@ This service tests whether an LLM configuration supports JSON Schema mode
 and automatically updates the json_schema_mode field based on the result.
 """
 
-from typing import Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from datetime import datetime, timezone
 import time
+from datetime import datetime, timezone
+from typing import Any, Dict
 
 from models.llm import LLMConfig, LLMProvider, LLMTestLog
 from services.llm.client import invoke_llm
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 async def test_json_schema_compatibility(
@@ -29,9 +32,6 @@ async def test_json_schema_compatibility(
     Returns:
         Dictionary with test results and updated mode
     """
-    from utils.logging import get_logger
-
-    logger = get_logger(__name__)
 
     # Load configuration
     result = await db.execute(

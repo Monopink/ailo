@@ -5,18 +5,18 @@ This module contains SQLAlchemy models for contact relationships and requests.
 """
 
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, Index, UniqueConstraint, and_, text
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.ext.hybrid import hybrid_property
+from typing import TYPE_CHECKING, Optional
 
-from enums import ContactType, ContactRequestSource, ContactRequestStatus
+from enums import ContactRequestStatus
 from models.base import SnowflakeModel, SoftDeleteMixin
+from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
-    from models.user import User
     from models.ai.instance import AIInstance
+    from models.user import User
 
 
 class Contact(SnowflakeModel, SoftDeleteMixin):

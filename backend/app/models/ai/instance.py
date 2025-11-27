@@ -5,28 +5,30 @@ This module contains SQLAlchemy models for AI instances and conversation context
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from enums.common import ConversationItemContextStatus
+from markupsafe import escape
+from models.base import Base, ImmutableSnowflakeModel, SnowflakeModel, SnowflakeQiaoModel, TimestampMixin
 from sqlalchemy import (
     BigInteger,
-    Boolean,
     CheckConstraint,
     DateTime,
+    Index,
     Integer,
     SmallInteger,
     String,
     Text,
-    Index,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models.base import Base, SnowflakeModel, SnowflakeQiaoModel, ImmutableSnowflakeModel, TimestampMixin
-from enums.common import ConversationItemContextStatus
-
 if TYPE_CHECKING:
-    from models.ai.style import AIStyle, AIRelationship
+    from models.ai.instance_dimension import AIInstanceDimension
     from models.ai.personality import AIPersonality
+    from models.ai.style import AIRelationship, AIStyle
+    from models.user import User
 
 
 class AIInstance(SnowflakeQiaoModel):
@@ -156,7 +158,6 @@ class AIInstance(SnowflakeQiaoModel):
     )
 
     def __admin_select2_repr__(self, request) -> str:
-        from markupsafe import escape
         return f"<span>[{self.id}] {escape(self.qiao_id)} / {escape(self.user_qiao_id)}</span>"
 
 
@@ -200,7 +201,7 @@ class AIMessageBuffer(SnowflakeModel):
     last_msg_time_ms: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, comment="Timestamp (ms) of last message appended to buffer"
     )
-    locked_at: Mapped[Optional[DateTime]] = mapped_column(
+    locked_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Timestamp when buffer entered LOCKED state"
     )
     wake_expires_at_ms: Mapped[Optional[int]] = mapped_column(

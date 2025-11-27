@@ -5,11 +5,10 @@ This module contains Pydantic schemas for AI styles and relationships.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
+
 from pydantic import BaseModel, Field, field_validator
-
 from schemas.common import BaseSchema
-
 
 # AI Style Schemas
 

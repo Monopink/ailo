@@ -2,11 +2,17 @@
 API dependencies for authentication and authorization.
 """
 
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.requests import Request
+from datetime import datetime, timezone
 
 from core.database import get_db
+from crud.user import user as user_crud
+from crud.user import user_token as token_crud
+from fastapi import Depends, HTTPException, status
+from services.security.auth_tracker import should_require_captcha
+from services.security.captcha.factory import create_captcha_provider
+from services.security.rate_limiter import check_message_rate_limit, check_rate_limit
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import Request
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -76,10 +82,9 @@ async def require_auth_rate_limit(auth_type: str):
     Returns:
         Dependency function
     """
-    from services.security.rate_limiter import check_rate_limit
 
     async def dependency(request: Request, db: AsyncSession = Depends(get_db)):
-        ip = request.client.host
+        ip = request.client.host if request.client else "unknown"
         allowed, error_code, retry_after = await check_rate_limit(ip, f"{auth_type}_auth", db)
 
         if not allowed:
@@ -98,7 +103,6 @@ async def require_auth_rate_limit(auth_type: str):
 
 async def require_sms_rate_limit(request: Request, db: AsyncSession = Depends(get_db)):
     """SMS rate limit dependency"""
-    from services.security.rate_limiter import check_rate_limit
 
     # Get phone from request body
     body = await request.json()
@@ -123,7 +127,6 @@ async def require_sms_rate_limit(request: Request, db: AsyncSession = Depends(ge
 
 async def require_message_rate_limit(user_id: str, db: AsyncSession = Depends(get_db)):
     """Message rate limit dependency"""
-    from services.security.rate_limiter import check_message_rate_limit
 
     allowed, error_code, retry_after = await check_message_rate_limit(user_id, db)
 
@@ -152,11 +155,9 @@ async def require_captcha_if_needed(
     Returns:
         Dependency function
     """
-    from services.security.auth_tracker import should_require_captcha
-    from services.security.captcha.factory import create_captcha_provider
 
     async def dependency(request: Request, db: AsyncSession = Depends(get_db)):
-        ip = request.client.host
+        ip = request.client.host if request.client else "unknown"
 
         # Check if CAPTCHA is required
         if await should_require_captcha(ip, f"{auth_type}_auth", db):
@@ -194,8 +195,6 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     Raises:
         HTTPException: 401 if not authenticated or token invalid
     """
-    from crud.user import user as user_crud, user_token as token_crud
-    from datetime import datetime, timezone
 
     # 1. Get token from Authorization header
     auth_header = request.headers.get("Authorization")

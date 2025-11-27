@@ -5,15 +5,16 @@ This module provides admin interface for testing AI instance chat functionality
 following the architectural patterns and prototype design specifications.
 """
 
+import json
+
+from core.database import get_sessionmaker
+from services.admin.testing.instance_chat import AIInstanceChatTestError, ai_instance_chat_test_service
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-
-from core.database import SessionLocal
-from services.admin.testing.instance_chat import ai_instance_chat_test_service, AIInstanceChatTestError
+from utils.form_helpers import FormFieldError, get_int_field, get_text_field
 from utils.logging import get_logger
-from utils.form_helpers import get_text_field, get_int_field, FormFieldError
 
 logger = get_logger(__name__)
 
@@ -90,7 +91,8 @@ class AIInstanceChatTestView(CustomView):
                 "error": None,
             }
 
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 # Check test readiness using the new service
                 test_readiness = await ai_instance_chat_test_service.validate_test_readiness(
                     db=db, instance_id=instance_id
@@ -136,22 +138,19 @@ class AIInstanceChatTestView(CustomView):
             if not test_message.strip():
                 return JSONResponse({"error": "测试信息不能为空"}, status_code=400)
 
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 # Use the unified facade service for complete test execution
                 # Optional mock overrides
                 mock_overrides = None
                 raw_overrides = form_data.get("mock_overrides_json")
                 if raw_overrides:
                     try:
-                        import json
-
                         parsed = json.loads(raw_overrides)
                         if isinstance(parsed, dict):
                             mock_overrides = parsed
                     except Exception:
-                        return JSONResponse(
-                            {"error": "mock_overrides_json 不是合法 JSON"}, status_code=400
-                        )
+                        return JSONResponse({"error": "mock_overrides_json 不是合法 JSON"}, status_code=400)
 
                 # Persist switch (default ON)
                 persist_raw = form_data.get("persist")
@@ -198,9 +197,7 @@ class AIInstanceChatTestView(CustomView):
                 validation_instance = result["validation_info"]["instance"]
                 ai_type_info = validation_instance.get("ai_type")
                 ai_type_display = (
-                    ai_type_info.get("display_name")
-                    if isinstance(ai_type_info, dict)
-                    else None
+                    ai_type_info.get("display_name") if isinstance(ai_type_info, dict) else None
                 )
 
                 response_data = {
@@ -219,9 +216,9 @@ class AIInstanceChatTestView(CustomView):
                     "style": result["validation_info"].get("style"),
                     "personality": result["validation_info"].get("personality"),
                     "instance_settings": {
-                    "memory": validation_instance.get("memory"),
-                    "prompt_variables": validation_instance.get("prompt_variables"),
-                },
+                        "memory": validation_instance.get("memory"),
+                        "prompt_variables": validation_instance.get("prompt_variables"),
+                    },
                     "test_user_info": {
                         "qiao_id": result["test_user_info"]["test_user"]["qiao_id"],
                         "username": result["test_user_info"]["test_user"]["username"],
@@ -305,7 +302,8 @@ class AIInstanceChatTestView(CustomView):
             except (ValueError, TypeError):
                 return JSONResponse({"error": "实例 ID 格式错误"}, status_code=400)
 
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 readiness = await ai_instance_chat_test_service.validate_test_readiness(
                     db=db, instance_id=instance_id
                 )
@@ -335,7 +333,8 @@ class AIInstanceChatTestView(CustomView):
             except (ValueError, TypeError):
                 return JSONResponse({"error": "实例 ID 格式错误"}, status_code=400)
 
-            async with SessionLocal() as db:
+            session_factory = get_sessionmaker()
+            async with session_factory() as db:
                 result = await ai_instance_chat_test_service.archive_all_test_conversations(
                     db=db, instance_id=instance_id
                 )

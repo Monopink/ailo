@@ -8,6 +8,7 @@ import { checkGlobalData, checkStorage } from './utils/debug';
 import { ENABLE_DEBUG_TOOLS } from './utils/env';
 import { getLogger } from './utils/logger';
 import { initMessageService } from './utils/message/service';
+import conversationStore from './utils/message/conversation-store';
 
 const logger = getLogger('App');
 
@@ -18,7 +19,8 @@ App({
   globalData: {
     messageService: null,
     systemInfo: null,
-    captchaConfig: null
+    captchaConfig: null,
+    conversationStore
   },
 
   /**
@@ -95,6 +97,7 @@ App({
       logger.info('Authentication initialized', { isAuthenticated });
 
       if (isAuthenticated) {
+        await conversationStore.init();
         // Initialize message service for authenticated users
         await this.initMessageService();
 
@@ -171,6 +174,13 @@ App({
   },
 
   /**
+   * Get conversation store
+   */
+  getConversationStore() {
+    return conversationStore;
+  },
+
+  /**
    * Get auth service
    * @returns {AuthService} Auth service instance
    */
@@ -235,7 +245,12 @@ App({
    * Message received callback
    */
   onMessageReceived(message) {
-    logger.debug('Message received in app', { message });
+    logger.info('Message received in app', {
+      msg_id: message.msg_id,
+      conv_id: message.conv_id,
+      message_type: message.message_type,
+      from: message.from
+    });
     // Notify current page if it has handler
     const pages = getCurrentPages();
     if (pages.length > 0) {
@@ -250,7 +265,10 @@ App({
    * Typing received callback
    */
   onTypingReceived(typing) {
-    logger.debug('Typing received in app', { typing });
+    logger.info('Typing received in app', {
+      conv_id: typing.conv_id,
+      isTyping: typing.isTyping
+    });
     // Notify current page if it has handler
     const pages = getCurrentPages();
     if (pages.length > 0) {

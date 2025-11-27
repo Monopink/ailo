@@ -39,5 +39,5 @@ export const ENABLE_DEBUG_TOOLS = IS_DEV;
  * - development: false (disable to reduce log noise)
  * - production: false (always disabled)
  */
-export const ENABLE_LEANCLOUD_DEBUG = false;
+export const ENABLE_LEANCLOUD_DEBUG = true;
 

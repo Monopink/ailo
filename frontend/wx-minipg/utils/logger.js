@@ -14,7 +14,7 @@ const LOG_LEVELS = {
 };
 
 // Current log level (configured from environment)
-let currentLogLevel = LOG_LEVELS[LOG_LEVEL] || LOG_LEVELS.NONE;
+let currentLogLevel = LOG_LEVELS.hasOwnProperty(LOG_LEVEL) ? LOG_LEVELS[LOG_LEVEL] : LOG_LEVELS.NONE;
 
 /**
  * Set log level

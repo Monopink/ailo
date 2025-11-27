@@ -218,6 +218,50 @@ export class LCAdapter {
   }
 
   /**
+   * Resolve LeanCloud conversation instance with caching
+   * @param {string} imConvId
+   * @param {boolean} forceRefresh
+   * @returns {Promise<Object>}
+   * @private
+   */
+  async _getConversationInstance(imConvId, forceRefresh = false) {
+    if (!imConvId) {
+      throw new Error('IM_CONVERSATION_ID_REQUIRED');
+    }
+
+    if (forceRefresh) {
+      this.conversations.delete(imConvId);
+    }
+
+    const cachedConversation = this.conversations.get(imConvId);
+    if (cachedConversation) {
+      logger.debug('Using cached conversation', { imConvId });
+      return cachedConversation;
+    }
+
+    try {
+      const conversation = await this.imClient.getConversation(imConvId);
+      if (!conversation) {
+        logger.error('Conversation lookup returned empty result', { imConvId });
+        throw new Error('CONVERSATION_NOT_FOUND');
+      }
+      this.conversations.set(imConvId, conversation);
+      logger.info('Conversation fetched from LeanCloud', { imConvId });
+      return conversation;
+    } catch (error) {
+      logger.error('Get conversation failed', {
+        imConvId,
+        error: error.message || String(error),
+        errorCode: error.code,
+        errorType: error.constructor?.name
+      });
+      const wrappedError = new Error('CONVERSATION_NOT_FOUND');
+      wrappedError.originalError = error;
+      throw wrappedError;
+    }
+  }
+
+  /**
    * Send message
    * @param {Object} messageData - Business message data
    * @param {string} messageData.msg_id - Message ID
@@ -243,20 +287,30 @@ export class LCAdapter {
       });
 
       // Get or create conversation
-      let conversation = this.conversations.get(imConvId);
-      if (!conversation) {
-        conversation = await this.imClient.getConversation(imConvId);
-        if (!conversation) {
-          throw new Error('CONVERSATION_NOT_FOUND');
-        }
-        this.conversations.set(imConvId, conversation);
-      }
+      const conversation = await this._getConversationInstance(imConvId);
 
       // Create business message
       const businessMessage = new BusinessMessage(messageData);
 
-      // Send message
-      const sentMessage = await conversation.send(businessMessage);
+      // Send message - wrap in try-catch to catch send errors
+      let sentMessage;
+      try {
+        sentMessage = await conversation.send(businessMessage);
+      } catch (sendError) {
+        logger.error('Conversation send failed', {
+          imConvId,
+          error: sendError.message || String(sendError),
+          errorCode: sendError.code,
+          errorType: sendError.constructor.name
+        });
+        this.invalidateConversation(imConvId);
+
+        // If send fails, it might be because conversation is invalid
+        // Wrap as CONVERSATION_NOT_FOUND to trigger refresh
+        const error = new Error('CONVERSATION_NOT_FOUND');
+        error.originalError = sendError;
+        throw error;
+      }
 
       logger.info('Message sent successfully', {
         msg_id: messageData.msg_id,
@@ -277,6 +331,22 @@ export class LCAdapter {
         stack: error.stack
       });
       throw error;
+    }
+  }
+
+  /**
+   * Invalidate cached conversation
+   * @param {string} imConvId
+   */
+  invalidateConversation(imConvId) {
+    if (!imConvId) {
+      this.conversations.clear();
+      logger.warn('Conversation cache cleared (no id provided)');
+      return;
+    }
+
+    if (this.conversations.delete(imConvId)) {
+      logger.info('Conversation cache invalidated', { imConvId });
     }
   }
 

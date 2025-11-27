@@ -153,7 +153,6 @@ class TypingManager {
         from: userInfo.qiao_id,
         to: contact.contact_qiao_id,
         conv_id: convId,
-        im_conv_id: contact.im_conv_id,
         content: '',
         message_type: MESSAGE_TYPE.TYPING_START,
         supports_typing: true
@@ -214,7 +213,6 @@ class TypingManager {
         from: userInfo.qiao_id,
         to: contact.contact_qiao_id,
         conv_id: convId,
-        im_conv_id: contact.im_conv_id,
         content: '',
         message_type: MESSAGE_TYPE.TYPING_END,
         supports_typing: true

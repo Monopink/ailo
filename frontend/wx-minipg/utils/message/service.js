@@ -12,6 +12,7 @@ import { addMessage, getUserInfo } from '../storage';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
 import leancloudAdapter from './leancloud';
 import { MessageQueue } from './queue';
+import conversationStore from './conversation-store';
 
 const logger = getLogger('MessageService');
 
@@ -23,6 +24,14 @@ class MessageService {
     this.adapter = adapter;
     this.queue = null;
     this.initialized = false;
+  }
+
+  /**
+   * Persist message to local storage
+   * @private
+   */
+  async persistMessage(convId, message) {
+    await addMessage(convId, message);
   }
 
   /**
@@ -71,7 +80,6 @@ class MessageService {
    * @param {string} messageData.from - Sender qiao_id
    * @param {string} messageData.to - Receiver qiao_id
    * @param {string} messageData.conv_id - Conversation ID
-   * @param {string} messageData.im_conv_id - LeanCloud conversation ID
    * @param {string} messageData.content - Message content
    * @param {number} messageData.message_type - Message type
    * @param {boolean} messageData.supports_typing - Supports typing indicator
@@ -83,13 +91,17 @@ class MessageService {
         throw new Error('Message service not initialized');
       }
 
-      logger.debug('Sending message', {
+      logger.info('Sending message', {
         conv_id: messageData.conv_id,
-        message_type: messageData.message_type
+        message_type: messageData.message_type,
+        content_length: messageData.content ? messageData.content.length : 0,
+        from: messageData.from,
+        to: messageData.to,
+        client_msg_id: messageData.client_msg_id
       });
 
       // Generate message ID (allow client-provided id for optimistic UI)
-      const msg_id = messageData.client_msg_id || `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const msg_id = messageData.client_msg_id || `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
       // Build complete message object
       const message = {
@@ -105,47 +117,55 @@ class MessageService {
       };
 
       // Save to local storage with SENDING status
-      await addMessage(messageData.conv_id, message);
+      await this.persistMessage(messageData.conv_id, message);
 
       // Send via adapter
       try {
-        const sentMessage = await this.adapter.sendMessage(message, messageData.im_conv_id);
+        const sentMessage = await this._sendViaAdapter(message, messageData);
 
         // Update status to SENT
-        message.status = MESSAGE_STATUS.SENT;
-
-        // Store adapter-specific metadata
-        message.adapter_metadata = {
-          msg_id: sentMessage.lc_msg_id,
-          timestamp: sentMessage.lc_timestamp
+        const sentPayload = {
+          ...message,
+          status: MESSAGE_STATUS.SENT,
+          adapter_metadata: {
+            msg_id: sentMessage.lc_msg_id,
+            timestamp: sentMessage.lc_timestamp
+          }
         };
 
         // Update in local storage
-        await addMessage(messageData.conv_id, message);
+        await this.persistMessage(messageData.conv_id, sentPayload);
 
-        logger.info('Message sent successfully', { msg_id });
+        logger.info('Message sent successfully', {
+          msg_id,
+          conv_id: messageData.conv_id,
+          message_type: message.message_type,
+          status: sentPayload.status
+        });
       } catch (error) {
-        // Update status to FAILED
-        message.status = MESSAGE_STATUS.FAILED;
+        const failedPayload = {
+          ...message,
+          status: MESSAGE_STATUS.FAILED,
+          error_reason: error && (error.message || String(error))
+        };
 
         // Update in local storage
-        await addMessage(messageData.conv_id, message);
+        await this.persistMessage(messageData.conv_id, failedPayload);
 
         logger.error('Send message via adapter failed', {
           msg_id,
+          conv_id: messageData.conv_id,
+          message_type: message.message_type,
           error: error.message || String(error)
         });
 
-        // Mark failed locally and persist
-        try {
-          message.status = MESSAGE_STATUS.FAILED;
-          message.error_reason = error && (error.message || String(error));
-          await addMessage(messageData.conv_id, message);
-        } catch (_) {}
         throw error;
       }
 
-      return message;
+      return {
+        ...message,
+        status: MESSAGE_STATUS.SENT
+      };
     } catch (error) {
       logger.error('Send message failed', {
         conv_id: messageData.conv_id,
@@ -156,14 +176,49 @@ class MessageService {
   }
 
   /**
+   * Send via adapter with retry when conversation changes
+   * @private
+   */
+  async _sendViaAdapter(message, messageData, options = { allowRetry: true }) {
+    const allowRetry = options.allowRetry !== false;
+    const imConvId = await conversationStore.getImConvId();
+
+    try {
+      return await this.adapter.sendMessage(message, imConvId);
+    } catch (error) {
+      if (error.message === 'CONVERSATION_NOT_FOUND' && allowRetry) {
+        logger.warn('Conversation not found, refreshing conversation state');
+        await conversationStore.refresh();
+        return this._sendViaAdapter(message, messageData, { allowRetry: false });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Invalidate cached conversation inside adapter
+   * @param {string} imConvId
+   * @returns {Promise<void>}
+   */
+  async invalidateConversation(imConvId) {
+    if (this.adapter && typeof this.adapter.invalidateConversation === 'function') {
+      this.adapter.invalidateConversation(imConvId);
+    }
+  }
+
+  /**
    * Handle incoming message
    * @param {Object} message - Business message object
    */
   async handleMessage(message) {
     try {
-      logger.debug('Message received', {
+      logger.info('Message received', {
         msg_id: message.msg_id,
-        from: message.from
+        from: message.from,
+        to: message.to,
+        conv_id: message.conv_id,
+        message_type: message.message_type,
+        content_length: message.content ? message.content.length : 0
       });
 
       // Save to local storage
@@ -174,8 +229,16 @@ class MessageService {
       if (app.onMessageReceived) {
         app.onMessageReceived(message);
       }
+
+      logger.info('Message handled successfully', {
+        msg_id: message.msg_id,
+        conv_id: message.conv_id
+      });
     } catch (error) {
       logger.error('Handle message error', {
+        msg_id: message.msg_id,
+        conv_id: message.conv_id,
+        message_type: message.message_type,
         error: error.message || String(error)
       });
     }

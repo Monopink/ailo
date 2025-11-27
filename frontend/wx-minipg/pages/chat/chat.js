@@ -11,6 +11,7 @@ import logger from '../../utils/logger';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from '../../utils/message/constants';
 import { addMessage, getContactByConvId, getContacts, getMessages, getUserInfo, saveContacts } from '../../utils/storage';
 import typingManager from '../../utils/typing-manager';
+import conversationStore from '../../utils/message/conversation-store';
 
 // Standard emoji list
 const EMOJI_LIST = [
@@ -76,7 +77,7 @@ Page({
   /**
    * Show error message as CHAT_INFO
    */
-  showErrorMessage(error) {
+  async showErrorMessage(error) {
     const errorMsg = {
       msg_id: `error_${Date.now()}`,
       content: getUserFriendlyError(error),
@@ -84,6 +85,9 @@ Page({
       sent_time: Date.now(),
       from_me: false
     };
+
+    // Save to local storage for persistence
+    await addMessage(this.data.convId, errorMsg);
 
     const updatedMessages = [...this.data.messages, errorMsg];
     const processedMessages = this.processMessages(updatedMessages);
@@ -135,6 +139,41 @@ Page({
       await saveContacts(contacts);
       logger.info('Contact info refreshed and cached', { convId });
     }
+
+    return conversation;
+  },
+
+  /**
+   * Refresh LeanCloud channel after cache invalidation
+   */
+  async refreshConversationChannel() {
+    const app = getApp();
+    const messageService = app.getMessageService();
+    const previousImConvId = this.data.imConvId;
+
+    if (messageService && typeof messageService.invalidateConversation === 'function') {
+      await messageService.invalidateConversation(previousImConvId);
+    }
+
+    const refreshedConversation = await this.refreshContactInfo(this.data.convId);
+    let nextImConvId = refreshedConversation?.im_conv_id || '';
+
+    try {
+      const refreshedState = await conversationStore.refresh();
+      nextImConvId = refreshedState?.im_conv_id || nextImConvId;
+    } catch (error) {
+      logger.error('Failed to refresh conversation store', { error });
+    }
+
+    this.setData({ imConvId: nextImConvId });
+
+    logger.info('Conversation channel refreshed', {
+      convId: this.data.convId,
+      oldImConvId: previousImConvId,
+      imConvId: nextImConvId
+    });
+
+    return nextImConvId;
   },
 
   handleChatInfoAction(message) {
@@ -157,6 +196,11 @@ Page({
     }
 
     this.setData({ convId });
+    this.unsubscribeConversationStore = conversationStore.subscribe(state => {
+      if (state && state.im_conv_id) {
+        this.setData({ imConvId: state.im_conv_id });
+      }
+    });
 
     try {
       // Load user info
@@ -176,11 +220,14 @@ Page({
         wx.setNavigationBarTitle({ title: contactName });
       }
 
+      const conversationState = await conversationStore.getState();
+      const currentImConvId = conversationState?.im_conv_id || contact.im_conv_id || '';
+
       this.setData({
         contactName,
         contactAvatar: getAvatarUrl(contact.avatar_url),
         contactQiaoId: contact.contact_qiao_id,
-        imConvId: contact.im_conv_id
+        imConvId: currentImConvId
       });
 
       // Load messages
@@ -203,6 +250,11 @@ Page({
       clearTimeout(this.typingTimer);
       this.typingTimer = null;
     }
+
+    if (this.unsubscribeConversationStore) {
+      this.unsubscribeConversationStore();
+      this.unsubscribeConversationStore = null;
+    }
   },
 
   /**
@@ -222,12 +274,15 @@ Page({
       // Process messages for display
       const processedMessages = this.processMessages(markedMessages);
 
-      this.setData({ messages: processedMessages });
-
-      // Scroll to bottom
+      // Set messages and scroll to bottom in one setData call
       if (processedMessages.length > 0) {
         const lastMsg = processedMessages[processedMessages.length - 1];
-        this.setData({ scrollToView: `msg-${lastMsg.msg_id}` });
+        this.setData({
+          messages: processedMessages,
+          scrollToView: `msg-${lastMsg.msg_id}`
+        });
+      } else {
+        this.setData({ messages: processedMessages });
       }
     } catch (error) {
       logger.error('Failed to load messages', { error });
@@ -243,6 +298,16 @@ Page({
     let prevMsg = null;
 
     for (const msg of messages) {
+      // Filter out messages that should not be displayed
+      // TYPING_START (2), TYPING_END (3), NOTIFICATION (9) should not appear in chat window
+      if (
+        msg.message_type === MESSAGE_TYPE.TYPING_START ||
+        msg.message_type === MESSAGE_TYPE.TYPING_END ||
+        msg.message_type === MESSAGE_TYPE.NOTIFICATION
+      ) {
+        continue;
+      }
+
       const processedMsg = { ...msg };
       processedMsg.sent_time = processedMsg.sent_time || Date.now();
 
@@ -267,17 +332,11 @@ Page({
   },
 
   isSystemMessage(message) {
-    return (
-      message.message_type === MESSAGE_TYPE.CHAT_INFO ||
-      message.message_type === MESSAGE_TYPE.NOTIFICATION
-    );
+    // Only CHAT_INFO messages are displayed as system messages in chat window
+    return message.message_type === MESSAGE_TYPE.CHAT_INFO;
   },
 
   getSystemMessageContent(message) {
-    if (message.message_type === MESSAGE_TYPE.NOTIFICATION) {
-      const notificationMessage = message.data && message.data.message;
-      return notificationMessage || message.content || '系统通知';
-    }
     return message.content || '';
   },
 
@@ -429,6 +488,7 @@ Page({
    * Send message
    */
   async onSendMessage() {
+    console.log('=== onSendMessage START ===');
     const content = this.data.inputText.trim();
     if (!content) return;
 
@@ -442,7 +502,12 @@ Page({
     }
 
     // Check contact info
-    if (!this.data.contactQiaoId || !this.data.imConvId) {
+    const currentImConvId = await conversationStore.getImConvId();
+    if (!this.data.contactQiaoId || !currentImConvId) {
+      console.error('❌ Missing contact info:', {
+        contactQiaoId: this.data.contactQiaoId,
+        imConvId: this.data.imConvId
+      });
       logger.error('Missing contact info', {
         contactQiaoId: this.data.contactQiaoId,
         imConvId: this.data.imConvId
@@ -450,6 +515,11 @@ Page({
       this.showErrorMessage('CONVERSATION_NOT_FOUND');
       return;
     }
+
+    console.log('✅ Contact info OK:', {
+      contactQiaoId: this.data.contactQiaoId,
+      imConvId: this.data.imConvId
+    });
 
     // Stop typing state
     typingManager.forceStopTyping(this.data.convId);
@@ -459,6 +529,7 @@ Page({
 
     try {
       const userInfo = await getUserInfo();
+      console.log('✅ User info loaded:', { qiao_id: userInfo.qiao_id });
 
       // Create optimistic message
       clientMsgId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -493,6 +564,7 @@ Page({
       const messageService = app.getMessageService();
 
       if (!messageService) {
+        console.error('❌ Message service is NULL');
         throw new Error('MESSAGE_SERVICE_DISCONNECTED');
       }
 
@@ -501,7 +573,6 @@ Page({
         from: userInfo.qiao_id,
         to: this.data.contactQiaoId,
         conv_id: this.data.convId,
-        im_conv_id: this.data.imConvId,
         content,
         message_type: MESSAGE_TYPE.TEXT,
         supports_typing: true
@@ -520,14 +591,20 @@ Page({
       // If conversation not found, try to refresh contact info and retry once
       if (error.message === 'CONVERSATION_NOT_FOUND' && !this._sendRetried) {
         this._sendRetried = true;
-        logger.info('Refreshing contact info and retrying send', { convId: this.data.convId });
+        logger.info('Conversation not found, refreshing contact info and retrying', {
+          convId: this.data.convId,
+          oldImConvId: this.data.imConvId
+        });
 
         try {
-          await this.refreshContactInfo(this.data.convId);
+          const refreshedImConvId = await this.refreshConversationChannel();
+          const nextImConvId = refreshedImConvId || this.data.imConvId;
+
+          logger.info('Contact info refreshed, retrying send', {
+            newImConvId: nextImConvId
+          });
 
           // Retry send with updated im_conv_id
-          const app = getApp();
-          const messageService = app.getMessageService();
           const userInfo = await getUserInfo();
 
           await messageService.sendMessage({
@@ -535,22 +612,35 @@ Page({
             from: userInfo.qiao_id,
             to: this.data.contactQiaoId,
             conv_id: this.data.convId,
-            im_conv_id: this.data.imConvId,
             content,
             message_type: MESSAGE_TYPE.TEXT,
             supports_typing: true
           });
 
-          const sentMessages = this.data.messages.map(msg =>
-            msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
-          );
-          this.setData({ messages: sentMessages });
+          // Update status to SENT and remove error CHAT_INFO messages
+          const sentMessages = this.data.messages
+            .filter(msg => {
+              // Remove CHAT_INFO error messages that were added after the original message failed
+              if (msg.message_type === MESSAGE_TYPE.CHAT_INFO && msg.msg_id.startsWith('error_')) {
+                return false;
+              }
+              return true;
+            })
+            .map(msg =>
+              msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+            );
+
+          this.setData({ messages: this.processMessages(sentMessages) });
           this._sendRetried = false;
-          logger.info('Message sent after refresh', { msg_id: clientMsgId });
+          logger.info('Message sent successfully after refresh', { msg_id: clientMsgId });
           return;
         } catch (retryError) {
-          logger.error('Retry send failed after refresh', { error: retryError });
+          logger.error('Retry send failed after refresh', {
+            error: retryError.message || String(retryError),
+            errorType: retryError.constructor.name
+          });
           this._sendRetried = false;
+          // Fall through to show error message
         }
       }
 
@@ -574,11 +664,9 @@ Page({
       return;
     }
 
-    // Update status to SENDING
-    const retryingMessages = this.data.messages.map(msg =>
-      msg.msg_id === msgId ? { ...msg, status: MESSAGE_STATUS.SENDING } : msg
-    );
-    this.setData({ messages: retryingMessages });
+    // Stop typing state
+    typingManager.forceStopTyping(this.data.convId);
+    this.hideTypingIndicator();
 
     try {
       const app = getApp();
@@ -590,11 +678,37 @@ Page({
 
       const userInfo = await getUserInfo();
 
+      // Generate new client message ID for retry
+      const newClientMsgId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+      // Remove old failed message from list
+      const messagesWithoutOld = this.data.messages.filter(msg => msg.msg_id !== msgId);
+
+      // Create new message with new ID and timestamp
+      const newMessage = {
+        ...message,
+        msg_id: newClientMsgId,
+        sent_time: Date.now(),
+        status: MESSAGE_STATUS.SENDING
+      };
+
+      // Add new message to the end
+      const updatedMessages = [...messagesWithoutOld, newMessage];
+      const processedMessages = this.processMessages(updatedMessages);
+      this.setData({
+        messages: processedMessages,
+        scrollToView: `msg-${newClientMsgId}`
+      });
+
+      // Save to storage
+      await addMessage(this.data.convId, newMessage);
+
+      // Send via message service
       await messageService.sendMessage({
+        client_msg_id: newClientMsgId,
         from: userInfo.qiao_id,
         to: this.data.contactQiaoId,
         conv_id: this.data.convId,
-        im_conv_id: this.data.imConvId,
         content: message.content,
         message_type: message.message_type || MESSAGE_TYPE.TEXT,
         supports_typing: message.supports_typing !== false
@@ -602,20 +716,80 @@ Page({
 
       // Update status to SENT
       const sentMessages = this.data.messages.map(msg =>
-        msg.msg_id === msgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+        msg.msg_id === newClientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
       );
       this.setData({ messages: sentMessages });
 
-      logger.info('Message retry successful', { msg_id: msgId });
+      logger.info('Message retry successful', { old_msg_id: msgId, new_msg_id: newClientMsgId });
     } catch (error) {
-      logger.error('Failed to retry message', { error });
+      logger.error('Failed to retry message', { msg_id: msgId, error });
 
-      // Mark as FAILED again
-      const failedMessages = this.data.messages.map(msg =>
-        msg.msg_id === msgId ? { ...msg, status: MESSAGE_STATUS.FAILED } : msg
-      );
-      this.setData({ messages: failedMessages });
+      // If conversation not found, try to refresh contact info and retry once
+      if (error.message === 'CONVERSATION_NOT_FOUND' && !this._retryRefreshed) {
+        this._retryRefreshed = true;
+        logger.info('Retry failed due to conversation not found, refreshing contact info', {
+          convId: this.data.convId,
+          oldImConvId: this.data.imConvId
+        });
 
+        try {
+          const refreshedImConvId = await this.refreshConversationChannel();
+          const nextImConvId = refreshedImConvId || this.data.imConvId;
+
+          logger.info('Contact info refreshed for retry, retrying send', {
+            newImConvId: nextImConvId
+          });
+
+          // Retry send with updated im_conv_id
+          const userInfo = await getUserInfo();
+
+          await messageService.sendMessage({
+            client_msg_id: newClientMsgId,
+            from: userInfo.qiao_id,
+            to: this.data.contactQiaoId,
+            conv_id: this.data.convId,
+            content: message.content,
+            message_type: message.message_type || MESSAGE_TYPE.TEXT,
+            supports_typing: message.supports_typing !== false
+          });
+
+          // Update status to SENT and remove error CHAT_INFO messages
+          const sentMessages = this.data.messages
+            .filter(msg => {
+              // Remove CHAT_INFO error messages that were added after the original message failed
+              if (msg.message_type === MESSAGE_TYPE.CHAT_INFO && msg.msg_id.startsWith('error_')) {
+                return false;
+              }
+              return true;
+            })
+            .map(msg =>
+              msg.msg_id === newClientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+            );
+
+          this.setData({ messages: this.processMessages(sentMessages) });
+          this._retryRefreshed = false;
+          logger.info('Message retry successful after refresh', { old_msg_id: msgId, new_msg_id: newClientMsgId });
+          return;
+        } catch (retryError) {
+          logger.error('Retry send failed after refresh', {
+            error: retryError.message || String(retryError),
+            errorType: retryError.constructor.name
+          });
+          this._retryRefreshed = false;
+          // Fall through to show error message
+        }
+      }
+
+      // Mark the new message as FAILED
+      const failedMessages = this.data.messages.map(msg => {
+        // Find the message we just added (it should be the last one with SENDING status)
+        if (msg.status === MESSAGE_STATUS.SENDING && msg.content === message.content) {
+          return { ...msg, status: MESSAGE_STATUS.FAILED };
+        }
+        return msg;
+      });
+
+      this.setData({ messages: this.processMessages(failedMessages) });
       this.showErrorMessage(error);
     }
   },

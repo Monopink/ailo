@@ -10,7 +10,7 @@ node_modules/
 /deployment/.env.test
 /deployment/.env.staging
 /.serena/
-/frontend/wxminipg/libs/
-!/frontend/wxminipg/libs/libs.md
+/frontend/wx-minipg/libs/*
+!/frontend/wx-minipg/libs/libs.md
 /.claude/settings.json
 /docs/task-finished

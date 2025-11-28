@@ -1,0 +1,6 @@
+- Follow AGENTS.md principles: user-facing text avoids "AI/robot" wording; experience must feel human and WeChat-like.
+- Engineering priorities: KISS and YAGNI, SOLID responsibilities, first-principles thinking, no backwards-compat constraints during MVP.
+- Be explicit about errors rather than hiding them with default fallbacks; only expose concise, user-friendly failure messages.
+- Python: fully typed, type-checker clean even if runtime would succeed; prefer stateless functional style, justify any class usage; English comments only, minimal but add if logic non-obvious.
+- Respect design docs under `docs/development` and prototype specs; do not invent behavior if spec unclear—ask for clarification.
+- Messaging + config rules: environment variables for sensitive immutables, dynamic/adjustable config via `system_configs` table; LeanCloud used strictly as transport; Doubao via OpenAI-compatible SDK.

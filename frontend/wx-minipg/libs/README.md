@@ -1,4 +1,7 @@
-# The external dependency list obtained from WeChat mini-program
+# Libs
+
+This directory contains third-party libraries used in the WeChat Mini Program frontend.
+The following libraries are included:
 
 [im.min.js](https://app.unpkg.com/leancloud-realtime@5.0.0-rc.8/files/dist/im.min.js)
 [leancloud-adapters-weapp.js](https://unpkg.com/@leancloud/platform-adapters-weapp@1.6.3/lib/index.js)

@@ -2,15 +2,9 @@
 *.pyc
 __pycache__/
 node_modules/
-/venv/
 /logs/
-/references/
 /deployment/.env
 /deployment/.env.prod
 /deployment/.env.test
 /deployment/.env.staging
-/.serena/
-/frontend/wx-minipg/libs/*
-!/frontend/wx-minipg/libs/libs.md
 /.claude/settings.json
-/docs/task-finished

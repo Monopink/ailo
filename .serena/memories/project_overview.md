@@ -1,56 +1,34 @@
 # SAYS Project Overview
 
-## Project Purpose
+## Product Focus
+- MVP-stage AI companion chat app that mimics real WeChat conversations; copy must avoid "AI/robot" wording and pursue human pacing, tone, and emotion.
+- Solo developer workflow with AI assistance, so every change must stay aligned with docs under `docs/design`, `docs/data-dict`, `docs/api`, and `docs/tech`; flag spec gaps instead of inventing behavior.
 
-SAYS is an AI-powered personalized chat application that creates virtual companions through AI characters. The system focuses on relationship-based conversations with dynamic scoring and state management.
+## Architecture Snapshot
+- **Backend**: FastAPI 3.12 stack under `backend/app`, exposed through Starlette Admin (`http://localhost:8000/qiao-dash/`, admin/admin123).
+- **Database**: PostgreSQL 16 with Alembic migrations plus init SQL scripts in `backend/database/init/`; dockerized DB container `postgres_db_container` (5432).
+- **LLM**: Doubao via the OpenAI-compatible SDK; prompts emphasize relationship context.
+- **Messaging Transport**: LeanCloud IM is only a delivery channel; business logic stays in our services so the transport layer can be swapped later.
+- **Frontends**: WeChat mini program (`frontend/wx-minipg`) is active; Flutter iOS app is planned; future clients must preserve the WeChat-like experience.
+- **Config Management**: Immutable secrets live in environment variables, feature/runtime knobs are persisted in the `system_configs` table.
+- **Auth**: Hybrid user auth (JWT plus token store) for non-admin clients.
 
-## Tech Stack
+## Deployment & Ops
+- Docker Compose lives in `deployment/`; `.env` at repo root seeds container config.
+- Backend container (`backend_container`) serves port 8000 with reload enabled; DB volume `says_dev_postgres_data` must be pruned to re-run init scripts.
 
-- **Backend**: FastAPI + Starlette Admin
-- **Database**: PostgreSQL 16 with SQLAlchemy (async)
-- **AI/LLM**: Volcengine (Doubao), supports multiple providers
-- **Message Processing**: 11-step conversation pipeline with JSON Schema validation
-- **Deployment**: Docker + Docker Compose
-- **Frontend**: Vue.js admin panel (port 5174)
-- **Cache**: Redis for session management
+## Conversation & Scoring Flow
+1. Buffer short-term messages
+2. Persist into `ai_contexts`
+3. Resolve `ai_character`
+4. Fetch `relationship_score`
+5. Pick relationship data via `ai_style`
+6. Apply relationship prompt/personality template
+7. Merge system prompts and context
+8. Call LLM
+9. Run JSON Schema validation
+10. Update relationship scores
+11. Deliver reply through LeanCloud
 
-## Project Status
-
-- **Stage**: MVP Development
-- **Current Focus**: AI character testing functionality and architecture refactoring
-- **Environment**: Development with Docker containers
-- **Database**: PostgreSQL running on port 5432
-- **Backend**: FastAPI running on port 8000
-- **Admin Panel**: <http://localhost:8000/qiao-dash/> (admin/admin123)
-
-## Key Business Logic
-
-### AI Conversation Flow (11 Steps)
-
-1. Merge short-time messages (buffer)
-2. Store in ai_contexts table
-3. Find corresponding ai_character
-4. Find corresponding relationship_score
-5. Find relationship based on ai_style
-6. Apply relationship prompt to personality template
-7. Get context and merge system prompts
-8. Request LLM
-9. JSON Schema validation
-10. Update ai_relationship_score
-11. Reply messages
-
-### Scoring System
-
-- **Algorithm**: V1 Independent Bidirectional Offset
-- **Range**: 0-1000 for each dimension
-- **Purpose**: Dynamic relationship evolution based on conversation
-- **Parameters**: left_sensitivity, right_sensitivity (-100 to 100)
-
-### Core Components
-
-- **AI Instances**: Virtual companions with personalities
-- **AI Styles**: Multi-dimensional relationship evaluation
-- **AI Personalities**: Prompt templates with JSON Schema
-- **Context Management**: Conversation history and state
-- **Message Buffer**: Short-time message merging
-- **Security**: Attack detection and user risk assessment
+## Relationship Model
+- V1 Independent Bidirectional Offset algorithm, 0-1000 scale per dimension with `left_sensitivity`/`right_sensitivity` (-100 to 100) tuning continuous evolution.

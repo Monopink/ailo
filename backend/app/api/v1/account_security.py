@@ -8,9 +8,8 @@ This module provides account security management endpoints including:
 """
 
 from api.deps import get_current_user
-from api.v1.auth import _verify_operation_token
+from api.v1.auth import _consume_sms_code, _verify_operation_token
 from core.database import get_db
-from core.security import get_password_hash, verify_password
 from crud.user import user as user_crud
 from fastapi import APIRouter, Depends, HTTPException, status
 from models.user import User
@@ -23,7 +22,6 @@ from schemas.email_manage import (
     EmailSendCodeResponse,
     UnbindEmailRequest,
 )
-from schemas.password import ChangePasswordRequest, ResetPasswordRequest
 from schemas.phone_manage import ChangePhoneRequest, ChangePhoneResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.email import mask_email, validate_email
@@ -33,94 +31,6 @@ from utils.phone import mask_phone, normalize_phone
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/user", tags=["Account Security"])
-
-
-@router.put("/password", status_code=status.HTTP_204_NO_CONTENT)
-async def change_password(
-    body: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Change user password.
-
-    For first-time password setup, old_password is optional.
-    For password change, old_password is required.
-
-    Args:
-        body: Password change request
-        current_user: Current authenticated user
-        db: Database session
-
-    Raises:
-        HTTPException: 400/500 for various errors
-    """
-    try:
-        # Check if user has password
-        has_password = bool(current_user.password_hash)
-
-        if has_password:
-            # User has password, must verify old password
-            if not body.old_password:
-                raise HTTPException(status_code=400, detail="请输入当前密码")
-
-            if not verify_password(body.old_password, current_user.password_hash):
-                raise HTTPException(status_code=400, detail="当前密码错误")
-
-        # Set new password
-        new_password_hash = get_password_hash(body.new_password)
-        await user_crud.update(db, db_obj=current_user, obj_in={"password_hash": new_password_hash})
-
-        logger.info("password_changed", user_id=current_user.id, first_time=not has_password)
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        logger.error("change_password_failed", error=str(e), user_id=current_user.id, exc_info=True)
-        raise HTTPException(status_code=500, detail="修改密码失败，请稍后再试")
-
-
-@router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
-async def reset_password(
-    body: ResetPasswordRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Reset user password using operation token.
-
-    Does not require login. Used for forgot password scenario.
-
-    Args:
-        body: Password reset request
-        db: Database session
-
-    Raises:
-        HTTPException: 400/500 for various errors
-    """
-    try:
-        # Verify operation token
-        user_id = _verify_operation_token(body.operation_token)
-        if not user_id:
-            raise HTTPException(status_code=400, detail="验证失败，请重试")
-
-        # Get user
-        user = await user_crud.get(db, id=user_id)
-        if not user:
-            raise HTTPException(status_code=400, detail="用户不存在")
-
-        # Set new password
-        new_password_hash = get_password_hash(body.new_password)
-        await user_crud.update(db, db_obj=user, obj_in={"password_hash": new_password_hash})
-
-        logger.info("password_reset", user_id=user_id)
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        logger.error("reset_password_failed", error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="重置密码失败，请稍后再试")
 
 
 @router.post("/email/send-code", response_model=EmailSendCodeResponse)
@@ -333,10 +243,12 @@ async def change_phone(
         HTTPException: 400/500 for various errors
     """
     try:
-        if body.operation_token:
-            user_id = _verify_operation_token(body.operation_token)
-            if not user_id or user_id != current_user.id:
-                raise HTTPException(status_code=400, detail="验证失败，请重试")
+        if not body.operation_token:
+            raise HTTPException(status_code=400, detail="验证失败，请重试")
+
+        user_id = _verify_operation_token(body.operation_token)
+        if not user_id or user_id != current_user.id:
+            raise HTTPException(status_code=400, detail="验证失败，请重试")
 
         # Normalize new phone
         normalized_phone = normalize_phone(body.new_phone)
@@ -346,8 +258,8 @@ async def change_phone(
         if existing_user and existing_user.id != current_user.id:
             raise HTTPException(status_code=400, detail="该手机号已被使用")
 
-        # TODO: Verify SMS code for new phone
-        # For now, skip verification
+        # Verify SMS code for new phone
+        _consume_sms_code(normalized_phone, body.sms_code)
 
         # Change phone
         await user_crud.update(db, db_obj=current_user, obj_in={"phone": normalized_phone})

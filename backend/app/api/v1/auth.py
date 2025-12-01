@@ -41,7 +41,6 @@ from schemas.verify import (
     VerifySendCodeRequest,
     VerifySendCodeResponse,
 )
-from services.message.providers.leancloud.signature import create_login_signature
 from services.security.captcha.factory import create_captcha_provider_for_request
 from services.security.captcha.none import NoneCaptchaProvider
 from services.security.rate_limiter import check_rate_limit
@@ -73,6 +72,10 @@ _verified_phone_tokens: Dict[str, Tuple[str, str | None, datetime]] = {}
 # Format: token -> (user_id, expires_at)
 # TODO: Replace with Redis in production for distributed deployment
 _operation_tokens: Dict[str, Tuple[int, datetime]] = {}
+
+# Constants
+SMS_CODE_TTL_SECONDS = 5 * 60  # 5 minutes
+SMS_COOLDOWN_SECONDS = 60
 
 
 def _get_client_ip(request: Request) -> str:
@@ -152,6 +155,33 @@ def _cleanup_expired_operation_tokens() -> None:
         logger.info("operation_tokens_cleaned", count=len(expired_tokens))
 
 
+def _consume_sms_code(phone: str, sms_code: str) -> None:
+    """
+    Validate and consume a previously issued SMS verification code.
+
+    Args:
+        phone: Normalized E.164 phone number
+        sms_code: Code provided by client
+
+    Raises:
+        HTTPException: If code is missing, expired, or mismatched
+    """
+
+    stored_data = _verification_codes.get(phone)
+    if not stored_data:
+        raise HTTPException(status_code=400, detail="验证码错误或已过期")
+
+    stored_code, expires_at = stored_data
+    if datetime.now(timezone.utc) >= expires_at:
+        del _verification_codes[phone]
+        raise HTTPException(status_code=400, detail="验证码已过期")
+
+    if stored_code != sms_code:
+        raise HTTPException(status_code=400, detail="验证码错误")
+
+    del _verification_codes[phone]
+
+
 def _generate_operation_token(user_id: int) -> str:
     """
     Generate an operation token for sensitive operations.
@@ -164,7 +194,7 @@ def _generate_operation_token(user_id: int) -> str:
     """
 
     token = f"opt_{secrets.token_urlsafe(32)}"
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)  # 5 minutes expiration
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=SMS_CODE_TTL_SECONDS)
     _operation_tokens[token] = (user_id, expires_at)
     _cleanup_expired_operation_tokens()  # Clean up expired tokens
 
@@ -256,22 +286,8 @@ class SendSMSRequest(BaseModel):
 class SendSMSResponse(BaseModel):
     """Response model for sending SMS"""
 
-    message: str
-
-
-class MessageClientSignatureRequest(BaseModel):
-    """Request model for message client signature"""
-
-    client_id: str
-
-
-class MessageClientSignatureResponse(BaseModel):
-    """Response model for message client signature"""
-
-    signature: str
-    timestamp: int
-    nonce: str
-    client_id: str
+    expires_in: int = Field(..., description="Verification code TTL in seconds")
+    cooldown_seconds: int = Field(..., description="Cooldown before next send in seconds")
 
 
 @router.post("/send-sms", response_model=SendSMSResponse)
@@ -370,81 +386,7 @@ async def send_sms_code(request: Request, body: SendSMSRequest, db: AsyncSession
 
     logger.info("sms_sent", phone=normalized_phone, provider_id=result.provider_id)
 
-    return SendSMSResponse(message="验证码已发送")
-
-
-@router.post("/message-client", response_model=MessageClientSignatureResponse)
-async def get_message_client_signature(
-    request: MessageClientSignatureRequest, db: AsyncSession = Depends(get_db)
-):
-    """
-    Generate authentication signature for message client.
-
-    This endpoint generates an HMAC-SHA1 signature that allows the client
-    to authenticate with the messaging service (LeanCloud IM).
-
-    The signature is generated using:
-    - App ID from system configuration
-    - Master Key from environment variables
-    - Client ID from request
-    - Current timestamp and random nonce
-
-    Security:
-    - TODO: Add user authentication when user API is implemented
-    - Currently allows any client_id for MVP development
-    - Master Key is never exposed to client
-
-    Args:
-        request: Contains client_id (user's qiao_id)
-        db: Database session
-
-    Returns:
-        MessageClientSignatureResponse containing:
-        - signature: HMAC-SHA1 signature hex string
-        - timestamp: UTC timestamp in milliseconds
-        - nonce: Random nonce string
-        - client_id: Echo back the client_id
-
-    Raises:
-        HTTPException: 500 if LeanCloud configuration is missing
-    """
-    try:
-        # Get LeanCloud IM app_id from system_configs
-        app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
-
-        if not app_id:
-            logger.error("leancloud_im_app_id_not_configured")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Message service not configured",
-            )
-
-        # Generate signature
-        signature_data = await create_login_signature(app_id=app_id, client_id=request.client_id)
-
-        logger.info(
-            "message_client_signature_generated",
-            client_id=request.client_id,
-            timestamp=signature_data["timestamp"],
-        )
-
-        return MessageClientSignatureResponse(
-            signature=signature_data["signature"],
-            timestamp=signature_data["timestamp"],
-            nonce=signature_data["nonce"],
-            client_id=request.client_id,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "message_client_signature_generation_failed", error=str(e), client_id=request.client_id
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate signature",
-        )
+    return SendSMSResponse(expires_in=SMS_CODE_TTL_SECONDS, cooldown_seconds=SMS_COOLDOWN_SECONDS)
 
 
 @router.post("/wechat/login", response_model=WeChatLoginResponse)
@@ -954,7 +896,7 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)):
 
         logger.info("user_logged_out", qiao_id=user.qiao_id, ip=client_ip)
 
-        return {"success": True}
+        return {}
 
     except HTTPException:
         raise

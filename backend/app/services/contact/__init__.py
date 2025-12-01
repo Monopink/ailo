@@ -10,7 +10,7 @@ from .request_service import (
     create_contact_request_service,
     get_ai_contact_limit,
     get_contact_requests_service,
-    reject_contact_request_service,
+    ignore_contact_request_service,
 )
 
 # Contact basic management
@@ -37,6 +37,6 @@ __all__ = [
     "create_contact_request_service",
     "get_contact_requests_service",
     "accept_contact_request_service",
-    "reject_contact_request_service",
+    "ignore_contact_request_service",
     "get_ai_contact_limit",
 ]

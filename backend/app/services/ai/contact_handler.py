@@ -5,12 +5,13 @@ This module evaluates whether an AI persona can accept a contact request.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Callable, Optional, cast
 
 from enums import AIPersonaStatus, AITemplateStatus, ReusableStatus
 from models.ai.template import AIPersona, AITemplate
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -101,7 +102,12 @@ async def handle_ai_contact_request(
 async def _lock_persona_by_qiao_id(db: AsyncSession, *, qiao_id: str) -> Optional[AIPersona]:
     """Lock persona row for update by qiao_id."""
 
-    stmt = select(AIPersona).where(AIPersona.qiao_id == qiao_id).with_for_update()
+    stmt = (
+        select(AIPersona)
+        .where(AIPersona.qiao_id == qiao_id)
+        .options(selectinload(AIPersona.ai_type))
+        .with_for_update()
+    )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -115,6 +121,8 @@ async def _select_template_for_ai_type(db: AsyncSession, *, type_id: int) -> Opt
     3. If multiple templates share the highest priority, randomly select one
     """
 
+    random_fn: Callable[[], Any] = cast(Callable[[], Any], func.random)
+
     single_use_stmt = (
         select(AITemplate)
         .where(
@@ -122,7 +130,8 @@ async def _select_template_for_ai_type(db: AsyncSession, *, type_id: int) -> Opt
             AITemplate.status == AITemplateStatus.ACTIVE,
             AITemplate.is_reusable == ReusableStatus.SINGLE_USE,
         )
-        .order_by(AITemplate.priority.desc(), func.random())
+        .options(selectinload(AITemplate.ai_type))
+        .order_by(AITemplate.priority.desc(), random_fn())
         .limit(1)
         .with_for_update(skip_locked=True)
     )
@@ -138,7 +147,8 @@ async def _select_template_for_ai_type(db: AsyncSession, *, type_id: int) -> Opt
             AITemplate.status == AITemplateStatus.ACTIVE,
             AITemplate.is_reusable == ReusableStatus.REUSABLE,
         )
-        .order_by(AITemplate.priority.desc(), func.random())
+        .options(selectinload(AITemplate.ai_type))
+        .order_by(AITemplate.priority.desc(), random_fn())
         .limit(1)
         .with_for_update(skip_locked=True)
     )

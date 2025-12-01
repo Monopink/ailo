@@ -30,16 +30,16 @@ from models.ai.instance import AIInstance
 from models.contact import Contact, ContactRequest
 from schemas.contact import (
     ContactCreate,
-    ContactInfoBase,
+    ContactDetailResponse,
+    ContactProfileSummary,
     ContactRequestAccept,
     ContactRequestCreate,
     ContactRequestListResponse,
     ContactRequestWithProfile,
-    ContactResponse,
 )
 from services.ai.contact_handler import handle_ai_contact_request
 from services.ai.instance_creation import create_instance_from_persona
-from services.contact.service import _build_contact_response, _get_contact_profile, _get_im_conv_id
+from services.contact.service import _get_im_conv_id, get_contact_with_profile
 from services.message.outbound.helpers import send_chat_info, send_contact_request_notification
 from sqlalchemy import BigInteger, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,7 +134,7 @@ async def _create_contact_record(
         contact_qiao_id=contact_qiao_id,
         alias=alias,
         custom_avatar_url=None,
-        tags={"tags": tags} if tags else None,
+        tags=tags,
         remark=None,
         source=source or "unknown",
     )
@@ -838,10 +838,12 @@ async def get_contact_requests_service(
             )
 
             # Build profile info
-            from_profile = ContactInfoBase(
+            from_profile = ContactProfileSummary(
                 nickname=profile.nickname if profile else None,
                 avatar_url=profile.avatar_url if profile else None,
                 gender=profile.gender if profile else None,
+                bio=profile.bio if profile else None,
+                region=profile.region if profile else None,
             )
 
             # Build request item
@@ -889,7 +891,7 @@ async def accept_contact_request_service(
     user_qiao_id: str,
     request_id: int,
     accept_data: ContactRequestAccept,
-) -> ContactResponse:
+) -> ContactDetailResponse:
     """
     Accept a contact request and create contact relationship.
 
@@ -949,14 +951,13 @@ async def accept_contact_request_service(
 
         # Create contact
         conv_id = await _get_im_conv_id(db, ensure_valid=True)
-        tags_dict = {"tags": accept_data.tags} if accept_data.tags else None
 
         contact_data = ContactCreate(
             contact_type=ContactType(contact_request.from_type),
             contact_qiao_id=contact_request.from_qiao_id,
             alias=accept_data.alias,
             custom_avatar_url=None,
-            tags=tags_dict,
+            tags=accept_data.tags,
             remark=None,
             source="contact_request",
         )
@@ -991,8 +992,17 @@ async def accept_contact_request_service(
             )
             # Non-critical, continue
 
-        # Get profile and build response
-        profile = await _get_contact_profile(db, contact.contact_qiao_id, ContactType(contact.contact_type))
+        # Build response payload
+        contact_response = await get_contact_with_profile(
+            db=db,
+            user_qiao_id=user_qiao_id,
+            conv_id=contact.conv_id,
+        )
+        if not contact_response:
+            raise HTTPException(
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="联系人信息同步失败",
+            )
 
         logger.info(
             "accept_contact_request_success",
@@ -1001,7 +1011,7 @@ async def accept_contact_request_service(
             contact_id=contact.id,
         )
 
-        return _build_contact_response(contact, conv_id, profile)
+        return contact_response
 
     except HTTPException:
         raise
@@ -1019,21 +1029,21 @@ async def accept_contact_request_service(
         )
 
 
-async def reject_contact_request_service(
+async def ignore_contact_request_service(
     db: AsyncSession,
     user_qiao_id: str,
     request_id: int,
 ) -> dict:
     """
-    Reject a contact request.
+    Ignore a contact request without notifying the applicant.
 
     Args:
         db: Database session
-        user_qiao_id: User's qiao_id (the one rejecting)
+        user_qiao_id: User's qiao_id (the one ignoring)
         request_id: Contact request ID
 
     Returns:
-        Success message: {"message": "已拒绝"}
+        Success message: {"message": "已忽略"}
 
     Raises:
         HTTPException: If request not found, invalid status, or processing fails
@@ -1062,24 +1072,24 @@ async def reject_contact_request_service(
                 detail="请求状态不正确",
             )
 
-        # Update request status to ignored (user rejected)
+        # Update request status to ignored
         await contact_request_crud.update_request_status(
             db, request_id=request_id, status=ContactRequestStatus.IGNORED
         )
 
         logger.info(
-            "reject_contact_request_success",
+            "ignore_contact_request_success",
             user_qiao_id=user_qiao_id,
             request_id=request_id,
         )
 
-        return {"message": "已拒绝"}
+        return {"message": "已忽略"}
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(
-            "reject_contact_request_failed",
+            "ignore_contact_request_failed",
             user_qiao_id=user_qiao_id,
             request_id=request_id,
             error=str(e),
@@ -1087,5 +1097,5 @@ async def reject_contact_request_service(
         )
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="拒绝请求失败",
+            detail="忽略请求失败",
         )

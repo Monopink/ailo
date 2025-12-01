@@ -117,6 +117,8 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         self, db: AsyncSession, *, obj_in: ContactCreate, user_qiao_id: str, user_id: int, conv_id: str
     ) -> Contact:
         """Create contact with user information."""
+        tags_payload = {"tags": obj_in.tags} if obj_in.tags else None
+
         contact_data = {
             "id": generate_snowflake_id(),
             "conv_id": conv_id,
@@ -127,7 +129,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             "contact_qiao_id": obj_in.contact_qiao_id,
             "alias": obj_in.alias,
             "custom_avatar_url": obj_in.custom_avatar_url,
-            "tags": obj_in.tags,
+            "tags": tags_payload,
             "remark": obj_in.remark,
             "source": (obj_in.source or "unknown"),
         }

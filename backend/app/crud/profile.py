@@ -54,6 +54,25 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             )
             raise
 
+    async def get_by_owner_qiao_id_any(
+        self,
+        db: AsyncSession,
+        *,
+        owner_qiao_id: str,
+    ) -> Optional[Profile]:
+        """Get profile by owner qiao_id regardless of owner type."""
+        try:
+            stmt = select(self.model).where(self.model.owner_qiao_id == owner_qiao_id)
+            result = await db.execute(stmt)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(
+                "get_profile_by_owner_qiao_id_any_error",
+                error=str(e),
+                owner_qiao_id=owner_qiao_id,
+            )
+            raise
+
     async def create_with_owner(
         self,
         db: AsyncSession,

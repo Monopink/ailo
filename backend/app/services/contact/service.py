@@ -4,18 +4,18 @@ Contact service business logic.
 This module provides business logic for contact management operations.
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from crud.contact import contact as contact_crud
 from crud.profile import profile as profile_crud
 from crud.system import system_configs
-from enums import ContactType, ProfileOwnerType
+from enums import ContactType
 from models.contact import Contact
 from models.profile import Profile
 from schemas.contact import (
-    ContactInfoBase,
-    ContactListResponse,
-    ContactResponse,
+    ContactDetailResponse,
+    ContactListItem,
+    ContactProfileSummary,
     ContactUpdate,
     ConversationInfoResponse,
 )
@@ -51,101 +51,76 @@ async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
     return conv_id
 
 
-async def _get_contact_profile(
-    db: AsyncSession, contact_qiao_id: str, contact_type: ContactType
-) -> Optional[Profile]:
+async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Optional[Profile]:
     """
-    Get profile for a contact.
+    Get profile for a contact via qiao_id.
 
     Args:
         db: Database session
         contact_qiao_id: Contact's qiao_id
-        contact_type: Contact type
 
     Returns:
         Profile object or None if not found
     """
-    # Map ContactType to ProfileOwnerType
-    owner_type_map = {
-        ContactType.USER: ProfileOwnerType.USER,
-        ContactType.AI: ProfileOwnerType.AI_INSTANCE,
-        ContactType.OFFICIAL: ProfileOwnerType.USER,  # Official accounts use USER type
-    }
-
-    owner_type = owner_type_map.get(contact_type)
-    if not owner_type:
-        logger.warning("unknown_contact_type", contact_type=contact_type)
-        return None
-
-    return await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=contact_qiao_id, owner_type=owner_type)
+    return await profile_crud.get_by_owner_qiao_id_any(db, owner_qiao_id=contact_qiao_id)
 
 
-def _build_contact_list_response(
-    contact: Contact, im_conv_id: str, profile: Optional[Profile] = None
-) -> ContactListResponse:
-    """
-    Build ContactListResponse from contact and profile data.
+def _build_profile_summary(profile: Optional[Profile]) -> ContactProfileSummary:
+    """Convert Profile ORM object to API summary payload."""
 
-    Args:
-        contact: Contact model instance
-        im_conv_id: IM provider conversation ID
-        profile: Optional profile data
-
-    Returns:
-        ContactListResponse instance
-    """
-    return ContactListResponse(
-        conv_id=contact.conv_id,
-        im_conv_id=im_conv_id,
-        contact_qiao_id=contact.contact_qiao_id,
-        contact_type=ContactType(contact.contact_type),
-        alias=contact.alias,
-        custom_avatar_url=contact.custom_avatar_url,
-        is_pinned=bool(contact.is_pinned),
-        is_muted=bool(contact.is_muted),
-        is_blocked=bool(contact.is_blocked),
-        source=contact.source,
-        created_at=contact.created_at,
-        # Add profile fields
+    return ContactProfileSummary(
         nickname=profile.nickname if profile else None,
         avatar_url=profile.avatar_url if profile else None,
-        bio=profile.bio if profile else None,
         gender=profile.gender if profile else None,
+        bio=profile.bio if profile else None,
+        region=profile.region if profile else None,
     )
 
 
-def _build_contact_response(
-    contact: Contact, im_conv_id: str, profile: Optional[Profile] = None
-) -> ContactResponse:
-    """
-    Build ContactResponse from contact and profile data.
+def _extract_tags(tags: Optional[Any]) -> List[str]:
+    """Normalize stored tag payload to a list."""
 
-    Args:
-        contact: Contact model instance
-        im_conv_id: IM provider conversation ID
-        profile: Optional profile data
+    if not tags:
+        return []
 
-    Returns:
-        ContactResponse instance
-    """
-    return ContactResponse(
+    if isinstance(tags, dict):
+        raw = tags.get("tags")
+        if isinstance(raw, list):
+            return [str(tag) for tag in raw if isinstance(tag, str)]
+    elif isinstance(tags, list):
+        return [str(tag) for tag in tags if isinstance(tag, str)]
+
+    return []
+
+
+def _serialize_tags(tags: Optional[List[str]]) -> Optional[Dict[str, Any]]:
+    """Convert outbound tag list to storage format."""
+
+    if tags is None:
+        return None
+    return {"tags": tags}
+
+
+def _build_contact_list_item(contact: Contact, profile: Optional[Profile]) -> ContactListItem:
+    """Construct a ContactListItem from ORM entities."""
+
+    return ContactListItem(
         conv_id=contact.conv_id,
-        im_conv_id=im_conv_id,
-        contact_id=contact.id,
-        contact_type=ContactType(contact.contact_type),
         contact_qiao_id=contact.contact_qiao_id,
         alias=contact.alias,
-        custom_avatar_url=contact.custom_avatar_url,
-        tags=contact.tags,
-        remark=contact.remark,
+        tags=_extract_tags(contact.tags),
         is_pinned=bool(contact.is_pinned),
         is_muted=bool(contact.is_muted),
         is_blocked=bool(contact.is_blocked),
-        is_deleted=bool(contact.is_deleted),
-        source=contact.source,
-        created_at=contact.created_at,
-        updated_at=contact.updated_at,
+        profile=_build_profile_summary(profile),
     )
+
+
+def _build_contact_detail(contact: Contact, profile: Optional[Profile]) -> ContactDetailResponse:
+    """Construct a ContactDetailResponse."""
+
+    list_item = _build_contact_list_item(contact, profile)
+    return ContactDetailResponse(**list_item.model_dump(), remark=contact.remark)
 
 
 async def get_user_contacts_with_profiles(
@@ -154,7 +129,7 @@ async def get_user_contacts_with_profiles(
     contact_type: Optional[ContactType] = None,
     skip: int = 0,
     limit: int = 100,
-) -> List[ContactListResponse]:
+) -> Tuple[List[ContactListItem], bool]:
     """
     Get user's contacts with profile information and IM conversation ID.
 
@@ -166,11 +141,8 @@ async def get_user_contacts_with_profiles(
         limit: Maximum number of records to return
 
     Returns:
-        List of ContactListResponse with im_conv_id populated
+        Tuple of (contacts, has_more)
     """
-    # Get IM conversation ID (validated for detail view)
-    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
-
     # Get contacts from database
     contacts = await contact_crud.get_user_contacts(
         db,
@@ -178,17 +150,20 @@ async def get_user_contacts_with_profiles(
         contact_type=contact_type,
         include_blocked=False,
         skip=skip,
-        limit=limit,
+        limit=limit + 1,
     )
+
+    has_more = len(contacts) > limit
+    contacts = contacts[:limit]
 
     # Build response list
     result = []
     for contact in contacts:
         # Get profile for additional info (optional, for future use)
-        profile = await _get_contact_profile(db, contact.contact_qiao_id, ContactType(contact.contact_type))
+        profile = await _get_contact_profile(db, contact.contact_qiao_id)
 
         # Build response
-        contact_response = _build_contact_list_response(contact, im_conv_id, profile)
+        contact_response = _build_contact_list_item(contact, profile)
         result.append(contact_response)
 
     logger.info(
@@ -198,12 +173,12 @@ async def get_user_contacts_with_profiles(
         contact_type=contact_type,
     )
 
-    return result
+    return result, has_more
 
 
 async def get_contact_with_profile(
     db: AsyncSession, user_qiao_id: str, conv_id: str
-) -> Optional[ContactResponse]:
+) -> Optional[ContactDetailResponse]:
     """
     Get specific contact with profile information and IM conversation ID.
 
@@ -213,11 +188,8 @@ async def get_contact_with_profile(
         conv_id: Conversation ID
 
     Returns:
-        ContactResponse with im_conv_id or None if not found
+        ContactDetailResponse or None if not found
     """
-    # Get IM conversation ID (force validation for conversation entry)
-    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
-
     # Get contact from database
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
 
@@ -236,10 +208,10 @@ async def get_contact_with_profile(
         return None
 
     # Get profile
-    profile = await _get_contact_profile(db, contact.contact_qiao_id, ContactType(contact.contact_type))
+    profile = await _get_contact_profile(db, contact.contact_qiao_id)
 
     # Build response
-    contact_response = _build_contact_response(contact, im_conv_id, profile)
+    contact_response = _build_contact_detail(contact, profile)
 
     logger.info("contact_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
 
@@ -281,22 +253,17 @@ async def get_conversation_info(
         return None
 
     # Get profile
-    profile = await _get_contact_profile(db, contact.contact_qiao_id, ContactType(contact.contact_type))
+    profile = await _get_contact_profile(db, contact.contact_qiao_id)
 
     # Build contact info
-    contact_info = ContactInfoBase(
-        nickname=profile.nickname if profile else None,
-        avatar_url=profile.avatar_url if profile else None,
-        gender=profile.gender if profile else None,
-    )
+    contact_info = _build_profile_summary(profile)
 
     # Build response
     response = ConversationInfoResponse(
         conv_id=contact.conv_id,
         im_conv_id=im_conv_id,
         contact_qiao_id=contact.contact_qiao_id,
-        contact_type=ContactType(contact.contact_type),
-        contact_info=contact_info,
+        contact_profile=contact_info,
     )
 
     logger.info("conversation_info_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
@@ -306,7 +273,7 @@ async def get_conversation_info(
 
 async def update_contact(
     db: AsyncSession, user_qiao_id: str, conv_id: str, update_data: ContactUpdate
-) -> Optional[ContactResponse]:
+) -> Optional[ContactDetailResponse]:
     """
     Update contact information.
 
@@ -322,9 +289,6 @@ async def update_contact(
     Raises:
         ValueError: If validation fails
     """
-    # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
-
     # Get contact
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
 
@@ -346,29 +310,23 @@ async def update_contact(
     update_dict = {}
     if update_data.alias is not None:
         update_dict["alias"] = update_data.alias
-    if update_data.custom_avatar_url is not None:
-        update_dict["custom_avatar_url"] = update_data.custom_avatar_url
     if update_data.tags is not None:
-        update_dict["tags"] = update_data.tags
+        update_dict["tags"] = _serialize_tags(update_data.tags)
     if update_data.remark is not None:
         update_dict["remark"] = update_data.remark
     if update_data.is_pinned is not None:
         update_dict["is_pinned"] = 1 if update_data.is_pinned else 0
     if update_data.is_muted is not None:
         update_dict["is_muted"] = 1 if update_data.is_muted else 0
-    if update_data.is_blocked is not None:
-        update_dict["is_blocked"] = 1 if update_data.is_blocked else 0
 
     # Update contact
     updated_contact = await contact_crud.update(db, db_obj=contact, obj_in=update_dict)
 
     # Get profile
-    profile = await _get_contact_profile(
-        db, updated_contact.contact_qiao_id, ContactType(updated_contact.contact_type)
-    )
+    profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
     # Build response
-    contact_response = _build_contact_response(updated_contact, im_conv_id, profile)
+    contact_response = _build_contact_detail(updated_contact, profile)
 
     logger.info(
         "contact_updated",
@@ -380,7 +338,9 @@ async def update_contact(
     return contact_response
 
 
-async def block_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> Optional[ContactResponse]:
+async def block_contact(
+    db: AsyncSession, user_qiao_id: str, conv_id: str
+) -> Optional[ContactDetailResponse]:
     """
     Block a contact.
 
@@ -392,9 +352,6 @@ async def block_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> Op
     Returns:
         Updated ContactResponse or None if not found
     """
-    # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
-
     # Get contact
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
 
@@ -416,19 +373,19 @@ async def block_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> Op
     updated_contact = await contact_crud.update(db, db_obj=contact, obj_in={"is_blocked": 1})
 
     # Get profile
-    profile = await _get_contact_profile(
-        db, updated_contact.contact_qiao_id, ContactType(updated_contact.contact_type)
-    )
+    profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
     # Build response
-    contact_response = _build_contact_response(updated_contact, im_conv_id, profile)
+    contact_response = _build_contact_detail(updated_contact, profile)
 
     logger.info("contact_blocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
 
     return contact_response
 
 
-async def unblock_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> Optional[ContactResponse]:
+async def unblock_contact(
+    db: AsyncSession, user_qiao_id: str, conv_id: str
+) -> Optional[ContactDetailResponse]:
     """
     Unblock a contact.
 
@@ -440,9 +397,6 @@ async def unblock_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> 
     Returns:
         Updated ContactResponse or None if not found
     """
-    # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
-
     # Get contact
     contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
 
@@ -464,12 +418,10 @@ async def unblock_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> 
     updated_contact = await contact_crud.update(db, db_obj=contact, obj_in={"is_blocked": 0})
 
     # Get profile
-    profile = await _get_contact_profile(
-        db, updated_contact.contact_qiao_id, ContactType(updated_contact.contact_type)
-    )
+    profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
     # Build response
-    contact_response = _build_contact_response(updated_contact, im_conv_id, profile)
+    contact_response = _build_contact_detail(updated_contact, profile)
 
     logger.info("contact_unblocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
 

@@ -4,14 +4,19 @@ Contact management API endpoints.
 This module provides endpoints for managing user contacts and conversations.
 """
 
-from typing import List, Optional
+import base64
+from typing import Optional
 
 from api.deps import get_current_user
 from core.database import get_db
-from enums import ContactType
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.user import User
-from schemas.contact import ContactListResponse, ContactResponse, ContactUpdate, ConversationInfoResponse
+from schemas.contact import (
+    ContactDetailResponse,
+    ContactListResult,
+    ContactUpdate,
+    ConversationInfoResponse,
+)
 from services.contact import (
     block_contact,
     delete_contact,
@@ -29,9 +34,28 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
 
-@router.get("", response_model=List[ContactListResponse])
+def _decode_cursor(cursor: Optional[str]) -> int:
+    """Decode opaque cursor into skip offset."""
+
+    if not cursor:
+        return 0
+
+    padding = "=" * (-len(cursor) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode((cursor + padding).encode()).decode()
+        return max(int(decoded), 0)
+    except Exception:
+        return 0
+
+
+def _encode_cursor(offset: int) -> str:
+    """Encode skip offset into opaque cursor."""
+
+    return base64.urlsafe_b64encode(str(offset).encode()).decode().rstrip("=")
+
+
+@router.get("", response_model=ContactListResult)
 async def get_contacts(
-    contact_type: Optional[ContactType] = Query(None, description="Filter by contact type"),
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
     current_user: User = Depends(get_current_user),
@@ -40,43 +64,42 @@ async def get_contacts(
     """
     Get user's contact list.
 
-    Returns a list of contacts with basic information and IM conversation ID.
-    Supports filtering by contact type and cursor-based pagination.
+    Returns a paginated list of contacts with presentation information.
 
     Args:
-        contact_type: Optional filter by contact type (USER, AI, OFFICIAL)
-        cursor: Pagination cursor (not implemented yet, uses skip for MVP)
+        cursor: Pagination cursor
         limit: Maximum number of contacts to return (1-100)
         current_user: Authenticated user
         db: Database session
 
     Returns:
-        List of ContactListResponse with im_conv_id
+        Paginated contact list
 
     Raises:
-        HTTPException: 500 if IM configuration is missing or internal error
+        HTTPException: 500 if retrieval fails
     """
     try:
-        # TODO: Implement cursor-based pagination
-        # For MVP, use simple mapping pagination
-        skip = 0
+        skip = _decode_cursor(cursor)
 
-        contacts = await get_user_contacts_with_profiles(
+        contacts, has_more = await get_user_contacts_with_profiles(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            contact_type=contact_type,
             skip=skip,
             limit=limit,
         )
+
+        next_cursor = _encode_cursor(skip + len(contacts)) if has_more else None
 
         logger.info(
             "contacts_list_retrieved",
             user_qiao_id=current_user.qiao_id,
             count=len(contacts),
-            contact_type=contact_type,
         )
 
-        return contacts
+        return ContactListResult(
+            items=contacts,
+            pagination={"cursor": next_cursor, "has_more": has_more},
+        )
 
     except ValueError as e:
         # Configuration error (e.g., IM conv_id not configured)
@@ -102,7 +125,7 @@ async def get_contacts(
         )
 
 
-@router.get("/{conv_id}", response_model=ContactResponse)
+@router.get("/{conv_id}", response_model=ContactDetailResponse)
 async def get_contact(
     conv_id: str,
     current_user: User = Depends(get_current_user),
@@ -111,7 +134,7 @@ async def get_contact(
     """
     Get specific contact details.
 
-    Returns detailed information about a specific contact including IM conversation ID.
+    Returns detailed information about a specific contact.
 
     Args:
         conv_id: Conversation identifier
@@ -119,7 +142,7 @@ async def get_contact(
         db: Database session
 
     Returns:
-        ContactResponse with im_conv_id
+        ContactDetailResponse
 
     Raises:
         HTTPException: 404 if contact not found, 500 for internal errors
@@ -243,7 +266,7 @@ async def get_contact_conversation(
         )
 
 
-@router.put("/{conv_id}", response_model=ContactResponse)
+@router.put("/{conv_id}", response_model=ContactDetailResponse)
 async def update_contact_info(
     conv_id: str,
     update_data: ContactUpdate,
@@ -323,7 +346,7 @@ async def update_contact_info(
         )
 
 
-@router.post("/{conv_id}/block", response_model=ContactResponse)
+@router.post("/{conv_id}/block", response_model=ContactDetailResponse)
 async def block_contact_endpoint(
     conv_id: str,
     current_user: User = Depends(get_current_user),
@@ -399,7 +422,7 @@ async def block_contact_endpoint(
         )
 
 
-@router.post("/{conv_id}/unblock", response_model=ContactResponse)
+@router.post("/{conv_id}/unblock", response_model=ContactDetailResponse)
 async def unblock_contact_endpoint(
     conv_id: str,
     current_user: User = Depends(get_current_user),

@@ -4,14 +4,12 @@ Discovery management views.
 Provides admin tooling for Square exposure tables.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
 from enums import ExposureStrategy, SquareCategory, SquareEntryStatus
 from models.discovery import SquareTypeEntry
-from services.discovery.validators import ensure_ai_type_has_active_persona
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from starlette_admin import HasOne, StringField
@@ -19,11 +17,29 @@ from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
 
+class _AITypeDisplayNameField(StringField):
+    """Computed field to show ai_type display_name for SquareTypeEntry."""
+
+    def __init__(self, name: str = "ai_type_display_name", label: str = "AI Type Name"):
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request, obj):  # type: ignore[override]
+        try:
+            if hasattr(obj, "ai_type") and obj.ai_type is not None:
+                return str(getattr(obj.ai_type, "display_name", "") or "")
+            return ""
+        except Exception:
+            return ""
+
+
 class SquareTypeEntryView(ModelView):
     """Manage square_type_entries records."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at", "ai_type_display_name"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at", "ai_type_display_name"]
     exclude_fields_from_list = []
 
     fields_default_sort = [("created_at", True)]
@@ -46,6 +62,7 @@ class SquareTypeEntryView(ModelView):
             required=True,
             help_text="Built-in Square category (friend/love/talk/...)",
         ),
+        _AITypeDisplayNameField(),
         HasOne(
             "ai_type",
             identity="ai_type",
@@ -73,47 +90,32 @@ class SquareTypeEntryView(ModelView):
 
     async def before_create(self, request: Request, data, obj):
         self._sync_ai_type(obj)
-        await self._validate_ai_type(request, obj.type_id)
-        await self._ensure_unique_entry(request, obj.square_category, obj.type_id)
 
     async def before_edit(self, request: Request, data, obj):
         self._sync_ai_type(obj)
-        await self._validate_ai_type(request, obj.type_id)
-        await self._ensure_unique_entry(request, obj.square_category, obj.type_id, exclude_id=obj.id)
 
     def _sync_ai_type(self, obj: Any) -> None:
         """Keep `type_id` aligned with the selected AI type relation."""
-        if hasattr(obj, "ai_type") and obj.ai_type is not None:
-            obj.type_id = getattr(obj.ai_type, "id", obj.type_id)
-
-    async def _ensure_unique_entry(
-        self,
-        request: Request,
-        square_category: Optional[int],
-        type_id: Optional[int],
-        exclude_id: Optional[int] = None,
-    ) -> None:
-        """Prevent duplicate square entries for the same category+type."""
-        if square_category is None or type_id is None:
+        selected = getattr(obj, "ai_type", None)
+        if selected is None:
             return
 
-        session = request.state.session
-        stmt = select(SquareTypeEntry).where(
-            SquareTypeEntry.square_category == square_category,
-            SquareTypeEntry.type_id == type_id,
-        )
-        if exclude_id:
-            stmt = stmt.where(SquareTypeEntry.id != exclude_id)
+        # Admin sends HasOne selections as primary key strings; fall back to object.id
+        type_id_candidate = None
+        if isinstance(selected, dict):
+            type_id_candidate = selected.get("id") or selected.get("value")
+        elif hasattr(selected, "id"):
+            type_id_candidate = getattr(selected, "id")
+        else:
+            type_id_candidate = selected
 
-        result = await session.execute(stmt)
-        existing = result.scalars().first()
-        if existing is not None:
-            raise FormValidationError(
-                {
-                    "square_category": "An entry with this category and AI type already exists",
-                    "type_id": "An entry with this category and AI type already exists",
-                }
-            )
+        if type_id_candidate is None:
+            return
+
+        try:
+            obj.type_id = int(type_id_candidate)
+        except (TypeError, ValueError):
+            obj.type_id = type_id_candidate
 
     def get_create_defaults(self, request: Request) -> dict[str, Any]:
         """Ensure new square entries default to active status."""
@@ -130,23 +132,16 @@ class SquareTypeEntryView(ModelView):
                 "square_type_entries_square_category_type_id_key" in error_msg
                 or "duplicate key" in error_msg.lower()
             ):
+                conflict = "An entry with this category and AI type already exists"
                 raise FormValidationError(
                     {
-                        "square_category": "An entry with this category and AI type already exists",
-                        "type_id": "An entry with this category and AI type already exists",
+                        "square_category": conflict,
+                        "ai_type": conflict,
+                        "type_id": conflict,
                     }
                 )
             # Re-raise other integrity errors
             raise
-
-    async def _validate_ai_type(self, request: Request, type_id: int) -> None:
-        if not type_id:
-            raise FormValidationError({"type_id": "AI Type is required"})
-        session = request.state.session
-        try:
-            await ensure_ai_type_has_active_persona(session, type_id)
-        except ValueError as exc:
-            raise FormValidationError({"type_id": str(exc)})
 
     def can_delete(self, request: Request) -> bool:  # type: ignore[override]
         return False

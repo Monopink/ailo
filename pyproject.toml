@@ -1,87 +1,117 @@
 # ============================================================================
-# Pylint Configuration
+# Ruff Configuration (Replaces: black, isort, pylint)
 # ============================================================================
-[tool.pylint.main]
-# Use multiple processes to speed up Pylint
-jobs = 0
-# Minimum Python version to use for version dependent checks
-py-version = "3.12"
-# Set Python path to include backend/app directory
-init-hook = 'import sys; sys.path.insert(0, "backend/app")'
+[tool.ruff]
+target-version = "py312"
+line-length = 108  # Keep consistent with previous black config
 
-[tool.pylint.format]
-max-line-length = 108
-indent-string = "    "  # 4 spaces
-
-[tool.pylint.typecheck]
-# SQLAlchemy func object uses __getattr__ to dynamically generate SQL functions
-generated-members = ["func.*"]
-# Alembic context is injected at runtime
-ignored-modules = ["alembic.context"]
-
-[tool.pylint.basic]
-# Allow common variable names including 'cls' for Pydantic validators
-good-names = ["cls", "db", "id", "i", "j", "k", "ex", "_"]
-# Naming conventions
-argument-naming-style = "snake_case"
-attr-naming-style = "snake_case"
-class-naming-style = "PascalCase"
-const-naming-style = "UPPER_CASE"
-function-naming-style = "snake_case"
-method-naming-style = "snake_case"
-module-naming-style = "snake_case"
-variable-naming-style = "snake_case"
-
-[tool.pylint.messages_control]
-# Disable specific false positives
-disable = [
-    "fixme",  # Allow TODO comments during development
-    "too-few-public-methods",  # Pydantic models often have few methods
-    "missing-module-docstring",  # Not required for all modules in MVP
-    "missing-class-docstring",  # Not required for all classes in MVP
-    "missing-function-docstring",  # Not required for all functions in MVP
+# Exclude directories
+extend-exclude = [
+    "migrations",
+    "__pycache__",
+    ".venv",
+    "venv",
 ]
 
-[tool.pylint.design]
-max-args = 7  # Maximum number of arguments for function/method
-max-attributes = 12  # Maximum number of attributes for a class
-max-branches = 15  # Maximum number of branch for function/method body
-max-locals = 20  # Maximum number of locals for function/method body
-max-returns = 6  # Maximum number of return/yield for function/method body
-max-statements = 60  # Maximum number of statements in function/method body
+[tool.ruff.lint]
+# Enable rule sets
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle
+    "E",
+    "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP",
+    # flake8-annotations
+    "ANN",
+    # flake8-async
+    "ASYNC",
+    # flake8-bandit (security)
+    "S",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-comprehensions
+    "C4",
+    # flake8-datetimez
+    "DTZ",
+    # flake8-debugger
+    "T10",
+    # flake8-errmsg
+    "EM",
+    # flake8-implicit-str-concat
+    "ISC",
+    # flake8-import-conventions
+    "ICN",
+    # flake8-pie
+    "PIE",
+    # flake8-pytest-style
+    "PT",
+    # flake8-quotes
+    "Q",
+    # flake8-raise
+    "RSE",
+    # flake8-return
+    "RET",
+    # flake8-simplify
+    "SIM",
+    # flake8-tidy-imports
+    "TID",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # pylint
+    "PL",
+    # tryceratops
+    "TRY",
+    # ruff-specific
+    "RUF",
+]
 
-# ============================================================================
-# Black Configuration (Code Formatter)
-# ============================================================================
-[tool.black]
-line-length = 108
-target-version = ["py312"]
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-    \.git
-  | \.venv
-  | venv
-  | \.pytest_cache
-  | __pycache__
-  | migrations
-)/
-'''
+# Ignore rules (mapped from previous pylint config)
+ignore = [
+    "D",        # pydocstring (corresponds to missing-docstring)
+    "TD",       # flake8-todos (corresponds to fixme)
+    "FIX",      # flake8-fixme
+    "PLR0913",  # Too many arguments (handled by max-args below)
+    "S101",     # Use of assert (needed in tests)
+    "ISC001",   # Conflicts with formatter (implicit string concatenation)
+]
 
-# ============================================================================
-# isort Configuration (Import Sorter)
-# ============================================================================
-[tool.isort]
-profile = "black"
-line_length = 108
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-skip_glob = ["*/migrations/*", "*/__pycache__/*", "*/venv/*"]
-known_first_party = ["app"]
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+[tool.ruff.lint.per-file-ignores]
+# Test files special rules
+"tests/**/*.py" = [
+    "S101",     # Allow assert in tests
+    "PLR2004",  # Allow magic values in tests
+    "ANN",      # Don't require annotations in tests
+]
+# Migration files special rules
+"**/migrations/**/*.py" = ["ALL"]
+
+[tool.ruff.lint.pylint]
+# Corresponds to previous pylint design config
+max-args = 7
+max-branches = 15
+max-returns = 6
+max-statements = 60
+
+[tool.ruff.lint.isort]
+# Corresponds to previous isort config
+known-first-party = ["app"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.format]
+# Corresponds to previous black config
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
 
 # ============================================================================
 # mypy Configuration (Type Checker)

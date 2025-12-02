@@ -85,7 +85,7 @@ get_files_to_check() {
 check_tools() {
     print_header "Checking Required Tools"
 
-    local tools=("python" "black" "isort" "mypy" "pylint" "lint-imports")
+    local tools=("python" "ruff" "mypy" "lint-imports")
     local missing_tools=()
 
     for tool in "${tools[@]}"; do
@@ -146,9 +146,9 @@ check_import_locations() {
     fi
 }
 
-# Run Black formatter check
-check_black() {
-    print_header "3. Code Formatting (Black)"
+# Run Ruff format check (replaces black + isort)
+check_ruff_format() {
+    print_header "3. Code Formatting (Ruff)"
 
     if [ "$CHECK_MODE" = "quick" ]; then
         local files=$(get_files_to_check)
@@ -156,29 +156,29 @@ check_black() {
             print_warning "No Python files to check"
             return 0
         fi
-        if echo "$files" | xargs black --check --config pyproject.toml 2>/dev/null; then
+        if echo "$files" | xargs ruff format --check 2>/dev/null; then
             print_success "Code formatting is correct"
         else
             print_error "Code formatting issues found"
-            echo "Run: black $BACKEND_DIR --config pyproject.toml"
-            FAILED_CHECKS+=("Black Formatting")
+            echo "Run: ruff format backend/app"
+            FAILED_CHECKS+=("Ruff Format")
             return 1
         fi
     else
-        if black --check --config pyproject.toml "$BACKEND_DIR" 2>/dev/null; then
+        if ruff format --check "$BACKEND_DIR" 2>/dev/null; then
             print_success "Code formatting is correct"
         else
             print_error "Code formatting issues found"
-            echo "Run: black $BACKEND_DIR --config pyproject.toml"
-            FAILED_CHECKS+=("Black Formatting")
+            echo "Run: ruff format $BACKEND_DIR"
+            FAILED_CHECKS+=("Ruff Format")
             return 1
         fi
     fi
 }
 
-# Run isort check
-check_isort() {
-    print_header "4. Import Sorting (isort)"
+# Run Ruff lint check (replaces pylint)
+check_ruff_lint() {
+    print_header "4. Code Quality (Ruff)"
 
     if [ "$CHECK_MODE" = "quick" ]; then
         local files=$(get_files_to_check)
@@ -186,21 +186,21 @@ check_isort() {
             print_warning "No Python files to check"
             return 0
         fi
-        if echo "$files" | xargs isort --check-only --settings-path pyproject.toml 2>/dev/null; then
-            print_success "Import sorting is correct"
+        if echo "$files" | xargs ruff check 2>/dev/null; then
+            print_success "Code quality check passed"
         else
-            print_error "Import sorting issues found"
-            echo "Run: isort $BACKEND_DIR --settings-path pyproject.toml"
-            FAILED_CHECKS+=("isort")
+            print_error "Code quality issues found"
+            echo "Run: ruff check --fix backend/app"
+            FAILED_CHECKS+=("Ruff Lint")
             return 1
         fi
     else
-        if isort --check-only --settings-path pyproject.toml "$BACKEND_DIR" 2>/dev/null; then
-            print_success "Import sorting is correct"
+        if ruff check "$BACKEND_DIR" 2>/dev/null; then
+            print_success "Code quality check passed"
         else
-            print_error "Import sorting issues found"
-            echo "Run: isort $BACKEND_DIR --settings-path pyproject.toml"
-            FAILED_CHECKS+=("isort")
+            print_error "Code quality issues found"
+            echo "Run: ruff check --fix $BACKEND_DIR"
+            FAILED_CHECKS+=("Ruff Lint")
             return 1
         fi
     fi
@@ -234,37 +234,9 @@ check_mypy() {
     fi
 }
 
-# Run pylint
-check_pylint() {
-    print_header "6. Code Quality (pylint)"
-
-    if [ "$CHECK_MODE" = "quick" ]; then
-        local files=$(get_files_to_check)
-        if [ -z "$files" ]; then
-            print_warning "No Python files to check"
-            return 0
-        fi
-        if echo "$files" | xargs pylint --rcfile pyproject.toml --score=no 2>/dev/null; then
-            print_success "Code quality check passed"
-        else
-            print_error "Code quality issues found"
-            FAILED_CHECKS+=("pylint")
-            return 1
-        fi
-    else
-        if pylint --rcfile pyproject.toml "$BACKEND_DIR" --score=no 2>/dev/null; then
-            print_success "Code quality check passed"
-        else
-            print_error "Code quality issues found"
-            FAILED_CHECKS+=("pylint")
-            return 1
-        fi
-    fi
-}
-
 # Run import-linter
 check_import_linter() {
-    print_header "7. Architecture Contracts (import-linter)"
+    print_header "6. Architecture Contracts (import-linter)"
 
     if (cd backend && lint-imports 2>/dev/null); then
         print_success "Architecture contracts satisfied"
@@ -278,7 +250,7 @@ check_import_linter() {
 # Main execution
 main() {
     echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║   Code Quality Validation Script      ║${NC}"
+    echo -e "${BLUE}║   Code Quality Validation (Ruff)      ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 
     if [ "$CHECK_MODE" = "quick" ]; then
@@ -293,10 +265,9 @@ main() {
     # Run all checks (continue even if some fail)
     check_syntax || true
     check_import_locations || true
-    check_black || true
-    check_isort || true
+    check_ruff_format || true
+    check_ruff_lint || true
     check_mypy || true
-    check_pylint || true
     check_import_linter || true
 
     # Summary

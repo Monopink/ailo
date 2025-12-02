@@ -23,38 +23,14 @@
 
 相关参考内容:[Doubao文档目录](references\doubao-docs), [Leancloud文档目录](references\leancloud-docs), [Leancloud示例Web Demo目录](references\leancloud-message-web-demo),[starlette-admin源码及文档](references\starlette-admin)
 
-后端开发前同时了解 [](end\AGENTS.md)
-
-## Docker 和数据库操作
+如果你当前在开发后端，同时了解 [后端规则](backend\AGENTS.md)
+开发小程序，同时了解 [小程序规则](frontend\wx-minipg\AGENTS.md)
 
 ### Docker Compose 基本信息
 
 **工作目录**: `deployment/`
 **配置文件**: `docker-compose.yml`
 **环境变量**: `.env` (位于项目根目录)
-
-### 容器信息（开发环境）
-
-- **数据库容器**: `postgres_db_container`
-  - 数据库名: `says`
-  - 用户名: `says_user`
-  - 端口: `5432`
-  - Volume: `says_dev_postgres_data`
-
-- **后端容器**: `backend_container`
-  - 端口: `8000`
-  - 代码热更新: 已启用，无需频繁重启
-
-### 数据库初始化脚本
-
-**位置**: `backend/database/init/`
-
-执行顺序：
-
-1. `00_init_database.sh` - 初始化脚本（自动执行）
-2. `01_schema.sql` - 数据库表结构
-3. `02_required_data.sql` - 必需的系统数据（开发环境）
-4. `03_sample_data.sql` - 示例测试数据（可选，通过 `LOAD_SAMPLE_DATA` 环境变量控制）
 
 **注意**: 初始化脚本仅在首次创建容器时执行。如需重新初始化，必须删除 volume。
 
@@ -126,6 +102,7 @@
 - 如果新发现或从用户处得到新的要求或流程，有必要持久化记录的，使用简洁的语言更新到相关目录下的 AGENTS.md (没有可以新建)
 - 本文件需要更新的，则更新并使用简洁语言
 - 如果有数据库修改，同步更新 backend\database\init\*.sql 文件和 docs\data-dict\*.md 文档
+- docs\task\* 的文档为临时任务管理文档，只做为任务跟踪使用，完成后不需要更新，不要记录持久化内容
 - 文档更新必须找到正确的位置插入，并去除冗余和过时内容，而不是简单追加
 
 ## MCP

@@ -1,0 +1,35 @@
+{
+  "name": "says-miniprogram",
+  "version": "1.0.0",
+  "description": "Says AI Chat MiniProgram",
+  "scripts": {
+    "lint": "eslint . --ext .ts,.js",
+    "lint:fix": "eslint . --ext .ts,.js --fix",
+    "format": "prettier --write \"**/*.{ts,js,json,wxss,wxml}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json,wxss,wxml}\"",
+    "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint",
+    "test": "npm run check",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0",
+    "miniprogram-api-typings": "^3.12.2",
+    "prettier": "^3.2.0",
+    "typescript": "^5.3.0"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,wxss,wxml}": [
+      "prettier --write"
+    ]
+  }
+}

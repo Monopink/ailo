@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run Python pre-commit hooks for backend
+if command -v pre-commit > /dev/null; then
+  pre-commit run --config=.pre-commit-config.yaml
+else
+  echo "Warning: pre-commit not found, skipping backend checks"
+fi
+
+# Run lint-staged for miniprogram frontend
+if [ -d "frontend/wx-minipg" ]; then
+  cd frontend/wx-minipg || exit 1
+  # Try npx.cmd first (Windows), then npx (Unix)
+  if npx.cmd --version > /dev/null 2>&1; then
+    npx.cmd lint-staged
+  elif npx --version > /dev/null 2>&1; then
+    npx lint-staged
+  else
+    echo "Warning: npx not found, skipping frontend checks"
+    exit 0
+  fi
+fi

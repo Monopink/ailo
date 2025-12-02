@@ -42,7 +42,6 @@ async def create_sms_provider(db: AsyncSession) -> SMSProvider:
     # elif provider_type == "tencent":
     #     return TencentSMSProvider(...)
 
-    else:
-        error_msg = f"Unsupported SMS provider: {provider_type}"
-        logger.error("unsupported_sms_provider", provider=provider_type)
-        raise ValueError(error_msg)
+    error_msg = f"Unsupported SMS provider: {provider_type}"
+    logger.error("unsupported_sms_provider", provider=provider_type)
+    raise ValueError(error_msg)

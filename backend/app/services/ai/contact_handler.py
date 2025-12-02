@@ -4,8 +4,9 @@ AI contact request handler.
 This module evaluates whether an AI persona can accept a contact request.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, cast
+from typing import Any, cast
 
 from enums import AIPersonaStatus, AITemplateStatus, ReusableStatus
 from models.ai.template import AIPersona, AITemplate
@@ -23,8 +24,8 @@ class ContactRequestDecision:
 
     accepted: bool
     reason: str = ""
-    persona: Optional[AIPersona] = None
-    template: Optional[AITemplate] = None
+    persona: AIPersona | None = None
+    template: AITemplate | None = None
 
 
 async def handle_ai_contact_request(
@@ -99,7 +100,7 @@ async def handle_ai_contact_request(
     )
 
 
-async def _lock_persona_by_qiao_id(db: AsyncSession, *, qiao_id: str) -> Optional[AIPersona]:
+async def _lock_persona_by_qiao_id(db: AsyncSession, *, qiao_id: str) -> AIPersona | None:
     """Lock persona row for update by qiao_id."""
 
     stmt = (
@@ -112,7 +113,7 @@ async def _lock_persona_by_qiao_id(db: AsyncSession, *, qiao_id: str) -> Optiona
     return result.scalar_one_or_none()
 
 
-async def _select_template_for_ai_type(db: AsyncSession, *, type_id: int) -> Optional[AITemplate]:
+async def _select_template_for_ai_type(db: AsyncSession, *, type_id: int) -> AITemplate | None:
     """Select a template for the AI type, preferring single-use templates.
 
     Selection strategy:

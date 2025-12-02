@@ -30,7 +30,7 @@ class PresetAsset(AutoIncrementModel):
     )
 
     # Media file ID (references media_files table)
-    file_id: Mapped[Optional[int]] = mapped_column(
+    file_id: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
         comment="Media file ID, references media_files.id",
@@ -40,14 +40,20 @@ class PresetAsset(AutoIncrementModel):
     url: Mapped[str] = mapped_column(String(500), nullable=False, comment="Asset URL")
 
     # Prompt for AI generation
-    prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Generation prompt")
+    prompt: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Generation prompt")
 
     # Description
-    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Description")
+    description: Mapped[str | None] = mapped_column(
+        String(200), nullable=True, comment="Description"
+    )
 
     # Status
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, server_default=text("1"), comment="Status: 1=active, 2=inactive"
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Status: 1=active, 2=inactive",
     )
 
     # Sort order

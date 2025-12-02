@@ -10,8 +10,8 @@ from .router import route_message
 from .validator import validate_message
 
 __all__ = [
-    "parse_to_event",
-    "validate_message",
     "is_duplicate",
+    "parse_to_event",
     "route_message",
+    "validate_message",
 ]

@@ -8,7 +8,10 @@ following the architectural patterns and prototype design specifications.
 import json
 
 from core.database import get_sessionmaker
-from services.admin.testing.instance_chat import AIInstanceChatTestError, ai_instance_chat_test_service
+from services.admin.testing.instance_chat import (
+    AIInstanceChatTestError,
+    ai_instance_chat_test_service,
+)
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.templating import Jinja2Templates
@@ -111,7 +114,7 @@ class AIInstanceChatTestView(CustomView):
                 "custom_views/ai_instance_chat_test.html",
                 {
                     "request": request,
-                    "error": f"加载测试页面失败：{str(e)}",
+                    "error": f"加载测试页面失败：{e!s}",
                     "page_title": "AI 实例测试 - 错误",
                 },
             )
@@ -132,7 +135,7 @@ class AIInstanceChatTestView(CustomView):
                 llm_config_name = get_text_field(form_data, "llm_config_name")
                 test_message = get_text_field(form_data, "test_message")
             except FormFieldError as e:
-                return JSONResponse({"error": f"字段校验失败：{str(e)}"}, status_code=400)
+                return JSONResponse({"error": f"字段校验失败：{e!s}"}, status_code=400)
 
             # Validate message content
             if not test_message.strip():
@@ -150,7 +153,9 @@ class AIInstanceChatTestView(CustomView):
                         if isinstance(parsed, dict):
                             mock_overrides = parsed
                     except Exception:
-                        return JSONResponse({"error": "mock_overrides_json 不是合法 JSON"}, status_code=400)
+                        return JSONResponse(
+                            {"error": "mock_overrides_json 不是合法 JSON"}, status_code=400
+                        )
 
                 # Persist switch (default ON)
                 persist_raw = form_data.get("persist")
@@ -259,7 +264,7 @@ class AIInstanceChatTestView(CustomView):
                 error=str(e),
             )
             return JSONResponse(
-                {"success": False, "error": f"字段校验失败：{str(e)}"},
+                {"success": False, "error": f"字段校验失败：{e!s}"},
                 status_code=400,
             )
 
@@ -286,7 +291,7 @@ class AIInstanceChatTestView(CustomView):
                 exc_info=True,
             )
             return JSONResponse(
-                {"success": False, "error": f"测试请求异常：{str(e)}"},
+                {"success": False, "error": f"测试请求异常：{e!s}"},
                 status_code=500,
             )
 
@@ -317,7 +322,7 @@ class AIInstanceChatTestView(CustomView):
                 error=str(e),
             )
             return JSONResponse(
-                {"error": f"获取测试自检状态失败：{str(e)}"},
+                {"error": f"获取测试自检状态失败：{e!s}"},
                 status_code=500,
             )
 
@@ -346,7 +351,7 @@ class AIInstanceChatTestView(CustomView):
 
         except Exception as e:
             logger.error("archive_conversations_failed", instance_id=instance_id_str, error=str(e))
-            return JSONResponse({"success": False, "error": f"归档失败：{str(e)}"}, status_code=500)
+            return JSONResponse({"success": False, "error": f"归档失败：{e!s}"}, status_code=500)
 
 
 # Create view instance

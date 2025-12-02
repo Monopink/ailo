@@ -4,7 +4,7 @@ LLM configuration model.
 This module contains the LLMConfig SQLAlchemy model.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from models.base import AutoIncrementModel
 from sqlalchemy import DECIMAL, Boolean, CheckConstraint, Index, Integer, String, text
@@ -38,22 +38,25 @@ class LLMConfig(AutoIncrementModel):
     )
 
     name: Mapped[str] = mapped_column(
-        String(50), nullable=False, unique=True, comment="Configuration name (primary, backup, test, etc.)"
+        String(50),
+        nullable=False,
+        unique=True,
+        comment="Configuration name (primary, backup, test, etc.)",
     )
 
-    model_name: Mapped[Optional[str]] = mapped_column(
+    model_name: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Specific model name (optional)"
     )
 
-    temperature: Mapped[Optional[float]] = mapped_column(
+    temperature: Mapped[float | None] = mapped_column(
         DECIMAL(3, 2),
         nullable=True,
         comment="Temperature parameter (0.0-2.0)",
     )
 
-    max_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Maximum tokens")
+    max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="Maximum tokens")
 
-    timeout_seconds: Mapped[Optional[int]] = mapped_column(
+    timeout_seconds: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Timeout in seconds"
     )
 
@@ -89,7 +92,7 @@ class LLMConfig(AutoIncrementModel):
         comment="Presence penalty [-2, 2]. Encourages new topics based on token presence.",
     )
 
-    stop_sequences: Mapped[List[str]] = mapped_column(
+    stop_sequences: Mapped[list[str]] = mapped_column(
         JSONB,
         nullable=False,
         default=list,
@@ -97,13 +100,13 @@ class LLMConfig(AutoIncrementModel):
         comment="Stop sequences (max 4 strings). Model stops when encountering these strings.",
     )
 
-    json_schema_mode: Mapped[Optional[str]] = mapped_column(
+    json_schema_mode: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,
         comment="JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified",
     )
 
-    default_tools: Mapped[List[Dict[str, Any]]] = mapped_column(
+    default_tools: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=False,
         default=list,
@@ -135,7 +138,7 @@ class LLMConfig(AutoIncrementModel):
         comment="Maximum number of tool calls per request",
     )
 
-    default_extra_headers: Mapped[Dict[str, Any]] = mapped_column(
+    default_extra_headers: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         default=dict,
@@ -143,7 +146,7 @@ class LLMConfig(AutoIncrementModel):
         comment="Default extra headers passed to the provider",
     )
 
-    default_extra_query: Mapped[Dict[str, Any]] = mapped_column(
+    default_extra_query: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         default=dict,
@@ -175,7 +178,7 @@ class LLMConfig(AutoIncrementModel):
         comment="Priority for failover (lower number = higher priority)",
     )
 
-    extra_params: Mapped[Optional[dict]] = mapped_column(
+    extra_params: Mapped[dict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Provider-specific parameters (e.g., max_completion_tokens, service_tier)",
@@ -184,12 +187,16 @@ class LLMConfig(AutoIncrementModel):
     # Indexes and constraints
     __table_args__ = (
         Index("idx_llm_configs_provider_id", "provider_id"),
-        CheckConstraint("thinking_mode IN ('enabled', 'disabled', 'auto')", name="check_thinking_mode"),
+        CheckConstraint(
+            "thinking_mode IN ('enabled', 'disabled', 'auto')", name="check_thinking_mode"
+        ),
         CheckConstraint("top_p >= 0 AND top_p <= 1", name="check_top_p"),
         CheckConstraint(
             "frequency_penalty >= -2 AND frequency_penalty <= 2", name="check_frequency_penalty"
         ),
-        CheckConstraint("presence_penalty >= -2 AND presence_penalty <= 2", name="check_presence_penalty"),
+        CheckConstraint(
+            "presence_penalty >= -2 AND presence_penalty <= 2", name="check_presence_penalty"
+        ),
         CheckConstraint(
             "default_tool_choice IN ('auto', 'none', 'required')",
             name="check_default_tool_choice",

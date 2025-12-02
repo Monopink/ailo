@@ -5,7 +5,6 @@ Logs SMS to application logs for testing purposes.
 """
 
 import time
-from typing import Optional, Tuple
 
 from utils.logging import get_logger
 
@@ -53,7 +52,7 @@ class MockSMSProvider:
 
         return SMSResult(success=True, provider_id=provider_id, error_code=None, error_message=None)
 
-    async def check_health(self) -> Tuple[bool, Optional[str]]:
+    async def check_health(self) -> tuple[bool, str | None]:
         """
         Check provider health (always healthy for mock).
 

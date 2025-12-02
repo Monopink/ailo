@@ -3,7 +3,7 @@ Admin AI Dimension API endpoints.
 Handles dimension queries and relationship mappings.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from core.database import get_db
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,8 +22,8 @@ dimension_router = APIRouter()
 
 @dimension_router.post("/ai-dimensions/by-names")
 async def get_dimensions_by_names(
-    data: Dict[str, Any], db: AsyncSession = Depends(get_db)
-) -> List[Dict[str, Any]]:
+    data: dict[str, Any], db: AsyncSession = Depends(get_db)
+) -> list[dict[str, Any]]:
     """Get dimension details by names."""
 
     names = data.get("names", [])
@@ -52,7 +52,7 @@ async def list_dimension_relationship_mappings(
     limit: int | None = None,
     dimension_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List dimension relationship mappings for a style (admin API replacement for CustomView)."""
     try:
         items = await admin_get_dimension_relationship_mappings(
@@ -67,4 +67,6 @@ async def list_dimension_relationship_mappings(
             dimension_id=dimension_id,
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail="Failed to list dimension relationship mappings")
+        raise HTTPException(
+            status_code=500, detail="Failed to list dimension relationship mappings"
+        )

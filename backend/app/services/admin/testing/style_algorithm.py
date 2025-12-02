@@ -4,7 +4,7 @@ Admin style algorithm testing service.
 Provides testing functionality for AI style score mapping and relationship selection.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from enums.common import PositionMappingAlgorithm
 from services.ai.relationship_selection import collect_candidates, select_final_relationship
@@ -26,8 +26,8 @@ V1_PARAM_SPECS = get_algorithm_param_specs(PositionMappingAlgorithm.V1.value).ge
 
 
 async def run_style_score_test(
-    db: AsyncSession, *, style_id: int, form_data: Dict[str, Any]
-) -> Dict[str, Any]:
+    db: AsyncSession, *, style_id: int, form_data: dict[str, Any]
+) -> dict[str, Any]:
     """
     Execute per-dimension mapping + offset + candidate selection for style test.
 
@@ -49,7 +49,7 @@ async def run_style_score_test(
         return {"success": False, "message": "No dimensions configured for this style"}
 
     # current relationship id (optional)
-    current_relationship_id: Optional[int] = None
+    current_relationship_id: int | None = None
     raw_current_rel = form_data.get("current_relationship")
     if raw_current_rel:
         try:
@@ -57,8 +57,8 @@ async def run_style_score_test(
         except Exception:
             return {"success": False, "message": "Invalid current_relationship value"}
 
-    dimension_results: List[Dict[str, Any]] = []
-    all_candidates: List[Dict[str, Any]] = []
+    dimension_results: list[dict[str, Any]] = []
+    all_candidates: list[dict[str, Any]] = []
 
     for dim in dims:
         dim_name = dim.name
@@ -68,10 +68,10 @@ async def run_style_score_test(
         except Exception:
             return {"success": False, "message": f"Invalid algorithm for {dim.display_name}"}
 
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if algorithm == PositionMappingAlgorithm.V1.value:
-            raw_params: Dict[str, Any] = {}
-            missing_fields: List[str] = []
+            raw_params: dict[str, Any] = {}
+            missing_fields: list[str] = []
             for spec in V1_PARAM_SPECS:
                 field_key = f"{spec['name']}_{dim_name}"
                 raw_value = form_data.get(field_key)
@@ -89,7 +89,10 @@ async def run_style_score_test(
             try:
                 params = parse_algorithm_params(PositionMappingAlgorithm.V1, raw_params)
             except ValueError as exc:
-                return {"success": False, "message": f"Invalid V1 parameters for {dim.display_name}: {exc}"}
+                return {
+                    "success": False,
+                    "message": f"Invalid V1 parameters for {dim.display_name}: {exc}",
+                }
 
         # Scores and ranges
         try:
@@ -134,7 +137,9 @@ async def run_style_score_test(
             )
             if current_in_candidates:
                 candidates = [
-                    c for c in candidates if int(c.get("relationship_id")) == int(current_relationship_id)
+                    c
+                    for c in candidates
+                    if int(c.get("relationship_id")) == int(current_relationship_id)
                 ]
 
         all_candidates.extend(candidates)
@@ -158,7 +163,7 @@ async def run_style_score_test(
 
     # Aggregate unique candidates (dedupe by relationship_id tracking max priority)
     # Build mapping from relationship_id to source dimension display names
-    rel_to_dims: Dict[int, set] = {}
+    rel_to_dims: dict[int, set] = {}
     for dr in dimension_results:
         dims_disp = dr.get("dimension_display_name")
         for c in dr.get("candidates", []) or []:
@@ -171,7 +176,7 @@ async def run_style_score_test(
             if dims_disp:
                 rel_to_dims[rrid].add(str(dims_disp))
 
-    unique: Dict[int, Dict[str, Any]] = {}
+    unique: dict[int, dict[str, Any]] = {}
     for c in all_candidates:
         rid = int(c["relationship_id"])
         pr = int(c.get("priority", 0))
@@ -187,8 +192,7 @@ async def run_style_score_test(
                 ),
             }
         unique[rid]["count"] += 1
-        if pr > unique[rid]["max_priority"]:
-            unique[rid]["max_priority"] = pr
+        unique[rid]["max_priority"] = max(pr, unique[rid]["max_priority"])
 
     all_unique_candidates = list(unique.values())
 

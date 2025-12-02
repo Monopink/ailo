@@ -5,11 +5,17 @@ This module contains SQLAlchemy models for AI instances and conversation context
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from enums.common import ConversationItemContextStatus
 from markupsafe import escape
-from models.base import Base, ImmutableSnowflakeModel, SnowflakeModel, SnowflakeQiaoModel, TimestampMixin
+from models.base import (
+    Base,
+    ImmutableSnowflakeModel,
+    SnowflakeModel,
+    SnowflakeQiaoModel,
+    TimestampMixin,
+)
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -44,7 +50,9 @@ class AIInstance(SnowflakeQiaoModel):
         BigInteger, nullable=False, comment="Owning user ID, references users.id"
     )
 
-    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Owning user qiao_id")
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Owning user qiao_id"
+    )
 
     style_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Style ID, references ai_styles.id"
@@ -54,7 +62,7 @@ class AIInstance(SnowflakeQiaoModel):
         Integer, nullable=False, comment="Personality ID, references ai_personalities.id"
     )
 
-    creation_metadata: Mapped[Dict[str, Any]] = mapped_column(
+    creation_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         server_default=text("'{}'::jsonb"),
@@ -69,15 +77,17 @@ class AIInstance(SnowflakeQiaoModel):
         comment="Status: 1=active, 2=inactive, 3=blocked",
     )
 
-    memory: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Instance-specific memory")
+    memory: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="Instance-specific memory"
+    )
 
-    prompt_variables: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    prompt_variables: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
-    request_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    request_params: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="AI instance request parameter overrides (LLM settings)",
@@ -89,11 +99,11 @@ class AIInstance(SnowflakeQiaoModel):
         comment="Typing speed (words per minute) used for message delays",
     )
 
-    relationship_id: Mapped[Optional[int]] = mapped_column(
+    relationship_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Current relationship type ID"
     )
 
-    relationship_counts: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    relationship_counts: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         server_default=text("'{}'::jsonb"),
@@ -134,7 +144,7 @@ class AIInstance(SnowflakeQiaoModel):
         lazy="select",
         viewonly=True,
     )
-    instance_dimensions: Mapped[List["AIInstanceDimension"]] = relationship(
+    instance_dimensions: Mapped[list["AIInstanceDimension"]] = relationship(
         "AIInstanceDimension",
         primaryjoin="AIInstance.id == foreign(AIInstanceDimension.instance_id)",
         lazy="select",
@@ -168,7 +178,9 @@ class AIMessageBuffer(SnowflakeModel):
 
     __tablename__ = "ai_message_buffer"
 
-    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="User external ID"
+    )
     instance_qiao_id: Mapped[str] = mapped_column(
         String(32), nullable=False, comment="Instance external ID"
     )
@@ -177,34 +189,38 @@ class AIMessageBuffer(SnowflakeModel):
         nullable=False,
         comment="Buffer state: 0=WAITING_WAKEUP, 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED",
     )
-    micro_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+    micro_expires_at_ms: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Micro timer expiration timestamp (ms)"
     )
-    macro_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+    macro_expires_at_ms: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Macro timer expiration timestamp (ms)"
     )
-    buffer_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+    buffer_expires_at_ms: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Next timer deadline (min of micro/macro)"
     )
-    last_message_category: Mapped[Optional[str]] = mapped_column(
+    last_message_category: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="Last inbound message category"
     )
-    first_msg_id_client: Mapped[Optional[str]] = mapped_column(
+    first_msg_id_client: Mapped[str | None] = mapped_column(
         String(64), nullable=True, comment="First client message ID within buffer"
     )
-    last_msg_id_client: Mapped[Optional[str]] = mapped_column(
+    last_msg_id_client: Mapped[str | None] = mapped_column(
         String(64), nullable=True, comment="Last client message ID within buffer"
     )
     message_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, server_default=text("1"), comment="Number of messages in buffer"
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Number of messages in buffer",
     )
-    last_msg_time_ms: Mapped[Optional[int]] = mapped_column(
+    last_msg_time_ms: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Timestamp (ms) of last message appended to buffer"
     )
-    locked_at: Mapped[Optional[datetime]] = mapped_column(
+    locked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Timestamp when buffer entered LOCKED state"
     )
-    wake_expires_at_ms: Mapped[Optional[int]] = mapped_column(
+    wake_expires_at_ms: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
         comment="Wake timer expiration (ms), NULL if already awake or in OPEN state",
@@ -218,7 +234,12 @@ class AIMessageBuffer(SnowflakeModel):
     )
 
     __table_args__ = (
-        Index("idx_ai_message_buffer_session_state", "user_qiao_id", "instance_qiao_id", "aggregate_state"),
+        Index(
+            "idx_ai_message_buffer_session_state",
+            "user_qiao_id",
+            "instance_qiao_id",
+            "aggregate_state",
+        ),
         Index(
             "idx_ai_message_buffer_micro",
             "micro_expires_at_ms",
@@ -256,7 +277,9 @@ class AIConversationItem(ImmutableSnowflakeModel):
 
     __tablename__ = "ai_conversation_items"
 
-    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="User external ID"
+    )
     instance_qiao_id: Mapped[str] = mapped_column(
         String(32), nullable=False, comment="Instance external ID"
     )
@@ -270,29 +293,29 @@ class AIConversationItem(ImmutableSnowflakeModel):
         server_default=text("'text'"),
         comment="Message type: text/image/audio",
     )
-    text_content: Mapped[Optional[str]] = mapped_column(
+    text_content: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="Plain text content (for message_type=text)",
     )
-    media_url: Mapped[Optional[str]] = mapped_column(
+    media_url: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="Media URL for image/audio messages",
     )
-    media_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    media_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Media metadata (dimensions, transcript, duration, etc.)",
     )
-    client_msg_ids: Mapped[List[str]] = mapped_column(
+    client_msg_ids: Mapped[list[str]] = mapped_column(
         ARRAY(String(64)),
         nullable=False,
         default=list,
         server_default=text("'{}'::text[]"),
         comment="Client message IDs merged into this row",
     )
-    buffer_id: Mapped[Optional[int]] = mapped_column(
+    buffer_id: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
         comment="Associated buffer ID (references ai_message_buffer.id, no FK constraint)",
@@ -348,13 +371,15 @@ class AIConversationState(Base, TimestampMixin):
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     instance_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    pending_messages: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    pending_messages: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment='Pending messages structure: {"outgoing": [...], "followup": [...], "total_pending": N}',
     )
-    interrupted_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True, comment="Timestamp when the last interruption occurred"
+    interrupted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when the last interruption occurred",
     )
 
     __table_args__ = (Index("idx_ai_conversation_state_updated", "updated_at"),)
@@ -365,7 +390,9 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
 
     __tablename__ = "ai_conversation_items_archive"
 
-    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="User external ID"
+    )
     instance_qiao_id: Mapped[str] = mapped_column(
         String(32), nullable=False, comment="Instance external ID"
     )
@@ -379,29 +406,29 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
         server_default=text("'text'"),
         comment="Message type: text/image/audio",
     )
-    text_content: Mapped[Optional[str]] = mapped_column(
+    text_content: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="Plain text content (for message_type=text)",
     )
-    media_url: Mapped[Optional[str]] = mapped_column(
+    media_url: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
         comment="Media URL for image/audio messages",
     )
-    media_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    media_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Media metadata (dimensions, transcript, duration, etc.)",
     )
-    client_msg_ids: Mapped[List[str]] = mapped_column(
+    client_msg_ids: Mapped[list[str]] = mapped_column(
         ARRAY(String(64)),
         nullable=False,
         default=list,
         server_default=text("'{}'::text[]"),
         comment="Client message IDs merged into this row",
     )
-    buffer_id: Mapped[Optional[int]] = mapped_column(
+    buffer_id: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
         comment="Associated buffer ID (references ai_message_buffer.id, no FK constraint)",
@@ -418,5 +445,7 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
     )
 
     __table_args__ = (
-        Index("idx_ai_conv_items_archive_session", "user_qiao_id", "instance_qiao_id", "created_at"),
+        Index(
+            "idx_ai_conv_items_archive_session", "user_qiao_id", "instance_qiao_id", "created_at"
+        ),
     )

@@ -2,7 +2,7 @@
 API dependencies for authentication and authorization.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from core.database import get_db
 from crud.user import user as user_crud
@@ -143,7 +143,8 @@ async def require_message_rate_limit(user_id: str, db: AsyncSession = Depends(ge
 
 
 async def require_captcha_if_needed(
-    auth_type: str, token_field: str = "captcha_token"  # 'admin' or 'user'
+    auth_type: str,
+    token_field: str = "captcha_token",  # 'admin' or 'user'
 ):
     """
     Conditional CAPTCHA verification dependency factory.
@@ -173,7 +174,9 @@ async def require_captcha_if_needed(
             is_valid, error = await provider.verify_token(token, ip)
 
             if not is_valid:
-                logger.warning("captcha_verification_failed", ip=ip, auth_type=auth_type, error=error)
+                logger.warning(
+                    "captcha_verification_failed", ip=ip, auth_type=auth_type, error=error
+                )
                 raise HTTPException(status_code=400, detail=f"验证失败: {error}")
 
             logger.info("captcha_verification_success", ip=ip, auth_type=auth_type)
@@ -199,34 +202,46 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     # 1. Get token from Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="登录失败", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=401, detail="登录失败", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     token = auth_header[7:]  # Remove "Bearer " prefix
 
     # 2. Get token from database
     user_token = await token_crud.get_by_token(db, token=token)
     if not user_token:
-        raise HTTPException(status_code=401, detail="登录失败", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=401, detail="登录失败", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     # 3. Check token status
     if user_token.status != 1:
-        raise HTTPException(status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     # 4. Check token expiration
-    if user_token.expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"})
+    if user_token.expires_at < datetime.now(UTC):
+        raise HTTPException(
+            status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     # 5. Get user
     user = await user_crud.get_by_qiao_id(db, qiao_id=user_token.user_qiao_id)
     if not user:
-        raise HTTPException(status_code=401, detail="用户不存在", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=401, detail="用户不存在", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     # 6. Check user status
     if not await user_crud.is_active(user):
-        raise HTTPException(status_code=401, detail="账号已被禁用", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=401, detail="账号已被禁用", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     # 7. Update last_activity_at
-    user_token.last_activity_at = datetime.now(timezone.utc)
+    user_token.last_activity_at = datetime.now(UTC)
     db.add(user_token)
     await db.commit()
 

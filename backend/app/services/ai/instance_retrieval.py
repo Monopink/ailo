@@ -5,7 +5,7 @@ This module handles instance information retrieval and validation
 with clear error handling and single responsibility principle.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from exceptions import AIInstanceInactiveError, AIInstanceNotFoundError
 from services.ai.types import InstanceContext
@@ -43,16 +43,15 @@ async def get_instance_info(db: AsyncSession, instance_qiao_id: str) -> Instance
             raise AIInstanceInactiveError(
                 instance_id=instance_qiao_id, status=instance_status, message="Instance is inactive"
             )
-        elif instance_status == 3:
+        if instance_status == 3:
             raise AIInstanceInactiveError(
                 instance_id=instance_qiao_id, status=instance_status, message="Instance is blocked"
             )
-        else:
-            raise AIInstanceInactiveError(
-                instance_id=instance_qiao_id,
-                status=instance_status,
-                message=f"Instance has invalid status {instance_status}",
-            )
+        raise AIInstanceInactiveError(
+            instance_id=instance_qiao_id,
+            status=instance_status,
+            message=f"Instance has invalid status {instance_status}",
+        )
 
     logger.debug(
         "instance_info_retrieved",
@@ -79,19 +78,18 @@ async def validate_instance_status(instance: Any) -> None:
             raise AIInstanceInactiveError(
                 instance_id=instance.qiao_id, status=instance.status, message="Instance is inactive"
             )
-        elif instance.status == 3:
+        if instance.status == 3:
             raise AIInstanceInactiveError(
                 instance_id=instance.qiao_id, status=instance.status, message="Instance is blocked"
             )
-        else:
-            raise AIInstanceInactiveError(
-                instance_id=instance.qiao_id,
-                status=instance.status,
-                message=f"Instance has invalid status {instance.status}",
-            )
+        raise AIInstanceInactiveError(
+            instance_id=instance.qiao_id,
+            status=instance.status,
+            message=f"Instance has invalid status {instance.status}",
+        )
 
 
-async def get_instance_configuration(db: AsyncSession, instance_id: int) -> Dict[str, Any]:
+async def get_instance_configuration(db: AsyncSession, instance_id: int) -> dict[str, Any]:
     """
     Get instance configuration including personality and style.
 
@@ -120,4 +118,4 @@ async def get_instance_configuration(db: AsyncSession, instance_id: int) -> Dict
 
     except Exception as e:
         logger.error("instance_configuration_failed", error=str(e), instance_id=instance_id)
-        raise RuntimeError(f"Failed to get instance configuration: {str(e)}")
+        raise RuntimeError(f"Failed to get instance configuration: {e!s}")

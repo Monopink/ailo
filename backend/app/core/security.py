@@ -4,8 +4,7 @@ Security utilities for authentication and password management.
 
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from core.config import get_settings
@@ -57,7 +56,7 @@ def generate_password(length: int = 12) -> str:
     return password
 
 
-def create_access_token(subject: Union[str, int], expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(subject: str | int, expires_delta: timedelta | None = None) -> str:
     """
     Create a JWT access token.
 
@@ -70,16 +69,16 @@ def create_access_token(subject: Union[str, int], expires_delta: Optional[timede
     """
     settings = get_settings()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode = {"exp": expire, "sub": str(subject)}
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
 
-def decode_access_token(token: str) -> Optional[dict]:
+def decode_access_token(token: str) -> dict | None:
     """
     Decode and verify a JWT access token.
 

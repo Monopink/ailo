@@ -269,9 +269,13 @@ class ThemeSwitchView(CustomView):
         mode = str(request.path_params.get("mode", "light")).lower()
         if mode not in ("light", "dark", "auto"):
             mode = "light"
-        referer = request.headers.get("referer") or str(request.url_for(self.admin.route_name + ":index"))
+        referer = request.headers.get("referer") or str(
+            request.url_for(self.admin.route_name + ":index")
+        )
         response = RedirectResponse(url=referer, status_code=303)
-        response.set_cookie("qiao_admin_theme", mode, max_age=60 * 60 * 24 * 365, path="/", samesite="lax")
+        response.set_cookie(
+            "qiao_admin_theme", mode, max_age=60 * 60 * 24 * 365, path="/", samesite="lax"
+        )
         return response
 
 
@@ -302,7 +306,7 @@ def _create_admin(settings: Settings) -> Admin:
     return admin_instance
 
 
-@lru_cache()
+@lru_cache
 def get_admin() -> Admin:
     """Return cached Admin application instance."""
 

@@ -4,8 +4,6 @@ Discovery API endpoints.
 This module contains API endpoints for discovery page operations.
 """
 
-from typing import Optional
-
 from api.deps import get_current_user
 from core.database import get_db
 from enums import SquareCategory
@@ -28,9 +26,11 @@ router = APIRouter(prefix="/discovery", tags=["Discovery"])
     description="Get AI contacts for square page with pagination support",
 )
 async def get_square_contacts(
-    category: Optional[int] = Query(None, ge=1, le=5, description="Category filter (1-5, null for all)"),
+    category: int | None = Query(
+        None, ge=1, le=5, description="Category filter (1-5, null for all)"
+    ),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: Optional[int] = Query(
+    page_size: int | None = Query(
         None, ge=1, le=50, description="Items per page (default from config, max 50)"
     ),
     current_user: User = Depends(get_current_user),
@@ -44,8 +44,12 @@ async def get_square_contacts(
             try:
                 category_enum = SquareCategory(category)
             except ValueError:
-                logger.warning("invalid_category", user_qiao_id=current_user.qiao_id, category=category)
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的分类参数")
+                logger.warning(
+                    "invalid_category", user_qiao_id=current_user.qiao_id, category=category
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="无效的分类参数"
+                )
 
         return await discovery_service.get_square_contacts(
             db=db,
@@ -58,7 +62,9 @@ async def get_square_contacts(
         error_msg = str(e)
         if "too frequent" in error_msg.lower():
             logger.warning("square_rate_limit", user_qiao_id=current_user.qiao_id, error=error_msg)
-            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁"
+            )
         logger.error("square_validation_error", user_qiao_id=current_user.qiao_id, error=error_msg)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请求参数错误")
     except Exception as e:

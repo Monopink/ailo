@@ -64,7 +64,9 @@ async def get_user_profile(
         return response
 
     except Exception as e:
-        logger.error("get_user_profile_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True)
+        logger.error(
+            "get_user_profile_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True
+        )
         raise HTTPException(status_code=500, detail="获取用户资料失败，请稍后再试") from e
 
 
@@ -111,7 +113,9 @@ async def get_user_account(
         return response
 
     except Exception as e:
-        logger.error("get_user_account_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True)
+        logger.error(
+            "get_user_account_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True
+        )
         raise HTTPException(status_code=500, detail="获取账户信息失败，请稍后再试") from e
 
 

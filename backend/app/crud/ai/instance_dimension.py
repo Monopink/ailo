@@ -4,7 +4,7 @@ AI Instance Dimension CRUD operations.
 This module provides CRUD operations for AI instance dimension scores.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from models.ai.instance import AIInstance
 from models.ai.instance_dimension import AIInstanceDimension
@@ -17,7 +17,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def get_by_instance(db: AsyncSession, instance_id: int) -> List[Dict[str, Any]]:
+async def get_by_instance(db: AsyncSession, instance_id: int) -> list[dict[str, Any]]:
     """Get all dimensions for an instance with style dimension info."""
     try:
         stmt = (
@@ -47,7 +47,7 @@ async def get_by_instance(db: AsyncSession, instance_id: int) -> List[Dict[str, 
 
 
 async def update_dimension(
-    db: AsyncSession, instance_id: int, dimension_id: int, update_data: Dict[str, Any]
+    db: AsyncSession, instance_id: int, dimension_id: int, update_data: dict[str, Any]
 ) -> bool:
     """Update a single dimension."""
     try:
@@ -59,7 +59,9 @@ async def update_dimension(
         dimension = result.scalar_one_or_none()
 
         if not dimension:
-            logger.warning("dimension_not_found", instance_id=instance_id, dimension_id=dimension_id)
+            logger.warning(
+                "dimension_not_found", instance_id=instance_id, dimension_id=dimension_id
+            )
             return False
 
         for key, value in update_data.items():
@@ -70,15 +72,18 @@ async def update_dimension(
         return True
     except Exception as e:
         logger.error(
-            "update_dimension_failed", instance_id=instance_id, dimension_id=dimension_id, error=str(e)
+            "update_dimension_failed",
+            instance_id=instance_id,
+            dimension_id=dimension_id,
+            error=str(e),
         )
         await db.rollback()
         return False
 
 
 async def update_dimensions_batch(
-    db: AsyncSession, instance_id: int, dimensions_data: List[Dict[str, Any]]
-) -> Dict[str, int]:
+    db: AsyncSession, instance_id: int, dimensions_data: list[dict[str, Any]]
+) -> dict[str, int]:
     """
     Batch update/create instance dimensions.
 
@@ -95,9 +100,10 @@ async def update_dimensions_batch(
         {"updated": int, "created": int}
     """
     try:
-
         # Resolve instance style_id
-        style_res = await db.execute(select(AIInstance.style_id).where(AIInstance.id == instance_id))
+        style_res = await db.execute(
+            select(AIInstance.style_id).where(AIInstance.id == instance_id)
+        )
         style_id = style_res.scalar_one_or_none()
         if style_id is None:
             logger.error("instance_style_not_found", instance_id=instance_id)
@@ -120,10 +126,13 @@ async def update_dimensions_batch(
         dimension_ids = [d["dimension_id"] for d in dimensions_data]
         if dimension_ids:
             stmt = select(AIStyleDimension).where(
-                (AIStyleDimension.style_id == style_id) & (AIStyleDimension.dimension_id.in_(dimension_ids))
+                (AIStyleDimension.style_id == style_id)
+                & (AIStyleDimension.dimension_id.in_(dimension_ids))
             )
             result = await db.execute(stmt)
-            style_dimensions = {dim.dimension_id: dim.initial_position for dim in result.scalars().all()}
+            style_dimensions = {
+                dim.dimension_id: dim.initial_position for dim in result.scalars().all()
+            }
         else:
             style_dimensions = {}
 
@@ -203,6 +212,8 @@ async def update_dimensions_batch(
         return {"updated": updated, "created": created}
 
     except Exception as e:
-        logger.error("update_dimensions_batch_failed", instance_id=instance_id, error=str(e), exc_info=True)
+        logger.error(
+            "update_dimensions_batch_failed", instance_id=instance_id, error=str(e), exc_info=True
+        )
         await db.rollback()
         raise

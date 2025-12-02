@@ -7,7 +7,7 @@ a single source of truth for inbound/outbound message payloads.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from enums import MessageType
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,23 +21,23 @@ class EventMetadata(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    action: Optional[Dict[str, Any]] = Field(
+    action: dict[str, Any] | None = Field(
         default=None,
         description="Client action payload (e.g., navigate targets for notifications)",
     )
-    notification_type: Optional[int] = Field(
+    notification_type: int | None = Field(
         default=None,
         description="Notification type enum value",
     )
-    rate_limit_bucket: Optional[str] = Field(
+    rate_limit_bucket: str | None = Field(
         default=None,
         description="Indicates which rate-limit window (e.g., 10s/60s) applied",
     )
-    encryption: Optional[str] = Field(
+    encryption: str | None = Field(
         default=None,
         description="Transport encryption algorithm identifier",
     )
-    encryption_version: Optional[str] = Field(
+    encryption_version: str | None = Field(
         default=None,
         description="Encryption schema version",
     )
@@ -53,9 +53,9 @@ class ProviderMetadata(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    lc_from: Optional[str] = None
-    lc_conv_id: Optional[str] = None
-    raw_webhook: Optional[str] = Field(
+    lc_from: str | None = None
+    lc_conv_id: str | None = None
+    raw_webhook: str | None = Field(
         default=None,
         description="Raw webhook payload for auditing",
     )
@@ -74,18 +74,18 @@ class BaseMessageEvent(BaseModel):
     to_qiao_id: str
     content: str = Field(default="", description="Textual content, optional for control frames")
     sent_at_ms: int = Field(..., description="Event timestamp in milliseconds")
-    msg_id_server: Optional[str] = Field(
+    msg_id_server: str | None = Field(
         default=None,
         description="Server-assigned Snowflake ID; set before persistence",
     )
-    msg_id_client: Optional[str] = Field(
+    msg_id_client: str | None = Field(
         default=None,
         description="Client-generated ID (required for inbound user messages)",
     )
-    msg_id_provider_inbound: Optional[str] = None
-    msg_id_provider_outbound: Optional[str] = None
+    msg_id_provider_inbound: str | None = None
+    msg_id_provider_outbound: str | None = None
     supports_typing: bool = True
-    client_sent_time: Optional[int] = Field(
+    client_sent_time: int | None = Field(
         default=None,
         description="Original client timestamp (if provided)",
     )
@@ -108,7 +108,7 @@ class OutboundMessageEvent(BaseMessageEvent):
     """System/AI → user outbound event."""
 
     event_type: Literal["outbound_message"] = Field(default="outbound_message", frozen=True)
-    msg_id_provider_outbound: Optional[str] = Field(
+    msg_id_provider_outbound: str | None = Field(
         default=None,
         description="Outbound provider ID (set after provider send succeeds)",
     )

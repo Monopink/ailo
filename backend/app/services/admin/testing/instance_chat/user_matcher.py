@@ -5,7 +5,7 @@ Provides utilities to list and validate user contacts that can be used for
 chat testing with AI instances.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from crud.profile import profile as profile_crud
 from enums import ContactType, ProfileOwnerType, UserType
@@ -25,7 +25,7 @@ class UserMatcherError(Exception):
     """Exception raised when test user matching fails"""
 
     def __init__(
-        self, message: str, error_code: str = "USER_MATCHER_ERROR", suggestions: Optional[list] = None
+        self, message: str, error_code: str = "USER_MATCHER_ERROR", suggestions: list | None = None
     ):
         self.message = message
         self.error_code = error_code
@@ -38,7 +38,7 @@ class UserMatcherService:
 
     async def _fetch_instance_owner(
         self, db: AsyncSession, instance_context: InstanceContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Load the owning user for this instance."""
         stmt = (
             select(User, Profile)
@@ -77,8 +77,8 @@ class UserMatcherService:
         self,
         db: AsyncSession,
         instance_context: InstanceContext,
-        preferred_user_qiao_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        preferred_user_qiao_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Find and validate test user associated with the given AI instance.
 
@@ -99,7 +99,9 @@ class UserMatcherService:
             )
 
         contacts = await self._fetch_instance_contacts(db, instance_context["instance_qiao_id"])
-        selected_contact = next((c for c in contacts if c["user_qiao_id"] == owner["user_qiao_id"]), None)
+        selected_contact = next(
+            (c for c in contacts if c["user_qiao_id"] == owner["user_qiao_id"]), None
+        )
 
         test_user_info = {
             "id": owner["user_id"],
@@ -144,9 +146,9 @@ class UserMatcherService:
     async def _ensure_test_user_profile(
         self,
         db: AsyncSession,
-        test_user_info: Dict[str, Any],
-        existing_profile: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        test_user_info: dict[str, Any],
+        existing_profile: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Ensure test user profile exists; auto-create empty profile when missing.
         """
@@ -180,7 +182,7 @@ class UserMatcherService:
 
     async def _fetch_instance_contacts(
         self, db: AsyncSession, instance_qiao_id: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Load all active user contacts linked to this AI instance.
         """
@@ -204,7 +206,7 @@ class UserMatcherService:
         )
 
         rows = await db.execute(stmt)
-        contacts: List[Dict[str, Any]] = []
+        contacts: list[dict[str, Any]] = []
         for contact, user, profile in rows.all():
             contacts.append(
                 {
@@ -228,4 +230,4 @@ class UserMatcherService:
 
 user_matcher_service = UserMatcherService()
 
-__all__ = ["UserMatcherService", "UserMatcherError", "user_matcher_service"]
+__all__ = ["UserMatcherError", "UserMatcherService", "user_matcher_service"]

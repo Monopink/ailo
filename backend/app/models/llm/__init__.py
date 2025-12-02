@@ -9,7 +9,7 @@ from .provider import LLMProvider
 from .test_log import LLMTestLog
 
 __all__ = [
-    "LLMProvider",
     "LLMConfig",
+    "LLMProvider",
     "LLMTestLog",
 ]

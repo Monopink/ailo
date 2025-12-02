@@ -8,7 +8,8 @@ delegates transport details to provider adapters.
 from __future__ import annotations
 
 import json
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from exceptions.llm import (
     ConfigNotVerifiedError,
@@ -34,16 +35,16 @@ logger = get_logger(__name__)
 
 async def invoke_llm(
     db: AsyncSession,
-    messages: List[Dict[str, Any]],
-    json_schema: Optional[Dict[str, Any]] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    thinking_mode: Optional[str] = None,
-    name: Optional[str] = None,
-    instance_request_params: Optional[Dict[str, Any]] = None,
-    preemption_checker: Optional[Callable[[], Awaitable[bool]]] = None,
-    session_context: Optional[LLMSessionContext] = None,
-) -> Dict[str, Any]:
+    messages: list[dict[str, Any]],
+    json_schema: dict[str, Any] | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    thinking_mode: str | None = None,
+    name: str | None = None,
+    instance_request_params: dict[str, Any] | None = None,
+    preemption_checker: Callable[[], Awaitable[bool]] | None = None,
+    session_context: LLMSessionContext | None = None,
+) -> dict[str, Any]:
     """
     Send an LLM invocation request with automatic provider selection/failover.
 
@@ -137,7 +138,7 @@ async def invoke_llm(
         }
 
 
-async def get_primary_llm_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, LLMProvider]]:
+async def get_primary_llm_config(db: AsyncSession) -> tuple[LLMConfig, LLMProvider] | None:
     """Compatibility helper reused by legacy callers."""
     return await get_primary_config(db)
 
@@ -145,11 +146,11 @@ async def get_primary_llm_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, 
 async def invoke_llm_with_provider(
     db: AsyncSession,
     provider_name: str,
-    messages: List[Dict[str, Any]],
-    json_schema: Optional[Dict[str, Any]] = None,
-    session_context: Optional[LLMSessionContext] = None,
+    messages: list[dict[str, Any]],
+    json_schema: dict[str, Any] | None = None,
+    session_context: LLMSessionContext | None = None,
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Send an LLM invocation request to a specific provider."""
 
     config_result = await get_config_by_provider(db, provider_name)
@@ -177,8 +178,8 @@ async def invoke_llm_with_provider(
 
 async def select_config_for_ai(
     db: AsyncSession,
-    name: Optional[str] = None,
-) -> Tuple[LLMConfig, LLMProvider]:
+    name: str | None = None,
+) -> tuple[LLMConfig, LLMProvider]:
     """
     Select and validate LLM config for AI Instance usage.
 
@@ -270,15 +271,15 @@ async def _call_provider(
     db: AsyncSession,
     config: LLMConfig,
     provider: LLMProvider,
-    messages: List[Dict[str, Any]],
-    json_schema: Optional[Dict[str, Any]],
-    temperature: Optional[float],
-    max_tokens: Optional[int],
-    thinking_mode: Optional[str],
-    instance_request_params: Optional[Dict[str, Any]],
-    preemption_checker: Optional[Callable[[], Awaitable[bool]]],
-    session_context: Optional[LLMSessionContext],
-) -> Dict[str, Any]:
+    messages: list[dict[str, Any]],
+    json_schema: dict[str, Any] | None,
+    temperature: float | None,
+    max_tokens: int | None,
+    thinking_mode: str | None,
+    instance_request_params: dict[str, Any] | None,
+    preemption_checker: Callable[[], Awaitable[bool]] | None,
+    session_context: LLMSessionContext | None,
+) -> dict[str, Any]:
     try:
         overrides = instance_request_params if isinstance(instance_request_params, dict) else {}
         options = await _build_request_options(
@@ -333,7 +334,9 @@ async def _call_provider(
         return {
             "success": True,
             "response": response_content,
-            "raw_content": provider_result.content if isinstance(provider_result.content, str) else None,
+            "raw_content": provider_result.content
+            if isinstance(provider_result.content, str)
+            else None,
             "usage": provider_result.usage,
             "finish_reason": provider_result.finish_reason,
             "model": provider_result.model,
@@ -366,13 +369,13 @@ async def _build_request_options(
     db: AsyncSession,
     config: LLMConfig,
     provider: LLMProvider,
-    messages: List[Dict[str, Any]],
-    json_schema: Optional[Dict[str, Any]],
-    temperature: Optional[float],
-    max_tokens: Optional[int],
-    thinking_mode: Optional[str],
-    instance_request_params: Optional[Dict[str, Any]],
-    session_context: Optional[LLMSessionContext],
+    messages: list[dict[str, Any]],
+    json_schema: dict[str, Any] | None,
+    temperature: float | None,
+    max_tokens: int | None,
+    thinking_mode: str | None,
+    instance_request_params: dict[str, Any] | None,
+    session_context: LLMSessionContext | None,
 ) -> LLMRequestOptions:
     overrides = instance_request_params if isinstance(instance_request_params, dict) else {}
 
@@ -398,7 +401,7 @@ async def _build_request_options(
         overrides, "presence_penalty", default=_to_float(config.presence_penalty, 0.0)
     )
 
-    resolved_stop_sequences: Optional[List[str]] = None
+    resolved_stop_sequences: list[str] | None = None
     override_stops = overrides.get("stop_sequences")
     if isinstance(override_stops, list):
         resolved_stop_sequences = [str(item) for item in override_stops][:4]
@@ -421,17 +424,17 @@ async def _build_request_options(
         else config.max_tool_calls
     )
 
-    extra_headers: Dict[str, Any] = dict(config.default_extra_headers or {})
+    extra_headers: dict[str, Any] = dict(config.default_extra_headers or {})
     override_headers = overrides.get("default_extra_headers")
     if isinstance(override_headers, dict):
         extra_headers.update(override_headers)
 
-    extra_query: Dict[str, Any] = dict(config.default_extra_query or {})
+    extra_query: dict[str, Any] = dict(config.default_extra_query or {})
     override_query = overrides.get("default_extra_query")
     if isinstance(override_query, dict):
         extra_query.update(override_query)
 
-    extra_body: Dict[str, Any] = {}
+    extra_body: dict[str, Any] = {}
     override_body = overrides.get("extra_body")
     if isinstance(override_body, dict):
         extra_body.update(override_body)
@@ -469,14 +472,14 @@ async def _build_request_options(
 
 def _build_caching_options(
     config: LLMConfig,
-    override: Optional[Dict[str, Any]],
+    override: dict[str, Any] | None,
 ) -> LLMCachingOptions:
     """Caching is disabled globally; allow explicit override for testing only."""
 
     enabled = False
     strategy = "none"
-    ttl_seconds: Optional[int] = None
-    previous_response_id: Optional[str] = None
+    ttl_seconds: int | None = None
+    previous_response_id: str | None = None
 
     if isinstance(override, dict):
         if "enabled" in override:
@@ -503,7 +506,7 @@ def _build_caching_options(
     )
 
 
-def _normalize_thinking_mode(value: Optional[str], *, config_name: str) -> Optional[str]:
+def _normalize_thinking_mode(value: str | None, *, config_name: str) -> str | None:
     """
     Responses API does not support legacy thinking flags; normalize or fail fast.
     """
@@ -517,16 +520,16 @@ def _normalize_thinking_mode(value: Optional[str], *, config_name: str) -> Optio
             "Please disable thinking or switch to a provider that supports it."
         )
     raise LLMConfigurationError(
-        f"Unknown thinking_mode '{value}' for config '{config_name}'. " "Allowed values: auto/disabled."
+        f"Unknown thinking_mode '{value}' for config '{config_name}'. "
+        "Allowed values: auto/disabled."
     )
 
 
 async def _get_configs_to_try(
     db: AsyncSession,
-    name: Optional[str],
-) -> List[Tuple[LLMConfig, LLMProvider]]:
+    name: str | None,
+) -> list[tuple[LLMConfig, LLMProvider]]:
     if name:
-
         config_result = await get_llm_config(db, name)
         return [config_result] if config_result else []
 
@@ -534,7 +537,7 @@ async def _get_configs_to_try(
     return await get_active_configs(db, max_priority=MAX_FALLBACK_PRIORITY)
 
 
-def _format_streaming_metadata(decision: LLMStreamingDecision) -> Dict[str, Any]:
+def _format_streaming_metadata(decision: LLMStreamingDecision) -> dict[str, Any]:
     return {
         "requested": decision.requested,
         "used": decision.should_stream,
@@ -543,14 +546,14 @@ def _format_streaming_metadata(decision: LLMStreamingDecision) -> Dict[str, Any]
     }
 
 
-def _extract_float(source: Dict[str, Any], key: str, default: Optional[float]) -> Optional[float]:
+def _extract_float(source: dict[str, Any], key: str, default: float | None) -> float | None:
     value = source.get(key)
     if isinstance(value, (int, float)):
         return float(value)
     return default
 
 
-def _extract_int(source: Dict[str, Any], key: str, default: Optional[int]) -> Optional[int]:
+def _extract_int(source: dict[str, Any], key: str, default: int | None) -> int | None:
     value = source.get(key)
     if isinstance(value, int):
         return value
@@ -559,7 +562,7 @@ def _extract_int(source: Dict[str, Any], key: str, default: Optional[int]) -> Op
     return default
 
 
-def _to_float(value: Optional[Any], default: Optional[float]) -> Optional[float]:
+def _to_float(value: Any | None, default: float | None) -> float | None:
     if value is None:
         return default
     try:

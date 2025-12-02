@@ -10,8 +10,7 @@ the request path for stability.
 """
 
 import asyncio
-from datetime import datetime, timezone
-from typing import List
+from datetime import UTC, datetime
 
 from core.database import get_sessionmaker
 from crud.contact import contact_request as contact_request_crud
@@ -25,7 +24,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def _lock_pending_requests(db: AsyncSession, batch_size: int) -> List[ContactRequest]:
+async def _lock_pending_requests(db: AsyncSession, batch_size: int) -> list[ContactRequest]:
     """
     Lock a batch of pending AI contact requests and mark them as PROCESSING.
 
@@ -42,7 +41,7 @@ async def _lock_pending_requests(db: AsyncSession, batch_size: int) -> List[Cont
             ContactRequest.status == ContactRequestStatus.PENDING,
             ContactRequest.to_type == ContactType.AI,
             ContactRequest.failure_code.is_(None),
-            ContactRequest.expires_at > datetime.now(timezone.utc),  # Filter expired requests
+            ContactRequest.expires_at > datetime.now(UTC),  # Filter expired requests
         )
         .with_for_update(skip_locked=True)
         .limit(batch_size)
@@ -74,7 +73,6 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
     - PROCESSING: AI didn't explicitly accept (fallback to IGNORED)
     """
     try:
-
         # Cache primitive values to avoid expired attributes later
         user_qiao_id = req.from_qiao_id
         user_id = req.from_id

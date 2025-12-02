@@ -7,7 +7,7 @@ delegates client creation/error handling to :class:`OpenAIBaseAdapter`.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from exceptions.llm import LLMConfigurationError, LLMRequestError, LLMTimeoutError
 from models.llm import LLMConfig, LLMProvider
@@ -31,7 +31,7 @@ CAPABILITIES = ProviderCapabilities(
 
 _converter = ResponsesFormatConverter()
 
-_ALLOWED_PARAM_OVERRIDES: Tuple[str, ...] = (
+_ALLOWED_PARAM_OVERRIDES: tuple[str, ...] = (
     "metadata",
     "response_format",
     "reasoning",
@@ -47,7 +47,7 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
     async def build_request_params(
         self,
         options: LLMRequestOptions,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         call_params = _build_responses_call_params(options)
         request_kwargs = _build_request_kwargs(options)
         return {"call_params": call_params, "request_kwargs": request_kwargs}
@@ -55,7 +55,7 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
     async def parse_response(
         self,
         response: Any,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         options: LLMRequestOptions,
     ) -> LLMProviderResult:
         content, tool_calls, reasoning_content = _extract_responses_text(response)
@@ -78,7 +78,7 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
         self,
         *,
         client: AsyncOpenAI,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         options: LLMRequestOptions,
     ) -> Any:
         try:
@@ -96,20 +96,20 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
         self,
         *,
         client: AsyncOpenAI,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         options: LLMRequestOptions,
         preemption_checker,
     ) -> LLMProviderResult:
         call_params = params["call_params"]
         request_kwargs = dict(params["request_kwargs"])
 
-        accumulated_text_parts: List[str] = []
-        accumulated_tool_calls: List[Dict[str, Any]] = []
-        accumulated_reasoning_parts: List[str] = []
+        accumulated_text_parts: list[str] = []
+        accumulated_tool_calls: list[dict[str, Any]] = []
+        accumulated_reasoning_parts: list[str] = []
         final_model = call_params["model"]
-        final_usage: Optional[Dict[str, Any]] = None
-        final_response_id: Optional[str] = None
-        final_finish_reason: Optional[str] = None
+        final_usage: dict[str, Any] | None = None
+        final_response_id: str | None = None
+        final_finish_reason: str | None = None
 
         try:
             stream = await client.responses.create(
@@ -204,11 +204,11 @@ async def send_request(
 # ---------------------------------------------------------------------------
 
 
-def _build_responses_call_params(options: LLMRequestOptions) -> Dict[str, Any]:
+def _build_responses_call_params(options: LLMRequestOptions) -> dict[str, Any]:
     """
     Build the set of direct parameters accepted by Responses API.
     """
-    params: Dict[str, Any] = {
+    params: dict[str, Any] = {
         "model": options.model,
         "input": _converter.convert_to_provider_format(options.messages),
     }
@@ -216,9 +216,9 @@ def _build_responses_call_params(options: LLMRequestOptions) -> Dict[str, Any]:
     if options.caching.previous_response_id:
         params["previous_response_id"] = options.caching.previous_response_id
 
-    model_override = options.provider_overrides.get("model_override") or options.provider_overrides.get(
-        "model"
-    )
+    model_override = options.provider_overrides.get(
+        "model_override"
+    ) or options.provider_overrides.get("model")
     if isinstance(model_override, str):
         params["model"] = model_override
 
@@ -238,7 +238,7 @@ def _build_responses_call_params(options: LLMRequestOptions) -> Dict[str, Any]:
     return params
 
 
-def _build_request_kwargs(options: LLMRequestOptions) -> Dict[str, Any]:
+def _build_request_kwargs(options: LLMRequestOptions) -> dict[str, Any]:
     """
     Build kwargs (extra headers/body/query) for Responses API invocation.
     """
@@ -265,7 +265,7 @@ def _build_request_kwargs(options: LLMRequestOptions) -> Dict[str, Any]:
         extra_body["text"] = _merge_text_format(extra_body.get("text"), text_format_payload)
 
     if options.caching.enabled and options.caching.strategy != "none":
-        caching_payload: Dict[str, Any] = {"type": "enabled"}
+        caching_payload: dict[str, Any] = {"type": "enabled"}
         if options.caching.strategy == "prefix":
             caching_payload["prefix"] = True
         if options.caching.ttl_seconds:
@@ -277,12 +277,12 @@ def _build_request_kwargs(options: LLMRequestOptions) -> Dict[str, Any]:
         extra_body.update(overrides_extra_body)
 
     override_headers = options.provider_overrides.get("extra_headers")
-    merged_headers: Dict[str, Any] = dict(options.extra_headers or {})
+    merged_headers: dict[str, Any] = dict(options.extra_headers or {})
     if isinstance(override_headers, dict):
         merged_headers.update(override_headers)
 
     override_query = options.provider_overrides.get("extra_query")
-    merged_query: Dict[str, Any] = dict(options.extra_query or {})
+    merged_query: dict[str, Any] = dict(options.extra_query or {})
     if isinstance(override_query, dict):
         merged_query.update(override_query)
 
@@ -296,7 +296,7 @@ def _build_request_kwargs(options: LLMRequestOptions) -> Dict[str, Any]:
     }
 
 
-def _validate_extra_body(extra_body: Dict[str, Any]) -> None:
+def _validate_extra_body(extra_body: dict[str, Any]) -> None:
     """Ensure no legacy Chat Completions fields are present."""
     unsupported_keys = sorted(key for key in ("response_format", "thinking") if key in extra_body)
     if unsupported_keys:
@@ -306,7 +306,7 @@ def _validate_extra_body(extra_body: Dict[str, Any]) -> None:
         )
 
 
-def _build_json_schema_format(schema_definition: Dict[str, Any]) -> Dict[str, Any]:
+def _build_json_schema_format(schema_definition: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "json_schema",
         "name": "ai_response",
@@ -315,8 +315,8 @@ def _build_json_schema_format(schema_definition: Dict[str, Any]) -> Dict[str, An
     }
 
 
-def _merge_text_format(existing_text: Any, format_payload: Dict[str, Any]) -> Dict[str, Any]:
-    text_section: Dict[str, Any] = {}
+def _merge_text_format(existing_text: Any, format_payload: dict[str, Any]) -> dict[str, Any]:
+    text_section: dict[str, Any] = {}
     if isinstance(existing_text, dict):
         text_section.update(existing_text)
     text_section["format"] = format_payload
@@ -331,9 +331,9 @@ def _merge_text_format(existing_text: Any, format_payload: Dict[str, Any]) -> Di
 def _process_stream_chunk(
     *,
     chunk: Any,
-    accumulated_text_parts: List[str],
-    accumulated_tool_calls: List[Dict[str, Any]],
-    accumulated_reasoning_parts: List[str],
+    accumulated_text_parts: list[str],
+    accumulated_tool_calls: list[dict[str, Any]],
+    accumulated_reasoning_parts: list[str],
 ) -> None:
     output_list = getattr(chunk, "output", None)
     if not output_list:
@@ -361,10 +361,10 @@ def _process_stream_chunk(
                 accumulated_tool_calls.append({"type": output_type})
 
 
-def _extract_responses_text(response: Any) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str]]:
-    text_parts: List[str] = []
-    tool_calls: List[Dict[str, Any]] = []
-    reasoning_parts: List[str] = []
+def _extract_responses_text(response: Any) -> tuple[str, list[dict[str, Any]] | None, str | None]:
+    text_parts: list[str] = []
+    tool_calls: list[dict[str, Any]] = []
+    reasoning_parts: list[str] = []
 
     for output in getattr(response, "output", []) or []:
         output_type = getattr(output, "type", None)
@@ -388,8 +388,8 @@ def _extract_responses_text(response: Any) -> Tuple[str, Optional[List[Dict[str,
     return content, tool_calls or None, reasoning_content
 
 
-def _collect_text_blocks(blocks: Any) -> List[str]:
-    collected: List[str] = []
+def _collect_text_blocks(blocks: Any) -> list[str]:
+    collected: list[str] = []
     if not blocks:
         return collected
 
@@ -402,7 +402,7 @@ def _collect_text_blocks(blocks: Any) -> List[str]:
     return collected
 
 
-def _extract_finish_reason(response: Any) -> Optional[str]:
+def _extract_finish_reason(response: Any) -> str | None:
     try:
         choices = getattr(response, "output", None)
         if choices:
@@ -416,7 +416,7 @@ def _extract_finish_reason(response: Any) -> Optional[str]:
         return None
 
 
-def _usage_to_dict(usage: Any) -> Optional[Dict[str, Any]]:
+def _usage_to_dict(usage: Any) -> dict[str, Any] | None:
     if usage is None:
         return None
     try:
@@ -425,7 +425,7 @@ def _usage_to_dict(usage: Any) -> Optional[Dict[str, Any]]:
         return usage if isinstance(usage, dict) else None
 
 
-def _is_cache_hit(usage: Optional[Dict[str, Any]]) -> bool:
+def _is_cache_hit(usage: dict[str, Any] | None) -> bool:
     if not usage:
         return False
     input_details = usage.get("input_tokens_details") or {}
@@ -436,6 +436,6 @@ def _is_cache_hit(usage: Optional[Dict[str, Any]]) -> bool:
 __all__ = [
     "CAPABILITIES",
     "DoubaoResponsesAdapter",
-    "send_request",
     "_validate_extra_body",
+    "send_request",
 ]

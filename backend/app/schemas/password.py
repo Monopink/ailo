@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field
 class ChangePasswordRequest(BaseModel):
     """Request schema for changing password"""
 
-    old_password: str | None = Field(None, description="Current password, optional for first-time setup")
+    old_password: str | None = Field(
+        None, description="Current password, optional for first-time setup"
+    )
     new_password: str = Field(
         ..., min_length=8, max_length=128, description="New password (8-128 characters)"
     )

@@ -6,7 +6,7 @@ used across the application.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -18,8 +18,8 @@ class BaseResponse(BaseModel, Generic[DataT]):
     """Base response schema for all API responses."""
 
     success: bool = Field(..., description="Whether the request was successful")
-    data: Optional[DataT] = Field(None, description="Response data")
-    message: Optional[str] = Field(None, description="Response message")
+    data: DataT | None = Field(None, description="Response data")
+    message: str | None = Field(None, description="Response message")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
 
 
@@ -27,9 +27,9 @@ class ErrorResponse(BaseModel):
     """Error response schema."""
 
     success: bool = Field(False, description="Always false for error responses")
-    error: Dict[str, Any] = Field(..., description="Error details")
+    error: dict[str, Any] = Field(..., description="Error details")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
-    path: Optional[str] = Field(None, description="Request path where error occurred")
+    path: str | None = Field(None, description="Request path where error occurred")
 
 
 class PaginationParams(BaseModel):
@@ -43,7 +43,7 @@ class PaginatedResponse(BaseModel, Generic[DataT]):
     """Paginated response schema."""
 
     success: bool = Field(True, description="Whether the request was successful")
-    data: List[DataT] = Field(..., description="List of items")
+    data: list[DataT] = Field(..., description="List of items")
     total: int = Field(..., ge=0, description="Total number of items")
     skip: int = Field(..., ge=0, description="Number of items skipped")
     limit: int = Field(..., ge=1, description="Maximum number of items returned")
@@ -63,7 +63,7 @@ class IDResponse(BaseModel):
     """Response containing only an ID."""
 
     success: bool = Field(True, description="Whether the request was successful")
-    data: Dict[str, str] = Field(..., description="ID data")
+    data: dict[str, str] = Field(..., description="ID data")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
 
     @classmethod

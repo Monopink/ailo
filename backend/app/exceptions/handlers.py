@@ -6,8 +6,8 @@ ensuring consistent error responses and proper logging.
 """
 
 import traceback
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from exceptions.base import BaseAppException
 from fastapi import Request, status
@@ -24,8 +24,8 @@ def create_error_response(
     error_code: str,
     message: str,
     status_code: int,
-    details: Optional[Dict[str, Any]] = None,
-    path: Optional[str] = None,
+    details: dict[str, Any] | None = None,
+    path: str | None = None,
 ) -> JSONResponse:
     """
     Create a standardized error response.
@@ -43,7 +43,7 @@ def create_error_response(
     response_data = {
         "success": False,
         "error": {"code": error_code, "message": message},
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": datetime.now(UTC).isoformat() + "Z",
     }
 
     if details:
@@ -84,7 +84,9 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
     )
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """
     Handle FastAPI request validation errors.
 

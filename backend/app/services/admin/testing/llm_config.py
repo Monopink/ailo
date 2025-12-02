@@ -11,7 +11,7 @@ through the admin interface. It orchestrates the test execution by:
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from enums.common import LLMTestStatus
 from models.llm import LLMTestLog
@@ -28,11 +28,11 @@ async def execute_llm_config_test(
     db: AsyncSession,
     config_id: int,
     test_message: str,
-    override_temperature: Optional[float] = None,
-    override_max_tokens: Optional[int] = None,
-    thinking_mode: Optional[str] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    override_temperature: float | None = None,
+    override_max_tokens: int | None = None,
+    thinking_mode: str | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Execute LLM configuration test.
 
@@ -121,7 +121,8 @@ async def execute_llm_config_test(
             "test_message": test_message,
             "override_temperature": override_temperature,
             "override_max_tokens": override_max_tokens,
-            "thinking_mode": thinking_mode or config.thinking_mode,  # Store actual thinking mode used
+            "thinking_mode": thinking_mode
+            or config.thinking_mode,  # Store actual thinking mode used
             "enable_json_schema": 0,  # Always 0 for regular testing
             "request": request_payload,  # Store full request parameters
             "response": llm_result.get("raw_response"),  # Store full OpenAI API response
@@ -177,7 +178,7 @@ async def execute_llm_config_test(
         return {
             "success": False,
             "status": LLMTestStatus.FAILED,
-            "error": f"测试执行失败: {str(e)}",  # Frontend expects 'error' field
+            "error": f"测试执行失败: {e!s}",  # Frontend expects 'error' field
             "response_content": None,
             "reasoning_content": None,
             "response_time_ms": 0,

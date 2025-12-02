@@ -9,7 +9,7 @@ For write operations, use crud.system.config and reload cache.
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.config import get_settings
 from exceptions import ConfigurationError, MissingConfigurationError
@@ -21,7 +21,7 @@ class ConfigService:
     """Unified configuration service."""
 
     def __init__(self):
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
         self._cache_enabled = True
 
     async def get_config(
@@ -51,7 +51,7 @@ class ConfigService:
 
         return db_value
 
-    async def get_leancloud_config(self, db: AsyncSession) -> Dict[str, Any]:
+    async def get_leancloud_config(self, db: AsyncSession) -> dict[str, Any]:
         """
         Get all LeanCloud IM configuration.
 
@@ -80,7 +80,7 @@ class ConfigService:
                 details={"value": value},
             ) from exc
 
-    def clear_cache(self, key: Optional[str] = None) -> None:
+    def clear_cache(self, key: str | None = None) -> None:
         """
         Clear configuration cache.
 

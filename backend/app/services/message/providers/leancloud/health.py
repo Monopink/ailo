@@ -4,8 +4,6 @@ LeanCloud service health check.
 Provides health check functionality for LeanCloud messaging service.
 """
 
-from typing import Optional
-
 import httpx
 from utils.logging import get_logger
 
@@ -14,7 +12,7 @@ logger = get_logger(__name__)
 
 async def check_leancloud_health(
     app_id: str, master_key: str, base_url: str, timeout: float = 5.0
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Check LeanCloud service health.
 
@@ -57,14 +55,13 @@ async def check_leancloud_health(
             if response.status_code == 200:
                 logger.debug("leancloud_health_check_passed")
                 return True, None
-            else:
-                error_msg = f"API returned status {response.status_code}"
-                logger.warning(
-                    "leancloud_health_check_failed",
-                    status=response.status_code,
-                    response_text=response.text[:200],  # Log first 200 chars
-                )
-                return False, error_msg
+            error_msg = f"API returned status {response.status_code}"
+            logger.warning(
+                "leancloud_health_check_failed",
+                status=response.status_code,
+                response_text=response.text[:200],  # Log first 200 chars
+            )
+            return False, error_msg
 
     except httpx.TimeoutException:
         error_msg = f"Connection timeout ({timeout}s)"
@@ -72,17 +69,17 @@ async def check_leancloud_health(
         return False, error_msg
 
     except httpx.ConnectError as e:
-        error_msg = f"Connection error: {str(e)}"
+        error_msg = f"Connection error: {e!s}"
         logger.warning("leancloud_health_check_connection_error", error=str(e))
         return False, error_msg
 
     except httpx.HTTPError as e:
-        error_msg = f"HTTP error: {str(e)}"
+        error_msg = f"HTTP error: {e!s}"
         logger.warning("leancloud_health_check_http_error", error=str(e))
         return False, error_msg
 
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Unexpected error: {e!s}"
         logger.error(
             "leancloud_health_check_error", error=str(e), error_type=type(e).__name__, exc_info=True
         )

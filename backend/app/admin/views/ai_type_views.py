@@ -4,7 +4,8 @@ AI Type admin views.
 Provides a lightweight interface for managing the new ai_types table.
 """
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from models.ai.template import AIPersona, AITemplate, AIType

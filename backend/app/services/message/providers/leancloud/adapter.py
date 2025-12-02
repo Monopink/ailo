@@ -7,7 +7,7 @@ Handles LeanCloud-specific format conversion without business logic.
 import json
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from crud.system import system_configs
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +19,8 @@ BUSINESS_MESSAGE_TYPE = 1
 
 
 async def parse_webhook_to_dict(
-    db: AsyncSession, webhook_payload: Dict[str, Any]
-) -> Optional[Dict[str, Any]]:
+    db: AsyncSession, webhook_payload: dict[str, Any]
+) -> dict[str, Any] | None:
     """
     Parse LeanCloud webhook payload to intermediate dict format.
 
@@ -102,7 +102,7 @@ async def parse_webhook_to_dict(
             "to": webhook_payload.get("to"),
         }
 
-        def _extract(field: str, *sources: Dict[str, Any], default: Any = None) -> Any:
+        def _extract(field: str, *sources: dict[str, Any], default: Any = None) -> Any:
             for source in sources:
                 if not isinstance(source, dict):
                     continue
@@ -169,8 +169,8 @@ def build_outbound_typed_message(
     message_type: int,
     msg_id: str,
     supports_typing: bool = True,
-    action: Optional[dict] = None,
-    extra_fields: Optional[dict] = None,
+    action: dict | None = None,
+    extra_fields: dict | None = None,
 ) -> str:
     """
     Build LeanCloud message payload from business layer data.
@@ -190,7 +190,7 @@ def build_outbound_typed_message(
     Returns:
         JSON string for LeanCloud API
     """
-    attrs: Dict[str, Any] = {
+    attrs: dict[str, Any] = {
         "msg_id": msg_id,
         "from_qiao_id": from_qiao_id,
         "to_qiao_id": to_qiao_id,

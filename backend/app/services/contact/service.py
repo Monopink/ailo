@@ -4,7 +4,7 @@ Contact service business logic.
 This module provides business logic for contact management operations.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from crud.contact import contact as contact_crud
 from crud.profile import profile as profile_crud
@@ -40,7 +40,9 @@ async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
     Raises:
         ValueError: If conversation ID is not configured
     """
-    conv_id = await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+    conv_id = await system_configs.get_config_value(
+        db, config_key="leancloud_im_service_conversation_id"
+    )
     if ensure_valid or not conv_id:
         conv_id = await ensure_system_conversation(db, existing_conv_id=conv_id)
 
@@ -51,7 +53,7 @@ async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
     return conv_id
 
 
-async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Optional[Profile]:
+async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Profile | None:
     """
     Get profile for a contact via qiao_id.
 
@@ -65,7 +67,7 @@ async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Option
     return await profile_crud.get_by_owner_qiao_id_any(db, owner_qiao_id=contact_qiao_id)
 
 
-def _build_profile_summary(profile: Optional[Profile]) -> ContactProfileSummary:
+def _build_profile_summary(profile: Profile | None) -> ContactProfileSummary:
     """Convert Profile ORM object to API summary payload."""
 
     return ContactProfileSummary(
@@ -77,7 +79,7 @@ def _build_profile_summary(profile: Optional[Profile]) -> ContactProfileSummary:
     )
 
 
-def _extract_tags(tags: Optional[Any]) -> List[str]:
+def _extract_tags(tags: Any | None) -> list[str]:
     """Normalize stored tag payload to a list."""
 
     if not tags:
@@ -93,7 +95,7 @@ def _extract_tags(tags: Optional[Any]) -> List[str]:
     return []
 
 
-def _serialize_tags(tags: Optional[List[str]]) -> Optional[Dict[str, Any]]:
+def _serialize_tags(tags: list[str] | None) -> dict[str, Any] | None:
     """Convert outbound tag list to storage format."""
 
     if tags is None:
@@ -101,7 +103,7 @@ def _serialize_tags(tags: Optional[List[str]]) -> Optional[Dict[str, Any]]:
     return {"tags": tags}
 
 
-def _build_contact_list_item(contact: Contact, profile: Optional[Profile]) -> ContactListItem:
+def _build_contact_list_item(contact: Contact, profile: Profile | None) -> ContactListItem:
     """Construct a ContactListItem from ORM entities."""
 
     return ContactListItem(
@@ -116,7 +118,7 @@ def _build_contact_list_item(contact: Contact, profile: Optional[Profile]) -> Co
     )
 
 
-def _build_contact_detail(contact: Contact, profile: Optional[Profile]) -> ContactDetailResponse:
+def _build_contact_detail(contact: Contact, profile: Profile | None) -> ContactDetailResponse:
     """Construct a ContactDetailResponse."""
 
     list_item = _build_contact_list_item(contact, profile)
@@ -126,10 +128,10 @@ def _build_contact_detail(contact: Contact, profile: Optional[Profile]) -> Conta
 async def get_user_contacts_with_profiles(
     db: AsyncSession,
     user_qiao_id: str,
-    contact_type: Optional[ContactType] = None,
+    contact_type: ContactType | None = None,
     skip: int = 0,
     limit: int = 100,
-) -> Tuple[List[ContactListItem], bool]:
+) -> tuple[list[ContactListItem], bool]:
     """
     Get user's contacts with profile information and IM conversation ID.
 
@@ -178,7 +180,7 @@ async def get_user_contacts_with_profiles(
 
 async def get_contact_with_profile(
     db: AsyncSession, user_qiao_id: str, conv_id: str
-) -> Optional[ContactDetailResponse]:
+) -> ContactDetailResponse | None:
     """
     Get specific contact with profile information and IM conversation ID.
 
@@ -220,7 +222,7 @@ async def get_contact_with_profile(
 
 async def get_conversation_info(
     db: AsyncSession, user_qiao_id: str, conv_id: str
-) -> Optional[ConversationInfoResponse]:
+) -> ConversationInfoResponse | None:
     """
     Get conversation information including contact basic info and IM conversation ID.
 
@@ -273,7 +275,7 @@ async def get_conversation_info(
 
 async def update_contact(
     db: AsyncSession, user_qiao_id: str, conv_id: str, update_data: ContactUpdate
-) -> Optional[ContactDetailResponse]:
+) -> ContactDetailResponse | None:
     """
     Update contact information.
 
@@ -340,7 +342,7 @@ async def update_contact(
 
 async def block_contact(
     db: AsyncSession, user_qiao_id: str, conv_id: str
-) -> Optional[ContactDetailResponse]:
+) -> ContactDetailResponse | None:
     """
     Block a contact.
 
@@ -385,7 +387,7 @@ async def block_contact(
 
 async def unblock_contact(
     db: AsyncSession, user_qiao_id: str, conv_id: str
-) -> Optional[ContactDetailResponse]:
+) -> ContactDetailResponse | None:
     """
     Unblock a contact.
 

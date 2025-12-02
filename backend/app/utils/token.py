@@ -2,8 +2,8 @@
 JWT token generation and validation utilities.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 from core.config import get_settings
@@ -16,7 +16,7 @@ def generate_jwt_token(
     qiao_id: str,
     device_type: DeviceType,
     expires_in_seconds: int,
-    session_id: Optional[int] = None,
+    session_id: int | None = None,
 ) -> str:
     """
     Generate a JWT token for user authentication.
@@ -32,7 +32,7 @@ def generate_jwt_token(
         JWT token string
     """
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     exp = now + timedelta(seconds=expires_in_seconds)
 
     payload = {
@@ -52,7 +52,7 @@ def generate_jwt_token(
     return jwt.encode(payload, secret, algorithm=algorithm)
 
 
-def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
+def decode_jwt_token(token: str) -> dict[str, Any] | None:
     """
     Decode and validate a JWT token.
 
@@ -80,4 +80,4 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
 def calculate_token_expiry(expires_in_seconds: int) -> datetime:
     """Calculate token expiration timestamp based on provided duration."""
 
-    return datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
+    return datetime.now(UTC) + timedelta(seconds=expires_in_seconds)

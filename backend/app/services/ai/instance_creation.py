@@ -4,7 +4,7 @@ AI instance creation service.
 This module handles creating AI instances from personas/templates.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from crud.ai import ai_instance
 from enums import AIInstanceCreator
@@ -42,7 +42,7 @@ async def create_instance_from_persona(
         Newly created AI instance
     """
 
-    def _type_display_name(entity: Any) -> Optional[str]:
+    def _type_display_name(entity: Any) -> str | None:
         ai_type = getattr(entity, "ai_type", None)
         return getattr(ai_type, "display_name", None) if ai_type is not None else None
 

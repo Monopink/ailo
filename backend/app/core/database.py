@@ -1,13 +1,18 @@
 """Database connection and session management."""
 
 import asyncio
+from collections.abc import AsyncGenerator
 from functools import lru_cache
-from typing import AsyncGenerator
 
 from core.config import Settings, get_settings
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,14 +37,14 @@ def _create_engine(settings: Settings) -> AsyncEngine:
     )
 
 
-@lru_cache()
+@lru_cache
 def get_engine() -> AsyncEngine:
     """Return cached AsyncEngine instance."""
 
     return _create_engine(get_settings())
 
 
-@lru_cache()
+@lru_cache
 def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     """Return cached session factory bound to the engine."""
 
@@ -89,11 +94,15 @@ async def init_database():
             retry_count += 1
             if retry_count > max_retries:
                 error_msg = f"Database initialization failed after {max_retries} attempts"
-                logger.critical("database_initialization_failed", error=str(e), attempts=max_retries)
+                logger.critical(
+                    "database_initialization_failed", error=str(e), attempts=max_retries
+                )
                 raise Exception(error_msg) from e
 
             delay = min(base_delay * (2 ** (retry_count - 1)), max_delay)
-            logger.warning("database_connection_retry", attempt=retry_count, delay=delay, error=str(e))
+            logger.warning(
+                "database_connection_retry", attempt=retry_count, delay=delay, error=str(e)
+            )
             await asyncio.sleep(delay)
         except Exception as e:
             error_msg = "Unexpected error during database initialization"

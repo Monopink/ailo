@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 from exceptions.llm import LLMConfigurationError
 from models.llm import LLMConfig, LLMProvider
@@ -28,14 +28,16 @@ class OpenAIBaseAdapter(ABC):
         self,
         provider: LLMProvider,
         *,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> AsyncOpenAI:
         """
         Build an AsyncOpenAI client with project defaults.
         """
         api_key = self._get_api_key(provider)
         if not api_key:
-            raise LLMConfigurationError(f"API key not configured for provider {provider.display_name}")
+            raise LLMConfigurationError(
+                f"API key not configured for provider {provider.display_name}"
+            )
 
         return AsyncOpenAI(
             api_key=api_key,
@@ -82,14 +84,14 @@ class OpenAIBaseAdapter(ABC):
     async def build_request_params(
         self,
         options: LLMRequestOptions,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Construct provider specific parameters."""
 
     @abstractmethod
     async def parse_response(
         self,
         response: Any,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         options: LLMRequestOptions,
     ) -> LLMProviderResult:
         """Normalize provider response payload."""
@@ -99,7 +101,7 @@ class OpenAIBaseAdapter(ABC):
         self,
         *,
         client: AsyncOpenAI,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         options: LLMRequestOptions,
     ) -> Any:
         """
@@ -111,13 +113,13 @@ class OpenAIBaseAdapter(ABC):
         self,
         *,
         client: AsyncOpenAI,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         options: LLMRequestOptions,
         preemption_checker,
     ) -> LLMProviderResult:
         """Execute a streaming request and return the normalized result."""
 
-    def _get_api_key(self, provider: LLMProvider) -> Optional[str]:
+    def _get_api_key(self, provider: LLMProvider) -> str | None:
         """
         Resolve API key from explicitly configured env var or fallback pattern.
         """

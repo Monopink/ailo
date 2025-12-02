@@ -4,8 +4,7 @@ Admin management CRUD operations.
 This module contains CRUD operations for admin users and operation logs.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import UTC, datetime, timedelta
 
 from crud.base import CRUDBase, CRUDBaseWithStatus
 from enums import AdminRole, AdminStatus
@@ -18,12 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpdate]):
     """CRUD operations for AdminUser model."""
 
-    async def get_by_username(self, db: AsyncSession, *, username: str) -> Optional[AdminUser]:
+    async def get_by_username(self, db: AsyncSession, *, username: str) -> AdminUser | None:
         """Get admin user by username."""
         result = await db.execute(select(self.model).where(self.model.username == username))
         return result.scalar_one_or_none()
 
-    async def authenticate(self, db: AsyncSession, *, username: str, password: str) -> Optional[AdminUser]:
+    async def authenticate(
+        self, db: AsyncSession, *, username: str, password: str
+    ) -> AdminUser | None:
         """Authenticate admin user."""
         user = await self.get_by_username(db, username=username)
         if not user:
@@ -39,22 +40,27 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
 
     async def get_by_role(
         self, db: AsyncSession, *, role: AdminRole, skip: int = 0, limit: int = 100
-    ) -> List[AdminUser]:
+    ) -> list[AdminUser]:
         """Get admin users by role."""
         result = await db.execute(
             select(self.model)
-            .where(and_(self.model.role == role, self.model.status == AdminStatus.ACTIVE))  # Use enum
+            .where(
+                and_(self.model.role == role, self.model.status == AdminStatus.ACTIVE)
+            )  # Use enum
             .order_by(self.model.created_at)
             .offset(skip)
             .limit(limit)
         )
         return list(result.scalars().all())
 
-    async def get_super_admins(self, db: AsyncSession) -> List[AdminUser]:
+    async def get_super_admins(self, db: AsyncSession) -> list[AdminUser]:
         """Get all super admin users."""
         result = await db.execute(
             select(self.model).where(
-                and_(self.model.role == AdminRole.SUPER_ADMIN, self.model.status == AdminStatus.ACTIVE)
+                and_(
+                    self.model.role == AdminRole.SUPER_ADMIN,
+                    self.model.status == AdminStatus.ACTIVE,
+                )
             )  # Use enum
         )
         return list(result.scalars().all())
@@ -62,16 +68,18 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
     async def count_by_role(self, db: AsyncSession, *, role: AdminRole) -> int:
         """Count admin users by role."""
         result = await db.execute(
-            select(func.count(self.model.id)).where(and_(self.model.role == role, self.model.status == 1))
+            select(func.count(self.model.id)).where(
+                and_(self.model.role == role, self.model.status == 1)
+            )
         )
         return result.scalar()
 
-    async def update_last_login(self, db: AsyncSession, *, user_id: int) -> Optional[AdminUser]:
+    async def update_last_login(self, db: AsyncSession, *, user_id: int) -> AdminUser | None:
         """Update admin user's last login time."""
 
         user = await self.get(db, id=user_id)
         if user:
-            user.last_login = datetime.now(timezone.utc)
+            user.last_login = datetime.now(UTC)
             user.login_count += 1
             db.add(user)
             await db.commit()
@@ -80,7 +88,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
 
     async def change_password(
         self, db: AsyncSession, *, user_id: int, new_password_hash: str
-    ) -> Optional[AdminUser]:
+    ) -> AdminUser | None:
         """Change admin user password."""
         user = await self.get(db, id=user_id)
         if user:
@@ -90,7 +98,9 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
             await db.refresh(user)
         return user
 
-    async def search_admins(self, db: AsyncSession, *, query: str, limit: int = 20) -> List[AdminUser]:
+    async def search_admins(
+        self, db: AsyncSession, *, query: str, limit: int = 20
+    ) -> list[AdminUser]:
         """Search admin users by username."""
         result = await db.execute(
             select(self.model)
@@ -105,7 +115,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
 
     async def get_admin_operations(
         self, db: AsyncSession, *, admin_user_id: int, skip: int = 0, limit: int = 100
-    ) -> List[AdminOperationLog]:
+    ) -> list[AdminOperationLog]:
         """Get operations by admin user."""
         result = await db.execute(
             select(self.model)
@@ -118,7 +128,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
 
     async def get_by_resource_type(
         self, db: AsyncSession, *, resource_type: str, skip: int = 0, limit: int = 100
-    ) -> List[AdminOperationLog]:
+    ) -> list[AdminOperationLog]:
         """Get operations by resource type."""
         result = await db.execute(
             select(self.model)
@@ -131,7 +141,7 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
 
     async def get_by_operation_type(
         self, db: AsyncSession, *, operation_type: int, skip: int = 0, limit: int = 100
-    ) -> List[AdminOperationLog]:
+    ) -> list[AdminOperationLog]:
         """Get operations by operation type."""
         result = await db.execute(
             select(self.model)
@@ -143,12 +153,22 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
         return list(result.scalars().all())
 
     async def get_resource_operations(
-        self, db: AsyncSession, *, resource_type: str, resource_id: str, skip: int = 0, limit: int = 50
-    ) -> List[AdminOperationLog]:
+        self,
+        db: AsyncSession,
+        *,
+        resource_type: str,
+        resource_id: str,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> list[AdminOperationLog]:
         """Get operations for a specific resource."""
         result = await db.execute(
             select(self.model)
-            .where(and_(self.model.resource_type == resource_type, self.model.resource_id == resource_id))
+            .where(
+                and_(
+                    self.model.resource_type == resource_type, self.model.resource_id == resource_id
+                )
+            )
             .order_by(desc(self.model.created_at))
             .offset(skip)
             .limit(limit)
@@ -157,10 +177,10 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
 
     async def get_recent_operations(
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
-    ) -> List[AdminOperationLog]:
+    ) -> list[AdminOperationLog]:
         """Get recent operations within specified hours."""
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
             .where(self.model.created_at >= cutoff_time)
@@ -170,14 +190,13 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
         return list(result.scalars().all())
 
     async def count_admin_operations(
-        self, db: AsyncSession, *, admin_user_id: int, hours: Optional[int] = None
+        self, db: AsyncSession, *, admin_user_id: int, hours: int | None = None
     ) -> int:
         """Count operations by admin user."""
         conditions = [self.model.admin_user_id == admin_user_id]
 
         if hours:
-
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+            cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
             conditions.append(self.model.created_at >= cutoff_time)
 
         result = await db.execute(select(func.count(self.model.id)).where(and_(*conditions)))
@@ -189,7 +208,7 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
 
     async def get_admin_login_history(
         self, db: AsyncSession, *, admin_user_id: int, skip: int = 0, limit: int = 100
-    ) -> List[AdminLoginLog]:
+    ) -> list[AdminLoginLog]:
         """Get admin user's login history."""
         result = await db.execute(
             select(self.model)
@@ -202,10 +221,10 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
 
     async def get_failed_login_attempts(
         self, db: AsyncSession, *, username: str, hours: int = 1
-    ) -> List[AdminLoginLog]:
+    ) -> list[AdminLoginLog]:
         """Get recent failed login attempts for username."""
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
             .where(
@@ -221,10 +240,10 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
 
     async def get_successful_logins(
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
-    ) -> List[AdminLoginLog]:
+    ) -> list[AdminLoginLog]:
         """Get recent successful logins."""
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
             .where(and_(self.model.result == 1, self.model.created_at >= cutoff_time))  # Success
@@ -234,11 +253,11 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
         return list(result.scalars().all())
 
     async def count_login_attempts(
-        self, db: AsyncSession, *, username: str, hours: int = 24, result: Optional[int] = None
+        self, db: AsyncSession, *, username: str, hours: int = 24, result: int | None = None
     ) -> int:
         """Count login attempts for username."""
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         conditions = [self.model.username == username, self.model.created_at >= cutoff_time]
 
         if result is not None:

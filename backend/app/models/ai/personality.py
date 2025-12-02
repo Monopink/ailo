@@ -4,7 +4,7 @@ AI personality related models.
 This module contains SQLAlchemy models for AI personality templates and placeholders.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from markupsafe import escape
 from models.base import AutoIncrementModel
@@ -26,7 +26,7 @@ class AIPersonality(AutoIncrementModel):
 
     prompt: Mapped[str] = mapped_column(Text, nullable=False, comment="Personality prompt template")
 
-    json_schema: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    json_schema: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True, comment="JSON schema definition (JSONB for better performance)"
     )
 
@@ -59,13 +59,15 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
         String(100), nullable=False, comment="Placeholder key name"
     )
 
-    display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name for UI")
+    display_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, comment="Display name for UI"
+    )
 
-    description: Mapped[Optional[str]] = mapped_column(
+    description: Mapped[str | None] = mapped_column(
         String(500), nullable=True, comment="Placeholder description"
     )
 
-    example_value: Mapped[Optional[str]] = mapped_column(
+    example_value: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Example placeholder value"
     )
 

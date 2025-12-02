@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import unicodedata
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 from crud.contact import contact as contact_crud
 from enums import MessageType
@@ -19,7 +19,7 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-_active_sending_tasks: Dict[Tuple[str, str], asyncio.Event] = {}
+_active_sending_tasks: dict[tuple[str, str], asyncio.Event] = {}
 
 
 def interrupt_sending_task(user_qiao_id: str, instance_qiao_id: str) -> None:
@@ -41,9 +41,9 @@ async def send_ai_messages_with_typing(
     session_factory: async_sessionmaker[AsyncSession],
     user_qiao_id: str,
     instance_qiao_id: str,
-    buffer_id: Optional[int],
-    outgoing_messages: List[str],
-    followup_messages: List[str],
+    buffer_id: int | None,
+    outgoing_messages: list[str],
+    followup_messages: list[str],
     typing_speed_seconds_per_word: float,
     followup_delay_seconds: float,
 ) -> None:
@@ -103,7 +103,9 @@ async def send_ai_messages_with_typing(
                         delay_seconds=followup_delay_seconds,
                     )
                     try:
-                        await asyncio.wait_for(interrupt_event.wait(), timeout=followup_delay_seconds)
+                        await asyncio.wait_for(
+                            interrupt_event.wait(), timeout=followup_delay_seconds
+                        )
                         await _save_pending_messages(
                             db,
                             user_qiao_id,
@@ -118,7 +120,7 @@ async def send_ai_messages_with_typing(
                             instance_qiao_id=instance_qiao_id,
                         )
                         return
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         # No interruption -> continue with followup messages
                         pass
 
@@ -176,11 +178,11 @@ async def _send_message_list(
     *,
     user_qiao_id: str,
     instance_qiao_id: str,
-    buffer_id: Optional[int],
-    messages: List[str],
+    buffer_id: int | None,
+    messages: list[str],
     typing_speed: float,
     interrupt_event: asyncio.Event,
-) -> Tuple[bool, int]:
+) -> tuple[bool, int]:
     """
     Send messages sequentially while respecting interruption flag.
     Returns (success, sent_count).
@@ -203,7 +205,7 @@ async def _send_message_list(
                     position=idx,
                 )
                 return False, idx
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
         if interrupt_event.is_set():
@@ -225,7 +227,7 @@ async def _send_and_record_message(
     *,
     user_qiao_id: str,
     instance_qiao_id: str,
-    buffer_id: Optional[int],
+    buffer_id: int | None,
     message: str,
 ) -> None:
     """
@@ -235,7 +237,9 @@ async def _send_and_record_message(
         db, user_qiao_id=user_qiao_id, contact_qiao_id=instance_qiao_id
     )
     if not contact:
-        raise ValueError(f"Contact between user {user_qiao_id} and instance {instance_qiao_id} not found")
+        raise ValueError(
+            f"Contact between user {user_qiao_id} and instance {instance_qiao_id} not found"
+        )
 
     await send_message(
         db=db,
@@ -255,7 +259,7 @@ async def _send_and_record_message(
             "message_type": "text",
             "text_content": message,
             "buffer_id": buffer_id,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         },
     )
 
@@ -266,21 +270,21 @@ async def _save_pending_messages(
     db: AsyncSession,
     user_qiao_id: str,
     instance_qiao_id: str,
-    outgoing_remaining: List[str],
-    followup_remaining: List[str],
+    outgoing_remaining: list[str],
+    followup_remaining: list[str],
 ) -> None:
     """
     Persist pending messages for the conversation.
     """
     total = len(outgoing_remaining) + len(followup_remaining)
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "outgoing": outgoing_remaining,
         "followup": followup_remaining,
         "total_pending": total,
     }
 
     state = await db.get(AIConversationState, (user_qiao_id, instance_qiao_id))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if not state:
         state = AIConversationState(
@@ -327,9 +331,9 @@ def _count_words(text: str) -> int:
     words = 0
     half_width = 0
     for char in text:
-        if unicodedata.east_asian_width(char) in {"F", "W"}:
-            words += 1
-        elif unicodedata.category(char).startswith("So"):
+        if unicodedata.east_asian_width(char) in {"F", "W"} or unicodedata.category(
+            char
+        ).startswith("So"):
             words += 1
         else:
             half_width += 1

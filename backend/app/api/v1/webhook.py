@@ -28,7 +28,9 @@ WEBHOOK_TIMESTAMP_TOLERANCE_MS = 10 * 60 * 1000  # 10 minutes
 def _validate_signature(signature_header: str, master_key: str) -> None:
     parts = signature_header.split(",")
     if len(parts) not in (2, 3):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature header")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature header"
+        )
 
     signature = parts[0]
     try:
@@ -50,7 +52,9 @@ def _validate_signature(signature_header: str, master_key: str) -> None:
 
 
 @router.post("/webhook/{webhook_token}")
-async def leancloud_webhook(webhook_token: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def leancloud_webhook(
+    webhook_token: str, request: Request, db: AsyncSession = Depends(get_db)
+):
     """
     Receive messages from LeanCloud webhook.
 
@@ -71,7 +75,9 @@ async def leancloud_webhook(webhook_token: str, request: Request, db: AsyncSessi
     """
     try:
         # 1. Validate webhook token
-        correct_token = await system_configs.get_config_value(db, config_key="leancloud_im_webhook_token")
+        correct_token = await system_configs.get_config_value(
+            db, config_key="leancloud_im_webhook_token"
+        )
 
         if not correct_token:
             logger.error("webhook_token_not_configured")
@@ -86,7 +92,9 @@ async def leancloud_webhook(webhook_token: str, request: Request, db: AsyncSessi
                 "invalid_webhook_token_attempt",
                 token_prefix=webhook_token[:8] if len(webhook_token) >= 8 else "***",
             )
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid webhook token")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid webhook token"
+            )
 
         # 2. Validate LeanCloud headers
         app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
@@ -101,11 +109,15 @@ async def leancloud_webhook(webhook_token: str, request: Request, db: AsyncSessi
         signature_header = request.headers.get("X-LC-Signature")
 
         if not lc_id or not signature_header:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing LeanCloud headers")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Missing LeanCloud headers"
+            )
 
         if lc_id != app_id:
             logger.warning("leancloud_app_id_mismatch", received=lc_id)
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid LeanCloud App ID")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid LeanCloud App ID"
+            )
 
         _validate_signature(signature_header, _settings.LEANCLOUD_MASTER_KEY)
 
@@ -114,7 +126,9 @@ async def leancloud_webhook(webhook_token: str, request: Request, db: AsyncSessi
 
         if not isinstance(messages, list):
             logger.error("invalid_webhook_payload_format", payload_type=type(messages).__name__)
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload format")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload format"
+            )
 
         logger.info("webhook_messages_received", count=len(messages))
 

@@ -4,7 +4,7 @@ Token management related admin views.
 This module contains Starlette-Admin views for managing user tokens and login records.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -70,12 +70,14 @@ class UserTokenView(ModelView):
             help_text="Token status",
         ),
         LocalDateTimeField("revoked_at", label="Revoked At", help_text="Token revocation time"),
-        LocalDateTimeField("last_activity_at", label="Last Activity", help_text="Last activity timestamp"),
+        LocalDateTimeField(
+            "last_activity_at", label="Last Activity", help_text="Last activity timestamp"
+        ),
         LocalDateTimeField("created_at", label="Created At", help_text="Token creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation for token management."""
         # Validate token status changes
         if "status" in data:
@@ -148,7 +150,9 @@ class LoginRecordView(ModelView):
 
 
 # Create view instances
-user_token_view = UserTokenView(UserToken, name="User Tokens", icon="fa fa-key", identity="user_token")
+user_token_view = UserTokenView(
+    UserToken, name="User Tokens", icon="fa fa-key", identity="user_token"
+)
 
 login_record_view = LoginRecordView(
     LoginRecord, name="Login Records", icon="fa fa-sign-in-alt", identity="login_record"

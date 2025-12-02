@@ -5,7 +5,7 @@ This module contains CRUD operations for system configuration management.
 """
 
 import json
-from typing import Any, List, Optional
+from typing import Any
 
 from crud.base import CRUDBase
 from enums import ConfigType
@@ -21,23 +21,28 @@ logger = get_logger(__name__)
 class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUpdate]):
     """CRUD operations for SystemConfig model."""
 
-    async def get_by_key(self, db: AsyncSession, *, config_key: str) -> Optional[SystemConfig]:
+    async def get_by_key(self, db: AsyncSession, *, config_key: str) -> SystemConfig | None:
         """Get configuration by key."""
         result = await db.execute(select(self.model).where(self.model.config_key == config_key))
         return result.scalar_one_or_none()
 
-    async def get_by_type(self, db: AsyncSession, *, config_type: ConfigType) -> List[SystemConfig]:
+    async def get_by_type(self, db: AsyncSession, *, config_type: ConfigType) -> list[SystemConfig]:
         """Get configurations by type."""
         result = await db.execute(
-            select(self.model).where(self.model.config_type == config_type).order_by(self.model.config_key)
+            select(self.model)
+            .where(self.model.config_type == config_type)
+            .order_by(self.model.config_key)
         )
         return list(result.scalars().all())
 
-    async def search_configs(self, db: AsyncSession, *, query: str) -> List[SystemConfig]:
+    async def search_configs(self, db: AsyncSession, *, query: str) -> list[SystemConfig]:
         """Search configurations by key or description."""
         result = await db.execute(
             select(self.model)
-            .where(self.model.config_key.ilike(f"%{query}%") | self.model.description.ilike(f"%{query}%"))
+            .where(
+                self.model.config_key.ilike(f"%{query}%")
+                | self.model.description.ilike(f"%{query}%")
+            )
             .order_by(self.model.config_key)
         )
         return list(result.scalars().all())
@@ -48,9 +53,9 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         *,
         config_key: str,
         config_value: str,
-        updated_by: Optional[int] = None,
+        updated_by: int | None = None,
         validate_enum: bool = True,
-    ) -> Optional[SystemConfig]:
+    ) -> SystemConfig | None:
         """
         Update configuration value with optional enum validation.
 
@@ -92,7 +97,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         return config
 
     async def batch_update_configs(
-        self, db: AsyncSession, *, configs: dict, updated_by: Optional[int] = None
+        self, db: AsyncSession, *, configs: dict, updated_by: int | None = None
     ) -> int:
         """Batch update multiple configurations."""
         count = 0
@@ -132,7 +137,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         # Parse value based on type
         if config.config_type == ConfigType.BOOLEAN:
             return config.config_value.lower() in ["true", "1"]
-        elif config.config_type == ConfigType.NUMBER:
+        if config.config_type == ConfigType.NUMBER:
             try:
                 return float(config.config_value)
             except ValueError as e:
@@ -142,7 +147,9 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
                     config_value=config.config_value,
                     error=str(e),
                 )
-                raise ValueError(f"Invalid number configuration for '{config_key}': {config.config_value}")
+                raise ValueError(
+                    f"Invalid number configuration for '{config_key}': {config.config_value}"
+                )
         elif config.config_type == ConfigType.JSON:
             try:
                 return json.loads(config.config_value)
@@ -153,7 +160,9 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
                     config_value=config.config_value,
                     error=str(e),
                 )
-                raise ValueError(f"Invalid JSON configuration for '{config_key}': {config.config_value}")
+                raise ValueError(
+                    f"Invalid JSON configuration for '{config_key}': {config.config_value}"
+                )
         else:  # STRING
             return config.config_value
 

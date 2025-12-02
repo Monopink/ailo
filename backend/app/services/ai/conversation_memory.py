@@ -5,7 +5,7 @@ This module handles AI memory operations (add, replace, delete),
 context status updates, and context archiving.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from services.config import config_service
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 
 
 async def process_memory_operations(
-    db: AsyncSession, instance_qiao_id: str, operations: List[Dict[str, Any]]
+    db: AsyncSession, instance_qiao_id: str, operations: list[dict[str, Any]]
 ) -> bool:
     """
     Process memory operations for AI instance.
@@ -174,7 +174,7 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, instance_qia
         return 0
 
 
-def _apply_memory_operation(memory: str, operation: Dict[str, Any]) -> str:
+def _apply_memory_operation(memory: str, operation: dict[str, Any]) -> str:
     """
     Apply a single memory operation to memory string.
 
@@ -193,20 +193,19 @@ def _apply_memory_operation(memory: str, operation: Dict[str, Any]) -> str:
 
         if op_type == "add":
             return _apply_add_operation(memory, operation)
-        elif op_type == "replace":
+        if op_type == "replace":
             return _apply_replace_operation(memory, operation)
-        elif op_type == "delete":
+        if op_type == "delete":
             return _apply_delete_operation(memory, operation)
-        else:
-            logger.warning("unknown_memory_operation_type", op_type=op_type, operation=operation)
-            return memory  # Return unchanged memory for unknown operation types
+        logger.warning("unknown_memory_operation_type", op_type=op_type, operation=operation)
+        return memory  # Return unchanged memory for unknown operation types
 
     except Exception as e:
         logger.error("memory_operation_application_failed", error=str(e), operation=operation)
         return memory  # Return unchanged memory if operation fails
 
 
-def _apply_add_operation(memory: str, operation: Dict[str, Any]) -> str:
+def _apply_add_operation(memory: str, operation: dict[str, Any]) -> str:
     """Apply add operation to memory."""
     content = operation.get("content", "")
     if not content:
@@ -217,28 +216,25 @@ def _apply_add_operation(memory: str, operation: Dict[str, Any]) -> str:
 
     if insert_position == "start":
         return content + "\n" + memory if memory else content
-    elif insert_position == "end":
+    if insert_position == "end":
         return memory + "\n" + content if memory else content
-    elif insert_position.startswith("after:"):
+    if insert_position.startswith("after:"):
         target = insert_position[6:]  # Remove "after:" prefix
         if target in memory:
             return memory.replace(target, target + "\n" + content, 1)
-        else:
-            # Target not found, append to end
-            return memory + "\n" + content if memory else content
-    elif insert_position.startswith("before:"):
+        # Target not found, append to end
+        return memory + "\n" + content if memory else content
+    if insert_position.startswith("before:"):
         target = insert_position[7:]  # Remove "before:" prefix
         if target in memory:
             return memory.replace(target, content + "\n" + target, 1)
-        else:
-            # Target not found, prepend to start
-            return content + "\n" + memory if memory else content
-    else:
-        # Default to end
-        return memory + "\n" + content if memory else content
+        # Target not found, prepend to start
+        return content + "\n" + memory if memory else content
+    # Default to end
+    return memory + "\n" + content if memory else content
 
 
-def _apply_replace_operation(memory: str, operation: Dict[str, Any]) -> str:
+def _apply_replace_operation(memory: str, operation: dict[str, Any]) -> str:
     """Apply replace operation to memory."""
     target_text = operation.get("target_text", "")
     content = operation.get("content", "")
@@ -249,12 +245,11 @@ def _apply_replace_operation(memory: str, operation: Dict[str, Any]) -> str:
 
     if target_text in memory:
         return memory.replace(target_text, content, 1)  # Replace only first occurrence
-    else:
-        logger.warning("replace_target_not_found", target_text=target_text, memory_length=len(memory))
-        return memory  # Return unchanged if target not found - memory operations can be tolerant
+    logger.warning("replace_target_not_found", target_text=target_text, memory_length=len(memory))
+    return memory  # Return unchanged if target not found - memory operations can be tolerant
 
 
-def _apply_delete_operation(memory: str, operation: Dict[str, Any]) -> str:
+def _apply_delete_operation(memory: str, operation: dict[str, Any]) -> str:
     """Apply delete operation to memory."""
     target_text = operation.get("target_text", "")
 
@@ -268,6 +263,5 @@ def _apply_delete_operation(memory: str, operation: Dict[str, Any]) -> str:
         # Clean up double newlines
         result = result.replace("\n\n\n", "\n\n")
         return result.strip()
-    else:
-        logger.warning("delete_target_not_found", target_text=target_text, memory_length=len(memory))
-        return memory  # Return unchanged if target not found - memory operations can be tolerant
+    logger.warning("delete_target_not_found", target_text=target_text, memory_length=len(memory))
+    return memory  # Return unchanged if target not found - memory operations can be tolerant

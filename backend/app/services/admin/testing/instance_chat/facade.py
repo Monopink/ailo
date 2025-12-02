@@ -6,7 +6,7 @@ combining validation, user matching, and execution services following
 the facade pattern for clean separation of concerns.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from crud.ai.instance_dimension import get_by_instance as _get_instance_dims
 from crud.contact import contact as contact_crud
@@ -32,7 +32,7 @@ class AIInstanceChatTestError(Exception):
     """Main exception for AI instance chat test service"""
 
     def __init__(
-        self, message: str, error_code: str = "CHAT_TEST_ERROR", suggestions: Optional[list] = None
+        self, message: str, error_code: str = "CHAT_TEST_ERROR", suggestions: list | None = None
     ):
         self.message = message
         self.error_code = error_code
@@ -54,9 +54,9 @@ class AIInstanceChatTestService:
         instance_id: int,
         llm_config_name: str,
         test_message: str,
-        mock_overrides: Optional[Dict[str, Any]] = None,
+        mock_overrides: dict[str, Any] | None = None,
         persist: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Complete test flow: validate prerequisites, match test user, and execute test.
 
@@ -117,7 +117,9 @@ class AIInstanceChatTestService:
                 user_qiao_id=user_match_result["test_user"]["qiao_id"],
                 llm_config_name=llm_config_name,
                 test_message=test_message,
-                request_overrides={"provider_overrides": mock_overrides} if mock_overrides else None,
+                request_overrides={"provider_overrides": mock_overrides}
+                if mock_overrides
+                else None,
                 persist=persist,
                 contact_conv_id=(ensured_contact.conv_id if persist else None),
             )
@@ -209,13 +211,16 @@ class AIInstanceChatTestService:
 
         except Exception as e:
             logger.error(
-                "ai_chat_test_unexpected_error", instance_id=instance_id, error=str(e), exc_info=True
+                "ai_chat_test_unexpected_error",
+                instance_id=instance_id,
+                error=str(e),
+                exc_info=True,
             )
             raise AIInstanceChatTestError(
-                f"测试过程中出现未知错误：{str(e)}", error_code="UNEXPECTED_ERROR"
+                f"测试过程中出现未知错误：{e!s}", error_code="UNEXPECTED_ERROR"
             )
 
-    async def validate_test_readiness(self, db: AsyncSession, instance_id: int) -> Dict[str, Any]:
+    async def validate_test_readiness(self, db: AsyncSession, instance_id: int) -> dict[str, Any]:
         """
         Check test readiness without executing the test.
 
@@ -239,9 +244,9 @@ class AIInstanceChatTestService:
             user_match_result = await user_matcher_service.find_test_user_for_instance(
                 db=db, instance_context=validation_result["instance"]
             )
-            contacts_for_response = user_match_result.get("recomputed_contacts") or user_match_result.get(
-                "available_contacts", []
-            )
+            contacts_for_response = user_match_result.get(
+                "recomputed_contacts"
+            ) or user_match_result.get("available_contacts", [])
             selected_user = user_match_result.get("test_user")
             if not selected_user:
                 logger.warning(
@@ -304,7 +309,9 @@ class AIInstanceChatTestService:
                 "test_user_info": test_user_summary,
                 "available_contacts": contacts_for_response,
                 "available_test_users": user_match_result.get("available_test_users", []),
-                "test_user_selection_locked": user_match_result.get("test_user_selection_locked", False),
+                "test_user_selection_locked": user_match_result.get(
+                    "test_user_selection_locked", False
+                ),
                 "locked_test_user_qiao_id": user_match_result.get("locked_test_user_qiao_id"),
                 "relationship_scores": validation_result["relationship_scores"],
                 "available_llm_configs": validation_result["llm_configs"],
@@ -325,11 +332,13 @@ class AIInstanceChatTestService:
             return {
                 "ready": False,
                 "error_code": "SYSTEM_ERROR",
-                "error_message": f"自检失败：{str(e)}",
+                "error_message": f"自检失败：{e!s}",
                 "suggestions": ["查看系统日志", "联系管理员"],
             }
 
-    async def archive_all_test_conversations(self, db: AsyncSession, instance_id: int) -> Dict[str, Any]:
+    async def archive_all_test_conversations(
+        self, db: AsyncSession, instance_id: int
+    ) -> dict[str, Any]:
         """
         Archive all conversation items for test instance and test user.
 
@@ -361,7 +370,7 @@ class AIInstanceChatTestService:
 
         except Exception as e:
             logger.error("archive_test_conversations_failed", instance_id=instance_id, error=str(e))
-            raise AIInstanceChatTestError(f"归档对话失败：{str(e)}", error_code="ARCHIVE_FAILED")
+            raise AIInstanceChatTestError(f"归档对话失败：{e!s}", error_code="ARCHIVE_FAILED")
 
     async def _ensure_virtual_contact(
         self,
@@ -427,7 +436,7 @@ class AIInstanceChatTestService:
         return contact
 
     @staticmethod
-    def _serialize_contact(contact: Optional[Any]) -> Optional[Dict[str, Any]]:
+    def _serialize_contact(contact: Any | None) -> dict[str, Any] | None:
         """Normalize contact object/dict to JSON-serializable dict."""
         if contact is None:
             return None

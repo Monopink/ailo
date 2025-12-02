@@ -6,7 +6,7 @@ parsing incoming messages and converting them to standardized format.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from crud.contact import contact as contact_crud
 from enums import MessageType
@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 
 
 async def parse_leancloud_webhook(
-    db: AsyncSession, message: Dict[str, Any]
-) -> Optional[InboundMessageEvent]:
+    db: AsyncSession, message: dict[str, Any]
+) -> InboundMessageEvent | None:
     """
     Parse incoming webhook data from LeanCloud.
 
@@ -142,5 +142,7 @@ async def parse_leancloud_webhook(
         )
 
     except Exception as e:
-        logger.error("webhook_parse_error", error=str(e), error_type=type(e).__name__, message=message)
+        logger.error(
+            "webhook_parse_error", error=str(e), error_type=type(e).__name__, message=message
+        )
         return None

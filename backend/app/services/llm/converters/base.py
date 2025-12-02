@@ -9,7 +9,7 @@ agnostic to those details.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
 
 
 class MessageConverter(ABC):
@@ -18,8 +18,8 @@ class MessageConverter(ABC):
     @abstractmethod
     def convert_to_provider_format(
         self,
-        messages: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """
         Convert generic messages into provider specific format.
         """

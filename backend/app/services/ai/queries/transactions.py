@@ -7,7 +7,7 @@ database operations and require atomicity.
 
 import secrets
 import string
-from typing import Any, Dict, Optional
+from typing import Any
 
 from models.ai import AIConversationItem, AIConversationItemArchive, AIInstance, AIRequestLog
 from models.contact import Contact
@@ -22,7 +22,7 @@ from .instance_queries import get_user_id_by_qiao_id
 logger = get_logger(__name__)
 
 
-async def create_instance_with_relations(db: AsyncSession, instance_data: Dict[str, Any]) -> str:
+async def create_instance_with_relations(db: AsyncSession, instance_data: dict[str, Any]) -> str:
     """
     Create an instance with associated inventory in one transaction.
 
@@ -73,7 +73,9 @@ async def create_instance_with_relations(db: AsyncSession, instance_data: Dict[s
         db.add(profile)
 
         if instance_data.get("user_qiao_id"):
-            random_chars = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+            random_chars = "".join(
+                secrets.choice(string.ascii_letters + string.digits) for _ in range(16)
+            )
             conv_id = f"conv_{random_chars}"
 
             contact = Contact(
@@ -100,16 +102,16 @@ async def create_instance_with_relations(db: AsyncSession, instance_data: Dict[s
 
     except Exception as e:
         logger.error("instance_creation_failed", error=str(e), instance_data=instance_data)
-        raise RuntimeError(f"Failed to create instance with relations: {str(e)}")
+        raise RuntimeError(f"Failed to create instance with relations: {e!s}")
 
 
 async def save_ai_request_log(
     db: AsyncSession,
     instance_context: InstanceContext,
     user_qiao_id: str,
-    ai_response: Dict[str, Any],
-    llm_result: Dict[str, Any],
-    buffer_id: Optional[int],
+    ai_response: dict[str, Any],
+    llm_result: dict[str, Any],
+    buffer_id: int | None,
 ) -> None:
     """
     Save AI request log with correct field mapping.
@@ -130,13 +132,13 @@ async def save_ai_request_log(
             logger.warning("user_not_found_for_log", user_qiao_id=user_qiao_id)
             return
 
-        response_payload: Dict[str, Any]
+        response_payload: dict[str, Any]
         if isinstance(ai_response, dict):
             response_payload = dict(ai_response)
         else:
             response_payload = {"content": ai_response}
 
-        llm_debug_payload: Dict[str, Any] = {}
+        llm_debug_payload: dict[str, Any] = {}
         for key in (
             "raw_response",
             "raw_content",
@@ -187,9 +189,10 @@ async def save_ai_request_log(
         )
 
     except Exception as e:
-        logger.error("ai_request_log_save_failed", error=str(e), user_qiao_id=user_qiao_id, exc_info=True)
+        logger.error(
+            "ai_request_log_save_failed", error=str(e), user_qiao_id=user_qiao_id, exc_info=True
+        )
         # Don't raise - logging failure shouldn't break the conversation
-        pass
 
 
 async def archive_contexts_transaction(
@@ -262,7 +265,9 @@ async def archive_contexts_transaction(
         return 0
 
 
-async def archive_all_conversation_items(db: AsyncSession, user_qiao_id: str, instance_qiao_id: str) -> int:
+async def archive_all_conversation_items(
+    db: AsyncSession, user_qiao_id: str, instance_qiao_id: str
+) -> int:
     """
     Archive all conversation items for a user-instance pair.
 

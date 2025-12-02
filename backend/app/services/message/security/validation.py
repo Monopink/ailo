@@ -7,7 +7,6 @@ from docs/prototype/message-flow.md (lines 486-554).
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from enums import ChatInfoType
 from models.ai.instance import AIInstance
@@ -23,10 +22,10 @@ class ValidationResult:
     """Result of message permission validation"""
 
     allowed: bool
-    reason: Optional[str] = None
-    chat_info_type: Optional[ChatInfoType] = None
-    error_code: Optional[str] = None
-    suggestions: Optional[list[str]] = None
+    reason: str | None = None
+    chat_info_type: ChatInfoType | None = None
+    error_code: str | None = None
+    suggestions: list[str] | None = None
 
 
 class MessageValidationService:
@@ -85,7 +84,9 @@ class MessageValidationService:
 
         # All checks passed
         logger.debug(
-            "message_permission_granted", user_qiao_id=from_qiao_id, instance_qiao_id=instance.qiao_id
+            "message_permission_granted",
+            user_qiao_id=from_qiao_id,
+            instance_qiao_id=instance.qiao_id,
         )
         return ValidationResult(allowed=True)
 

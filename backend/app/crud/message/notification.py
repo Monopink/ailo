@@ -2,8 +2,6 @@
 Notification push history CRUD operations.
 """
 
-from typing import List, Optional
-
 from crud.base import CRUDBase
 from enums.common import NotificationStatus
 from models.message.notification import NotificationPushHistory
@@ -52,7 +50,7 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
         *,
         notification_id: int,
         error_message: str,
-    ) -> Optional[NotificationPushHistory]:
+    ) -> NotificationPushHistory | None:
         """
         Mark notification as failed.
 
@@ -78,10 +76,10 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
         db: AsyncSession,
         *,
         to_qiao_id: str,
-        notification_type: Optional[int] = None,
+        notification_type: int | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[NotificationPushHistory]:
+    ) -> list[NotificationPushHistory]:
         """
         Get user's notifications.
 

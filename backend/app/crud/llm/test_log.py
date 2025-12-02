@@ -4,8 +4,6 @@ CRUD operations for LLM test logs.
 This module provides database operations for LLM configuration test logs.
 """
 
-from typing import List
-
 from crud.base import ImmutableCRUDBase
 from models.llm import LLMTestLog
 from schemas.llm import LLMTestLogCreate
@@ -18,7 +16,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
 
     async def get_by_config_id(
         self, db: AsyncSession, config_id: int, limit: int = 100
-    ) -> List[LLMTestLog]:
+    ) -> list[LLMTestLog]:
         """
         Get test logs by configuration ID.
 
@@ -38,7 +36,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
         )
         return list(result.scalars().all())
 
-    async def get_recent_logs(self, db: AsyncSession, limit: int = 50) -> List[LLMTestLog]:
+    async def get_recent_logs(self, db: AsyncSession, limit: int = 50) -> list[LLMTestLog]:
         """
         Get recent test logs across all configurations.
 
@@ -49,10 +47,14 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
         Returns:
             List of test logs ordered by creation time (newest first)
         """
-        result = await db.execute(select(LLMTestLog).order_by(desc(LLMTestLog.created_at)).limit(limit))
+        result = await db.execute(
+            select(LLMTestLog).order_by(desc(LLMTestLog.created_at)).limit(limit)
+        )
         return list(result.scalars().all())
 
-    async def get_by_status(self, db: AsyncSession, status: int, limit: int = 100) -> List[LLMTestLog]:
+    async def get_by_status(
+        self, db: AsyncSession, status: int, limit: int = 100
+    ) -> list[LLMTestLog]:
         """
         Get test logs by status.
 

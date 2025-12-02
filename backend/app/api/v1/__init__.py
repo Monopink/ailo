@@ -21,7 +21,9 @@ v1_router = APIRouter()
 v1_router.include_router(auth_router)
 v1_router.include_router(webhook_router)
 v1_router.include_router(contacts_router)
-v1_router.include_router(contact_requests_router, prefix="/contact-requests", tags=["Contact Requests"])
+v1_router.include_router(
+    contact_requests_router, prefix="/contact-requests", tags=["Contact Requests"]
+)
 v1_router.include_router(users_router)
 v1_router.include_router(account_security_router)
 v1_router.include_router(discovery_router)

@@ -4,8 +4,6 @@ Cloudflare Turnstile CAPTCHA Provider
 Verifies CAPTCHA tokens using Cloudflare Turnstile API.
 """
 
-from typing import Optional, Tuple
-
 import httpx
 from utils.logging import get_logger
 
@@ -36,7 +34,7 @@ class TurnstileProvider:
 
         logger.info("turnstile_provider_initialized", mode=mode, has_secret_key=bool(secret_key))
 
-    async def verify_token(self, token: str, ip: str) -> Tuple[bool, Optional[str]]:
+    async def verify_token(self, token: str, ip: str) -> tuple[bool, str | None]:
         """
         Verify Turnstile token.
 
@@ -55,8 +53,7 @@ class TurnstileProvider:
                 # Allow in fallback mode if service not configured
                 logger.warning("turnstile_verification_skipped_fallback_mode")
                 return True, None
-            else:
-                return False, error_msg
+            return False, error_msg
 
         if not token:
             return False, "CAPTCHA token is required"
@@ -64,7 +61,8 @@ class TurnstileProvider:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
-                    self.VERIFY_URL, data={"secret": self.secret_key, "response": token, "remoteip": ip}
+                    self.VERIFY_URL,
+                    data={"secret": self.secret_key, "response": token, "remoteip": ip},
                 )
 
                 if response.status_code != 200:
@@ -79,8 +77,7 @@ class TurnstileProvider:
                         # Allow in fallback mode on service errors
                         logger.warning("turnstile_verification_allowed_fallback_mode")
                         return True, None
-                    else:
-                        return False, error_msg
+                    return False, error_msg
 
                 result = response.json()
 
@@ -92,13 +89,12 @@ class TurnstileProvider:
                         hostname=result.get("hostname"),
                     )
                     return True, None
-                else:
-                    error_codes = result.get("error-codes", [])
-                    error_msg = f"CAPTCHA verification failed: {', '.join(error_codes)}"
+                error_codes = result.get("error-codes", [])
+                error_msg = f"CAPTCHA verification failed: {', '.join(error_codes)}"
 
-                    logger.warning("turnstile_verification_failed", ip=ip, error_codes=error_codes)
+                logger.warning("turnstile_verification_failed", ip=ip, error_codes=error_codes)
 
-                    return False, error_msg
+                return False, error_msg
 
         except httpx.TimeoutException:
             error_msg = "CAPTCHA verification timeout"
@@ -108,16 +104,16 @@ class TurnstileProvider:
                 # Allow in fallback mode on timeout
                 logger.warning("turnstile_timeout_allowed_fallback_mode")
                 return True, None
-            else:
-                return False, error_msg
+            return False, error_msg
 
         except Exception as e:
-            error_msg = f"CAPTCHA verification error: {str(e)}"
-            logger.error("turnstile_unexpected_error", ip=ip, error=str(e), error_type=type(e).__name__)
+            error_msg = f"CAPTCHA verification error: {e!s}"
+            logger.error(
+                "turnstile_unexpected_error", ip=ip, error=str(e), error_type=type(e).__name__
+            )
 
             if self.mode == "fallback":
                 # Allow in fallback mode on unexpected errors
                 logger.warning("turnstile_error_allowed_fallback_mode")
                 return True, None
-            else:
-                return False, error_msg
+            return False, error_msg

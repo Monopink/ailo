@@ -5,7 +5,7 @@ This module centralizes JSON schema generation so that business layers
 can share the same implementation without introducing circular imports.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from exceptions import AIServiceError
 from services.ai.types import InstanceContext
@@ -14,7 +14,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def generate_json_schema(schema_config: Dict[str, Any]) -> Dict[str, Any]:
+def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
     """
     Generate JSON Schema from structured configuration.
 
@@ -141,7 +141,7 @@ def generate_json_schema(schema_config: Dict[str, Any]) -> Dict[str, Any]:
     return schema
 
 
-def build_response_schema(context: InstanceContext) -> Dict[str, Any]:
+def build_response_schema(context: InstanceContext) -> dict[str, Any]:
     """Build JSON schema directly from instance context."""
 
     try:
@@ -175,11 +175,11 @@ def build_response_schema(context: InstanceContext) -> Dict[str, Any]:
         raise AIServiceError(
             ai_service="schema_building",
             reason="unexpected_error",
-            message=f"Failed to build response schema: {str(exc)}",
+            message=f"Failed to build response schema: {exc!s}",
         ) from exc
 
 
-def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_dynamic_response_schema(style: Any, dimensions: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Build dynamic JSON schema based on AI style and dimensions.
     """
@@ -229,13 +229,13 @@ def _build_dynamic_response_schema(style: Any, dimensions: List[Dict[str, Any]])
         raise AIServiceError(
             ai_service="schema_building",
             reason="build_failed",
-            message=f"Failed to build dynamic schema: {str(exc)}",
+            message=f"Failed to build dynamic schema: {exc!s}",
         )
 
 
 def _get_base_response_schema(
-    score_properties: Dict[str, Any], score_required: List[str]
-) -> Dict[str, Any]:
+    score_properties: dict[str, Any], score_required: list[str]
+) -> dict[str, Any]:
     """Get base JSON schema structure with dynamic score fields."""
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

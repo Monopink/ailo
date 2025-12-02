@@ -4,7 +4,7 @@ AI template schemas.
 This module contains Pydantic schemas for AI template-related operations.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -13,28 +13,26 @@ class AITypeBase(BaseModel):
     """Base schema for AI type."""
 
     display_name: str = Field(..., max_length=100, description="Display name (unique)")
-    description: Optional[str] = Field(None, description="Description")
+    description: str | None = Field(None, description="Description")
 
 
 class AITypeCreate(AITypeBase):
     """Schema for creating AI type."""
 
-    pass
-
 
 class AITypeUpdate(BaseModel):
     """Schema for updating AI type."""
 
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name")
-    description: Optional[str] = Field(None, description="Description")
+    display_name: str | None = Field(None, max_length=100, description="Display name")
+    description: str | None = Field(None, description="Description")
 
 
 class AIType(AITypeBase):
     """AI type response."""
 
     id: int = Field(..., description="AI type ID")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    updated_at: Optional[str] = Field(None, description="Update timestamp")
+    created_at: str | None = Field(None, description="Creation timestamp")
+    updated_at: str | None = Field(None, description="Update timestamp")
 
     class Config:
         from_attributes = True
@@ -46,14 +44,14 @@ class AITemplateBase(BaseModel):
     type_id: int = Field(..., description="AI type ID")
     style_id: int = Field(..., description="Style ID, references ai_styles.id")
     personality_id: int = Field(..., description="Personality ID, references ai_personalities.id")
-    memory: Optional[str] = Field(None, description="Memory settings")
-    prompt_variables: Optional[Dict[str, Any]] = Field(
+    memory: str | None = Field(None, description="Memory settings")
+    prompt_variables: dict[str, Any] | None = Field(
         None, description="Prompt variables/placeholder overrides"
     )
-    position_mapping_config: Optional[Dict[str, Any]] = Field(
+    position_mapping_config: dict[str, Any] | None = Field(
         None, description="Per-dimension position mapping configuration"
     )
-    timezone: Optional[str] = Field(
+    timezone: str | None = Field(
         "Asia/Shanghai",
         max_length=50,
         description="Default IANA timezone for instances",
@@ -68,35 +66,35 @@ class AITemplateBase(BaseModel):
 class AITemplateCreate(AITemplateBase):
     """Schema for creating AI template."""
 
-    pass
-
 
 class AITemplateUpdate(BaseModel):
     """Schema for updating AI template."""
 
-    style_id: Optional[int] = Field(None, description="Style ID")
-    personality_id: Optional[int] = Field(None, description="Personality ID")
-    memory: Optional[str] = Field(None, description="Memory settings")
-    prompt_variables: Optional[Dict[str, Any]] = Field(None, description="Prompt variables")
-    position_mapping_config: Optional[Dict[str, Any]] = Field(
+    style_id: int | None = Field(None, description="Style ID")
+    personality_id: int | None = Field(None, description="Personality ID")
+    memory: str | None = Field(None, description="Memory settings")
+    prompt_variables: dict[str, Any] | None = Field(None, description="Prompt variables")
+    position_mapping_config: dict[str, Any] | None = Field(
         None, description="Per-dimension position mapping configuration"
     )
-    timezone: Optional[str] = Field(None, description="Default IANA timezone for instances", max_length=50)
-    typing_speed_wpm: Optional[int] = Field(
+    timezone: str | None = Field(
+        None, description="Default IANA timezone for instances", max_length=50
+    )
+    typing_speed_wpm: int | None = Field(
         None,
         ge=1,
         description="Default typing speed (words per minute)",
     )
-    is_reusable: Optional[int] = Field(None, description="Is reusable")
-    status: Optional[int] = Field(None, description="Status")
+    is_reusable: int | None = Field(None, description="Is reusable")
+    status: int | None = Field(None, description="Status")
 
 
 class AITemplate(AITemplateBase):
     """Schema for AI template response."""
 
     id: int = Field(..., description="Template ID")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    updated_at: Optional[str] = Field(None, description="Update timestamp")
+    created_at: str | None = Field(None, description="Creation timestamp")
+    updated_at: str | None = Field(None, description="Update timestamp")
     timezone: str = Field(..., description="Default IANA timezone for instances")
 
     class Config:
@@ -120,9 +118,9 @@ class AIPersonaCreate(AIPersonaBase):
 class AIPersonaUpdate(BaseModel):
     """Schema for updating AI persona."""
 
-    type_id: Optional[int] = Field(None, description="AI type association")
-    is_reusable: Optional[int] = Field(None, description="Is reusable flag")
-    status: Optional[int] = Field(None, description="Persona status")
+    type_id: int | None = Field(None, description="AI type association")
+    is_reusable: int | None = Field(None, description="Is reusable flag")
+    status: int | None = Field(None, description="Persona status")
 
 
 class AIPersona(AIPersonaBase):
@@ -130,8 +128,8 @@ class AIPersona(AIPersonaBase):
 
     id: int = Field(..., description="Persona ID")
     qiao_id: str = Field(..., description="Persona qiao_id")
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    updated_at: Optional[str] = Field(None, description="Update timestamp")
+    created_at: str | None = Field(None, description="Creation timestamp")
+    updated_at: str | None = Field(None, description="Update timestamp")
 
     class Config:
         from_attributes = True

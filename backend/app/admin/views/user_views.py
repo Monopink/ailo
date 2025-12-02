@@ -5,8 +5,8 @@ Creates ModelView instances for user management and admin system models.
 
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField, convert_empty_strings_to_none
@@ -53,7 +53,14 @@ class UserView(BaseRoleAwareModelView):
         "updated_at",
         "last_login",
     ]
-    exclude_fields_from_edit = ["id", "qiao_id", "password_hash", "created_at", "updated_at", "last_login"]
+    exclude_fields_from_edit = [
+        "id",
+        "qiao_id",
+        "password_hash",
+        "created_at",
+        "updated_at",
+        "last_login",
+    ]
     exclude_fields_from_list = ["password_hash", "password"]
     exclude_fields_from_detail = ["password_hash", "password"]
 
@@ -96,13 +103,17 @@ class UserView(BaseRoleAwareModelView):
             help_text="Real-name verification status",
             required=True,
         ),
-        StringField("verify_source", label="Verify Source", help_text="Verification source/provider"),
+        StringField(
+            "verify_source", label="Verify Source", help_text="Verification source/provider"
+        ),
         TextAreaField(
             "verification_info",
             label="Verification Info",
             help_text="Verification extra information (JSON/text)",
         ),
-        LocalDateTimeField("verified_at", label="Verified At", help_text="Verification approval time"),
+        LocalDateTimeField(
+            "verified_at", label="Verified At", help_text="Verification approval time"
+        ),
         IntegerEnumField(
             "user_type",
             enum=UserType,
@@ -115,7 +126,7 @@ class UserView(BaseRoleAwareModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Validate user data."""
         password = data.get("password")
 
@@ -130,7 +141,7 @@ class UserView(BaseRoleAwareModelView):
 
         await super().validate(request, data)
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Hash password before creating user. Convert empty unique fields to NULL."""
         password = data.pop("password", None)
 
@@ -140,7 +151,7 @@ class UserView(BaseRoleAwareModelView):
         # Convert empty unique fields to NULL to avoid unique constraint violation
         convert_empty_strings_to_none(obj, ["phone", "email"])
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Hash password before updating user if password is changed. Convert empty unique fields to NULL."""
         password = data.pop("password", None)
 
@@ -204,7 +215,9 @@ class ProfileView(BaseRoleAwareModelView):
             help_text="Select an AI instance",
             required=False,
         ),
-        StringField("owner_qiao_id", label="Owner Qiao ID", help_text="External ID of the profile owner"),
+        StringField(
+            "owner_qiao_id", label="Owner Qiao ID", help_text="External ID of the profile owner"
+        ),
         StringField("nickname", label="Nickname", help_text="Display nickname"),
         IntegerEnumField("gender", enum=Gender, label="Gender", help_text="Gender information"),
         StringField(
@@ -220,7 +233,7 @@ class ProfileView(BaseRoleAwareModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation for polymorphic owner fields."""
         owner_user = data.get("_owner_user")
         owner_persona = data.get("_owner_persona")
@@ -235,7 +248,7 @@ class ProfileView(BaseRoleAwareModelView):
         if selected_count > 1:
             raise FormValidationError({"_owner_user": "Please select only one owner"})
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         # Convert empty string to None for integer fields FIRST (before any database operations)
         if obj.avatar_file_id == "":
@@ -275,10 +288,12 @@ class ProfileView(BaseRoleAwareModelView):
                 else:
                     field_name = "_owner_instance"
                 raise FormValidationError(
-                    {field_name: f"Profile already exists for this owner (ID: {existing_profile.id})"}
+                    {
+                        field_name: f"Profile already exists for this owner (ID: {existing_profile.id})"
+                    }
                 )
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         # Convert empty string to None for integer fields
         if obj.avatar_file_id == "":
@@ -490,7 +505,7 @@ class ContactView(BaseRoleAwareModelView):
         LocalDateTimeField("deleted_at", label="Deleted At", help_text="Soft delete time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation for polymorphic contact fields."""
         contact_user = data.get("_contact_user")
         contact_instance = data.get("_contact_instance")
@@ -503,7 +518,7 @@ class ContactView(BaseRoleAwareModelView):
         if contact_user and contact_instance:
             raise FormValidationError({"_contact_user": "Please select only one contact"})
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
@@ -540,7 +555,9 @@ class ContactView(BaseRoleAwareModelView):
                 existing_contact = duplicate_result.scalar_one_or_none()
                 if existing_contact:
                     errors[
-                        "_contact_user" if obj.contact_type == ContactType.USER else "_contact_instance"
+                        "_contact_user"
+                        if obj.contact_type == ContactType.USER
+                        else "_contact_instance"
                     ] = (
                         f"Contact already exists for this user (ID: {existing_contact.id}). "
                         f"Each user can only have one contact record per contact."
@@ -576,7 +593,7 @@ class ContactView(BaseRoleAwareModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
@@ -663,7 +680,9 @@ class ContactRequestView(ModelView):
             help_text="Select an AI instance as applicant",
             required=False,
         ),
-        StringField("from_qiao_id", label="From Qiao ID", help_text="Applicant external identifier"),
+        StringField(
+            "from_qiao_id", label="From Qiao ID", help_text="Applicant external identifier"
+        ),
         # Polymorphic to fields - select one, to_type is auto-inferred
         HasOne(
             "_to_user",
@@ -729,7 +748,7 @@ class ContactRequestView(ModelView):
         """Trigger retry for hanging requests."""
         return f"/qiao-dash/contact-requests/{pk}/retry"
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation for contact requests."""
         from_user = data.get("_from_user")
         from_instance = data.get("_from_instance")
@@ -746,7 +765,9 @@ class ContactRequestView(ModelView):
 
         # Must select exactly one to entity
         if not to_user and not to_instance:
-            raise FormValidationError({"_to_user": "Please select either To (User) or To (AI Instance)"})
+            raise FormValidationError(
+                {"_to_user": "Please select either To (User) or To (AI Instance)"}
+            )
         if to_user and to_instance:
             raise FormValidationError({"_to_user": "Please select only one to entity"})
 
@@ -759,7 +780,7 @@ class ContactRequestView(ModelView):
 
         return await super().validate(request, data)
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-fill source as ADMIN for admin panel creations
         obj.source = ContactRequestSource.ADMIN
@@ -795,9 +816,9 @@ class ContactRequestView(ModelView):
 
         # Get expiration time from config (stored in days)
         expiration_days = await get_config(request.state.session, "contact_request_expiration_days")
-        obj.expires_at = datetime.now(timezone.utc) + timedelta(days=int(expiration_days))
+        obj.expires_at = datetime.now(UTC) + timedelta(days=int(expiration_days))
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-infer from_type and fill from_id, from_qiao_id
         from_user = data.get("_from_user")

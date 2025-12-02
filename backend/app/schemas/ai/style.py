@@ -5,7 +5,6 @@ This module contains Pydantic schemas for AI styles and relationships.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 from schemas.common import BaseSchema
@@ -28,14 +27,14 @@ class AIStyleCreate(BaseModel):
 class AIStyleUpdate(BaseModel):
     """Schema for updating an AI style."""
 
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name")
-    status: Optional[int] = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
+    display_name: str | None = Field(None, max_length=100, description="Display name")
+    status: int | None = Field(None, ge=1, le=2, description="Status: 1=active, 2=inactive")
 
 
 class AIStyleResponse(AIStyleBase):
     """Schema for AI style response data."""
 
-    initial_relationship_id: Optional[int] = Field(None, description="Initial relationship type ID")
+    initial_relationship_id: int | None = Field(None, description="Initial relationship type ID")
     status: int = Field(..., description="Status")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
@@ -48,24 +47,24 @@ class AIDimensionBase(BaseSchema):
     """Base AI dimension schema (global)."""
 
     name: str = Field(..., max_length=50, description="Dimension name (unique)")
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
-    description: Optional[str] = Field(None, description="Dimension description")
+    display_name: str | None = Field(None, max_length=100, description="Display name for UI")
+    description: str | None = Field(None, description="Dimension description")
 
 
 class AIDimensionCreate(BaseModel):
     """Schema for creating a global AI dimension."""
 
     name: str = Field(..., max_length=50, description="Dimension name (unique)")
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
-    description: Optional[str] = Field(None, description="Dimension description")
+    display_name: str | None = Field(None, max_length=100, description="Display name for UI")
+    description: str | None = Field(None, description="Dimension description")
 
 
 class AIDimensionUpdate(BaseModel):
     """Schema for updating a global AI dimension."""
 
-    name: Optional[str] = Field(None, max_length=50, description="Dimension name (unique)")
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name for UI")
-    description: Optional[str] = Field(None, description="Dimension description")
+    name: str | None = Field(None, max_length=50, description="Dimension name (unique)")
+    display_name: str | None = Field(None, max_length=100, description="Display name for UI")
+    description: str | None = Field(None, description="Dimension description")
 
 
 class AIDimensionResponse(AIDimensionBase):
@@ -84,7 +83,9 @@ class AIStyleDimensionBase(BaseSchema):
 
     style_id: int = Field(..., description="Style ID")
     dimension_id: int = Field(..., description="Dimension ID")
-    initial_position: int = Field(..., ge=0, le=1000, description="Initial position, 0-1000 per mille")
+    initial_position: int = Field(
+        ..., ge=0, le=1000, description="Initial position, 0-1000 per mille"
+    )
 
 
 class AIStyleDimensionCreate(BaseModel):
@@ -92,14 +93,16 @@ class AIStyleDimensionCreate(BaseModel):
 
     style_id: int = Field(..., description="Style ID")
     dimension_id: int = Field(..., description="Dimension ID")
-    initial_position: int = Field(..., ge=0, le=1000, description="Initial position, 0-1000 per mille")
+    initial_position: int = Field(
+        ..., ge=0, le=1000, description="Initial position, 0-1000 per mille"
+    )
 
 
 class AIStyleDimensionUpdate(BaseModel):
     """Schema for updating an AI style dimension mapping."""
 
-    dimension_id: Optional[int] = Field(None, description="Dimension ID")
-    initial_position: Optional[int] = Field(
+    dimension_id: int | None = Field(None, description="Dimension ID")
+    initial_position: int | None = Field(
         None, ge=0, le=1000, description="Initial position, 0-1000 per mille"
     )
 
@@ -119,14 +122,14 @@ class AIRelationshipBase(BaseSchema):
     """Base AI relationship schema."""
 
     display_name: str = Field(..., max_length=100, description="Display name")
-    prompt_fragment: Optional[str] = Field(None, description="Prompt fragment for this relationship")
+    prompt_fragment: str | None = Field(None, description="Prompt fragment for this relationship")
 
 
 class AIRelationshipCreate(BaseModel):
     """Schema for creating an AI relationship."""
 
     display_name: str = Field(..., max_length=100, description="Display name")
-    prompt_fragment: Optional[str] = Field(None, description="Prompt fragment for this relationship")
+    prompt_fragment: str | None = Field(None, description="Prompt fragment for this relationship")
 
 
 class AIRelationshipResponse(AIRelationshipBase):
@@ -148,7 +151,7 @@ class AIDimensionRelationshipMappingBase(BaseSchema):
     end_position: int = Field(..., ge=0, le=1000, description="End position, 0-1000 per mille")
     relationship_id: int = Field(..., description="Relationship ID")
     priority: int = Field(..., description="Priority")
-    limit_count: Optional[int] = Field(None, description="Maximum occurrence count")
+    limit_count: int | None = Field(None, description="Maximum occurrence count")
 
 
 class AIDimensionRelationshipMappingCreate(BaseModel):
@@ -159,7 +162,7 @@ class AIDimensionRelationshipMappingCreate(BaseModel):
     end_position: int = Field(..., ge=0, le=1000, description="End position, 0-1000 per mille")
     relationship_id: int = Field(..., description="Relationship ID")
     priority: int = Field(..., description="Priority")
-    limit_count: Optional[int] = Field(None, description="Maximum occurrence count")
+    limit_count: int | None = Field(None, description="Maximum occurrence count")
 
     @field_validator("end_position")
     @classmethod
@@ -175,14 +178,18 @@ class AIDimensionRelationshipMappingCreate(BaseModel):
 class AIDimensionRelationshipMappingUpdate(BaseModel):
     """Schema for updating an AI dimension relationship mapping."""
 
-    dimension_id: Optional[int] = Field(None, description="Dimension ID")
-    start_position: Optional[int] = Field(
+    dimension_id: int | None = Field(None, description="Dimension ID")
+    start_position: int | None = Field(
         None, ge=0, le=1000, description="Start position, 0-1000 per mille"
     )
-    end_position: Optional[int] = Field(None, ge=0, le=1000, description="End position, 0-1000 per mille")
-    relationship_id: Optional[int] = Field(None, description="Relationship ID")
-    priority: Optional[int] = Field(None, description="Priority level")
-    limit_count: Optional[int] = Field(None, description="Maximum occurrence count, NULL means unlimited")
+    end_position: int | None = Field(
+        None, ge=0, le=1000, description="End position, 0-1000 per mille"
+    )
+    relationship_id: int | None = Field(None, description="Relationship ID")
+    priority: int | None = Field(None, description="Priority level")
+    limit_count: int | None = Field(
+        None, description="Maximum occurrence count, NULL means unlimited"
+    )
 
     @field_validator("end_position")
     @classmethod

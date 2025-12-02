@@ -11,8 +11,6 @@ from starlette.datastructures import FormData, UploadFile
 class FormFieldError(ValueError):
     """Exception raised when form field extraction fails."""
 
-    pass
-
 
 def get_text_field(
     form_data: FormData,

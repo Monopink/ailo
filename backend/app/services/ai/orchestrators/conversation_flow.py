@@ -7,7 +7,7 @@ coordinating all AI service components with clear error handling.
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from core.database import get_sessionmaker
@@ -53,13 +53,13 @@ async def process_conversation(
     instance_qiao_id: str,
     message_content: str,
     message_type: str = "text",
-    config_name: Optional[str] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-    locked_buffer_id: Optional[int] = None,
-    user_message_item_id: Optional[int] = None,
-    message_blocks: Optional[List[Dict[str, Any]]] = None,
+    config_name: str | None = None,
+    request_overrides: dict[str, Any] | None = None,
+    locked_buffer_id: int | None = None,
+    user_message_item_id: int | None = None,
+    message_blocks: list[dict[str, Any]] | None = None,
     persist: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Process AI conversation following the complete 11-step flow.
 
@@ -213,7 +213,7 @@ async def process_conversation(
         )
 
         # Prepare messages for LLM (business format)
-        messages: List[Dict[str, Any]] = []
+        messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append(
                 {
@@ -333,7 +333,9 @@ async def process_conversation(
             name=config_name,
             instance_request_params=instance_request_params,
             preemption_checker=preemption_checker,
-            session_context=LLMSessionContext(user_qiao_id=user_qiao_id, instance_qiao_id=instance_qiao_id),
+            session_context=LLMSessionContext(
+                user_qiao_id=user_qiao_id, instance_qiao_id=instance_qiao_id
+            ),
         )
 
         # Check if request was preempted
@@ -370,7 +372,7 @@ async def process_conversation(
         await validate_ai_response(db, config, raw_content, allow_auto_update=False)
 
         # Step 10 & 11: Save all conversation results in single atomic transaction
-        assistant_item_id: Optional[int] = None
+        assistant_item_id: int | None = None
         if persist:
             session_factory = get_sessionmaker()
             await process_llm_response(
@@ -444,7 +446,7 @@ async def process_conversation(
         raise AIConversationError(
             conversation_step="instance_validation",
             reason="instance_error",
-            message=f"Instance error: {str(e)}",
+            message=f"Instance error: {e!s}",
         )
 
     except Exception as e:
@@ -457,7 +459,7 @@ async def process_conversation(
         raise AIConversationError(
             conversation_step="processing",
             reason="unexpected_error",
-            message=f"Unexpected error in conversation processing: {str(e)}",
+            message=f"Unexpected error in conversation processing: {e!s}",
         )
 
 
@@ -466,9 +468,9 @@ async def process_ai_response_updates(
     user_qiao_id: str,
     instance_qiao_id: str,
     context: InstanceContext,
-    ai_response: Dict[str, Any],
-    buffer_id: Optional[int],  # Locked buffer id
-    user_message_item_id: Optional[int],
+    ai_response: dict[str, Any],
+    buffer_id: int | None,  # Locked buffer id
+    user_message_item_id: int | None,
     *,
     persist: bool = True,
 ) -> None:
@@ -488,7 +490,11 @@ async def process_ai_response_updates(
         # No state transition here; buffer controls OPEN -> LOCKED -> COMPLETE
 
         # Handle attack detection
-        if persist and ai_response.get("attack_detected", False) and user_message_item_id is not None:
+        if (
+            persist
+            and ai_response.get("attack_detected", False)
+            and user_message_item_id is not None
+        ):
             await handle_attack_detection(db, user_qiao_id, instance_qiao_id, user_message_item_id)
 
         # Update relationship scores
@@ -608,10 +614,10 @@ async def handle_instance_blocking(db: AsyncSession, instance_qiao_id: str) -> N
         logger.error("instance_blocking_failed", error=str(e), instance_qiao_id=instance_qiao_id)
 
 
-def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
+def _blocks_to_text(blocks: list[dict[str, Any]]) -> str:
     """Flatten provider-style blocks into a single text string."""
 
-    fragments: List[str] = []
+    fragments: list[str] = []
     for block in blocks:
         text_value = block.get("text")
         if text_value:
@@ -619,7 +625,7 @@ def _blocks_to_text(blocks: List[Dict[str, Any]]) -> str:
     return "\n".join(fragments)
 
 
-def _format_now_prefix(timezone_name: Optional[str]) -> Optional[str]:
+def _format_now_prefix(timezone_name: str | None) -> str | None:
     """
     Format current time with humanized format.
 

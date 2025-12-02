@@ -4,8 +4,6 @@ Contact management CRUD operations.
 This module contains CRUD operations for contact relationships and requests.
 """
 
-from typing import List, Optional
-
 from crud.base import CRUDBase
 from enums import ContactRequestStatus, ContactType
 from models.contact import Contact, ContactRequest
@@ -18,14 +16,14 @@ from utils.snowflake import generate_snowflake_id
 class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
     """CRUD operations for Contact model."""
 
-    async def get_by_conv_id(self, db: AsyncSession, *, conv_id: str) -> Optional[Contact]:
+    async def get_by_conv_id(self, db: AsyncSession, *, conv_id: str) -> Contact | None:
         """Get contact by conversation ID."""
         result = await db.execute(select(self.model).where(self.model.conv_id == conv_id))
         return result.scalar_one_or_none()
 
     async def get_user_contact(
         self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
-    ) -> Optional[Contact]:
+    ) -> Contact | None:
         """Get specific contact relationship."""
         result = await db.execute(
             select(self.model).where(
@@ -43,11 +41,11 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         db: AsyncSession,
         *,
         user_qiao_id: str,
-        contact_type: Optional[ContactType] = None,
+        contact_type: ContactType | None = None,
         include_blocked: bool = False,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Contact]:
+    ) -> list[Contact]:
         """Get user's contacts with filtering."""
         conditions = [self.model.user_qiao_id == user_qiao_id, self.model.is_deleted == 0]
 
@@ -66,7 +64,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         )
         return list(result.scalars().all())
 
-    async def get_pinned_contacts(self, db: AsyncSession, *, user_qiao_id: str) -> List[Contact]:
+    async def get_pinned_contacts(self, db: AsyncSession, *, user_qiao_id: str) -> list[Contact]:
         """Get user's pinned contacts."""
         result = await db.execute(
             select(self.model)
@@ -83,7 +81,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
 
     async def search_user_contacts(
         self, db: AsyncSession, *, user_qiao_id: str, query: str, limit: int = 20
-    ) -> List[Contact]:
+    ) -> list[Contact]:
         """Search user's contacts by alias or contact info."""
         result = await db.execute(
             select(self.model)
@@ -92,7 +90,8 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
                     self.model.user_qiao_id == user_qiao_id,
                     self.model.is_deleted == 0,
                     or_(
-                        self.model.alias.ilike(f"%{query}%"), self.model.contact_qiao_id.ilike(f"%{query}%")
+                        self.model.alias.ilike(f"%{query}%"),
+                        self.model.contact_qiao_id.ilike(f"%{query}%"),
                     ),
                 )
             )
@@ -101,7 +100,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         return list(result.scalars().all())
 
     async def count_user_contacts(
-        self, db: AsyncSession, *, user_qiao_id: str, contact_type: Optional[ContactType] = None
+        self, db: AsyncSession, *, user_qiao_id: str, contact_type: ContactType | None = None
     ) -> int:
         """Count user's contacts."""
         conditions = [self.model.user_qiao_id == user_qiao_id, self.model.is_deleted == 0]
@@ -114,7 +113,13 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         return count if count is not None else 0
 
     async def create_with_user(
-        self, db: AsyncSession, *, obj_in: ContactCreate, user_qiao_id: str, user_id: int, conv_id: str
+        self,
+        db: AsyncSession,
+        *,
+        obj_in: ContactCreate,
+        user_qiao_id: str,
+        user_id: int,
+        conv_id: str,
     ) -> Contact:
         """Create contact with user information."""
         tags_payload = {"tags": obj_in.tags} if obj_in.tags else None
@@ -139,7 +144,9 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         await db.flush()
         return db_obj
 
-    async def is_contact_exists(self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str) -> bool:
+    async def is_contact_exists(
+        self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
+    ) -> bool:
         """Check if contact relationship exists."""
         result = await db.execute(
             select(func.count(self.model.id)).where(
@@ -155,7 +162,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
 
     async def soft_delete_contact(
         self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
-    ) -> Optional[Contact]:
+    ) -> Contact | None:
         """Soft delete a contact relationship."""
         contact = await self.get_user_contact(
             db, user_qiao_id=user_qiao_id, contact_qiao_id=contact_qiao_id
@@ -169,7 +176,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
 
     async def get_user_contact_including_deleted(
         self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
-    ) -> Optional[Contact]:
+    ) -> Contact | None:
         """
         Get contact including deleted ones.
 
@@ -198,8 +205,8 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         db: AsyncSession,
         *,
         contact: Contact,
-        alias: Optional[str] = None,
-        tags: Optional[dict] = None,
+        alias: str | None = None,
+        tags: dict | None = None,
     ) -> Contact:
         """
         Restore a soft-deleted contact with new settings.
@@ -228,7 +235,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         return contact
 
     async def batch_update_contacts(
-        self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_ids: List[str], update_data: dict
+        self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_ids: list[str], update_data: dict
     ) -> int:
         """Batch update contacts."""
         result = await db.execute(
@@ -259,7 +266,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
 
     async def get_latest_request(
         self, db: AsyncSession, *, from_qiao_id: str, to_qiao_id: str
-    ) -> Optional[ContactRequest]:
+    ) -> ContactRequest | None:
         """Get the latest contact request between two parties regardless of status."""
         result = await db.execute(
             select(self.model)
@@ -276,7 +283,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
 
     async def get_pending_request(
         self, db: AsyncSession, *, from_qiao_id: str, to_qiao_id: str
-    ) -> Optional[ContactRequest]:
+    ) -> ContactRequest | None:
         """Get pending or processing contact request between two users. Returns the most recent one if multiple exist."""
         result = await db.execute(
             select(self.model)
@@ -284,7 +291,9 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
                 and_(
                     self.model.from_qiao_id == from_qiao_id,
                     self.model.to_qiao_id == to_qiao_id,
-                    self.model.status.in_([ContactRequestStatus.PENDING, ContactRequestStatus.PROCESSING]),
+                    self.model.status.in_(
+                        [ContactRequestStatus.PENDING, ContactRequestStatus.PROCESSING]
+                    ),
                 )
             )
             .order_by(self.model.created_at.desc())
@@ -297,10 +306,10 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
         db: AsyncSession,
         *,
         from_qiao_id: str,
-        status: Optional[ContactRequestStatus] = None,
+        status: ContactRequestStatus | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[ContactRequest]:
+    ) -> list[ContactRequest]:
         """Get user's sent contact requests."""
         conditions = [self.model.from_qiao_id == from_qiao_id]
         if status:
@@ -320,10 +329,10 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
         db: AsyncSession,
         *,
         to_qiao_id: str,
-        status: Optional[ContactRequestStatus] = None,
+        status: ContactRequestStatus | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[ContactRequest]:
+    ) -> list[ContactRequest]:
         """Get user's received contact requests."""
         conditions = [self.model.to_qiao_id == to_qiao_id]
         if status:
@@ -342,7 +351,10 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
         """Count pending requests for a user."""
         result = await db.execute(
             select(func.count(self.model.id)).where(
-                and_(self.model.to_qiao_id == to_qiao_id, self.model.status == ContactRequestStatus.PENDING)
+                and_(
+                    self.model.to_qiao_id == to_qiao_id,
+                    self.model.status == ContactRequestStatus.PENDING,
+                )
             )
         )
         count = result.scalar()
@@ -350,7 +362,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
 
     async def update_request_status(
         self, db: AsyncSession, *, request_id: int, status: ContactRequestStatus
-    ) -> Optional[ContactRequest]:
+    ) -> ContactRequest | None:
         """Update contact request status."""
         request = await self.get(db, id=request_id)
         if request:
@@ -360,9 +372,11 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
             await db.refresh(request)
         return request
 
-    async def get_for_update(self, db: AsyncSession, *, request_id: int) -> Optional[ContactRequest]:
+    async def get_for_update(self, db: AsyncSession, *, request_id: int) -> ContactRequest | None:
         """Fetch a contact request row with FOR UPDATE locking."""
-        result = await db.execute(select(self.model).where(self.model.id == request_id).with_for_update())
+        result = await db.execute(
+            select(self.model).where(self.model.id == request_id).with_for_update()
+        )
         return result.scalar_one_or_none()
 
 

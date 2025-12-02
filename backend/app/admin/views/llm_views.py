@@ -4,7 +4,7 @@ LLM (Large Language Model) related admin views.
 This module contains Starlette-Admin views for managing LLM providers and configurations.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -85,23 +85,31 @@ class LLMProviderView(ModelView):
             required=False,
         ),
         StringField("base_url", label="Base URL", help_text="API base URL", required=False),
-        StringField("default_model", label="Default Model", help_text="Default model name", required=False),
         StringField(
-            "supports_streaming_display", label="Supports Streaming", help_text="Supports streaming output"
+            "default_model", label="Default Model", help_text="Default model name", required=False
         ),
         StringField(
-            "supports_json_schema_display", label="Supports JSON Schema", help_text="Supports JSON schema"
+            "supports_streaming_display",
+            label="Supports Streaming",
+            help_text="Supports streaming output",
         ),
         StringField(
-            "supports_thinking_display", label="Supports Thinking", help_text="Supports thinking mode"
+            "supports_json_schema_display",
+            label="Supports JSON Schema",
+            help_text="Supports JSON schema",
+        ),
+        StringField(
+            "supports_thinking_display",
+            label="Supports Thinking",
+            help_text="Supports thinking mode",
         ),
         LocalDateTimeField("created_at", label="Created At", help_text="Provider creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation to prevent duplicate display names."""
-        errors: Dict[str | int, Any] = {}
+        errors: dict[str | int, Any] = {}
 
         # Check if display_name already exists
         if "display_name" in data:
@@ -167,7 +175,7 @@ class LLMConfigView(ModelView):
         path = request.scope["path"]
         return f"/{self.identity}/test/" in path
 
-    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize field types before persisting."""
         # Convert empty strings to None for optional JSON fields
         json_fields = [
@@ -206,7 +214,10 @@ class LLMConfigView(ModelView):
         FloatField("temperature", label="Temperature", help_text="Temperature parameter (0.0-2.0)"),
         IntegerField("max_tokens", label="Max Tokens", help_text="Maximum tokens"),
         IntegerField(
-            "timeout_seconds", label="Timeout (seconds)", help_text="Timeout in seconds", required=True
+            "timeout_seconds",
+            label="Timeout (seconds)",
+            help_text="Timeout in seconds",
+            required=True,
         ),
         EnumField(
             "thinking_mode",
@@ -219,7 +230,9 @@ class LLMConfigView(ModelView):
             help_text="Thinking mode: enabled=force on, disabled=force off, auto=let model decide",
             required=True,
         ),
-        FloatField("top_p", label="Top P", help_text="Nucleus sampling threshold (0.0-1.0)", required=True),
+        FloatField(
+            "top_p", label="Top P", help_text="Nucleus sampling threshold (0.0-1.0)", required=True
+        ),
         FloatField(
             "frequency_penalty",
             label="Frequency Penalty",
@@ -314,7 +327,9 @@ class LLMConfigView(ModelView):
             label="Extra Parameters",
             help_text='Provider-specific parameters (e.g., max_completion_tokens, service_tier). Example: {"max_completion_tokens": 32000}',
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
+        LocalDateTimeField(
+            "created_at", label="Created At", help_text="Configuration creation time"
+        ),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
@@ -368,7 +383,7 @@ class LLMConfigView(ModelView):
 
             return message
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation."""
         # No custom validation needed for now
         return await super().validate(request, data)
@@ -438,7 +453,14 @@ class LLMTestLogView(ModelView):
 
     fields_default_sort = [("created_at", True)]  # Newest first
     searchable_fields = ["config_name", "provider_name", "model_name", "test_message"]
-    sortable_fields = ["id", "config_id", "created_at", "completed_at", "status", "response_time_ms"]
+    sortable_fields = [
+        "id",
+        "config_id",
+        "created_at",
+        "completed_at",
+        "status",
+        "response_time_ms",
+    ]
 
     def can_create(self, request: Request) -> bool:
         """Disable create action for test logs - logs are created automatically."""
@@ -460,10 +482,14 @@ class LLMTestLogView(ModelView):
         StringField("model_name", label="Model", help_text="Model name"),
         StringField("test_message", label="Test Message", help_text="Test message sent"),
         FloatField(
-            "override_temperature", label="Override Temperature", help_text="Overridden temperature value"
+            "override_temperature",
+            label="Override Temperature",
+            help_text="Overridden temperature value",
         ),
         IntegerField(
-            "override_max_tokens", label="Override Max Tokens", help_text="Overridden max tokens value"
+            "override_max_tokens",
+            label="Override Max Tokens",
+            help_text="Overridden max tokens value",
         ),
         EnumField(
             "thinking_mode",
@@ -491,14 +517,18 @@ class LLMTestLogView(ModelView):
         ),
         StringField("error_message", label="Error Message", help_text="Error message if failed"),
         IntegerField(
-            "response_time_ms", label="Response Time (ms)", help_text="Response time in milliseconds"
+            "response_time_ms",
+            label="Response Time (ms)",
+            help_text="Response time in milliseconds",
         ),
         IntegerField("prompt_tokens", label="Prompt Tokens", help_text="Number of prompt tokens"),
         IntegerField(
             "completion_tokens", label="Completion Tokens", help_text="Number of completion tokens"
         ),
         IntegerField("total_tokens", label="Total Tokens", help_text="Total tokens used"),
-        StringField("reasoning_content", label="Reasoning Content", help_text="Thinking/reasoning content"),
+        StringField(
+            "reasoning_content", label="Reasoning Content", help_text="Thinking/reasoning content"
+        ),
         LocalDateTimeField("created_at", label="Created At", help_text="Test execution time"),
         LocalDateTimeField("completed_at", label="Completed At", help_text="Test completion time"),
     ]

@@ -9,7 +9,7 @@ and make it easier to extend request capabilities (tools, caching, etc.).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -26,8 +26,8 @@ class LLMCachingOptions:
 
     enabled: bool = False
     strategy: str = "none"
-    previous_response_id: Optional[str] = None
-    ttl_seconds: Optional[int] = None
+    previous_response_id: str | None = None
+    ttl_seconds: int | None = None
 
 
 @dataclass
@@ -45,38 +45,38 @@ class LLMRequestOptions:
     """Normalized request parameters passed to provider adapters."""
 
     model: str
-    messages: List[Dict[str, Any]]
-    json_schema: Optional[Dict[str, Any]] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = None
-    frequency_penalty: Optional[float] = None
-    presence_penalty: Optional[float] = None
-    stop_sequences: Optional[List[str]] = None
-    thinking_mode: Optional[str] = None
-    tools: List[Dict[str, Any]] = field(default_factory=list)
-    tool_choice: Optional[str] = None
-    parallel_tool_calls: Optional[bool] = None
-    max_tool_calls: Optional[int] = None
-    extra_headers: Dict[str, Any] = field(default_factory=dict)
-    extra_query: Dict[str, Any] = field(default_factory=dict)
-    extra_body: Dict[str, Any] = field(default_factory=dict)
+    messages: list[dict[str, Any]]
+    json_schema: dict[str, Any] | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    top_p: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    stop_sequences: list[str] | None = None
+    thinking_mode: str | None = None
+    tools: list[dict[str, Any]] = field(default_factory=list)
+    tool_choice: str | None = None
+    parallel_tool_calls: bool | None = None
+    max_tool_calls: int | None = None
+    extra_headers: dict[str, Any] = field(default_factory=dict)
+    extra_query: dict[str, Any] = field(default_factory=dict)
+    extra_body: dict[str, Any] = field(default_factory=dict)
     caching: LLMCachingOptions = field(default_factory=LLMCachingOptions)
-    provider_overrides: Dict[str, Any] = field(default_factory=dict)
+    provider_overrides: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class LLMProviderResult:
     """Normalized provider response."""
 
-    content: Optional[Any]
-    model: Optional[str]
-    usage: Optional[Dict[str, Any]]
-    finish_reason: Optional[str]
-    raw_response: Optional[Dict[str, Any]] = None
-    request_params: Optional[Dict[str, Any]] = None
-    response_id: Optional[str] = None
+    content: Any | None
+    model: str | None
+    usage: dict[str, Any] | None
+    finish_reason: str | None
+    raw_response: dict[str, Any] | None = None
+    request_params: dict[str, Any] | None = None
+    response_id: str | None = None
     cache_hit: bool = False
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    reasoning_content: Optional[str] = None
+    tool_calls: list[dict[str, Any]] | None = None
+    reasoning_content: str | None = None
     preempted: bool = False

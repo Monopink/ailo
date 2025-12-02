@@ -63,11 +63,19 @@ from .style import (  # Dimensions; Style-dimension junction; Relationships; Dim
     AIStyleUpdate,
 )
 from .template import AIPersona as AIPersonaResponse
-from .template import AIPersonaBase, AIPersonaCreate, AIPersonaUpdate
+from .template import (
+    AIPersonaBase,
+    AIPersonaCreate,
+    AIPersonaUpdate,
+    AITemplateBase,
+    AITemplateCreate,
+    AITemplateUpdate,
+    AITypeBase,
+    AITypeCreate,
+    AITypeUpdate,
+)
 from .template import AITemplate as AITemplateResponse
-from .template import AITemplateBase, AITemplateCreate, AITemplateUpdate
 from .template import AIType as AITypeResponse
-from .template import AITypeBase, AITypeCreate, AITypeUpdate
 
 # Export all AI schemas
 __all__ = [

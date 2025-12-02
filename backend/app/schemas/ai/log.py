@@ -5,7 +5,7 @@ This module contains Pydantic schemas for AI request logging and statistics.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from enums import AIRequestStatus
 from pydantic import BaseModel, Field
@@ -30,24 +30,26 @@ class AIRequestLogCreate(BaseModel):
     user_qiao_id: str = Field(..., max_length=32, description="User external ID")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
-    request: Dict[str, Any] = Field(..., description="Request content")
-    response: Optional[Dict[str, Any]] = Field(None, description="Response content")
+    request: dict[str, Any] = Field(..., description="Request content")
+    response: dict[str, Any] | None = Field(None, description="Response content")
     status: AIRequestStatus = Field(..., description="Request status")
-    token_count: Optional[int] = Field(None, description="Token consumption")
-    response_time: Optional[int] = Field(None, description="Response time in milliseconds")
-    llm_config_id: Optional[int] = Field(None, description="LLM config ID used for this request")
-    response_id: Optional[str] = Field(None, description="Provider response ID for caching trace")
-    cache_hit: Optional[bool] = Field(False, description="Whether the request used cached tokens")
-    buffer_id: Optional[int] = Field(None, description="Associated buffer ID that triggered the request")
+    token_count: int | None = Field(None, description="Token consumption")
+    response_time: int | None = Field(None, description="Response time in milliseconds")
+    llm_config_id: int | None = Field(None, description="LLM config ID used for this request")
+    response_id: str | None = Field(None, description="Provider response ID for caching trace")
+    cache_hit: bool | None = Field(False, description="Whether the request used cached tokens")
+    buffer_id: int | None = Field(
+        None, description="Associated buffer ID that triggered the request"
+    )
 
 
 class AIRequestLogUpdate(BaseModel):
     """Schema for updating AI request log."""
 
-    response: Optional[Dict[str, Any]] = Field(None, description="Response content")
-    status: Optional[AIRequestStatus] = Field(None, description="Request status")
-    token_count: Optional[int] = Field(None, ge=0, description="Token consumption")
-    response_time: Optional[int] = Field(None, ge=0, description="Response time in milliseconds")
+    response: dict[str, Any] | None = Field(None, description="Response content")
+    status: AIRequestStatus | None = Field(None, description="Request status")
+    token_count: int | None = Field(None, ge=0, description="Token consumption")
+    response_time: int | None = Field(None, ge=0, description="Response time in milliseconds")
 
 
 class AIRequestLogResponse(AIRequestLogBase):
@@ -55,15 +57,17 @@ class AIRequestLogResponse(AIRequestLogBase):
 
     instance_id: int = Field(..., description="Instance internal ID")
     user_id: int = Field(..., description="User internal ID")
-    request: Dict[str, Any] = Field(..., description="Request content")
-    response: Optional[Dict[str, Any]] = Field(None, description="Response content")
+    request: dict[str, Any] = Field(..., description="Request content")
+    response: dict[str, Any] | None = Field(None, description="Response content")
     status: AIRequestStatus = Field(..., description="Request status")
-    token_count: Optional[int] = Field(None, description="Token consumption")
-    response_time: Optional[int] = Field(None, description="Response time in milliseconds")
-    llm_config_id: Optional[int] = Field(None, description="LLM config ID used for this request")
-    response_id: Optional[str] = Field(None, description="Provider response ID for caching trace")
+    token_count: int | None = Field(None, description="Token consumption")
+    response_time: int | None = Field(None, description="Response time in milliseconds")
+    llm_config_id: int | None = Field(None, description="LLM config ID used for this request")
+    response_id: str | None = Field(None, description="Provider response ID for caching trace")
     cache_hit: bool = Field(False, description="Whether cached tokens were used")
-    buffer_id: Optional[int] = Field(None, description="Associated buffer ID that triggered the request")
+    buffer_id: int | None = Field(
+        None, description="Associated buffer ID that triggered the request"
+    )
     created_at: datetime = Field(..., description="Request time")
 
 
@@ -79,7 +83,7 @@ class AIInstanceStats(BaseSchema):
     failed_requests: int = Field(..., description="Failed request count")
     total_tokens: int = Field(..., description="Total token consumption")
     avg_response_time: float = Field(..., description="Average response time in milliseconds")
-    last_request_at: Optional[datetime] = Field(None, description="Last request time")
+    last_request_at: datetime | None = Field(None, description="Last request time")
 
 
 class AIUserStats(BaseSchema):
@@ -92,7 +96,7 @@ class AIUserStats(BaseSchema):
     total_tokens: int = Field(..., description="Total token consumption")
     avg_response_time: float = Field(..., description="Average response time in milliseconds")
     active_instances: int = Field(..., description="Number of active instances")
-    last_request_at: Optional[datetime] = Field(None, description="Last request time")
+    last_request_at: datetime | None = Field(None, description="Last request time")
 
 
 class AISystemStats(BaseSchema):

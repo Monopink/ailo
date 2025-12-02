@@ -4,7 +4,8 @@ AI Template admin views.
 This module contains Starlette-Admin views for AI instance configuration and persona inventory.
 """
 
-from typing import Any, Dict, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -54,7 +55,7 @@ class AITemplateView(ModelView):
     def can_delete(self, request):
         return False
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before creating template."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
@@ -223,7 +224,8 @@ class _PersonaRelatedStringField(StringField):
 
             # Query both the field value and check if profile exists
             stmt = select(Profile.id, getattr(Profile, self._profile_attr)).where(
-                Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type == ProfileOwnerType.AI_PERSONA,
             )
             result = await session.execute(stmt)
             row = result.first()
@@ -260,7 +262,8 @@ class _PersonaGenderField(StringField):
 
             # Query both profile existence and gender value
             stmt = select(Profile.id, Profile.gender).where(
-                Profile.owner_qiao_id == obj.qiao_id, Profile.owner_type == ProfileOwnerType.AI_PERSONA
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type == ProfileOwnerType.AI_PERSONA,
             )
             result = await session.execute(stmt)
             row = result.first()
@@ -301,7 +304,7 @@ class AIPersonaView(ModelView):
         "updated_at",
     ]
 
-    async def create(self, request: Request, data: Dict[str, Any]) -> Any:
+    async def create(self, request: Request, data: dict[str, Any]) -> Any:
         """Ensure qiao_id is generated if the admin did not override it."""
         if not data.get("qiao_id"):
             data["qiao_id"] = generate_qiao_id()
@@ -337,7 +340,9 @@ class AIPersonaView(ModelView):
             label="Persona Qiao ID",
             help_text="System-generated qiao_id (editable if you need to override)",
         ),
-        _PersonaRelatedStringField("profile_nickname", profile_attr="nickname", label="Profile Nickname"),
+        _PersonaRelatedStringField(
+            "profile_nickname", profile_attr="nickname", label="Profile Nickname"
+        ),
         _PersonaGenderField(),
         HasOne(
             "ai_type",
@@ -364,7 +369,7 @@ class AIPersonaView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Ensure ai_type is set before creating a persona."""
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
             obj.type_id = obj.ai_type.id
@@ -376,7 +381,7 @@ class AIPersonaView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Ensure ai_type stays synchronized during edits."""
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
             obj.type_id = obj.ai_type.id

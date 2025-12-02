@@ -7,8 +7,8 @@ complete reuse of the core business logic.
 """
 
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 from enums import MessageType
 from models.ai.instance import AIInstance
@@ -49,8 +49,8 @@ class ExecutorService:
         test_message: str,
         request_overrides: dict | None = None,
         persist: bool = False,
-        contact_conv_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        contact_conv_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Execute AI instance chat test by calling main conversation logic.
 
@@ -109,8 +109,8 @@ class ExecutorService:
                 log_id=log_id,
             )
 
-            locked_buffer_id: Optional[int] = None
-            user_message_item_id: Optional[int] = None
+            locked_buffer_id: int | None = None
+            user_message_item_id: int | None = None
             if persist:
                 if not contact_conv_id:
                     raise ExecutorError(
@@ -175,9 +175,11 @@ class ExecutorService:
             log_entry.status = 1  # success
             log_entry.response_time = response_time_ms
             log_entry.token_count = conversation_result.get("usage", {}).get("total_tokens", 0)
-            log_entry.provider_name = conversation_result.get("config_used", {}).get("provider_name")
+            log_entry.provider_name = conversation_result.get("config_used", {}).get(
+                "provider_name"
+            )
             log_entry.model_name = conversation_result.get("config_used", {}).get("model")
-            log_entry.completed_at = datetime.now(timezone.utc)
+            log_entry.completed_at = datetime.now(UTC)
             await db.commit()
 
             # Extract AI response from conversation result
@@ -247,7 +249,7 @@ class ExecutorService:
                 try:
                     log_entry.response = {"error": str(e)}
                     log_entry.status = 2  # failed
-                    log_entry.completed_at = datetime.now(timezone.utc)
+                    log_entry.completed_at = datetime.now(UTC)
                     await db.commit()
                 except Exception:
                     pass  # Don't fail on logging error
@@ -259,7 +261,7 @@ class ExecutorService:
                 exc_info=True,
             )
 
-            raise ExecutorError(f"Test execution failed: {str(e)}", error_code="EXECUTION_FAILED")
+            raise ExecutorError(f"Test execution failed: {e!s}", error_code="EXECUTION_FAILED")
 
     async def _seed_test_user_context(
         self,
@@ -269,7 +271,7 @@ class ExecutorService:
         instance_qiao_id: str,
         conv_id: str,
         test_message: str,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """
         Buffer the admin test message and lock the latest window immediately.
         """
@@ -316,11 +318,11 @@ executor_service = ExecutorService()
 
 
 def _extract_history_messages(
-    request_payload: Optional[Dict[str, Any]],
+    request_payload: dict[str, Any] | None,
     fallback_message: str,
-) -> Tuple[List[Dict[str, str]], str]:
+) -> tuple[list[dict[str, str]], str]:
     messages = _coerce_payload_messages(request_payload)
-    normalized: List[Dict[str, str]] = []
+    normalized: list[dict[str, str]] = []
 
     for message in messages:
         role = str(message.get("role") or "user")
@@ -331,7 +333,7 @@ def _extract_history_messages(
                 text = fallback_text
         normalized.append({"role": role, "text": text})
 
-    last_user_idx: Optional[int] = None
+    last_user_idx: int | None = None
     for index, item in enumerate(normalized):
         if item["role"] == "user":
             last_user_idx = index
@@ -348,7 +350,7 @@ def _extract_history_messages(
     return history_messages, current_user_message
 
 
-def _coerce_payload_messages(request_payload: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _coerce_payload_messages(request_payload: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not isinstance(request_payload, dict):
         return []
 
@@ -370,7 +372,7 @@ def _flatten_message_content(content: Any) -> str:
         return content
 
     if isinstance(content, list):
-        parts: List[str] = []
+        parts: list[str] = []
         for block in content:
             if isinstance(block, dict) and block.get("text"):
                 parts.append(str(block["text"]))

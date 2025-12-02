@@ -7,7 +7,6 @@ Uses database configuration and supports whitelist.
 
 import time
 from collections import deque
-from typing import Dict, Optional, Tuple
 
 from services.system_config import get_config
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +15,9 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Global cache for rate limiting
-_rate_limit_cache: Dict[str, deque] = {}
+_rate_limit_cache: dict[str, deque] = {}
 
-RATE_LIMIT_REQUEST_KEYS: Dict[str, str] = {
+RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
     "admin_auth": "admin_auth_rate_limit_requests",
     "user_auth": "auth_rate_limit_requests",
     "sms": "sms_rate_limit_requests",
@@ -27,7 +26,7 @@ RATE_LIMIT_REQUEST_KEYS: Dict[str, str] = {
     "square": "square_rate_limit_requests",
 }
 
-RATE_LIMIT_WINDOW_KEYS: Dict[str, Tuple[str, int]] = {
+RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
     "admin_auth": ("admin_auth_rate_limit_window_seconds", 1),
     "user_auth": ("auth_rate_limit_window_hours", 3600),
     "sms": ("sms_rate_limit_window_seconds", 1),
@@ -36,7 +35,7 @@ RATE_LIMIT_WINDOW_KEYS: Dict[str, Tuple[str, int]] = {
     "square": ("square_rate_limit_window_seconds", 1),
 }
 
-RATE_LIMIT_WHITELIST_KEYS: Dict[str, Optional[str]] = {
+RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
     "admin_auth": "admin_auth_whitelist",
     "user_auth": None,
     "sms": "sms_whitelist",
@@ -50,7 +49,7 @@ async def check_rate_limit(
     identifier: str,  # IP or user_id
     group: str,  # 'admin_auth', 'user_auth', 'sms', 'message_short', 'message_long'
     db: AsyncSession,
-) -> Tuple[bool, Optional[str], Optional[int]]:
+) -> tuple[bool, str | None, int | None]:
     """
     Check rate limit for a specific group.
 
@@ -129,7 +128,7 @@ async def check_rate_limit(
 
 async def check_message_rate_limit(
     identifier: str, db: AsyncSession
-) -> Tuple[bool, Optional[str], Optional[int]]:
+) -> tuple[bool, str | None, int | None]:
     """
     Check message rate limit with dual constraints.
 

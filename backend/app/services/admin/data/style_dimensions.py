@@ -4,7 +4,7 @@ Admin style dimension data services.
 Provide data retrieval helpers for style-related admin endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,8 +17,8 @@ SOFT_CAP = 9999  # hard-coded soft cap per admin decision
 
 
 async def get_dimension_relationship_mappings(
-    db: AsyncSession, *, style_id: int, limit: Optional[int] = 100, dimension_id: Optional[int] = None
-) -> List[Dict[str, Any]]:
+    db: AsyncSession, *, style_id: int, limit: int | None = 100, dimension_id: int | None = None
+) -> list[dict[str, Any]]:
     """
     Get dimension relationship mappings for a style with optional dimension filter.
 
@@ -39,10 +39,12 @@ async def get_dimension_relationship_mappings(
         try:
             norm_limit = int(limit)
         except Exception:
-            logger.error("dimension_relationship_mappings_invalid_limit", style_id=style_id, limit=limit)
+            logger.error(
+                "dimension_relationship_mappings_invalid_limit", style_id=style_id, limit=limit
+            )
             norm_limit = 100
 
-    params: Dict[str, Any] = {"style_id": int(style_id)}
+    params: dict[str, Any] = {"style_id": int(style_id)}
     where_extra = ""
     if dimension_id is not None:
         where_extra = " AND d.id = :dimension_id"

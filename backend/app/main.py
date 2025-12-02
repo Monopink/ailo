@@ -1,7 +1,7 @@
 """FastAPI application factory and bootstrap configuration."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import uvicorn
 from admin import get_admin
@@ -114,7 +114,9 @@ def _create_lifespan(settings: Settings):
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        logger.info("starting_application", app_name=settings.PROJECT_NAME, version=settings.VERSION)
+        logger.info(
+            "starting_application", app_name=settings.PROJECT_NAME, version=settings.VERSION
+        )
         try:
             logger.info("initializing_snowflake_generator")
             init_snowflake(settings.SNOWFLAKE_DATACENTER_ID, settings.SNOWFLAKE_MACHINE_ID)
@@ -208,7 +210,9 @@ def _register_debug_middleware(app: FastAPI) -> None:
 
 def _mount_admin(app: FastAPI) -> None:
     admin_app = get_admin()
-    logger.info("mounting_admin_interface", admin_title=admin_app.title, admin_base_url=admin_app.base_url)
+    logger.info(
+        "mounting_admin_interface", admin_title=admin_app.title, admin_base_url=admin_app.base_url
+    )
     logger.info("admin_models_before_mount", models=[model.identity for model in admin_app._models])
     logger.info(
         "admin_models_detailed",

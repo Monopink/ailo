@@ -5,7 +5,7 @@ This module provides both standard CRUD operations and helper queries
 for template and persona management.
 """
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from crud.base import CRUDBase
 from models.ai import AIPersona, AITemplate
@@ -24,7 +24,7 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
         self,
         db: AsyncSession,
         *,
-        type_id: Optional[int] = None,
+        type_id: int | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> Sequence[AITemplate]:
@@ -59,7 +59,9 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
             # Non-fatal error: return empty list
             return []
 
-    async def get_active_template_for_type(self, db: AsyncSession, type_id: int) -> Optional[AITemplate]:
+    async def get_active_template_for_type(
+        self, db: AsyncSession, type_id: int
+    ) -> AITemplate | None:
         """
         Pick the highest priority template for the given template type.
         """
@@ -97,7 +99,7 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
 class CRUDAIPersona(CRUDBase[AIPersona, AIPersonaCreate, AIPersonaUpdate]):
     """AI persona CRUD operations with complex queries."""
 
-    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[AIPersona]:
+    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> AIPersona | None:
         try:
             result = await db.execute(select(self.model).where(self.model.qiao_id == qiao_id))
             return result.scalar_one_or_none()

@@ -4,7 +4,7 @@ AI Style and Relationship admin views.
 This module contains Starlette-Admin views for AI style and relationship system.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -67,7 +67,10 @@ class AIStyleView(ModelView):
     fields = [
         StringField("id", label="ID", help_text="Internal style ID"),
         StringField(
-            "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
+            "display_name",
+            label="Display Name",
+            help_text="Human-readable name shown in UI",
+            required=True,
         ),
         IntegerEnumField(
             "status",
@@ -126,7 +129,7 @@ class AIRelationshipView(ModelView):
     def can_delete(self, request):
         return False
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Validate constraints before creating relationship."""
         errors = {}
 
@@ -175,7 +178,7 @@ class AIRelationshipView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Validate constraints before editing relationship."""
         errors = {}
 
@@ -254,7 +257,10 @@ class AIRelationshipView(ModelView):
     fields = [
         StringField("id", label="ID", help_text="Internal relationship ID"),
         StringField(
-            "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
+            "display_name",
+            label="Display Name",
+            help_text="Human-readable name shown in UI",
+            required=True,
         ),
         TextAreaField(
             "prompt_fragment",
@@ -327,7 +333,7 @@ class AIStyleDimensionView(ModelView):
     def can_delete(self, request):
         return False
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before creating dimension."""
         # Auto-fill style_id from HasOne relationship
         if hasattr(obj, "style") and obj.style is not None:
@@ -341,12 +347,14 @@ class AIStyleDimensionView(ModelView):
         errors = {}
         if hasattr(obj, "initial_position") and obj.initial_position is not None:
             if obj.initial_position < 0 or obj.initial_position > 1000:
-                errors["initial_position"] = "Initial position must be between 0 and 1000 (permille)"
+                errors["initial_position"] = (
+                    "Initial position must be between 0 and 1000 (permille)"
+                )
 
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing dimension."""
         # Auto-fill style_id from HasOne relationship
         if hasattr(obj, "style") and obj.style is not None:
@@ -356,7 +364,9 @@ class AIStyleDimensionView(ModelView):
         errors = {}
         if hasattr(obj, "initial_position") and obj.initial_position is not None:
             if obj.initial_position < 0 or obj.initial_position > 1000:
-                errors["initial_position"] = "Initial position must be between 0 and 1000 (permille)"
+                errors["initial_position"] = (
+                    "Initial position must be between 0 and 1000 (permille)"
+                )
 
         if errors:
             raise FormValidationError(errors)
@@ -418,7 +428,7 @@ class AIDimensionRelationshipMappingView(ModelView):
     def can_delete(self, request):
         return False
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before creating mapping."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "dimension") and obj.dimension is not None:
@@ -456,7 +466,7 @@ class AIDimensionRelationshipMappingView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing mapping."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "dimension") and obj.dimension is not None:
@@ -532,7 +542,9 @@ class AIDimensionRelationshipMappingView(ModelView):
             required=True,
         ),
         IntegerField(
-            "priority", label="Priority", help_text="Priority level (higher number = higher priority)"
+            "priority",
+            label="Priority",
+            help_text="Priority level (higher number = higher priority)",
         ),
         IntegerField(
             "limit_count",

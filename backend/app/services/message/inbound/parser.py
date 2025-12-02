@@ -4,7 +4,7 @@ Inbound message parser (business layer).
 Converts intermediate format to InboundMessageEvent with business logic.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from enums import MessageType
 from services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
@@ -14,7 +14,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def parse_to_event(intermediate: Dict[str, Any]) -> Optional[InboundMessageEvent]:
+def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
     """
     Parse intermediate format to InboundMessageEvent.
 

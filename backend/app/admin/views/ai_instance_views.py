@@ -4,7 +4,7 @@ AI Instance admin views.
 This module contains Starlette-Admin views for AI instance system.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -241,7 +241,7 @@ class AIInstanceView(ModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    async def create(self, request: Request, data: Dict[str, Any]) -> Any:
+    async def create(self, request: Request, data: dict[str, Any]) -> Any:
         """Override create to automatically set created_by field and generate IDs."""
         # Set created_by to 2 (Admin) for admin panel creations
         data["created_by"] = 2
@@ -256,11 +256,11 @@ class AIInstanceView(ModelView):
 
         return await super().create(request, data)
 
-    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Override edit to handle data processing."""
         return await super().edit(request, pk, data)
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys and required fields before creating instance."""
         # Set created_by to 2 (Admin) for admin panel creations
         obj.created_by = 2
@@ -299,7 +299,7 @@ class AIInstanceView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing instance."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "style") and obj.style is not None:
@@ -329,7 +329,15 @@ class AIInstanceView(ModelView):
 
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["qiao_id", "user_qiao_id"]
-    sortable_fields = ["id", "user_id", "qiao_id", "status", "created_by", "created_at", "updated_at"]
+    sortable_fields = [
+        "id",
+        "user_id",
+        "qiao_id",
+        "status",
+        "created_by",
+        "created_at",
+        "updated_at",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Internal instance ID"),
@@ -342,7 +350,9 @@ class AIInstanceView(ModelView):
         ),
         StringField("user_qiao_id", label="User Qiao ID", help_text="Owning user qiao_id"),
         StringField("qiao_id", label="Qiao ID", help_text="External AI identifier"),
-        _ProfileRelatedStringField("profile_nickname", profile_attr="nickname", label="Profile Nickname"),
+        _ProfileRelatedStringField(
+            "profile_nickname", profile_attr="nickname", label="Profile Nickname"
+        ),
         _ProfileGenderField(),
         _ProfileOwnerTypeField(),
         HasOne(
@@ -503,11 +513,13 @@ class AIInstanceDimensionView(ModelView):
             label="Position Mapping Parameters",
             help_text="Position mapping parameters (sensitivity and gain fields for V1)",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Score record creation time"),
+        LocalDateTimeField(
+            "created_at", label="Created At", help_text="Score record creation time"
+        ),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation for relationship scores."""
         errors = {}
 
@@ -532,7 +544,7 @@ class AIInstanceDimensionView(ModelView):
 
         return await super().validate(request, data)
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill FKs, validate uniqueness, and compute default position if missing."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "instance") and obj.instance is not None:
@@ -571,7 +583,9 @@ class AIInstanceDimensionView(ModelView):
         if getattr(obj, "position", None) is None:
             # Require score present to compute position
             if not getattr(obj, "score", None) and not data.get("score"):
-                raise FormValidationError({"score": "Score is required when position is not provided"})
+                raise FormValidationError(
+                    {"score": "Score is required when position is not provided"}
+                )
 
             # Prevent premature autoflush while we read prerequisites and compute
             with session.no_autoflush:
@@ -579,7 +593,9 @@ class AIInstanceDimensionView(ModelView):
                 char_stmt = select(AIInstance.style_id).where(AIInstance.id == obj.instance_id)
                 style_id = (await session.execute(char_stmt)).scalar_one_or_none()
                 if style_id is None:
-                    raise FormValidationError({"instance": "Selected instance has no style configured"})
+                    raise FormValidationError(
+                        {"instance": "Selected instance has no style configured"}
+                    )
 
                 # Fetch initial_position for (style_id, dimension_id)
                 init_stmt = select(AIStyleDimension.initial_position).where(
@@ -589,7 +605,9 @@ class AIInstanceDimensionView(ModelView):
                 initial_position = (await session.execute(init_stmt)).scalar_one_or_none()
                 if initial_position is None:
                     raise FormValidationError(
-                        {"dimension": "Initial position not configured for this style and dimension"}
+                        {
+                            "dimension": "Initial position not configured for this style and dimension"
+                        }
                     )
 
                 # Determine algorithm and params with defaults
@@ -618,9 +636,9 @@ class AIInstanceDimensionView(ModelView):
                         )
                     )
                 except Exception as e:
-                    raise FormValidationError({"position": f"Failed to calculate position: {str(e)}"})
+                    raise FormValidationError({"position": f"Failed to calculate position: {e!s}"})
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing score."""
         # Nothing to fill here beyond FKs
 
@@ -631,7 +649,10 @@ ai_instance_view = AIInstanceView(
 )
 
 ai_instance_dimension_view = AIInstanceDimensionView(
-    AIInstanceDimension, name="Instance Dimensions", icon="fa fa-ruler", identity="ai_instance_dimension"
+    AIInstanceDimension,
+    name="Instance Dimensions",
+    icon="fa fa-ruler",
+    identity="ai_instance_dimension",
 )
 
 # Export instance views

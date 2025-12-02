@@ -3,7 +3,7 @@ Admin AI Template API endpoints.
 Handles template management including prompt variables and position mapping configurations.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from core.database import get_db
 from crud.ai import ai_template as ai_template_crud
@@ -20,14 +20,14 @@ template_router = APIRouter()
 
 @template_router.post("/ai_template/{template_id}/save")
 async def save_ai_template(
-    template_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+    template_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """Save template advanced edit (prompt_variables and position_mapping_config)."""
     template = await ai_template_crud.get(db, id=template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
 
-    update_data: Dict[str, Any] = {}
+    update_data: dict[str, Any] = {}
 
     # Handle prompt_variables
     if "prompt_variables" in data:
@@ -64,10 +64,14 @@ async def save_ai_template(
             if algorithm == PositionMappingAlgorithm.V1.value:
                 params = dim_config.get("params", {})
                 if not isinstance(params, dict):
-                    raise HTTPException(status_code=400, detail=f"Params for {dim_name} must be a dict")
+                    raise HTTPException(
+                        status_code=400, detail=f"Params for {dim_name} must be a dict"
+                    )
 
                 try:
-                    dim_config["params"] = parse_algorithm_params(PositionMappingAlgorithm.V1, params)
+                    dim_config["params"] = parse_algorithm_params(
+                        PositionMappingAlgorithm.V1, params
+                    )
                 except ValueError as exc:
                     raise HTTPException(status_code=400, detail=str(exc))
 

@@ -5,7 +5,7 @@ This module contains Starlette-Admin views for AI conversation management
 (message buffer, conversation items, and archives).
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -54,7 +54,7 @@ class AIMessageBufferView(ModelView):
         "last_msg_time_ms",
     ]
 
-    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize optional integer fields before persisting."""
         # Convert string to int or None for optional BIGINT fields
         bigint_fields = [
@@ -110,10 +110,14 @@ class AIMessageBufferView(ModelView):
             help_text="Buffer state: OPEN/LOCKED/COMPLETE/CANCELLED",
         ),
         StringField(
-            "micro_expires_at_ms", label="Micro Timer (ms)", help_text="Micro timer expiration timestamp"
+            "micro_expires_at_ms",
+            label="Micro Timer (ms)",
+            help_text="Micro timer expiration timestamp",
         ),
         StringField(
-            "macro_expires_at_ms", label="Macro Timer (ms)", help_text="Macro timer expiration timestamp"
+            "macro_expires_at_ms",
+            label="Macro Timer (ms)",
+            help_text="Macro timer expiration timestamp",
         ),
         StringField(
             "buffer_expires_at_ms",
@@ -135,7 +139,9 @@ class AIMessageBufferView(ModelView):
             label="Last Client Msg ID",
             help_text="Last client message ID within buffer",
         ),
-        IntegerField("message_count", label="Message Count", help_text="Number of messages in buffer"),
+        IntegerField(
+            "message_count", label="Message Count", help_text="Number of messages in buffer"
+        ),
         StringField(
             "last_msg_time_ms",
             label="Last Message Time (ms)",
@@ -166,7 +172,7 @@ class AIConversationItemView(ModelView):
     ]
     exclude_fields_from_list = []
 
-    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize optional fields before persisting."""
         if not data.get("client_msg_ids"):
             data["client_msg_ids"] = []
@@ -217,7 +223,9 @@ class AIConversationItemView(ModelView):
             label="Client Message IDs",
             help_text="Client message IDs merged into this row",
         ),
-        StringField("buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"),
+        StringField(
+            "buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"
+        ),
         IntegerEnumField(
             "is_excluded_from_context",
             choices=[(0, "Included"), (1, "Excluded")],
@@ -262,7 +270,7 @@ class AIConversationItemArchiveView(ModelView):
         "archived_at",
     ]
 
-    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize optional fields before persisting."""
         if not data.get("client_msg_ids"):
             data["client_msg_ids"] = []
@@ -320,7 +328,9 @@ class AIConversationItemArchiveView(ModelView):
             label="Client Message IDs",
             help_text="Client message IDs merged into this row",
         ),
-        StringField("buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"),
+        StringField(
+            "buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"
+        ),
         IntegerEnumField(
             "is_excluded_from_context",
             choices=[(0, "Included"), (1, "Excluded")],
@@ -347,7 +357,7 @@ class AIConversationStateView(ModelView):
     ]
     exclude_fields_from_list = []
 
-    async def edit(self, request: Request, pk: Any, data: Dict[str, Any]) -> Any:
+    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize optional fields before persisting."""
         # Ensure pending_messages is None if empty
         if not data.get("pending_messages"):

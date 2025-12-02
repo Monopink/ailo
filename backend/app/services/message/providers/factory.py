@@ -6,7 +6,6 @@ based on configuration.
 """
 
 import os
-from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +13,7 @@ from .base import MessageProvider
 from .leancloud import create_leancloud_provider
 
 
-def create_message_provider(db: AsyncSession, provider_type: Optional[str] = None) -> MessageProvider:
+def create_message_provider(db: AsyncSession, provider_type: str | None = None) -> MessageProvider:
     """
     Create message provider instance.
 

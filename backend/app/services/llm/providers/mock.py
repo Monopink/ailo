@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime
+from typing import Any
 
 from models.llm import LLMConfig, LLMProvider
 from services.llm.converters import ResponsesFormatConverter
@@ -27,11 +27,11 @@ def _build_payload(
     config: LLMConfig,
     provider: LLMProvider,
     options: LLMRequestOptions,
-    provider_messages: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    provider_messages: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Create a payload snapshot to simplify debugging."""
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "model": options.model or config.model_name or provider.default_model or "mock-model-v1",
         "messages": options.messages,
         "input": provider_messages,
@@ -40,7 +40,9 @@ def _build_payload(
             if options.temperature is not None
             else (float(config.temperature) if config.temperature is not None else 0.7)
         ),
-        "max_tokens": options.max_tokens if options.max_tokens is not None else config.max_tokens or 1024,
+        "max_tokens": options.max_tokens
+        if options.max_tokens is not None
+        else config.max_tokens or 1024,
         "thinking_mode": options.thinking_mode or config.thinking_mode,
         "tools": options.tools,
         "tool_choice": options.tool_choice,
@@ -65,18 +67,18 @@ def _build_payload(
 
 
 def _build_mock_content(
-    user_message: str, json_schema: Dict[str, Any] | None, config: LLMConfig, provider: LLMProvider
+    user_message: str, json_schema: dict[str, Any] | None, config: LLMConfig, provider: LLMProvider
 ) -> str:
     """Generate deterministic mock content."""
 
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
 
     if json_schema:
         # Generate mock response matching the required schema structure
         schema_props = json_schema.get("properties", {})
         required_fields = json_schema.get("required", [])
 
-        mock_body: Dict[str, Any] = {}
+        mock_body: dict[str, Any] = {}
 
         # Fill in required fields + critical optional fields
         all_fields = set(required_fields)
@@ -202,7 +204,7 @@ async def send_request(
 3. 确定回复策略：友好回应
 4. 生成回复内容"""
 
-    response_identifier = f"mock-{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+    response_identifier = f"mock-{int(datetime.now(UTC).timestamp() * 1000)}"
 
     # Build Doubao Responses API compatible raw_response
     content_blocks = [{"type": "output_text", "text": content}]
@@ -230,13 +232,13 @@ async def send_request(
     )
 
 
-def _extract_last_user_message(provider_messages: List[Dict[str, Any]]) -> str:
+def _extract_last_user_message(provider_messages: list[dict[str, Any]]) -> str:
     for msg in reversed(provider_messages):
         if msg.get("role") != "user":
             continue
         content_blocks = msg.get("content")
         if isinstance(content_blocks, list):
-            text_parts: List[str] = []
+            text_parts: list[str] = []
             for block in content_blocks:
                 if isinstance(block, dict) and block.get("type") in ("input_text", "text"):
                     value = block.get("text") or block.get("input_text")
@@ -250,7 +252,7 @@ def _extract_last_user_message(provider_messages: List[Dict[str, Any]]) -> str:
     return ""
 
 
-def _estimate_tokens(provider_messages: List[Dict[str, Any]]) -> int:
+def _estimate_tokens(provider_messages: list[dict[str, Any]]) -> int:
     total = 0
     for msg in provider_messages:
         blocks = msg.get("content")

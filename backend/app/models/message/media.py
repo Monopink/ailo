@@ -4,8 +4,6 @@ Media file related models.
 This module contains SQLAlchemy models for media file management.
 """
 
-from typing import Optional
-
 from models.base import SnowflakeModel
 from sqlalchemy import BigInteger, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -32,7 +30,7 @@ class MediaFile(SnowflakeModel):
         Integer, nullable=False, comment="File type: 1=image, 2=audio, 3=video, 4=document"
     )
 
-    original_name: Mapped[Optional[str]] = mapped_column(
+    original_name: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="Original filename"
     )
 
@@ -44,7 +42,9 @@ class MediaFile(SnowflakeModel):
         Integer, nullable=False, comment="Uploader type: 1=user, 2=ai_instance, 3=system"
     )
 
-    upload_by_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Uploader internal ID")
+    upload_by_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Uploader internal ID"
+    )
 
     upload_by_qiao_id: Mapped[str] = mapped_column(
         String(32), nullable=False, comment="Uploader external ID"

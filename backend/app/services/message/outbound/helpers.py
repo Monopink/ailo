@@ -5,8 +5,6 @@ These functions provide business-level abstractions over the core
 send_message and send_notification functions.
 """
 
-from typing import Optional
-
 from crud.profile import profile as profile_crud
 from enums import (
     MessageType,
@@ -28,7 +26,7 @@ async def send_chat_info(
     to_qiao_id: str,
     conv_id: str,
     content: str,
-    action: Optional[dict] = None,
+    action: dict | None = None,
 ) -> None:
     """
     Send CHAT_INFO message.

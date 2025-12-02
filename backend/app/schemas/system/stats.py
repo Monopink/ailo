@@ -5,7 +5,6 @@ This module contains Pydantic schemas for various system statistics.
 """
 
 from datetime import date, datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 from schemas.common import BaseSchema
@@ -38,19 +37,13 @@ class UserStatsBase(BaseStatsSchema):
 class UserStatsDailyResponse(UserStatsBase):
     """Schema for daily user statistics response."""
 
-    pass
-
 
 class UserStatsWeeklyResponse(UserStatsBase):
     """Schema for weekly user statistics response."""
 
-    pass
-
 
 class UserStatsMonthlyResponse(UserStatsBase):
     """Schema for monthly user statistics response."""
-
-    pass
 
 
 # Revenue Statistics Schemas
@@ -68,19 +61,13 @@ class RevenueStatsBase(BaseStatsSchema):
 class RevenueStatsDailyResponse(RevenueStatsBase):
     """Schema for daily revenue statistics response."""
 
-    pass
-
 
 class RevenueStatsWeeklyResponse(RevenueStatsBase):
     """Schema for weekly revenue statistics response."""
 
-    pass
-
 
 class RevenueStatsMonthlyResponse(RevenueStatsBase):
     """Schema for monthly revenue statistics response."""
-
-    pass
 
 
 # Message Statistics Schemas
@@ -97,19 +84,13 @@ class MessageStatsBase(BaseStatsSchema):
 class MessageStatsDailyResponse(MessageStatsBase):
     """Schema for daily message statistics response."""
 
-    pass
-
 
 class MessageStatsWeeklyResponse(MessageStatsBase):
     """Schema for weekly message statistics response."""
 
-    pass
-
 
 class MessageStatsMonthlyResponse(MessageStatsBase):
     """Schema for monthly message statistics response."""
-
-    pass
 
 
 # AI Statistics Schemas
@@ -127,19 +108,13 @@ class AIStatsBase(BaseStatsSchema):
 class AIStatsDailyResponse(AIStatsBase):
     """Schema for daily AI statistics response."""
 
-    pass
-
 
 class AIStatsWeeklyResponse(AIStatsBase):
     """Schema for weekly AI statistics response."""
 
-    pass
-
 
 class AIStatsMonthlyResponse(AIStatsBase):
     """Schema for monthly AI statistics response."""
-
-    pass
 
 
 # Statistics Query Schemas
@@ -148,8 +123,8 @@ class AIStatsMonthlyResponse(AIStatsBase):
 class StatsQuery(BaseModel):
     """Schema for statistics query parameters."""
 
-    start_date: Optional[date] = Field(None, description="Start date for statistics")
-    end_date: Optional[date] = Field(None, description="End date for statistics")
+    start_date: date | None = Field(None, description="Start date for statistics")
+    end_date: date | None = Field(None, description="End date for statistics")
     limit: int = Field(30, ge=1, le=365, description="Maximum number of records")
 
 
@@ -186,7 +161,7 @@ class SystemHealthStats(BaseSchema):
     memory_usage: float = Field(..., ge=0, le=100, description="Memory usage percentage")
     disk_usage: float = Field(..., ge=0, le=100, description="Disk usage percentage")
     database_connections: int = Field(..., ge=0, description="Active database connections")
-    redis_connections: Optional[int] = Field(None, ge=0, description="Active Redis connections")
+    redis_connections: int | None = Field(None, ge=0, description="Active Redis connections")
     response_time: float = Field(..., ge=0, description="Average response time in milliseconds")
     error_rate: float = Field(..., ge=0, le=100, description="Error rate percentage")
     last_updated: datetime = Field(..., description="Last update time")

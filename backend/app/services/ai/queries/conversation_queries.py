@@ -5,8 +5,8 @@ Provides read-only helpers for retrieving buffered conversation history
 stored in ai_conversation_items.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from enums.common import ConversationItemContextStatus
 from models.ai import AIConversationItem
@@ -21,8 +21,8 @@ async def get_conversation_contexts(
     db: AsyncSession,
     instance_qiao_id: str,
     user_qiao_id: str,
-    limit: Optional[int] = None,
-) -> List[Dict[str, Any]]:
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     """
     Return conversation items (excluding flagged content) ordered for prompt building.
     """
@@ -33,7 +33,8 @@ async def get_conversation_contexts(
                 and_(
                     AIConversationItem.user_qiao_id == user_qiao_id,
                     AIConversationItem.instance_qiao_id == instance_qiao_id,
-                    AIConversationItem.is_excluded_from_context == ConversationItemContextStatus.INCLUDED,
+                    AIConversationItem.is_excluded_from_context
+                    == ConversationItemContextStatus.INCLUDED,
                 )
             )
             .order_by(desc(AIConversationItem.created_at), desc(AIConversationItem.id))
@@ -45,7 +46,7 @@ async def get_conversation_contexts(
         result = await db.execute(query)
         items = list(result.scalars().all())
 
-        formatted: List[Dict[str, Any]] = []
+        formatted: list[dict[str, Any]] = []
         for item in reversed(items):
             formatted.append(_serialize_item(item))
 
@@ -73,7 +74,7 @@ async def get_conversation_history(
     user_qiao_id: str,
     instance_qiao_id: str,
     limit: int = 20,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Return recent conversation items (including excluded entries) for audit UIs.
     """
@@ -91,7 +92,7 @@ async def get_conversation_history(
         )
 
         items = list(result.scalars().all())
-        history: List[Dict[str, Any]] = []
+        history: list[dict[str, Any]] = []
         for item in reversed(items):
             payload = _serialize_item(item)
             payload["is_excluded_from_context"] = (
@@ -119,12 +120,14 @@ async def get_conversation_history(
         return []
 
 
-async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> Optional[Dict[str, Any]]:
+async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> dict[str, Any] | None:
     """
     Fetch a single conversation item by ID.
     """
     try:
-        result = await db.execute(select(AIConversationItem).where(AIConversationItem.id == item_id))
+        result = await db.execute(
+            select(AIConversationItem).where(AIConversationItem.id == item_id)
+        )
         item = result.scalar_one_or_none()
         if not item:
             logger.warning("conversation_item_not_found", item_id=item_id)
@@ -152,13 +155,13 @@ async def get_items_for_archiving(
     user_qiao_id: str,
     max_age_seconds: int = 604800,
     max_count: int = 100,
-    archive_threshold: Optional[int] = None,
-) -> Tuple[List[AIConversationItem], int]:
+    archive_threshold: int | None = None,
+) -> tuple[list[AIConversationItem], int]:
     """
     Determine which conversation items should be archived to cold storage.
     """
     try:
-        cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
+        cutoff = datetime.now(UTC) - timedelta(seconds=max_age_seconds)
 
         result = await db.execute(
             select(AIConversationItem)
@@ -172,7 +175,7 @@ async def get_items_for_archiving(
         )
 
         items = list(result.scalars().all())
-        to_archive: List[AIConversationItem] = []
+        to_archive: list[AIConversationItem] = []
 
         for item in items:
             if item.created_at < cutoff:
@@ -205,7 +208,7 @@ async def get_items_for_archiving(
         return [], 0
 
 
-def _serialize_item(item: AIConversationItem) -> Dict[str, Any]:
+def _serialize_item(item: AIConversationItem) -> dict[str, Any]:
     """Serialize ORM conversation item into dictionary form."""
     return {
         "id": item.id,

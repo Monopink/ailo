@@ -6,7 +6,7 @@ Functions orchestrate API calls and database operations.
 """
 
 import secrets
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from crud.system import system_configs
 from enums import MessageType
@@ -32,14 +32,14 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _get_non_empty_str(value: Any) -> Optional[str]:
+def _get_non_empty_str(value: Any) -> str | None:
     """Return the value if it is a non-empty string, otherwise None."""
     if isinstance(value, str) and value:
         return value
     return None
 
 
-async def ensure_system_conversation(db: AsyncSession, existing_conv_id: Optional[str] = None) -> str:
+async def ensure_system_conversation(db: AsyncSession, existing_conv_id: str | None = None) -> str:
     """
     Ensure system conversation exists and is valid.
 
@@ -64,7 +64,9 @@ async def ensure_system_conversation(db: AsyncSession, existing_conv_id: Optiona
 
     conversation_id = _get_non_empty_str(
         existing_conv_id
-        or await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+        or await system_configs.get_config_value(
+            db, config_key="leancloud_im_service_conversation_id"
+        )
     )
 
     if conversation_id:
@@ -160,7 +162,9 @@ async def initialize_service(db: AsyncSession) -> bool:
                 )
 
                 if updated_token_config:
-                    logger.info("leancloud_webhook_token_generated", token_length=len(webhook_token))
+                    logger.info(
+                        "leancloud_webhook_token_generated", token_length=len(webhook_token)
+                    )
                 else:
                     logger.warning("leancloud_webhook_token_generation_failed")
 
@@ -185,7 +189,9 @@ async def initialize_service(db: AsyncSession) -> bool:
         )
 
         if not updated_config:
-            logger.error("leancloud_failed_to_store_conversation_id", conversation_id=conversation_id)
+            logger.error(
+                "leancloud_failed_to_store_conversation_id", conversation_id=conversation_id
+            )
             return False
 
         logger.info("leancloud_service_initialized", conversation_id=conversation_id)
@@ -201,7 +207,10 @@ async def initialize_service(db: AsyncSession) -> bool:
 
             # Store token in system_configs
             updated_token_config = await system_configs.update_config_value(
-                db, config_key="leancloud_im_webhook_token", config_value=webhook_token, validate_enum=False
+                db,
+                config_key="leancloud_im_webhook_token",
+                config_value=webhook_token,
+                validate_enum=False,
             )
 
             if updated_token_config:
@@ -214,11 +223,13 @@ async def initialize_service(db: AsyncSession) -> bool:
         return True
 
     except Exception as e:
-        logger.error("leancloud_initialize_service_error", error=str(e), error_type=type(e).__name__)
+        logger.error(
+            "leancloud_initialize_service_error", error=str(e), error_type=type(e).__name__
+        )
         return False
 
 
-async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, Optional[str]]:
+async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, str | None]:
     """
     Refresh system conversation (create new one and update config).
 
@@ -266,14 +277,16 @@ async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, Optional[
 
         if not updated_config:
             error_msg = "Failed to update conversation_id in database"
-            logger.error("leancloud_failed_to_update_conversation_id", conversation_id=conversation_id)
+            logger.error(
+                "leancloud_failed_to_update_conversation_id", conversation_id=conversation_id
+            )
             return False, error_msg
 
         logger.info("leancloud_system_conversation_refreshed", new_conversation_id=conversation_id)
         return True, conversation_id
 
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Unexpected error: {e!s}"
         logger.error(
             "leancloud_refresh_system_conversation_error", error=str(e), error_type=type(e).__name__
         )
@@ -301,7 +314,9 @@ async def initialize_user(qiao_id: str, db: AsyncSession) -> bool:
         master_key = _get_non_empty_str(leancloud_config.get("master_key"))
         base_url = _get_non_empty_str(leancloud_config.get("base_url"))
         conversation_id = _get_non_empty_str(
-            await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+            await system_configs.get_config_value(
+                db, config_key="leancloud_im_service_conversation_id"
+            )
         )
 
         if app_id is None or master_key is None or base_url is None or conversation_id is None:
@@ -326,7 +341,10 @@ async def initialize_user(qiao_id: str, db: AsyncSession) -> bool:
 
     except Exception as e:
         logger.error(
-            "leancloud_initialize_user_error", qiao_id=qiao_id, error=str(e), error_type=type(e).__name__
+            "leancloud_initialize_user_error",
+            qiao_id=qiao_id,
+            error=str(e),
+            error_type=type(e).__name__,
         )
         return False
 
@@ -352,7 +370,9 @@ async def deinitialize_user(qiao_id: str, db: AsyncSession) -> bool:
         master_key = _get_non_empty_str(leancloud_config.get("master_key"))
         base_url = _get_non_empty_str(leancloud_config.get("base_url"))
         conversation_id = _get_non_empty_str(
-            await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+            await system_configs.get_config_value(
+                db, config_key="leancloud_im_service_conversation_id"
+            )
         )
 
         if app_id is None or master_key is None or base_url is None or conversation_id is None:
@@ -377,7 +397,10 @@ async def deinitialize_user(qiao_id: str, db: AsyncSession) -> bool:
 
     except Exception as e:
         logger.error(
-            "leancloud_deinitialize_user_error", qiao_id=qiao_id, error=str(e), error_type=type(e).__name__
+            "leancloud_deinitialize_user_error",
+            qiao_id=qiao_id,
+            error=str(e),
+            error_type=type(e).__name__,
         )
         return False
 
@@ -392,8 +415,8 @@ async def send_message(
     conv_id: str,
     content: str,
     message_type: int = 1,
-    extra_fields: Optional[dict] = None,
-    msg_id: Optional[str] = None,
+    extra_fields: dict | None = None,
+    msg_id: str | None = None,
 ) -> MessageResult:
     """
     Send message through LeanCloud.
@@ -418,7 +441,9 @@ async def send_message(
 
         # Get LeanCloud IM system conversation ID
         lc_conv_id = _get_non_empty_str(
-            await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+            await system_configs.get_config_value(
+                db, config_key="leancloud_im_service_conversation_id"
+            )
         )
 
         if app_id is None or master_key is None or base_url is None or lc_conv_id is None:
@@ -453,8 +478,7 @@ async def send_message(
 
         if success:
             return MessageResult(success=True, msg_id_provider=msg_id)
-        else:
-            return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
+        return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
 
     except Exception as e:
         logger.error(
@@ -469,9 +493,9 @@ async def send_message_as_system(
     conv_id: str,
     content: str,
     message_type: int = MessageType.CHAT_INFO,
-    action: Optional[dict] = None,
-    extra_fields: Optional[dict] = None,
-    msg_id: Optional[str] = None,
+    action: dict | None = None,
+    extra_fields: dict | None = None,
+    msg_id: str | None = None,
 ) -> MessageResult:
     """
     Send message as system through LeanCloud.
@@ -496,7 +520,9 @@ async def send_message_as_system(
 
         # Get LeanCloud IM system conversation ID
         lc_conv_id = _get_non_empty_str(
-            await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+            await system_configs.get_config_value(
+                db, config_key="leancloud_im_service_conversation_id"
+            )
         )
 
         if app_id is None or master_key is None or base_url is None or lc_conv_id is None:
@@ -532,8 +558,7 @@ async def send_message_as_system(
 
         if success:
             return MessageResult(success=True, msg_id_provider=msg_id)
-        else:
-            return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
+        return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
 
     except Exception as e:
         logger.error("send_message_as_system_exception", error=str(e), to_qiao_id=to_qiao_id)
@@ -554,7 +579,11 @@ async def get_conversation_registry_state(db: AsyncSession) -> dict:
 
 
 async def broadcast_message(
-    conversation_id: str, from_qiao_id: str, to_qiao_ids: List[str], content: str, message_type: int = 1
+    conversation_id: str,
+    from_qiao_id: str,
+    to_qiao_ids: list[str],
+    content: str,
+    message_type: int = 1,
 ) -> MessageResult:
     """Broadcast message through LeanCloud (to be implemented)."""
     return MessageResult(
@@ -565,18 +594,22 @@ async def broadcast_message(
 
 
 async def fetch_messages_by_time_range(
-    conversation_id: str, start_time: int, end_time: int, limit: int = 1000, include_start: bool = False
-) -> List["InboundMessageEvent"]:
+    conversation_id: str,
+    start_time: int,
+    end_time: int,
+    limit: int = 1000,
+    include_start: bool = False,
+) -> list["InboundMessageEvent"]:
     """Fetch messages by time range from LeanCloud (to be implemented)."""
     return []
 
 
-async def check_users_online(qiao_ids: List[str]) -> Dict[str, bool]:
+async def check_users_online(qiao_ids: list[str]) -> dict[str, bool]:
     """Check users online status in LeanCloud (to be implemented)."""
     return {qiao_id: False for qiao_id in qiao_ids}
 
 
-async def check_health(db: AsyncSession) -> tuple[bool, Optional[str]]:
+async def check_health(db: AsyncSession) -> tuple[bool, str | None]:
     """
     Check LeanCloud service health.
 
@@ -622,7 +655,7 @@ async def check_health(db: AsyncSession) -> tuple[bool, Optional[str]]:
         return await check_leancloud_health(app_id=app_id, master_key=master_key, base_url=base_url)
 
     except Exception as e:
-        error_msg = f"Health check failed: {str(e)}"
+        error_msg = f"Health check failed: {e!s}"
         logger.error(
             "leancloud_health_check_error", error=str(e), error_type=type(e).__name__, exc_info=True
         )

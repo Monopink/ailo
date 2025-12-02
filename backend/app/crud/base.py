@@ -5,7 +5,7 @@ This module contains generic CRUD classes that provide common database operation
 for all models.
 """
 
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import Any, Generic, TypeVar
 
 from models.protocols import (
     IdModelProtocol,
@@ -40,7 +40,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     * `schema`: A Pydantic model (schema) class
     """
 
-    def __init__(self, model: Type[ModelType]):
+    def __init__(self, model: type[ModelType]):
         """
         CRUD object with default methods to Create, Read, Update, Delete (CRUD).
 
@@ -49,12 +49,14 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         self.model = model
 
-    async def get(self, db: AsyncSession, id: Any) -> Optional[ModelType]:
+    async def get(self, db: AsyncSession, id: Any) -> ModelType | None:
         """Get a single record by ID."""
         result = await db.execute(select(self.model).where(self.model.id == id))
         return result.scalar_one_or_none()
 
-    async def get_multi(self, db: AsyncSession, *, skip: int = 0, limit: int = 100) -> List[ModelType]:
+    async def get_multi(
+        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
+    ) -> list[ModelType]:
         """Get multiple records with pagination."""
         result = await db.execute(select(self.model).offset(skip).limit(limit))
         return list(result.scalars().all())
@@ -69,7 +71,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return db_obj
 
     async def update(
-        self, db: AsyncSession, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, Dict[str, Any]]
+        self, db: AsyncSession, *, db_obj: ModelType, obj_in: UpdateSchemaType | dict[str, Any]
     ) -> ModelType:
         """Update an existing record."""
         obj_data = db_obj.__dict__
@@ -87,7 +89,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         await db.refresh(db_obj)
         return db_obj
 
-    async def remove(self, db: AsyncSession, *, id: Any) -> Optional[ModelType]:
+    async def remove(self, db: AsyncSession, *, id: Any) -> ModelType | None:
         """Remove a record by ID."""
         obj = await self.get(db, id=id)
         if obj:
@@ -118,20 +120,22 @@ class CRUDBaseWithQiaoId(
     Extends CRUDBase with qiao_id specific operations.
     """
 
-    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[QiaoIdModelType]:
+    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> QiaoIdModelType | None:
         """Get a single record by qiao_id."""
         result = await db.execute(select(self.model).where(self.model.qiao_id == qiao_id))
         return result.scalar_one_or_none()
 
     async def exists_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> bool:
         """Check if a record exists by qiao_id."""
-        result = await db.execute(select(func.count(self.model.id)).where(self.model.qiao_id == qiao_id))
+        result = await db.execute(
+            select(func.count(self.model.id)).where(self.model.qiao_id == qiao_id)
+        )
         count = result.scalar()
         return (count if count is not None else 0) > 0
 
     async def get_multi_by_qiao_ids(
-        self, db: AsyncSession, *, qiao_ids: List[str]
-    ) -> List[QiaoIdModelType]:
+        self, db: AsyncSession, *, qiao_ids: list[str]
+    ) -> list[QiaoIdModelType]:
         """Get multiple records by qiao_ids."""
         result = await db.execute(select(self.model).where(self.model.qiao_id.in_(qiao_ids)))
         return list(result.scalars().all())
@@ -147,23 +151,27 @@ class CRUDBaseWithStatus(
     Extends CRUDBase with status-specific operations.
     """
 
-    async def get_active(self, db: AsyncSession, id: Any) -> Optional[StatusModelType]:
+    async def get_active(self, db: AsyncSession, id: Any) -> StatusModelType | None:
         """Get a single active record by ID."""
         result = await db.execute(
-            select(self.model).where(self.model.id == id, self.model.status == 1)  # Assuming 1 = active
+            select(self.model).where(
+                self.model.id == id, self.model.status == 1
+            )  # Assuming 1 = active
         )
         return result.scalar_one_or_none()
 
     async def get_multi_active(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> List[StatusModelType]:
+    ) -> list[StatusModelType]:
         """Get multiple active records with pagination."""
         result = await db.execute(
             select(self.model).where(self.model.status == 1).offset(skip).limit(limit)
         )
         return list(result.scalars().all())
 
-    async def update_status(self, db: AsyncSession, *, id: Any, status: int) -> Optional[StatusModelType]:
+    async def update_status(
+        self, db: AsyncSession, *, id: Any, status: int
+    ) -> StatusModelType | None:
         """Update record status."""
         obj = await self.get(db, id=id)
         if obj:
@@ -173,7 +181,7 @@ class CRUDBaseWithStatus(
             await db.refresh(obj)
         return obj
 
-    async def soft_delete(self, db: AsyncSession, *, id: Any) -> Optional[StatusModelType]:
+    async def soft_delete(self, db: AsyncSession, *, id: Any) -> StatusModelType | None:
         """Soft delete a record by setting status to 0."""
         return await self.update_status(db, id=id, status=0)
 
@@ -189,7 +197,7 @@ class ImmutableCRUDBase(Generic[ImmutableModelType, ImmutableCreateSchemaType]):
     * `model`: A SQLAlchemy model class (immutable log table)
     """
 
-    def __init__(self, model: Type[ImmutableModelType]):
+    def __init__(self, model: type[ImmutableModelType]):
         """
         CRUD object for immutable log tables.
 
@@ -198,21 +206,23 @@ class ImmutableCRUDBase(Generic[ImmutableModelType, ImmutableCreateSchemaType]):
         """
         self.model = model
 
-    async def get(self, db: AsyncSession, id: Any) -> Optional[ImmutableModelType]:
+    async def get(self, db: AsyncSession, id: Any) -> ImmutableModelType | None:
         """Get a single log record by ID."""
         result = await db.execute(select(self.model).where(self.model.id == id))
         return result.scalar_one_or_none()
 
     async def get_multi(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> List[ImmutableModelType]:
+    ) -> list[ImmutableModelType]:
         """Get multiple log records with pagination, ordered by created_at DESC."""
         result = await db.execute(
             select(self.model).order_by(desc(self.model.created_at)).offset(skip).limit(limit)
         )
         return list(result.scalars().all())
 
-    async def create(self, db: AsyncSession, *, obj_in: ImmutableCreateSchemaType) -> ImmutableModelType:
+    async def create(
+        self, db: AsyncSession, *, obj_in: ImmutableCreateSchemaType
+    ) -> ImmutableModelType:
         """Create a new log record."""
         obj_in_data = obj_in.model_dump() if hasattr(obj_in, "model_dump") else obj_in.dict()
         db_obj = self.model(**obj_in_data)

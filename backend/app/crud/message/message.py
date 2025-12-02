@@ -5,7 +5,6 @@ This module contains CRUD operations for message history and conversations.
 """
 
 from datetime import datetime
-from typing import List, Optional
 
 from crud.base import CRUDBase
 from enums import MessageStatus, MessageType
@@ -17,23 +16,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
     """CRUD operations for MessageHistory model."""
 
-    async def get_by_server_id(self, db: AsyncSession, *, msg_id_server: str) -> Optional[MessageHistory]:
+    async def get_by_server_id(
+        self, db: AsyncSession, *, msg_id_server: str
+    ) -> MessageHistory | None:
         """Get message by server ID."""
-        result = await db.execute(select(self.model).where(self.model.msg_id_server == msg_id_server))
+        result = await db.execute(
+            select(self.model).where(self.model.msg_id_server == msg_id_server)
+        )
         return result.scalar_one_or_none()
 
-    async def get_by_client_id(self, db: AsyncSession, *, msg_id_client: str) -> Optional[MessageHistory]:
+    async def get_by_client_id(
+        self, db: AsyncSession, *, msg_id_client: str
+    ) -> MessageHistory | None:
         """Get message by client ID."""
-        result = await db.execute(select(self.model).where(self.model.msg_id_client == msg_id_client))
+        result = await db.execute(
+            select(self.model).where(self.model.msg_id_client == msg_id_client)
+        )
         return result.scalar_one_or_none()
 
     async def get_by_conversation_and_client_id(
         self, db: AsyncSession, *, conversation_id: str, msg_id_client: str
-    ) -> Optional[MessageHistory]:
+    ) -> MessageHistory | None:
         """Get message by conversation + client ID (idempotency check)."""
         result = await db.execute(
             select(self.model).where(
-                self.model.conversation_id == conversation_id, self.model.msg_id_client == msg_id_client
+                self.model.conversation_id == conversation_id,
+                self.model.msg_id_client == msg_id_client,
             )
         )
         return result.scalar_one_or_none()
@@ -43,11 +51,11 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
         db: AsyncSession,
         *,
         conversation_id: str,
-        before_time: Optional[datetime] = None,
-        after_time: Optional[datetime] = None,
-        message_types: Optional[List[MessageType]] = None,
+        before_time: datetime | None = None,
+        after_time: datetime | None = None,
+        message_types: list[MessageType] | None = None,
         limit: int = 50,
-    ) -> List[MessageHistory]:
+    ) -> list[MessageHistory]:
         """Get conversation messages with filtering."""
         conditions = [self.model.conversation_id == conversation_id]
 
@@ -59,19 +67,24 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
             conditions.append(self.model.message_type.in_(message_types))
 
         result = await db.execute(
-            select(self.model).where(and_(*conditions)).order_by(desc(self.model.created_at)).limit(limit)
+            select(self.model)
+            .where(and_(*conditions))
+            .order_by(desc(self.model.created_at))
+            .limit(limit)
         )
         return list(result.scalars().all())
 
     async def get_user_conversations(
         self, db: AsyncSession, *, user_qiao_id: str, limit: int = 50
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Get user's conversation list with last message."""
         # This would typically involve a complex query with subqueries
         # For now, return a simplified version
         result = await db.execute(
             select(self.model.conversation_id, func.max(self.model.created_at))
-            .where(or_(self.model.from_qiao_id == user_qiao_id, self.model.to_qiao_id == user_qiao_id))
+            .where(
+                or_(self.model.from_qiao_id == user_qiao_id, self.model.to_qiao_id == user_qiao_id)
+            )
             .group_by(self.model.conversation_id)
             .order_by(desc(func.max(self.model.created_at)))
             .limit(limit)
@@ -84,7 +97,7 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
         *,
         conversation_id: str,
         user_qiao_id: str,
-        last_read_time: Optional[datetime] = None,
+        last_read_time: datetime | None = None,
     ) -> int:
         """Get unread message count for a conversation."""
         conditions = [
@@ -102,7 +115,7 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
 
     async def update_message_status(
         self, db: AsyncSession, *, msg_id_server: str, status: MessageStatus
-    ) -> Optional[MessageHistory]:
+    ) -> MessageHistory | None:
         """Update message status."""
         message = await self.get_by_server_id(db, msg_id_server=msg_id_server)
         if message:
@@ -113,7 +126,7 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
         return message
 
     async def batch_update_status(
-        self, db: AsyncSession, *, msg_ids: List[str], status: MessageStatus
+        self, db: AsyncSession, *, msg_ids: list[str], status: MessageStatus
     ) -> int:
         """Batch update message status."""
         result = await db.execute(select(self.model).where(self.model.msg_id_server.in_(msg_ids)))
@@ -130,7 +143,7 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
 
     async def search_messages(
         self, db: AsyncSession, *, conversation_id: str, query: str, limit: int = 20
-    ) -> List[MessageHistory]:
+    ) -> list[MessageHistory]:
         """Search messages in a conversation."""
         result = await db.execute(
             select(self.model)

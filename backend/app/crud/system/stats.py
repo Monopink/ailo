@@ -4,23 +4,14 @@ System statistics CRUD operations.
 This module contains CRUD operations for various system statistics.
 """
 
-from datetime import date, datetime, timedelta
-from typing import List, Optional
+from datetime import date
 
 from crud.base import CRUDBase
 from models.system import (
     StatsAIDaily,
-    StatsAIMonthly,
-    StatsAIWeekly,
     StatsMessageDaily,
-    StatsMessageMonthly,
-    StatsMessageWeekly,
     StatsRevenueDaily,
-    StatsRevenueMonthly,
-    StatsRevenueWeekly,
     StatsUserDaily,
-    StatsUserMonthly,
-    StatsUserWeekly,
 )
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,14 +20,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class CRUDStatsUser(CRUDBase[StatsUserDaily, dict, dict]):
     """CRUD operations for user statistics."""
 
-    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> Optional[StatsUserDaily]:
+    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> StatsUserDaily | None:
         """Get user stats by date."""
         result = await db.execute(select(self.model).where(self.model.stat_date == stat_date))
         return result.scalar_one_or_none()
 
     async def get_date_range(
         self, db: AsyncSession, *, start_date: date, end_date: date
-    ) -> List[StatsUserDaily]:
+    ) -> list[StatsUserDaily]:
         """Get user stats for date range."""
         result = await db.execute(
             select(self.model)
@@ -45,23 +36,25 @@ class CRUDStatsUser(CRUDBase[StatsUserDaily, dict, dict]):
         )
         return list(result.scalars().all())
 
-    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsUserDaily]:
+    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> list[StatsUserDaily]:
         """Get latest user statistics."""
-        result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
+        result = await db.execute(
+            select(self.model).order_by(desc(self.model.stat_date)).limit(limit)
+        )
         return list(result.scalars().all())
 
 
 class CRUDStatsRevenue(CRUDBase[StatsRevenueDaily, dict, dict]):
     """CRUD operations for revenue statistics."""
 
-    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> Optional[StatsRevenueDaily]:
+    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> StatsRevenueDaily | None:
         """Get revenue stats by date."""
         result = await db.execute(select(self.model).where(self.model.stat_date == stat_date))
         return result.scalar_one_or_none()
 
     async def get_date_range(
         self, db: AsyncSession, *, start_date: date, end_date: date
-    ) -> List[StatsRevenueDaily]:
+    ) -> list[StatsRevenueDaily]:
         """Get revenue stats for date range."""
         result = await db.execute(
             select(self.model)
@@ -70,23 +63,25 @@ class CRUDStatsRevenue(CRUDBase[StatsRevenueDaily, dict, dict]):
         )
         return list(result.scalars().all())
 
-    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsRevenueDaily]:
+    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> list[StatsRevenueDaily]:
         """Get latest revenue statistics."""
-        result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
+        result = await db.execute(
+            select(self.model).order_by(desc(self.model.stat_date)).limit(limit)
+        )
         return list(result.scalars().all())
 
 
 class CRUDStatsMessage(CRUDBase[StatsMessageDaily, dict, dict]):
     """CRUD operations for message statistics."""
 
-    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> Optional[StatsMessageDaily]:
+    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> StatsMessageDaily | None:
         """Get message stats by date."""
         result = await db.execute(select(self.model).where(self.model.stat_date == stat_date))
         return result.scalar_one_or_none()
 
     async def get_date_range(
         self, db: AsyncSession, *, start_date: date, end_date: date
-    ) -> List[StatsMessageDaily]:
+    ) -> list[StatsMessageDaily]:
         """Get message stats for date range."""
         result = await db.execute(
             select(self.model)
@@ -95,23 +90,25 @@ class CRUDStatsMessage(CRUDBase[StatsMessageDaily, dict, dict]):
         )
         return list(result.scalars().all())
 
-    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsMessageDaily]:
+    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> list[StatsMessageDaily]:
         """Get latest message statistics."""
-        result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
+        result = await db.execute(
+            select(self.model).order_by(desc(self.model.stat_date)).limit(limit)
+        )
         return list(result.scalars().all())
 
 
 class CRUDStatsAI(CRUDBase[StatsAIDaily, dict, dict]):
     """CRUD operations for AI statistics."""
 
-    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> Optional[StatsAIDaily]:
+    async def get_by_date(self, db: AsyncSession, *, stat_date: date) -> StatsAIDaily | None:
         """Get AI stats by date."""
         result = await db.execute(select(self.model).where(self.model.stat_date == stat_date))
         return result.scalar_one_or_none()
 
     async def get_date_range(
         self, db: AsyncSession, *, start_date: date, end_date: date
-    ) -> List[StatsAIDaily]:
+    ) -> list[StatsAIDaily]:
         """Get AI stats for date range."""
         result = await db.execute(
             select(self.model)
@@ -120,9 +117,11 @@ class CRUDStatsAI(CRUDBase[StatsAIDaily, dict, dict]):
         )
         return list(result.scalars().all())
 
-    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> List[StatsAIDaily]:
+    async def get_latest(self, db: AsyncSession, *, limit: int = 30) -> list[StatsAIDaily]:
         """Get latest AI statistics."""
-        result = await db.execute(select(self.model).order_by(desc(self.model.stat_date)).limit(limit))
+        result = await db.execute(
+            select(self.model).order_by(desc(self.model.stat_date)).limit(limit)
+        )
         return list(result.scalars().all())
 
 

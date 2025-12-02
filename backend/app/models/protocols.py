@@ -8,7 +8,6 @@ Pylance/mypy. They intentionally keep a narrow surface area to reduce coupling.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Protocol
 
 

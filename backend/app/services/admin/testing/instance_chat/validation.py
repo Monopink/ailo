@@ -6,7 +6,7 @@ configurations and relationships are properly established before test execution.
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from crud.profile import profile as profile_crud
 from enums import ContactType, ProfileOwnerType, UserType
@@ -30,7 +30,7 @@ class ValidationError(Exception):
     """Exception raised when validation fails"""
 
     def __init__(
-        self, message: str, error_code: str = "VALIDATION_ERROR", suggestions: Optional[list] = None
+        self, message: str, error_code: str = "VALIDATION_ERROR", suggestions: list | None = None
     ):
         self.message = message
         self.error_code = error_code
@@ -43,7 +43,7 @@ class ValidationService:
 
     async def validate_instance_test_prerequisites(
         self, db: AsyncSession, instance_id: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Validate all prerequisites for AI instance testing.
 
@@ -72,7 +72,9 @@ class ValidationService:
             current_relationship = instance_context.get("current_relationship")
 
             # Step 5: Validate relationship scores exist
-            relationship_scores = await self._validate_relationship_scores(db, instance_context, style_info)
+            relationship_scores = await self._validate_relationship_scores(
+                db, instance_context, style_info
+            )
 
             # Step 6: Validate LLM configurations available
             llm_configs = await self._validate_llm_configs(db)
@@ -102,7 +104,7 @@ class ValidationService:
         except Exception as e:
             logger.error("ai_instance_test_validation_error", instance_id=instance_id, error=str(e))
             raise ValidationError(
-                f"系统校验失败：{str(e)}",
+                f"系统校验失败：{e!s}",
                 error_code="SYSTEM_ERROR",
                 suggestions=["查看系统日志确认具体原因", "修复错误后重试"],
             )
@@ -170,7 +172,7 @@ class ValidationService:
 
         return context
 
-    def _extract_instance_profile(self, context: InstanceContext) -> Dict[str, Any]:
+    def _extract_instance_profile(self, context: InstanceContext) -> dict[str, Any]:
         """Extract profile data from context and ensure it exists."""
         profile = context.get("profile") or {}
 
@@ -183,7 +185,9 @@ class ValidationService:
             "region": profile.get("region"),
         }
 
-    def _validate_ai_configuration(self, context: InstanceContext) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    def _validate_ai_configuration(
+        self, context: InstanceContext
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Validate AI style and personality configuration from context."""
         style = context["style"]
         personality = context["personality"]
@@ -212,8 +216,8 @@ class ValidationService:
         return style_info, personality_info
 
     async def _validate_relationship_scores(
-        self, db: AsyncSession, instance_context: InstanceContext, style_info: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, db: AsyncSession, instance_context: InstanceContext, style_info: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Validate relationship scores exist for this instance.
         Auto-initialize if missing to match main flow behavior.
@@ -247,7 +251,7 @@ class ValidationService:
             for score in scores
         ]
 
-    async def _validate_llm_configs(self, db: AsyncSession) -> list[Dict[str, Any]]:
+    async def _validate_llm_configs(self, db: AsyncSession) -> list[dict[str, Any]]:
         """Validate LLM configurations are available"""
         configs = await get_active_configs(db)
 
@@ -273,7 +277,7 @@ class ValidationService:
         ]
 
     async def _validate_prompt_variables(
-        self, instance_context: InstanceContext, personality_info: Dict[str, Any]
+        self, instance_context: InstanceContext, personality_info: dict[str, Any]
     ) -> None:
         """
         Validate prompt variables format (if present).
@@ -298,7 +302,7 @@ class ValidationService:
                 json.loads(prompt_variables)
         except (json.JSONDecodeError, TypeError) as e:
             raise ValidationError(
-                f"prompt_variables 字段不是合法的 JSON：{str(e)}",
+                f"prompt_variables 字段不是合法的 JSON：{e!s}",
                 error_code="PROMPT_VARIABLES_INVALID_JSON",
                 suggestions=[
                     "请修复 prompt_variables 字段中的 JSON 字符串",
@@ -329,7 +333,9 @@ class ValidationService:
             instance_qiao_id=instance.qiao_id,
         )
 
-    async def _ensure_instance_contact_policy(self, db: AsyncSession, instance_qiao_id: str) -> None:
+    async def _ensure_instance_contact_policy(
+        self, db: AsyncSession, instance_qiao_id: str
+    ) -> None:
         """Ensure instance has no non-virtual contacts before allowing test."""
         stmt = (
             select(User.user_type)

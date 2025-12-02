@@ -42,8 +42,8 @@ class LeanCloudProvider:
         conv_id: str,
         content: str,
         message_type: int = 1,
-        extra_fields: Optional[dict] = None,
-        msg_id: Optional[str] = None,
+        extra_fields: dict | None = None,
+        msg_id: str | None = None,
     ) -> MessageResult:
         """Send message through LeanCloud."""
         return await service.send_message(
@@ -63,9 +63,9 @@ class LeanCloudProvider:
         conv_id: str,
         content: str,
         message_type: int = 4,
-        action: Optional[dict] = None,
-        extra_fields: Optional[dict] = None,
-        msg_id: Optional[str] = None,
+        action: dict | None = None,
+        extra_fields: dict | None = None,
+        msg_id: str | None = None,
     ) -> MessageResult:
         """Send message as system through LeanCloud."""
         return await service.send_message_as_system(
@@ -83,7 +83,7 @@ class LeanCloudProvider:
         self,
         conversation_id: str,
         from_qiao_id: str,
-        to_qiao_ids: List[str],
+        to_qiao_ids: list[str],
         content: str,
         message_type: int = 1,
     ) -> MessageResult:
@@ -99,17 +99,17 @@ class LeanCloudProvider:
         end_time: int,
         limit: int = 1000,
         include_start: bool = False,
-    ) -> List[InboundMessageEvent]:
+    ) -> list[InboundMessageEvent]:
         """Fetch messages by time range from LeanCloud."""
         return await service.fetch_messages_by_time_range(
             conversation_id, start_time, end_time, limit, include_start
         )
 
-    async def check_users_online(self, qiao_ids: List[str]) -> Dict[str, bool]:
+    async def check_users_online(self, qiao_ids: list[str]) -> dict[str, bool]:
         """Check users online status in LeanCloud."""
         return await service.check_users_online(qiao_ids)
 
-    async def check_health(self) -> tuple[bool, Optional[str]]:
+    async def check_health(self) -> tuple[bool, str | None]:
         """Check LeanCloud service health."""
         return await service.check_health(self.db)
 

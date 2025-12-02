@@ -4,14 +4,13 @@ Temporary code manager for phone binding fallback
 
 import secrets
 import time
-from typing import Dict, Optional
 
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Module-level storage: code -> (openid, expires_at)
-_codes: Dict[str, tuple[str, float]] = {}
+_codes: dict[str, tuple[str, float]] = {}
 
 
 def generate_code(openid: str) -> str:
@@ -39,7 +38,7 @@ def generate_code(openid: str) -> str:
     return code
 
 
-def verify_code(code: str) -> Optional[str]:
+def verify_code(code: str) -> str | None:
     """
     Verify code and return openid
 

@@ -5,7 +5,7 @@ This module provides user profile-related read/query functions with clear
 separation of concerns and pure function design.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from models.profile import Profile
 from sqlalchemy import and_, select
@@ -15,7 +15,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Dict[str, Any]]:
+async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, Any] | None:
     """
     Get user profile information.
 
@@ -53,7 +53,7 @@ async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Dict
         return None
 
 
-async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> Optional[Dict[str, Any]]:
+async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> dict[str, Any] | None:
     """
     Get instance profile information.
 
@@ -87,11 +87,15 @@ async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> Optio
         }
 
     except Exception as e:
-        logger.error("instance_profile_query_failed", error=str(e), instance_qiao_id=instance_qiao_id)
+        logger.error(
+            "instance_profile_query_failed", error=str(e), instance_qiao_id=instance_qiao_id
+        )
         return None
 
 
-async def get_profile_by_owner(db: AsyncSession, owner_qiao_id: str, owner_type: int) -> Optional[Profile]:
+async def get_profile_by_owner(
+    db: AsyncSession, owner_qiao_id: str, owner_type: int
+) -> Profile | None:
     """
     Get profile by owner qiao_id and type.
 

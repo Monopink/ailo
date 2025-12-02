@@ -4,7 +4,7 @@ Base role-aware ModelView for Starlette-Admin.
 Provides unified create/edit/delete permissions based on admin role.
 """
 
-from typing import Any, List
+from typing import Any
 
 from enums import AdminRole
 from starlette.requests import Request
@@ -13,7 +13,7 @@ from starlette_admin._types import RequestAction
 from starlette_admin.contrib.sqla import ModelView
 
 
-def convert_empty_strings_to_none(obj: Any, field_names: List[str]) -> None:
+def convert_empty_strings_to_none(obj: Any, field_names: list[str]) -> None:
     """
     Convert empty string values to None for specified fields.
 

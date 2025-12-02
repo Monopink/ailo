@@ -5,7 +5,7 @@ This module provides both standard CRUD operations and complex queries
 for AI instance management.
 """
 
-from typing import Any, List, Optional
+from typing import Any
 
 from crud.base import CRUDBase
 from enums import AIInstanceCreator, ContactType
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
     """AI instance CRUD operations with usage tracking."""
 
-    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> Optional[AIInstance]:
+    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> AIInstance | None:
         """
         Get instance by qiao_id.
 
@@ -39,13 +39,13 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
 
         except Exception as e:
             logger.error("instance_get_by_qiao_id_failed", error=str(e), qiao_id=qiao_id)
-            raise RuntimeError(f"Failed to get instance by qiao_id: {str(e)}")
+            raise RuntimeError(f"Failed to get instance by qiao_id: {e!s}")
 
     # Complex queries moved to services/ai/data layer for better separation of concerns
 
     async def get_user_instances(
         self, db: AsyncSession, *, user_qiao_id: str, skip: int = 0, limit: int = 100
-    ) -> List[AIInstance]:
+    ) -> list[AIInstance]:
         """
         Get instances belonging to a specific user.
 
@@ -74,7 +74,9 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
 
             instances = list(result.scalars().all())
 
-            logger.debug("user_instances_retrieved", user_qiao_id=user_qiao_id, count=len(instances))
+            logger.debug(
+                "user_instances_retrieved", user_qiao_id=user_qiao_id, count=len(instances)
+            )
 
             return instances
 
@@ -140,7 +142,7 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
             logger.error("instance_creation_failed", error=str(e))
             raise
 
-    async def remove(self, db: AsyncSession, *, id: Any) -> Optional[AIInstance]:
+    async def remove(self, db: AsyncSession, *, id: Any) -> AIInstance | None:
         """
         Remove an AI instance and update usage counts.
 

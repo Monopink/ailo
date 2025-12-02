@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-from typing import Optional, Tuple
 
 from core.config import get_settings
 from utils.logging import get_logger
@@ -26,7 +25,9 @@ logger = get_logger(__name__)
 class AliyunCaptchaProvider:
     """Aliyun Captcha (V2/V3) verification provider"""
 
-    def __init__(self, *, scene_id: Optional[str] = None, region: str = "cn", mode: str = "strict") -> None:
+    def __init__(
+        self, *, scene_id: str | None = None, region: str = "cn", mode: str = "strict"
+    ) -> None:
         # region is intentionally hardcoded default to 'cn' per product decision
         self.scene_id = scene_id
         self.region = region or "cn"
@@ -49,12 +50,12 @@ class AliyunCaptchaProvider:
     def _get_endpoint(self) -> str:
         if self.region == "cn":
             return "captcha.cn-shanghai.aliyuncs.com"
-        elif self.region == "sgp":
+        if self.region == "sgp":
             return "captcha.ap-southeast-1.aliyuncs.com"
         # default to cn
         return "captcha.cn-shanghai.aliyuncs.com"
 
-    async def verify_token(self, token: str, ip: str) -> Tuple[bool, Optional[str]]:
+    async def verify_token(self, token: str, ip: str) -> tuple[bool, str | None]:
         """Verify Aliyun captcha token (captchaVerifyParam).
 
         token: captchaVerifyParam returned by Aliyun plugin (V3) or client SDK
@@ -76,7 +77,7 @@ class AliyunCaptchaProvider:
         try:
             captcha_models = importlib.import_module("alibabacloud_captcha20230305.models")
             captcha_client_module = importlib.import_module("alibabacloud_captcha20230305.client")
-            CaptchaClient = getattr(captcha_client_module, "Client")
+            CaptchaClient = captcha_client_module.Client
             open_api_models = importlib.import_module("alibabacloud_tea_openapi.models")
         except Exception as e:
             logger.error("aliyun_captcha_sdk_import_failed", error=str(e))
@@ -87,7 +88,7 @@ class AliyunCaptchaProvider:
 
         endpoint = self._get_endpoint()
 
-        async def _do_verify() -> Tuple[bool, Optional[str]]:
+        async def _do_verify() -> tuple[bool, str | None]:
             try:
                 cfg = open_api_models.Config(
                     access_key_id=self.ak,
@@ -111,7 +112,9 @@ class AliyunCaptchaProvider:
                 # Parse result
                 success = getattr(body, "success", None)
                 result = getattr(body, "result", None)
-                verify_result = getattr(result, "verify_result", None) if result is not None else None
+                verify_result = (
+                    getattr(result, "verify_result", None) if result is not None else None
+                )
                 code = getattr(body, "verify_code", None)
 
                 logger.info(

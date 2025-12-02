@@ -37,27 +37,31 @@ class Profile(SnowflakeModel):
         Integer, nullable=False, comment="Owner type: 1=user (all user types), 2=ai"
     )
 
-    nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Display nickname")
+    nickname: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, comment="Display nickname"
+    )
 
-    gender: Mapped[Optional[int]] = mapped_column(
+    gender: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
 
-    avatar_file_id: Mapped[Optional[int]] = mapped_column(
+    avatar_file_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Avatar file ID, references media_files.id"
     )
 
-    avatar_url: Mapped[Optional[str]] = mapped_column(
+    avatar_url: Mapped[str | None] = mapped_column(
         String(500), nullable=True, comment="Avatar URL (redundant for query optimization)"
     )
 
-    avatar_prompt: Mapped[Optional[str]] = mapped_column(
+    avatar_prompt: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Avatar description for AI-generated avatars"
     )
 
-    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Personal bio/description")
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Personal bio/description")
 
-    region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Location/region")
+    region: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, comment="Location/region"
+    )
 
     # Polymorphic owner relationships
     # owner_type=1 (USER) → users table (includes all user types: normal, official, virtual)
@@ -92,9 +96,9 @@ class Profile(SnowflakeModel):
         """Return the appropriate owner object based on owner_type."""
         if self.owner_type == ProfileOwnerType.USER:
             return self._owner_user
-        elif self.owner_type == ProfileOwnerType.AI_PERSONA:
+        if self.owner_type == ProfileOwnerType.AI_PERSONA:
             return self._owner_persona
-        elif self.owner_type == ProfileOwnerType.AI_INSTANCE:
+        if self.owner_type == ProfileOwnerType.AI_INSTANCE:
             return self._owner_instance
         return None
 
@@ -111,7 +115,9 @@ class UserProfileLog(ImmutableSnowflakeModel):
 
     owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Owner internal ID")
 
-    owner_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Owner external ID")
+    owner_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Owner external ID"
+    )
 
     owner_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Owner type: 1=user, 2=ai, 3=official"
@@ -121,13 +127,15 @@ class UserProfileLog(ImmutableSnowflakeModel):
         Integer, nullable=False, comment="Modifier type: 1=user, 2=admin, 3=system"
     )
 
-    field_name: Mapped[str] = mapped_column(String(50), nullable=False, comment="Modified field name")
+    field_name: Mapped[str] = mapped_column(
+        String(50), nullable=False, comment="Modified field name"
+    )
 
-    old_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Old value")
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Old value")
 
-    new_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="New value")
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True, comment="New value")
 
-    change_reason: Mapped[Optional[str]] = mapped_column(
+    change_reason: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="Change reason"
     )
 

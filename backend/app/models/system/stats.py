@@ -18,7 +18,9 @@ class StatsUserDaily(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_user_daily"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Statistics date"
+    )
 
     total_users: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), comment="Total user count"
@@ -33,15 +35,27 @@ class StatsUserDaily(ImmutableAutoIncrementModel):
     )
 
     subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Total subscription count",
     )
 
     new_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="New subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="New subscription count",
     )
 
     canceled_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Canceled subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Canceled subscription count",
     )
 
 
@@ -50,7 +64,9 @@ class StatsUserWeekly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_user_weekly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Week start date"
+    )
 
     total_users: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), comment="Total user count"
@@ -65,15 +81,27 @@ class StatsUserWeekly(ImmutableAutoIncrementModel):
     )
 
     subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Total subscription count",
     )
 
     new_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="New subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="New subscription count",
     )
 
     canceled_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Canceled subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Canceled subscription count",
     )
 
 
@@ -82,7 +110,9 @@ class StatsUserMonthly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_user_monthly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Month start date"
+    )
 
     total_users: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), comment="Total user count"
@@ -97,15 +127,27 @@ class StatsUserMonthly(ImmutableAutoIncrementModel):
     )
 
     subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Total subscription count",
     )
 
     new_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="New subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="New subscription count",
     )
 
     canceled_subscriptions: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Canceled subscription count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Canceled subscription count",
     )
 
 
@@ -117,10 +159,16 @@ class StatsRevenueDaily(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_revenue_daily"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Statistics date"
+    )
 
     total_revenue: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Total revenue"
+        DECIMAL(15, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Total revenue",
     )
 
     orders_count: Mapped[int] = mapped_column(
@@ -136,7 +184,11 @@ class StatsRevenueDaily(ImmutableAutoIncrementModel):
     )
 
     refund_amount: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Refund amount"
+        DECIMAL(15, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Refund amount",
     )
 
 
@@ -145,10 +197,16 @@ class StatsRevenueWeekly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_revenue_weekly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Week start date"
+    )
 
     total_revenue: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Total revenue"
+        DECIMAL(15, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Total revenue",
     )
 
     orders_count: Mapped[int] = mapped_column(
@@ -164,7 +222,11 @@ class StatsRevenueWeekly(ImmutableAutoIncrementModel):
     )
 
     refund_amount: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Refund amount"
+        DECIMAL(15, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Refund amount",
     )
 
 
@@ -173,10 +235,16 @@ class StatsRevenueMonthly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_revenue_monthly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Month start date"
+    )
 
     total_revenue: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Total revenue"
+        DECIMAL(15, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Total revenue",
     )
 
     orders_count: Mapped[int] = mapped_column(
@@ -192,7 +260,11 @@ class StatsRevenueMonthly(ImmutableAutoIncrementModel):
     )
 
     refund_amount: Mapped[float] = mapped_column(
-        DECIMAL(15, 2), nullable=False, default=0.00, server_default=text("0.00"), comment="Refund amount"
+        DECIMAL(15, 2),
+        nullable=False,
+        default=0.00,
+        server_default=text("0.00"),
+        comment="Refund amount",
     )
 
 
@@ -204,7 +276,9 @@ class StatsMessageDaily(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_message_daily"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Statistics date"
+    )
 
     total_messages: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), comment="Total message count"
@@ -219,7 +293,11 @@ class StatsMessageDaily(ImmutableAutoIncrementModel):
     )
 
     active_conversations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active conversation count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Active conversation count",
     )
 
 
@@ -228,7 +306,9 @@ class StatsMessageWeekly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_message_weekly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Week start date"
+    )
 
     total_messages: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), comment="Total message count"
@@ -243,7 +323,11 @@ class StatsMessageWeekly(ImmutableAutoIncrementModel):
     )
 
     active_conversations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active conversation count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Active conversation count",
     )
 
 
@@ -252,7 +336,9 @@ class StatsMessageMonthly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_message_monthly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Month start date"
+    )
 
     total_messages: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), comment="Total message count"
@@ -267,7 +353,11 @@ class StatsMessageMonthly(ImmutableAutoIncrementModel):
     )
 
     active_conversations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active conversation count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Active conversation count",
     )
 
 
@@ -279,14 +369,24 @@ class StatsAIDaily(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_ai_daily"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Statistics date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Statistics date"
+    )
 
     ai_instances: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI instance count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Total AI instance count",
     )
 
     active_ai_instances: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI instance count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Active AI instance count",
     )
 
     ai_requests_count: Mapped[int] = mapped_column(
@@ -307,14 +407,24 @@ class StatsAIWeekly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_ai_weekly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Week start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Week start date"
+    )
 
     ai_instances: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI instance count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Total AI instance count",
     )
 
     active_ai_instances: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI instance count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Active AI instance count",
     )
 
     ai_requests_count: Mapped[int] = mapped_column(
@@ -335,14 +445,24 @@ class StatsAIMonthly(ImmutableAutoIncrementModel):
 
     __tablename__ = "stats_ai_monthly"
 
-    stat_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, comment="Month start date")
+    stat_date: Mapped[date] = mapped_column(
+        Date, nullable=False, unique=True, comment="Month start date"
+    )
 
     ai_instances: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total AI instance count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Total AI instance count",
     )
 
     active_ai_instances: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Active AI instance count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Active AI instance count",
     )
 
     ai_requests_count: Mapped[int] = mapped_column(

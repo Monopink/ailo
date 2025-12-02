@@ -58,7 +58,9 @@ class AdminLoginLog(ImmutableAutoIncrementModel):
         index=True,
         comment="Admin user ID (NULL for failed logins with invalid username)",
     )
-    username = Column(String(50), nullable=False, index=True, comment="Username used for login attempt")
+    username = Column(
+        String(50), nullable=False, index=True, comment="Username used for login attempt"
+    )
     login_result = Column(
         Enum("SUCCESS", "FAILED"), nullable=False, index=True, comment="Result of login attempt"
     )

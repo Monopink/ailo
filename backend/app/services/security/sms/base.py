@@ -5,7 +5,7 @@ Defines the interface for SMS providers.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Protocol, Tuple
+from typing import Protocol
 
 
 @dataclass
@@ -13,9 +13,9 @@ class SMSResult:
     """SMS operation result"""
 
     success: bool
-    provider_id: Optional[str]  # Provider-specific message ID
-    error_code: Optional[str]
-    error_message: Optional[str]
+    provider_id: str | None  # Provider-specific message ID
+    error_code: str | None
+    error_message: str | None
 
 
 class SMSProvider(Protocol):
@@ -34,7 +34,7 @@ class SMSProvider(Protocol):
         """
         ...
 
-    async def check_health(self) -> Tuple[bool, Optional[str]]:
+    async def check_health(self) -> tuple[bool, str | None]:
         """
         Check provider service health.
 

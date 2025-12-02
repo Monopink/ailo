@@ -6,7 +6,7 @@ refreshing LeanCloud system conversation and webhook management.
 """
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from api.deps import get_db, verify_admin_session
@@ -85,25 +85,24 @@ async def refresh_leancloud_conversation(
                 "conversation_id": result,
                 "message": "System conversation refreshed successfully",
             }
-        else:
-            # Log failure to database
-            await create_operation_log(
-                db=db,
-                admin_user_id=admin_user["id"],
-                operation_type=AdminOperationType.REFRESH,
-                resource_type="leancloud_system",
-                resource_id="system_conversation",
-                resource_name="uni_conversation_id",
-                operation_desc=f"Failed to refresh LeanCloud system conversation: {result}",
-                request=request,
-            )
+        # Log failure to database
+        await create_operation_log(
+            db=db,
+            admin_user_id=admin_user["id"],
+            operation_type=AdminOperationType.REFRESH,
+            resource_type="leancloud_system",
+            resource_id="system_conversation",
+            resource_name="uni_conversation_id",
+            operation_desc=f"Failed to refresh LeanCloud system conversation: {result}",
+            request=request,
+        )
 
-            logger.error(
-                "admin_refresh_leancloud_conversation_failed",
-                admin_user=admin_user["username"],
-                error=result,
-            )
-            return {"success": False, "error": result}
+        logger.error(
+            "admin_refresh_leancloud_conversation_failed",
+            admin_user=admin_user["username"],
+            error=result,
+        )
+        return {"success": False, "error": result}
 
     except Exception as e:
         # Log exception to database
@@ -115,7 +114,7 @@ async def refresh_leancloud_conversation(
                 resource_type="leancloud_system",
                 resource_id="system_conversation",
                 resource_name="uni_conversation_id",
-                operation_desc=f"Exception while refreshing LeanCloud system conversation: {str(e)}",
+                operation_desc=f"Exception while refreshing LeanCloud system conversation: {e!s}",
                 request=request,
             )
         except Exception as log_error:
@@ -132,7 +131,7 @@ async def refresh_leancloud_conversation(
             error_type=type(e).__name__,
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=f"Failed to refresh system conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to refresh system conversation: {e!s}")
 
 
 # Removed: get_leancloud_conversation_status endpoint
@@ -181,7 +180,7 @@ async def get_leancloud_service_status(
                 "success": True,
                 "data": {
                     "service_reachable": False,
-                    "last_check_time": datetime.now(timezone.utc).isoformat(),
+                    "last_check_time": datetime.now(UTC).isoformat(),
                     "error_message": "LeanCloud IM configuration incomplete",
                 },
             }
@@ -212,16 +211,18 @@ async def get_leancloud_service_status(
             "success": True,
             "data": {
                 "service_reachable": service_reachable,
-                "last_check_time": datetime.now(timezone.utc).isoformat(),
+                "last_check_time": datetime.now(UTC).isoformat(),
                 "error_message": error_message,
             },
         }
 
     except Exception as e:
         logger.error(
-            "admin_get_leancloud_service_status_error", admin_user=admin_user["username"], error=str(e)
+            "admin_get_leancloud_service_status_error",
+            admin_user=admin_user["username"],
+            error=str(e),
         )
-        raise HTTPException(status_code=500, detail=f"Failed to check service status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to check service status: {e!s}")
 
 
 # Removed: get_webhook_url endpoint
@@ -272,7 +273,9 @@ async def regenerate_webhook_token(
                 "webhook_token_update_failed",
                 admin_user=admin_user["username"],
             )
-            raise HTTPException(status_code=500, detail="Failed to update webhook token in database")
+            raise HTTPException(
+                status_code=500, detail="Failed to update webhook token in database"
+            )
 
         # Log operation to database
         await create_operation_log(
@@ -311,7 +314,7 @@ async def regenerate_webhook_token(
                 resource_type="leancloud_system",
                 resource_id="webhook_token",
                 resource_name="Webhook Token",
-                operation_desc=f"重新生成Webhook Token失败: {str(e)}",
+                operation_desc=f"重新生成Webhook Token失败: {e!s}",
                 request=request,
             )
         except Exception as log_error:
@@ -328,4 +331,4 @@ async def regenerate_webhook_token(
             error_type=type(e).__name__,
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=f"Failed to regenerate webhook token: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to regenerate webhook token: {e!s}")

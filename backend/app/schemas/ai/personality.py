@@ -5,7 +5,7 @@ This module contains Pydantic schemas for AI personalities and templates.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 from schemas.common import BaseSchema
@@ -18,7 +18,7 @@ class AIPersonalityBase(BaseSchema):
 
     display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., description="Personality prompt template")
-    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
+    json_schema: dict[str, Any] | None = Field(None, description="JSON schema definition")
 
 
 class AIPersonalityCreate(BaseModel):
@@ -26,16 +26,16 @@ class AIPersonalityCreate(BaseModel):
 
     display_name: str = Field(..., max_length=100, description="Display name")
     prompt: str = Field(..., min_length=1, description="Personality prompt template")
-    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
+    json_schema: dict[str, Any] | None = Field(None, description="JSON schema definition")
 
 
 class AIPersonalityUpdate(BaseModel):
     """Schema for updating an AI personality."""
 
-    display_name: Optional[str] = Field(None, max_length=100, description="Display name")
-    prompt: Optional[str] = Field(None, min_length=1, description="Personality prompt template")
-    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema definition")
-    status: Optional[int] = Field(
+    display_name: str | None = Field(None, max_length=100, description="Display name")
+    prompt: str | None = Field(None, min_length=1, description="Personality prompt template")
+    json_schema: dict[str, Any] | None = Field(None, description="JSON schema definition")
+    status: int | None = Field(
         None, ge=1, le=3, description="Status: 1=active, 2=inactive (follow enum design)"
     )
 
@@ -56,9 +56,9 @@ class AIPersonalityPlaceholderBase(BaseSchema):
 
     personality_id: int = Field(..., description="Personality ID")
     placeholder_key: str = Field(..., max_length=100, description="Placeholder key name")
-    display_name: Optional[str] = Field(None, max_length=200, description="Display name for UI")
-    description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
-    example_value: Optional[str] = Field(None, description="Example placeholder value")
+    display_name: str | None = Field(None, max_length=200, description="Display name for UI")
+    description: str | None = Field(None, max_length=500, description="Placeholder description")
+    example_value: str | None = Field(None, description="Example placeholder value")
     is_required: bool = Field(False, description="Is required")
 
 
@@ -67,19 +67,19 @@ class AIPersonalityPlaceholderCreate(BaseModel):
 
     personality_id: int = Field(..., description="Personality ID")
     placeholder_key: str = Field(..., max_length=100, description="Placeholder key name")
-    display_name: Optional[str] = Field(None, max_length=200, description="Display name for UI")
-    description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
-    example_value: Optional[str] = Field(None, description="Example placeholder value")
+    display_name: str | None = Field(None, max_length=200, description="Display name for UI")
+    description: str | None = Field(None, max_length=500, description="Placeholder description")
+    example_value: str | None = Field(None, description="Example placeholder value")
     is_required: bool = Field(False, description="Is required")
 
 
 class AIPersonalityPlaceholderUpdate(BaseModel):
     """Schema for updating an AI personality placeholder."""
 
-    display_name: Optional[str] = Field(None, max_length=200, description="Display name for UI")
-    description: Optional[str] = Field(None, max_length=500, description="Placeholder description")
-    example_value: Optional[str] = Field(None, description="Example placeholder value")
-    is_required: Optional[bool] = Field(None, description="Is required")
+    display_name: str | None = Field(None, max_length=200, description="Display name for UI")
+    description: str | None = Field(None, max_length=500, description="Placeholder description")
+    example_value: str | None = Field(None, description="Example placeholder value")
+    is_required: bool | None = Field(None, description="Is required")
 
 
 class AIPersonalityPlaceholderResponse(AIPersonalityPlaceholderBase):

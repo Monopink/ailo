@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for user accounts, tokens, and login reco
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from enums import UserType
 from markupsafe import escape
@@ -28,15 +28,15 @@ class User(SnowflakeQiaoModel, StatusMixin):
         String(50), nullable=False, comment="Username, default to qiao_id"
     )
 
-    phone: Mapped[Optional[str]] = mapped_column(
+    phone: Mapped[str | None] = mapped_column(
         String(20), nullable=True, unique=True, comment="Phone number for login"
     )
 
-    email: Mapped[Optional[str]] = mapped_column(
+    email: Mapped[str | None] = mapped_column(
         String(100), nullable=True, unique=True, comment="Email address"
     )
 
-    password_hash: Mapped[Optional[str]] = mapped_column(
+    password_hash: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="Password hash"
     )
 
@@ -48,17 +48,17 @@ class User(SnowflakeQiaoModel, StatusMixin):
         comment="Real-name verification status: 1=verified, 0=unverified",
     )
 
-    verified_at: Mapped[Optional[datetime]] = mapped_column(
+    verified_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Verification approval time"
     )
 
-    verify_source: Mapped[Optional[str]] = mapped_column(
+    verify_source: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
         comment="Verification source (e.g., public_security, alipay, wechat, tencentcloud)",
     )
 
-    verification_info: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    verification_info: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True, comment="Verification extra info (JSON)"
     )
 
@@ -70,7 +70,7 @@ class User(SnowflakeQiaoModel, StatusMixin):
         comment="User type: 1=normal, 2=official, 3=virtual",
     )
 
-    last_login: Mapped[Optional[datetime]] = mapped_column(
+    last_login: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Last login time"
     )
 
@@ -97,23 +97,25 @@ class UserToken(SnowflakeModel):
         String(32), nullable=False, comment="User external ID (redundant for query optimization)"
     )
 
-    token: Mapped[str] = mapped_column(String(512), nullable=False, unique=True, comment="JWT token")
+    token: Mapped[str] = mapped_column(
+        String(512), nullable=False, unique=True, comment="JWT token"
+    )
 
     device_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Device type: 1=ios, 2=android, 3=web, 4=mini_program"
     )
 
-    device_id: Mapped[Optional[str]] = mapped_column(
+    device_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True, comment="Device unique identifier"
     )
 
-    platform_info: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    platform_info: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True, comment="Platform information (JSONB for better performance)"
     )
 
-    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="Login IP address")
+    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True, comment="Login IP address")
 
-    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent string")
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True, comment="User agent string")
 
     expires_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, comment="Token expiration time"
@@ -127,11 +129,11 @@ class UserToken(SnowflakeModel):
         comment="Token status: 1=active, 2=revoked",
     )
 
-    last_activity_at: Mapped[Optional[datetime]] = mapped_column(
+    last_activity_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Last activity time"
     )
 
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+    revoked_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Token revocation time"
     )
 
@@ -162,15 +164,17 @@ class UserAuth(SnowflakeModel, StatusMixin):
         String(128), nullable=False, comment="Provider user unique ID (openid/sub/open_id/user_id)"
     )
 
-    unionid: Mapped[Optional[str]] = mapped_column(
+    unionid: Mapped[str | None] = mapped_column(
         String(64), nullable=True, comment="WeChat unionid (optional)"
     )
 
-    app_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, comment="Provider app ID")
+    app_id: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="Provider app ID")
 
-    extra_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True, comment="Extra info")
+    extra_data: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True, comment="Extra info"
+    )
 
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+    revoked_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Unbind time"
     )
 
@@ -191,14 +195,19 @@ class LoginRecord(Base, SnowflakeIDMixin):
 
     __tablename__ = "login_records"
 
-    user_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, comment="User internal ID")
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, comment="User internal ID"
+    )
 
-    user_qiao_id: Mapped[Optional[str]] = mapped_column(
+    user_qiao_id: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="User external ID"
     )
 
     login_time: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"), comment="Login attempt time"
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Login attempt time",
     )
 
     login_type: Mapped[int] = mapped_column(
@@ -209,19 +218,25 @@ class LoginRecord(Base, SnowflakeIDMixin):
         Integer, nullable=False, comment="Platform: 1=ios, 2=android, 3=web, 4=mini_program"
     )
 
-    device_id: Mapped[Optional[str]] = mapped_column(
+    device_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True, comment="Device identifier"
     )
 
-    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="Login IP address")
+    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True, comment="Login IP address")
 
-    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent string")
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True, comment="User agent string")
 
-    result: Mapped[int] = mapped_column(Integer, nullable=False, comment="Login result: 1=success, 2=fail")
+    result: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Login result: 1=success, 2=fail"
+    )
 
-    fail_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Failure reason")
+    fail_reason: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, comment="Failure reason"
+    )
 
-    token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, comment="Associated JWT token")
+    token: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, comment="Associated JWT token"
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),

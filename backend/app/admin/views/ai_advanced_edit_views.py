@@ -1,4 +1,4 @@
-﻿"""
+"""
 Custom views for advanced editing in AI models.
 Provides specialized editing interfaces for prompt_variables and position_mapping_params.
 """
@@ -71,7 +71,9 @@ class InstanceAdvancedEditView(CustomView):
 
                 # Get JSON Schema from personality
                 json_schema = instance.personality.json_schema or {}
-                score_props = json_schema.get("properties", {}).get("score", {}).get("properties", {})
+                score_props = (
+                    json_schema.get("properties", {}).get("score", {}).get("properties", {})
+                )
 
                 # Extract schema dimensions
                 schema_dims = {}
@@ -181,7 +183,9 @@ class InstanceAdvancedEditView(CustomView):
                     "personality_display_name": (
                         instance.personality.display_name if instance.personality else "N/A"
                     ),
-                    "style_display_name": (instance.style.display_name if instance.style else "N/A"),
+                    "style_display_name": (
+                        instance.style.display_name if instance.style else "N/A"
+                    ),
                     "prompt_variables": instance.prompt_variables or {},
                     "relationship_display_name": (
                         instance.relationship.display_name if instance.relationship else None
@@ -217,15 +221,20 @@ class InstanceAdvancedEditView(CustomView):
                 "algorithm_param_specs": get_algorithm_param_specs(),
             }
 
-            return templates.TemplateResponse("custom_views/ai_instance_advanced_edit.html", context)
+            return templates.TemplateResponse(
+                "custom_views/ai_instance_advanced_edit.html", context
+            )
 
         except HTTPException:
             raise
         except Exception as e:
             logger.error(
-                "ai_instance_advanced_edit_error", instance_id=instance_id, error=str(e), exc_info=True
+                "ai_instance_advanced_edit_error",
+                instance_id=instance_id,
+                error=str(e),
+                exc_info=True,
             )
-            raise HTTPException(status_code=500, detail=f"Failed to load instance edit page: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to load instance edit page: {e!s}")
 
 
 class TemplateAdvancedEditView(CustomView):
@@ -292,9 +301,7 @@ class TemplateAdvancedEditView(CustomView):
                     pv = json.loads(pv)
                 except Exception:
                     pv = {}
-            elif pv is None:
-                pv = {}
-            elif not isinstance(pv, dict):
+            elif pv is None or not isinstance(pv, dict):
                 pv = {}
 
             # Parse position_mapping_config robustly (could be JSON string)
@@ -304,9 +311,7 @@ class TemplateAdvancedEditView(CustomView):
                     position_mapping_config = json.loads(position_mapping_config)
                 except Exception:
                     position_mapping_config = {}
-            elif position_mapping_config is None:
-                position_mapping_config = {}
-            elif not isinstance(position_mapping_config, dict):
+            elif position_mapping_config is None or not isinstance(position_mapping_config, dict):
                 position_mapping_config = {}
 
             # Build dimension config list
@@ -377,7 +382,9 @@ class PersonalityAdvancedEditView(CustomView):
         session_factory = get_sessionmaker()
         async with session_factory() as db:
             # Get personality
-            result = await db.execute(select(AIPersonality).where(AIPersonality.id == personality_id))
+            result = await db.execute(
+                select(AIPersonality).where(AIPersonality.id == personality_id)
+            )
             personality = result.scalar_one_or_none()
 
             if not personality:
@@ -443,7 +450,6 @@ class StyleAdvancedEditView(CustomView):
 
         session_factory = get_sessionmaker()
         async with session_factory() as db:
-
             # Get style
             result = await db.execute(select(AIStyle).where(AIStyle.id == style_id))
             style = result.scalar_one_or_none()

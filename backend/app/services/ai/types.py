@@ -6,7 +6,7 @@ instance-related data consistent and detached from ORM objects.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 
 class StyleInfo(TypedDict):
@@ -23,18 +23,18 @@ class PersonalityInfo(TypedDict):
     display_name: str
     prompt: str
     status: int
-    json_schema: Optional[Dict[str, Any]]
+    json_schema: dict[str, Any] | None
 
 
 class ProfileInfo(TypedDict):
     """Profile fields mirrored from profile table."""
 
     nickname: str
-    bio: Optional[str]
-    gender: Optional[int]
-    avatar_url: Optional[str]
-    avatar_prompt: Optional[str]
-    region: Optional[str]
+    bio: str | None
+    gender: int | None
+    avatar_url: str | None
+    avatar_prompt: str | None
+    region: str | None
 
 
 class AITypeInfo(TypedDict):
@@ -61,7 +61,7 @@ class CurrentRelationship(TypedDict):
     prompt_fragment: str
 
 
-RelationshipCounts = Dict[str, int]
+RelationshipCounts = dict[str, int]
 
 
 class InstanceContext(TypedDict):
@@ -72,39 +72,39 @@ class InstanceContext(TypedDict):
     instance_qiao_id: str
     user_id: int
     user_qiao_id: str
-    ai_type: Optional[AITypeInfo]
+    ai_type: AITypeInfo | None
     status: int
     created_by: int
 
     # Prompt + runtime configuration
-    memory: Optional[str]
-    prompt_variables: Dict[str, Any]
-    request_params: Dict[str, Any]
+    memory: str | None
+    prompt_variables: dict[str, Any]
+    request_params: dict[str, Any]
     typing_speed_wpm: int
     timezone: str
-    created_from_profile_qiao_id: Optional[str]
+    created_from_profile_qiao_id: str | None
 
     # Relationship state
-    relationship_id: Optional[int]
+    relationship_id: int | None
     relationship_counts: RelationshipCounts
 
     # Linked metadata
     style: StyleInfo
     personality: PersonalityInfo
     profile: ProfileInfo
-    current_relationship: Optional[CurrentRelationship]
+    current_relationship: CurrentRelationship | None
 
     # Derived collections
-    dimensions: List[DimensionSpec]
+    dimensions: list[DimensionSpec]
 
 
 __all__ = [
-    "InstanceContext",
+    "AITypeInfo",
     "CurrentRelationship",
     "DimensionSpec",
+    "InstanceContext",
     "PersonalityInfo",
     "ProfileInfo",
     "RelationshipCounts",
     "StyleInfo",
-    "AITypeInfo",
 ]

@@ -5,7 +5,7 @@ This module defines the base exception hierarchy and common exception types
 used throughout the application.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import status
 
@@ -23,7 +23,7 @@ class BaseAppException(Exception):
         message: str,
         error_code: str,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         """
         Initialize base exception.
@@ -40,9 +40,11 @@ class BaseAppException(Exception):
         self.status_code = status_code
         self.details = details or {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert exception to dictionary format."""
-        return {"error": {"code": self.error_code, "message": self.message, "details": self.details}}
+        return {
+            "error": {"code": self.error_code, "message": self.message, "details": self.details}
+        }
 
 
 class ValidationError(BaseAppException):
@@ -51,9 +53,9 @@ class ValidationError(BaseAppException):
     def __init__(
         self,
         message: str = "Validation failed",
-        field: Optional[str] = None,
-        value: Optional[Any] = None,
-        details: Optional[Dict[str, Any]] = None,
+        field: str | None = None,
+        value: Any | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if field:
@@ -75,9 +77,9 @@ class NotFoundError(BaseAppException):
     def __init__(
         self,
         message: str = "Resource not found",
-        resource_type: Optional[str] = None,
-        resource_id: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if resource_type:
@@ -99,8 +101,8 @@ class PermissionError(BaseAppException):
     def __init__(
         self,
         message: str = "Permission denied",
-        required_permission: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        required_permission: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if required_permission:
@@ -120,9 +122,9 @@ class ConflictError(BaseAppException):
     def __init__(
         self,
         message: str = "Resource conflict",
-        conflicting_field: Optional[str] = None,
-        conflicting_value: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        conflicting_field: str | None = None,
+        conflicting_value: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if conflicting_field:
@@ -144,9 +146,9 @@ class ExternalServiceError(BaseAppException):
     def __init__(
         self,
         message: str = "External service error",
-        service_name: Optional[str] = None,
-        service_error: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        service_name: str | None = None,
+        service_error: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if service_name:
@@ -168,10 +170,10 @@ class RateLimitError(BaseAppException):
     def __init__(
         self,
         message: str = "Rate limit exceeded",
-        limit: Optional[int] = None,
-        window: Optional[str] = None,
-        retry_after: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
+        limit: int | None = None,
+        window: str | None = None,
+        retry_after: int | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if limit:
@@ -195,8 +197,8 @@ class ConfigurationError(BaseAppException):
     def __init__(
         self,
         message: str = "Configuration error",
-        config_key: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        config_key: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if config_key:

@@ -7,8 +7,8 @@ that are shared across all database models.
 
 import secrets
 import string
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import BigInteger, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -32,8 +32,6 @@ def generate_conv_id() -> str:
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
-
-    pass
 
 
 class TimestampMixin:
@@ -59,7 +57,10 @@ class SnowflakeIDMixin:
     """Mixin for models that use Snowflake IDs as primary keys."""
 
     id: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, default=generate_snowflake_id, comment="Snowflake ID primary key"
+        BigInteger,
+        primary_key=True,
+        default=generate_snowflake_id,
+        comment="Snowflake ID primary key",
     )
 
 
@@ -93,7 +94,7 @@ class BaseModel(Base, TimestampMixin):
 
     __abstract__ = True
 
-    def to_dict(self, exclude: Optional[set] = None) -> Dict[str, Any]:
+    def to_dict(self, exclude: set | None = None) -> dict[str, Any]:
         """
         Convert model instance to dictionary.
 
@@ -116,7 +117,7 @@ class BaseModel(Base, TimestampMixin):
 
         return result
 
-    def update_from_dict(self, data: Dict[str, Any], exclude: Optional[set] = None) -> None:
+    def update_from_dict(self, data: dict[str, Any], exclude: set | None = None) -> None:
         """
         Update model instance from dictionary.
 
@@ -216,14 +217,14 @@ class SoftDeleteMixin:
         comment="Soft delete flag: 1=deleted, 0=active",
     )
 
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(
+    deleted_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Deletion timestamp"
     )
 
     def soft_delete(self) -> None:
         """Mark the record as deleted."""
         self.is_deleted = 1
-        self.deleted_at = datetime.now(timezone.utc)
+        self.deleted_at = datetime.now(UTC)
 
     def restore(self) -> None:
         """Restore a soft-deleted record."""
@@ -234,10 +235,10 @@ class SoftDeleteMixin:
 class UserOwnedMixin:
     """Mixin for models that belong to a specific user."""
 
-    user_id: Mapped[Optional[int]] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Owner user internal ID"
     )
 
-    user_qiao_id: Mapped[Optional[str]] = mapped_column(
+    user_qiao_id: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="Owner user external ID"
     )

@@ -6,7 +6,6 @@ This module contains Pydantic schemas for system configuration management.
 
 import json
 from datetime import datetime
-from typing import Optional, Union
 
 from enums import ConfigType
 from pydantic import BaseModel, Field, field_validator
@@ -21,7 +20,7 @@ class SystemConfigBase(BaseSchema):
     config_key: str = Field(..., max_length=100, description="Configuration key")
     config_value: str = Field(..., description="Configuration value")
     config_type: ConfigType = Field(..., description="Value type")
-    description: Optional[str] = Field(None, max_length=500, description="Configuration description")
+    description: str | None = Field(None, max_length=500, description="Configuration description")
 
 
 class SystemConfigCreate(BaseModel):
@@ -30,7 +29,7 @@ class SystemConfigCreate(BaseModel):
     config_key: str = Field(..., max_length=100, description="Configuration key")
     config_value: str = Field(..., description="Configuration value")
     config_type: ConfigType = Field(..., description="Value type")
-    description: Optional[str] = Field(None, max_length=500, description="Configuration description")
+    description: str | None = Field(None, max_length=500, description="Configuration description")
 
     @field_validator("config_value", mode="after")
     def validate_config_value_by_type(cls, value: str, info):
@@ -55,12 +54,12 @@ class SystemConfigCreate(BaseModel):
 class SystemConfigUpdate(BaseModel):
     """Schema for updating system configuration."""
 
-    config_value: Optional[str] = Field(None, description="Configuration value")
-    config_type: Optional[ConfigType] = Field(None, description="Value type")
-    description: Optional[str] = Field(None, max_length=500, description="Configuration description")
+    config_value: str | None = Field(None, description="Configuration value")
+    config_type: ConfigType | None = Field(None, description="Value type")
+    description: str | None = Field(None, max_length=500, description="Configuration description")
 
     @field_validator("config_value", mode="after")
-    def validate_config_value_by_type(cls, value: Optional[str], info):
+    def validate_config_value_by_type(cls, value: str | None, info):
         """Validate config_value based on config_type."""
         if value is None:
             return value
@@ -84,7 +83,7 @@ class SystemConfigUpdate(BaseModel):
 class SystemConfigResponse(SystemConfigBase):
     """Schema for system configuration response data."""
 
-    updated_by: Optional[int] = Field(None, description="Updated by admin user ID")
+    updated_by: int | None = Field(None, description="Updated by admin user ID")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
 
@@ -95,7 +94,7 @@ class SystemConfigListResponse(BaseSchema):
     config_key: str = Field(..., description="Configuration key")
     config_value: str = Field(..., description="Configuration value")
     config_type: ConfigType = Field(..., description="Value type")
-    description: Optional[str] = Field(None, description="Configuration description")
+    description: str | None = Field(None, description="Configuration description")
     is_public: bool = Field(..., description="Is public configuration")
     updated_at: datetime = Field(..., description="Last update time")
 
@@ -107,7 +106,7 @@ class ConfigValueResponse(BaseSchema):
     """Schema for configuration value response."""
 
     config_key: str = Field(..., description="Configuration key")
-    value: Union[str, int, float, bool, dict] = Field(..., description="Parsed configuration value")
+    value: str | int | float | bool | dict = Field(..., description="Parsed configuration value")
     config_type: ConfigType = Field(..., description="Value type")
 
 
@@ -132,4 +131,6 @@ class BatchConfigUpdate(BaseModel):
 class BatchConfigDelete(BaseModel):
     """Schema for batch deleting configurations."""
 
-    config_keys: list = Field(..., min_length=1, max_length=50, description="Configuration keys to delete")
+    config_keys: list = Field(
+        ..., min_length=1, max_length=50, description="Configuration keys to delete"
+    )

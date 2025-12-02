@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,7 +22,7 @@ class Settings(BaseSettings):
 
     # Redis settings
     REDIS_URL: str
-    REDIS_PASSWORD: Optional[str] = None
+    REDIS_PASSWORD: str | None = None
 
     # Logging settings
     LOG_LEVEL: str
@@ -37,8 +36,8 @@ class Settings(BaseSettings):
 
     # Security settings
     BCRYPT_ROUNDS: int
-    CORS_ORIGINS: List[str]
-    ALLOWED_HOSTS: List[str]
+    CORS_ORIGINS: list[str]
+    ALLOWED_HOSTS: list[str]
 
     # LeanCloud settings (only sensitive master key in env)
     LEANCLOUD_MASTER_KEY: str
@@ -55,8 +54,8 @@ class Settings(BaseSettings):
     ADMIN_SECRET_KEY: str  # For session middleware
 
     # Aliyun Captcha credentials (server-side verification)
-    ALIYUN_CAPTCHA_ACCESS_KEY_ID: Optional[str] = None
-    ALIYUN_CAPTCHA_ACCESS_KEY_SECRET: Optional[str] = None
+    ALIYUN_CAPTCHA_ACCESS_KEY_ID: str | None = None
+    ALIYUN_CAPTCHA_ACCESS_KEY_SECRET: str | None = None
 
     @property
     def database_url(self) -> str:
@@ -79,7 +78,7 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT.lower() in ("production", "prod")
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> "Settings":
     """Return cached Settings instance."""
 

@@ -2,8 +2,6 @@
 Custom authentication provider for Starlette-Admin with security features.
 """
 
-from typing import Optional
-
 from core.database import get_sessionmaker
 from core.security import verify_password
 from crud.admin import admin_user as admin_user_crud
@@ -46,7 +44,9 @@ class CustomAuthProvider(AuthProvider):
             # GET: Display login form
             if request.method == "GET":
                 # Get Turnstile site key
-                turnstile_site_key = await get_config(db, key="admin_turnstile_site_key", required=False)
+                turnstile_site_key = await get_config(
+                    db, key="admin_turnstile_site_key", required=False
+                )
 
                 # Check if should show CAPTCHA (only if site key configured)
                 show_captcha_raw = await should_require_captcha(client_ip, "admin_auth", db)
@@ -67,7 +67,7 @@ class CustomAuthProvider(AuthProvider):
                 )
 
             # POST: Process login
-            elif request.method == "POST":
+            if request.method == "POST":
                 try:
                     # Get form data
                     form_data = await request.form()
@@ -85,7 +85,8 @@ class CustomAuthProvider(AuthProvider):
                             request=request,
                         )
                         return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login")) + "?error=Login failed",
+                            url=str(request.url_for(admin.route_name + ":login"))
+                            + "?error=Login failed",
                             status_code=303,
                         )
 
@@ -123,7 +124,8 @@ class CustomAuthProvider(AuthProvider):
                                 db=db,
                                 username=username,
                                 result=2,  # Failed
-                                fail_reason=f"captcha_failed: {turnstile_error}",  # Internal log: detailed reason
+                                # Internal log: detailed reason
+                                fail_reason=f"captcha_failed: {turnstile_error}",
                                 request=request,
                             )
                             return RedirectResponse(
@@ -146,7 +148,8 @@ class CustomAuthProvider(AuthProvider):
                             request=request,
                         )
                         return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login")) + "?error=Login failed",
+                            url=str(request.url_for(admin.route_name + ":login"))
+                            + "?error=Login failed",
                             status_code=303,
                         )
 
@@ -163,7 +166,8 @@ class CustomAuthProvider(AuthProvider):
                             request=request,
                         )
                         return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login")) + "?error=Login failed",
+                            url=str(request.url_for(admin.route_name + ":login"))
+                            + "?error=Login failed",
                             status_code=303,
                         )
 
@@ -179,7 +183,8 @@ class CustomAuthProvider(AuthProvider):
                             request=request,
                         )
                         return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login")) + "?error=Login failed",
+                            url=str(request.url_for(admin.route_name + ":login"))
+                            + "?error=Login failed",
                             status_code=303,
                         )
 
@@ -223,7 +228,8 @@ class CustomAuthProvider(AuthProvider):
                 except Exception as e:
                     logger.error("admin_login_unexpected_error", error=str(e), exc_info=True)
                     return RedirectResponse(
-                        url=str(request.url_for(admin.route_name + ":login")) + "?error=Login failed",
+                        url=str(request.url_for(admin.route_name + ":login"))
+                        + "?error=Login failed",
                         status_code=303,
                     )
 
@@ -240,7 +246,7 @@ class CustomAuthProvider(AuthProvider):
         """
         return request.session.get("admin_user") is not None
 
-    def get_admin_config(self, request: Request) -> Optional[AdminConfig]:
+    def get_admin_config(self, request: Request) -> AdminConfig | None:
         """
         Get admin configuration for current user.
         """
@@ -253,7 +259,7 @@ class CustomAuthProvider(AuthProvider):
             logo_url=None,
         )
 
-    def get_admin_user(self, request: Request) -> Optional[AdminUser]:
+    def get_admin_user(self, request: Request) -> AdminUser | None:
         """
         Get current admin user.
         """

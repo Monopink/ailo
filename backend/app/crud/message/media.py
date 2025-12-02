@@ -4,8 +4,6 @@ Media file CRUD operations.
 This module contains CRUD operations for media file management.
 """
 
-from typing import List, Optional
-
 from crud.base import CRUDBase
 from enums import FileStatus
 from models.message import MediaFile
@@ -17,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):
     """CRUD operations for MediaFile model."""
 
-    async def get_by_file_id(self, db: AsyncSession, *, file_id: str) -> Optional[MediaFile]:
+    async def get_by_file_id(self, db: AsyncSession, *, file_id: str) -> MediaFile | None:
         """Get media file by file ID."""
         result = await db.execute(select(self.model).where(self.model.file_id == file_id))
         return result.scalar_one_or_none()
@@ -27,10 +25,10 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):
         db: AsyncSession,
         *,
         user_qiao_id: str,
-        file_type: Optional[str] = None,
+        file_type: str | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[MediaFile]:
+    ) -> list[MediaFile]:
         """Get user's uploaded files."""
         conditions = [self.model.upload_by_qiao_id == user_qiao_id]
         if file_type:
@@ -47,7 +45,7 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):
 
     async def update_file_status(
         self, db: AsyncSession, *, file_id: str, status: FileStatus
-    ) -> Optional[MediaFile]:
+    ) -> MediaFile | None:
         """Update file status."""
         file = await self.get_by_file_id(db, file_id=file_id)
         if file:

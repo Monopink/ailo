@@ -5,8 +5,6 @@ This module handles discovery page queries that rely on square exposure entries
 and the corresponding AI persona profiles.
 """
 
-from typing import Dict, List, Optional, Tuple
-
 from enums import AIPersonaStatus, ContactType, ProfileOwnerType, SquareEntryStatus
 from models.ai import AIPersona
 from models.contact import Contact
@@ -23,10 +21,10 @@ async def get_random_persona_entries(
     db: AsyncSession,
     *,
     user_qiao_id: str,
-    category: Optional[int] = None,
+    category: int | None = None,
     page: int = 1,
     page_size: int = 20,
-) -> Tuple[List[Tuple[SquareTypeEntry, AIPersona, Profile]], int]:
+) -> tuple[list[tuple[SquareTypeEntry, AIPersona, Profile]], int]:
     """
     Select random square entries with pagination.
 
@@ -52,7 +50,9 @@ async def get_random_persona_entries(
         if category is not None:
             base_conditions.append(SquareTypeEntry.square_category == category)
 
-        total_query = select(func.count()).select_from(SquareTypeEntry).where(and_(*base_conditions))
+        total_query = (
+            select(func.count()).select_from(SquareTypeEntry).where(and_(*base_conditions))
+        )
         total_result = await db.execute(total_query)
         total = total_result.scalar() or 0
 
@@ -67,8 +67,8 @@ async def get_random_persona_entries(
         result = await db.execute(data_query)
         square_entries = result.scalars().all()
 
-        persona_cache: Dict[int, Tuple[AIPersona, Profile]] = {}
-        resolved_entries: List[Tuple[SquareTypeEntry, AIPersona, Profile]] = []
+        persona_cache: dict[int, tuple[AIPersona, Profile]] = {}
+        resolved_entries: list[tuple[SquareTypeEntry, AIPersona, Profile]] = []
 
         for entry in square_entries:
             cached = persona_cache.get(entry.type_id)
@@ -116,7 +116,7 @@ async def get_persona_profile_by_qiao_id(
     db: AsyncSession,
     *,
     qiao_id: str,
-) -> Tuple[Optional[Profile], Optional[str]]:
+) -> tuple[Profile | None, str | None]:
     """
     Load the AI persona profile along with its latest square category.
     """
@@ -163,7 +163,7 @@ async def _pick_persona_for_ai_type(
     *,
     type_id: int,
     excluded_qiao_ids,
-) -> Optional[Tuple[AIPersona, Profile]]:
+) -> tuple[AIPersona, Profile] | None:
     """
     Pick an active persona + profile pair for the given AI type that is not already in the user's contacts.
     """

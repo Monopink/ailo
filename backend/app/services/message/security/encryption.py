@@ -7,7 +7,7 @@ Provides algorithm-agnostic functions for encrypting and decrypting content.
 
 import base64
 import secrets
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from enums import EncryptionType, EncryptionVersion
@@ -20,8 +20,8 @@ DEFAULT_VERSION = EncryptionVersion.V1
 
 
 def encrypt(
-    content: str, algorithm: EncryptionType, key: Optional[bytes] = None
-) -> Tuple[str, Dict[str, Any]]:
+    content: str, algorithm: EncryptionType, key: bytes | None = None
+) -> tuple[str, dict[str, Any]]:
     """
     Encrypt content using specified algorithm and key.
 
@@ -45,17 +45,16 @@ def encrypt(
     try:
         if algorithm == EncryptionType.BASE64:
             return _encode_base64(content)
-        elif algorithm == EncryptionType.AES_256_GCM:
+        if algorithm == EncryptionType.AES_256_GCM:
             return _encrypt_aes_256_gcm(content, key)
-        else:
-            raise ValueError(f"Unsupported encryption algorithm: {algorithm}")
+        raise ValueError(f"Unsupported encryption algorithm: {algorithm}")
 
     except Exception as e:
         logger.error("encryption_failed", algorithm=algorithm.name, error=str(e))
-        raise ValueError(f"Encryption failed: {str(e)}")
+        raise ValueError(f"Encryption failed: {e!s}")
 
 
-def decrypt(encrypted_content: str, metadata: Dict[str, Any], key: Optional[bytes] = None) -> str:
+def decrypt(encrypted_content: str, metadata: dict[str, Any], key: bytes | None = None) -> str:
     """
     Decrypt content using metadata and key.
 
@@ -86,17 +85,16 @@ def decrypt(encrypted_content: str, metadata: Dict[str, Any], key: Optional[byte
 
         if algorithm == EncryptionType.BASE64:
             return _decode_base64(encrypted_content)
-        elif algorithm == EncryptionType.AES_256_GCM:
+        if algorithm == EncryptionType.AES_256_GCM:
             return _decrypt_aes_256_gcm(encrypted_content, metadata, key)
-        else:
-            raise ValueError(f"Unsupported encryption algorithm: {algorithm}")
+        raise ValueError(f"Unsupported encryption algorithm: {algorithm}")
 
     except Exception as e:
         logger.error("decryption_failed", metadata=metadata, error=str(e))
-        raise ValueError(f"Decryption failed: {str(e)}")
+        raise ValueError(f"Decryption failed: {e!s}")
 
 
-def _encode_base64(content: str) -> Tuple[str, Dict[str, Any]]:
+def _encode_base64(content: str) -> tuple[str, dict[str, Any]]:
     """
     Encrypt content using Base64 encoding.
 
@@ -117,7 +115,9 @@ def _encode_base64(content: str) -> Tuple[str, Dict[str, Any]]:
     }
 
     logger.debug(
-        "base64_encryption_completed", original_length=len(content), encrypted_length=len(encrypted_content)
+        "base64_encryption_completed",
+        original_length=len(content),
+        encrypted_length=len(encrypted_content),
     )
 
     return encrypted_content, metadata
@@ -147,7 +147,7 @@ def _decode_base64(encrypted_content: str) -> str:
     return decrypted_content
 
 
-def _encrypt_aes_256_gcm(content: str, key: Optional[bytes]) -> Tuple[str, Dict[str, Any]]:
+def _encrypt_aes_256_gcm(content: str, key: bytes | None) -> tuple[str, dict[str, Any]]:
     """
     Encrypt content using AES-256-GCM.
 
@@ -190,7 +190,9 @@ def _encrypt_aes_256_gcm(content: str, key: Optional[bytes]) -> Tuple[str, Dict[
     return encrypted_content, metadata
 
 
-def _decrypt_aes_256_gcm(encrypted_content: str, metadata: Dict[str, Any], key: Optional[bytes]) -> str:
+def _decrypt_aes_256_gcm(
+    encrypted_content: str, metadata: dict[str, Any], key: bytes | None
+) -> str:
     """
     Decrypt content using AES-256-GCM.
 
@@ -231,10 +233,10 @@ def _decrypt_aes_256_gcm(encrypted_content: str, metadata: Dict[str, Any], key: 
         return decrypted_content
 
     except Exception as e:
-        raise ValueError(f"AES-256-GCM decryption failed: {str(e)}")
+        raise ValueError(f"AES-256-GCM decryption failed: {e!s}")
 
 
-def encrypt_for_transport(content: str) -> Tuple[str, Dict[str, Any]]:
+def encrypt_for_transport(content: str) -> tuple[str, dict[str, Any]]:
     """
     Encrypt content using the default transport algorithm.
 
@@ -244,7 +246,7 @@ def encrypt_for_transport(content: str) -> Tuple[str, Dict[str, Any]]:
     return content, {}
 
 
-def decrypt_from_transport(encrypted_content: str, metadata: Dict[str, Any]) -> str:
+def decrypt_from_transport(encrypted_content: str, metadata: dict[str, Any]) -> str:
     """
     Decrypt transport payloads based on metadata.
 

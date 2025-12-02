@@ -4,8 +4,6 @@ CAPTCHA Provider Factory
 Creates CAPTCHA provider instances based on configuration.
 """
 
-from typing import Optional
-
 from fastapi import Request
 from services.system_config import get_config
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +18,8 @@ logger = get_logger(__name__)
 
 
 async def create_captcha_provider(
-    provider_type: str, db: AsyncSession  # 'admin' or 'user'
+    provider_type: str,
+    db: AsyncSession,  # 'admin' or 'user'
 ) -> CaptchaProvider:
     """
     Create CAPTCHA provider based on configuration.
@@ -47,7 +46,7 @@ async def create_captcha_provider(
         logger.info("creating_none_captcha_provider", provider_type=provider_type)
         return NoneCaptchaProvider()
 
-    elif captcha_provider == "turnstile":
+    if captcha_provider == "turnstile":
         # Get Turnstile configuration
         secret_key = await get_config(db, key=f"{provider_type}_turnstile_secret_key")
 
@@ -66,7 +65,7 @@ async def create_captcha_provider(
 
         return TurnstileProvider(secret_key=secret_key, mode=mode)
 
-    elif captcha_provider == "aliyun":
+    if captcha_provider == "aliyun":
         # Region is fixed to 'cn' (MVP decision)
         region = "cn"
         # Single scene id managed via DB for simplicity
@@ -82,16 +81,17 @@ async def create_captcha_provider(
         )
         return AliyunCaptchaProvider(scene_id=scene_id, region=region, mode="strict")
 
-    else:
-        error_msg = f"Unsupported CAPTCHA provider: {captcha_provider}"
-        logger.error("unsupported_captcha_provider", provider_type=provider_type, provider=captcha_provider)
-        raise ValueError(error_msg)
+    error_msg = f"Unsupported CAPTCHA provider: {captcha_provider}"
+    logger.error(
+        "unsupported_captcha_provider", provider_type=provider_type, provider=captcha_provider
+    )
+    raise ValueError(error_msg)
 
 
 async def create_captcha_provider_for_request(
     provider_type: str,
     db: AsyncSession,
-    request: Optional[Request] = None,
+    request: Request | None = None,
 ) -> CaptchaProvider:
     """
     Create CAPTCHA provider with client override support.
@@ -125,7 +125,7 @@ async def create_captcha_provider_for_request(
                     client=client_id,
                 )
                 return NoneCaptchaProvider()
-            elif captcha_provider == "turnstile":
+            if captcha_provider == "turnstile":
                 # Prefer client-specific secret, fallback to generic
                 secret_key = await get_config(
                     db,
@@ -147,7 +147,7 @@ async def create_captcha_provider_for_request(
                     has_secret_key=bool(secret_key),
                 )
                 return TurnstileProvider(secret_key=secret_key, mode=mode)
-            elif captcha_provider == "aliyun":
+            if captcha_provider == "aliyun":
                 region = "cn"
                 # Optional client-specific SceneId (e.g. wxminipg_aliyun_captcha_scene_id)
                 scene_id = await get_config(

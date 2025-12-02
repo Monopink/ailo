@@ -2,7 +2,7 @@
 Profile CRUD operations
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from crud.base import CRUDBase
 from enums import ProfileOwnerType
@@ -21,7 +21,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
 
     async def get_by_owner(
         self, db: AsyncSession, *, owner_id: int, owner_type: ProfileOwnerType
-    ) -> Optional[Profile]:
+    ) -> Profile | None:
         """Get profile by owner ID and type"""
         try:
             stmt = select(self.model).where(
@@ -37,7 +37,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
 
     async def get_by_owner_qiao_id(
         self, db: AsyncSession, *, owner_qiao_id: str, owner_type: ProfileOwnerType
-    ) -> Optional[Profile]:
+    ) -> Profile | None:
         """Get profile by owner qiao_id and type"""
         try:
             stmt = select(self.model).where(
@@ -59,7 +59,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         db: AsyncSession,
         *,
         owner_qiao_id: str,
-    ) -> Optional[Profile]:
+    ) -> Profile | None:
         """Get profile by owner qiao_id regardless of owner type."""
         try:
             stmt = select(self.model).where(self.model.owner_qiao_id == owner_qiao_id)
@@ -126,7 +126,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         owner_type: ProfileOwnerType,
         obj_in: ProfileUpdate,
         commit: bool = True,
-    ) -> Optional[Profile]:
+    ) -> Profile | None:
         """Update profile by owner ID and type"""
         try:
             # Get existing profile
@@ -140,7 +140,11 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                 if commit:
                     stmt = (
                         update(self.model)
-                        .where(and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type))
+                        .where(
+                            and_(
+                                self.model.owner_id == owner_id, self.model.owner_type == owner_type
+                            )
+                        )
                         .values(**update_data)
                     )
                     await db.execute(stmt)
@@ -152,14 +156,19 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                     db.add(db_obj)
                     await db.flush()
                 logger.info(
-                    "profile_updated", profile_id=db_obj.id, owner_id=owner_id, owner_type=owner_type
+                    "profile_updated",
+                    profile_id=db_obj.id,
+                    owner_id=owner_id,
+                    owner_type=owner_type,
                 )
 
             return db_obj
         except Exception as e:
             if commit:
                 await db.rollback()
-            logger.error("update_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type)
+            logger.error(
+                "update_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type
+            )
             raise
 
     async def delete_by_owner(
@@ -180,12 +189,14 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             return deleted
         except Exception as e:
             await db.rollback()
-            logger.error("delete_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type)
+            logger.error(
+                "delete_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type
+            )
             raise
 
     async def get_profiles_by_gender(
         self, db: AsyncSession, gender: str, skip: int = 0, limit: int = 100
-    ) -> List[Profile]:
+    ) -> list[Profile]:
         """Get profiles by gender"""
         try:
             stmt = select(self.model).where(self.model.gender == gender).offset(skip).limit(limit)
@@ -198,11 +209,11 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
     async def get_profiles_by_age_range(
         self,
         db: AsyncSession,
-        min_age: Optional[int] = None,
-        max_age: Optional[int] = None,
+        min_age: int | None = None,
+        max_age: int | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Profile]:
+    ) -> list[Profile]:
         """Get profiles by age range - DEPRECATED: age field does not exist in Profile model"""
         raise NotImplementedError("age field does not exist in Profile model")
 
@@ -210,12 +221,12 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         self,
         db: AsyncSession,
         *,
-        nickname: Optional[str] = None,
-        bio: Optional[str] = None,
-        gender: Optional[str] = None,
+        nickname: str | None = None,
+        bio: str | None = None,
+        gender: str | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Profile]:
+    ) -> list[Profile]:
         """Search profiles with multiple criteria"""
         try:
             stmt = select(self.model)
@@ -234,7 +245,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             logger.error("search_profiles_error", error=str(e))
             raise
 
-    async def get_profile_stats(self, db: AsyncSession) -> Dict[str, Any]:
+    async def get_profile_stats(self, db: AsyncSession) -> dict[str, Any]:
         """Get profile statistics"""
         try:
             # Total profiles
@@ -243,7 +254,9 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             total_profiles = total_result.scalar()
 
             # Gender distribution
-            gender_stmt = select(self.model.gender, func.count(self.model.id)).group_by(self.model.gender)
+            gender_stmt = select(self.model.gender, func.count(self.model.id)).group_by(
+                self.model.gender
+            )
             gender_result = await db.execute(gender_stmt)
             gender_distribution = {k: v for k, v in gender_result.all()}
 

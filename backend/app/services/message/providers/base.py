@@ -6,7 +6,7 @@ standardized data structures for internal use.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Protocol
 
 from services.message.schemas import InboundMessageEvent
 
@@ -16,10 +16,10 @@ class MessageResult:
     """Standardized message operation result."""
 
     success: bool
-    msg_id_provider: Optional[str] = None
-    error_code: Optional[str] = None
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    msg_id_provider: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class MessageProvider(Protocol):
@@ -70,8 +70,8 @@ class MessageProvider(Protocol):
         conv_id: str,
         content: str,
         message_type: int = 1,
-        extra_fields: Optional[dict] = None,
-        msg_id: Optional[str] = None,
+        extra_fields: dict | None = None,
+        msg_id: str | None = None,
     ) -> MessageResult:
         """
         Send message.
@@ -96,9 +96,9 @@ class MessageProvider(Protocol):
         conv_id: str,
         content: str,
         message_type: int = 4,
-        action: Optional[dict] = None,
-        extra_fields: Optional[dict] = None,
-        msg_id: Optional[str] = None,
+        action: dict | None = None,
+        extra_fields: dict | None = None,
+        msg_id: str | None = None,
     ) -> MessageResult:
         """
         Send message as system (from='system').
@@ -124,7 +124,7 @@ class MessageProvider(Protocol):
         self,
         conversation_id: str,
         from_qiao_id: str,
-        to_qiao_ids: List[str],
+        to_qiao_ids: list[str],
         content: str,
         message_type: int = 1,
     ) -> MessageResult:
@@ -150,7 +150,7 @@ class MessageProvider(Protocol):
         end_time: int,
         limit: int = 1000,
         include_start: bool = False,
-    ) -> List[InboundMessageEvent]:
+    ) -> list[InboundMessageEvent]:
         """
         Fetch messages by time range (for server restart synchronization).
 
@@ -166,7 +166,7 @@ class MessageProvider(Protocol):
         """
         ...
 
-    async def check_users_online(self, qiao_ids: List[str]) -> Dict[str, bool]:
+    async def check_users_online(self, qiao_ids: list[str]) -> dict[str, bool]:
         """
         Check online status of users.
 
@@ -178,7 +178,7 @@ class MessageProvider(Protocol):
         """
         ...
 
-    async def check_health(self) -> tuple[bool, Optional[str]]:
+    async def check_health(self) -> tuple[bool, str | None]:
         """
         Check provider service health.
 
@@ -207,8 +207,8 @@ async def send_message_via_provider(
     to_qiao_id: str,
     content: str,
     message_type: int = 1,
-    extra_fields: Optional[dict] = None,
-    msg_id: Optional[str] = None,
+    extra_fields: dict | None = None,
+    msg_id: str | None = None,
 ) -> MessageResult:
     """Send single message using specified provider."""
     return await provider.send_message(
@@ -220,7 +220,7 @@ async def broadcast_message_via_provider(
     provider: MessageProvider,
     conversation_id: str,
     from_qiao_id: str,
-    to_qiao_ids: List[str],
+    to_qiao_ids: list[str],
     content: str,
     message_type: int = 1,
 ) -> MessageResult:
@@ -231,7 +231,11 @@ async def broadcast_message_via_provider(
 
 
 async def fetch_messages_via_provider(
-    provider: MessageProvider, conversation_id: str, start_time: int, end_time: int, limit: int = 1000
-) -> List[InboundMessageEvent]:
+    provider: MessageProvider,
+    conversation_id: str,
+    start_time: int,
+    end_time: int,
+    limit: int = 1000,
+) -> list[InboundMessageEvent]:
     """Fetch messages using specified provider."""
     return await provider.fetch_messages_by_time_range(conversation_id, start_time, end_time, limit)

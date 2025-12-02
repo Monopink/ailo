@@ -53,7 +53,9 @@ class StatsUserDailyView(ModelView):
         IntegerField("subscriptions", label="Subscriptions", help_text="Total subscriptions"),
         IntegerField("new_subscriptions", label="New Subscriptions", help_text="New subscriptions"),
         IntegerField(
-            "canceled_subscriptions", label="Canceled Subscriptions", help_text="Canceled subscriptions"
+            "canceled_subscriptions",
+            label="Canceled Subscriptions",
+            help_text="Canceled subscriptions",
         ),
         "created_at",
     ]
@@ -87,7 +89,9 @@ class StatsUserWeeklyView(ModelView):
         IntegerField("subscriptions", label="Subscriptions", help_text="Total subscriptions"),
         IntegerField("new_subscriptions", label="New Subscriptions", help_text="New subscriptions"),
         IntegerField(
-            "canceled_subscriptions", label="Canceled Subscriptions", help_text="Canceled subscriptions"
+            "canceled_subscriptions",
+            label="Canceled Subscriptions",
+            help_text="Canceled subscriptions",
         ),
         "created_at",
     ]
@@ -121,7 +125,9 @@ class StatsUserMonthlyView(ModelView):
         IntegerField("subscriptions", label="Subscriptions", help_text="Total subscriptions"),
         IntegerField("new_subscriptions", label="New Subscriptions", help_text="New subscriptions"),
         IntegerField(
-            "canceled_subscriptions", label="Canceled Subscriptions", help_text="Canceled subscriptions"
+            "canceled_subscriptions",
+            label="Canceled Subscriptions",
+            help_text="Canceled subscriptions",
         ),
         "created_at",
     ]
@@ -234,7 +240,13 @@ class StatsMessageDailyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "total_messages", "avg_messages_per_user", "active_conversations"]
+    sortable_fields = [
+        "id",
+        "stat_date",
+        "total_messages",
+        "avg_messages_per_user",
+        "active_conversations",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
@@ -242,7 +254,9 @@ class StatsMessageDailyView(ModelView):
         IntegerField("total_messages", label="Total Messages", help_text="Total messages count"),
         "avg_messages_per_user",
         IntegerField(
-            "active_conversations", label="Active Conversations", help_text="Active conversations count"
+            "active_conversations",
+            label="Active Conversations",
+            help_text="Active conversations count",
         ),
         "created_at",
     ]
@@ -265,7 +279,13 @@ class StatsMessageWeeklyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "total_messages", "avg_messages_per_user", "active_conversations"]
+    sortable_fields = [
+        "id",
+        "stat_date",
+        "total_messages",
+        "avg_messages_per_user",
+        "active_conversations",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
@@ -273,7 +293,9 @@ class StatsMessageWeeklyView(ModelView):
         IntegerField("total_messages", label="Total Messages", help_text="Total messages count"),
         "avg_messages_per_user",
         IntegerField(
-            "active_conversations", label="Active Conversations", help_text="Active conversations count"
+            "active_conversations",
+            label="Active Conversations",
+            help_text="Active conversations count",
         ),
         "created_at",
     ]
@@ -296,7 +318,13 @@ class StatsMessageMonthlyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "total_messages", "avg_messages_per_user", "active_conversations"]
+    sortable_fields = [
+        "id",
+        "stat_date",
+        "total_messages",
+        "avg_messages_per_user",
+        "active_conversations",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
@@ -304,7 +332,9 @@ class StatsMessageMonthlyView(ModelView):
         IntegerField("total_messages", label="Total Messages", help_text="Total messages count"),
         "avg_messages_per_user",
         IntegerField(
-            "active_conversations", label="Active Conversations", help_text="Active conversations count"
+            "active_conversations",
+            label="Active Conversations",
+            help_text="Active conversations count",
         ),
         "created_at",
     ]
@@ -327,7 +357,13 @@ class StatsAIDailyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "ai_instances", "active_ai_instances", "ai_requests_count"]
+    sortable_fields = [
+        "id",
+        "stat_date",
+        "ai_instances",
+        "active_ai_instances",
+        "ai_requests_count",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
@@ -359,7 +395,13 @@ class StatsAIWeeklyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "ai_instances", "active_ai_instances", "ai_requests_count"]
+    sortable_fields = [
+        "id",
+        "stat_date",
+        "ai_instances",
+        "active_ai_instances",
+        "ai_requests_count",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
@@ -391,7 +433,13 @@ class StatsAIMonthlyView(ModelView):
 
     fields_default_sort = [("stat_date", True)]
     searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "ai_instances", "active_ai_instances", "ai_requests_count"]
+    sortable_fields = [
+        "id",
+        "stat_date",
+        "ai_instances",
+        "active_ai_instances",
+        "ai_requests_count",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Unique ID"),
@@ -418,23 +466,41 @@ stats_user_monthly_view = StatsUserMonthlyView(
 )
 
 stats_revenue_daily_view = StatsRevenueDailyView(
-    StatsRevenueDaily, name="Revenue Daily", icon="fa fa-calendar-day", identity="stats_revenue_daily"
+    StatsRevenueDaily,
+    name="Revenue Daily",
+    icon="fa fa-calendar-day",
+    identity="stats_revenue_daily",
 )
 stats_revenue_weekly_view = StatsRevenueWeeklyView(
-    StatsRevenueWeekly, name="Revenue Weekly", icon="fa fa-calendar-week", identity="stats_revenue_weekly"
+    StatsRevenueWeekly,
+    name="Revenue Weekly",
+    icon="fa fa-calendar-week",
+    identity="stats_revenue_weekly",
 )
 stats_revenue_monthly_view = StatsRevenueMonthlyView(
-    StatsRevenueMonthly, name="Revenue Monthly", icon="fa fa-calendar-alt", identity="stats_revenue_monthly"
+    StatsRevenueMonthly,
+    name="Revenue Monthly",
+    icon="fa fa-calendar-alt",
+    identity="stats_revenue_monthly",
 )
 
 stats_message_daily_view = StatsMessageDailyView(
-    StatsMessageDaily, name="Message Daily", icon="fa fa-calendar-day", identity="stats_message_daily"
+    StatsMessageDaily,
+    name="Message Daily",
+    icon="fa fa-calendar-day",
+    identity="stats_message_daily",
 )
 stats_message_weekly_view = StatsMessageWeeklyView(
-    StatsMessageWeekly, name="Message Weekly", icon="fa fa-calendar-week", identity="stats_message_weekly"
+    StatsMessageWeekly,
+    name="Message Weekly",
+    icon="fa fa-calendar-week",
+    identity="stats_message_weekly",
 )
 stats_message_monthly_view = StatsMessageMonthlyView(
-    StatsMessageMonthly, name="Message Monthly", icon="fa fa-calendar-alt", identity="stats_message_monthly"
+    StatsMessageMonthly,
+    name="Message Monthly",
+    icon="fa fa-calendar-alt",
+    identity="stats_message_monthly",
 )
 
 stats_ai_daily_view = StatsAIDailyView(

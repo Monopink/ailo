@@ -4,7 +4,7 @@ LLM provider model.
 This module contains the LLMProvider SQLAlchemy model.
 """
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from models.base import AutoIncrementModel
 from sqlalchemy import Integer, String
@@ -34,15 +34,15 @@ class LLMProvider(AutoIncrementModel):
         String(100), nullable=False, unique=True, comment="Display name for UI (must be unique)"
     )
 
-    api_key_env: Mapped[Optional[str]] = mapped_column(
+    api_key_env: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
         comment="Environment variable name for API key (optional, defaults to {NAME}_API_KEY)",
     )
 
-    base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="API base URL")
+    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="API base URL")
 
-    default_model: Mapped[Optional[str]] = mapped_column(
+    default_model: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Default model name"
     )
 
@@ -65,7 +65,7 @@ class LLMProvider(AutoIncrementModel):
     )
 
     # Relationship to configs
-    configs: Mapped[List["LLMConfig"]] = relationship(
+    configs: Mapped[list["LLMConfig"]] = relationship(
         "LLMConfig",
         back_populates="provider",
         primaryjoin="LLMProvider.id == foreign(LLMConfig.provider_id)",

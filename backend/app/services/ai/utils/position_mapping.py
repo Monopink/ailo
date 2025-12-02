@@ -7,7 +7,7 @@ All algorithms are stateless and maintain initial position as origin.
 """
 
 import math
-from typing import Any, Dict, List, Literal, Optional, TypedDict, Union, cast
+from typing import Any, Literal, TypedDict, Union, cast
 
 from enums.common import PositionMappingAlgorithm
 from utils.logging import get_logger
@@ -26,9 +26,9 @@ class AlgorithmParameterSpec(TypedDict):
     label: str
     description: str
     input_type: Literal["integer", "float"]
-    min: Optional[float]
-    max: Optional[float]
-    step: Optional[float]
+    min: float | None
+    max: float | None
+    step: float | None
     required: bool
 
 
@@ -43,7 +43,7 @@ class V1Params(TypedDict):
     right_negative_gain: float
 
 
-ALGORITHM_PARAM_SPECS: Dict[PositionMappingAlgorithm, List[AlgorithmParameterSpec]] = {
+ALGORITHM_PARAM_SPECS: dict[PositionMappingAlgorithm, list[AlgorithmParameterSpec]] = {
     PositionMappingAlgorithm.V1: [
         {
             "name": "left_sensitivity",
@@ -109,7 +109,7 @@ ALGORITHM_PARAM_SPECS: Dict[PositionMappingAlgorithm, List[AlgorithmParameterSpe
 }
 
 
-def _normalize_algorithm(algorithm: Union[int, PositionMappingAlgorithm]) -> PositionMappingAlgorithm:
+def _normalize_algorithm(algorithm: int | PositionMappingAlgorithm) -> PositionMappingAlgorithm:
     """Coerce raw algorithm identifiers into enum values."""
 
     if isinstance(algorithm, PositionMappingAlgorithm):
@@ -117,7 +117,7 @@ def _normalize_algorithm(algorithm: Union[int, PositionMappingAlgorithm]) -> Pos
     return PositionMappingAlgorithm(int(algorithm))
 
 
-def _clone_specs(specs: List[AlgorithmParameterSpec]) -> List[AlgorithmParameterSpec]:
+def _clone_specs(specs: list[AlgorithmParameterSpec]) -> list[AlgorithmParameterSpec]:
     """Return a shallow copy of specs to prevent accidental mutation."""
 
     return [cast(AlgorithmParameterSpec, dict(spec)) for spec in specs]
@@ -156,8 +156,8 @@ def _coerce_numeric_param(value: Any, spec: AlgorithmParameterSpec) -> Numeric:
 
 
 def get_algorithm_param_specs(
-    algorithm: Optional[Union[int, PositionMappingAlgorithm]] = None,
-) -> Dict[int, List[AlgorithmParameterSpec]]:
+    algorithm: int | PositionMappingAlgorithm | None = None,
+) -> dict[int, list[AlgorithmParameterSpec]]:
     """
     Return parameter specifications for algorithms.
 
@@ -176,9 +176,9 @@ def get_algorithm_param_specs(
 
 
 def parse_algorithm_params(
-    algorithm: Union[int, PositionMappingAlgorithm],
-    params: Dict[str, Any],
-) -> Dict[str, Numeric]:
+    algorithm: int | PositionMappingAlgorithm,
+    params: dict[str, Any],
+) -> dict[str, Numeric]:
     """
     Normalize and validate algorithm parameters according to the registered spec.
 
@@ -198,8 +198,8 @@ def parse_algorithm_params(
     if not specs:
         return {}
 
-    parsed: Dict[str, Numeric] = {}
-    missing_labels: List[str] = []
+    parsed: dict[str, Numeric] = {}
+    missing_labels: list[str] = []
 
     for spec in specs:
         raw_value = params.get(spec["name"])
@@ -217,7 +217,7 @@ def parse_algorithm_params(
 
 
 def map_score_to_position(
-    algorithm: int, score: float, initial_position: float, params: Optional[Dict[str, Any]] = None
+    algorithm: int, score: float, initial_position: float, params: dict[str, Any] | None = None
 ) -> float:
     """
     Map LLM output score to final position value using specified algorithm.
@@ -253,11 +253,10 @@ def map_score_to_position(
     try:
         if algorithm_enum == PositionMappingAlgorithm.NONE:
             return calculate_none_mapping(score, initial_position, {})
-        elif algorithm_enum == PositionMappingAlgorithm.V1:
+        if algorithm_enum == PositionMappingAlgorithm.V1:
             validated = parse_algorithm_params(algorithm_enum, params)
             return calculate_v1_mapping(score, initial_position, cast(V1Params, validated))
-        else:
-            raise ValueError(f"Algorithm not implemented: {algorithm}")
+        raise ValueError(f"Algorithm not implemented: {algorithm}")
     except Exception as e:
         logger.error(
             "position_mapping_calculation_failed",
@@ -271,7 +270,7 @@ def map_score_to_position(
         raise
 
 
-def calculate_none_mapping(score: float, initial_position: float, params: Dict[str, Any]) -> float:
+def calculate_none_mapping(score: float, initial_position: float, params: dict[str, Any]) -> float:
     """
     Direct mapping without any offset - returns LLM score directly.
 
@@ -333,14 +332,18 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
                 offset_ratio = (
                     -left_positive_gain
                     * math.log(
-                        max((1 - relative_position / (1.12 - left_sensitivity / 100) / 2.5), EPSILON)
+                        max(
+                            (1 - relative_position / (1.12 - left_sensitivity / 100) / 2.5), EPSILON
+                        )
                     )
                     / 100.0
                 )
             else:
                 offset_ratio = (
                     -left_negative_gain
-                    * math.log(max((1 - relative_position / (1.12 - left_sensitivity / 100)), EPSILON))
+                    * math.log(
+                        max((1 - relative_position / (1.12 - left_sensitivity / 100)), EPSILON)
+                    )
                     / 100.0
                 )
                 offset_ratio = max(0.0, min(1.0, offset_ratio))
@@ -360,14 +363,19 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
                 offset_ratio = (
                     -right_positive_gain
                     * math.log(
-                        max((1 - relative_position / (1.12 - right_sensitivity / 100 / 2.5)), EPSILON)
+                        max(
+                            (1 - relative_position / (1.12 - right_sensitivity / 100 / 2.5)),
+                            EPSILON,
+                        )
                     )
                     / 100.0
                 )
             else:
                 offset_ratio = (
                     -right_negative_gain
-                    * math.log(max((1 - relative_position / (1.12 - right_sensitivity / 100)), EPSILON))
+                    * math.log(
+                        max((1 - relative_position / (1.12 - right_sensitivity / 100)), EPSILON)
+                    )
                     / 100.0
                 )
                 offset_ratio = max(0.0, min(1.0, offset_ratio))
@@ -377,7 +385,7 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
     return max(0.0, min(1000.0, position))
 
 
-def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
+def get_algorithm_info(algorithm: int) -> dict[str, Any]:
     """
     Get information about a specific algorithm.
 
@@ -406,7 +414,7 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
             "parameters": [],
             "formula": "position = score",
         }
-    elif algorithm_enum == PositionMappingAlgorithm.V1:
+    if algorithm_enum == PositionMappingAlgorithm.V1:
         specs = ALGORITHM_PARAM_SPECS.get(algorithm_enum, [])
         return {
             "name": "V1",
@@ -429,17 +437,16 @@ def get_algorithm_info(algorithm: int) -> Dict[str, Any]:
             ],
             "formula": "offset_ratio = -gain * ln(1 - ratio) / 100; position = initial ± distance * offset_ratio, using independent left/right sensitivities and gains.",
         }
-    else:
-        return {
-            "name": "Unknown",
-            "version": "0.0",
-            "descr_initial_positiontion": "Unknown algorithm",
-            "parameters": [],
-            "formula": "N/A",
-        }
+    return {
+        "name": "Unknown",
+        "version": "0.0",
+        "descr_initial_positiontion": "Unknown algorithm",
+        "parameters": [],
+        "formula": "N/A",
+    }
 
 
-def validate_algorithm_params(algorithm: int, params: Dict[str, Any]) -> bool:
+def validate_algorithm_params(algorithm: int, params: dict[str, Any]) -> bool:
     """
     Validate parameters for a specific algorithm.
 

@@ -38,7 +38,7 @@
 **字段说明**:
 
 - `qiao_id` (string) - 系统内部ID，注册时生成，不可修改
-- `username` (string) - 用户可自定义的敲敲ID，注册时默认复制qiao_id，可修改
+- `username` (string) - 用户可自定义，注册时默认复制qiao_id，可修改
 - `nickname` (string) - 昵称
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 头像URL

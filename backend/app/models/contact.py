@@ -32,11 +32,11 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         String(32), nullable=False, unique=True, comment="Conversation identifier: conv_+random"
     )
 
-    user_id: Mapped[Optional[int]] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Contact owner user ID, NULL for public contacts"
     )
 
-    user_qiao_id: Mapped[Optional[str]] = mapped_column(
+    user_qiao_id: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="Contact owner external ID, NULL for public contacts"
     )
 
@@ -44,21 +44,25 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         Integer, nullable=False, comment="Contact type: 1=user, 2=ai, 3=official"
     )
 
-    contact_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Contact internal ID")
+    contact_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Contact internal ID"
+    )
 
-    contact_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Contact external ID")
+    contact_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Contact external ID"
+    )
 
-    alias: Mapped[Optional[str]] = mapped_column(
+    alias: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Contact alias/remark name"
     )
 
-    custom_avatar_url: Mapped[Optional[str]] = mapped_column(
+    custom_avatar_url: Mapped[str | None] = mapped_column(
         String(500), nullable=True, comment="Custom avatar URL for this contact"
     )
 
-    tags: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, comment="Contact tags (JSONB)")
+    tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True, comment="Contact tags (JSONB)")
 
-    remark: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Contact remark/notes")
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Contact remark/notes")
 
     source: Mapped[str] = mapped_column(
         String(32),
@@ -69,15 +73,27 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
     )
 
     is_pinned: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Is pinned: 1=yes, 0=no"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Is pinned: 1=yes, 0=no",
     )
 
     is_muted: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Is muted: 1=yes, 0=no"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Is muted: 1=yes, 0=no",
     )
 
     is_blocked: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Is blocked: 1=yes, 0=no"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Is blocked: 1=yes, 0=no",
     )
 
     # Relationships
@@ -110,7 +126,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         """Return the appropriate contact object based on contact_type."""
         if self.contact_type == 1:  # User
             return self._contact_user
-        elif self.contact_type == 2:  # AI Instance
+        if self.contact_type == 2:  # AI Instance
             return self._contact_instance
         return None
 
@@ -133,25 +149,33 @@ class ContactRequest(SnowflakeModel):
 
     __tablename__ = "contact_requests"
 
-    from_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Applicant external ID")
+    from_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Applicant external ID"
+    )
 
     from_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Applicant type: 1=user (all user types), 2=ai"
     )
 
-    from_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Applicant internal ID")
+    from_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Applicant internal ID"
+    )
 
-    to_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="Target external ID")
+    to_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Target external ID"
+    )
 
     to_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Target type: 1=user (all user types), 2=ai"
     )
 
-    to_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True, comment="Target internal ID (NULL when AI instance not created yet)"
+    to_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        comment="Target internal ID (NULL when AI instance not created yet)",
     )
 
-    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Application message")
+    message: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Application message")
 
     source: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Source: 1=search, 2=admin, 3=system, 4=recommend"
@@ -165,13 +189,13 @@ class ContactRequest(SnowflakeModel):
         comment="Status: 1=pending, 2=accepted, 3=ignored, 8=processing, 9=failed",
     )
 
-    failure_code: Mapped[Optional[str]] = mapped_column(
+    failure_code: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
         comment="Failure code explaining why request is pending (e.g., NO_TEMPLATE_AVAILABLE)",
     )
 
-    failure_detail: Mapped[Optional[dict]] = mapped_column(
+    failure_detail: Mapped[dict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Structured failure metadata (template shortage details, etc.)",
@@ -185,7 +209,7 @@ class ContactRequest(SnowflakeModel):
         comment="Number of manual/system retries for this request",
     )
 
-    last_retry_at: Mapped[Optional[datetime]] = mapped_column(
+    last_retry_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=True,
         comment="Timestamp of last retry (manual or automated)",

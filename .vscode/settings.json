@@ -38,7 +38,7 @@
         "source.organizeImports": "explicit"
     },
     "black-formatter.args": [
-        "--line-length=108"
+        "--line-length=100"
     ],
     "files.exclude": {
         "**/__pycache__": true,

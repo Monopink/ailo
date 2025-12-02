@@ -4,8 +4,6 @@ Discovery service business logic.
 This module provides business logic for discovery page operations.
 """
 
-from typing import Optional
-
 from crud.system import system_configs
 from enums import SquareCategory
 from schemas.discovery import (
@@ -25,9 +23,9 @@ logger = get_logger(__name__)
 async def get_square_contacts(
     db: AsyncSession,
     user_qiao_id: str,
-    category: Optional[SquareCategory] = None,
+    category: SquareCategory | None = None,
     page: int = 1,
-    page_size: Optional[int] = None,
+    page_size: int | None = None,
 ) -> SquareContactListResponse:
     """
     Get square page contacts with pagination.
@@ -49,7 +47,9 @@ async def get_square_contacts(
         # Load page_size from config if not provided
         if page_size is None:
             page_size = int(
-                await system_configs.get_config_value(db, config_key="square_page_size", default_value=20)
+                await system_configs.get_config_value(
+                    db, config_key="square_page_size", default_value=20
+                )
             )
 
         # Check rate limit
@@ -71,7 +71,11 @@ async def get_square_contacts(
         # Query square entries with pagination
         category_value = category.value if category else None
         entries, total = await discovery_data.get_random_persona_entries(
-            db=db, user_qiao_id=user_qiao_id, category=category_value, page=page, page_size=page_size
+            db=db,
+            user_qiao_id=user_qiao_id,
+            category=category_value,
+            page=page,
+            page_size=page_size,
         )
 
         # Transform to response format
@@ -116,12 +120,15 @@ async def get_square_contacts(
         raise
     except Exception as e:
         logger.error(
-            "square_contacts_service_error", user_qiao_id=user_qiao_id, category=category, error=str(e)
+            "square_contacts_service_error",
+            user_qiao_id=user_qiao_id,
+            category=category,
+            error=str(e),
         )
-        raise RuntimeError(f"Failed to get square contacts: {str(e)}")
+        raise RuntimeError(f"Failed to get square contacts: {e!s}")
 
 
-async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[StrangerProfileResponse]:
+async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfileResponse | None:
     """
     Get stranger profile by qiao_id.
 
@@ -136,7 +143,9 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[Stran
         StrangerProfileResponse or None if not found
     """
     try:
-        profile, category = await discovery_data.get_persona_profile_by_qiao_id(db=db, qiao_id=qiao_id)
+        profile, category = await discovery_data.get_persona_profile_by_qiao_id(
+            db=db, qiao_id=qiao_id
+        )
 
         if not profile:
             logger.warning("stranger_profile_not_found", qiao_id=qiao_id)
@@ -165,4 +174,4 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> Optional[Stran
 
     except Exception as e:
         logger.error("stranger_profile_service_error", qiao_id=qiao_id, error=str(e))
-        raise RuntimeError(f"Failed to get stranger profile: {str(e)}")
+        raise RuntimeError(f"Failed to get stranger profile: {e!s}")

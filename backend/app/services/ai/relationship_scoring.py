@@ -5,7 +5,7 @@ This module handles relationship score management and relationship type determin
 based on AI style configurations and score positions.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from crud.ai.instance_dimension import get_by_instance
 from exceptions import AIRelationshipError
@@ -25,7 +25,9 @@ from .queries import (
     get_style_with_relationships,
 )
 from .queries.updates import set_instance_current_relationship
-from .queries.updates import update_instance_relationship_scores as _update_instance_relationship_scores
+from .queries.updates import (
+    update_instance_relationship_scores as _update_instance_relationship_scores,
+)
 from .utils.position_mapping import map_score_to_position
 from .utils.score_mapping import map_to_permille
 
@@ -37,7 +39,7 @@ logger = get_logger(__name__)
 
 async def get_relationship_scores(
     db: AsyncSession, instance_qiao_id: str, auto_initialize: bool = True
-) -> Optional[List[Dict[str, Any]]]:
+) -> list[dict[str, Any]] | None:
     """
     Get relationship scores for an instance.
     Auto-initialize scores based on initial_position if missing.
@@ -110,7 +112,7 @@ async def get_relationship_scores(
         return None
 
 
-async def _get_instance_style_id(db: AsyncSession, instance_id: int) -> Optional[int]:
+async def _get_instance_style_id(db: AsyncSession, instance_id: int) -> int | None:
     """
     Fetch the style_id for a given instance.
     """
@@ -130,7 +132,7 @@ async def initialize_relationship_scores(
     db: AsyncSession,
     instance_id: int,
     style_id: int,
-    position_mapping_config: Optional[Dict[str, Any]] = None,
+    position_mapping_config: dict[str, Any] | None = None,
 ) -> None:
     """
     Initialize relationship scores based on dimension initial_position.
@@ -204,13 +206,13 @@ async def initialize_relationship_scores(
         raise AIRelationshipError(
             operation="initialize_relationship_scores",
             reason="initialization_failed",
-            message=f"Failed to initialize relationship scores: {str(e)}",
+            message=f"Failed to initialize relationship scores: {e!s}",
         )
 
 
 async def determine_relationship_type(
-    db: AsyncSession, context: InstanceContext, scores: Optional[List[Dict[str, Any]]]
-) -> Optional[Dict[str, Any]]:
+    db: AsyncSession, context: InstanceContext, scores: list[dict[str, Any]] | None
+) -> dict[str, Any] | None:
     """
     Determine relationship type based on instance style and scores.
 
@@ -272,15 +274,14 @@ async def determine_relationship_type(
                 "score_positions": score_positions,
                 "is_default": False,
             }
-        else:
-            # No matching relationship found => return empty per spec
-            logger.error(
-                "no_matching_relationship_found",
-                style_id=style_id,
-                score_positions=score_positions,
-                available_mappings=len(relationships),
-            )
-            return None
+        # No matching relationship found => return empty per spec
+        logger.error(
+            "no_matching_relationship_found",
+            style_id=style_id,
+            score_positions=score_positions,
+            available_mappings=len(relationships),
+        )
+        return None
 
     except Exception as e:
         logger.error(
@@ -292,12 +293,12 @@ async def determine_relationship_type(
         raise AIRelationshipError(
             operation="determine_relationship_type",
             reason="processing_failed",
-            message=f"Failed to determine relationship type: {str(e)}",
+            message=f"Failed to determine relationship type: {e!s}",
         )
 
 
 async def update_instance_relationship_scores(
-    db: AsyncSession, instance_id: int, new_scores: Dict[int, int]
+    db: AsyncSession, instance_id: int, new_scores: dict[int, int]
 ) -> bool:
     """
     Update relationship scores for an instance.
@@ -338,7 +339,7 @@ async def update_instance_relationship_scores(
         raise AIRelationshipError(
             operation="update_instance_relationship_scores",
             reason="update_failed",
-            message=f"Failed to update relationship scores: {str(e)}",
+            message=f"Failed to update relationship scores: {e!s}",
         )
 
 
@@ -380,11 +381,11 @@ async def update_instance_current_relationship(
         raise AIRelationshipError(
             operation="update_current_relationship",
             reason="update_failed",
-            message=f"Failed to update current relationship: {str(e)}",
+            message=f"Failed to update current relationship: {e!s}",
         )
 
 
-def _calculate_score_positions(scores: List[Dict[str, Any]]) -> Dict[int, int]:
+def _calculate_score_positions(scores: list[dict[str, Any]]) -> dict[int, int]:
     """
     Calculate score positions as percentiles (0-1000).
 
@@ -413,11 +414,11 @@ def _calculate_score_positions(scores: List[Dict[str, Any]]) -> Dict[int, int]:
 
 
 def _find_matching_relationship(
-    score_positions: Dict[int, int],
-    relationship_mappings: List[Dict[str, Any]],
-    current_relationship_id: Optional[int] = None,
-    relationship_counts: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, Any]]:
+    score_positions: dict[int, int],
+    relationship_mappings: list[dict[str, Any]],
+    current_relationship_id: int | None = None,
+    relationship_counts: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """
     Find relationship mapping that matches the score positions.
 
@@ -435,7 +436,7 @@ def _find_matching_relationship(
     """
     try:
         # Group matching mappings by dimension
-        dimension_matches: Dict[str, List[Dict[str, Any]]] = {}
+        dimension_matches: dict[str, list[dict[str, Any]]] = {}
 
         for mapping in relationship_mappings:
             dimension_name = mapping["dimension_name"]
@@ -464,11 +465,12 @@ def _find_matching_relationship(
             return None
 
         # Per-dimension current relationship filtering
-        matching_mappings: List[Dict[str, Any]] = []
+        matching_mappings: list[dict[str, Any]] = []
         for dimension_name, dim_candidates in dimension_matches.items():
             if current_relationship_id is not None:
                 current_in_dim = any(
-                    int(m["relationship"].id) == int(current_relationship_id) for m in dim_candidates
+                    int(m["relationship"].id) == int(current_relationship_id)
+                    for m in dim_candidates
                 )
                 if current_in_dim:
                     # Filter to keep only current relationship in this dimension
@@ -484,7 +486,7 @@ def _find_matching_relationship(
             return None
 
         # Build unique candidate set aggregated by relationship_id with max priority
-        unique: Dict[int, Dict[str, Any]] = {}
+        unique: dict[int, dict[str, Any]] = {}
         for m in matching_mappings:
             rid = int(m["relationship"].id)
             pr = int(m.get("priority", 0))
@@ -497,9 +499,8 @@ def _find_matching_relationship(
                     "priority": pr,
                     "limit_count": m.get("limit_count"),
                 }
-            else:
-                if pr > unique[rid]["priority"]:
-                    unique[rid]["priority"] = pr
+            elif pr > unique[rid]["priority"]:
+                unique[rid]["priority"] = pr
 
         if not unique:
             logger.debug("no_unique_candidates_after_match")
@@ -507,7 +508,7 @@ def _find_matching_relationship(
 
         # Enforce limit_count using relationship_counts
         if relationship_counts:
-            filtered: Dict[int, Dict[str, Any]] = {}
+            filtered: dict[int, dict[str, Any]] = {}
             for rid, data in unique.items():
                 limit = int(data.get("limit_count") or 0)
                 if limit <= 0:
@@ -542,7 +543,9 @@ def _find_matching_relationship(
         top_relations = [v for v in unique.values() if v["priority"] == top_priority]
 
         if len(top_relations) > 1:
-            logger.error("priority_tie_detected", top_priority=top_priority, candidates=len(top_relations))
+            logger.error(
+                "priority_tie_detected", top_priority=top_priority, candidates=len(top_relations)
+            )
             return None
 
         selected_mapping = top_relations[0]
@@ -569,8 +572,8 @@ def _find_matching_relationship(
 
 
 def _get_default_relationship_mapping(
-    relationship_mappings: List[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
+    relationship_mappings: list[dict[str, Any]],
+) -> dict[str, Any] | None:
     """
     Get default relationship mapping (first one with lowest priority).
 
@@ -602,8 +605,8 @@ def _get_default_relationship_mapping(
 
 
 async def calculate_new_scores(
-    db: AsyncSession, context: InstanceContext, llm_response_scores: Dict[str, int]
-) -> Dict[str, int]:
+    db: AsyncSession, context: InstanceContext, llm_response_scores: dict[str, int]
+) -> dict[str, int]:
     """
     Calculate new relationship scores based on LLM response.
 
@@ -685,7 +688,7 @@ async def calculate_new_scores(
                 raise AIRelationshipError(
                     operation="calculate_new_scores",
                     reason="schema_mapping_failed",
-                    message=f"Mapping failed for dimension {dimension_name}: {str(e)}",
+                    message=f"Mapping failed for dimension {dimension_name}: {e!s}",
                 )
 
             # Apply position mapping algorithm on mapped value
@@ -722,12 +725,12 @@ async def calculate_new_scores(
         raise AIRelationshipError(
             operation="calculate_new_scores",
             reason="calculation_failed",
-            message=f"Failed to calculate new scores: {str(e)}",
+            message=f"Failed to calculate new scores: {e!s}",
         )
 
 
 async def update_relationship_positions(
-    db: AsyncSession, instance_id: int, new_scores: Dict[str, int]
+    db: AsyncSession, instance_id: int, new_scores: dict[str, int]
 ) -> bool:
     """
     Update relationship positions based on new scores.
@@ -777,5 +780,5 @@ async def update_relationship_positions(
         raise AIRelationshipError(
             operation="update_relationship_positions",
             reason="update_failed",
-            message=f"Failed to update relationship positions: {str(e)}",
+            message=f"Failed to update relationship positions: {e!s}",
         )

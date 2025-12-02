@@ -24,8 +24,12 @@ async def get_captcha_config(request: Request, db: AsyncSession = Depends(get_db
 
     # Prefer client-specific keys (new scheme without 'user_')
     if client:
-        provider = await system_configs.get_config_value(db, config_key=f"{client}_captcha_provider")
-        scene_id = await system_configs.get_config_value(db, config_key=f"{client}_aliyun_captcha_scene_id")
+        provider = await system_configs.get_config_value(
+            db, config_key=f"{client}_captcha_provider"
+        )
+        scene_id = await system_configs.get_config_value(
+            db, config_key=f"{client}_aliyun_captcha_scene_id"
+        )
 
     # Backward compatibility fallbacks
     if not provider:

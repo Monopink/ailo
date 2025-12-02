@@ -55,7 +55,10 @@ class AIPersonalityView(ModelView):
     fields = [
         StringField("id", label="ID", help_text="Internal personality ID"),
         StringField(
-            "display_name", label="Display Name", help_text="Human-readable name shown in UI", required=True
+            "display_name",
+            label="Display Name",
+            help_text="Human-readable name shown in UI",
+            required=True,
         ),
         TextAreaField(
             "prompt",
@@ -63,7 +66,9 @@ class AIPersonalityView(ModelView):
             help_text="Template for AI personality behavior",
             required=True,
         ),
-        JSONField("json_schema", label="JSON Schema", help_text="JSON schema for AI response validation"),
+        JSONField(
+            "json_schema", label="JSON Schema", help_text="JSON schema for AI response validation"
+        ),
         IntegerEnumField(
             "status",
             enum=AIPersonalityStatus,
@@ -113,10 +118,14 @@ class AIPersonalityPlaceholderView(ModelView):
             help_text="Variable name used in prompt template (e.g., {name})",
         ),
         StringField(
-            "display_name", label="Display Name", help_text="Human-readable name for this placeholder"
+            "display_name",
+            label="Display Name",
+            help_text="Human-readable name for this placeholder",
         ),
         StringField(
-            "description", label="Description", help_text="Explanation of what this placeholder represents"
+            "description",
+            label="Description",
+            help_text="Explanation of what this placeholder represents",
         ),
         TextAreaField(
             "example_value",

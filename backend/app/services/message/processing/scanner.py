@@ -12,7 +12,6 @@ Design: Follows ai-message-processing.md specification
 
 import asyncio
 import random
-from typing import Optional, Set
 
 from core.database import get_sessionmaker
 from enums.common import AIMessageBufferState
@@ -31,10 +30,10 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Scanner state
-_scanner_task: Optional[asyncio.Task] = None
+_scanner_task: asyncio.Task | None = None
 _scanner_running: bool = False
 _scan_interval: float = 0.1  # 100ms
-_processing_tasks: Set[asyncio.Task] = set()
+_processing_tasks: set[asyncio.Task] = set()
 _max_concurrent_processing = 10
 _processing_semaphore = asyncio.Semaphore(_max_concurrent_processing)
 

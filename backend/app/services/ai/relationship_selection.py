@@ -9,7 +9,7 @@ Responsibilities:
 All functions are stateless. DB access is restricted to candidate collection.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,12 +18,12 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-Candidate = Dict[str, Any]
+Candidate = dict[str, Any]
 
 
 async def collect_candidates(
     db: AsyncSession, *, style_id: int, dimension_id: int, position: int
-) -> List[Candidate]:
+) -> list[Candidate]:
     """
     Collect relationship candidates for one dimension given final position.
 
@@ -54,7 +54,7 @@ async def collect_candidates(
         {"style_id": int(style_id), "dimension_id": int(dimension_id), "position": int(position)},
     )
     rows = result.fetchall()
-    candidates: List[Candidate] = []
+    candidates: list[Candidate] = []
     for r in rows:
         candidates.append(
             {
@@ -71,8 +71,8 @@ async def collect_candidates(
 
 
 def enforce_limit_count(
-    candidates: List[Candidate], relationship_counts: Optional[Dict[str, Any]]
-) -> List[Candidate]:
+    candidates: list[Candidate], relationship_counts: dict[str, Any] | None
+) -> list[Candidate]:
     """
     Filter candidates using limit_count and instance-level counts.
 
@@ -84,7 +84,7 @@ def enforce_limit_count(
         # No counts available (e.g., style test) => treat as 0
         return candidates
 
-    filtered: List[Candidate] = []
+    filtered: list[Candidate] = []
     for c in candidates:
         rel_id = c.get("relationship_id")
         try:
@@ -122,10 +122,10 @@ def enforce_limit_count(
 
 
 def select_final_relationship(
-    candidates_across_dimensions: List[Candidate],
+    candidates_across_dimensions: list[Candidate],
     *,
     higher_is_better: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Select final relationship using unified rules.
 
@@ -141,7 +141,7 @@ def select_final_relationship(
         return {"relationship": None, "changed": False, "reason": "no_candidate"}
 
     # Aggregate by relationship_id to compute max priority across dims
-    agg: Dict[int, Dict[str, Any]] = {}
+    agg: dict[int, dict[str, Any]] = {}
     for c in candidates_across_dimensions:
         rid_raw = c.get("relationship_id")
         pr_raw = c.get("priority")
@@ -162,9 +162,8 @@ def select_final_relationship(
                 "max_priority": pr,
                 "_sample": c,
             }
-        else:
-            if pr > agg[rid]["max_priority"]:
-                agg[rid]["max_priority"] = pr
+        elif pr > agg[rid]["max_priority"]:
+            agg[rid]["max_priority"] = pr
 
     if not agg:
         return {"relationship": None, "changed": False, "reason": "no_candidate"}
@@ -178,7 +177,9 @@ def select_final_relationship(
     top_relations = [v for v in agg.values() if v["max_priority"] == top_priority]
 
     if len(top_relations) > 1:
-        logger.error("priority_tie_detected", top_priority=top_priority, candidates=len(top_relations))
+        logger.error(
+            "priority_tie_detected", top_priority=top_priority, candidates=len(top_relations)
+        )
         return {"relationship": None, "changed": False, "reason": "priority_tie"}
 
     selected = top_relations[0]

@@ -6,8 +6,8 @@ and automatically updates the json_schema_mode field based on the result.
 """
 
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 from models.llm import LLMConfig, LLMProvider, LLMTestLog
 from services.llm.client import invoke_llm
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 async def test_json_schema_compatibility(
     db: AsyncSession,
     config_id: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Test JSON Schema compatibility for an LLM configuration.
 
@@ -76,7 +76,7 @@ async def test_json_schema_compatibility(
 
         # Calculate response time
         response_time_ms = int((time.time() - start_time) * 1000)
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(UTC)
 
         # Log the result for debugging
         logger.info(f"LLM test result: {llm_result}")
@@ -126,49 +126,48 @@ async def test_json_schema_compatibility(
                 "response_time_ms": response_time_ms,
                 "test_log_id": test_log.id,
             }
-        else:
-            # Request failed - do NOT update config, just report the failure
-            error_msg = llm_result.get("error") or llm_result.get("error_code") or "Unknown error"
-            logger.warning(f"LLM test failed: {error_msg}, full result: {llm_result}")
+        # Request failed - do NOT update config, just report the failure
+        error_msg = llm_result.get("error") or llm_result.get("error_code") or "Unknown error"
+        logger.warning(f"LLM test failed: {error_msg}, full result: {llm_result}")
 
-            # Create test log record for failure
-            test_log = LLMTestLog(
-                config_id=config.id,
-                config_name=config.name,
-                provider_name=provider.name,
-                model_name=llm_result.get("model") or config.model_name,
-                test_message=test_message,
-                override_temperature=0.7,
-                override_max_tokens=100,
-                thinking_mode="disabled",
-                enable_json_schema=1,
-                request=llm_result.get("request_payload", {}),
-                response=llm_result.get("raw_response"),
-                status=2,  # failed
-                error_message=error_msg,
-                response_time_ms=response_time_ms,
-                prompt_tokens=usage.get("prompt_tokens"),
-                completion_tokens=usage.get("completion_tokens"),
-                total_tokens=usage.get("total_tokens"),
-                reasoning_content=None,
-                completed_at=completed_at,
-            )
+        # Create test log record for failure
+        test_log = LLMTestLog(
+            config_id=config.id,
+            config_name=config.name,
+            provider_name=provider.name,
+            model_name=llm_result.get("model") or config.model_name,
+            test_message=test_message,
+            override_temperature=0.7,
+            override_max_tokens=100,
+            thinking_mode="disabled",
+            enable_json_schema=1,
+            request=llm_result.get("request_payload", {}),
+            response=llm_result.get("raw_response"),
+            status=2,  # failed
+            error_message=error_msg,
+            response_time_ms=response_time_ms,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
+            reasoning_content=None,
+            completed_at=completed_at,
+        )
 
-            db.add(test_log)
-            await db.commit()
+        db.add(test_log)
+        await db.commit()
 
-            return {
-                "success": False,
-                "mode": config.json_schema_mode,  # Keep current mode
-                "message": f"⚠️ Test failed: {error_msg}. Mode unchanged (still '{config.json_schema_mode}')",
-                "test_log_id": test_log.id,
-            }
+        return {
+            "success": False,
+            "mode": config.json_schema_mode,  # Keep current mode
+            "message": f"⚠️ Test failed: {error_msg}. Mode unchanged (still '{config.json_schema_mode}')",
+            "test_log_id": test_log.id,
+        }
 
     except Exception as e:
         # Exception during test - this might indicate incompatibility
         response_time_ms = int((time.time() - start_time) * 1000)
-        completed_at = datetime.now(timezone.utc)
-        logger.error(f"Exception during JSON Schema test: {str(e)}", exc_info=True)
+        completed_at = datetime.now(UTC)
+        logger.error(f"Exception during JSON Schema test: {e!s}", exc_info=True)
 
         # Check if it's a known JSON Schema incompatibility error
         error_str = str(e).lower()
@@ -212,46 +211,45 @@ async def test_json_schema_compatibility(
             return {
                 "success": False,
                 "mode": "disabled",
-                "message": f"❌ JSON Schema is NOT supported (verified). Mode updated from '{old_mode}' to 'disabled'. Error: {str(e)}",
+                "message": f"❌ JSON Schema is NOT supported (verified). Mode updated from '{old_mode}' to 'disabled'. Error: {e!s}",
                 "error": str(e),
                 "test_log_id": test_log.id,
             }
-        else:
-            # Other error - do NOT update config
-            # Create test log record for error
-            test_log = LLMTestLog(
-                config_id=config.id,
-                config_name=config.name,
-                provider_name=provider.name,
-                model_name=config.model_name,
-                test_message=test_message,
-                override_temperature=0.7,
-                override_max_tokens=100,
-                thinking_mode="disabled",
-                enable_json_schema=1,
-                request={
-                    "error": "Exception before request",
-                    "messages": test_messages,
-                    "json_schema": test_schema,
-                },
-                response=None,
-                status=2,  # failed
-                error_message=str(e),
-                response_time_ms=response_time_ms,
-                prompt_tokens=None,
-                completion_tokens=None,
-                total_tokens=None,
-                reasoning_content=None,
-                completed_at=completed_at,
-            )
+        # Other error - do NOT update config
+        # Create test log record for error
+        test_log = LLMTestLog(
+            config_id=config.id,
+            config_name=config.name,
+            provider_name=provider.name,
+            model_name=config.model_name,
+            test_message=test_message,
+            override_temperature=0.7,
+            override_max_tokens=100,
+            thinking_mode="disabled",
+            enable_json_schema=1,
+            request={
+                "error": "Exception before request",
+                "messages": test_messages,
+                "json_schema": test_schema,
+            },
+            response=None,
+            status=2,  # failed
+            error_message=str(e),
+            response_time_ms=response_time_ms,
+            prompt_tokens=None,
+            completion_tokens=None,
+            total_tokens=None,
+            reasoning_content=None,
+            completed_at=completed_at,
+        )
 
-            db.add(test_log)
-            await db.commit()
+        db.add(test_log)
+        await db.commit()
 
-            return {
-                "success": False,
-                "mode": config.json_schema_mode,  # Keep current mode
-                "message": f"⚠️ Test error: {str(e)}. Mode unchanged (still '{config.json_schema_mode}')",
-                "error": str(e),
-                "test_log_id": test_log.id,
-            }
+        return {
+            "success": False,
+            "mode": config.json_schema_mode,  # Keep current mode
+            "message": f"⚠️ Test error: {e!s}. Mode unchanged (still '{config.json_schema_mode}')",
+            "error": str(e),
+            "test_log_id": test_log.id,
+        }

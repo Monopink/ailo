@@ -3,7 +3,7 @@ Admin Dashboard API endpoints.
 Provides system statistics and monitoring data for admin panel.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from core.database import get_db
 from fastapi import APIRouter, Depends
@@ -17,7 +17,7 @@ dashboard_router = APIRouter()
 
 
 @dashboard_router.get("/stats")
-async def get_stats(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def get_stats(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     Get dashboard statistics data.
 

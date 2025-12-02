@@ -5,7 +5,7 @@ This module contains SQLAlchemy model for LLM configuration testing logs.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from models.base import ImmutableSnowflakeModel
 from sqlalchemy import DECIMAL, DateTime, Integer, String, Text
@@ -35,18 +35,18 @@ class LLMTestLog(ImmutableSnowflakeModel):
         String(50), nullable=False, comment="Provider name (redundant for query convenience)"
     )
 
-    model_name: Mapped[Optional[str]] = mapped_column(
+    model_name: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Model name used for the test"
     )
 
     # Test parameters
     test_message: Mapped[str] = mapped_column(Text, nullable=False, comment="Test message content")
 
-    override_temperature: Mapped[Optional[float]] = mapped_column(
+    override_temperature: Mapped[float | None] = mapped_column(
         DECIMAL(3, 2), nullable=True, comment="Override temperature parameter (0.0-2.0)"
     )
 
-    override_max_tokens: Mapped[Optional[int]] = mapped_column(
+    override_max_tokens: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Override max tokens parameter"
     )
 
@@ -59,11 +59,11 @@ class LLMTestLog(ImmutableSnowflakeModel):
     )
 
     # Request and response
-    request: Mapped[Dict[str, Any]] = mapped_column(
+    request: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, comment="Complete request payload"
     )
 
-    response: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    response: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True, comment="Complete response data"
     )
 
@@ -72,33 +72,33 @@ class LLMTestLog(ImmutableSnowflakeModel):
         Integer, nullable=False, comment="Status: 1=success, 2=failed, 3=timeout"
     )
 
-    error_message: Mapped[Optional[str]] = mapped_column(
+    error_message: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Error message if test failed"
     )
 
     # Performance metrics
-    response_time_ms: Mapped[Optional[int]] = mapped_column(
+    response_time_ms: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Response time in milliseconds"
     )
 
-    prompt_tokens: Mapped[Optional[int]] = mapped_column(
+    prompt_tokens: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Prompt tokens count"
     )
 
-    completion_tokens: Mapped[Optional[int]] = mapped_column(
+    completion_tokens: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Completion tokens count"
     )
 
-    total_tokens: Mapped[Optional[int]] = mapped_column(
+    total_tokens: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Total tokens count"
     )
 
     # Thinking mode related
-    reasoning_content: Mapped[Optional[str]] = mapped_column(
+    reasoning_content: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Thinking process content (when thinking mode enabled)"
     )
 
     # Timestamps (created_at inherited from ImmutableSnowflakeModel)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Test completion timestamp"
     )

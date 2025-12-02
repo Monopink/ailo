@@ -5,7 +5,6 @@ This module contains Pydantic schemas for media file management.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from enums import FileStatus, FileType, UploaderType
 from pydantic import BaseModel, Field
@@ -18,7 +17,7 @@ class MediaFileBase(BaseSchema):
     """Base media file schema."""
 
     file_type: FileType = Field(..., description="File type")
-    original_name: Optional[str] = Field(None, max_length=255, description="Original filename")
+    original_name: str | None = Field(None, max_length=255, description="Original filename")
     mime_type: str = Field(..., max_length=100, description="MIME type")
 
 
@@ -26,7 +25,7 @@ class MediaFileUpload(BaseModel):
     """Schema for media file upload."""
 
     file_type: FileType = Field(..., description="File type")
-    original_name: Optional[str] = Field(None, max_length=255, description="Original filename")
+    original_name: str | None = Field(None, max_length=255, description="Original filename")
     mime_type: str = Field(..., max_length=100, description="MIME type")
     file_size: int = Field(..., gt=0, description="File size in bytes")
 
@@ -51,7 +50,7 @@ class MediaFileListResponse(BaseSchema):
 
     file_id: str = Field(..., description="External file ID")
     file_type: FileType = Field(..., description="File type")
-    original_name: Optional[str] = Field(None, description="Original filename")
+    original_name: str | None = Field(None, description="Original filename")
     file_url: str = Field(..., description="File access URL")
     file_size: int = Field(..., description="File size in bytes")
     status: FileStatus = Field(..., description="File status")
@@ -70,9 +69,9 @@ class MediaFileUpdate(BaseModel):
 class MediaFileQuery(BaseModel):
     """Schema for querying media files."""
 
-    file_type: Optional[FileType] = Field(None, description="Filter by file type")
-    uploader_qiao_id: Optional[str] = Field(None, description="Filter by uploader")
-    status: Optional[FileStatus] = Field(None, description="Filter by status")
+    file_type: FileType | None = Field(None, description="Filter by file type")
+    uploader_qiao_id: str | None = Field(None, description="Filter by uploader")
+    status: FileStatus | None = Field(None, description="Filter by status")
     skip: int = Field(0, ge=0, description="Number of records to skip")
     limit: int = Field(20, ge=1, le=100, description="Maximum number of records")
 

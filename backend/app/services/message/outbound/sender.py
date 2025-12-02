@@ -6,7 +6,7 @@ Provider layer handles protocol-specific fields like from_client.
 """
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 from crud.message import notification_push_history as notification_crud
 from enums import MessageType
@@ -32,10 +32,10 @@ async def _send_message_internal(
     conv_id: str,
     content: str,
     message_type: int,
-    action: Optional[dict] = None,
-    extra_fields: Optional[dict] = None,
-    msg_id: Optional[str] = None,
-) -> tuple["MessageResult", Dict[str, Any]]:
+    action: dict | None = None,
+    extra_fields: dict | None = None,
+    msg_id: str | None = None,
+) -> tuple["MessageResult", dict[str, Any]]:
     """
     Internal message sending function.
 
@@ -91,9 +91,9 @@ async def send_message(
     conv_id: str,
     content: str,
     message_type: int = MessageType.TEXT,
-    action: Optional[dict] = None,
-    extra_fields: Optional[dict] = None,
-    msg_id: Optional[str] = None,
+    action: dict | None = None,
+    extra_fields: dict | None = None,
+    msg_id: str | None = None,
 ) -> None:
     """
     Send message (stored in message_history).

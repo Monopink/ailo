@@ -9,7 +9,7 @@ import hashlib
 import hmac
 import secrets
 import time
-from typing import Any, Dict
+from typing import Any
 
 from core.config import get_settings
 
@@ -36,7 +36,9 @@ def get_timestamp_ms() -> int:
     return int(time.time() * 1000)
 
 
-def generate_signature(app_id: str, client_id: str, timestamp: int, nonce: str, master_key: str) -> str:
+def generate_signature(
+    app_id: str, client_id: str, timestamp: int, nonce: str, master_key: str
+) -> str:
     """
     Generate HMAC-SHA1 signature for LeanCloud IM login.
 
@@ -57,7 +59,9 @@ def generate_signature(app_id: str, client_id: str, timestamp: int, nonce: str, 
     message = f"{app_id}:{client_id}::{timestamp}:{nonce}"
 
     # Generate HMAC-SHA1 signature
-    signature_bytes = hmac.new(master_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha1).digest()
+    signature_bytes = hmac.new(
+        master_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha1
+    ).digest()
 
     # Convert to hex string
     signature_hex = signature_bytes.hex()
@@ -65,7 +69,7 @@ def generate_signature(app_id: str, client_id: str, timestamp: int, nonce: str, 
     return signature_hex
 
 
-async def create_login_signature(app_id: str, client_id: str) -> Dict[str, Any]:
+async def create_login_signature(app_id: str, client_id: str) -> dict[str, Any]:
     """
     Create a complete login signature package for LeanCloud IM.
 

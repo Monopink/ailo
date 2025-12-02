@@ -23,7 +23,13 @@ from .log import AIRequestLog
 from .personality import AIPersonality, AIPersonalityPlaceholder
 
 # Style and relationship models
-from .style import AIDimension, AIDimensionRelationshipMapping, AIRelationship, AIStyle, AIStyleDimension
+from .style import (
+    AIDimension,
+    AIDimensionRelationshipMapping,
+    AIRelationship,
+    AIStyle,
+    AIStyleDimension,
+)
 
 # Template models
 from .template import AIPersona, AITemplate, AIType

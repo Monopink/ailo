@@ -5,10 +5,16 @@ This module provides both standard CRUD operations and complex queries
 for AI style and relationship mapping management.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from crud.base import CRUDBase
-from models.ai import AIDimension, AIDimensionRelationshipMapping, AIRelationship, AIStyle, AIStyleDimension
+from models.ai import (
+    AIDimension,
+    AIDimensionRelationshipMapping,
+    AIRelationship,
+    AIStyle,
+    AIStyleDimension,
+)
 from schemas.ai import AIStyleCreate, AIStyleDimensionCreate, AIStyleDimensionUpdate, AIStyleUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +26,9 @@ logger = get_logger(__name__)
 class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
     """AI Style CRUD operations with complex queries."""
 
-    async def get_with_relationships(self, db: AsyncSession, *, style_id: int) -> Optional[Dict[str, Any]]:
+    async def get_with_relationships(
+        self, db: AsyncSession, *, style_id: int
+    ) -> dict[str, Any] | None:
         """
         Get style with its relationship mappings.
 
@@ -43,7 +51,10 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             # Get relationship mappings with dimension info (normalized schema)
             mappings_result = await db.execute(
                 select(AIDimensionRelationshipMapping, AIRelationship, AIDimension)
-                .join(AIRelationship, AIDimensionRelationshipMapping.relationship_id == AIRelationship.id)
+                .join(
+                    AIRelationship,
+                    AIDimensionRelationshipMapping.relationship_id == AIRelationship.id,
+                )
                 .join(AIDimension, AIDimensionRelationshipMapping.dimension_id == AIDimension.id)
                 .join(
                     AIStyleDimension,
@@ -76,9 +87,11 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
         except Exception as e:
             logger.error("style_with_relationships_query_failed", error=str(e), style_id=style_id)
-            raise RuntimeError(f"Failed to get style with relationships: {str(e)}")
+            raise RuntimeError(f"Failed to get style with relationships: {e!s}")
 
-    async def get_relationship_mappings(self, db: AsyncSession, *, style_id: int) -> List[Dict[str, Any]]:
+    async def get_relationship_mappings(
+        self, db: AsyncSession, *, style_id: int
+    ) -> list[dict[str, Any]]:
         """
         Get relationship mappings for a style.
 
@@ -92,7 +105,10 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
         try:
             result = await db.execute(
                 select(AIDimensionRelationshipMapping, AIRelationship, AIDimension)
-                .join(AIRelationship, AIDimensionRelationshipMapping.relationship_id == AIRelationship.id)
+                .join(
+                    AIRelationship,
+                    AIDimensionRelationshipMapping.relationship_id == AIRelationship.id,
+                )
                 .join(AIDimension, AIDimensionRelationshipMapping.dimension_id == AIDimension.id)
                 .join(
                     AIStyleDimension,
@@ -132,7 +148,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
     async def get_available_styles(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> List[AIStyle]:
+    ) -> list[AIStyle]:
         """
         Get available styles for instance creation.
 
@@ -164,7 +180,9 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             # Non-fatal error: return empty list
             return []
 
-    async def get_score_ranges(self, db: AsyncSession, *, style_id: int) -> Dict[int, Dict[str, Any]]:
+    async def get_score_ranges(
+        self, db: AsyncSession, *, style_id: int
+    ) -> dict[int, dict[str, Any]]:
         """
         Get score ranges for a style.
 
@@ -214,7 +232,7 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
 
     async def get_available_relationships(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> List[AIRelationship]:
+    ) -> list[AIRelationship]:
         """
         Get available relationships.
 
@@ -228,7 +246,10 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
         """
         try:
             result = await db.execute(
-                select(AIRelationship).order_by(AIRelationship.display_name).offset(skip).limit(limit)
+                select(AIRelationship)
+                .order_by(AIRelationship.display_name)
+                .offset(skip)
+                .limit(limit)
             )
 
             relationships = list(result.scalars().all())
@@ -248,7 +269,7 @@ class CRUDAIDimensionRelationshipMapping(CRUDBase[AIDimensionRelationshipMapping
 
     async def get_by_style(
         self, db: AsyncSession, *, style_id: int
-    ) -> List[AIDimensionRelationshipMapping]:
+    ) -> list[AIDimensionRelationshipMapping]:
         """
         Get dimension relationship mappings by style ID.
 
@@ -279,17 +300,21 @@ class CRUDAIDimensionRelationshipMapping(CRUDBase[AIDimensionRelationshipMapping
             return mappings
 
         except Exception as e:
-            logger.error("dimension_relationship_mappings_query_failed", error=str(e), style_id=style_id)
+            logger.error(
+                "dimension_relationship_mappings_query_failed", error=str(e), style_id=style_id
+            )
             # Non-fatal error: return empty list
             return []
 
 
-class CRUDAIStyleDimension(CRUDBase[AIStyleDimension, AIStyleDimensionCreate, AIStyleDimensionUpdate]):
+class CRUDAIStyleDimension(
+    CRUDBase[AIStyleDimension, AIStyleDimensionCreate, AIStyleDimensionUpdate]
+):
     """AI Style Dimension CRUD operations."""
 
     async def get_by_style_and_name(
         self, db: AsyncSession, *, style_id: int, name: str
-    ) -> Optional[AIStyleDimension]:
+    ) -> AIStyleDimension | None:
         """
         Get dimension by style ID and name.
 
@@ -311,10 +336,12 @@ class CRUDAIStyleDimension(CRUDBase[AIStyleDimension, AIStyleDimensionCreate, AI
             return result.scalar_one_or_none()
 
         except Exception as e:
-            logger.error("dimension_get_by_style_name_failed", error=str(e), style_id=style_id, name=name)
+            logger.error(
+                "dimension_get_by_style_name_failed", error=str(e), style_id=style_id, name=name
+            )
             return None
 
-    async def get_by_style(self, db: AsyncSession, *, style_id: int) -> List[AIStyleDimension]:
+    async def get_by_style(self, db: AsyncSession, *, style_id: int) -> list[AIStyleDimension]:
         """
         Get all dimensions for a style.
 
@@ -344,5 +371,7 @@ class CRUDAIStyleDimension(CRUDBase[AIStyleDimension, AIStyleDimensionCreate, AI
 
 ai_style = CRUDAIStyle(AIStyle)
 ai_relationship = CRUDAIRelationship(AIRelationship)
-ai_dimension_relationship_mapping = CRUDAIDimensionRelationshipMapping(AIDimensionRelationshipMapping)
+ai_dimension_relationship_mapping = CRUDAIDimensionRelationshipMapping(
+    AIDimensionRelationshipMapping
+)
 ai_style_dimension = CRUDAIStyleDimension(AIStyleDimension)

@@ -4,7 +4,7 @@ LLM service exception classes.
 This module defines specific exceptions for LLM service errors.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import status as http_status
 
@@ -17,10 +17,10 @@ class LLMServiceError(ExternalServiceError):
     def __init__(
         self,
         message: str = "LLM service error",
-        provider: Optional[str] = None,
-        model: Optional[str] = None,
-        error_code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        provider: str | None = None,
+        model: str | None = None,
+        error_code: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if provider:
@@ -45,9 +45,9 @@ class LLMEndpointNotFoundError(LLMServiceError):
     def __init__(
         self,
         endpoint: str,
-        provider: Optional[str] = None,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        provider: str | None = None,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         if not message:
             message = f"LLM endpoint not found or not accessible: {endpoint}"
@@ -71,9 +71,9 @@ class LLMAuthenticationError(LLMServiceError):
 
     def __init__(
         self,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         message: str = "LLM API key is invalid or expired",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -90,10 +90,10 @@ class LLMRateLimitError(RateLimitError):
 
     def __init__(
         self,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         message: str = "LLM API请求频率超限",
-        retry_after: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
+        retry_after: int | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if provider:
@@ -113,9 +113,9 @@ class LLMTimeoutError(LLMServiceError):
     def __init__(
         self,
         timeout_seconds: int,
-        provider: Optional[str] = None,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        provider: str | None = None,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         if not message:
             message = f"LLM API请求超时 ({timeout_seconds}秒)"
@@ -138,9 +138,9 @@ class LLMNetworkError(LLMServiceError):
 
     def __init__(
         self,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         message: str = "无法连接到LLM API",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -157,9 +157,9 @@ class LLMConfigurationError(ConfigurationError):
 
     def __init__(
         self,
-        config_name: Optional[str] = None,
+        config_name: str | None = None,
         message: str = "LLM配置错误",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if config_name:
@@ -177,9 +177,9 @@ class LLMNoConfigError(LLMConfigurationError):
 
     def __init__(
         self,
-        config_name: Optional[str] = None,
+        config_name: str | None = None,
         message: str = "没有可用的LLM配置",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             config_name=config_name,
@@ -194,10 +194,10 @@ class LLMRequestError(LLMServiceError):
 
     def __init__(
         self,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         message: str = "LLM请求失败",
-        error_code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        error_code: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -215,8 +215,8 @@ class ConfigNotVerifiedError(LLMConfigurationError):
     def __init__(
         self,
         config_name: str,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         if not message:
             message = (
@@ -238,8 +238,8 @@ class JSONSchemaNotSupportedError(LLMConfigurationError):
     def __init__(
         self,
         config_name: str,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         if not message:
             message = (
@@ -262,9 +262,9 @@ class LLMResponseFormatError(LLMServiceError):
     def __init__(
         self,
         config_name: str,
-        provider: Optional[str] = None,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        provider: str | None = None,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         if not message:
             message = (

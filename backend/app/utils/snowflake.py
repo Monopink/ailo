@@ -7,7 +7,6 @@ Generates 64-bit unique IDs with timestamp, machine ID, and sequence components.
 
 import threading
 import time
-from typing import Optional
 
 from utils.logging import get_logger
 
@@ -157,7 +156,7 @@ class SnowflakeGenerator:
 
 
 # Global instance - will be initialized in main.py or config
-_snowflake_generator: Optional[SnowflakeGenerator] = None
+_snowflake_generator: SnowflakeGenerator | None = None
 
 
 def init_snowflake(datacenter_id: int = 0, machine_id: int = 0) -> None:

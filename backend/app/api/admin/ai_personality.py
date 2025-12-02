@@ -3,7 +3,7 @@ Admin AI Personality API endpoints.
 Handles personality management including prompts, schemas, and placeholders.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from core.database import get_db
 from crud.ai import ai_personality as personality_crud
@@ -22,9 +22,11 @@ personality_router = APIRouter()
 @personality_router.get("/ai-personality/{personality_id}/placeholders")
 async def get_personality_placeholders(
     personality_id: int, db: AsyncSession = Depends(get_db)
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get placeholders for a personality."""
-    placeholders = await placeholder_crud.get_placeholders_by_personality(db, personality_id=personality_id)
+    placeholders = await placeholder_crud.get_placeholders_by_personality(
+        db, personality_id=personality_id
+    )
     return [
         {
             "id": p.id,
@@ -40,8 +42,8 @@ async def get_personality_placeholders(
 
 @personality_router.post("/ai-personality/{personality_id}/save")
 async def save_personality_all(
-    personality_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+    personality_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """Save personality with auto-generated JSON schema from structured config."""
 
     personality = await personality_crud.get(db, id=personality_id)
@@ -81,10 +83,11 @@ async def save_personality_all(
         if placeholder_id:
             existing_placeholder = await placeholder_crud.get(db, id=placeholder_id)
             if existing_placeholder:
-                await placeholder_crud.update(db, db_obj=existing_placeholder, obj_in=placeholder_data)
+                await placeholder_crud.update(
+                    db, db_obj=existing_placeholder, obj_in=placeholder_data
+                )
                 updated += 1
         else:
-
             placeholder_data["personality_id"] = personality_id
             new_placeholder = AIPersonalityPlaceholder(**placeholder_data)
             db.add(new_placeholder)

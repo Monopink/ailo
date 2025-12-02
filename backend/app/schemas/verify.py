@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field
 class VerifySendCodeRequest(BaseModel):
     """Request schema for sending verification code"""
 
-    verify_type: Literal["phone", "email"] = Field(..., description="Verification type: phone or email")
+    verify_type: Literal["phone", "email"] = Field(
+        ..., description="Verification type: phone or email"
+    )
     target: str | None = Field(None, description="Target phone/email, defaults to current user's")
     # For phone verification flows, CAPTCHA is required on each send
     captcha_token: str | None = Field(None, description="CAPTCHA verification token (Turnstile)")
@@ -25,7 +27,9 @@ class VerifySendCodeResponse(BaseModel):
 class VerifyConfirmRequest(BaseModel):
     """Request schema for confirming verification code"""
 
-    verify_type: Literal["phone", "email"] = Field(..., description="Verification type: phone or email")
+    verify_type: Literal["phone", "email"] = Field(
+        ..., description="Verification type: phone or email"
+    )
     code: str = Field(..., min_length=6, max_length=6, description="6-digit verification code")
 
 

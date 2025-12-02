@@ -14,10 +14,10 @@ from .outbound.helpers import send_chat_info, send_contact_request_notification
 from .outbound.sender import send_message, send_notification
 
 __all__ = [
-    "send_message",
-    "send_notification",
+    "check_message_service_health",
+    "route_message",
     "send_chat_info",
     "send_contact_request_notification",
-    "route_message",
-    "check_message_service_health",
+    "send_message",
+    "send_notification",
 ]

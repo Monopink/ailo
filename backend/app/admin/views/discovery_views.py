@@ -4,7 +4,7 @@ Discovery management views.
 Provides admin tooling for Square exposure tables.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -105,7 +105,7 @@ class SquareTypeEntryView(ModelView):
         if isinstance(selected, dict):
             type_id_candidate = selected.get("id") or selected.get("value")
         elif hasattr(selected, "id"):
-            type_id_candidate = getattr(selected, "id")
+            type_id_candidate = selected.id
         else:
             type_id_candidate = selected
 
@@ -121,7 +121,7 @@ class SquareTypeEntryView(ModelView):
         """Ensure new square entries default to active status."""
         return {"status": SquareEntryStatus.ACTIVE}
 
-    async def create(self, request: Request, data: Dict[str, Any]) -> Any:
+    async def create(self, request: Request, data: dict[str, Any]) -> Any:
         """Override create to catch database integrity errors and convert to friendly messages."""
         try:
             return await super().create(request, data)

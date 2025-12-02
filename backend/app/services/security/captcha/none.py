@@ -4,8 +4,6 @@ None CAPTCHA Provider
 Disables CAPTCHA verification (always returns True).
 """
 
-from typing import Optional, Tuple
-
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +20,7 @@ class NoneCaptchaProvider:
         """Initialize none CAPTCHA provider"""
         logger.info("none_captcha_provider_initialized")
 
-    async def verify_token(self, token: str, ip: str) -> Tuple[bool, Optional[str]]:
+    async def verify_token(self, token: str, ip: str) -> tuple[bool, str | None]:
         """
         Always return True (no verification).
 

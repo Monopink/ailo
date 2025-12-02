@@ -2,8 +2,6 @@
 WeChat Mini Program API client
 """
 
-from typing import Dict
-
 import httpx
 from core.config import get_settings
 from services.wechat import cache
@@ -84,7 +82,7 @@ class WeChatClient:
             logger.error(f"HTTP error when getting access token: {e}")
             raise WeChatAPIError(-1, f"HTTP error: {e}")
 
-    async def code2session(self, js_code: str) -> Dict[str, str]:
+    async def code2session(self, js_code: str) -> dict[str, str]:
         """
         Exchange login code for openid and session_key
 
@@ -129,7 +127,7 @@ class WeChatClient:
             logger.error(f"HTTP error when calling code2session: {e}")
             raise WeChatAPIError(-1, f"HTTP error: {e}")
 
-    async def get_phone_number(self, code: str, access_token: str) -> Dict:
+    async def get_phone_number(self, code: str, access_token: str) -> dict:
         """
         Exchange phone code for phone number
 

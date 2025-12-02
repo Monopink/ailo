@@ -5,7 +5,7 @@ This module provides simple update operations that typically call crud layer
 or perform single-entity updates.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from enums.common import ConversationItemContextStatus
 from models.ai import AIConversationItem, AIDimension, AIInstance, AIInstanceDimension
@@ -23,7 +23,9 @@ def _coerce_context_status(raw_status: Any) -> int:
 
     if isinstance(raw_status, bool):
         return int(
-            ConversationItemContextStatus.EXCLUDED if raw_status else ConversationItemContextStatus.INCLUDED
+            ConversationItemContextStatus.EXCLUDED
+            if raw_status
+            else ConversationItemContextStatus.INCLUDED
         )
 
     if raw_status is None:
@@ -40,7 +42,7 @@ def _coerce_context_status(raw_status: Any) -> int:
     return int(ConversationItemContextStatus.INCLUDED)
 
 
-async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) -> Optional[int]:
+async def create_conversation_item(db: AsyncSession, item_data: dict[str, Any]) -> int | None:
     """
     Persist a new conversation item row using simple content fields.
     """
@@ -83,7 +85,9 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
             media_url=media_url,
             media_metadata=media_metadata,
             buffer_id=item_data.get("buffer_id"),
-            is_excluded_from_context=_coerce_context_status(item_data.get("is_excluded_from_context")),
+            is_excluded_from_context=_coerce_context_status(
+                item_data.get("is_excluded_from_context")
+            ),
             client_msg_ids=client_msg_ids,
         )
 
@@ -110,7 +114,7 @@ async def create_conversation_item(db: AsyncSession, item_data: Dict[str, Any]) 
 
 
 async def update_instance_relationship_scores(
-    db: AsyncSession, instance_id: int, new_scores: Dict[str, int]
+    db: AsyncSession, instance_id: int, new_scores: dict[str, int]
 ) -> bool:
     """
     Update relationship scores for an instance.
@@ -342,7 +346,9 @@ async def update_instance_memory(db: AsyncSession, instance_qiao_id: str, new_me
         instance = result.scalar_one_or_none()
 
         if not instance:
-            logger.warning("instance_not_found_for_memory_update", instance_qiao_id=instance_qiao_id)
+            logger.warning(
+                "instance_not_found_for_memory_update", instance_qiao_id=instance_qiao_id
+            )
             return False
 
         old_memory = instance.memory
@@ -384,7 +390,9 @@ async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status
         instance = result.scalar_one_or_none()
 
         if not instance:
-            logger.warning("instance_not_found_for_status_update", instance_qiao_id=instance_qiao_id)
+            logger.warning(
+                "instance_not_found_for_status_update", instance_qiao_id=instance_qiao_id
+            )
             return False
 
         old_status = instance.status

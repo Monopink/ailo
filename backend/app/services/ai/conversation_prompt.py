@@ -7,7 +7,7 @@ and JSON schema building for AI responses.
 
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from enums.common import ConversationRole
@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 async def build_system_prompt(
     db: AsyncSession,
     context: InstanceContext,
-    relationship_type: Optional[Dict[str, Any]],
+    relationship_type: dict[str, Any] | None,
     user_qiao_id: str,
 ) -> str:
     """
@@ -96,11 +96,11 @@ async def build_system_prompt(
         raise AIServiceError(
             ai_service="prompt_building",
             reason="build_failed",
-            message=f"Failed to build system prompt: {str(e)}",
+            message=f"Failed to build system prompt: {e!s}",
         )
 
 
-def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
+def replace_placeholders(template: str, placeholders: dict[str, Any]) -> str:
     """
     Replace placeholders in template string.
 
@@ -168,10 +168,10 @@ def replace_placeholders(template: str, placeholders: Dict[str, Any]) -> str:
 async def _build_placeholder_values(
     db: AsyncSession,
     context: InstanceContext,
-    relationship_type: Optional[Dict[str, Any]],
+    relationship_type: dict[str, Any] | None,
     user_qiao_id: str,
-    available_placeholders: Dict[str, Any],
-) -> Dict[str, Any]:
+    available_placeholders: dict[str, Any],
+) -> dict[str, Any]:
     """
     Build placeholder values for system prompt.
 
@@ -249,7 +249,7 @@ async def _build_placeholder_values(
     return placeholder_values
 
 
-async def _build_score_placeholders(db: AsyncSession, instance_qiao_id: str) -> Dict[str, str]:
+async def _build_score_placeholders(db: AsyncSession, instance_qiao_id: str) -> dict[str, str]:
     """
     Build score-related placeholders for an instance.
 
@@ -332,11 +332,17 @@ def _format_profile(profile: Any) -> str:
 
         # Support both dict and object
         nickname = (
-            profile.get("nickname") if isinstance(profile, dict) else getattr(profile, "nickname", None)
+            profile.get("nickname")
+            if isinstance(profile, dict)
+            else getattr(profile, "nickname", None)
         )
-        gender = profile.get("gender") if isinstance(profile, dict) else getattr(profile, "gender", None)
+        gender = (
+            profile.get("gender") if isinstance(profile, dict) else getattr(profile, "gender", None)
+        )
         bio = profile.get("bio") if isinstance(profile, dict) else getattr(profile, "bio", None)
-        region = profile.get("region") if isinstance(profile, dict) else getattr(profile, "region", None)
+        region = (
+            profile.get("region") if isinstance(profile, dict) else getattr(profile, "region", None)
+        )
 
         if nickname:
             parts.append(f"昵称：{nickname}")
@@ -359,7 +365,7 @@ def _format_profile(profile: Any) -> str:
         return "资料格式化失败"
 
 
-async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Any]:
+async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Any | None:
     """
     Get user profile information.
 
@@ -373,7 +379,7 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Optional[Any
     return await get_user_profile(db, user_qiao_id)
 
 
-def _get_current_datetime(context: Dict[str, Any]) -> str:
+def _get_current_datetime(context: dict[str, Any]) -> str:
     """
     Get current datetime string based on instance timezone.
 
@@ -396,8 +402,8 @@ def _get_current_datetime(context: Dict[str, Any]) -> str:
 
 
 def _get_base_response_schema(
-    score_properties: Dict[str, Any], score_required: List[str]
-) -> Dict[str, Any]:
+    score_properties: dict[str, Any], score_required: list[str]
+) -> dict[str, Any]:
     """Get base JSON schema structure with dynamic score fields."""
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -483,9 +489,9 @@ async def build_conversation_context(
     db: AsyncSession,
     instance_qiao_id: str,
     user_qiao_id: str,
-    max_context_length: Optional[int] = None,
-    instance_timezone: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    max_context_length: int | None = None,
+    instance_timezone: str | None = None,
+) -> list[dict[str, Any]]:
     """
     Build conversation context from AI contexts table.
 
@@ -503,7 +509,9 @@ async def build_conversation_context(
     """
     try:
         # Get conversation contexts; when max_context_length is None, include all
-        contexts = await get_conversation_contexts(db, instance_qiao_id, user_qiao_id, max_context_length)
+        contexts = await get_conversation_contexts(
+            db, instance_qiao_id, user_qiao_id, max_context_length
+        )
 
         if not contexts:
             logger.debug(
@@ -514,9 +522,11 @@ async def build_conversation_context(
             return []
 
         # Convert contexts to business-format message dictionaries
-        messages: List[Dict[str, Any]] = []
+        messages: list[dict[str, Any]] = []
         for context in contexts:
-            role = _map_context_role_to_message_role(context.get("role", ConversationRole.USER.value))
+            role = _map_context_role_to_message_role(
+                context.get("role", ConversationRole.USER.value)
+            )
             message_type = context.get("message_type", "text")
             text_content = context.get("text_content")
             media_url = context.get("media_url")
@@ -558,7 +568,7 @@ async def build_conversation_context(
         raise AIServiceError(
             ai_service="context_building",
             reason="build_failed",
-            message=f"Failed to build conversation context: {str(e)}",
+            message=f"Failed to build conversation context: {e!s}",
         )
 
 
@@ -580,7 +590,7 @@ def _map_context_role_to_message_role(role: str) -> str:
     return role_mapping.get(role, "user")
 
 
-def _format_time_prefix(created_at: Any, instance_timezone: Optional[str]) -> Optional[str]:
+def _format_time_prefix(created_at: Any, instance_timezone: str | None) -> str | None:
     """
     Format timestamp for conversation history using instance timezone with humanized relative time.
 
@@ -776,13 +786,13 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
         raise AIServiceError(
             ai_service="placeholder_formatting",
             reason="formatting_failed",
-            message=f"Failed to format score placeholders: {str(e)}",
+            message=f"Failed to format score placeholders: {e!s}",
         )
 
 
 def validate_prompt_completeness(
-    prompt: str, required_placeholders: Optional[List[str]] = None
-) -> Dict[str, Any]:
+    prompt: str, required_placeholders: list[str] | None = None
+) -> dict[str, Any]:
     """
     Validate prompt completeness by checking for unresolved placeholders.
 
@@ -856,5 +866,5 @@ def validate_prompt_completeness(
             "is_valid": False,
             "missing_placeholders": [],
             "unresolved_placeholders": [],
-            "warnings": [f"Validation failed: {str(e)}"],
+            "warnings": [f"Validation failed: {e!s}"],
         }

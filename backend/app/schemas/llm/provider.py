@@ -5,7 +5,6 @@ This module contains Pydantic schemas for LLM providers.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 from schemas.common import BaseSchema
@@ -15,12 +14,16 @@ class LLMProviderBase(BaseSchema):
     """Base LLM provider schema."""
 
     name: str = Field(max_length=50, description="Provider identifier")
-    display_name: Optional[str] = Field(default=None, max_length=100, description="Display name for UI")
-    base_url: Optional[str] = Field(default=None, max_length=500, description="API base URL")
-    api_key_env: Optional[str] = Field(
+    display_name: str | None = Field(
+        default=None, max_length=100, description="Display name for UI"
+    )
+    base_url: str | None = Field(default=None, max_length=500, description="API base URL")
+    api_key_env: str | None = Field(
         default=None, max_length=100, description="Environment variable name for API key"
     )
-    default_model: Optional[str] = Field(default=None, max_length=100, description="Default model name")
+    default_model: str | None = Field(
+        default=None, max_length=100, description="Default model name"
+    )
     supports_streaming: bool = Field(default=True, description="Supports streaming output")
     supports_json_schema: bool = Field(default=False, description="Supports JSON schema")
     supports_thinking: bool = Field(default=False, description="Supports thinking mode")
@@ -30,12 +33,16 @@ class LLMProviderCreate(BaseModel):
     """Schema for creating an LLM provider."""
 
     name: str = Field(max_length=50, description="Provider identifier")
-    display_name: Optional[str] = Field(default=None, max_length=100, description="Display name for UI")
-    base_url: Optional[str] = Field(default=None, max_length=500, description="API base URL")
-    api_key_env: Optional[str] = Field(
+    display_name: str | None = Field(
+        default=None, max_length=100, description="Display name for UI"
+    )
+    base_url: str | None = Field(default=None, max_length=500, description="API base URL")
+    api_key_env: str | None = Field(
         default=None, max_length=100, description="Environment variable name for API key"
     )
-    default_model: Optional[str] = Field(default=None, max_length=100, description="Default model name")
+    default_model: str | None = Field(
+        default=None, max_length=100, description="Default model name"
+    )
     supports_streaming: bool = Field(default=True, description="Supports streaming output")
     supports_json_schema: bool = Field(default=False, description="Supports JSON schema")
     supports_thinking: bool = Field(default=False, description="Supports thinking mode")
@@ -44,16 +51,20 @@ class LLMProviderCreate(BaseModel):
 class LLMProviderUpdate(BaseModel):
     """Schema for updating an LLM provider."""
 
-    display_name: Optional[str] = Field(default=None, max_length=100, description="Display name for UI")
-    base_url: Optional[str] = Field(default=None, max_length=500, description="API base URL")
-    api_key_env: Optional[str] = Field(
+    display_name: str | None = Field(
+        default=None, max_length=100, description="Display name for UI"
+    )
+    base_url: str | None = Field(default=None, max_length=500, description="API base URL")
+    api_key_env: str | None = Field(
         default=None, max_length=100, description="Environment variable name for API key"
     )
-    default_model: Optional[str] = Field(default=None, max_length=100, description="Default model name")
-    supports_streaming: Optional[bool] = Field(default=None, description="Supports streaming output")
-    supports_json_schema: Optional[bool] = Field(default=None, description="Supports JSON schema")
-    supports_thinking: Optional[bool] = Field(default=None, description="Supports thinking mode")
-    status: Optional[int] = Field(default=None, description="Status")
+    default_model: str | None = Field(
+        default=None, max_length=100, description="Default model name"
+    )
+    supports_streaming: bool | None = Field(default=None, description="Supports streaming output")
+    supports_json_schema: bool | None = Field(default=None, description="Supports JSON schema")
+    supports_thinking: bool | None = Field(default=None, description="Supports thinking mode")
+    status: int | None = Field(default=None, description="Status")
 
 
 class LLMProviderResponse(LLMProviderBase):

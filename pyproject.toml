@@ -3,7 +3,7 @@
 # ============================================================================
 [tool.ruff]
 target-version = "py312"
-line-length = 108  # Keep consistent with previous black config
+line-length = 100  # Unified line length standard
 
 # Exclude directories
 extend-exclude = [

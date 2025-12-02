@@ -5,7 +5,7 @@ This module provides instance-related read/query functions with clear
 separation of concerns and pure function design.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from enums import ContactType
 from exceptions import AIDataAccessError
@@ -42,9 +42,9 @@ logger = get_logger(__name__)
 async def get_instance_context(
     db: AsyncSession,
     *,
-    instance_qiao_id: Optional[str] = None,
-    instance_id: Optional[int] = None,
-) -> Optional[InstanceContext]:
+    instance_qiao_id: str | None = None,
+    instance_id: int | None = None,
+) -> InstanceContext | None:
     """Query complete instance context exactly once per request."""
 
     if not instance_qiao_id and not instance_id:
@@ -136,7 +136,7 @@ async def get_instance_context(
 
 async def get_personality_with_placeholders(
     db: AsyncSession, personality_id: int
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Get personality with its placeholders.
 
@@ -179,12 +179,14 @@ async def get_personality_with_placeholders(
 
     except Exception as e:
         logger.error(
-            "personality_with_placeholders_query_failed", error=str(e), personality_id=personality_id
+            "personality_with_placeholders_query_failed",
+            error=str(e),
+            personality_id=personality_id,
         )
         return None
 
 
-async def _get_style_dimensions(db: AsyncSession, style_id: int) -> List[DimensionSpec]:
+async def _get_style_dimensions(db: AsyncSession, style_id: int) -> list[DimensionSpec]:
     result = await db.execute(
         select(
             AIDimension.id.label("id"),
@@ -208,7 +210,7 @@ async def _get_style_dimensions(db: AsyncSession, style_id: int) -> List[Dimensi
     ]
 
 
-def _normalize_relationship_counts(raw_counts: Optional[Dict[str, Any]]) -> RelationshipCounts:
+def _normalize_relationship_counts(raw_counts: dict[str, Any] | None) -> RelationshipCounts:
     if not raw_counts:
         return {}
 
@@ -247,11 +249,11 @@ def _build_profile(profile: Profile) -> ProfileInfo:
     )
 
 
-def _build_ai_type(creation_metadata: Optional[Dict[str, Any]]) -> Optional[AITypeInfo]:
+def _build_ai_type(creation_metadata: dict[str, Any] | None) -> AITypeInfo | None:
     if not creation_metadata:
         return None
 
-    def _parse_type_id(value: Any) -> Optional[int]:
+    def _parse_type_id(value: Any) -> int | None:
         if value is None:
             return None
         try:
@@ -260,7 +262,9 @@ def _build_ai_type(creation_metadata: Optional[Dict[str, Any]]) -> Optional[AITy
             return None
 
     type_id = creation_metadata.get("persona_type_id") or creation_metadata.get("template_type_id")
-    type_name = creation_metadata.get("persona_type_name") or creation_metadata.get("template_type_name")
+    type_name = creation_metadata.get("persona_type_name") or creation_metadata.get(
+        "template_type_name"
+    )
     parsed_type_id = _parse_type_id(type_id)
 
     if parsed_type_id is None or not type_name:
@@ -269,7 +273,7 @@ def _build_ai_type(creation_metadata: Optional[Dict[str, Any]]) -> Optional[AITy
     return {"id": parsed_type_id, "display_name": str(type_name)}
 
 
-def _build_current_relationship(relationship: Optional[AIRelationship]) -> Optional[CurrentRelationship]:
+def _build_current_relationship(relationship: AIRelationship | None) -> CurrentRelationship | None:
     if not relationship:
         return None
 
@@ -280,7 +284,7 @@ def _build_current_relationship(relationship: Optional[AIRelationship]) -> Optio
     )
 
 
-async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optional[Dict[str, Any]]:
+async def get_style_with_relationships(db: AsyncSession, style_id: int) -> dict[str, Any] | None:
     """
     Get style with relationship mappings.
 
@@ -331,7 +335,9 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optio
             )
 
         logger.debug(
-            "style_with_relationships_retrieved", style_id=style_id, relationships_count=len(relationships)
+            "style_with_relationships_retrieved",
+            style_id=style_id,
+            relationships_count=len(relationships),
         )
 
         return {
@@ -347,7 +353,7 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> Optio
 async def get_instance_relationship_config(
     db: AsyncSession,
     instance_qiao_id: str,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Fetch wake timing configuration for the instance's current relationship.
 
@@ -408,7 +414,7 @@ async def get_instance_relationship_config(
         return _default_relationship_timing()
 
 
-async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) -> Optional[int]:
+async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) -> int | None:
     """
     Get instance ID by qiao_id.
 
@@ -420,7 +426,9 @@ async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) ->
         Instance ID or None if not found
     """
     try:
-        result = await db.execute(select(AIInstance.id).where(AIInstance.qiao_id == instance_qiao_id))
+        result = await db.execute(
+            select(AIInstance.id).where(AIInstance.qiao_id == instance_qiao_id)
+        )
 
         instance_id = result.scalar_one_or_none()
 
@@ -434,7 +442,7 @@ async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) ->
         return None
 
 
-async def get_user_id_by_qiao_id(db: AsyncSession, user_qiao_id: str) -> Optional[int]:
+async def get_user_id_by_qiao_id(db: AsyncSession, user_qiao_id: str) -> int | None:
     """
     Get user ID by qiao_id.
 
@@ -460,7 +468,7 @@ async def get_user_id_by_qiao_id(db: AsyncSession, user_qiao_id: str) -> Optiona
         return None
 
 
-async def get_all_instances(db: AsyncSession) -> List[Dict[str, Any]]:
+async def get_all_instances(db: AsyncSession) -> list[dict[str, Any]]:
     """
     Get all active instances for admin interface.
 
@@ -492,7 +500,8 @@ async def get_all_instances(db: AsyncSession) -> List[Dict[str, Any]]:
                 {
                     "id": instance.id,
                     "qiao_id": instance.qiao_id,
-                    "name": (profile.nickname if profile else None) or f"Instance {instance.qiao_id}",
+                    "name": (profile.nickname if profile else None)
+                    or f"Instance {instance.qiao_id}",
                     "ai_type": _build_ai_type(instance.creation_metadata),
                     "user_qiao_id": owner_qiao_id,
                     "created_at": instance.created_at.isoformat() if instance.created_at else None,
@@ -514,7 +523,7 @@ async def get_all_instances(db: AsyncSession) -> List[Dict[str, Any]]:
         return []
 
 
-def _default_relationship_timing() -> Dict[str, Any]:
+def _default_relationship_timing() -> dict[str, Any]:
     """Provide sane defaults when relationship timing data is unavailable."""
 
     return {

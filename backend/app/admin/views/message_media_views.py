@@ -3,7 +3,7 @@ Message and media-related model views for Starlette-Admin.
 Creates ModelView instances for message system and media management.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -59,8 +59,12 @@ class MessageHistoryView(ModelView):
             label="Platform",
             help_text="Source platform",
         ),
-        StringField("conversation_id", label="Conversation ID", help_text="Conversation identifier"),
-        StringField("msg_id_server", label="Server Message ID", help_text="Server-generated message ID"),
+        StringField(
+            "conversation_id", label="Conversation ID", help_text="Conversation identifier"
+        ),
+        StringField(
+            "msg_id_server", label="Server Message ID", help_text="Server-generated message ID"
+        ),
         StringField(
             "msg_id_provider_inbound",
             label="Inbound Provider Message ID",
@@ -71,7 +75,9 @@ class MessageHistoryView(ModelView):
             label="Outbound Provider Message ID",
             help_text="Third-party provider message ID for outbound messages",
         ),
-        StringField("msg_id_client", label="Client Message ID", help_text="Client-generated message ID"),
+        StringField(
+            "msg_id_client", label="Client Message ID", help_text="Client-generated message ID"
+        ),
         "client_sent_time",
         IntegerEnumField(
             "from_type", enum=MessageParticipantType, label="From Type", help_text="Sender type"
@@ -115,17 +121,26 @@ class MediaFileView(ModelView):
     fields = [
         StringField("id", label="ID", help_text="Internal file ID"),
         StringField("file_id", label="File ID", help_text="External file identifier"),
-        IntegerEnumField("file_type", enum=FileType, label="File Type", help_text="Type of media file"),
-        StringField("original_name", label="Original Name", help_text="Original filename when uploaded"),
+        IntegerEnumField(
+            "file_type", enum=FileType, label="File Type", help_text="Type of media file"
+        ),
+        StringField(
+            "original_name", label="Original Name", help_text="Original filename when uploaded"
+        ),
         StringField("file_path", label="File Path", help_text="Storage path of the file"),
         StringField("file_url", label="File URL", help_text="Public access URL"),
         IntegerField("file_size", label="File Size (bytes)", help_text="File size in bytes"),
         StringField("mime_type", label="MIME Type", help_text="File MIME type"),
         IntegerEnumField(
-            "upload_by_type", enum=UploaderType, label="Uploaded By Type", help_text="Type of uploader"
+            "upload_by_type",
+            enum=UploaderType,
+            label="Uploaded By Type",
+            help_text="Type of uploader",
         ),
         StringField("upload_by_id", label="Uploader ID", help_text="Uploader snowflake ID"),
-        StringField("upload_by_qiao_id", label="Uploader Qiao ID", help_text="External ID of uploader"),
+        StringField(
+            "upload_by_qiao_id", label="Uploader Qiao ID", help_text="External ID of uploader"
+        ),
         IntegerEnumField("status", enum=FileStatus, label="Status", help_text="File status"),
         LocalDateTimeField("created_at", label="Created At", help_text="File creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
@@ -139,7 +154,14 @@ class MessageDeliveryFailureView(ModelView):
     name = "Message Failures"
 
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "msg_id_server", "from_id", "to_id", "created_at", "updated_at"]
+    exclude_fields_from_edit = [
+        "id",
+        "msg_id_server",
+        "from_id",
+        "to_id",
+        "created_at",
+        "updated_at",
+    ]
     exclude_fields_from_list = []
 
     fields_default_sort = [("created_at", True)]
@@ -175,7 +197,9 @@ class MessageDeliveryFailureView(ModelView):
             help_text="Type of message receiver",
         ),
         StringField("to_id", label="Receiver ID", help_text="Receiver snowflake ID"),
-        StringField("to_qiao_id", label="Receiver Qiao ID", help_text="Receiver external identifier"),
+        StringField(
+            "to_qiao_id", label="Receiver Qiao ID", help_text="Receiver external identifier"
+        ),
         IntegerEnumField(
             "message_type",
             enum=MessageType,
@@ -190,20 +214,30 @@ class MessageDeliveryFailureView(ModelView):
         ),
         TextAreaField("content", label="Message Content", help_text="Original message content"),
         StringField("fail_reason_code", label="Failure Code", help_text="Error reason code"),
-        TextAreaField("fail_detail", label="Failure Details", help_text="Detailed error information"),
+        TextAreaField(
+            "fail_detail", label="Failure Details", help_text="Detailed error information"
+        ),
         IntegerField("retry_count", label="Retry Count", help_text="Current retry attempts"),
-        IntegerField("max_retry_count", label="Max Retries", help_text="Maximum retry attempts allowed"),
-        LocalDateTimeField("next_retry_at", label="Next Retry", help_text="Scheduled next retry time"),
-        LocalDateTimeField("created_at", label="Created At", help_text="Failure record creation time"),
+        IntegerField(
+            "max_retry_count", label="Max Retries", help_text="Maximum retry attempts allowed"
+        ),
+        LocalDateTimeField(
+            "next_retry_at", label="Next Retry", help_text="Scheduled next retry time"
+        ),
+        LocalDateTimeField(
+            "created_at", label="Created At", help_text="Failure record creation time"
+        ),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation for message delivery failures."""
         # Validate retry count
         if "retry_count" in data and "max_retry_count" in data:
             if data["retry_count"] > data["max_retry_count"]:
-                raise FormValidationError({"retry_count": "Retry count cannot exceed maximum retries"})
+                raise FormValidationError(
+                    {"retry_count": "Retry count cannot exceed maximum retries"}
+                )
 
         # Validate message type
         if "message_type" in data:
@@ -227,7 +261,15 @@ class PresetAssetView(ModelView):
 
     fields_default_sort = [("asset_type", False), ("sort_order", False)]
     searchable_fields = ["name", "description"]
-    sortable_fields = ["id", "asset_type", "category", "status", "sort_order", "created_at", "updated_at"]
+    sortable_fields = [
+        "id",
+        "asset_type",
+        "category",
+        "status",
+        "sort_order",
+        "created_at",
+        "updated_at",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Preset asset ID"),
@@ -247,12 +289,16 @@ class PresetAssetView(ModelView):
             help_text="Is bundled with client",
             required=False,
         ),
-        IntegerField("file_id", label="File ID", help_text="Media file ID (optional)", required=False),
+        IntegerField(
+            "file_id", label="File ID", help_text="Media file ID (optional)", required=False
+        ),
         StringField("url", label="URL", help_text="Asset URL", required=True),
         TextAreaField(
             "prompt", label="Prompt", help_text="AI generation prompt (optional)", required=False
         ),
-        StringField("description", label="Description", help_text="Asset description", required=False),
+        StringField(
+            "description", label="Description", help_text="Asset description", required=False
+        ),
         IntegerEnumField(
             "status",
             choices=[(1, "Active"), (2, "Inactive")],

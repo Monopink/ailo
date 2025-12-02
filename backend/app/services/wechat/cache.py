@@ -3,18 +3,17 @@ Access token cache for WeChat API
 """
 
 import time
-from typing import Optional
 
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Module-level cache variables
-_token: Optional[str] = None
+_token: str | None = None
 _expires_at: float = 0
 
 
-def get_token() -> Optional[str]:
+def get_token() -> str | None:
     """
     Get cached token
 

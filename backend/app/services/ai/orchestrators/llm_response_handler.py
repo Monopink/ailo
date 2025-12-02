@@ -6,7 +6,7 @@ asynchronous message sending tasks.
 """
 
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any
 
 from models.ai import AIInstance
 from services.message.processing.buffer import finalize_buffer_if_locked
@@ -40,11 +40,11 @@ async def process_llm_response(
     user_qiao_id: str,
     instance_qiao_id: str,
     instance_context: InstanceContext,
-    ai_response: Dict[str, Any],
-    llm_result: Dict[str, Any],
-    locked_buffer_id: Optional[int],
-    user_message_item_id: Optional[int],
-) -> Dict[str, Any]:
+    ai_response: dict[str, Any],
+    llm_result: dict[str, Any],
+    locked_buffer_id: int | None,
+    user_message_item_id: int | None,
+) -> dict[str, Any]:
     """Persist side effects from one LLM response and emit outgoing messages."""
 
     try:
@@ -52,14 +52,20 @@ async def process_llm_response(
         memory_operations = ai_response.get("memory_operations")
 
         if new_scores:
-            await update_instance_relationship_scores(db, instance_context["instance_id"], new_scores)
+            await update_instance_relationship_scores(
+                db, instance_context["instance_id"], new_scores
+            )
 
-            latest_scores = await get_instance_relationship_scores(db, instance_context["instance_id"])
+            latest_scores = await get_instance_relationship_scores(
+                db, instance_context["instance_id"]
+            )
             if latest_scores:
                 rel = await determine_relationship_type(db, instance_context, latest_scores)
                 if rel and rel.get("relationship"):
                     relationship = rel["relationship"]
-                    display_name = getattr(relationship, "display_name", getattr(relationship, "name", ""))
+                    display_name = getattr(
+                        relationship, "display_name", getattr(relationship, "name", "")
+                    )
                     await set_instance_current_relationship(
                         db, instance_context["instance_id"], relationship.id, display_name
                     )
@@ -110,7 +116,9 @@ async def process_llm_response(
     should_reply = ai_response.get("should_reply", True)
 
     if should_reply and (outgoing_messages or followup_messages):
-        typing_speed_seconds_per_word = await _resolve_typing_speed_seconds_per_word(db, instance_qiao_id)
+        typing_speed_seconds_per_word = await _resolve_typing_speed_seconds_per_word(
+            db, instance_qiao_id
+        )
         followup_delay_seconds = await _resolve_followup_delay_seconds(db, instance_qiao_id)
     else:
         outgoing_messages = []

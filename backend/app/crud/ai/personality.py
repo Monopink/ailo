@@ -5,7 +5,7 @@ This module provides both standard CRUD operations and complex queries
 for AI personality management.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from crud.base import CRUDBase
 from models.ai import AIPersonality, AIPersonalityPlaceholder
@@ -22,7 +22,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
 
     async def get_with_placeholders(
         self, db: AsyncSession, *, personality_id: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get personality with its placeholders.
 
@@ -74,13 +74,15 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
 
         except Exception as e:
             logger.error(
-                "personality_with_placeholders_query_failed", error=str(e), personality_id=personality_id
+                "personality_with_placeholders_query_failed",
+                error=str(e),
+                personality_id=personality_id,
             )
-            raise RuntimeError(f"Failed to get personality with placeholders: {str(e)}")
+            raise RuntimeError(f"Failed to get personality with placeholders: {e!s}")
 
     async def get_available_personalities(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> List[AIPersonality]:
+    ) -> list[AIPersonality]:
         """
         Get available personalities for instance creation.
 
@@ -114,7 +116,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
 
     async def search_personalities(
         self, db: AsyncSession, *, query: str, skip: int = 0, limit: int = 20
-    ) -> List[AIPersonality]:
+    ) -> list[AIPersonality]:
         """
         Search personalities by display name or prompt text.
 
@@ -160,8 +162,8 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
     """AI Personality Placeholder CRUD operations."""
 
     async def get_by_personality(
-        self, db: AsyncSession, *, personality_id: Optional[int] = None
-    ) -> List[AIPersonalityPlaceholder]:
+        self, db: AsyncSession, *, personality_id: int | None = None
+    ) -> list[AIPersonalityPlaceholder]:
         """
         Get placeholders by personality ID (or global placeholders if None).
 
@@ -190,7 +192,9 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
 
             placeholders = list(result.scalars().all())
 
-            logger.debug("placeholders_retrieved", personality_id=personality_id, count=len(placeholders))
+            logger.debug(
+                "placeholders_retrieved", personality_id=personality_id, count=len(placeholders)
+            )
 
             return placeholders
 
@@ -200,8 +204,8 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
             return []
 
     async def get_by_key(
-        self, db: AsyncSession, *, placeholder_key: str, personality_id: Optional[int] = None
-    ) -> Optional[AIPersonalityPlaceholder]:
+        self, db: AsyncSession, *, placeholder_key: str, personality_id: int | None = None
+    ) -> AIPersonalityPlaceholder | None:
         """
         Get placeholder by key and personality ID.
 
@@ -234,7 +238,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
 
     async def get_placeholders_by_personality(
         self, db: AsyncSession, *, personality_id: int
-    ) -> List[AIPersonalityPlaceholder]:
+    ) -> list[AIPersonalityPlaceholder]:
         """
         Get all placeholders for a personality (both specific and global).
 
@@ -269,7 +273,9 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
 
         except Exception as e:
             logger.error(
-                "placeholders_by_personality_query_failed", error=str(e), personality_id=personality_id
+                "placeholders_by_personality_query_failed",
+                error=str(e),
+                personality_id=personality_id,
             )
             return []
 

@@ -8,7 +8,11 @@ from core.database import get_db
 from crud.system import system_configs
 from fastapi import APIRouter, Depends, HTTPException, status
 from models.user import User
-from schemas.message import LeanCloudConfigResponse, LeanCloudSignatureRequest, LeanCloudSignatureResponse
+from schemas.message import (
+    LeanCloudConfigResponse,
+    LeanCloudSignatureRequest,
+    LeanCloudSignatureResponse,
+)
 from services.message.providers.leancloud import service as leancloud_service
 from services.message.providers.leancloud.signature import create_login_signature
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +60,9 @@ async def generate_lc_im_signature(
     """
 
     if payload.client_id != current_user.qiao_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="客户端ID与当前用户不匹配")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="客户端ID与当前用户不匹配"
+        )
 
     app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
     if not app_id:

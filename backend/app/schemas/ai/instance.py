@@ -5,7 +5,7 @@ This module contains Pydantic schemas for AI instances and contexts.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from enums import AIInstanceCreator
 from pydantic import BaseModel, Field
@@ -17,19 +17,23 @@ class AIInstanceBase(BaseSchema):
 
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
-    creation_metadata: Dict[str, Any] = Field(
+    creation_metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Snapshot of creation data stored with the instance",
     )
-    status: Optional[int] = Field(1, ge=1, le=3, description="Instance status")
-    relationship_id: Optional[int] = Field(None, description="Current relationship ID")
-    relationship_counts: Optional[Dict[str, Any]] = Field(None, description="Relationship usage counts")
-    memory: Optional[str] = Field(None, description="Instance memory settings")
-    prompt_variables: Optional[Dict[str, Any]] = Field(
+    status: int | None = Field(1, ge=1, le=3, description="Instance status")
+    relationship_id: int | None = Field(None, description="Current relationship ID")
+    relationship_counts: dict[str, Any] | None = Field(
+        None, description="Relationship usage counts"
+    )
+    memory: str | None = Field(None, description="Instance memory settings")
+    prompt_variables: dict[str, Any] | None = Field(
         None, description="Placeholder overrides used for this instance"
     )
-    request_params: Optional[Dict[str, Any]] = Field(None, description="LLM request parameter overrides")
-    timezone: Optional[str] = Field(
+    request_params: dict[str, Any] | None = Field(
+        None, description="LLM request parameter overrides"
+    )
+    timezone: str | None = Field(
         "Asia/Shanghai",
         max_length=50,
         description="IANA timezone for this instance (e.g., Asia/Shanghai)",
@@ -46,16 +50,16 @@ class AIInstanceCreate(BaseModel):
     user_qiao_id: str = Field(..., max_length=32, description="Owning user qiao_id")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
-    creation_metadata: Optional[Dict[str, Any]] = Field(
+    creation_metadata: dict[str, Any] | None = Field(
         None,
         description="Snapshot of persona/template metadata captured at creation time",
     )
-    memory: Optional[str] = Field(None, description="Instance memory settings")
-    placeholder_overrides: Optional[Dict[str, Any]] = Field(
+    memory: str | None = Field(None, description="Instance memory settings")
+    placeholder_overrides: dict[str, Any] | None = Field(
         None,
         description="Prompt placeholder overrides used to populate prompt_variables",
     )
-    request_params: Optional[Dict[str, Any]] = Field(
+    request_params: dict[str, Any] | None = Field(
         None,
         description="LLM request parameters override",
         examples=[
@@ -67,12 +71,12 @@ class AIInstanceCreate(BaseModel):
             }
         ],
     )
-    relationship_id: Optional[int] = Field(None, description="Initial relationship ID")
-    relationship_counts: Optional[Dict[str, Any]] = Field(
+    relationship_id: int | None = Field(None, description="Initial relationship ID")
+    relationship_counts: dict[str, Any] | None = Field(
         None, description="Initial relationship usage counts"
     )
-    status: Optional[int] = Field(1, ge=1, le=3, description="Instance status")
-    timezone: Optional[str] = Field(
+    status: int | None = Field(1, ge=1, le=3, description="Instance status")
+    timezone: str | None = Field(
         "Asia/Shanghai",
         max_length=50,
         description="IANA timezone for this instance (e.g., Asia/Shanghai)",
@@ -80,22 +84,28 @@ class AIInstanceCreate(BaseModel):
     typing_speed_wpm: int = Field(
         ..., ge=1, description="Typing speed for this instance in words per minute"
     )
-    created_by: Optional[int] = Field(None, description="Creator type (defaults to user if omitted)")
+    created_by: int | None = Field(None, description="Creator type (defaults to user if omitted)")
 
 
 class AIInstanceUpdate(BaseModel):
     """Schema for updating AI instance fields."""
 
-    style_id: Optional[int] = Field(None, description="Style ID")
-    personality_id: Optional[int] = Field(None, description="Personality ID")
-    status: Optional[int] = Field(None, ge=1, le=3, description="Instance status")
-    relationship_id: Optional[int] = Field(None, description="Current relationship ID")
-    relationship_counts: Optional[Dict[str, Any]] = Field(None, description="Relationship usage counts")
-    memory: Optional[str] = Field(None, description="Instance memory settings")
-    prompt_variables: Optional[Dict[str, Any]] = Field(None, description="Prompt placeholder overrides")
-    request_params: Optional[Dict[str, Any]] = Field(None, description="LLM request parameter overrides")
-    timezone: Optional[str] = Field(None, max_length=50, description="IANA timezone for this instance")
-    typing_speed_wpm: Optional[int] = Field(
+    style_id: int | None = Field(None, description="Style ID")
+    personality_id: int | None = Field(None, description="Personality ID")
+    status: int | None = Field(None, ge=1, le=3, description="Instance status")
+    relationship_id: int | None = Field(None, description="Current relationship ID")
+    relationship_counts: dict[str, Any] | None = Field(
+        None, description="Relationship usage counts"
+    )
+    memory: str | None = Field(None, description="Instance memory settings")
+    prompt_variables: dict[str, Any] | None = Field(
+        None, description="Prompt placeholder overrides"
+    )
+    request_params: dict[str, Any] | None = Field(
+        None, description="LLM request parameter overrides"
+    )
+    timezone: str | None = Field(None, max_length=50, description="IANA timezone for this instance")
+    typing_speed_wpm: int | None = Field(
         None, ge=1, description="Typing speed for this instance in words per minute"
     )
 
@@ -120,7 +130,7 @@ class AIInstanceListResponse(BaseSchema):
     user_qiao_id: str = Field(..., description="Owning user qiao_id")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
-    creation_metadata: Dict[str, Any] = Field(
+    creation_metadata: dict[str, Any] = Field(
         default_factory=dict, description="Snapshot of instance creation payload"
     )
     typing_speed_wpm: int = Field(..., description="Typing speed words per minute")
@@ -131,7 +141,7 @@ class AIInstanceListResponse(BaseSchema):
 class BatchAIInstanceDelete(BaseModel):
     """Schema for batch deleting AI instances."""
 
-    instance_qiao_ids: List[str] = Field(
+    instance_qiao_ids: list[str] = Field(
         ..., min_length=1, max_length=50, description="Instance external IDs"
     )
     permanent: bool = Field(False, description="Permanent deletion flag")

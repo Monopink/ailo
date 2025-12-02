@@ -3,7 +3,7 @@ Admin AI Style API endpoints.
 Handles style management including dimensions, associations, and relationship mappings.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from core.database import get_db
 from crud.ai import ai_style as style_crud
@@ -19,7 +19,9 @@ style_router = APIRouter()
 
 
 @style_router.get("/ai_style/{style_id}/dimensions")
-async def get_style_dimensions(style_id: int, db: AsyncSession = Depends(get_db)) -> List[Dict[str, Any]]:
+async def get_style_dimensions(
+    style_id: int, db: AsyncSession = Depends(get_db)
+) -> list[dict[str, Any]]:
     """Get dimensions for a style."""
     result = await db.execute(
         select(AIDimension)
@@ -42,8 +44,8 @@ async def get_style_dimensions(style_id: int, db: AsyncSession = Depends(get_db)
 
 @style_router.post("/ai_style/{style_id}/save")
 async def save_style_complete(
-    style_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+    style_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """Save style dimensions and relationship mappings (normalized, strict validation).
 
     Responsibilitiai_style/
@@ -91,15 +93,19 @@ async def save_style_complete(
     created_dims = 0
 
     # Map negative temp_id -> new dimension_id
-    temp_to_new_dim_id: Dict[int, int] = {}
+    temp_to_new_dim_id: dict[int, int] = {}
 
     for dim_data in dimensions_data:
         # Validate initial_position strictly (no defaults)
         if "initial_position" not in dim_data or dim_data["initial_position"] is None:
-            raise HTTPException(status_code=400, detail="initial_position is required for each dimension")
+            raise HTTPException(
+                status_code=400, detail="initial_position is required for each dimension"
+            )
         init_pos = dim_data["initial_position"]
         if not isinstance(init_pos, (int,)) or not (0 <= init_pos <= 1000):
-            raise HTTPException(status_code=400, detail="initial_position must be between 0 and 1000")
+            raise HTTPException(
+                status_code=400, detail="initial_position must be between 0 and 1000"
+            )
 
         dimension_id = dim_data.get("dimension_id")
 
@@ -116,15 +122,14 @@ async def save_style_complete(
 
             if existing_dim:
                 raise HTTPException(status_code=400, detail="dimension name already exists")
-            else:
-                new_dimension = AIDimension(
-                    name=dim_data["name"],
-                    display_name=dim_data.get("display_name"),
-                    description=dim_data.get("description"),
-                )
-                db.add(new_dimension)
-                await db.flush()
-                dimension_id = new_dimension.id
+            new_dimension = AIDimension(
+                name=dim_data["name"],
+                display_name=dim_data.get("display_name"),
+                description=dim_data.get("description"),
+            )
+            db.add(new_dimension)
+            await db.flush()
+            dimension_id = new_dimension.id
 
             # Register temp_id mapping if present
             if isinstance(dim_data.get("temp_id"), int) and dim_data["temp_id"] < 0:
@@ -154,7 +159,9 @@ async def save_style_complete(
                 update_fields["description"] = dim_data.get("description")
             if update_fields:
                 await db.execute(
-                    update(AIDimension).where(AIDimension.id == dimension_id).values(**update_fields)
+                    update(AIDimension)
+                    .where(AIDimension.id == dimension_id)
+                    .values(**update_fields)
                 )
 
     # Commit dimension and association changes first (IDs are now stable)
@@ -242,7 +249,9 @@ async def save_style_complete(
         )
         in_use_ids = {row[0] for row in assoc_result.fetchall()}
         if in_use_ids:
-            raise HTTPException(status_code=400, detail=f"Dimensions still in use: {sorted(in_use_ids)}")
+            raise HTTPException(
+                status_code=400, detail=f"Dimensions still in use: {sorted(in_use_ids)}"
+            )
 
         # Check mappings
         map_result = await db.execute(
@@ -294,10 +303,14 @@ async def save_style_complete(
 
 
 @style_router.get("/style/{style_id}/available-dimensions")
-async def get_available_dimensions(style_id: int, db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def get_available_dimensions(
+    style_id: int, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """Get dimensions not yet added to this style."""
     # Get dimensions already in this style
-    existing_stmt = select(AIStyleDimension.dimension_id).where(AIStyleDimension.style_id == style_id)
+    existing_stmt = select(AIStyleDimension.dimension_id).where(
+        AIStyleDimension.style_id == style_id
+    )
     existing_result = await db.execute(existing_stmt)
     existing_ids = {row[0] for row in existing_result.fetchall()}
 
@@ -342,7 +355,7 @@ async def get_available_dimensions(style_id: int, db: AsyncSession = Depends(get
 @style_router.get("/style/{style_id}/dimension/{dimension_id}/other-styles")
 async def get_other_styles_using_dimension(
     style_id: int, dimension_id: int, db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List other styles using the given dimension (exclude current style)."""
     result = await db.execute(
         select(AIStyle)

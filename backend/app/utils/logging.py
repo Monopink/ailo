@@ -1,7 +1,7 @@
 import logging
 import logging.handlers
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
@@ -49,7 +49,10 @@ def configure_logging(
     # Configure file handler with rotation
     log_file = os.path.join(log_dir, f"{service_name}.log")
     file_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"  # 10MB
+        log_file,
+        maxBytes=10 * 1024 * 1024,
+        backupCount=5,
+        encoding="utf-8",  # 10MB
     )
     file_handler.setLevel(numeric_level)
 
@@ -58,7 +61,9 @@ def configure_logging(
     console_handler.setLevel(numeric_level)
 
     # Configure root logger
-    logging.basicConfig(level=numeric_level, format="%(message)s", handlers=[file_handler, console_handler])
+    logging.basicConfig(
+        level=numeric_level, format="%(message)s", handlers=[file_handler, console_handler]
+    )
 
     # Choose processors based on format
     if log_format.lower() == "json":
@@ -104,7 +109,7 @@ def configure_logging(
     )
 
 
-def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.BoundLogger:
     """
     Get a preconfigured structured logger
 
@@ -136,7 +141,7 @@ def log_with_context(
     logger: structlog.BoundLogger,
     level: str,
     event: str,
-    context: Optional[Dict[str, Any]] = None,
+    context: dict[str, Any] | None = None,
     **kwargs,
 ) -> None:
     """

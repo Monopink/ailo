@@ -3,8 +3,6 @@ Admin logging utilities.
 Provides both operation logging and login logging functionality.
 """
 
-from typing import Optional
-
 from fastapi import Request
 from models.admin import AdminLoginLog, AdminOperationLog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,9 +17,9 @@ async def create_operation_log(
     operation_type: int,
     resource_type: str,
     operation_desc: str,
-    resource_id: Optional[str] = None,
-    resource_name: Optional[str] = None,
-    request: Optional[Request] = None,
+    resource_id: str | None = None,
+    resource_name: str | None = None,
+    request: Request | None = None,
 ) -> None:
     """
     Create an operation log entry.
@@ -48,7 +46,9 @@ async def create_operation_log(
 
         # Extract IP and user agent from request if available
         if request:
-            log_data["ip_address"] = getattr(request.client, "host", None) if request.client else None
+            log_data["ip_address"] = (
+                getattr(request.client, "host", None) if request.client else None
+            )
             log_data["user_agent"] = request.headers.get("user-agent", "")
 
         # Create log entry
@@ -56,7 +56,9 @@ async def create_operation_log(
         db.add(log_entry)
         await db.commit()
 
-        logger.info("operation_log_created", admin_user_id=admin_user_id, operation_type=operation_type)
+        logger.info(
+            "operation_log_created", admin_user_id=admin_user_id, operation_type=operation_type
+        )
 
     except Exception as e:
         logger.error(
@@ -72,9 +74,9 @@ async def create_login_log(
     db: AsyncSession,
     username: str,
     result: int,
-    admin_user_id: Optional[int] = None,
-    fail_reason: Optional[str] = None,
-    request: Optional[Request] = None,
+    admin_user_id: int | None = None,
+    fail_reason: str | None = None,
+    request: Request | None = None,
 ) -> None:
     """
     Create a login log entry.
@@ -97,7 +99,9 @@ async def create_login_log(
 
         # Extract IP and user agent from request if available
         if request:
-            log_data["ip_address"] = getattr(request.client, "host", None) if request.client else None
+            log_data["ip_address"] = (
+                getattr(request.client, "host", None) if request.client else None
+            )
             log_data["user_agent"] = request.headers.get("user-agent", "")
 
         # Create log entry

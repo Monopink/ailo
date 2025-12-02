@@ -4,7 +4,7 @@ AI instance dimension related models.
 This module contains SQLAlchemy models for AI instance dimension scores.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 from models.base import SnowflakeModel
 from sqlalchemy import BigInteger, Index, Integer, UniqueConstraint, text
@@ -35,9 +35,11 @@ class AIInstanceDimension(SnowflakeModel):
 
     score: Mapped[int] = mapped_column(Integer, nullable=False, comment="Current score value")
 
-    position: Mapped[int] = mapped_column(Integer, nullable=False, comment="Per mille position (0-1000)")
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Per mille position (0-1000)"
+    )
 
-    position_mapping_algorithm: Mapped[Optional[int]] = mapped_column(
+    position_mapping_algorithm: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         default=1,
@@ -45,7 +47,7 @@ class AIInstanceDimension(SnowflakeModel):
         comment="Position mapping algorithm: 1=direct, 2=V1",
     )
 
-    position_mapping_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    position_mapping_params: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         server_default=text("'{}'::jsonb"),
@@ -71,7 +73,9 @@ class AIInstanceDimension(SnowflakeModel):
     # Indexes and constraints - Only essential indexes for MVP
     __table_args__ = (
         UniqueConstraint(
-            "instance_id", "dimension_id", name="ai_instance_dimensions_instance_id_dimension_id_key"
+            "instance_id",
+            "dimension_id",
+            name="ai_instance_dimensions_instance_id_dimension_id_key",
         ),
         Index("idx_ai_instance_dimensions_instance_id", "instance_id"),
         Index("idx_ai_instance_dimensions_dimension_id", "dimension_id"),

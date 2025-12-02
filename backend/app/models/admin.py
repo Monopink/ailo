@@ -5,7 +5,6 @@ This module contains SQLAlchemy models for admin users and operation logs.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from enums import AdminOperationType, AdminRole, AdminStatus
 from models.base import AutoIncrementModel, ImmutableAutoIncrementModel, StatusMixin
@@ -23,7 +22,9 @@ class AdminUser(AutoIncrementModel, StatusMixin):
 
     __tablename__ = "admin_users"
 
-    username: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, comment="Admin username")
+    username: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, comment="Admin username"
+    )
 
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, comment="Password hash")
 
@@ -33,7 +34,7 @@ class AdminUser(AutoIncrementModel, StatusMixin):
         comment="Role: 1=super_admin, 2=admin, 3=viewer",
     )
 
-    last_login: Mapped[Optional[datetime]] = mapped_column(
+    last_login: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Last login time"
     )
 
@@ -41,7 +42,7 @@ class AdminUser(AutoIncrementModel, StatusMixin):
         Integer, nullable=False, default=0, server_default=text("0"), comment="Login count"
     )
 
-    created_by: Mapped[Optional[int]] = mapped_column(
+    created_by: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Creator admin user ID"
     )
 
@@ -126,24 +127,30 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
     admin_user_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="Admin user ID")
 
     operation_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Operation: 1=CREATE, 2=UPDATE, 3=DELETE, 4=ENABLE, 5=DISABLE"
+        Integer,
+        nullable=False,
+        comment="Operation: 1=CREATE, 2=UPDATE, 3=DELETE, 4=ENABLE, 5=DISABLE",
     )
 
     resource_type: Mapped[str] = mapped_column(
         String(50), nullable=False, comment="Resource type: user, ai_instance, config, admin, etc."
     )
 
-    resource_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Resource ID")
+    resource_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, comment="Resource ID"
+    )
 
-    resource_name: Mapped[Optional[str]] = mapped_column(
+    resource_name: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="Resource name"
     )
 
-    operation_desc: Mapped[str] = mapped_column(Text, nullable=False, comment="Operation description")
+    operation_desc: Mapped[str] = mapped_column(
+        Text, nullable=False, comment="Operation description"
+    )
 
-    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="IP address")
+    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True, comment="IP address")
 
-    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent")
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True, comment="User agent")
 
     @property
     def operation_type_display(self) -> str:
@@ -166,14 +173,20 @@ class AdminLoginLog(ImmutableAutoIncrementModel):
 
     # created_at inherited from ImmutableAutoIncrementModel
 
-    admin_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Admin user ID")
+    admin_user_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="Admin user ID"
+    )
 
     username: Mapped[str] = mapped_column(String(50), nullable=False, comment="Login username")
 
-    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="User agent")
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True, comment="User agent")
 
-    ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True, comment="IP address")
+    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True, comment="IP address")
 
-    result: Mapped[int] = mapped_column(Integer, nullable=False, comment="Result: 1=success, 2=fail")
+    result: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Result: 1=success, 2=fail"
+    )
 
-    fail_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Failure reason")
+    fail_reason: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, comment="Failure reason"
+    )

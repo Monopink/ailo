@@ -6,8 +6,8 @@ Unified service for storing all types of messages to message_history table.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Union
+from datetime import UTC, datetime
+from typing import Any
 
 from enums import MessageDirection, MessageParticipantType, MessageStatus, ServiceProvider
 from models.message.message import MessageHistory
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 async def store_message(
     db: AsyncSession,
-    event: Union[InboundMessageEvent, OutboundMessageEvent],
+    event: InboundMessageEvent | OutboundMessageEvent,
 ) -> MessageHistory:
     """
     Store message to message_history from event object.
@@ -80,12 +80,12 @@ async def _store_message_internal(
     content: str,
     message_type: int,
     direction: int,
-    msg_id_provider: Optional[str] = None,
-    msg_id_client: Optional[str] = None,
-    client_sent_time: Optional[Union[int, float, str, datetime]] = None,
-    sent_at: Optional[Union[int, float, str, datetime]] = None,
-    msg_id_server: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    msg_id_provider: str | None = None,
+    msg_id_client: str | None = None,
+    client_sent_time: int | float | str | datetime | None = None,
+    sent_at: int | float | str | datetime | None = None,
+    msg_id_server: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> MessageHistory:
     """
     Store message to message_history.
@@ -125,7 +125,7 @@ async def _store_message_internal(
     normalized_client_sent_time = _normalize_client_sent_time(client_sent_time)
     normalized_sent_at = _normalize_client_sent_time(sent_at)
     if normalized_sent_at is None:
-        normalized_sent_at = normalized_client_sent_time or datetime.now(timezone.utc)
+        normalized_sent_at = normalized_client_sent_time or datetime.now(UTC)
 
     # Create message record
     message_data = {
@@ -169,26 +169,24 @@ async def _store_message_internal(
 
 
 def _normalize_client_sent_time(
-    client_sent_time: Optional[Union[int, float, str, datetime]],
-) -> Optional[datetime]:
+    client_sent_time: int | float | str | datetime | None,
+) -> datetime | None:
     """Convert heterogeneous client timestamps to timezone-aware datetime."""
     if client_sent_time is None:
         return None
 
     if isinstance(client_sent_time, datetime):
-        return (
-            client_sent_time if client_sent_time.tzinfo else client_sent_time.replace(tzinfo=timezone.utc)
-        )
+        return client_sent_time if client_sent_time.tzinfo else client_sent_time.replace(tzinfo=UTC)
 
     if isinstance(client_sent_time, (int, float)):
         # Treat large values as milliseconds, otherwise assume seconds.
         seconds = client_sent_time / 1000 if client_sent_time > 1e11 else client_sent_time
-        return datetime.fromtimestamp(seconds, tz=timezone.utc)
+        return datetime.fromtimestamp(seconds, tz=UTC)
 
     if isinstance(client_sent_time, str):
         try:
             parsed = datetime.fromisoformat(client_sent_time.replace("Z", "+00:00"))
-            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
         except ValueError:
             logger.warning(
                 "invalid_client_sent_time_format",
@@ -203,6 +201,8 @@ def _normalize_client_sent_time(
     return None
 
 
-async def _get_participant_info(db: AsyncSession, qiao_id: str) -> tuple[MessageParticipantType, int]:
+async def _get_participant_info(
+    db: AsyncSession, qiao_id: str
+) -> tuple[MessageParticipantType, int]:
     """Get participant info (delegates to participant_resolver)."""
     return await get_participant_info(db, qiao_id)

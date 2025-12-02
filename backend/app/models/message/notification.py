@@ -5,7 +5,7 @@ This module contains SQLAlchemy model for notification push history.
 """
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from enums import NotificationStatus
 from models.base import SnowflakeModel
@@ -30,7 +30,7 @@ class NotificationPushHistory(SnowflakeModel):
         Integer, nullable=False, comment="Notification type: 1=contact_request"
     )
 
-    action_data: Mapped[Dict[str, Any]] = mapped_column(
+    action_data: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, comment="Action and data objects (JSON)"
     )
 

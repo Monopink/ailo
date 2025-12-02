@@ -5,7 +5,7 @@ This module provides functions for validating AI responses against JSON schemas.
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import jsonschema
 from services.llm import LLMSessionContext, invoke_llm
@@ -15,7 +15,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str, Any]:
+def validate_ai_response(response: Any, json_schema: dict[str, Any]) -> dict[str, Any]:
     """
     Validate AI response against JSON schema.
 
@@ -55,7 +55,7 @@ def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str
                 )
                 response = parsed_response
             except json.JSONDecodeError as e:
-                error_msg = f"Failed to parse JSON response: {str(e)}"
+                error_msg = f"Failed to parse JSON response: {e!s}"
                 logger.warning(
                     "ai_response_json_parse_failed",
                     error=error_msg,
@@ -70,7 +70,7 @@ def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str
         return {"valid": True, "error": "", "validated_data": response}
 
     except jsonschema.ValidationError as e:
-        error_msg = f"JSON Schema validation failed: {str(e)}"
+        error_msg = f"JSON Schema validation failed: {e!s}"
         logger.warning(
             "ai_response_validation_failed",
             error=error_msg,
@@ -78,19 +78,19 @@ def validate_ai_response(response: Any, json_schema: Dict[str, Any]) -> Dict[str
         )
         return {"valid": False, "error": error_msg, "validated_data": None}
     except Exception as e:
-        error_msg = f"Validation error: {str(e)}"
+        error_msg = f"Validation error: {e!s}"
         logger.error("ai_response_validation_error", error=error_msg)
         return {"valid": False, "error": error_msg, "validated_data": None}
 
 
 async def invoke_llm_with_validation(
     db: AsyncSession,
-    messages: List[Dict[str, str]],
-    json_schema: Optional[Dict[str, Any]] = None,
-    preemption_checker: Optional[Any] = None,
-    session_context: Optional[LLMSessionContext] = None,
+    messages: list[dict[str, str]],
+    json_schema: dict[str, Any] | None = None,
+    preemption_checker: Any | None = None,
+    session_context: LLMSessionContext | None = None,
     **kwargs,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     LLM invocation with optional JSON schema validation and streaming early stop.
 
@@ -147,26 +147,24 @@ async def invoke_llm_with_validation(
                 # Replace response with validated (parsed) data
                 llm_result["response"] = validation_result["validated_data"]
                 return llm_result
-            else:
-                # Validation failed
-                error_msg = f"AI response validation failed: {validation_result['error']}"
-                logger.error("ai_response_validation_failed", error=validation_result["error"])
-                return {
-                    "success": False,
-                    "error": error_msg,
-                    "response": None,
-                    "usage": llm_result.get("usage"),
-                }
-        else:
-            # No validation needed
-            logger.debug("ai_response_validation_skipped")
-            return llm_result
+            # Validation failed
+            error_msg = f"AI response validation failed: {validation_result['error']}"
+            logger.error("ai_response_validation_failed", error=validation_result["error"])
+            return {
+                "success": False,
+                "error": error_msg,
+                "response": None,
+                "usage": llm_result.get("usage"),
+            }
+        # No validation needed
+        logger.debug("ai_response_validation_skipped")
+        return llm_result
 
     except Exception as e:
         logger.error("invoke_llm_with_validation_error", error=str(e), exc_info=True)
         return {
             "success": False,
-            "error": f"Chat completion with validation error: {str(e)}",
+            "error": f"Chat completion with validation error: {e!s}",
             "response": None,
             "usage": None,
         }

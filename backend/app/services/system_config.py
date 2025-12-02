@@ -9,7 +9,7 @@ After updating configs through CRUD, call SystemConfigService.reload_cache() to 
 """
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 from exceptions import MissingConfigurationError
 from models.system import SystemConfig
@@ -20,7 +20,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Configuration cache
-_config_cache: Dict[str, Any] = {}
+_config_cache: dict[str, Any] = {}
 _cache_loaded = False
 
 
@@ -59,7 +59,7 @@ class SystemConfigService:
         return None
 
     @staticmethod
-    async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:
+    async def get_all_configs(db: AsyncSession) -> dict[str, Any]:
         """
         Get all configuration values.
 
@@ -77,7 +77,7 @@ class SystemConfigService:
         return _config_cache.copy()
 
     @staticmethod
-    async def get_configs_by_group(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+    async def get_configs_by_group(db: AsyncSession) -> dict[str, dict[str, Any]]:
         """
         Get configurations grouped by group_name (fully dynamic from database).
 
@@ -152,7 +152,9 @@ class SystemConfigService:
 
             _config_cache.clear()
             for config in configs:
-                value = SystemConfigService._convert_from_db_format(config.config_value, config.config_type)
+                value = SystemConfigService._convert_from_db_format(
+                    config.config_value, config.config_type
+                )
                 _config_cache[config.config_key] = value
 
             _cache_loaded = True
@@ -173,12 +175,11 @@ class SystemConfigService:
         """
         if isinstance(value, bool):
             return str(value).lower(), 3
-        elif isinstance(value, int):
+        if isinstance(value, int):
             return str(value), 2
-        elif isinstance(value, (list, dict)):
+        if isinstance(value, (list, dict)):
             return json.dumps(value), 4
-        else:
-            return str(value), 1
+        return str(value), 1
 
     @staticmethod
     def _convert_from_db_format(value: str, config_type: int) -> Any:
@@ -198,17 +199,19 @@ class SystemConfigService:
         try:
             if config_type == 1:  # string
                 return value
-            elif config_type == 2:  # integer
+            if config_type == 2:  # integer
                 return int(value)
-            elif config_type == 3:  # boolean
+            if config_type == 3:  # boolean
                 return value.lower() in ("true", "1", "yes", "on")
-            elif config_type == 4:  # json
+            if config_type == 4:  # json
                 return json.loads(value)
-            else:
-                return value
+            return value
         except (ValueError, json.JSONDecodeError) as e:
             logger.warning(
-                "system_configs_conversion_error", value=value, config_type=config_type, error=str(e)
+                "system_configs_conversion_error",
+                value=value,
+                config_type=config_type,
+                error=str(e),
             )
             return value
 
@@ -219,11 +222,11 @@ async def get_config(db: AsyncSession, key: str, *, required: bool = True) -> An
     return await SystemConfigService.get_config(db, key, required=required)
 
 
-async def get_all_configs(db: AsyncSession) -> Dict[str, Any]:
+async def get_all_configs(db: AsyncSession) -> dict[str, Any]:
     """Get all configuration values."""
     return await SystemConfigService.get_all_configs(db)
 
 
-async def get_configs_by_group(db: AsyncSession) -> Dict[str, Dict[str, Any]]:
+async def get_configs_by_group(db: AsyncSession) -> dict[str, dict[str, Any]]:
     """Get configurations grouped by category."""
     return await SystemConfigService.get_configs_by_group(db)

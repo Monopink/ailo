@@ -5,7 +5,6 @@ This module provides endpoints for managing user contacts and conversations.
 """
 
 import base64
-from typing import Optional
 
 from api.deps import get_current_user
 from core.database import get_db
@@ -34,7 +33,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
 
-def _decode_cursor(cursor: Optional[str]) -> int:
+def _decode_cursor(cursor: str | None) -> int:
     """Decode opaque cursor into skip offset."""
 
     if not cursor:
@@ -56,7 +55,7 @@ def _encode_cursor(offset: int) -> str:
 
 @router.get("", response_model=ContactListResult)
 async def get_contacts(
-    cursor: Optional[str] = Query(None, description="Pagination cursor"),
+    cursor: str | None = Query(None, description="Pagination cursor"),
     limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -545,7 +544,7 @@ async def delete_contact_endpoint(
             conv_id=conv_id,
         )
 
-        return None
+        return
 
     except HTTPException:
         raise

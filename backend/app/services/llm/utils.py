@@ -6,7 +6,7 @@ This module provides common utility functions for LLM providers.
 
 import json
 import os
-from typing import Any, Optional, Tuple
+from typing import Any
 
 from models.llm import LLMProvider
 from utils.logging import get_logger
@@ -50,7 +50,7 @@ def get_provider_api_key(provider: LLMProvider) -> str:
     return api_key
 
 
-def get_provider_base_url(provider: LLMProvider) -> Optional[str]:
+def get_provider_base_url(provider: LLMProvider) -> str | None:
     """
     Get base URL for LLM provider.
 
@@ -78,7 +78,7 @@ def get_provider_base_url(provider: LLMProvider) -> Optional[str]:
     return provider.base_url
 
 
-def is_valid_json(content: str) -> Tuple[bool, Optional[Any]]:
+def is_valid_json(content: str) -> tuple[bool, Any | None]:
     """
     Check if content is valid JSON and parse it.
 

@@ -4,8 +4,7 @@ Contact request service business logic.
 This module provides business logic for contact request processing.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import UTC, datetime, timedelta
 
 from crud.ai import ai_persona as ai_persona_crud
 from crud.contact import contact as contact_crud
@@ -23,8 +22,7 @@ from enums import (
     ProfileOwnerType,
 )
 from enums.templates import CHAT_INFO_TEMPLATES
-from fastapi import HTTPException
-from fastapi import status
+from fastapi import HTTPException, status
 from fastapi import status as http_status
 from models.ai.instance import AIInstance
 from models.contact import Contact, ContactRequest
@@ -88,7 +86,7 @@ async def get_ai_contact_limit(db: AsyncSession, user_qiao_id: str) -> int:
     return int(limit)
 
 
-def _map_request_source_to_contact(source: Optional[int]) -> str:
+def _map_request_source_to_contact(source: int | None) -> str:
     """Normalize contact request source enum into contact.source string."""
     if source is None:
         return "unknown"
@@ -108,9 +106,9 @@ async def _create_contact_record(
     contact_id: int,
     contact_type: ContactType,
     conv_id: str,
-    alias: Optional[str],
-    tags: Optional[List[str]],
-    source: Optional[str],
+    alias: str | None,
+    tags: list[str] | None,
+    source: str | None,
 ) -> Contact:
     """
     Create contact record.
@@ -161,8 +159,8 @@ async def _process_ai_contact_request(
     user_qiao_id: str,
     user_id: int,
     contact_request: "ContactRequest",
-    alias: Optional[str],
-    tags: Optional[List[str]],
+    alias: str | None,
+    tags: list[str] | None,
 ) -> dict:
     """
     Process AI contact request.
@@ -186,12 +184,14 @@ async def _process_ai_contact_request(
     """
     _req_id = contact_request.id
     _to_qiao_id = contact_request.to_qiao_id
-    conv_id: Optional[str] = None
-    ai_qiao_id: Optional[str] = None
-    contact_id: Optional[int] = None
+    conv_id: str | None = None
+    ai_qiao_id: str | None = None
+    contact_id: int | None = None
 
     try:
-        locked_request = await contact_request_crud.get_for_update(db, request_id=contact_request.id)
+        locked_request = await contact_request_crud.get_for_update(
+            db, request_id=contact_request.id
+        )
         if not locked_request:
             logger.error("contact_request_missing_for_processing", request_id=_req_id)
             return {"message": "请求已发送"}
@@ -383,7 +383,7 @@ async def _check_and_restore_contact(
     db: AsyncSession,
     user_qiao_id: str,
     request: ContactRequestCreate,
-) -> Optional[dict]:
+) -> dict | None:
     """
     Check if contact already exists and restore if soft-deleted.
 
@@ -413,24 +413,23 @@ async def _check_and_restore_contact(
             contact_id=restored_contact.id,
         )
         return {"message": "请求已发送"}
-    else:
-        # Contact already exists and not deleted
-        logger.error(
-            "contact_already_exists",
-            user_qiao_id=user_qiao_id,
-            to_qiao_id=request.to_qiao_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="已添加该联系人",
-        )
+    # Contact already exists and not deleted
+    logger.error(
+        "contact_already_exists",
+        user_qiao_id=user_qiao_id,
+        to_qiao_id=request.to_qiao_id,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="已添加该联系人",
+    )
 
 
 async def _check_ai_persona_duplicate(
     db: AsyncSession,
     user_qiao_id: str,
     request: ContactRequestCreate,
-) -> Optional[dict]:
+) -> dict | None:
     """
     Check if the user already instantiated the requested persona.
 
@@ -503,7 +502,7 @@ async def _check_and_update_pending_request(
     db: AsyncSession,
     user_qiao_id: str,
     request: ContactRequestCreate,
-) -> Optional[dict]:
+) -> dict | None:
     """
     Check if pending/processing request exists and update it (idempotency).
 
@@ -526,7 +525,7 @@ async def _check_and_update_pending_request(
         existing_request.expires_at = datetime.now() + timedelta(days=expiry_days)
         existing_request.status = ContactRequestStatus.PENDING
         existing_request.retry_count = (existing_request.retry_count or 0) + 1
-        existing_request.last_retry_at = datetime.now(timezone.utc)
+        existing_request.last_retry_at = datetime.now(UTC)
         existing_request.failure_code = None
         existing_request.failure_detail = None
         db.add(existing_request)
@@ -716,21 +715,20 @@ async def create_contact_request_service(
             to_qiao_id=request.to_qiao_id,
         )
         return {"message": "请求已发送"}
-    else:
-        # Process user contact request immediately
-        return await _process_user_contact_request(
-            db=db,
-            user_qiao_id=user_qiao_id,
-            contact_request=contact_request,
-        )
+    # Process user contact request immediately
+    return await _process_user_contact_request(
+        db=db,
+        user_qiao_id=user_qiao_id,
+        contact_request=contact_request,
+    )
 
 
 async def retry_pending_contact_request(
     db: AsyncSession,
     *,
     request_id: int,
-    alias: Optional[str] = None,
-    tags: Optional[List[str]] = None,
+    alias: str | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     """
     Retry a pending AI contact request that previously failed due to missing templates.
@@ -748,7 +746,7 @@ async def retry_pending_contact_request(
         )
 
     contact_request.retry_count = (contact_request.retry_count or 0) + 1
-    contact_request.last_retry_at = datetime.now(timezone.utc)
+    contact_request.last_retry_at = datetime.now(UTC)
     contact_request.failure_code = None
     contact_request.failure_detail = None
     db.add(contact_request)
@@ -793,8 +791,8 @@ async def retry_pending_contact_request(
 async def get_contact_requests_service(
     db: AsyncSession,
     user_qiao_id: str,
-    status_filter: Optional[ContactRequestStatus] = None,
-    cursor: Optional[str] = None,
+    status_filter: ContactRequestStatus | None = None,
+    cursor: str | None = None,
     limit: int = 20,
 ) -> ContactRequestListResponse:
     """
@@ -831,7 +829,9 @@ async def get_contact_requests_service(
         for req in requests:
             # Get applicant profile
             profile_owner_type = (
-                ProfileOwnerType.USER if req.from_type == ContactType.USER else ProfileOwnerType.AI_INSTANCE
+                ProfileOwnerType.USER
+                if req.from_type == ContactType.USER
+                else ProfileOwnerType.AI_INSTANCE
             )
             profile = await profile_crud.get_by_owner_qiao_id(
                 db, owner_qiao_id=req.from_qiao_id, owner_type=profile_owner_type

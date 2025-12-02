@@ -4,7 +4,7 @@ AI template related models.
 This module contains SQLAlchemy models for AI configuration templates.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 from markupsafe import escape
 from models.base import AutoIncrementModel, SnowflakeQiaoModel
@@ -29,7 +29,7 @@ class AIType(AutoIncrementModel):
         nullable=False,
         comment="Admin-visible name for this AI type",
     )
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Description")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Description")
 
     def __admin_select2_repr__(self, request) -> str:
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
@@ -55,15 +55,15 @@ class AITemplate(AutoIncrementModel):
         Integer, nullable=False, comment="Personality ID, references ai_personalities.id"
     )
 
-    memory: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Memory settings")
+    memory: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Memory settings")
 
-    prompt_variables: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    prompt_variables: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
-    request_params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    request_params: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by instance instances",
@@ -84,11 +84,11 @@ class AITemplate(AutoIncrementModel):
     )
 
     # Display name for admin/UI list and association views
-    display_name: Mapped[Optional[str]] = mapped_column(
+    display_name: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Display name for template"
     )
 
-    position_mapping_config: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    position_mapping_config: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Per-dimension position mapping configuration",

@@ -3,7 +3,7 @@ Admin LLM Management API endpoints.
 Provides LLM testing and management functionality for admin panel.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.database import get_db
 from fastapi import APIRouter, Depends
@@ -22,10 +22,12 @@ class TestCase(BaseModel):
 
     name: str = Field(..., description="Test case name")
     prompt: str = Field(..., description="Test prompt")
-    temperature: Optional[float] = Field(0.7, description="Temperature parameter")
-    max_tokens: Optional[int] = Field(500, description="Maximum tokens")
-    expected_type: Optional[str] = Field("string", description="Expected response type")
-    json_schema: Optional[Dict[str, Any]] = Field(None, description="JSON schema for structured output")
+    temperature: float | None = Field(0.7, description="Temperature parameter")
+    max_tokens: int | None = Field(500, description="Maximum tokens")
+    expected_type: str | None = Field("string", description="Expected response type")
+    json_schema: dict[str, Any] | None = Field(
+        None, description="JSON schema for structured output"
+    )
 
 
 class PerformanceTest(BaseModel):
@@ -39,15 +41,17 @@ class PerformanceTest(BaseModel):
 class LLMTestRequest(BaseModel):
     """LLM test request model."""
 
-    config_names: List[str] = Field(..., description="List of LLM configuration names")
-    test_cases: List[TestCase] = Field(..., description="List of test cases")
-    performance_test: Optional[PerformanceTest] = Field(None, description="Performance test configuration")
+    config_names: list[str] = Field(..., description="List of LLM configuration names")
+    test_cases: list[TestCase] = Field(..., description="List of test cases")
+    performance_test: PerformanceTest | None = Field(
+        None, description="Performance test configuration"
+    )
 
 
 @llm_router.post("/test")
 async def test_llm_configurations(
     request: LLMTestRequest, db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Test LLM configurations with multiple test cases.
 
@@ -59,7 +63,6 @@ async def test_llm_configurations(
         Test results with performance metrics and comparison
     """
     try:
-
         # Get available configs
         configs = await get_active_configs(db)
         available_names = [config.name for config, _ in configs]
@@ -118,7 +121,7 @@ async def test_llm_configurations(
 
 
 @llm_router.get("/configs")
-async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     Get available LLM configurations.
 
@@ -129,7 +132,6 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         List of available LLM configurations
     """
     try:
-
         # Get actual configs from the service
         configs = await get_active_configs(db)
 
@@ -149,11 +151,14 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error("llm_configs_error", error=str(e))
-        return {"success": False, "error": {"code": "LLM_CONFIGS_ERROR", "message": "LLM配置列表获取失败"}}
+        return {
+            "success": False,
+            "error": {"code": "LLM_CONFIGS_ERROR", "message": "LLM配置列表获取失败"},
+        }
 
 
 @llm_router.get("/health-check")
-async def health_check_llm_configs(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def health_check_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     Check health status of all LLM configurations.
 

@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for user security logs and statistics.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from enums import AutoAction, ManualReviewStatus, RiskLevel
 from models.base import SnowflakeModel
@@ -23,15 +23,19 @@ class UserViolationLog(SnowflakeModel):
 
     __tablename__ = "user_violation_logs"
 
-    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="User ID, references users.id")
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="User ID, references users.id"
+    )
 
-    user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False, comment="User external ID")
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="User external ID"
+    )
 
-    instance_id: Mapped[Optional[int]] = mapped_column(
+    instance_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Instance ID if violation relates to a specific AI"
     )
 
-    instance_qiao_id: Mapped[Optional[str]] = mapped_column(
+    instance_qiao_id: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="Instance external qiao_id"
     )
 
@@ -45,7 +49,9 @@ class UserViolationLog(SnowflakeModel):
         Integer, nullable=False, comment="Severity: 1=low, 2=medium, 3=high, 4=critical"
     )
 
-    original_message: Mapped[str] = mapped_column(Text, nullable=False, comment="Original user message")
+    original_message: Mapped[str] = mapped_column(
+        Text, nullable=False, comment="Original user message"
+    )
 
     auto_action_taken: Mapped[int] = mapped_column(
         Integer,
@@ -63,9 +69,11 @@ class UserViolationLog(SnowflakeModel):
         comment="Manual review: 1=pending, 2=confirmed, 3=false_positive, 4=ignored",
     )
 
-    reviewer_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Reviewer admin ID")
+    reviewer_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="Reviewer admin ID"
+    )
 
-    review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Review notes")
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Review notes")
 
 
 class UserRiskStats(SnowflakeModel):
@@ -86,17 +94,21 @@ class UserRiskStats(SnowflakeModel):
     )
 
     total_violations: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default=text("0"), comment="Total violation count"
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Total violation count",
     )
 
-    violation_by_type: Mapped[Dict[str, Any]] = mapped_column(
+    violation_by_type: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         server_default=text("'{}'::jsonb"),
         comment='Violations by type: {"prompt_injection": 5, "abuse": 2} (JSONB for better performance)',
     )
 
-    last_violation_at: Mapped[Optional[datetime]] = mapped_column(
+    last_violation_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Last violation time"
     )
 
@@ -128,6 +140,6 @@ class UserRiskStats(SnowflakeModel):
         Integer, nullable=False, default=0, server_default=text("0"), comment="Suspension count"
     )
 
-    last_action_at: Mapped[Optional[datetime]] = mapped_column(
+    last_action_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Last action time"
     )

@@ -9,7 +9,7 @@ Following the architectural pattern of separating concerns:
 """
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.database import get_sessionmaker
 from services.admin.testing.llm_config import execute_llm_config_test
@@ -125,14 +125,18 @@ class LLMConfigTestView(CustomView):
                             else None
                         ),
                         "presence_penalty": (
-                            float(config.presence_penalty) if config.presence_penalty is not None else None
+                            float(config.presence_penalty)
+                            if config.presence_penalty is not None
+                            else None
                         ),
                         "stop_sequences": config.stop_sequences or [],
                         "stop_sequences_display": json.dumps(
                             config.stop_sequences or [], ensure_ascii=False
                         ),
                         "default_tools": config.default_tools or [],
-                        "default_tools_display": json.dumps(config.default_tools or [], ensure_ascii=False),
+                        "default_tools_display": json.dumps(
+                            config.default_tools or [], ensure_ascii=False
+                        ),
                         "default_tool_choice": config.default_tool_choice,
                         "parallel_tool_calls": config.parallel_tool_calls,
                         "max_tool_calls": config.max_tool_calls,
@@ -146,7 +150,9 @@ class LLMConfigTestView(CustomView):
                         ),
                         "enable_streaming": config.enable_streaming,
                         "extra_params": config.extra_params or {},
-                        "extra_params_display": json.dumps(config.extra_params or {}, ensure_ascii=False),
+                        "extra_params_display": json.dumps(
+                            config.extra_params or {}, ensure_ascii=False
+                        ),
                     },
                     "page_title": f"Test LLM Config: {config.name}",
                 }
@@ -160,7 +166,7 @@ class LLMConfigTestView(CustomView):
                 "custom_views/llm_config_test.html",
                 {
                     "request": request,
-                    "error": f"Failed to load test interface: {str(e)}",
+                    "error": f"Failed to load test interface: {e!s}",
                     "page_title": "LLM Config Test - Error",
                 },
             )
@@ -180,8 +186,8 @@ class LLMConfigTestView(CustomView):
             form_data = await request.form()
 
             def parse_json_field(
-                field_name: str, label: str, expected_type: Optional[type]
-            ) -> Optional[Any]:
+                field_name: str, label: str, expected_type: type | None
+            ) -> Any | None:
                 raw_value = form_data.get(field_name)
                 if raw_value is None:
                     return None
@@ -191,7 +197,7 @@ class LLMConfigTestView(CustomView):
                 try:
                     parsed_value = json.loads(raw_value)
                 except json.JSONDecodeError as exc:
-                    raise FormFieldError(f"{label} must be valid JSON: {str(exc)}")
+                    raise FormFieldError(f"{label} must be valid JSON: {exc!s}")
                 if expected_type and not isinstance(parsed_value, expected_type):
                     raise FormFieldError(f"{label} must be a {expected_type.__name__}")
                 return parsed_value
@@ -214,7 +220,7 @@ class LLMConfigTestView(CustomView):
                 if thinking_mode not in ["enabled", "disabled", "auto"]:
                     thinking_mode = None  # Use config default
 
-                request_overrides: Dict[str, Any] = {}
+                request_overrides: dict[str, Any] = {}
 
                 tools_json = parse_json_field("tools_json", "Tools JSON", list)
                 if tools_json is not None:
@@ -241,7 +247,7 @@ class LLMConfigTestView(CustomView):
                     try:
                         request_overrides["max_tool_calls"] = int(max_tool_calls_override)
                     except ValueError as exc:
-                        raise FormFieldError(f"Max tool calls must be an integer: {str(exc)}")
+                        raise FormFieldError(f"Max tool calls must be an integer: {exc!s}")
 
             except FormFieldError as e:
                 logger.warning("llm_config_test_form_validation_error", error=str(e))
@@ -277,7 +283,7 @@ class LLMConfigTestView(CustomView):
         except Exception as e:
             logger.error("llm_config_test_request_failed", error=str(e), exc_info=True)
             return JSONResponse(
-                {"success": False, "error": f"Test request failed: {str(e)}"}, status_code=500
+                {"success": False, "error": f"Test request failed: {e!s}"}, status_code=500
             )
 
 

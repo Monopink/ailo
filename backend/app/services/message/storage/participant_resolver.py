@@ -14,7 +14,9 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def get_participant_info(db: AsyncSession, qiao_id: str) -> tuple[MessageParticipantType, int]:
+async def get_participant_info(
+    db: AsyncSession, qiao_id: str
+) -> tuple[MessageParticipantType, int]:
     """
     Get participant type and ID from qiao_id.
 

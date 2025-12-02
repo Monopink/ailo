@@ -4,16 +4,14 @@ LLM configuration functions.
 This module provides functions for retrieving LLM configurations.
 """
 
-from typing import List, Optional, Tuple
-
 from crud.llm import llm_config, llm_provider
 from models.llm import LLMConfig, LLMProvider
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_llm_config(
-    db: AsyncSession, name: Optional[str] = None, config_id: Optional[int] = None
-) -> Optional[Tuple[LLMConfig, LLMProvider]]:
+    db: AsyncSession, name: str | None = None, config_id: int | None = None
+) -> tuple[LLMConfig, LLMProvider] | None:
     """
     Get LLM configuration and provider by config key or ID.
 
@@ -42,7 +40,7 @@ async def get_llm_config(
     return config, provider
 
 
-async def get_primary_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, LLMProvider]]:
+async def get_primary_config(db: AsyncSession) -> tuple[LLMConfig, LLMProvider] | None:
     """
     Get primary LLM configuration.
 
@@ -64,8 +62,8 @@ async def get_primary_config(db: AsyncSession) -> Optional[Tuple[LLMConfig, LLMP
 
 
 async def get_active_configs(
-    db: AsyncSession, max_priority: Optional[int] = None
-) -> List[Tuple[LLMConfig, LLMProvider]]:
+    db: AsyncSession, max_priority: int | None = None
+) -> list[tuple[LLMConfig, LLMProvider]]:
     """
     Get all active LLM configurations ordered by priority.
 
@@ -101,7 +99,7 @@ async def get_active_configs(
 
 async def get_config_by_provider(
     db: AsyncSession, provider_name: str
-) -> Optional[Tuple[LLMConfig, LLMProvider]]:
+) -> tuple[LLMConfig, LLMProvider] | None:
     """
     Get active configuration for a specific provider.
 

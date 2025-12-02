@@ -5,7 +5,7 @@ This module contains Pydantic schemas for user accounts, tokens, and authenticat
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from enums import AuthType, DeviceType, LoginResult, LoginType, UserStatus, UserType
 from pydantic import BaseModel, Field, model_validator
@@ -18,18 +18,18 @@ class UserBase(BaseSchema):
     """Base user schema with common fields."""
 
     username: str = Field(..., min_length=1, max_length=50, description="Username")
-    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
-    email: Optional[str] = Field(None, max_length=100, description="Email address")
+    phone: str | None = Field(None, max_length=20, description="Phone number")
+    email: str | None = Field(None, max_length=100, description="Email address")
     user_type: UserType = Field(UserType.NORMAL, description="User type")
 
 
 class UserCreate(BaseModel):
     """Schema for creating a new user."""
 
-    phone: Optional[str] = Field(None, max_length=20, description="Phone number for registration")
-    email: Optional[str] = Field(None, max_length=100, description="Email address for registration")
-    password: Optional[str] = Field(None, min_length=8, max_length=128, description="Password")
-    username: Optional[str] = Field(None, min_length=1, max_length=50, description="Custom username")
+    phone: str | None = Field(None, max_length=20, description="Phone number for registration")
+    email: str | None = Field(None, max_length=100, description="Email address for registration")
+    password: str | None = Field(None, min_length=8, max_length=128, description="Password")
+    username: str | None = Field(None, min_length=1, max_length=50, description="Custom username")
 
     @model_validator(mode="after")
     def validate_login_method(self) -> "UserCreate":
@@ -42,9 +42,9 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for updating user information."""
 
-    username: Optional[str] = Field(None, min_length=1, max_length=50, description="Username")
-    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
-    email: Optional[str] = Field(None, max_length=100, description="Email address")
+    username: str | None = Field(None, min_length=1, max_length=50, description="Username")
+    phone: str | None = Field(None, max_length=20, description="Phone number")
+    email: str | None = Field(None, max_length=100, description="Email address")
 
 
 class UserResponse(UserBase):
@@ -52,7 +52,7 @@ class UserResponse(UserBase):
 
     qiao_id: str = Field(..., description="External user identifier")
     status: UserStatus = Field(..., description="Account status")
-    last_login: Optional[datetime] = Field(None, description="Last login time")
+    last_login: datetime | None = Field(None, description="Last login time")
     created_at: datetime = Field(..., description="Account creation time")
     updated_at: datetime = Field(..., description="Last update time")
 
@@ -74,24 +74,24 @@ class TokenCreate(BaseModel):
     """Schema for creating a user token."""
 
     device_type: DeviceType = Field(..., description="Device type")
-    device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
-    platform_info: Optional[dict] = Field(None, description="Platform information")
-    ip_address: Optional[str] = Field(None, max_length=45, description="IP address")
-    user_agent: Optional[str] = Field(None, description="User agent string")
+    device_id: str | None = Field(None, max_length=128, description="Device identifier")
+    platform_info: dict | None = Field(None, description="Platform information")
+    ip_address: str | None = Field(None, max_length=45, description="IP address")
+    user_agent: str | None = Field(None, description="User agent string")
 
 
 class TokenUpdate(BaseModel):
     """Schema for updating a user token."""
 
-    device_type: Optional[DeviceType] = Field(None, description="Device type")
-    device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
-    platform_info: Optional[dict[str, Any]] = Field(None, description="Platform information")
-    ip_address: Optional[str] = Field(None, max_length=45, description="IP address")
-    user_agent: Optional[str] = Field(None, description="User agent string")
-    expires_at: Optional[datetime] = Field(None, description="Token expiration time")
-    status: Optional[int] = Field(None, description="Token status: 1=active, 2=revoked")
-    last_activity_at: Optional[datetime] = Field(None, description="Last activity time")
-    revoked_at: Optional[datetime] = Field(None, description="Token revocation time")
+    device_type: DeviceType | None = Field(None, description="Device type")
+    device_id: str | None = Field(None, max_length=128, description="Device identifier")
+    platform_info: dict[str, Any] | None = Field(None, description="Platform information")
+    ip_address: str | None = Field(None, max_length=45, description="IP address")
+    user_agent: str | None = Field(None, description="User agent string")
+    expires_at: datetime | None = Field(None, description="Token expiration time")
+    status: int | None = Field(None, description="Token status: 1=active, 2=revoked")
+    last_activity_at: datetime | None = Field(None, description="Last activity time")
+    revoked_at: datetime | None = Field(None, description="Token revocation time")
 
 
 class TokenResponse(BaseSchema):
@@ -99,7 +99,7 @@ class TokenResponse(BaseSchema):
 
     token: str = Field(..., description="JWT token")
     device_type: DeviceType = Field(..., description="Device type")
-    device_id: Optional[str] = Field(None, description="Device identifier")
+    device_id: str | None = Field(None, description="Device identifier")
     expires_at: datetime = Field(..., description="Token expiration time")
     status: int = Field(..., description="Token status: 1=active, 2=revoked")
     last_activity_at: datetime = Field(..., description="Last activity time")
@@ -112,13 +112,15 @@ class TokenResponse(BaseSchema):
 class LoginRequest(BaseModel):
     """Schema for login request."""
 
-    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
-    email: Optional[str] = Field(None, max_length=100, description="Email address")
-    password: Optional[str] = Field(None, min_length=1, description="Password")
-    sms_code: Optional[str] = Field(None, min_length=4, max_length=10, description="SMS verification code")
+    phone: str | None = Field(None, max_length=20, description="Phone number")
+    email: str | None = Field(None, max_length=100, description="Email address")
+    password: str | None = Field(None, min_length=1, description="Password")
+    sms_code: str | None = Field(
+        None, min_length=4, max_length=10, description="SMS verification code"
+    )
     login_type: LoginType = Field(..., description="Login method")
     device_type: DeviceType = Field(..., description="Device type")
-    device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
+    device_id: str | None = Field(None, max_length=128, description="Device identifier")
 
     @model_validator(mode="after")
     def validate_login_identifier(self) -> "LoginRequest":
@@ -157,8 +159,8 @@ class ChangePasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     """Schema for password reset request."""
 
-    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
-    email: Optional[str] = Field(None, max_length=100, description="Email address")
+    phone: str | None = Field(None, max_length=20, description="Phone number")
+    email: str | None = Field(None, max_length=100, description="Email address")
 
     @model_validator(mode="after")
     def validate_reset_identifier(self) -> "ResetPasswordRequest":
@@ -171,9 +173,11 @@ class ResetPasswordRequest(BaseModel):
 class ConfirmResetPasswordRequest(BaseModel):
     """Schema for confirming password reset."""
 
-    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
-    email: Optional[str] = Field(None, max_length=100, description="Email address")
-    verification_code: str = Field(..., min_length=4, max_length=10, description="Verification code")
+    phone: str | None = Field(None, max_length=20, description="Phone number")
+    email: str | None = Field(None, max_length=100, description="Email address")
+    verification_code: str = Field(
+        ..., min_length=4, max_length=10, description="Verification code"
+    )
     new_password: str = Field(..., min_length=8, max_length=128, description="New password")
 
 
@@ -187,21 +191,21 @@ class UserAuthCreate(BaseModel):
     user_qiao_id: str = Field(..., max_length=32, description="User external ID")
     auth_type: AuthType = Field(..., description="Auth provider type")
     provider_uid: str = Field(..., max_length=128, description="Provider user unique ID")
-    unionid: Optional[str] = Field(None, max_length=64, description="WeChat unionid")
-    app_id: Optional[str] = Field(None, max_length=64, description="Provider app ID")
-    extra_data: Optional[dict[str, Any]] = Field(None, description="Extra provider data")
-    status: Optional[int] = Field(1, description="Binding status: 1=active, 2=revoked")
-    revoked_at: Optional[datetime] = Field(None, description="Unbind time")
+    unionid: str | None = Field(None, max_length=64, description="WeChat unionid")
+    app_id: str | None = Field(None, max_length=64, description="Provider app ID")
+    extra_data: dict[str, Any] | None = Field(None, description="Extra provider data")
+    status: int | None = Field(1, description="Binding status: 1=active, 2=revoked")
+    revoked_at: datetime | None = Field(None, description="Unbind time")
 
 
 class UserAuthUpdate(BaseModel):
     """Schema for updating a user auth binding."""
 
-    unionid: Optional[str] = Field(None, max_length=64, description="WeChat unionid")
-    app_id: Optional[str] = Field(None, max_length=64, description="Provider app ID")
-    extra_data: Optional[dict[str, Any]] = Field(None, description="Extra provider data")
-    status: Optional[int] = Field(None, description="Binding status: 1=active, 2=revoked")
-    revoked_at: Optional[datetime] = Field(None, description="Unbind time")
+    unionid: str | None = Field(None, max_length=64, description="WeChat unionid")
+    app_id: str | None = Field(None, max_length=64, description="Provider app ID")
+    extra_data: dict[str, Any] | None = Field(None, description="Extra provider data")
+    status: int | None = Field(None, description="Binding status: 1=active, 2=revoked")
+    revoked_at: datetime | None = Field(None, description="Unbind time")
 
 
 # Login Record Schemas
@@ -210,14 +214,14 @@ class UserAuthUpdate(BaseModel):
 class LoginRecordCreate(BaseModel):
     """Schema for creating a login record."""
 
-    user_id: Optional[int] = Field(None, description="User internal ID")
-    user_qiao_id: Optional[str] = Field(None, max_length=32, description="User external ID")
-    login_time: Optional[datetime] = Field(None, description="Login attempt time")
+    user_id: int | None = Field(None, description="User internal ID")
+    user_qiao_id: str | None = Field(None, max_length=32, description="User external ID")
+    login_time: datetime | None = Field(None, description="Login attempt time")
     login_type: LoginType = Field(..., description="Login method")
     platform: DeviceType = Field(..., description="Platform used for login")
-    device_id: Optional[str] = Field(None, max_length=128, description="Device identifier")
-    ip_address: Optional[str] = Field(None, max_length=45, description="Login IP address")
-    user_agent: Optional[str] = Field(None, description="User agent string")
+    device_id: str | None = Field(None, max_length=128, description="Device identifier")
+    ip_address: str | None = Field(None, max_length=45, description="Login IP address")
+    user_agent: str | None = Field(None, description="User agent string")
     result: LoginResult = Field(..., description="Login result")
-    fail_reason: Optional[str] = Field(None, max_length=255, description="Failure reason")
-    token: Optional[str] = Field(None, max_length=512, description="Associated JWT token")
+    fail_reason: str | None = Field(None, max_length=255, description="Failure reason")
+    token: str | None = Field(None, max_length=512, description="Associated JWT token")

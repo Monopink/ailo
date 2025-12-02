@@ -3,7 +3,7 @@ Admin AI Instance API endpoints.
 Handles instance management including prompt variables, dimensions, and relationships.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from core.database import get_db
 from crud.ai import ai_instance as ai_instance_crud
@@ -22,8 +22,8 @@ ai_instance_router = APIRouter()
 
 @ai_instance_router.post("/ai_instance/{instance_id}/save")
 async def save_instance(
-    instance_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+    instance_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """Save instance prompt_variables and dimensions."""
 
     # Get instance
@@ -31,7 +31,7 @@ async def save_instance(
     if not instance:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    update_data: Dict[str, Any] = {}
+    update_data: dict[str, Any] = {}
 
     # Validate and update prompt_variables
     if "prompt_variables" in data:
@@ -75,7 +75,7 @@ async def save_instance(
             if algorithm not in [1, 2]:
                 raise HTTPException(status_code=400, detail="Invalid algorithm")
 
-            cleaned: Dict[str, Any] = {
+            cleaned: dict[str, Any] = {
                 "dimension_id": int(dimension_id),
                 "score": int(score),
                 "position_mapping_algorithm": int(algorithm),
@@ -84,7 +84,9 @@ async def save_instance(
             if algorithm == PositionMappingAlgorithm.V1.value:
                 params = dim_data.get("position_mapping_params", {})
                 if not isinstance(params, dict):
-                    raise HTTPException(status_code=400, detail="position_mapping_params must be a dict")
+                    raise HTTPException(
+                        status_code=400, detail="position_mapping_params must be a dict"
+                    )
                 try:
                     cleaned["position_mapping_params"] = parse_algorithm_params(
                         PositionMappingAlgorithm.V1, params
@@ -110,7 +112,10 @@ async def save_instance(
                 pv = int(val)
                 if 0 <= pv <= 1000:
                     await update_dimension(
-                        db, instance_id=instance_id, dimension_id=dim_id, update_data={"position": pv}
+                        db,
+                        instance_id=instance_id,
+                        dimension_id=dim_id,
+                        update_data={"position": pv},
                     )
             except Exception:
                 continue
@@ -153,8 +158,8 @@ async def save_instance(
 
 @ai_instance_router.post("/ai_instance/{instance_id}/generate-relationship")
 async def generate_instance_relationship(
-    instance_id: int, data: Dict[str, Any] | None = None, db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+    instance_id: int, data: dict[str, Any] | None = None, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """Preview or persist generate-relationship using admin service (overrides + preview)."""
     try:
         overrides = None
@@ -183,8 +188,8 @@ async def generate_instance_relationship(
 
 @ai_instance_router.put("/ai_instance/{instance_id}/dimension/{dimension_id}")
 async def update_instance_dimension(
-    instance_id: int, dimension_id: int, data: Dict[str, Any], db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+    instance_id: int, dimension_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     DEPRECATED: Use /ai_instance/{instance_id}/save instead.
 

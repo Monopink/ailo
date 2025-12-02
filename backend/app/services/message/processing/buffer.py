@@ -11,9 +11,9 @@ import math
 import random
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from enums import MessageType
 from enums.common import AIMessageBufferState, ConversationRole
@@ -58,10 +58,10 @@ class BufferTimerConfig:
 class TimerComputationResult:
     """Represents the next buffer timer state."""
 
-    micro_expires_at_ms: Optional[int]
-    macro_expires_at_ms: Optional[int]
-    buffer_expires_at_ms: Optional[int]
-    last_message_category: Optional[str]
+    micro_expires_at_ms: int | None
+    macro_expires_at_ms: int | None
+    buffer_expires_at_ms: int | None
+    last_message_category: str | None
 
 
 @dataclass
@@ -149,27 +149,26 @@ async def add_message_to_buffer(
                 config=buffer_config,
                 current_time=current_time,
             )
+    elif buffer_obj.aggregate_state == AIMessageBufferState.WAITING_WAKEUP:
+        await _handle_wake_adjustment(
+            db=db,
+            buffer_obj=buffer_obj,
+            buffer_item=buffer_item,
+            event=event,
+            category=category,
+            config=buffer_config,
+            current_time=current_time,
+        )
     else:
-        if buffer_obj.aggregate_state == AIMessageBufferState.WAITING_WAKEUP:
-            await _handle_wake_adjustment(
-                db=db,
-                buffer_obj=buffer_obj,
-                buffer_item=buffer_item,
-                event=event,
-                category=category,
-                config=buffer_config,
-                current_time=current_time,
-            )
-        else:
-            await _update_buffer_window(
-                db=db,
-                buffer_obj=buffer_obj,
-                buffer_item=buffer_item,
-                event=event,
-                category=category,
-                config=buffer_config,
-                current_time=current_time,
-            )
+        await _update_buffer_window(
+            db=db,
+            buffer_obj=buffer_obj,
+            buffer_item=buffer_item,
+            event=event,
+            category=category,
+            config=buffer_config,
+            current_time=current_time,
+        )
 
     await db.commit()
 
@@ -178,7 +177,7 @@ async def lock_conversation_preemptively(
     db: AsyncSession,
     user_qiao_id: str,
     instance_qiao_id: str,
-) -> Optional[int]:
+) -> int | None:
     """
     Lock the latest expired OPEN buffer window for processing.
     """
@@ -221,7 +220,7 @@ async def lock_conversation_preemptively(
             return None
 
         buffer_obj.aggregate_state = AIMessageBufferState.LOCKED
-        buffer_obj.locked_at = datetime.now(timezone.utc)
+        buffer_obj.locked_at = datetime.now(UTC)
         buffer_obj.micro_expires_at_ms = None
         buffer_obj.macro_expires_at_ms = None
         await db.flush()
@@ -259,7 +258,7 @@ async def force_lock_latest_window(
     db: AsyncSession,
     user_qiao_id: str,
     instance_qiao_id: str,
-) -> Optional[LockedConversationWindow]:
+) -> LockedConversationWindow | None:
     """
     Force lock the most recent buffer regardless of timer state.
 
@@ -281,7 +280,7 @@ async def force_lock_latest_window(
             return None
 
         buffer_obj.aggregate_state = AIMessageBufferState.LOCKED
-        buffer_obj.locked_at = datetime.now(timezone.utc)
+        buffer_obj.locked_at = datetime.now(UTC)
         buffer_obj.micro_expires_at_ms = None
         buffer_obj.macro_expires_at_ms = None
         buffer_obj.buffer_expires_at_ms = None
@@ -345,7 +344,7 @@ async def is_buffer_locked(db: AsyncSession, buffer_id: int) -> bool:
 async def get_locked_context(
     db: AsyncSession,
     buffer_id: int,
-) -> Optional[LockedConversationWindow]:
+) -> LockedConversationWindow | None:
     """
     Fetch locked buffer snapshot containing aggregated user content.
     """
@@ -445,7 +444,7 @@ async def _check_needs_wake(
     db: AsyncSession,
     user_qiao_id: str,
     instance_qiao_id: str,
-    relationship_config: Dict[str, Any],
+    relationship_config: dict[str, Any],
     current_time: int,
 ) -> bool:
     """Decide if a wake wait is required based on recent conversation activity."""
@@ -486,7 +485,7 @@ async def _create_wake_buffer(
     event: InboundMessageEvent,
     category: BufferMessageCategory,
     config: BufferTimerConfig,
-    relationship_config: Dict[str, Any],
+    relationship_config: dict[str, Any],
     current_time: int,
 ) -> None:
     """Create a WAITING_WAKEUP buffer that delays aggregation until wake timer expires."""
@@ -555,9 +554,9 @@ async def _handle_wake_adjustment(
     *,
     db: AsyncSession,
     buffer_obj: AIMessageBuffer,
-    buffer_item: Optional[AIConversationItem],
+    buffer_item: AIConversationItem | None,
     event: InboundMessageEvent,
-    category: Optional[BufferMessageCategory],
+    category: BufferMessageCategory | None,
     config: BufferTimerConfig,
     current_time: int,
 ) -> None:
@@ -593,7 +592,7 @@ async def _handle_wake_adjustment(
     buffer_expires_at_ms = timer_state.buffer_expires_at_ms or new_wake_expires_at_ms
 
     msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
-    update_values: Dict[str, Any] = {
+    update_values: dict[str, Any] = {
         "wake_expires_at_ms": new_wake_expires_at_ms,
         "wake_adjustment_count": (buffer_obj.wake_adjustment_count or 0) + 1,
         "micro_expires_at_ms": timer_state.micro_expires_at_ms,
@@ -694,7 +693,7 @@ def adjust_wake_time(current_remaining_ms: int, adjustment_mode: str, wake_time_
     return max(adjusted, minimum_ms)
 
 
-def _default_relationship_timing() -> Dict[str, Any]:
+def _default_relationship_timing() -> dict[str, Any]:
     """Provide a sane default configuration if relationship timing is missing."""
 
     return {
@@ -718,7 +717,7 @@ async def _get_latest_open_buffer(
     instance_qiao_id: str,
     *,
     for_update: bool = False,
-) -> Tuple[Optional[AIMessageBuffer], Optional[AIConversationItem]]:
+) -> tuple[AIMessageBuffer | None, AIConversationItem | None]:
     buffer_query = (
         select(AIMessageBuffer)
         .where(
@@ -753,7 +752,7 @@ async def _get_buffer_and_item(
     buffer_id: int,
     *,
     require_locked: bool = False,
-) -> Tuple[Optional[AIMessageBuffer], Optional[AIConversationItem]]:
+) -> tuple[AIMessageBuffer | None, AIConversationItem | None]:
     query = select(AIMessageBuffer, AIConversationItem).join(
         AIConversationItem,
         AIConversationItem.buffer_id == AIMessageBuffer.id,
@@ -795,7 +794,7 @@ async def _create_new_buffer_window(
         timer_state.buffer_expires_at_ms = current_time
 
     msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
-    client_msg_ids: List[str] = [msg_id_client] if msg_id_client else []
+    client_msg_ids: list[str] = [msg_id_client] if msg_id_client else []
 
     buffer_obj = AIMessageBuffer(
         user_qiao_id=user_qiao_id,
@@ -837,7 +836,7 @@ async def _create_new_buffer_window(
 async def _update_buffer_window(
     db: AsyncSession,
     buffer_obj: AIMessageBuffer,
-    buffer_item: Optional[AIConversationItem],
+    buffer_item: AIConversationItem | None,
     event: InboundMessageEvent,
     category: BufferMessageCategory,
     config: BufferTimerConfig,
@@ -852,7 +851,7 @@ async def _update_buffer_window(
         config=config,
     )
 
-    update_values: Dict[str, Any] = {
+    update_values: dict[str, Any] = {
         "micro_expires_at_ms": timer_state.micro_expires_at_ms,
         "macro_expires_at_ms": timer_state.macro_expires_at_ms,
         "last_message_category": timer_state.last_message_category,
@@ -896,7 +895,7 @@ async def _update_buffer_window(
     logger.info("buffer_window_updated", buffer_id=buffer_obj.id, category=category.name)
 
 
-def _append_text(existing: Optional[str], addition: str) -> str:
+def _append_text(existing: str | None, addition: str) -> str:
     if not existing:
         return addition or ""
     if not addition:
@@ -904,7 +903,7 @@ def _append_text(existing: Optional[str], addition: str) -> str:
     return f"{existing}\n{addition}"
 
 
-def _categorize_event(event: InboundMessageEvent) -> Optional[BufferMessageCategory]:
+def _categorize_event(event: InboundMessageEvent) -> BufferMessageCategory | None:
     if event.message_type == MessageType.TEXT:
         return (
             BufferMessageCategory.SUPPORTS_TYPING
@@ -918,7 +917,7 @@ def _categorize_event(event: InboundMessageEvent) -> Optional[BufferMessageCateg
     return None
 
 
-def _category_from_value(value: Optional[str]) -> Optional[BufferMessageCategory]:
+def _category_from_value(value: str | None) -> BufferMessageCategory | None:
     if value is None:
         return None
     try:
@@ -929,10 +928,10 @@ def _category_from_value(value: Optional[str]) -> Optional[BufferMessageCategory
 
 def _compute_timer_state(
     *,
-    prev_category: Optional[BufferMessageCategory],
-    current_category: Optional[BufferMessageCategory],
-    current_micro: Optional[int],
-    current_macro: Optional[int],
+    prev_category: BufferMessageCategory | None,
+    current_category: BufferMessageCategory | None,
+    current_micro: int | None,
+    current_macro: int | None,
     now_ms: int,
     config: BufferTimerConfig,
 ) -> TimerComputationResult:
@@ -958,7 +957,9 @@ def _compute_timer_state(
         new_micro = now_ms + config.typing_end_wait_ms
     elif current_category == BufferMessageCategory.TYPING_START:
         new_micro = None
-        new_macro = now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
+        new_macro = (
+            now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
+        )
 
     if prev_category == BufferMessageCategory.TYPING_START:
         if current_category in (
@@ -972,7 +973,9 @@ def _compute_timer_state(
         and current_category == BufferMessageCategory.TYPING_START
     ):
         new_micro = None
-        new_macro = now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
+        new_macro = (
+            now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
+        )
 
     buffer_expires = _compute_buffer_expiration(new_micro, new_macro)
 
@@ -985,8 +988,8 @@ def _compute_timer_state(
 
 
 def _compute_buffer_expiration(
-    micro_expires_at_ms: Optional[int], macro_expires_at_ms: Optional[int]
-) -> Optional[int]:
+    micro_expires_at_ms: int | None, macro_expires_at_ms: int | None
+) -> int | None:
     candidates = [t for t in (micro_expires_at_ms, macro_expires_at_ms) if t is not None]
     return min(candidates) if candidates else None
 
@@ -1007,7 +1010,9 @@ def _buffer_expired_clause(now_ms: int):
 async def _get_buffer_config(db: AsyncSession) -> BufferTimerConfig:
     return BufferTimerConfig(
         normal_wait_ms=await config_service.get_int(db, "message_buffer_normal_wait_ms"),
-        typing_total_wait_ms=await config_service.get_int(db, "message_buffer_typing_total_wait_ms"),
+        typing_total_wait_ms=await config_service.get_int(
+            db, "message_buffer_typing_total_wait_ms"
+        ),
         typing_end_wait_ms=await config_service.get_int(db, "message_buffer_typing_end_wait_ms"),
         no_typing_wait_ms=await config_service.get_int(db, "message_buffer_no_typing_wait_ms"),
     )

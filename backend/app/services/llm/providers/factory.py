@@ -6,7 +6,7 @@ Resolves the correct adapter for a provider/config and dispatches requests.
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable, Dict, Optional
+from collections.abc import Awaitable, Callable
 
 from models.llm import LLMConfig, LLMProvider
 from services.llm.types import LLMProviderResult, LLMRequestOptions
@@ -14,7 +14,7 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-PROVIDER_ADAPTERS: Dict[str, str] = {
+PROVIDER_ADAPTERS: dict[str, str] = {
     "doubao": "doubao_responses",
     "mock": "mock",
 }
@@ -26,7 +26,7 @@ async def send_request(
     options: LLMRequestOptions,
     *,
     stream: bool = False,
-    preemption_checker: Optional[Callable[[], Awaitable[bool]]] = None,
+    preemption_checker: Callable[[], Awaitable[bool]] | None = None,
 ) -> LLMProviderResult:
     """
     Route the LLM request to the correct adapter.

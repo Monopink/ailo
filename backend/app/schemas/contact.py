@@ -5,7 +5,6 @@ This module contains Pydantic schemas for contact relationships and requests.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 from enums import ContactRequestSource, ContactRequestStatus, ContactType
 from pydantic import BaseModel, Field
@@ -17,11 +16,11 @@ from schemas.common import BaseSchema
 class ContactProfileSummary(BaseSchema):
     """Lightweight profile fields exposed via contact APIs."""
 
-    nickname: Optional[str] = Field(None, description="Contact nickname")
-    avatar_url: Optional[str] = Field(None, description="Contact avatar URL")
-    gender: Optional[int] = Field(None, description="Gender enum value")
-    bio: Optional[str] = Field(None, description="Contact bio")
-    region: Optional[str] = Field(None, description="Region information")
+    nickname: str | None = Field(None, description="Contact nickname")
+    avatar_url: str | None = Field(None, description="Contact avatar URL")
+    gender: int | None = Field(None, description="Gender enum value")
+    bio: str | None = Field(None, description="Contact bio")
+    region: str | None = Field(None, description="Region information")
 
 
 class ContactListItem(BaseSchema):
@@ -29,8 +28,8 @@ class ContactListItem(BaseSchema):
 
     conv_id: str = Field(..., description="Conversation identifier")
     contact_qiao_id: str = Field(..., description="Contact external ID")
-    alias: Optional[str] = Field(None, description="Contact alias/remark name")
-    tags: List[str] = Field(default_factory=list, description="Contact tags")
+    alias: str | None = Field(None, description="Contact alias/remark name")
+    tags: list[str] = Field(default_factory=list, description="Contact tags")
     is_pinned: bool = Field(..., description="Is pinned to the top")
     is_muted: bool = Field(..., description="Has do-not-disturb enabled")
     is_blocked: bool = Field(..., description="Is blocked by current user")
@@ -40,7 +39,7 @@ class ContactListItem(BaseSchema):
 class ContactListPagination(BaseSchema):
     """Cursor pagination metadata."""
 
-    cursor: Optional[str] = Field(
+    cursor: str | None = Field(
         None, description="Opaque cursor for fetching the next page, null when no more data"
     )
     has_more: bool = Field(..., description="Whether additional pages are available")
@@ -49,14 +48,14 @@ class ContactListPagination(BaseSchema):
 class ContactListResult(BaseSchema):
     """Paginated contact list response."""
 
-    items: List[ContactListItem] = Field(..., description="Contact list items")
+    items: list[ContactListItem] = Field(..., description="Contact list items")
     pagination: ContactListPagination = Field(..., description="Cursor pagination metadata")
 
 
 class ContactDetailResponse(ContactListItem):
     """Detailed contact info used by detail and mutation endpoints."""
 
-    remark: Optional[str] = Field(None, description="Private remark about this contact")
+    remark: str | None = Field(None, description="Private remark about this contact")
 
 
 class ContactCreate(BaseModel):
@@ -64,11 +63,11 @@ class ContactCreate(BaseModel):
 
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
-    alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
-    custom_avatar_url: Optional[str] = Field(None, max_length=500, description="Custom avatar URL")
-    tags: Optional[List[str]] = Field(None, description="Contact tags")
-    remark: Optional[str] = Field(None, max_length=500, description="Contact remark/notes")
-    source: Optional[str] = Field(
+    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    custom_avatar_url: str | None = Field(None, max_length=500, description="Custom avatar URL")
+    tags: list[str] | None = Field(None, description="Contact tags")
+    remark: str | None = Field(None, max_length=500, description="Contact remark/notes")
+    source: str | None = Field(
         "unknown", max_length=32, description="Contact creation source identifier"
     )
 
@@ -76,11 +75,11 @@ class ContactCreate(BaseModel):
 class ContactUpdate(BaseModel):
     """Schema for updating contact information."""
 
-    alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
-    tags: Optional[List[str]] = Field(None, description="Contact tags")
-    remark: Optional[str] = Field(None, max_length=500, description="Contact remark/notes")
-    is_pinned: Optional[bool] = Field(None, description="Pin/unpin the contact")
-    is_muted: Optional[bool] = Field(None, description="Enable/disable mute")
+    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    tags: list[str] | None = Field(None, description="Contact tags")
+    remark: str | None = Field(None, max_length=500, description="Contact remark/notes")
+    is_pinned: bool | None = Field(None, description="Pin/unpin the contact")
+    is_muted: bool | None = Field(None, description="Enable/disable mute")
 
 
 class ConversationInfoResponse(BaseSchema):
@@ -99,7 +98,7 @@ class ContactRequestBase(BaseSchema):
     """Base contact request schema."""
 
     to_qiao_id: str = Field(..., max_length=32, description="Target external ID")
-    message: Optional[str] = Field(None, description="Application message")
+    message: str | None = Field(None, description="Application message")
     source: ContactRequestSource = Field(..., description="Request source")
 
 
@@ -107,9 +106,9 @@ class ContactRequestCreate(BaseModel):
     """Schema for creating a contact request."""
 
     to_qiao_id: str = Field(..., max_length=32, description="Target external ID")
-    message: Optional[str] = Field(None, max_length=500, description="Application message")
-    alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
-    tags: Optional[List[str]] = Field(None, description="Contact tags")
+    message: str | None = Field(None, max_length=500, description="Application message")
+    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    tags: list[str] | None = Field(None, description="Contact tags")
     source: ContactRequestSource = Field(ContactRequestSource.SEARCH, description="Request source")
 
 
@@ -130,7 +129,7 @@ class ContactRequestWithProfile(BaseSchema):
 
     id: int = Field(..., description="Request ID")
     from_qiao_id: str = Field(..., description="Applicant external ID")
-    message: Optional[str] = Field(None, description="Application message")
+    message: str | None = Field(None, description="Application message")
     status: ContactRequestStatus = Field(..., description="Request status")
     created_at: datetime = Field(..., description="Request creation time")
     from_profile: ContactProfileSummary = Field(..., description="Applicant profile")
@@ -139,7 +138,7 @@ class ContactRequestWithProfile(BaseSchema):
 class ContactRequestListResponse(BaseSchema):
     """Schema for contact request list response."""
 
-    items: List[ContactRequestWithProfile] = Field(..., description="Request list")
+    items: list[ContactRequestWithProfile] = Field(..., description="Request list")
     pagination: dict = Field(..., description="Pagination info")
 
 
@@ -152,8 +151,8 @@ class ContactRequestUpdate(BaseModel):
 class ContactRequestAccept(BaseModel):
     """Schema for accepting contact request."""
 
-    alias: Optional[str] = Field(None, max_length=100, description="Contact alias/remark name")
-    tags: Optional[List[str]] = Field(None, description="Contact tags")
+    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    tags: list[str] | None = Field(None, description="Contact tags")
 
 
 # Contact Search Schemas
@@ -170,9 +169,9 @@ class ContactSearchResult(BaseSchema):
     """Schema for contact search result."""
 
     qiao_id: str = Field(..., description="External ID")
-    nickname: Optional[str] = Field(None, description="Display name")
-    avatar_url: Optional[str] = Field(None, description="Avatar URL")
-    bio: Optional[str] = Field(None, description="Bio description")
+    nickname: str | None = Field(None, description="Display name")
+    avatar_url: str | None = Field(None, description="Avatar URL")
+    bio: str | None = Field(None, description="Bio description")
     is_contact: bool = Field(..., description="Whether already a contact")
 
 
@@ -182,18 +181,18 @@ class ContactSearchResult(BaseSchema):
 class BatchContactUpdate(BaseModel):
     """Schema for batch updating contacts."""
 
-    contact_qiao_ids: List[str] = Field(
+    contact_qiao_ids: list[str] = Field(
         ..., min_length=1, max_length=50, description="Contact external IDs"
     )
-    is_pinned: Optional[bool] = Field(None, description="Pin/unpin contacts")
-    is_muted: Optional[bool] = Field(None, description="Mute/unmute contacts")
-    is_blocked: Optional[bool] = Field(None, description="Block/unblock contacts")
+    is_pinned: bool | None = Field(None, description="Pin/unpin contacts")
+    is_muted: bool | None = Field(None, description="Mute/unmute contacts")
+    is_blocked: bool | None = Field(None, description="Block/unblock contacts")
 
 
 class BatchContactDelete(BaseModel):
     """Schema for batch deleting contacts."""
 
-    contact_qiao_ids: List[str] = Field(
+    contact_qiao_ids: list[str] = Field(
         ..., min_length=1, max_length=50, description="Contact external IDs"
     )
     permanent: bool = Field(False, description="Permanent deletion (cannot be restored)")

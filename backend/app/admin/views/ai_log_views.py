@@ -107,7 +107,9 @@ class AIRequestLogView(ModelView):
         IntegerField("token_count", label="Token Count"),
         IntegerField("response_time", label="Response Time (ms)"),
         LocalDateTimeField("created_at", label="Created At", help_text="Request creation time"),
-        LocalDateTimeField("completed_at", label="Completed At", help_text="Request completion time"),
+        LocalDateTimeField(
+            "completed_at", label="Completed At", help_text="Request completion time"
+        ),
     ]
 
 

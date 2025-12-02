@@ -4,13 +4,13 @@ CAPTCHA Provider Protocol
 Defines the interface for CAPTCHA providers.
 """
 
-from typing import Optional, Protocol, Tuple
+from typing import Protocol
 
 
 class CaptchaProvider(Protocol):
     """CAPTCHA provider interface"""
 
-    async def verify_token(self, token: str, ip: str) -> Tuple[bool, Optional[str]]:
+    async def verify_token(self, token: str, ip: str) -> tuple[bool, str | None]:
         """
         Verify CAPTCHA token.
 

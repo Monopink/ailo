@@ -3,7 +3,7 @@ System-related model views for Starlette-Admin.
 Creates ModelView instances for user management and admin system models.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -35,7 +35,9 @@ class _AdminUsernameField(StringField):
             if not admin_user_id:
                 return ""
             session = request.state.session
-            result = await session.execute(select(AdminUser.username).where(AdminUser.id == admin_user_id))
+            result = await session.execute(
+                select(AdminUser.username).where(AdminUser.id == admin_user_id)
+            )
             value = result.scalar_one_or_none()
             return "" if value is None else str(value)
         except Exception:
@@ -59,17 +61,28 @@ class SystemConfigView(ModelView):
         StringField("id", label="ID", help_text="Configuration ID"),
         StringField("config_key", label="Config Key", help_text="Unique configuration key"),
         StringField("config_value", label="Config Value", help_text="Configuration value"),
-        StringField("default_value", label="Default Value", help_text="Default configuration value"),
-        IntegerEnumField(
-            "config_type", enum=ConfigType, label="Config Type", help_text="Data type of the configuration"
+        StringField(
+            "default_value", label="Default Value", help_text="Default configuration value"
         ),
-        StringField("description", label="Description", help_text="Description of this configuration"),
+        IntegerEnumField(
+            "config_type",
+            enum=ConfigType,
+            label="Config Type",
+            help_text="Data type of the configuration",
+        ),
+        StringField(
+            "description", label="Description", help_text="Description of this configuration"
+        ),
         StringField("group_name", label="Group Name", help_text="Configuration group name"),
         JSONField(
-            "allowed_values", label="Allowed Values", help_text="Allowed values for enum type (JSON array)"
+            "allowed_values",
+            label="Allowed Values",
+            help_text="Allowed values for enum type (JSON array)",
         ),
         "updated_by",
-        LocalDateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
+        LocalDateTimeField(
+            "created_at", label="Created At", help_text="Configuration creation time"
+        ),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
@@ -100,7 +113,9 @@ class AdminUserView(BaseRoleAwareModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Admin user ID"),
-        StringField("username", label="Username", help_text="Administrator username", required=True),
+        StringField(
+            "username", label="Username", help_text="Administrator username", required=True
+        ),
         StringField(
             "password",
             label="Password",
@@ -151,14 +166,16 @@ class AdminUserView(BaseRoleAwareModelView):
         "created_by",
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Validate admin user data."""
         password = data.get("password")
 
         # For create operation, password is required
         if request.url.path.endswith("/create"):
             if not password:
-                raise FormValidationError({"password": "Password is required when creating admin user"})
+                raise FormValidationError(
+                    {"password": "Password is required when creating admin user"}
+                )
 
         # Validate password length if provided
         if password and len(password) < 8:
@@ -166,14 +183,14 @@ class AdminUserView(BaseRoleAwareModelView):
 
         await super().validate(request, data)
 
-    async def before_create(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Hash password before creating admin user."""
         password = data.pop("password", None)
 
         if password:
             obj.password_hash = get_password_hash(password)
 
-    async def before_edit(self, request: Request, data: Dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         """Hash password before updating admin user if password is changed."""
         password = data.pop("password", None)
 
@@ -253,7 +270,9 @@ class AdminLoginLogView(ModelView):
 system_config_view = SystemConfigView(
     SystemConfig, name="System Config", icon="fa fa-cog", identity="system_configs"
 )
-admin_user_view = AdminUserView(AdminUser, name="Admin Users", icon="fa fa-users", identity="admin_user")
+admin_user_view = AdminUserView(
+    AdminUser, name="Admin Users", icon="fa fa-users", identity="admin_user"
+)
 admin_operation_log_view = AdminOperationLogView(
     AdminOperationLog, name="Operation Logs", icon="fa fa-list", identity="admin_operation_log"
 )

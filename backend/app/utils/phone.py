@@ -89,17 +89,16 @@ def mask_phone(phone: str) -> str:
     if phone.startswith("+86") and len(phone) == 14:
         # China phone: +86 + 11 digits → +86 138******00
         return f"+86 {phone[3:6]}******{phone[-2:]}"
-    elif phone.startswith("+1") and len(phone) == 12:
+    if phone.startswith("+1") and len(phone) == 12:
         # US/Canada phone: +1 + 10 digits → +1 201******99
         return f"+1 {phone[2:5]}******{phone[-2:]}"
-    else:
-        # Other countries: try to mask middle part
-        # Extract country code (1-3 digits after +)
-        match = re.match(r"^(\+\d{1,3})(\d{3,})$", phone)
-        if match:
-            country_code = match.group(1)
-            number = match.group(2)
-            if len(number) >= 5:
-                return f"{country_code} {number[:3]}******{number[-2:]}"
+    # Other countries: try to mask middle part
+    # Extract country code (1-3 digits after +)
+    match = re.match(r"^(\+\d{1,3})(\d{3,})$", phone)
+    if match:
+        country_code = match.group(1)
+        number = match.group(2)
+        if len(number) >= 5:
+            return f"{country_code} {number[:3]}******{number[-2:]}"
 
     return phone

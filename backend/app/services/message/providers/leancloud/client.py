@@ -5,7 +5,7 @@ This module provides pure functions for LeanCloud REST API calls.
 All functions are stateless and return explicit results.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import httpx
 from utils.logging import get_logger
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 async def create_system_conversation(
     app_id: str, master_key: str, base_url: str, name: str = "uni_conversation_id"
-) -> tuple[bool, Optional[str], Optional[str]]:
+) -> tuple[bool, str | None, str | None]:
     """
     Create LeanCloud system conversation (service conversation).
 
@@ -42,7 +42,11 @@ async def create_system_conversation(
         )
     """
     url = f"{base_url}/1.2/rtm/service-conversations"
-    headers = {"X-LC-Id": app_id, "X-LC-Key": f"{master_key},master", "Content-Type": "application/json"}
+    headers = {
+        "X-LC-Id": app_id,
+        "X-LC-Key": f"{master_key},master",
+        "Content-Type": "application/json",
+    }
     body = {"name": name}
 
     try:
@@ -54,39 +58,39 @@ async def create_system_conversation(
                 conversation_id = data.get("objectId")
                 if conversation_id:
                     logger.info(
-                        "leancloud_system_conversation_created", conversation_id=conversation_id, name=name
+                        "leancloud_system_conversation_created",
+                        conversation_id=conversation_id,
+                        name=name,
                     )
                     return True, conversation_id, None
-                else:
-                    error_msg = "Response missing objectId field"
-                    logger.error("leancloud_create_conversation_invalid_response", response=data)
-                    return False, None, error_msg
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text}"
-                logger.error(
-                    "leancloud_create_conversation_failed",
-                    status_code=response.status_code,
-                    response=response.text,
-                )
+                error_msg = "Response missing objectId field"
+                logger.error("leancloud_create_conversation_invalid_response", response=data)
                 return False, None, error_msg
+            error_msg = f"HTTP {response.status_code}: {response.text}"
+            logger.error(
+                "leancloud_create_conversation_failed",
+                status_code=response.status_code,
+                response=response.text,
+            )
+            return False, None, error_msg
 
     except httpx.TimeoutException as e:
-        error_msg = f"Request timeout: {str(e)}"
+        error_msg = f"Request timeout: {e!s}"
         logger.error("leancloud_create_conversation_timeout", error=str(e))
         return False, None, error_msg
     except httpx.HTTPError as e:
-        error_msg = f"HTTP error: {str(e)}"
+        error_msg = f"HTTP error: {e!s}"
         logger.error("leancloud_create_conversation_http_error", error=str(e))
         return False, None, error_msg
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Unexpected error: {e!s}"
         logger.error("leancloud_create_conversation_unexpected_error", error=str(e))
         return False, None, error_msg
 
 
 async def check_service_conversation_exists(
     app_id: str, master_key: str, base_url: str, conversation_id: str
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Check if a LeanCloud service conversation exists.
 
@@ -144,7 +148,7 @@ async def check_service_conversation_exists(
 
 async def subscribe_user_to_conversation(
     app_id: str, master_key: str, base_url: str, conversation_id: str, client_id: str
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Subscribe user to LeanCloud system conversation.
 
@@ -159,7 +163,11 @@ async def subscribe_user_to_conversation(
         Tuple of (success, error_message)
     """
     url = f"{base_url}/1.2/rtm/service-conversations/{conversation_id}/subscribers"
-    headers = {"X-LC-Id": app_id, "X-LC-Key": f"{master_key},master", "Content-Type": "application/json"}
+    headers = {
+        "X-LC-Id": app_id,
+        "X-LC-Key": f"{master_key},master",
+        "Content-Type": "application/json",
+    }
     body = {"client_id": client_id}
 
     try:
@@ -168,37 +176,38 @@ async def subscribe_user_to_conversation(
 
             if response.status_code == 200:
                 logger.info(
-                    "leancloud_user_subscribed", conversation_id=conversation_id, client_id=client_id
-                )
-                return True, None
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text}"
-                logger.error(
-                    "leancloud_subscribe_failed",
+                    "leancloud_user_subscribed",
                     conversation_id=conversation_id,
                     client_id=client_id,
-                    status_code=response.status_code,
-                    response=response.text,
                 )
-                return False, error_msg
+                return True, None
+            error_msg = f"HTTP {response.status_code}: {response.text}"
+            logger.error(
+                "leancloud_subscribe_failed",
+                conversation_id=conversation_id,
+                client_id=client_id,
+                status_code=response.status_code,
+                response=response.text,
+            )
+            return False, error_msg
 
     except httpx.TimeoutException as e:
-        error_msg = f"Request timeout: {str(e)}"
+        error_msg = f"Request timeout: {e!s}"
         logger.error("leancloud_subscribe_timeout", error=str(e))
         return False, error_msg
     except httpx.HTTPError as e:
-        error_msg = f"HTTP error: {str(e)}"
+        error_msg = f"HTTP error: {e!s}"
         logger.error("leancloud_subscribe_http_error", error=str(e))
         return False, error_msg
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Unexpected error: {e!s}"
         logger.error("leancloud_subscribe_unexpected_error", error=str(e))
         return False, error_msg
 
 
 async def unsubscribe_user_from_conversation(
     app_id: str, master_key: str, base_url: str, conversation_id: str, client_id: str
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Unsubscribe user from LeanCloud system conversation.
 
@@ -221,30 +230,31 @@ async def unsubscribe_user_from_conversation(
 
             if response.status_code == 200:
                 logger.info(
-                    "leancloud_user_unsubscribed", conversation_id=conversation_id, client_id=client_id
-                )
-                return True, None
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text}"
-                logger.error(
-                    "leancloud_unsubscribe_failed",
+                    "leancloud_user_unsubscribed",
                     conversation_id=conversation_id,
                     client_id=client_id,
-                    status_code=response.status_code,
-                    response=response.text,
                 )
-                return False, error_msg
+                return True, None
+            error_msg = f"HTTP {response.status_code}: {response.text}"
+            logger.error(
+                "leancloud_unsubscribe_failed",
+                conversation_id=conversation_id,
+                client_id=client_id,
+                status_code=response.status_code,
+                response=response.text,
+            )
+            return False, error_msg
 
     except httpx.TimeoutException as e:
-        error_msg = f"Request timeout: {str(e)}"
+        error_msg = f"Request timeout: {e!s}"
         logger.error("leancloud_unsubscribe_timeout", error=str(e))
         return False, error_msg
     except httpx.HTTPError as e:
-        error_msg = f"HTTP error: {str(e)}"
+        error_msg = f"HTTP error: {e!s}"
         logger.error("leancloud_unsubscribe_http_error", error=str(e))
         return False, error_msg
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Unexpected error: {e!s}"
         logger.error("leancloud_unsubscribe_unexpected_error", error=str(e))
         return False, error_msg
 
@@ -255,9 +265,9 @@ async def send_service_message(
     base_url: str,
     conversation_id: str,
     from_client: str,
-    to_clients: List[str],
+    to_clients: list[str],
     message: str,
-) -> tuple[bool, Optional[str], Optional[str]]:
+) -> tuple[bool, str | None, str | None]:
     """
     Send message through LeanCloud service conversation.
 
@@ -277,7 +287,11 @@ async def send_service_message(
         - error_message: Error message if failed
     """
     url = f"{base_url}/1.2/rtm/service-conversations/{conversation_id}/messages"
-    headers = {"X-LC-Id": app_id, "X-LC-Key": f"{master_key},master", "Content-Type": "application/json"}
+    headers = {
+        "X-LC-Id": app_id,
+        "X-LC-Key": f"{master_key},master",
+        "Content-Type": "application/json",
+    }
     body = {"from_client": from_client, "to_clients": to_clients, "message": message}
 
     try:
@@ -296,35 +310,33 @@ async def send_service_message(
                         msg_id=msg_id,
                     )
                     return True, msg_id, None
-                else:
-                    error_msg = "Response missing msg-id field"
-                    logger.error("leancloud_send_message_invalid_response", response=data)
-                    return False, None, error_msg
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text}"
-                logger.error(
-                    "leancloud_send_message_failed",
-                    conversation_id=conversation_id,
-                    status_code=response.status_code,
-                    response=response.text,
-                )
+                error_msg = "Response missing msg-id field"
+                logger.error("leancloud_send_message_invalid_response", response=data)
                 return False, None, error_msg
+            error_msg = f"HTTP {response.status_code}: {response.text}"
+            logger.error(
+                "leancloud_send_message_failed",
+                conversation_id=conversation_id,
+                status_code=response.status_code,
+                response=response.text,
+            )
+            return False, None, error_msg
 
     except httpx.TimeoutException as e:
-        error_msg = f"Request timeout: {str(e)}"
+        error_msg = f"Request timeout: {e!s}"
         logger.error("leancloud_send_message_timeout", error=str(e))
         return False, None, error_msg
     except httpx.HTTPError as e:
-        error_msg = f"HTTP error: {str(e)}"
+        error_msg = f"HTTP error: {e!s}"
         logger.error("leancloud_send_message_http_error", error=str(e))
         return False, None, error_msg
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Unexpected error: {e!s}"
         logger.error("leancloud_send_message_unexpected_error", error=str(e))
         return False, None, error_msg
 
 
-def _extract_msg_id(response_data: Dict[str, Any]) -> Optional[str]:
+def _extract_msg_id(response_data: dict[str, Any]) -> str | None:
     """
     LeanCloud responses sometimes wrap msg-id inside a result envelope.
     This helper normalizes the lookup so provider callers always get the ID.

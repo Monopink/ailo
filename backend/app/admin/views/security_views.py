@@ -4,7 +4,7 @@ Security monitoring related admin views.
 This module contains Starlette-Admin views for managing user security logs and statistics.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from admin.fields import LocalDateTimeField
 from admin.views.base import IntegerEnumField
@@ -71,7 +71,9 @@ class UserViolationLogView(ModelView):
             label="Severity Level",
             help_text="Severity level of the violation",
         ),
-        TextAreaField("original_message", label="Original Message", help_text="User's original message"),
+        TextAreaField(
+            "original_message", label="Original Message", help_text="User's original message"
+        ),
         IntegerEnumField(
             "auto_action_taken",
             enum=AutoAction,
@@ -85,10 +87,14 @@ class UserViolationLogView(ModelView):
             help_text="Manual review status",
         ),
         StringField(
-            "reviewer_id", label="Reviewer ID", help_text="Admin snowflake ID who reviewed this record"
+            "reviewer_id",
+            label="Reviewer ID",
+            help_text="Admin snowflake ID who reviewed this record",
         ),
         TextAreaField("review_notes", label="Review Notes", help_text="Manual review notes"),
-        LocalDateTimeField("created_at", label="Created At", help_text="When violation was detected"),
+        LocalDateTimeField(
+            "created_at", label="Created At", help_text="When violation was detected"
+        ),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
@@ -124,9 +130,13 @@ class UserRiskStatsView(ModelView):
         StringField("id", label="ID", help_text="Internal security stats ID"),
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
-        IntegerField("total_violations", label="Total Violations", help_text="Total violation count"),
+        IntegerField(
+            "total_violations", label="Total Violations", help_text="Total violation count"
+        ),
         "violation_by_type",
-        LocalDateTimeField("last_violation_at", label="Last Violation", help_text="Time of last violation"),
+        LocalDateTimeField(
+            "last_violation_at", label="Last Violation", help_text="Time of last violation"
+        ),
         IntegerEnumField(
             "current_risk_level",
             enum=RiskLevel,
@@ -140,7 +150,9 @@ class UserRiskStatsView(ModelView):
         ),
         IntegerField("warning_count", label="Warning Count", help_text="Number of warnings issued"),
         IntegerField(
-            "restriction_count", label="Restriction Count", help_text="Number of restrictions applied"
+            "restriction_count",
+            label="Restriction Count",
+            help_text="Number of restrictions applied",
         ),
         IntegerField(
             "suspension_count", label="Suspension Count", help_text="Number of suspensions applied"
@@ -152,7 +164,7 @@ class UserRiskStatsView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: Dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation for security stats."""
         # Validate risk level changes
         if "current_risk_level" in data:

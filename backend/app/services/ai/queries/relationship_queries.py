@@ -5,7 +5,7 @@ This module provides relationship scoring and evaluation query functions
 with clear separation of concerns and pure function design.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from models.ai import (
     AIDimension,
@@ -22,7 +22,9 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def get_instance_relationship_scores(db: AsyncSession, instance_id: int) -> List[Dict[str, Any]]:
+async def get_instance_relationship_scores(
+    db: AsyncSession, instance_id: int
+) -> list[dict[str, Any]]:
     """
     Get relationship scores for an instance.
 
@@ -92,7 +94,7 @@ async def get_instance_relationship_scores(db: AsyncSession, instance_id: int) -
         return []
 
 
-async def get_instance_current_relationship(db: AsyncSession, instance_id: int) -> Dict[str, Any]:
+async def get_instance_current_relationship(db: AsyncSession, instance_id: int) -> dict[str, Any]:
     """
     Get the current relationship information for an instance.
 
@@ -122,9 +124,8 @@ async def get_instance_current_relationship(db: AsyncSession, instance_id: int) 
             )
 
             return current_relationship
-        else:
-            logger.debug("no_current_relationship_found", instance_id=instance_id)
-            return {}
+        logger.debug("no_current_relationship_found", instance_id=instance_id)
+        return {}
 
     except Exception as e:
         logger.error(
@@ -135,7 +136,7 @@ async def get_instance_current_relationship(db: AsyncSession, instance_id: int) 
         return {}
 
 
-async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List[Dict[str, Any]]:
+async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> list[dict[str, Any]]:
     """
     Get relationship score ranges for a style.
 
@@ -153,7 +154,9 @@ async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List
                 AIRelationship,
                 AIDimension.display_name,
             )
-            .join(AIRelationship, AIDimensionRelationshipMapping.relationship_id == AIRelationship.id)
+            .join(
+                AIRelationship, AIDimensionRelationshipMapping.relationship_id == AIRelationship.id
+            )
             .join(AIDimension, AIDimensionRelationshipMapping.dimension_id == AIDimension.id)
             .join(
                 AIStyleDimension,
@@ -178,7 +181,9 @@ async def get_relationship_score_ranges(db: AsyncSession, style_id: int) -> List
                 }
             )
 
-        logger.debug("relationship_score_ranges_retrieved", style_id=style_id, ranges_count=len(ranges))
+        logger.debug(
+            "relationship_score_ranges_retrieved", style_id=style_id, ranges_count=len(ranges)
+        )
 
         return ranges
 

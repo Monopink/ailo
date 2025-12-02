@@ -1,6 +1,6 @@
 """Dashboard data service for admin panel."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +9,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def get_total_users(db: AsyncSession) -> Dict[str, Any]:
+async def get_total_users(db: AsyncSession) -> dict[str, Any]:
     """
     Get total users count and growth rate.
 
@@ -60,7 +60,7 @@ async def get_total_users(db: AsyncSession) -> Dict[str, Any]:
         return {"value": 0, "change": 0.0, "trend": "stable"}
 
 
-async def get_ai_instances_stats(db: AsyncSession) -> Dict[str, Any]:
+async def get_ai_instances_stats(db: AsyncSession) -> dict[str, Any]:
     """
     Get AI instances count and growth rate.
 
@@ -111,7 +111,7 @@ async def get_ai_instances_stats(db: AsyncSession) -> Dict[str, Any]:
         return {"value": 0, "change": 0.0, "trend": "stable"}
 
 
-async def get_total_messages_stats(db: AsyncSession) -> Dict[str, Any]:
+async def get_total_messages_stats(db: AsyncSession) -> dict[str, Any]:
     """
     Get total messages count and growth rate.
 
@@ -160,7 +160,7 @@ async def get_total_messages_stats(db: AsyncSession) -> Dict[str, Any]:
         return {"value": 0, "change": 0.0, "trend": "stable"}
 
 
-async def get_active_sessions_stats(db: AsyncSession) -> Dict[str, Any]:
+async def get_active_sessions_stats(db: AsyncSession) -> dict[str, Any]:
     """
     Get active sessions count and growth rate.
 
@@ -209,7 +209,7 @@ async def get_active_sessions_stats(db: AsyncSession) -> Dict[str, Any]:
         return {"value": 0, "change": 0.0, "trend": "stable"}
 
 
-async def get_user_growth_chart(db: AsyncSession) -> Dict[str, List]:
+async def get_user_growth_chart(db: AsyncSession) -> dict[str, list]:
     """
     Get user growth data for last 7 days.
 
@@ -246,7 +246,7 @@ async def get_user_growth_chart(db: AsyncSession) -> Dict[str, List]:
         return {"labels": [], "data": []}
 
 
-async def get_message_volume_chart(db: AsyncSession) -> Dict[str, List]:
+async def get_message_volume_chart(db: AsyncSession) -> dict[str, list]:
     """
     Get message volume data for last 7 days.
 
@@ -282,7 +282,7 @@ async def get_message_volume_chart(db: AsyncSession) -> Dict[str, List]:
         return {"labels": [], "data": []}
 
 
-async def get_dashboard_stats(db: AsyncSession) -> Dict[str, Any]:
+async def get_dashboard_stats(db: AsyncSession) -> dict[str, Any]:
     """
     Get all dashboard statistics.
 

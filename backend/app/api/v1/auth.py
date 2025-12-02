@@ -10,8 +10,7 @@ This module provides authentication-related endpoints including:
 
 import random
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Tuple
+from datetime import UTC, datetime, timedelta
 
 from api.deps import get_current_user
 from core.database import get_db
@@ -61,17 +60,17 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 # In-memory verification code storage (for MVP)
 # Format: phone -> (code, expires_at)
 # TODO: Replace with Redis in production for distributed deployment
-_verification_codes: Dict[str, Tuple[str, datetime]] = {}
+_verification_codes: dict[str, tuple[str, datetime]] = {}
 
 # In-memory verified phone token storage (for MVP)
 # Format: token -> (phone, wechat_openid, expires_at)
 # TODO: Replace with Redis in production for distributed deployment
-_verified_phone_tokens: Dict[str, Tuple[str, str | None, datetime]] = {}
+_verified_phone_tokens: dict[str, tuple[str, str | None, datetime]] = {}
 
 # In-memory operation token storage (for MVP)
 # Format: token -> (user_id, expires_at)
 # TODO: Replace with Redis in production for distributed deployment
-_operation_tokens: Dict[str, Tuple[int, datetime]] = {}
+_operation_tokens: dict[str, tuple[int, datetime]] = {}
 
 # Constants
 SMS_CODE_TTL_SECONDS = 5 * 60  # 5 minutes
@@ -94,7 +93,9 @@ def _get_client_ip(request: Request) -> str:
 async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
     """Return JWT expiration duration in seconds from configuration."""
 
-    expires_in_days = await system_configs.get_config_value(db, config_key="jwt_token_expires_in_days")
+    expires_in_days = await system_configs.get_config_value(
+        db, config_key="jwt_token_expires_in_days"
+    )
     if expires_in_days is None:
         logger.error("jwt_expiration_config_missing")
         raise HTTPException(
@@ -112,8 +113,10 @@ def _cleanup_expired_codes() -> None:
     This function should be called before storing new codes to prevent memory leaks.
     In production, Redis TTL should be used instead.
     """
-    now = datetime.now(timezone.utc)
-    expired_phones = [phone for phone, (_, expires_at) in _verification_codes.items() if now >= expires_at]
+    now = datetime.now(UTC)
+    expired_phones = [
+        phone for phone, (_, expires_at) in _verification_codes.items() if now >= expires_at
+    ]
     for phone in expired_phones:
         del _verification_codes[phone]
 
@@ -128,7 +131,7 @@ def _cleanup_expired_phone_tokens() -> None:
     This function should be called before storing new tokens to prevent memory leaks.
     In production, Redis TTL should be used instead.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expired_tokens = [
         token for token, (_, _, expires_at) in _verified_phone_tokens.items() if now >= expires_at
     ]
@@ -146,8 +149,10 @@ def _cleanup_expired_operation_tokens() -> None:
     This function should be called before storing new tokens to prevent memory leaks.
     In production, Redis TTL should be used instead.
     """
-    now = datetime.now(timezone.utc)
-    expired_tokens = [token for token, (_, expires_at) in _operation_tokens.items() if now >= expires_at]
+    now = datetime.now(UTC)
+    expired_tokens = [
+        token for token, (_, expires_at) in _operation_tokens.items() if now >= expires_at
+    ]
     for token in expired_tokens:
         del _operation_tokens[token]
 
@@ -172,7 +177,7 @@ def _consume_sms_code(phone: str, sms_code: str) -> None:
         raise HTTPException(status_code=400, detail="验证码错误或已过期")
 
     stored_code, expires_at = stored_data
-    if datetime.now(timezone.utc) >= expires_at:
+    if datetime.now(UTC) >= expires_at:
         del _verification_codes[phone]
         raise HTTPException(status_code=400, detail="验证码已过期")
 
@@ -194,7 +199,7 @@ def _generate_operation_token(user_id: int) -> str:
     """
 
     token = f"opt_{secrets.token_urlsafe(32)}"
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=SMS_CODE_TTL_SECONDS)
+    expires_at = datetime.now(UTC) + timedelta(seconds=SMS_CODE_TTL_SECONDS)
     _operation_tokens[token] = (user_id, expires_at)
     _cleanup_expired_operation_tokens()  # Clean up expired tokens
 
@@ -218,7 +223,7 @@ def _verify_operation_token(token: str) -> int | None:
         return None
 
     user_id, expires_at = _operation_tokens[token]
-    if datetime.now(timezone.utc) >= expires_at:
+    if datetime.now(UTC) >= expires_at:
         del _operation_tokens[token]
         logger.warning("operation_token_expired", token=token[:10])
         return None
@@ -239,7 +244,7 @@ def _generate_verified_phone_token(phone: str, wechat_openid: str | None = None)
     """
 
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)  # 5 minutes expiration
+    expires_at = datetime.now(UTC) + timedelta(minutes=5)  # 5 minutes expiration
     _verified_phone_tokens[token] = (phone, wechat_openid, expires_at)
     _cleanup_expired_phone_tokens()  # Clean up expired tokens
 
@@ -264,7 +269,7 @@ def _verify_phone_token(token: str) -> tuple[str, str | None] | None:
         return None
 
     phone, wechat_openid, expires_at = stored_data
-    if datetime.now(timezone.utc) >= expires_at:
+    if datetime.now(UTC) >= expires_at:
         del _verified_phone_tokens[token]
         return None
 
@@ -367,7 +372,7 @@ async def send_sms_code(request: Request, body: SendSMSRequest, db: AsyncSession
 
     # 4. Store code in memory with expiration (for MVP)
     # In production, use Redis with TTL instead
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)  # 5 minutes expiration
+    expires_at = datetime.now(UTC) + timedelta(minutes=5)  # 5 minutes expiration
     _verification_codes[normalized_phone] = (code, expires_at)
     _cleanup_expired_codes()  # Clean up expired codes
 
@@ -390,7 +395,9 @@ async def send_sms_code(request: Request, body: SendSMSRequest, db: AsyncSession
 
 
 @router.post("/wechat/login", response_model=WeChatLoginResponse)
-async def wechat_login(request: Request, body: WeChatLoginRequest, db: AsyncSession = Depends(get_db)):
+async def wechat_login(
+    request: Request, body: WeChatLoginRequest, db: AsyncSession = Depends(get_db)
+):
     """
     WeChat Mini Program login
 
@@ -500,7 +507,6 @@ async def wechat_login(request: Request, body: WeChatLoginRequest, db: AsyncSess
         if not user:
             # Create new user
             try:
-
                 user_id = generate_snowflake_id()
                 qiao_id = generate_qiao_id()
 
@@ -555,7 +561,9 @@ async def wechat_login(request: Request, body: WeChatLoginRequest, db: AsyncSess
                         provider_uid=openid,
                         unionid=unionid,
                     )
-                    logger.info("wechat_binding_created", qiao_id=user.qiao_id, openid=openid[:8] + "...")
+                    logger.info(
+                        "wechat_binding_created", qiao_id=user.qiao_id, openid=openid[:8] + "..."
+                    )
                 except Exception as e:
                     logger.error("wechat_binding_create_failed", error=str(e), exc_info=True)
                     raise HTTPException(status_code=500, detail="绑定失败")
@@ -567,7 +575,6 @@ async def wechat_login(request: Request, body: WeChatLoginRequest, db: AsyncSess
 
         # 8. Create token
         try:
-
             expires_in_seconds = await _get_jwt_expiration_seconds(db)
             jwt_token = generate_jwt_token(
                 user_id=user.id,
@@ -613,7 +620,9 @@ async def wechat_login(request: Request, body: WeChatLoginRequest, db: AsyncSess
         # 9. Get user profile
 
         profile_result = await db.execute(
-            select(Profile).where(Profile.owner_id == user.id, Profile.owner_type == ProfileOwnerType.USER)
+            select(Profile).where(
+                Profile.owner_id == user.id, Profile.owner_type == ProfileOwnerType.USER
+            )
         )
         profile = profile_result.scalar_one_or_none()
 
@@ -681,7 +690,9 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
                 raise HTTPException(status_code=400, detail="请使用中国大陆手机号")
 
         except ValueError as e:
-            logger.error("bind_phone_invalid_phone_format", phone=body.phone, error=str(e), ip=client_ip)
+            logger.error(
+                "bind_phone_invalid_phone_format", phone=body.phone, error=str(e), ip=client_ip
+            )
             raise HTTPException(status_code=400, detail="手机号格式无效")
 
         # 2. Verify wechat_code
@@ -701,7 +712,7 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
             raise HTTPException(status_code=400, detail="短信验证码错误或已过期")
 
         stored_code, expires_at = stored_data
-        if datetime.now(timezone.utc) >= expires_at:
+        if datetime.now(UTC) >= expires_at:
             logger.warning("bind_phone_sms_code_expired", phone=normalized_phone, ip=client_ip)
             raise HTTPException(status_code=400, detail="短信验证码已过期")
 
@@ -710,7 +721,10 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
             raise HTTPException(status_code=400, detail="短信验证码错误")
 
         logger.info(
-            "bind_phone_phone_verified", openid=openid[:8] + "...", phone=normalized_phone, ip=client_ip
+            "bind_phone_phone_verified",
+            openid=openid[:8] + "...",
+            phone=normalized_phone,
+            ip=client_ip,
         )
 
         # 4. Find or create user
@@ -723,7 +737,6 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
         if not user:
             # Create new user
             try:
-
                 user_id = generate_snowflake_id()
                 qiao_id = generate_qiao_id()
 
@@ -786,7 +799,9 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
                     provider_uid=openid,
                     unionid=unionid,
                 )
-                logger.info("bind_phone_binding_created", qiao_id=user.qiao_id, openid=openid[:8] + "...")
+                logger.info(
+                    "bind_phone_binding_created", qiao_id=user.qiao_id, openid=openid[:8] + "..."
+                )
 
         # 5. Check user status
         if not await user_crud.is_active(user):
@@ -795,7 +810,6 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
 
         # 6. Create token
         try:
-
             expires_in_seconds = await _get_jwt_expiration_seconds(db)
             jwt_token = generate_jwt_token(
                 user_id=user.id,
@@ -902,12 +916,16 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)):
         raise
 
     except Exception as e:
-        logger.error("logout_failed", error=str(e), qiao_id=user.qiao_id, ip=client_ip, exc_info=True)
+        logger.error(
+            "logout_failed", error=str(e), qiao_id=user.qiao_id, ip=client_ip, exc_info=True
+        )
         raise HTTPException(status_code=500, detail="退出登录失败，请稍后再试")
 
 
 @router.post("/phone", response_model=VerifyPhoneResponse)
-async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSession = Depends(get_db)):
+async def verify_phone(
+    request: Request, body: VerifyPhoneRequest, db: AsyncSession = Depends(get_db)
+):
     """
     Unified phone verification endpoint (login/registration entry).
     This endpoint handles both login and registration scenarios:
@@ -938,7 +956,9 @@ async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSess
                 raise HTTPException(status_code=400, detail="仅支持中国大陆手机号")
 
         except ValueError as e:
-            logger.error("verify_phone_invalid_phone_format", phone=body.phone, error=str(e), ip=client_ip)
+            logger.error(
+                "verify_phone_invalid_phone_format", phone=body.phone, error=str(e), ip=client_ip
+            )
             raise HTTPException(status_code=400, detail="手机号格式无效")
 
         # 2. Verify SMS code
@@ -948,7 +968,7 @@ async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSess
             raise HTTPException(status_code=400, detail="验证码错误或已过期")
 
         stored_code, expires_at = stored_data
-        if datetime.now(timezone.utc) >= expires_at:
+        if datetime.now(UTC) >= expires_at:
             logger.warning("verify_phone_sms_code_expired", phone=normalized_phone, ip=client_ip)
             raise HTTPException(status_code=400, detail="验证码已过期")
 
@@ -970,7 +990,9 @@ async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSess
                 )
                 raise HTTPException(status_code=400, detail="微信验证码无效或已过期")
 
-            logger.info("verify_phone_wechat_code_verified", openid=wechat_openid[:8] + "...", ip=client_ip)
+            logger.info(
+                "verify_phone_wechat_code_verified", openid=wechat_openid[:8] + "...", ip=client_ip
+            )
 
         # 4. Check if user exists
         user = await user_crud.get_by_phone(db, phone=normalized_phone)
@@ -978,7 +1000,10 @@ async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSess
         if user:
             # User exists - direct login
             logger.info(
-                "verify_phone_user_exists", qiao_id=user.qiao_id, phone=normalized_phone, ip=client_ip
+                "verify_phone_user_exists",
+                qiao_id=user.qiao_id,
+                phone=normalized_phone,
+                ip=client_ip,
             )
 
             # Bind WeChat openid if provided and not already bound
@@ -1016,7 +1041,6 @@ async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSess
 
             # Create token
             try:
-
                 expires_in_seconds = await _get_jwt_expiration_seconds(db)
                 jwt_token = generate_jwt_token(
                     user_id=user.id,
@@ -1085,24 +1109,23 @@ async def verify_phone(request: Request, body: VerifyPhoneRequest, db: AsyncSess
                 },
             )
 
-        else:
-            # User doesn't exist - return temporary token for registration
-            logger.info("verify_phone_new_user", phone=normalized_phone, ip=client_ip)
+        # User doesn't exist - return temporary token for registration
+        logger.info("verify_phone_new_user", phone=normalized_phone, ip=client_ip)
 
-            # Generate temporary token
-            verified_phone_token = _generate_verified_phone_token(normalized_phone, wechat_openid)
+        # Generate temporary token
+        verified_phone_token = _generate_verified_phone_token(normalized_phone, wechat_openid)
 
-            # Clear verification code
-            _verification_codes.pop(normalized_phone, None)
+        # Clear verification code
+        _verification_codes.pop(normalized_phone, None)
 
-            # Return registration token
-            return VerifyPhoneResponse(
-                is_new_user=True,
-                token=None,
-                user=None,
-                verified_phone_token=verified_phone_token,
-                phone=normalized_phone,
-            )
+        # Return registration token
+        return VerifyPhoneResponse(
+            is_new_user=True,
+            token=None,
+            user=None,
+            verified_phone_token=verified_phone_token,
+            phone=normalized_phone,
+        )
 
     except HTTPException:
         raise
@@ -1161,7 +1184,6 @@ async def complete_registration(
 
         # 3. Create user and profile
         try:
-
             user_id = generate_snowflake_id()
             qiao_id = generate_qiao_id()
 
@@ -1247,7 +1269,6 @@ async def complete_registration(
 
         # 5. Create token
         try:
-
             expires_in_seconds = await _get_jwt_expiration_seconds(db)
             jwt_token = generate_jwt_token(
                 user_id=user.id,
@@ -1389,7 +1410,7 @@ async def send_verification_code(
             code = f"{random.randint(100000, 999999)}"
 
             # Store code
-            expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+            expires_at = datetime.now(UTC) + timedelta(minutes=5)
             _verification_codes[normalized_phone] = (code, expires_at)
             _cleanup_expired_codes()
 
@@ -1416,7 +1437,7 @@ async def send_verification_code(
 
             return VerifySendCodeResponse(cooldown=60)
 
-        elif body.verify_type == "email":
+        if body.verify_type == "email":
             target = body.target if body.target else current_user.email
             if not target:
                 raise HTTPException(status_code=400, detail="用户未绑定邮箱")
@@ -1425,14 +1446,15 @@ async def send_verification_code(
             # For now, raise not implemented error
             raise HTTPException(status_code=501, detail="邮箱验证功能暂未实现")
 
-        else:
-            raise HTTPException(status_code=400, detail="不支持的验证类型")
+        raise HTTPException(status_code=400, detail="不支持的验证类型")
 
     except HTTPException:
         raise
 
     except Exception as e:
-        logger.error("send_verification_code_failed", error=str(e), user_id=current_user.id, exc_info=True)
+        logger.error(
+            "send_verification_code_failed", error=str(e), user_id=current_user.id, exc_info=True
+        )
         raise HTTPException(status_code=500, detail="发送验证码失败，请稍后再试")
 
 
@@ -1468,7 +1490,7 @@ async def confirm_verification_code(
 
             stored_code, expires_at = _verification_codes[normalized_phone]
 
-            if datetime.now(timezone.utc) >= expires_at:
+            if datetime.now(UTC) >= expires_at:
                 del _verification_codes[normalized_phone]
                 raise HTTPException(status_code=400, detail="验证码已过期")
 
@@ -1485,16 +1507,17 @@ async def confirm_verification_code(
 
             return OperationTokenResponse(operation_token=operation_token, expires_in=300)
 
-        elif body.verify_type == "email":
+        if body.verify_type == "email":
             # TODO: Implement email verification
             raise HTTPException(status_code=501, detail="邮箱验证功能暂未实现")
 
-        else:
-            raise HTTPException(status_code=400, detail="不支持的验证类型")
+        raise HTTPException(status_code=400, detail="不支持的验证类型")
 
     except HTTPException:
         raise
 
     except Exception as e:
-        logger.error("confirm_verification_failed", error=str(e), user_id=current_user.id, exc_info=True)
+        logger.error(
+            "confirm_verification_failed", error=str(e), user_id=current_user.id, exc_info=True
+        )
         raise HTTPException(status_code=500, detail="验证失败，请稍后再试")

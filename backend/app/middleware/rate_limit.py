@@ -7,7 +7,6 @@ Uses memory cache for best performance.
 
 import time
 from collections import deque
-from typing import Dict
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -38,7 +37,7 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
             app: FastAPI application
         """
         super().__init__(app)
-        self._cache: Dict[str, deque] = {}
+        self._cache: dict[str, deque] = {}
 
         logger.info("api_rate_limit_middleware_initialized")
 

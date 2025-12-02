@@ -4,8 +4,8 @@ Message service health check.
 Provides provider-agnostic health check functionality for the message service.
 """
 
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 from crud.system import system_configs
 from services.config import config_service
@@ -16,7 +16,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def check_message_service_health(db: AsyncSession) -> Dict[str, Any]:
+async def check_message_service_health(db: AsyncSession) -> dict[str, Any]:
     """
     Check message service health (provider-agnostic).
 
@@ -50,31 +50,36 @@ async def check_message_service_health(db: AsyncSession) -> Dict[str, Any]:
             "healthy": is_healthy,
             "provider": "leancloud",
             "error": error_msg,
-            "checked_at": int(datetime.now(timezone.utc).timestamp() * 1000),
+            "checked_at": int(datetime.now(UTC).timestamp() * 1000),
         }
 
         if is_healthy:
             logger.debug("message_service_health_check_passed", provider="leancloud")
         else:
-            logger.warning("message_service_health_check_failed", provider="leancloud", error=error_msg)
+            logger.warning(
+                "message_service_health_check_failed", provider="leancloud", error=error_msg
+            )
 
         return result
 
     except Exception as e:
-        error_msg = f"Health check failed: {str(e)}"
+        error_msg = f"Health check failed: {e!s}"
         logger.error(
-            "message_service_health_check_error", error=str(e), error_type=type(e).__name__, exc_info=True
+            "message_service_health_check_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            exc_info=True,
         )
 
         return {
             "healthy": False,
             "provider": "unknown",
             "error": error_msg,
-            "checked_at": int(datetime.now(timezone.utc).timestamp() * 1000),
+            "checked_at": int(datetime.now(UTC).timestamp() * 1000),
         }
 
 
-async def get_message_service_status(db: AsyncSession) -> Dict[str, Any]:
+async def get_message_service_status(db: AsyncSession) -> dict[str, Any]:
     """
     Get comprehensive message service status.
 
@@ -137,15 +142,22 @@ async def get_message_service_status(db: AsyncSession) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        error_msg = f"Status check failed: {str(e)}"
+        error_msg = f"Status check failed: {e!s}"
         logger.error(
-            "message_service_status_check_error", error=str(e), error_type=type(e).__name__, exc_info=True
+            "message_service_status_check_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            exc_info=True,
         )
 
         return {
             "healthy": False,
             "provider": "unknown",
             "error": error_msg,
-            "checked_at": int(datetime.now(timezone.utc).timestamp() * 1000),
-            "details": {"config_complete": False, "service_initialized": False, "api_accessible": False},
+            "checked_at": int(datetime.now(UTC).timestamp() * 1000),
+            "details": {
+                "config_complete": False,
+                "service_initialized": False,
+                "api_accessible": False,
+            },
         }

@@ -42,7 +42,7 @@ class SquareTypeEntry(AutoIncrementModel):
         default=1,
         comment="1=active, 2=inactive",
     )
-    ai_type: Mapped["AIType"] = relationship(
+    ai_type: Mapped[AIType] = relationship(
         "AIType",
         primaryjoin="AIType.id == SquareTypeEntry.type_id",
         viewonly=True,

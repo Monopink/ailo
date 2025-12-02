@@ -7,7 +7,7 @@ including placeholder interpolation and validation.
 
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from models.ai import AIPersonalityPlaceholder
@@ -18,8 +18,8 @@ logger = get_logger(__name__)
 
 def interpolate_prompt_template(
     template: str,
-    variables: Dict[str, Any],
-    placeholders: Optional[List[AIPersonalityPlaceholder]] = None,
+    variables: dict[str, Any],
+    placeholders: list[AIPersonalityPlaceholder] | None = None,
 ) -> str:
     """
     Interpolate variables into a prompt template.
@@ -52,10 +52,10 @@ def interpolate_prompt_template(
 
     except Exception as e:
         logger.error("template_interpolation_error", error=str(e))
-        raise ValueError(f"Failed to interpolate template: {str(e)}")
+        raise ValueError(f"Failed to interpolate template: {e!s}")
 
 
-def _get_system_variables() -> Dict[str, Any]:
+def _get_system_variables() -> dict[str, Any]:
     """Get system-level template variables."""
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
 
@@ -66,7 +66,7 @@ def _get_system_variables() -> Dict[str, Any]:
 
 
 def _validate_required_placeholders(
-    variables: Dict[str, Any], placeholders: List[AIPersonalityPlaceholder]
+    variables: dict[str, Any], placeholders: list[AIPersonalityPlaceholder]
 ) -> None:
     """
     Validate that all required placeholders have values.
@@ -85,8 +85,8 @@ def _validate_required_placeholders(
 
 def interpolate_advanced_template(
     template: str,
-    variables: Dict[str, Any],
-    placeholders: Optional[List[AIPersonalityPlaceholder]] = None,
+    variables: dict[str, Any],
+    placeholders: list[AIPersonalityPlaceholder] | None = None,
     max_depth: int = 3,
 ) -> str:
     """
@@ -134,10 +134,10 @@ def interpolate_advanced_template(
 
     except Exception as e:
         logger.error("advanced_template_interpolation_error", error=str(e))
-        raise ValueError(f"Failed to interpolate advanced template: {str(e)}")
+        raise ValueError(f"Failed to interpolate advanced template: {e!s}")
 
 
-def _process_conditional_placeholders(template: str, variables: Dict[str, Any]) -> str:
+def _process_conditional_placeholders(template: str, variables: dict[str, Any]) -> str:
     """
     Process conditional placeholders in format {{if:condition}}content{{/if}}.
 
@@ -160,8 +160,7 @@ def _process_conditional_placeholders(template: str, variables: Dict[str, Any]) 
             condition_value = variables.get(condition_var)
             if condition_value and str(condition_value).strip():
                 return content
-            else:
-                return ""
+            return ""
 
         result = re.sub(conditional_pattern, replace_conditional, template, flags=re.DOTALL)
 
@@ -179,7 +178,7 @@ def _process_conditional_placeholders(template: str, variables: Dict[str, Any]) 
 
 
 def _process_nested_placeholders(
-    template: str, variables: Dict[str, Any], max_depth: int, current_depth: int = 0
+    template: str, variables: dict[str, Any], max_depth: int, current_depth: int = 0
 ) -> str:
     """
     Process nested placeholders recursively.
@@ -231,7 +230,7 @@ def _process_nested_placeholders(
         return template
 
 
-def _process_default_placeholders(template: str, variables: Dict[str, Any]) -> str:
+def _process_default_placeholders(template: str, variables: dict[str, Any]) -> str:
     """
     Process placeholders with default values in format {{variable|default}}.
 
@@ -254,8 +253,7 @@ def _process_default_placeholders(template: str, variables: Dict[str, Any]) -> s
             var_value = variables.get(var_name)
             if var_value is not None and str(var_value).strip():
                 return str(var_value)
-            else:
-                return default_value
+            return default_value
 
         result = re.sub(default_pattern, replace_default, template)
 

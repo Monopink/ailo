@@ -4,8 +4,6 @@ AI style and relationship related models.
 This module contains SQLAlchemy models for AI styles and relationship configurations.
 """
 
-from typing import List, Optional
-
 from markupsafe import escape
 from models.base import AutoIncrementModel
 from sqlalchemy import CheckConstraint, Integer, Numeric, String, Text, UniqueConstraint, text
@@ -32,7 +30,7 @@ class AIStyle(AutoIncrementModel):
     )
 
     # Relationships
-    style_dimensions: Mapped[List["AIStyleDimension"]] = relationship(
+    style_dimensions: Mapped[list["AIStyleDimension"]] = relationship(
         "AIStyleDimension",
         back_populates="style",
         primaryjoin="AIStyle.id == foreign(AIStyleDimension.style_id)",
@@ -53,24 +51,29 @@ class AIDimension(AutoIncrementModel):
     __tablename__ = "ai_dimensions"
 
     name: Mapped[str] = mapped_column(
-        String(50), nullable=False, unique=True, comment="Dimension name for LLM response (globally unique)"
+        String(50),
+        nullable=False,
+        unique=True,
+        comment="Dimension name for LLM response (globally unique)",
     )
 
-    display_name: Mapped[Optional[str]] = mapped_column(
+    display_name: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Display name for UI"
     )
 
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="Dimension description")
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="Dimension description"
+    )
 
     # Relationships
-    style_dimensions: Mapped[List["AIStyleDimension"]] = relationship(
+    style_dimensions: Mapped[list["AIStyleDimension"]] = relationship(
         "AIStyleDimension",
         back_populates="dimension",
         primaryjoin="AIDimension.id == foreign(AIStyleDimension.dimension_id)",
         cascade="all, delete-orphan",
     )
 
-    relationship_mappings: Mapped[List["AIDimensionRelationshipMapping"]] = relationship(
+    relationship_mappings: Mapped[list["AIDimensionRelationshipMapping"]] = relationship(
         "AIDimensionRelationshipMapping",
         back_populates="dimension",
         primaryjoin="AIDimension.id == foreign(AIDimensionRelationshipMapping.dimension_id)",
@@ -118,9 +121,12 @@ class AIStyleDimension(AutoIncrementModel):
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint("style_id", "dimension_id", name="ai_style_dimensions_style_id_dimension_id_key"),
+        UniqueConstraint(
+            "style_id", "dimension_id", name="ai_style_dimensions_style_id_dimension_id_key"
+        ),
         CheckConstraint(
-            "initial_position >= 0 AND initial_position <= 1000", name="ai_style_dimensions_position_range"
+            "initial_position >= 0 AND initial_position <= 1000",
+            name="ai_style_dimensions_position_range",
         ),
     )
 
@@ -136,12 +142,16 @@ class AIRelationship(AutoIncrementModel):
 
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Display name")
 
-    prompt_fragment: Mapped[Optional[str]] = mapped_column(
+    prompt_fragment: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Prompt fragment for this relationship type"
     )
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, server_default=text("1"), comment="Status: 1=active, 2=inactive"
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Status: 1=active, 2=inactive",
     )
 
     wake_time_min_ms: Mapped[int] = mapped_column(
@@ -201,7 +211,7 @@ class AIRelationship(AutoIncrementModel):
     )
 
     # Relationships
-    relationship_mappings: Mapped[List["AIDimensionRelationshipMapping"]] = relationship(
+    relationship_mappings: Mapped[list["AIDimensionRelationshipMapping"]] = relationship(
         "AIDimensionRelationshipMapping",
         back_populates="relationship",
         primaryjoin="AIRelationship.id == foreign(AIDimensionRelationshipMapping.relationship_id)",
@@ -254,10 +264,14 @@ class AIDimensionRelationshipMapping(AutoIncrementModel):
     )
 
     priority: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, server_default=text("1"), comment="Priority level (default: 1)"
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Priority level (default: 1)",
     )
 
-    limit_count: Mapped[Optional[int]] = mapped_column(
+    limit_count: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="Maximum occurrence count, NULL means unlimited"
     )
 

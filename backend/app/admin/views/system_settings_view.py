@@ -105,11 +105,15 @@ class SystemSettingsView(CustomView):
 
                     if admin_role_val not in (AdminRole.ADMIN, AdminRole.SUPER_ADMIN):
                         context["error"] = "Permission denied"
-                        return templates.TemplateResponse("custom_views/system_settings.html", context)
+                        return templates.TemplateResponse(
+                            "custom_views/system_settings.html", context
+                        )
 
                     if not admin_user_id:
                         context["error"] = "Admin user not found in session"
-                        return templates.TemplateResponse("custom_views/system_settings.html", context)
+                        return templates.TemplateResponse(
+                            "custom_views/system_settings.html", context
+                        )
 
                     form_data = await request.form()
 
@@ -171,10 +175,14 @@ class SystemSettingsView(CustomView):
 
                         context["success"] = f"Successfully updated {len(changes)} configuration(s)"
                         logger.info(
-                            "system_settings_updated", count=len(changes), admin_user_id=admin_user_id
+                            "system_settings_updated",
+                            count=len(changes),
+                            admin_user_id=admin_user_id,
                         )
                     else:
-                        context["warning"] = "No changes to save (all modification fields were empty)"
+                        context["warning"] = (
+                            "No changes to save (all modification fields were empty)"
+                        )
 
                     # Reload configurations to show updated values
                     config_groups = await get_configs_by_group(db)
@@ -182,7 +190,7 @@ class SystemSettingsView(CustomView):
 
                 except Exception as e:
                     logger.error("system_settings_error", error=str(e), exc_info=True)
-                    context["error"] = f"Failed to update settings: {str(e)}"
+                    context["error"] = f"Failed to update settings: {e!s}"
 
             return templates.TemplateResponse("custom_views/system_settings.html", context)
 
@@ -190,7 +198,7 @@ class SystemSettingsView(CustomView):
             logger.error("system_settings_render_error", error=str(e), exc_info=True)
             context = {
                 "request": request,
-                "error": f"Failed to load settings: {str(e)}",
+                "error": f"Failed to load settings: {e!s}",
                 "success": None,
                 "warning": None,
                 "config_groups": {},

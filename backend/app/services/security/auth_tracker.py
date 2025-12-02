@@ -6,7 +6,6 @@ Tracks authentication failures for lockout and CAPTCHA triggering.
 
 import time
 from collections import deque
-from typing import Dict, Optional, Tuple
 
 from services.system_config import get_config
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,31 +14,33 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Global cache for failure tracking
-_failure_cache: Dict[str, Dict] = {}
+_failure_cache: dict[str, dict] = {}
 
-MAX_FAILURE_KEYS: Dict[str, str] = {
+MAX_FAILURE_KEYS: dict[str, str] = {
     "admin_auth": "admin_auth_max_failures",
     "user_auth": "auth_max_failures",
 }
 
-LOCKOUT_DURATION_KEYS: Dict[str, Tuple[str, int]] = {
+LOCKOUT_DURATION_KEYS: dict[str, tuple[str, int]] = {
     "admin_auth": ("admin_auth_lockout_duration_minutes", 60),
     "user_auth": ("auth_lockout_duration_minutes", 60),
 }
 
-CAPTCHA_THRESHOLD_KEYS: Dict[str, str] = {
+CAPTCHA_THRESHOLD_KEYS: dict[str, str] = {
     "admin_auth": "admin_captcha_threshold_failures",
     "user_auth": "captcha_threshold_failures",
 }
 
-AUTH_WHITELIST_KEYS: Dict[str, Optional[str]] = {
+AUTH_WHITELIST_KEYS: dict[str, str | None] = {
     "admin_auth": "admin_auth_whitelist",
     "user_auth": None,
 }
 
 
 async def record_auth_failure(
-    identifier: str, auth_type: str, db: AsyncSession  # IP or user_id  # 'admin_auth' or 'user_auth'
+    identifier: str,
+    auth_type: str,
+    db: AsyncSession,  # IP or user_id  # 'admin_auth' or 'user_auth'
 ) -> None:
     """
     Record authentication failure.
@@ -98,7 +99,9 @@ async def record_auth_failure(
         )
 
 
-async def check_lockout(identifier: str, auth_type: str, db: AsyncSession) -> Tuple[bool, Optional[int]]:
+async def check_lockout(
+    identifier: str, auth_type: str, db: AsyncSession
+) -> tuple[bool, int | None]:
     """
     Check if identifier is locked out.
 

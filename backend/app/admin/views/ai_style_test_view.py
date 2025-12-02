@@ -5,7 +5,7 @@ This module provides admin interface for testing AI score algorithms
 and relationship selection logic.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from core.database import get_sessionmaker
 from services.admin.data.style_dimensions import get_dimension_relationship_mappings
@@ -135,7 +135,8 @@ class AIStyleTestView(CustomView):
                         style_id=style_id,
                         count=len(dimensions_rows),
                         dimensions=[
-                            {"name": r.name, "display_name": r.display_name} for r in dimensions_rows
+                            {"name": r.name, "display_name": r.display_name}
+                            for r in dimensions_rows
                         ],
                     )
 
@@ -188,7 +189,9 @@ class AIStyleTestView(CustomView):
                     action = form_data.get("action")
 
                     if action == "test_algorithm":
-                        context["test_result"] = await self._handle_test_algorithm(form_data, style_id)
+                        context["test_result"] = await self._handle_test_algorithm(
+                            form_data, style_id
+                        )
                         # Preserve form data for re-rendering
                         context["form_data"] = dict(form_data)
 
@@ -204,12 +207,12 @@ class AIStyleTestView(CustomView):
                         1: get_algorithm_info(1),
                         2: get_algorithm_info(2),
                     },
-                    "error": f"Failed to render score test interface: {str(e)}",
+                    "error": f"Failed to render score test interface: {e!s}",
                     "dimension_relationship_mappings": [],
                 },
             )
 
-    async def _handle_test_algorithm(self, form_data, style_id: int) -> Dict[str, Any]:
+    async def _handle_test_algorithm(self, form_data, style_id: int) -> dict[str, Any]:
         """Handle score algorithm testing via admin service layer."""
         try:
             session_factory = get_sessionmaker()
@@ -220,7 +223,7 @@ class AIStyleTestView(CustomView):
                 return result
         except Exception as e:
             logger.error("ai_style_test_failed", error=str(e))
-            return {"success": False, "message": f"Algorithm test failed: {str(e)}"}
+            return {"success": False, "message": f"Algorithm test failed: {e!s}"}
 
 
 # Create view instance

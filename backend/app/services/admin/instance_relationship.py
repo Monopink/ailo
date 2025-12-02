@@ -5,7 +5,7 @@ Provides functionality for generating and previewing instance relationships
 based on dimension scores and mapping algorithms.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from crud.ai.instance_dimension import get_by_instance
 from models.ai.instance import AIInstance
@@ -31,9 +31,9 @@ async def generate_relationship_for_instance(
     db: AsyncSession,
     *,
     instance_id: int,
-    overrides: Optional[Dict[str, Any]] = None,
+    overrides: dict[str, Any] | None = None,
     preview: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generate relationship for an instance using current or overridden per-dimension inputs.
 
@@ -89,7 +89,7 @@ async def generate_relationship_for_instance(
     score_map = {row["dimension_id"]: row for row in char_scores} if char_scores else {}
 
     # Build override map for quick lookup by dimension_id
-    override_map: Dict[int, Dict[str, Any]] = {}
+    override_map: dict[int, dict[str, Any]] = {}
     if overrides and isinstance(overrides.get("dimensions"), list):
         for d in overrides["dimensions"]:
             try:
@@ -98,8 +98,8 @@ async def generate_relationship_for_instance(
                 continue
 
     # Process per-dimension mapping+offset and collect candidates
-    dimension_results: List[Dict[str, Any]] = []
-    all_candidates: List[Dict[str, Any]] = []
+    dimension_results: list[dict[str, Any]] = []
+    all_candidates: list[dict[str, Any]] = []
 
     for dim in style_dims:
         ov = override_map.get(dim.id, {})
@@ -145,7 +145,10 @@ async def generate_relationship_for_instance(
 
         # Apply offset
         final_pos = map_score_to_position(
-            algorithm=algorithm, score=float(mapped), initial_position=dim.initial_position, params=params
+            algorithm=algorithm,
+            score=float(mapped),
+            initial_position=dim.initial_position,
+            params=params,
         )
 
         # half-up rounding to int
@@ -164,7 +167,9 @@ async def generate_relationship_for_instance(
                 int(c.get("relationship_id")) == int(current_rel_id) for c in candidates
             )
             if current_in_candidates:
-                candidates = [c for c in candidates if int(c.get("relationship_id")) == int(current_rel_id)]
+                candidates = [
+                    c for c in candidates if int(c.get("relationship_id")) == int(current_rel_id)
+                ]
 
         all_candidates.extend(candidates)
 
@@ -207,7 +212,7 @@ async def generate_relationship_for_instance(
                 )
         except Exception as e:
             logger.error("instance_generate_persist_failed", instance_id=instance_id, error=str(e))
-            return {"success": False, "message": f"Persist failed: {str(e)}"}
+            return {"success": False, "message": f"Persist failed: {e!s}"}
 
     return {
         "success": True,

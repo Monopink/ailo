@@ -1,6 +1,6 @@
 import { put } from '../../utils/api';
-import { getLogger } from '../../utils/logger';
 import { formatRegion } from '../../utils/format';
+import { getLogger } from '../../utils/logger';
 
 const logger = getLogger('ProfileEdit');
 

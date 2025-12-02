@@ -1,0 +1,521 @@
+{
+"title": "工具",
+"url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/devtools.html",
+"pages": [
+{
+  "title": "界面",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/page.html",
+  "subtitles": [
+    "启动页",
+    "主界面",
+    "菜单栏",
+    "工具栏",
+    "工具栏管理",
+    "模拟器",
+    "独立窗口"
+  ]
+},
+{
+  "title": "项目页卡",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/project.html",
+  "subtitles": [
+    "基本信息",
+    "本地设置",
+    "项目设置"
+  ]
+},
+{
+  "title": "设置",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/settings.html",
+  "subtitles": [
+    "通用设置",
+    "外观设置",
+    "编辑设置",
+    "代理设置",
+    "安全设置"
+  ]
+},
+{
+  "title": "云同步设置",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/settings-sync.html"
+},
+{
+  "title": "快捷键设置",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/shortcut.html"
+},
+{
+  "title": "项目配置文件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/projectconfig.html"
+},
+{
+  "title": "代码编辑",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/edit.html",
+  "subtitles": [
+    "文件格式",
+    "文件类型",
+    "自动补全",
+    "TypeScript 支持",
+    "Git 状态展示"
+  ]
+},
+{
+  "title": "编辑器扩展",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/editorextensions.html"
+},
+{
+  "title": "小程序调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/debug.html",
+  "subtitles": [
+    "模拟器",
+    "自定义编译",
+    "自定义预处理",
+    "前后台切换",
+    "调试工具",
+    "Wxml Panel",
+    "Sources Panel",
+    "AppData Panel",
+    "Storage Panel",
+    "Network Panel",
+    "Console Panel",
+    "Sensor Panel",
+    "自动预览"
+  ]
+},
+{
+  "title": "特殊场景调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/different.html"
+},
+{
+  "title": "真机调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/remote-debug.html"
+},
+{
+  "title": "真机调试2.0",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/remote-debug-2.html"
+},
+{
+  "title": "真机调试性能工具",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/remote-debug-profiler.html"
+},
+{
+  "title": "多账号调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/multiaccount.html"
+},
+{
+  "title": "周期性数据调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/periodic-data.html"
+},
+{
+  "title": "数据预拉取调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/prefetch-data.html"
+},
+{
+  "title": "事件模拟",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/event-mock.html"
+},
+{
+  "title": "第三方平台代开发",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/ext.html"
+},
+{
+  "title": "小程序插件开发",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/plugin.html"
+},
+{
+  "title": "企业微信小程序开发",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/qywx-dev.html"
+},
+{
+  "title": "PC 小程序开发",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/pc-dev.html"
+},
+{
+  "title": "多端应用开发",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/miniapp.html"
+},
+{
+  "title": "测试号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/sandbox.html"
+},
+{
+  "title": "小程序助手",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/mydev.html"
+},
+{
+  "title": "版本管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/git.html"
+},
+{
+  "title": "微信开发者·代码管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/wechatvcs.html"
+},
+{
+  "title": "命令行调用",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/cli.html"
+},
+{
+  "title": "HTTP 调用",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/http.html"
+},
+{
+  "title": "npm 支持",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/npm.html"
+},
+{
+  "title": "代码片段",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minicode.html"
+},
+{
+  "title": "代码编译",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/codecompile.html"
+},
+{
+  "title": "文档搜索",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/search.html"
+},
+{
+  "title": "CPU Profile 支持",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/profile.html"
+},
+{
+  "title": "API Mock",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/api-mock.html"
+},
+{
+  "title": "miniprogram-ci",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html"
+},
+{
+  "title": "miniprogram-mp-ci",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/miniprogram-mp-ci.html"
+},
+{
+  "title": "音视频处理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/ffmpeg.html"
+},
+{
+  "title": "骨架屏",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/skeleton.html"
+},
+{
+  "title": "代码热重载",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/hotreload.html"
+},
+{
+  "title": "可视化编辑",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/visualedit.html"
+},
+{
+  "title": "可视化展示第三方组件库",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/visualedit-libs.html"
+},
+{
+  "title": "代码静态依赖分析",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/codeanalyse.html"
+},
+{
+  "title": "局部编译",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/partial-compile.html"
+},
+{
+  "title": "原生支持 TypeScript",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/compilets.html"
+},
+{
+  "title": "其他开发资源",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/other-resource.html"
+},
+{
+  "title": "小程序自动化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/"
+},
+{
+  "title": "快速开始",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/quick-start.html"
+},
+{
+  "title": "脚本示例",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/demo.html"
+},
+{
+  "title": "真机自动化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/remote.html"
+},
+{
+  "title": "Automator",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/automator.html"
+},
+{
+  "title": "MiniProgram",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/miniprogram.html"
+},
+{
+  "title": "Page",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/page.html"
+},
+{
+  "title": "Element",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/element.html"
+},
+{
+  "title": "常用示例",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/example.html"
+},
+{
+  "title": "快速开始",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/record.html"
+},
+{
+  "title": "用例管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/record_module.html"
+},
+{
+  "title": "命令行调用",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/record_cli.html"
+},
+{
+  "title": "FAQ",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/faq.html"
+},
+{
+  "title": "更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/changelog.html"
+},
+{
+  "title": "体验评分",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/audits.html"
+},
+{
+  "title": "代码质量扫描",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/quality.html"
+},
+{
+  "title": "搜索回调调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/merchant_callback.html"
+},
+{
+  "title": "sourceMap 匹配调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/sourcemap.html"
+},
+{
+  "title": "代码加固",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/code_obfuscation.html"
+},
+{
+  "title": "接口漏洞扫描",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/vulnerability.html"
+},
+{
+  "title": "无障碍访问",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/aria.html"
+},
+{
+  "title": "单页模板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/single-template.html"
+},
+{
+  "title": "小程序云测简介",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/"
+},
+{
+  "title": "快速开始",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/fast_start.html"
+},
+{
+  "title": "需要帮助",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/help.html"
+},
+{
+  "title": "自动化测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/autotest.html"
+},
+{
+  "title": "智能化Monkey",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/monkey.html"
+},
+{
+  "title": "智能化Monkey扩展",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/customize_monkey.html"
+},
+{
+  "title": "快速Monkey",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/fast_monkey.html"
+},
+{
+  "title": "录制回放",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/replay.html"
+},
+{
+  "title": "自定义测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/minium.html"
+},
+{
+  "title": "上传自定义用例指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/upload_case.html"
+},
+{
+  "title": "图片对比能力",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/image_diff.html"
+},
+{
+  "title": "AI自动化测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/ai_autotest.html"
+},
+{
+  "title": "AIMonkey",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/ai_monkey.html"
+},
+{
+  "title": "AI自定义测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/ai_plan.html"
+},
+{
+  "title": "性能测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/performance.html"
+},
+{
+  "title": "启动性能分析",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/starttime.html"
+},
+{
+  "title": "运行时性能分析",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/audits.html"
+},
+{
+  "title": "小程序质检",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/quality.html"
+},
+{
+  "title": "压力测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/pressure_test.html"
+},
+{
+  "title": "弱网络测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/weaknetwork.html"
+},
+{
+  "title": "微信测试账号解决方案",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/test_account.html"
+},
+{
+  "title": "使用虚拟账号测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/virtual_test.html"
+},
+{
+  "title": "虚拟账号配置Mock信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/mock_account.html"
+},
+{
+  "title": "虚拟账号手机号Mock方案",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/phone_mock.html"
+},
+{
+  "title": "使用真实账号测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/mock_real_account.html"
+},
+{
+  "title": "购买云测",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/buyminitest.html"
+},
+{
+  "title": "购买额外时长",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/buytime.html"
+},
+{
+  "title": "购买专有云",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/buyphone.html"
+},
+{
+  "title": "接口说明",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_exe.html"
+},
+{
+  "title": "测试账号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_account.html"
+},
+{
+  "title": "测试任务",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_plan.html"
+},
+{
+  "title": "质检任务",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_union_plan.html"
+},
+{
+  "title": "测试计划",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_test_plan.html"
+},
+{
+  "title": "测试用例",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_case.html"
+},
+{
+  "title": "图片对比",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_image_diff.html"
+},
+{
+  "title": "上传SourceMap",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_source.html"
+},
+{
+  "title": "获取机型列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_device.html"
+},
+{
+  "title": "使用开发中版提测指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/preview_test.html"
+},
+{
+  "title": "任务结束通知配置",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/notice.html"
+},
+{
+  "title": "每周免费测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/test_time.html"
+},
+{
+  "title": "云测常见问题",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/cloud_problem.html"
+},
+{
+  "title": "测试任务耗时说明",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/finish_time.html"
+},
+{
+  "title": "智能化Monkey常见问题",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/monkey_problem.html"
+},
+{
+  "title": "录制回放常见问题",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/replay_problem.html"
+},
+{
+  "title": "更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/update.html"
+},
+{
+  "title": "API 实现差异",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/notsupport.html"
+},
+{
+  "title": "下载",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html"
+},
+{
+  "title": "稳定版更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/stable.html"
+},
+{
+  "title": "预发布版更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/rc.html"
+},
+{
+  "title": "开发版更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/nightly.html"
+},
+{
+  "title": "历史更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/devtools/uplog.html"
+}
+]
+}

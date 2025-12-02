@@ -1,0 +1,174 @@
+{
+"title": "微信开放文档 / 框架",
+"url": "https://developers.weixin.qq.com/miniprogram/dev/reference/",
+"pages": [
+{
+  "title": "全局配置",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/configuration/app.html"
+},
+{
+  "title": "页面配置",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/configuration/page.html"
+},
+{
+  "title": "场景值",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/scene-list.html"
+},
+{
+  "title": "App",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html"
+},
+{
+  "title": "getApp",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/getApp.html"
+},
+{
+  "title": "Page",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/Page.html"
+},
+{
+  "title": "getCurrentPages",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/getCurrentPages.html"
+},
+{
+  "title": "Router",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/Router.html"
+},
+{
+  "title": "Component",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/Component.html"
+},
+{
+  "title": "Behavior",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/Behavior.html"
+},
+{
+  "title": "require",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/require.html"
+},
+{
+  "title": "module",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/module.html"
+},
+{
+  "title": "exports",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/exports.html"
+},
+{
+  "title": "requirePlugin",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/requirePlugin.html"
+},
+{
+  "title": "requireMiniProgram",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/requireMiniProgram.html"
+},
+{
+  "title": "console",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.html"
+},
+{
+  "title": "console.debug",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.debug.html"
+},
+{
+  "title": "console.error",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.error.html"
+},
+{
+  "title": "console.group",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.group.html"
+},
+{
+  "title": "console.groupEnd",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.groupEnd.html"
+},
+{
+  "title": "console.info",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.info.html"
+},
+{
+  "title": "console.log",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.log.html"
+},
+{
+  "title": "console.warn",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/console.warn.html"
+},
+{
+  "title": "setTimeout",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/setTimeout.html"
+},
+{
+  "title": "clearTimeout",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/clearTimeout.html"
+},
+{
+  "title": "setInterval",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/setInterval.html"
+},
+{
+  "title": "clearInterval",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/clearInterval.html"
+},
+{
+  "title": "WXWebAssembly",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/api/WXWebAssembly.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxml/"
+},
+{
+  "title": "数据绑定",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxml/data.html"
+},
+{
+  "title": "列表渲染",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxml/list.html"
+},
+{
+  "title": "条件渲染",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxml/conditional.html"
+},
+{
+  "title": "模板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxml/template.html"
+},
+{
+  "title": "引用",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxml/import.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/"
+},
+{
+  "title": "模块",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/01wxs-module.html"
+},
+{
+  "title": "变量",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/02variate.html"
+},
+{
+  "title": "注释",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/03annotation.html"
+},
+{
+  "title": "运算符",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/04operator.html"
+},
+{
+  "title": "语句",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/05statement.html"
+},
+{
+  "title": "数据类型",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/06datatype.html"
+},
+{
+  "title": "基础类库",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/07basiclibrary.html"
+}
+]
+}

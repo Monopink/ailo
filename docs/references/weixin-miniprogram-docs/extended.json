@@ -1,0 +1,34 @@
+{
+"title": "拓展能力",
+"source_url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/",
+"pages": [
+{
+  "title": "WeUI组件库",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/weui/"
+},
+{
+  "title": "Kbone 解决方案",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/kbone/"
+},
+{
+  "title": "框架扩展",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/utils/computed.html"
+},
+{
+  "title": "工具类库",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/utils/api-typings.html"
+},
+{
+  "title": "OCR 支持",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/ocr.html"
+},
+{
+  "title": "微信同声传译",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/translator.html"
+},
+{
+  "title": "自然语言理解",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/platform-capabilities/extended/nlu.html"
+}
+]
+}

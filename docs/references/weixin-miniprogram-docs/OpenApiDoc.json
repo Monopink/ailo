@@ -1,0 +1,750 @@
+{
+"title": "微信开放文档 / 服务端",
+"url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/",
+"pages": [
+{
+  "title": "安全鉴权模式介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/getting_started/signature-verify.html"
+},
+{
+  "title": "服务端api签名指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/getting_started/api_signature.html"
+},
+{
+  "title": "获取接口调用凭据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-access-token/getAccessToken.html"
+},
+{
+  "title": "获取稳定版接口调用凭据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-access-token/getStableAccessToken.html"
+},
+{
+  "title": "重置API调用次数",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/openApi-mgnt/clearQuota.html"
+},
+{
+  "title": "查询API调用额度",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/openApi-mgnt/getApiQuota.html"
+},
+{
+  "title": "查询rid信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/openApi-mgnt/getRidInfo.html"
+},
+{
+  "title": "使用AppSecret重置 API 调用次数",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/openApi-mgnt/clearQuotaByAppSecret.html"
+},
+{
+  "title": "小程序登录",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/code2Session.html"
+},
+{
+  "title": "检验登录态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/checkSessionKey.html"
+},
+{
+  "title": "重置登录态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/ResetUserSessionKey.html"
+},
+{
+  "title": "获取插件用户openpid",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-info/basic-info/getPluginOpenPId.html"
+},
+{
+  "title": "检查加密信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-info/basic-info/checkEncryptedData.html"
+},
+{
+  "title": "支付后获取 Unionid",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-info/basic-info/getPaidUnionid.html"
+},
+{
+  "title": "获取用户encryptKey",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-info/internet/getUserEncryptKey.html"
+},
+{
+  "title": "手机号快速验证",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-info/phone-number/getPhoneNumber.html"
+},
+{
+  "title": "获取小程序码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/qr-code/getQRCode.html"
+},
+{
+  "title": "获取不限制的小程序码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/qr-code/getUnlimitedQRCode.html"
+},
+{
+  "title": "获取小程序二维码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/qr-code/createQRCode.html"
+},
+{
+  "title": "查询scheme码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/url-scheme/queryScheme.html"
+},
+{
+  "title": "获取加密scheme码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/url-scheme/generateScheme.html"
+},
+{
+  "title": "获取 NFC 的小程序 scheme",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/url-scheme/generateNFCScheme.html"
+},
+{
+  "title": "获取加密URLLink",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/url-link/generateUrlLink.html"
+},
+{
+  "title": "查询加密URLLink",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/url-link/queryUrlLink.html"
+},
+{
+  "title": "获取ShortLink",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/qrcode-link/short-link/generateShortLink.html"
+},
+{
+  "title": "获取客服消息内的临时素材",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/kf-mgnt/kf-message/getTempMedia.html"
+},
+{
+  "title": "下发客服当前输入状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/kf-mgnt/kf-message/setTyping.html"
+},
+{
+  "title": "新增图片素材",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/kf-mgnt/kf-message/uploadTempMedia.html"
+},
+{
+  "title": "发送客服消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/kf-mgnt/kf-message/sendCustomMessage.html"
+},
+{
+  "title": "创建activity_id",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/updatable-message/createActivityId.html"
+},
+{
+  "title": "修改动态消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/updatable-message/setUpdatableMsg.html"
+},
+{
+  "title": "修改小程序聊天工具的动态卡片消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/updatable-message/setChatToolMsg.html"
+},
+{
+  "title": "删除模板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/deleteMessageTemplate.html"
+},
+{
+  "title": "获取类目",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/getCategory.html"
+},
+{
+  "title": "获取关键词列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/getPubTemplateKeyWordsById.html"
+},
+{
+  "title": "获取所属类目下的公共模板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/getPubTemplateTitleList.html"
+},
+{
+  "title": "获取个人模板列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/getMessageTemplateList.html"
+},
+{
+  "title": "发送订阅消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/sendMessage.html"
+},
+{
+  "title": "添加模板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/addMessageTemplate.html"
+},
+{
+  "title": "激活与更新服务卡片",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/setUserNotify.html"
+},
+{
+  "title": "更新服务卡片扩展信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/setUserNotifyExt.html"
+},
+{
+  "title": "查询服务卡片状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-message-management/subscribe-message/getUserNotify.html"
+},
+{
+  "title": "文本内容安全识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/sec-center/sec-check/msgSecCheck.html"
+},
+{
+  "title": "多媒体内容安全识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/sec-center/sec-check/mediaCheckAsync.html"
+},
+{
+  "title": "获取用户安全等级",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/sec-center/safety-control-capability/getUserRiskRank.html"
+},
+{
+  "title": "获取用户访问小程序周留存",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/visit-retain/getWeeklyRetain.html"
+},
+{
+  "title": "获取用户访问小程序月留存",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/visit-retain/getMonthlyRetain.html"
+},
+{
+  "title": "获取用户访问小程序日留存",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/visit-retain/getDailyRetain.html"
+},
+{
+  "title": "获取用户访问小程序数据月趋势",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/visit-trend/getMonthlyVisitTrend.html"
+},
+{
+  "title": "获取用户访问小程序数据日趋势",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/visit-trend/getDailyVisitTrend.html"
+},
+{
+  "title": "获取用户访问小程序数据周趋势",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/visit-trend/getWeeklyVisitTrend.html"
+},
+{
+  "title": "获取用户访问小程序数据概况",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/others/getDailySummary.html"
+},
+{
+  "title": "获取访问页面数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/others/getVisitPage.html"
+},
+{
+  "title": "获取小程序用户画像分布",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/others/getUserPortrait.html"
+},
+{
+  "title": "获取小程序性能数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/others/getPerformanceData.html"
+},
+{
+  "title": "获取用户小程序访问分布数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/data-analysis/others/getVisitDistribution.html"
+},
+{
+  "title": "发送设备消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/sendHardwareDeviceMessage.html"
+},
+{
+  "title": "获取设备票据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/getSnTicket.html"
+},
+{
+  "title": "创建设备组",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/createIotGroupId.html"
+},
+{
+  "title": "查询设备组信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/getIotGroupInfo.html"
+},
+{
+  "title": "设备组添加设备",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/addIotGroupDevice.html"
+},
+{
+  "title": "设备组删除设备",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/removeIotGroupDevice.html"
+},
+{
+  "title": "查询license资源包列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/getLicensePkgList.html"
+},
+{
+  "title": "激活设备license",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/activeLicenseDevice.html"
+},
+{
+  "title": "查询设备激活详情",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/hardware-device/getLicenseDeviceInfo.html"
+},
+{
+  "title": "创建直播间",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/createRoom.html"
+},
+{
+  "title": "获取直播间列表和回放",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/getLiveInfo.html"
+},
+{
+  "title": "删除直播间",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/deleteRoom.html"
+},
+{
+  "title": "导入商品",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/importGoods.html"
+},
+{
+  "title": "编辑直播间",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/editRoom.html"
+},
+{
+  "title": "获取直播间推流地址",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/getPushUrl.html"
+},
+{
+  "title": "获取直播间分享二维码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/getSharedCode.html"
+},
+{
+  "title": "获取主播副号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/getSubAnchor.html"
+},
+{
+  "title": "修改主播副号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/modifySubAnchor.html"
+},
+{
+  "title": "删除主播副号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/deleteSubAnchor.html"
+},
+{
+  "title": "添加主播副号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/addSubAnchor.html"
+},
+{
+  "title": "删除直播间商品",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/deleteDoods.html"
+},
+{
+  "title": "推送商品",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/pushGoods.html"
+},
+{
+  "title": "上下架商品",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/SaleGoods.html"
+},
+{
+  "title": "直播间商品排序",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/sortGoods.html"
+},
+{
+  "title": "修改直播间小助手",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/modifyAssistant.html"
+},
+{
+  "title": "查询直播间小助手",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/getAssistantList.html"
+},
+{
+  "title": "删除直播间小助手",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/removeAssistant.html"
+},
+{
+  "title": "添加管理直播间小助手",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/addveAssistant.html"
+},
+{
+  "title": "禁言管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/updateComment.html"
+},
+{
+  "title": "官方收录管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/updateFeedPublic.html"
+},
+{
+  "title": "客服功能管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/updateKF.html"
+},
+{
+  "title": "回放功能管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/updateReplay.html"
+},
+{
+  "title": "下载商品讲解视频",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/studio-management/downloadGoodsVideo.html"
+},
+{
+  "title": "添加并提审商品",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/commodity-management/addGoods.html"
+},
+{
+  "title": "重新提交商品审核",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/commodity-management/resubmitAudit.html"
+},
+{
+  "title": "获取商品的信息与审核状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/commodity-management/getGoodsAuditInfo.html"
+},
+{
+  "title": "撤回商品审核",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/commodity-management/resetAudit.html"
+},
+{
+  "title": "更新商品",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/commodity-management/updateGoodsinfo.html"
+},
+{
+  "title": "获取商品列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/commodity-management/getGoodsInfo.html"
+},
+{
+  "title": "删除商品",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/commodity-management/deleteGoodsInfo.html"
+},
+{
+  "title": "设置成员角色",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/role-management/getRoleListdw.html"
+},
+{
+  "title": "移除成员角色",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/role-management/deleteRole.html"
+},
+{
+  "title": "查询成员列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/role-management/getRoleList.html"
+},
+{
+  "title": "发送直播开始事件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/subscribe-management/pushMessage.html"
+},
+{
+  "title": "获取长期订阅用户",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/livebroadcast/subscribe-management/getFollowers.html"
+},
+{
+  "title": "查询域名配置",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getDomainInfo.html"
+},
+{
+  "title": "获取性能数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getPerformance.html"
+},
+{
+  "title": "获取访问来源",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getSceneList.html"
+},
+{
+  "title": "获取客户端版本",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getVersionList.html"
+},
+{
+  "title": "查询实时日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/realtimelogSearch.html"
+},
+{
+  "title": "获取用户反馈列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getFeedback.html"
+},
+{
+  "title": "获取 mediaId 图片",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getFeedbackmedia.html"
+},
+{
+  "title": "查询js错误详情",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getJsErrDetail.html"
+},
+{
+  "title": "查询错误列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getJsErrList.html"
+},
+{
+  "title": "获取分阶段发布详情",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/operation/getGrayReleasePlan.html"
+},
+{
+  "title": "插件申请管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/plugin-management/managePluginApplication.html"
+},
+{
+  "title": "插件管理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/plugin-management/managePlugin.html"
+},
+{
+  "title": "发送短信v2",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/newSendCloudBaseSms.html"
+},
+{
+  "title": "发送短信",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/sendCloudBaseSms.html"
+},
+{
+  "title": "创建发短信任务",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/createSendSmsTask.html"
+},
+{
+  "title": "延时调用云函数",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/addDelayedFunctionTask.html"
+},
+{
+  "title": "云开发上报接口",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/cloudbaseReportAPI.html"
+},
+{
+  "title": "查询短信记录",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/describeSmsRecords.html"
+},
+{
+  "title": "描述扩展上传文件信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/describeExtensionUploadInfo.html"
+},
+{
+  "title": "获取云开发数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/getCloudBaseStatistics.html"
+},
+{
+  "title": "获取cloudID 对应的数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/getOpenData.html"
+},
+{
+  "title": "获取实时语音签名",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/getCloudBaseVoIPSign.html"
+},
+{
+  "title": "触发云函数",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/cloudbase/invokeCloudFunction.html"
+},
+{
+  "title": "添加地点",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/nearby-poi/addNearbyPoi.html"
+},
+{
+  "title": "删除地点",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/nearby-poi/deleteNearbyPoi.html"
+},
+{
+  "title": "查看地点",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/nearby-poi/getNearbyPoiList.html"
+},
+{
+  "title": "设置展示状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/nearby-poi/setShowStatus.html"
+},
+{
+  "title": "B2C推送模版消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/laboruse/api_sendemployeerelationmsg.html"
+},
+{
+  "title": "解绑用工关系",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/laboruse/api_unbinduserb2cauthinfo.html"
+},
+{
+  "title": "图片智能裁剪",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/img/aiCrop.html"
+},
+{
+  "title": "条形码识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/img/scanQRCode.html"
+},
+{
+  "title": "通用印刷体识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/ocr/printedTextOCR.html"
+},
+{
+  "title": "行驶证识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/ocr/vehicleLicenseOCR.html"
+},
+{
+  "title": "银行卡识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/ocr/bankCardOCR.html"
+},
+{
+  "title": "营业执照识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/ocr/businessLicenseOCR.html"
+},
+{
+  "title": "驾驶证识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/ocr/driverLicenseOCR.html"
+},
+{
+  "title": "身份证识别",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/ocr/idCardOCR.html"
+},
+{
+  "title": "获取微信红包封面",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/red-packet-cover/getRedPacketCoverUrl.html"
+},
+{
+  "title": "获取已支持的配送公司列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/getAllImmeDelivery.html"
+},
+{
+  "title": "预下配送单",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/preAddOrder.html"
+},
+{
+  "title": "拉取已绑定账号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/getBindAccount.html"
+},
+{
+  "title": "预取消配送单",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/preCancelOrder.html"
+},
+{
+  "title": "申请开通即时配送",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/openDelivery.html"
+},
+{
+  "title": "发起绑定请求",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/bindLocalAccount.html"
+},
+{
+  "title": "重新下单",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/reOrder.html"
+},
+{
+  "title": "模拟更新配送单状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/realMockUpdateOrder.html"
+},
+{
+  "title": "模拟配送公司更新配送单状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/mockUpdateOrder.html"
+},
+{
+  "title": "拉取配送单信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/getLocalOrder.html"
+},
+{
+  "title": "异常件退回商家确认",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/abnormalConfirm.html"
+},
+{
+  "title": "取消配送单",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/cancelLocalOrder.html"
+},
+{
+  "title": "添加小费",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/addTips.html"
+},
+{
+  "title": "添加配送单",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-business/addLocalOrder.html"
+},
+{
+  "title": "更新配送单状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/immediate-delivery/deliver-by-provider/updateOrder.html"
+},
+{
+  "title": "绑定/解绑物流账号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/bindAccount.html"
+},
+{
+  "title": "获取所有绑定的物流账号",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/getAllAccount.html"
+},
+{
+  "title": "获取支持的快递公司列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/getAllDelivery.html"
+},
+{
+  "title": "取消运单",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/cancelOrder.html"
+},
+{
+  "title": "配置面单打印员",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/updatePrinter.html"
+},
+{
+  "title": "获取电子面单余额",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/getQuota.html"
+},
+{
+  "title": "获取运单数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/getOrder.html"
+},
+{
+  "title": "模拟更新订单状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/testUpdateOrder.html"
+},
+{
+  "title": "获取打印员",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/getPrinter.html"
+},
+{
+  "title": "查询运单轨迹",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/getPath.html"
+},
+{
+  "title": "批量获取运单数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/batchGetOrder.html"
+},
+{
+  "title": "生成运单",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-business/addOrder.html"
+},
+{
+  "title": "更新商户审核结果",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-provider/updateBusiness.html"
+},
+{
+  "title": "更新运单轨迹",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-provider/updatePath.html"
+},
+{
+  "title": "预览面单模板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-provider/previewTemplate.html"
+},
+{
+  "title": "获取面单联系人信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/express/express-by-provider/getContact.html"
+},
+{
+  "title": "调用服务市场接口",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/wx-service-market/invokeService.html"
+},
+{
+  "title": "生物认证秘钥签名验证",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/soter/verifySignature.html"
+},
+{
+  "title": "为绑定unionid自定义参数",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/union/bindUnionAccountWithUnionid.html"
+},
+{
+  "title": "获取小程序交易体验分违规记录",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/transaction-guarantee/GetPenaltyList.html"
+},
+{
+  "title": "获取交易保障标状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/transaction-guarantee/GetGuaranteeStatus.html"
+},
+{
+  "title": "上传购物详情",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/normal-shopping-detail/uploadShoppingInfo.html"
+},
+{
+  "title": "上传物流信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/normal-shopping-detail/uploadShippingInfo.html"
+},
+{
+  "title": "上传合单购物详情",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/shopping-detail/uploadCombinedShoppingInfo.html"
+},
+{
+  "title": "上传合单物流信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/shopping-detail/uploadCombinedShippingInfo.html"
+},
+{
+  "title": "验证购物订单上传结果",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/shopping-order/upload-result/ShoppingInfoVerifyUploadResult.html"
+},
+{
+  "title": "查询绑定情况",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/kf-work/getKfWorkBound.html"
+},
+{
+  "title": "绑定微信客服",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/kf-work/bindKfWork.html"
+},
+{
+  "title": "解除绑定微信客服",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/kf-work/unbindKfWork.html"
+},
+{
+  "title": "addUserActionSet",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/ad/ad.addUserAction.html"
+},
+{
+  "title": "getUserActionSetReports",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/ad/ad.getUserActionSetReports.html"
+},
+{
+  "title": "getUserActionSets",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/ad/ad.getUserActionSets.html"
+}
+]
+}

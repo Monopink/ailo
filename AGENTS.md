@@ -8,9 +8,9 @@
 
 - 现在项目在MVP开发阶段，我开发经验不足，主要依赖AI开发，并且整个项目只有我一个负责。
 - 代码实施应该始忠于文档, 但是如果发现文档出错或不合理应该提出而不是盲目遵守:
-   [功能设计目录](docs\spec[数据字典目录](docs\data-dict) [API文档目录](docs\api\) [技术文档目录](docs\tech)
+   [功能设计目录](docs\spec\) [数据字典目录](docs\data-dict\) [API文档目录](docs\api\) [技术文档目录](docs\tech\)
 - 如果你发现原型设计存在问题或不详细的地方应该立即提出，而不是自行修改实现。
-- 后端使用Python 3.12[fast-api](backend\app),数据库使用PostgreSQL,前端包括基于Flutter的iOS App(未来), [微信小程序](frontend\wx-minipg)等
+- 后端使用Python 3.12[fast-api](backend\app\),数据库使用PostgreSQL,前端包括基于Flutter的iOS App(未来), [微信小程序](frontend\wx-minipg\)等
 - LLM服务使用Doubao,使用兼容Openai SDK的调用方式
 - 消息服务使用Leancloud即时通讯服务,但是只是作为消息传送不承载业务逻辑,与系统解耦,便于未来替换
   - Leancloud后端使用RestAPI调用,小程序使用Java SDK调用,全局使用唯一系统对话ID
@@ -21,18 +21,17 @@
 - 配置管理使用环境变量+数据库表system_configs管理的方式，不会变更、需要保证安全的设置项在环境变量，其他设置项在数据库
 - 用户（非管理员用户）登录验证方式为Hybrid模式。JWT+Token store模式
 
-相关参考内容:[Doubao文档目录](references\doubao-docs), [Leancloud文档目录](references\leancloud-docs), [Leancloud示例Web Demo目录](references\leancloud-message-web-demo),[starlette-admin源码及文档](references\starlette-admin)
-
 如果你当前在开发后端，同时了解 [后端规则](backend\AGENTS.md)
 开发小程序，同时了解 [小程序规则](frontend\wx-minipg\AGENTS.md)
 
+[参考资料目录](docs\references\)
+相关参考内容:[微信小程序文档索引](docs\references\weixin-miniprogram-docs\)[Doubao文档目录](docs\references\doubao-docs\) [Leancloud文档目录](docs\references\leancloud-docs\) [Leancloud示例Web Demo目录](docs\references\leancloud-message-web-demo\) [starlette-admin源码及文档](docs\references\starlette-admin\)
+
 ### Docker Compose 基本信息
 
-**工作目录**: `deployment/`
-**配置文件**: `docker-compose.yml`
-**环境变量**: `.env` (位于项目根目录)
-
-**注意**: 初始化脚本仅在首次创建容器时执行。如需重新初始化，必须删除 volume。
+工作目录: `deployment/`
+配置文件: `docker-compose.yml`
+环境变量: `.env` (位于项目根目录)
 
 ## 基本原则
 
@@ -89,6 +88,8 @@
 - 如果修改过程中出现问题，如发现实施与预期或文档不符合、需要用户澄清或提供细节、实施出现分歧、无法获取信息、发现代码问题或完成某项操作（MCP调用失败、命令执行失败等）等情况，立即停止编码，并报告用户，请求用户提供更多信息
 - 使用明确、无歧义的变量名、函数名与类名。仅为复杂算法、业务逻辑或特定技术决策添加注释。
 - 修改的同时更新注释，同时精简过时和冗余注释
+- **禁止直接任何形式删除任何文件，所有需要删除的文件直接移动到 deleted/ 目录下**，如果文件命名重复，则重命名文件或创建子目录
+- **禁止以写入占位注释、清空文件的方式变相删除文件**
 
 ### 6. 检查和测试
 

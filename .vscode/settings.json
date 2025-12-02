@@ -78,4 +78,10 @@
     "html.format.wrapLineLength": 0,
     "html.format.indentInnerHtml": false,
     "html.format.extraLiners": "",
+    "git.autorefresh": false,
+    "git.autofetch": false,
+    "git.autoStash": false,
+    "git.postCommitCommand": "none",
+    "git.showProgress": false,
+    "git.scanRepositories": []
 }

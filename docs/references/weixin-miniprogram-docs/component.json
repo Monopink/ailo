@@ -1,0 +1,588 @@
+{
+"title": "微信开放文档 / 组件",
+"url": "https://developers.weixin.qq.com/miniprogram/dev/component/",
+"pages": [
+{
+  "title": "cover-image",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/cover-image.html"
+},
+{
+  "title": "cover-view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/cover-view.html"
+},
+{
+  "title": "match-media",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/match-media.html"
+},
+{
+  "title": "movable-area",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/movable-area.html"
+},
+{
+  "title": "movable-view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/movable-view.html"
+},
+{
+  "title": "page-container",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/page-container.html"
+},
+{
+  "title": "root-portal",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/root-portal.html"
+},
+{
+  "title": "scroll-view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/scroll-view.html"
+},
+{
+  "title": "swiper",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/swiper.html"
+},
+{
+  "title": "swiper-item",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/swiper-item.html"
+},
+{
+  "title": "view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/view.html"
+},
+{
+  "title": "icon",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/icon.html"
+},
+{
+  "title": "progress",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/progress.html"
+},
+{
+  "title": "rich-text",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/rich-text.html"
+},
+{
+  "title": "selection",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/selection.html"
+},
+{
+  "title": "text",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/text.html"
+},
+{
+  "title": "button",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/button.html"
+},
+{
+  "title": "checkbox",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/checkbox.html"
+},
+{
+  "title": "checkbox-group",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/checkbox-group.html"
+},
+{
+  "title": "editor",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/editor.html"
+},
+{
+  "title": "editor-portal",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/editor-portal.html"
+},
+{
+  "title": "form",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/form.html"
+},
+{
+  "title": "input",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/input.html"
+},
+{
+  "title": "keyboard-accessory",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/keyboard-accessory.html"
+},
+{
+  "title": "label",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/label.html"
+},
+{
+  "title": "picker",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/picker.html"
+},
+{
+  "title": "picker-view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/picker-view.html"
+},
+{
+  "title": "picker-view-column",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/picker-view-column.html"
+},
+{
+  "title": "radio",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/radio.html"
+},
+{
+  "title": "radio-group",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/radio-group.html"
+},
+{
+  "title": "slider",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/slider.html"
+},
+{
+  "title": "switch",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/switch.html"
+},
+{
+  "title": "textarea",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/textarea.html"
+},
+{
+  "title": "double-tap-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/double-tap-gesture-handler.html"
+},
+{
+  "title": "force-press-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/force-press-gesture-handler.html"
+},
+{
+  "title": "horizontal-drag-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/horizontal-drag-gesture-handler.html"
+},
+{
+  "title": "long-press-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/long-press-gesture-handler.html"
+},
+{
+  "title": "pan-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/pan-gesture-handler.html"
+},
+{
+  "title": "scale-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/scale-gesture-handler.html"
+},
+{
+  "title": "tap-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/tap-gesture-handler.html"
+},
+{
+  "title": "vertical-drag-gesture-handler",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/vertical-drag-gesture-handler.html"
+},
+{
+  "title": "draggable-sheet",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/draggable-sheet.html"
+},
+{
+  "title": "grid-builder",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/grid-builder.html"
+},
+{
+  "title": "grid-view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/grid-view.html"
+},
+{
+  "title": "list-builder",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/list-builder.html"
+},
+{
+  "title": "list-view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/list-view.html"
+},
+{
+  "title": "nested-scroll-body",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/nested-scroll-body.html"
+},
+{
+  "title": "nested-scroll-header",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/nested-scroll-header.html"
+},
+{
+  "title": "open-container",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/open-container.html"
+},
+{
+  "title": "open-data-item",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/open-data-item.html"
+},
+{
+  "title": "open-data-list",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/open-data-list.html"
+},
+{
+  "title": "share-element",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/share-element.html"
+},
+{
+  "title": "snapshot",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/snapshot.html"
+},
+{
+  "title": "span",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/span.html"
+},
+{
+  "title": "sticky-header",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/sticky-header.html"
+},
+{
+  "title": "sticky-section",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/sticky-section.html"
+},
+{
+  "title": "functional-page-navigator",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/functional-page-navigator.html"
+},
+{
+  "title": "navigator",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/navigator.html"
+},
+{
+  "title": "audio",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/audio.html"
+},
+{
+  "title": "camera",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/camera.html"
+},
+{
+  "title": "channel-live",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/channel-live.html"
+},
+{
+  "title": "channel-video",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/channel-video.html"
+},
+{
+  "title": "image",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/image.html"
+},
+{
+  "title": "live-player",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/live-player.html"
+},
+{
+  "title": "live-pusher",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/live-pusher.html"
+},
+{
+  "title": "video",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/video.html"
+},
+{
+  "title": "voip-room",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/voip-room.html"
+},
+{
+  "title": "map",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/map.html"
+},
+{
+  "title": "canvas",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/canvas.html"
+},
+{
+  "title": "ad",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/ad.html"
+},
+{
+  "title": "ad-custom",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/ad-custom.html"
+},
+{
+  "title": "official-account",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/official-account.html"
+},
+{
+  "title": "official-account-publish",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/official-account-publish.html"
+},
+{
+  "title": "open-data",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/open-data.html"
+},
+{
+  "title": "store-coupon",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/store-coupon.html"
+},
+{
+  "title": "store-gift",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/store-gift.html"
+},
+{
+  "title": "store-home",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/store-home.html"
+},
+{
+  "title": "store-product",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/store-product.html"
+},
+{
+  "title": "web-view",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/web-view.html"
+},
+{
+  "title": "native-component",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/native-component.html"
+},
+{
+  "title": "aria-component",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/aria-component.html"
+},
+{
+  "title": "navigation-bar",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/navigation-bar.html"
+},
+{
+  "title": "page-meta",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/page-meta.html"
+},
+{
+  "title": "概述",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/overview/",
+  "subtitles": [
+    "概述",
+    "特性",
+    "示例",
+    "限制和展望"
+  ]
+},
+{
+  "title": "架构(ECS)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/"
+},
+{
+  "title": "组件(Component)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/component.html"
+},
+{
+  "title": "组件数据解析(DataParse)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/data-values.html"
+},
+{
+  "title": "元素(Element)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/element.html"
+},
+{
+  "title": "事件(Event)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/event.html"
+},
+{
+  "title": "场景(Scene)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/scene.html"
+},
+{
+  "title": "节点(Node)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/node.html",
+  "subtitles": [
+    "可见性与图层(Visible&amp;Layer)"
+  ]
+},
+{
+  "title": "Shadow元素(ShadowElement)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/shadow.html"
+},
+{
+  "title": "Slot",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/core/slot.html"
+},
+{
+  "title": "资源系统(AssetsSystem)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/assets/"
+},
+{
+  "title": "资源加载器(AssetLoader)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/assets/loader.html"
+},
+{
+  "title": "资源加载元素(AssetLoad)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/assets/elements.html"
+},
+{
+  "title": "渲染系统(RenderSystem)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/",
+  "subtitles": [
+    "画布透明配置(Alpha)"
+  ]
+},
+{
+  "title": "几何数据(Geometry)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/geometry.html"
+},
+{
+  "title": "效果(Effect)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/effect.html"
+},
+{
+  "title": "材质(Material)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/material.html"
+},
+{
+  "title": "网格(Mesh)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/mesh.html"
+},
+{
+  "title": "纹理和图像(Texture)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/texture.html",
+  "subtitles": [
+    "立方体纹理(CubeTexture)",
+    "纹理使用约定"
+  ]
+},
+{
+  "title": "相机(Camera)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/camera.html"
+},
+{
+  "title": "渲染到纹理(RenderTexture)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/render-texture.html"
+},
+{
+  "title": "图集(Atlas)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/atlas.html"
+},
+{
+  "title": "环境(EnvData)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/env.html",
+  "subtitles": [
+    "天空盒与背景(Skybox)"
+  ]
+},
+{
+  "title": "灯光(Light)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/render/light.html",
+  "subtitles": [
+    "阴影(Shadow)"
+  ]
+},
+{
+  "title": "GLTF",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/gltf/"
+},
+{
+  "title": "GLTF入门",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/gltf/introduction.html"
+},
+{
+  "title": "使用说明",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/gltf/specification.html",
+  "subtitles": [
+    "gltf动画(ModelAnimation)"
+  ]
+},
+{
+  "title": "画廊",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/gltf/gallery.html"
+},
+{
+  "title": "AR系统(ARSystem)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/ar/",
+  "subtitles": [
+    "识别模式",
+    "AR相机(ARCamera)",
+    "AR场景事件",
+    "不同AR追踪器的坐标系差异"
+  ]
+},
+{
+  "title": "AR追踪器(ARTracker)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/ar/tracker.html",
+  "subtitles": [
+    "2D Marker(Marker)",
+    "3D Marker(Marker)",
+    "OSD Marker(OSD)",
+    "平面识别(Plane)",
+    "平面识别结合Marker(Plane)",
+    "3自由度(threeDof)",
+    "人脸识别(Face)",
+    "躯体识别(Body)",
+    "人手识别(Hand)",
+    "获取追踪状态(TrackState)"
+  ]
+},
+{
+  "title": "动画系统(AnimationSystem)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/animation/",
+  "subtitles": [
+    "动画实现(Animation)",
+    "动画组件(Animator)"
+  ]
+},
+{
+  "title": "帧动画(KeyframeAnimation)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/animation/keyframe.html"
+},
+{
+  "title": "物理系统(PhysicSystem)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/physics/"
+},
+{
+  "title": "轮廓(Shape)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/physics/shape.html"
+},
+{
+  "title": "粒子系统(Particles)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/particles/"
+},
+{
+  "title": "发射器(Emitter)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/particles/emiter.html"
+},
+{
+  "title": "其他属性和动画",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/particles/attribute.html"
+},
+{
+  "title": "分享系统(ShareSystem)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/share/",
+  "subtitles": [
+    "截取画布(Capture)",
+    "录制画布(Record)"
+  ]
+},
+{
+  "title": "内置环境数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/env.html"
+},
+{
+  "title": "内置几何数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/geometry.html"
+},
+{
+  "title": "内置纹理资源",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/texture.html"
+},
+{
+  "title": "内置效果资源",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/effect.html"
+},
+{
+  "title": "Simple效果",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/effect-simple.html"
+},
+{
+  "title": "Standard效果",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/effect-standard.html"
+},
+{
+  "title": "内置图集",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/atlas.html"
+},
+{
+  "title": "内置后处理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/builtin/post-process.html"
+},
+{
+  "title": "工具",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/tools/debug.html",
+  "subtitles": [
+    "真机调试"
+  ]
+},
+{
+  "title": "",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/component/xr-frame/tools/toolkit.html",
+  "subtitles": [
+    "环境数据生成",
+    "gltf优化"
+  ]
+}
+]
+}

@@ -1,0 +1,1231 @@
+{
+"title": "微信开放文档 / 开发",
+"url": "https://developers.weixin.qq.com/miniprogram/dev/framework/",
+"pages": [
+{
+  "title": "小程序代码构成",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/quickstart/code.html",
+  "subtitles": [
+    "JSON 配置",
+    "WXML 模板",
+    "WXSS 样式",
+    "JS 逻辑交互"
+  ]
+},
+{
+  "title": "小程序宿主环境",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/quickstart/framework.html",
+  "subtitles": [
+    "渲染层和逻辑层",
+    "程序与页面",
+    "组件",
+    "API"
+  ]
+},
+{
+  "title": "小程序协同工作和发布",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/quickstart/release.html",
+  "subtitles": [
+    "协同工作",
+    "小程序的版本",
+    "发布上线",
+    "运营数据"
+  ]
+},
+{
+  "title": "目录结构",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/structure.html"
+},
+{
+  "title": "配置小程序",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/config.html",
+  "subtitles": [
+    "全局配置",
+    "页面配置"
+  ]
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/MINA.html"
+},
+{
+  "title": "场景值",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/scene.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/"
+},
+{
+  "title": "注册小程序",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/app.html"
+},
+{
+  "title": "注册页面",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/page.html"
+},
+{
+  "title": "页面生命周期",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/page-life-cycle.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/route.html"
+},
+{
+  "title": "页面路由监听",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/route-event-listener.html"
+},
+{
+  "title": "路由事件重写",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/route-rewrite.html"
+},
+{
+  "title": "模块化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/module.html"
+},
+{
+  "title": "API",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/app-service/api.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/"
+},
+{
+  "title": "WXML",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/wxml/"
+},
+{
+  "title": "WXSS",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/wxss.html"
+},
+{
+  "title": "WXS",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/wxs/"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/wxml/event.html"
+},
+{
+  "title": "WXS 响应事件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/interactive-animation.html"
+},
+{
+  "title": "Tap 事件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/tap.html"
+},
+{
+  "title": "Pointer 事件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/pointer.html"
+},
+{
+  "title": "简易双向绑定",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/two-way-bindings.html"
+},
+{
+  "title": "基础组件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/component.html"
+},
+{
+  "title": "获取界面上的节点信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/selector.html"
+},
+{
+  "title": "响应显示区域变化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/resizable.html"
+},
+{
+  "title": "分栏模式",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/frameset.html"
+},
+{
+  "title": "动画",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/animation.html"
+},
+{
+  "title": "初始渲染缓存",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/view/initial-rendering-cache.html"
+},
+{
+  "title": "运行环境",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/env.html"
+},
+{
+  "title": "JavaScript 支持情况",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/js-support.html"
+},
+{
+  "title": "运行机制",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/operating-mechanism.html"
+},
+{
+  "title": "更新机制",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/update-mechanism.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/introduction.html"
+},
+{
+  "title": "特性",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/features.html"
+},
+{
+  "title": "性能对比",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/comparation.html"
+},
+{
+  "title": "示例体验",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/experience.html"
+},
+{
+  "title": "基础组件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/component.html"
+},
+{
+  "title": "WXSS 样式",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/wxss.html"
+},
+{
+  "title": "Worklet 动画",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/worklet.html"
+},
+{
+  "title": "手势系统",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/gesture.html"
+},
+{
+  "title": "自定义路由",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/custom-route.html"
+},
+{
+  "title": "预设路由效果",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/preset-route.html"
+},
+{
+  "title": "容器转场动画",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/open-container.html"
+},
+{
+  "title": "页面返回手势",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/pop-gesture.html"
+},
+{
+  "title": "共享元素动画",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/share-element.html"
+},
+{
+  "title": "全局工具栏",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/appbar.html"
+},
+{
+  "title": "滚动容器及其应用场景",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/scroll-container.html"
+},
+{
+  "title": "起步",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/"
+},
+{
+  "title": "新版组件框架适配指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/skyline.html"
+},
+{
+  "title": "最佳实践",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/best-practice.html"
+},
+{
+  "title": "常见兼容问题",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/compatibility.html"
+},
+{
+  "title": "发布上线",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/release.html"
+},
+{
+  "title": "迁移工具",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/migration/migration-tool.html"
+},
+{
+  "title": "性能调试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/debug.html"
+},
+{
+  "title": "更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/changelog.html"
+},
+{
+  "title": "特性状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/skyline/status.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/introduction.html"
+},
+{
+  "title": "适配指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/migration.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/beta-features.html"
+},
+{
+  "title": "在模板中调用 data 里的函数",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/call-data-functions.html"
+},
+{
+  "title": "Chaining API",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/chaining-api.html"
+},
+{
+  "title": "Chaining API 的 init 函数",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/chaining-api-init.html"
+},
+{
+  "title": "动态 slot",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/glass-easel/dynamic-slots.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/"
+},
+{
+  "title": "组件系统",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/component-system.html"
+},
+{
+  "title": "组件模板和样式",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/wxml-wxss.html"
+},
+{
+  "title": "Component 构造器",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/component.html"
+},
+{
+  "title": "组件间通信与事件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/events.html"
+},
+{
+  "title": "组件生命周期",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/lifetimes.html"
+},
+{
+  "title": "behaviors",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/behaviors.html"
+},
+{
+  "title": "组件间关系",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/relations.html"
+},
+{
+  "title": "数据监听器",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/observer.html"
+},
+{
+  "title": "纯数据字段",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/pure-data.html"
+},
+{
+  "title": "抽象节点",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/generics.html"
+},
+{
+  "title": "自定义组件扩展",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/extend.html"
+},
+{
+  "title": "开发第三方自定义组件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/trdparty.html"
+},
+{
+  "title": "单元测试",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/unit-test.html"
+},
+{
+  "title": "获取更新性能统计信息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/update-perf-stat.html"
+},
+{
+  "title": "占位组件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/placeholder.html"
+},
+{
+  "title": "查看自定义组件数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/debug.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/"
+},
+{
+  "title": "开发插件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/development.html"
+},
+{
+  "title": "使用插件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/using.html"
+},
+{
+  "title": "插件调用 API 的限制",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/api-limit.html"
+},
+{
+  "title": "插件使用组件的限制",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/component-limit.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/functional-pages.html"
+},
+{
+  "title": "用户信息功能页",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/functional-pages/user-info.html"
+},
+{
+  "title": "支付功能页",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/functional-pages/request-payment.html"
+},
+{
+  "title": "收货地址功能页",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/functional-pages/choose-address.html"
+},
+{
+  "title": "发票功能页",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/functional-pages/choose-invoice.html"
+},
+{
+  "title": "发票抬头功能页",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/plugin/functional-pages/choose-invoice-title.html"
+},
+{
+  "title": "使用说明",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/network.html"
+},
+{
+  "title": "业务域名",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/domain.html"
+},
+{
+  "title": "局域网通信",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/mDNS.html"
+},
+{
+  "title": "移动解析HttpDNS",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/HTTPDNS.html"
+},
+{
+  "title": "存储",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/storage.html"
+},
+{
+  "title": "文件系统",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/file-system.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/canvas.html"
+},
+{
+  "title": "旧版迁移指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/canvas-legacy-migration.html"
+},
+{
+  "title": "分包加载",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages.html"
+},
+{
+  "title": "使用分包",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/basic.html"
+},
+{
+  "title": "独立分包",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/independent.html"
+},
+{
+  "title": "分包预下载",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/preload.html"
+},
+{
+  "title": "分包异步化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/async.html"
+},
+{
+  "title": "按需注入和用时注入",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/lazyload.html"
+},
+{
+  "title": "多线程 Worker",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/workers.html"
+},
+{
+  "title": "服务端 API",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/server-ability/backend-api.html"
+},
+{
+  "title": "消息推送",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/server-ability/message-push.html"
+},
+{
+  "title": "自定义 tabBar",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/custom-tabbar.html"
+},
+{
+  "title": "周期性更新",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/background-fetch.html"
+},
+{
+  "title": "数据预拉取",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/pre-fetch.html"
+},
+{
+  "title": "DarkMode 适配指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/darkmode.html"
+},
+{
+  "title": "大屏适配指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/adapt.html"
+},
+{
+  "title": "HarmonyOS 适配指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/ability/ohos.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/inference/tutorial.html"
+},
+{
+  "title": "算子支持列表",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/inference/supports.html"
+},
+{
+  "title": "模型量化推理",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/inference/tutorial_int8.html"
+},
+{
+  "title": "VisionKit 基础",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/base.html"
+},
+{
+  "title": "6Dof-水平面 AR",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/plane.html"
+},
+{
+  "title": "6Dof-水平面 AR 扩展能力",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/plane-options.html"
+},
+{
+  "title": "Marker AR",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/marker.html"
+},
+{
+  "title": "单样本检测（OSD）",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/osd.html"
+},
+{
+  "title": "人脸检测",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/face.html"
+},
+{
+  "title": "人体检测",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/body.html"
+},
+{
+  "title": "人手检测",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/hand.html"
+},
+{
+  "title": "鞋部检测",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/shoe.html"
+},
+{
+  "title": "OCR检测",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/ocr.html"
+},
+{
+  "title": "身份证检测",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/idcard.html"
+},
+{
+  "title": "深度估计",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/visionkit/depth.html"
+},
+{
+  "title": "开始",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/xr-frame/",
+  "subtitles": [
+    "新建一个XR组件",
+    "在页面中使用这个组件",
+    "添加一个物体",
+    "来点颜色和灯光",
+    "有点寡淡，加上图像",
+    "让场景更丰富，环境数据",
+    "动起来，加入动画",
+    "还是不够，放个模型",
+    "再来点交互",
+    "组件通信，加上HUD",
+    "虚拟 x 现实，追加 AR 能力",
+    "识别人脸，给自己戴个面具",
+    "手势，给喜欢的作品点赞",
+    "OSDMarker，给现实物体做标记",
+    "2DMarker+视频，让照片动起来",
+    "加上魔法，来点粒子",
+    "后处理，让画面更加好玩",
+    "分享给你的好友吧！",
+    "之后的，就交给你的创意"
+  ]
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/bluetooth.html"
+},
+{
+  "title": "蓝牙低功耗 (BLE)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/ble.html"
+},
+{
+  "title": "蓝牙低功耗网状网络 (BLE Mesh)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/ble-mesh.html"
+},
+{
+  "title": "蓝牙信标 (Beacon)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/beacon.html"
+},
+{
+  "title": "近场通信 (NFC)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/nfc.html"
+},
+{
+  "title": "无线局域网 (Wi-Fi)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/wifi.html"
+},
+{
+  "title": "硬件设备接入",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-access.html"
+},
+{
+  "title": "设备消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-message.html"
+},
+{
+  "title": "指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-register.html"
+},
+{
+  "title": "使用 WMPF（安卓）认证设备",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-register-wmpf.html"
+},
+{
+  "title": "设备认证 SDK（安卓）",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-register-sdk.html"
+},
+{
+  "title": "设备认证 TEE 规范",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-tee.html"
+},
+{
+  "title": "穿戴设备小程序框架",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/rtos.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-voip.html"
+},
+{
+  "title": "接入指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/"
+},
+{
+  "title": "initByCaller",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/initByCaller.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/call-intro.html"
+},
+{
+  "title": "callWMPF",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/callWMPF.html"
+},
+{
+  "title": "callDevice",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/callDevice.html"
+},
+{
+  "title": "forceHangUpVoip",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/forceHangUpVoip.html"
+},
+{
+  "title": "getPluginEnterOptions",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/getPluginEnterOptions.html"
+},
+{
+  "title": "getPluginOnloadOptions",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/getPluginOnloadOptions.html"
+},
+{
+  "title": "onVoipEvent",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/onVoipEvent.html"
+},
+{
+  "title": "setCustomBtnText",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/setCustomBtnText.html"
+},
+{
+  "title": "setUIConfig",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/setUIConfig.html"
+},
+{
+  "title": "setVoipEndPagePath",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/setVoipEndPagePath.html"
+},
+{
+  "title": "getIotBindContactList",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/getIotBindContactList.html"
+},
+{
+  "title": "错误码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/api/errCode.html"
+},
+{
+  "title": "支付刷脸模式",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/wxpay.html"
+},
+{
+  "title": "更新日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/changelog.html"
+},
+{
+  "title": "接入指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-plugin/index_camera.html"
+},
+{
+  "title": "开发安卓设备端应用",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/device-app-android.html"
+},
+{
+  "title": "Linux 设备",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/voip-sdk.html"
+},
+{
+  "title": "云对云设备端",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/le-device-sdk.html"
+},
+{
+  "title": "云对云服务端",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/cloud-server-sdk.html"
+},
+{
+  "title": "VoIP 视频流指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/voip-video.html"
+},
+{
+  "title": "异步接口使用指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-sdk/wx_operation.html"
+},
+{
+  "title": "硬件抽象层",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip-sdk/hal.html"
+},
+{
+  "title": "用户授权设备",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/auth.html"
+},
+{
+  "title": "设备呼叫手机微信",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/call-wechat.html"
+},
+{
+  "title": "手机微信呼叫设备(安卓)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/call-wmpf.html"
+},
+{
+  "title": "手机微信呼叫设备(Linux)",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/call-device.html"
+},
+{
+  "title": "性能与体验优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/performance.html"
+},
+{
+  "title": "常见问题 FAQ",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/voip-faq.html"
+},
+{
+  "title": "通话异常排查指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/guide.html"
+},
+{
+  "title": "通话提醒异常排查指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/voip/notification.html"
+},
+{
+  "title": "设备组",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/device-group.html"
+},
+{
+  "title": "需要帮助",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/device/help.html"
+},
+{
+  "title": "小程序登录",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/login.html"
+},
+{
+  "title": "UnionID 机制说明",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/union-id.html"
+},
+{
+  "title": "授权",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/authorize.html"
+},
+{
+  "title": "开放数据校验与解密",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/signature.html"
+},
+{
+  "title": "手机号快速验证组件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/getPhoneNumber.html"
+},
+{
+  "title": "手机号实时验证组件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/getRealtimePhoneNumber.html"
+},
+{
+  "title": "获取头像昵称",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/userProfile.html"
+},
+{
+  "title": "生物认证",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/bio-auth.html"
+},
+{
+  "title": "账户卡片",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/account-card.html"
+},
+{
+  "title": "分享到朋友圈",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/share-timeline.html"
+},
+{
+  "title": "转发",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/share.html"
+},
+{
+  "title": "动态消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/share/updatable-message.html"
+},
+{
+  "title": "小程序私密消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/share/private-message.html"
+},
+{
+  "title": "收藏",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/favorite.html"
+},
+{
+  "title": "聊天素材打开",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/material/support_material.html"
+},
+{
+  "title": "聊天工具",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/chatTool.html"
+},
+{
+  "title": "用工关系",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/laboruse/intro.html"
+},
+{
+  "title": "安全键盘",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/safe-password.html"
+},
+{
+  "title": "小程序加密网络通道",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/user-encryptkey.html"
+},
+{
+  "title": "分享数据到微信运动",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/share-werun.html"
+},
+{
+  "title": "多人音视频对话",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/voip-chat.html"
+},
+{
+  "title": "双人音视频对话",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/1v1voip.html"
+},
+{
+  "title": "打开 App",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/launchApp.html"
+},
+{
+  "title": "打开半屏小程序",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/openEmbeddedMiniProgram.html"
+},
+{
+  "title": "小程序订阅消息（用户通过弹窗订阅）开发指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/subscribe-message.html",
+  "subtitles": [
+    "订阅消息语音提醒",
+    "订阅消息添加提醒"
+  ]
+},
+{
+  "title": "订阅消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/subscribe-message-overview.html"
+},
+{
+  "title": "新版一次性订阅消息开发指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/subscribe-message-2.html"
+},
+{
+  "title": "统一服务消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/uniform-message.html"
+},
+{
+  "title": "概述",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/customer-message/customer-message.html"
+},
+{
+  "title": "接收消息和事件",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/customer-message/receive.html"
+},
+{
+  "title": "发送消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/customer-message/send.html"
+},
+{
+  "title": "转发消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/customer-message/trans.html"
+},
+{
+  "title": "下发客服输入状态",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/customer-message/typing.html"
+},
+{
+  "title": "临时素材",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/customer-message/temp-media.html"
+},
+{
+  "title": "位置消息",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/location-message.html"
+},
+{
+  "title": "获取小程序码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/qr-code.html"
+},
+{
+  "title": "获取 URL Scheme",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/url-scheme.html"
+},
+{
+  "title": "获取 URL Link",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/url-link.html"
+},
+{
+  "title": "获取 Short Link",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/shortlink.html"
+},
+{
+  "title": "应用：短信打开小程序",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/sms.html"
+},
+{
+  "title": "应用：NFC 标签打开小程序",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/NFC.html"
+},
+{
+  "title": "小程序账号迁移",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/migrateMiniprogram.html"
+},
+{
+  "title": "视频号主页",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/channels-profile.html"
+},
+{
+  "title": "视频号视频",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/channels-activity.html"
+},
+{
+  "title": "视频号直播",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/channels-live.html"
+},
+{
+  "title": "视频号活动",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/channels-event.html"
+},
+{
+  "title": "数据分析",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/data-analysis.html"
+},
+{
+  "title": "附近的小程序",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/nearby.html"
+},
+{
+  "title": "Banner 广告",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/banner-ad.html"
+},
+{
+  "title": "激励视频广告",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/rewarded-video-ad.html"
+},
+{
+  "title": "插屏广告",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/interstitialAd-ad.html"
+},
+{
+  "title": "视频广告",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/video-feeds-ad.html"
+},
+{
+  "title": "视频前贴广告",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/video-patch-ad.html"
+},
+{
+  "title": "格子广告",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/grid-ad.html"
+},
+{
+  "title": "原生模板广告",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/custom-ad.html"
+},
+{
+  "title": "广告预加载接口",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/preload-ad.html"
+},
+{
+  "title": "广告数据接口",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/ad/ad-data-interface.html",
+  "subtitles": [
+    "广告汇总数据",
+    "广告细分数据",
+    "广告位清单",
+    "结算收入数据"
+  ]
+},
+{
+  "title": "概述",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/usability/debug.html"
+},
+{
+  "title": "vConsole",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/usability/vConsole.html"
+},
+{
+  "title": "Source Map",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/usability/sourceMap.html"
+},
+{
+  "title": "实时日志",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/realtimelog/"
+},
+{
+  "title": "Errno错误码",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/usability/PublicErrno.html"
+},
+{
+  "title": "概述",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start.html"
+},
+{
+  "title": "概述",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/"
+},
+{
+  "title": "小程序启动流程",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start_process.html"
+},
+{
+  "title": "代码包体积优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start_optimizeA.html"
+},
+{
+  "title": "代码注入优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start_optimizeB.html"
+},
+{
+  "title": "首屏渲染优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start_optimizeC.html"
+},
+{
+  "title": "其他优化建议",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start_optimizeD.html"
+},
+{
+  "title": "概述",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips.html"
+},
+{
+  "title": "合理使用 setData",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/runtime_setData.html"
+},
+{
+  "title": "渲染性能优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/runtime_render.html"
+},
+{
+  "title": "页面切换优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/runtime_nav.html"
+},
+{
+  "title": "资源加载优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/runtime_resource.html"
+},
+{
+  "title": "内存优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/runtime_memory.html"
+},
+{
+  "title": "性能数据",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/perf_data.html"
+},
+{
+  "title": "工具介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/perf_diagnostic_tool.html"
+},
+{
+  "title": "工具评测标准",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/perf_diagnostic_rules.html"
+},
+{
+  "title": "体验分析",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/analysis.html"
+},
+{
+  "title": "概述",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/perf_debug.html"
+},
+{
+  "title": "真机调试 2.0",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/remote_debug_2.html"
+},
+{
+  "title": "「模拟器」和「调试器」",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/devtools-perf.html"
+},
+{
+  "title": "代码质量分析面板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/quality-panel.html"
+},
+{
+  "title": "FPS 面板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/fps_panel.html"
+},
+{
+  "title": "性能面板",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/panel.html"
+},
+{
+  "title": "体验评分简介",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/audits/audits.html"
+},
+{
+  "title": "评分方法",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/audits/scoring.html"
+},
+{
+  "title": "性能",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/audits/performance.html"
+},
+{
+  "title": "体验",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/audits/accessibility.html"
+},
+{
+  "title": "最佳实践",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/audits/best-practice.html"
+},
+{
+  "title": "WXWebAssembly",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/wasm.html"
+},
+{
+  "title": "接口调用频率规范",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/api-frequency.html"
+},
+{
+  "title": "网络调优",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/network.html"
+},
+{
+  "title": "弱网体验优化",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/performance/weak-network.html"
+},
+{
+  "title": "安全指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/security.html",
+  "subtitles": [
+    "开发原则与注意事项",
+    "通用",
+    "接口鉴权",
+    "代码管理与泄漏",
+    "信息泄露",
+    "授权用户信息变更",
+    "小程序违规处罚信息通知",
+    "后台",
+    "注入漏洞",
+    "弱口令",
+    "文件上传漏洞",
+    "文件下载",
+    "目录遍历",
+    "条件竞争"
+  ]
+},
+{
+  "title": "健康运营指引",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/operation.html",
+  "subtitles": [
+    "用户安全解决方案",
+    "内容安全解决方案"
+  ]
+},
+{
+  "title": "用户隐私保护指引填写说明",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/user-privacy/"
+},
+{
+  "title": "小程序用户隐私保护指引内容介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/user-privacy/miniprogram-intro.html"
+},
+{
+  "title": "插件用户隐私保护说明内容介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/user-privacy/plugin-intro.html"
+},
+{
+  "title": "小程序隐私协议开发指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/user-privacy/PrivacyAuthorize.html"
+},
+{
+  "title": "业务安全解决方案",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/gateway.html"
+},
+{
+  "title": "介绍",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/client-lib/"
+},
+{
+  "title": "版本分布",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/client-lib/version.html"
+},
+{
+  "title": "低版本兼容",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/compatibility.html"
+},
+{
+  "title": "小程序搜索优化指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/search/seo.html"
+},
+{
+  "title": "商品数据接入（内测）",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/product/"
+},
+{
+  "title": "PC 小程序接入指南",
+  "url": "https://developers.weixin.qq.com/miniprogram/dev/framework/pc/"
+}
+]
+}

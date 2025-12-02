@@ -8,35 +8,72 @@ import { checkGlobalData, checkStorage } from './utils/debug';
 import { ENABLE_DEBUG_TOOLS } from './utils/env';
 import { getLogger } from './utils/logger';
 import { initMessageService } from './utils/message/service';
+import type { MessageService } from './utils/message/service';
 import conversationStore from './utils/message/conversation-store';
+
+type CaptchaConfig = Says.CaptchaConfig;
+type MessagePayload = Says.MessagePayload;
+type TypingEvent = Says.TypingEvent;
+type LaunchOptions = WechatMiniprogram.App.LaunchShowOption;
+type ShowOptions = WechatMiniprogram.App.LaunchShowOption;
+type PageNotFoundOption = WechatMiniprogram.App.PageNotFoundOption;
+type UnhandledRejectionResult = WechatMiniprogram.OnUnhandledRejectionListenerResult;
+type ThemeChangeResult = WechatMiniprogram.OnThemeChangeListenerResult;
+type AnyPageInstance = WechatMiniprogram.Page.Instance<
+  WechatMiniprogram.IAnyObject,
+  WechatMiniprogram.IAnyObject
+>;
+type MessageHandlerPage = AnyPageInstance & {
+  onMessageReceived?(message: MessagePayload): void;
+  onTypingReceived?(payload: TypingEvent): void;
+  onMessageError?(error: Error): void;
+};
+
+interface AppGlobalData {
+  messageService: MessageService | null;
+  systemInfo: WechatMiniprogram.SystemInfo | null;
+  captchaConfig: CaptchaConfig | null;
+  conversationStore: typeof conversationStore;
+}
 
 const logger = getLogger('App');
 
-App({
-  /**
-   * Global data
-   */
+const normalizeError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+const getActivePage = (): AnyPageInstance | undefined => {
+  const pages = getCurrentPages();
+  return pages[pages.length - 1] as AnyPageInstance | undefined;
+};
+
+const appOptions: WechatMiniprogram.App.Options<SaysAppInstance> = {
   globalData: {
     messageService: null,
     systemInfo: null,
     captchaConfig: null,
-    conversationStore
-  },
+    conversationStore,
+  } satisfies AppGlobalData,
 
-  /**
-   * App launch
-   */
-  onLaunch(options) {
+  onLaunch(options: LaunchOptions) {
     logger.info('App launched', { options });
 
-    // Get system info
-    this.globalData.systemInfo = wx.getSystemInfoSync();
-    logger.info('System info', { systemInfo: this.globalData.systemInfo });
+    const systemInfo = wx.getSystemInfoSync();
+    this.globalData.systemInfo = systemInfo;
+    logger.info('System info', { systemInfo });
 
-    // Preload and cache captcha config
-    this.preloadCaptchaConfig();
+    void this.preloadCaptchaConfig();
 
-    // Check storage status (debug) - only in development
     if (ENABLE_DEBUG_TOOLS) {
       logger.info('=== App Launch Debug ===');
       checkStorage();
@@ -44,97 +81,80 @@ App({
       logger.info('========================');
     }
 
-    // Initialize authentication service
-    this.initializeAuth();
+    void this.initializeAuth();
   },
 
-  /**
-   * App show
-   */
-  onShow(options) {
+  onShow(options: ShowOptions) {
     logger.info('App shown', { options });
-
-    // Refresh token if authenticated
-    this.refreshTokenIfNeeded();
+    void this.refreshTokenIfNeeded();
   },
 
-  /**
-   * App hide
-   */
   onHide() {
     logger.info('App hidden');
   },
 
-  /**
-   * App error
-   */
-  onError(error) {
+  onError(error: string) {
     logger.error('App error', { error });
   },
 
-  /**
-   * Preload captcha config
-   */
+  onPageNotFound(options: PageNotFoundOption) {
+    logger.warn('Page not found', { path: options.path, query: options.query });
+    void wx.switchTab({ url: '/pages/index/index' });
+  },
+
+  onUnhandledRejection(event: UnhandledRejectionResult) {
+    logger.error('Unhandled rejection', { reason: event?.reason });
+  },
+
+  onThemeChange(event: ThemeChangeResult) {
+    logger.info('Theme changed', { theme: event?.theme });
+  },
+
   async preloadCaptchaConfig() {
     try {
       const cfg = await fetchCaptchaConfig();
       this.globalData.captchaConfig = cfg;
       logger.info('Captcha config preloaded');
     } catch (error) {
-      logger.error('Fetch captcha config failed', { error: error.message || String(error) });
+      const err = normalizeError(error);
+      logger.error('Fetch captcha config failed', { error: err.message });
     }
   },
 
-  /**
-   * Initialize authentication service
-   */
   async initializeAuth() {
     try {
       logger.info('=== Initializing Authentication ===');
 
       const isAuthenticated = await authService.initialize();
-
       logger.info('Authentication initialized', { isAuthenticated });
 
       if (isAuthenticated) {
         await conversationStore.init();
-        // Initialize message service for authenticated users
         await this.initMessageService();
 
-        // Check if user is on welcome page, redirect to chat
-        const pages = getCurrentPages();
-        const currentPage = pages[pages.length - 1];
-
-        if (currentPage && currentPage.route === 'pages/welcome/welcome') {
+        const currentPage = getActivePage();
+        if (currentPage?.route === 'pages/welcome/welcome') {
           logger.info('User on welcome page, redirecting to chat');
-          wx.switchTab({
-            url: '/pages/index/index'
-          });
+          void wx.switchTab({ url: '/pages/index/index' });
         }
-      } else {
-        logger.info('User not authenticated');
+        return;
+      }
 
-        // Check if user has seen welcome page
-        const hasSeenWelcome = wx.getStorageSync('hasSeenWelcome');
-        const pages = getCurrentPages();
-        const currentPage = pages[pages.length - 1];
+      logger.info('User not authenticated');
 
-        // If not on welcome page and hasn't seen it, redirect to welcome
-        if (!hasSeenWelcome && currentPage && currentPage.route !== 'pages/welcome/welcome') {
-          logger.info('User has not seen welcome, redirecting');
-          wx.reLaunch({
-            url: '/pages/welcome/welcome'
-          });
-        }
+      const hasSeenWelcome = wx.getStorageSync<boolean>('hasSeenWelcome');
+      const currentPage = getActivePage();
+
+      if (!hasSeenWelcome && currentPage?.route !== 'pages/welcome/welcome') {
+        logger.info('User has not seen welcome, redirecting');
+        void wx.reLaunch({ url: '/pages/welcome/welcome' });
       }
     } catch (error) {
-      logger.error('Initialize auth failed', { error: error.message || String(error) });
+      const err = normalizeError(error);
+      logger.error('Initialize auth failed', { error: err.message });
     }
   },
 
-  /**
-   * Refresh token if needed
-   */
   async refreshTokenIfNeeded() {
     try {
       if (authService.isAuthenticated()) {
@@ -142,13 +162,11 @@ App({
         logger.info('Token refreshed');
       }
     } catch (error) {
-      logger.error('Refresh token failed', { error: error.message || String(error) });
+      const err = normalizeError(error);
+      logger.error('Refresh token failed', { error: err.message });
     }
   },
 
-  /**
-   * Initialize message service
-   */
   async initMessageService() {
     try {
       if (this.globalData.messageService) {
@@ -158,139 +176,85 @@ App({
 
       const messageService = await initMessageService();
       this.globalData.messageService = messageService;
-
       logger.info('Message service initialized');
     } catch (error) {
-      logger.error('Initialize message service failed', { error: error.message || String(error) });
-      throw error;
+      const err = normalizeError(error);
+      logger.error('Initialize message service failed', { error: err.message });
+      throw err;
     }
   },
 
-  /**
-   * Get message service
-   */
-  getMessageService() {
+  getMessageService(): MessageService | null {
     return this.globalData.messageService;
   },
 
-  /**
-   * Get conversation store
-   */
   getConversationStore() {
     return conversationStore;
   },
 
-  /**
-   * Get auth service
-   * @returns {AuthService} Auth service instance
-   */
   getAuthService() {
     return authService;
   },
 
-  /**
-   * Set user info (deprecated - use authService.updateUserInfo)
-   * @deprecated Use authService.updateUserInfo() instead
-   */
-  setUserInfo(userInfo) {
+  setUserInfo(userInfo: Parameters<typeof authService.updateUserInfo>[0]) {
     logger.warn('app.setUserInfo() is deprecated, use authService.updateUserInfo()');
-    authService.updateUserInfo(userInfo);
+    void authService.updateUserInfo(userInfo);
   },
 
-  /**
-   * Get user info (deprecated - use authService.getUserInfo)
-   * @deprecated Use authService.getUserInfo() instead
-   */
   getUserInfo() {
     logger.warn('app.getUserInfo() is deprecated, use authService.getUserInfo()');
     return authService.getUserInfo();
   },
 
-  /**
-   * Set token (deprecated - use authService.login)
-   * @deprecated Use authService.login() instead
-   */
-  setToken(token) {
+  setToken(_token: unknown) {
     logger.warn('app.setToken() is deprecated, use authService.login()');
-    // Keep for backward compatibility but don't do anything
   },
 
-  /**
-   * Get token (deprecated - use authService.getToken)
-   * @deprecated Use authService.getToken() instead
-   */
   getToken() {
     logger.warn('app.getToken() is deprecated, use authService.getToken()');
     return authService.getToken();
   },
 
-  /**
-   * Clear auth data (deprecated - use authService.logout)
-   * @deprecated Use authService.logout() instead
-   */
   clearAuth() {
     logger.warn('app.clearAuth() is deprecated, use authService.logout()');
 
-    // Disconnect message service
     if (this.globalData.messageService) {
-      this.globalData.messageService.disconnect();
+      void this.globalData.messageService.disconnect();
       this.globalData.messageService = null;
     }
 
-    // Logout from auth service
-    authService.logout();
+    void authService.logout();
   },
 
-  /**
-   * Message received callback
-   */
-  onMessageReceived(message) {
+  onMessageReceived(message: MessagePayload) {
     logger.info('Message received in app', {
       msg_id: message.msg_id,
       conv_id: message.conv_id,
       message_type: message.message_type,
-      from: message.from
+      from: message.from,
     });
-    // Notify current page if it has handler
-    const pages = getCurrentPages();
-    if (pages.length > 0) {
-      const currentPage = pages[pages.length - 1];
-      if (currentPage.onMessageReceived) {
-        currentPage.onMessageReceived(message);
-      }
-    }
+
+    const currentPage = getActivePage() as MessageHandlerPage | undefined;
+    currentPage?.onMessageReceived?.(message);
   },
 
-  /**
-   * Typing received callback
-   */
-  onTypingReceived(typing) {
+  onTypingReceived(typing: TypingEvent) {
     logger.info('Typing received in app', {
       conv_id: typing.conv_id,
-      isTyping: typing.isTyping
+      isTyping: typing.typing,
     });
-    // Notify current page if it has handler
-    const pages = getCurrentPages();
-    if (pages.length > 0) {
-      const currentPage = pages[pages.length - 1];
-      if (currentPage.onTypingReceived) {
-        currentPage.onTypingReceived(typing);
-      }
-    }
+
+    const currentPage = getActivePage() as MessageHandlerPage | undefined;
+    currentPage?.onTypingReceived?.(typing);
   },
 
-  /**
-   * Message error callback
-   */
-  onMessageError(error) {
-    logger.error('Message error in app', { error });
-    // Notify current page if it has handler
-    const pages = getCurrentPages();
-    if (pages.length > 0) {
-      const currentPage = pages[pages.length - 1];
-      if (currentPage.onMessageError) {
-        currentPage.onMessageError(error);
-      }
-    }
-  }
-});
+  onMessageError(error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Message error in app', { error: err.message });
+
+    const currentPage = getActivePage() as MessageHandlerPage | undefined;
+    currentPage?.onMessageError?.(err);
+  },
+};
+
+App(appOptions);

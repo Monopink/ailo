@@ -2,49 +2,87 @@ import { getLogger } from '../../utils/logger';
 
 const logger = getLogger('Boot');
 
-Page({
+interface BootPageData {
+  routed: boolean;
+}
+
+interface BootPageCustom {
+  _routeOnce(callback: () => void): void;
+}
+
+const toError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+type RouteOptions = Record<string, string | undefined>;
+
+Page<BootPageData, BootPageCustom>({
   data: {
-    routed: false
+    routed: false,
   },
 
-  onLoad(options) {
-    // Avoid double routing
-    if (this.data.routed) return;
+  onLoad(options: RouteOptions) {
+    if (this.data.routed) {
+      return;
+    }
 
     try {
-      const token = wx.getStorageSync('auth_token');
-      const hasSeenWelcome = !!wx.getStorageSync('hasSeenWelcome');
+      const token = wx.getStorageSync<string | null>('auth_token');
+      const hasSeenWelcome = Boolean(wx.getStorageSync<boolean>('hasSeenWelcome'));
 
-      logger.info('Boot routing', { hasToken: !!token, hasSeenWelcome, options });
+      logger.info('Boot routing', {
+        hasToken: Boolean(token),
+        hasSeenWelcome,
+        options,
+      });
 
-      // If has token, go to chat tab directly
       if (token) {
-        this._routeOnce(() => wx.switchTab({ url: '/pages/index/index' }));
+        this._routeOnce(() => {
+          void wx.switchTab({ url: '/pages/index/index' });
+        });
         return;
       }
 
-      // No token: if user hasn't seen welcome, go to welcome; else go to login
       if (!hasSeenWelcome) {
-        this._routeOnce(() => wx.redirectTo({ url: '/pages/welcome/welcome' }));
+        this._routeOnce(() => {
+          void wx.redirectTo({ url: '/pages/welcome/welcome' });
+        });
       } else {
-        this._routeOnce(() => wx.redirectTo({ url: '/pages/login/login' }));
+        this._routeOnce(() => {
+          void wx.redirectTo({ url: '/pages/login/login' });
+        });
       }
-    } catch (e) {
-      // Fallback to welcome on any error
-      logger.error('Boot routing error', { error: e.message || String(e) });
-      this._routeOnce(() => wx.redirectTo({ url: '/pages/welcome/welcome' }));
+    } catch (error) {
+      const err = toError(error);
+      logger.error('Boot routing error', { error: err.message });
+      this._routeOnce(() => {
+        void wx.redirectTo({ url: '/pages/welcome/welcome' });
+      });
     }
   },
 
-  _routeOnce(fn) {
-    if (this.data.routed) return;
-    this.setData({ routed: true });
-    // Use nextTick to ensure the boot page has mounted
-    if (typeof wx.nextTick === 'function') {
-      wx.nextTick(fn);
-    } else {
-      setTimeout(fn, 0);
+  _routeOnce(callback: () => void) {
+    if (this.data.routed) {
+      return;
     }
-  }
-});
 
+    this.setData({ routed: true });
+
+    if (typeof wx.nextTick === 'function') {
+      wx.nextTick(callback);
+      return;
+    }
+
+    setTimeout(callback, 0);
+  },
+});

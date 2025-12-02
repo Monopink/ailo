@@ -4,39 +4,47 @@
  */
 
 import { MESSAGE_TYPE } from './message/constants';
-import logger from './logger';
+import { getLogger } from './logger';
+import { MESSAGE_CONFIG } from './config';
+import { getContactByConvId, getUserInfo as getStoredUserInfo } from './storage';
 
-const DEBOUNCE_DELAY = 1000; // 1 second debounce
+const logger = getLogger('TypingManager');
+
+type TypingStatus = 'idle' | 'typing';
+
+interface TypingState {
+  status: TypingStatus;
+  lastSendTime: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  isComposing: boolean;
+}
+
+interface MessageService {
+  sendMessage(payload: Partial<Says.MessagePayload>): Promise<void>;
+}
 
 class TypingManager {
-  constructor() {
-    // Map of convId -> typing state
-    this.typingStates = new Map();
-  }
+  private typingStates = new Map<string, TypingState>();
 
-  /**
-   * Get or create typing state for a conversation
-   */
-  getState(convId) {
+  private getState(convId: string): TypingState {
     if (!this.typingStates.has(convId)) {
       this.typingStates.set(convId, {
-        status: 'idle', // 'idle' | 'typing'
+        status: 'idle',
         lastSendTime: 0,
         timer: null,
-        isComposing: false // Input method composing state
+        isComposing: false,
       });
     }
-    return this.typingStates.get(convId);
+    return this.typingStates.get(convId)!;
   }
 
   /**
    * Handle composition start (input method starts)
    */
-  onCompositionStart(convId, currentValue) {
+  onCompositionStart(convId: string, currentValue: string): void {
     const state = this.getState(convId);
     state.isComposing = true;
 
-    // If input is empty, send typing start
     if (!currentValue || currentValue.length === 0) {
       this.sendTypingStartDebounced(convId);
     }
@@ -45,28 +53,29 @@ class TypingManager {
   /**
    * Handle composition end (input method ends)
    */
-  onCompositionEnd(convId, currentValue) {
+  onCompositionEnd(convId: string, currentValue: string): void {
     const state = this.getState(convId);
     state.isComposing = false;
 
-    // If input is still empty after composition, send typing end
     if (!currentValue || currentValue.length === 0) {
-      this.sendTypingEnd(convId);
+      void this.sendTypingEnd(convId);
     }
   }
 
   /**
    * Handle input change
    */
-  onInputChange(convId, newValue, oldValue) {
+  onInputChange(convId: string, newValue: string, oldValue: string): void {
     const state = this.getState(convId);
 
-    // If changed from non-empty to empty, send typing end
     if (oldValue && oldValue.length > 0 && (!newValue || newValue.length === 0)) {
-      this.sendTypingEnd(convId);
-    }
-    // If changed from empty to non-empty and not composing, send typing start
-    else if ((!oldValue || oldValue.length === 0) && newValue && newValue.length > 0 && !state.isComposing) {
+      void this.sendTypingEnd(convId);
+    } else if (
+      (!oldValue || oldValue.length === 0) &&
+      newValue &&
+      newValue.length > 0 &&
+      !state.isComposing
+    ) {
       this.sendTypingStartDebounced(convId);
     }
   }
@@ -74,8 +83,7 @@ class TypingManager {
   /**
    * Handle input focus
    */
-  onInputFocus(convId, currentValue) {
-    // If input has content, send typing start
+  onInputFocus(convId: string, currentValue: string): void {
     if (currentValue && currentValue.length > 0) {
       this.sendTypingStartDebounced(convId);
     }
@@ -84,18 +92,16 @@ class TypingManager {
   /**
    * Handle input blur
    */
-  onInputBlur(convId) {
-    // Always send typing end when input loses focus
-    this.sendTypingEnd(convId);
+  onInputBlur(convId: string): void {
+    void this.sendTypingEnd(convId);
   }
 
   /**
    * Send typing start with debounce
    */
-  sendTypingStartDebounced(convId) {
+  sendTypingStartDebounced(convId: string): void {
     const state = this.getState(convId);
 
-    // If already typing, do nothing
     if (state.status === 'typing') {
       return;
     }
@@ -104,58 +110,59 @@ class TypingManager {
     const timeSinceLastSend = now - state.lastSendTime;
 
     // If within debounce delay, schedule for later
-    if (timeSinceLastSend < DEBOUNCE_DELAY) {
+    if (timeSinceLastSend < MESSAGE_CONFIG.typingDebounce) {
       if (state.timer) {
         clearTimeout(state.timer);
       }
       state.timer = setTimeout(() => {
-        this.sendTypingStart(convId);
-      }, DEBOUNCE_DELAY - timeSinceLastSend);
+        void this.sendTypingStart(convId);
+      }, MESSAGE_CONFIG.typingDebounce - timeSinceLastSend);
       return;
     }
 
     // Send immediately
-    this.sendTypingStart(convId);
+    void this.sendTypingStart(convId);
   }
 
   /**
    * Send typing start message
    */
-  async sendTypingStart(convId) {
+  async sendTypingStart(convId: string): Promise<void> {
     const state = this.getState(convId);
 
     try {
-      // Get message service from app
-      const app = getApp();
-      const messageService = app.getMessageService();
+      const app = getApp<SaysAppInstance>();
+      const messageService = app.getMessageService() as MessageService | null;
 
       if (!messageService) {
         logger.warn('Message service not available for typing indicator');
         return;
       }
 
-      // Get contact info
-      const contact = await this.getContactByConvId(convId);
+      const contact = await getContactByConvId(convId);
       if (!contact) {
         logger.warn('Contact not found for typing indicator', { convId });
         return;
       }
+      const contactQiaoId = contact.contact_qiao_id;
+      if (!contactQiaoId) {
+        logger.warn('Contact lacks qiao id for typing indicator', { convId });
+        return;
+      }
 
-      // Get user info
-      const userInfo = await this.getUserInfo();
+      const userInfo = await getStoredUserInfo();
       if (!userInfo) {
         logger.warn('User info not found for typing indicator');
         return;
       }
 
-      // Send typing start message
       await messageService.sendMessage({
         from: userInfo.qiao_id,
-        to: contact.contact_qiao_id,
+        to: contactQiaoId,
         conv_id: convId,
         content: '',
         message_type: MESSAGE_TYPE.TYPING_START,
-        supports_typing: true
+        supports_typing: true,
       });
 
       state.status = 'typing';
@@ -170,52 +177,51 @@ class TypingManager {
   /**
    * Send typing end message
    */
-  async sendTypingEnd(convId) {
+  async sendTypingEnd(convId: string): Promise<void> {
     const state = this.getState(convId);
 
-    // If not typing, do nothing
     if (state.status !== 'typing') {
       return;
     }
 
-    // Clear any pending timer
     if (state.timer) {
       clearTimeout(state.timer);
       state.timer = null;
     }
 
     try {
-      // Get message service from app
-      const app = getApp();
-      const messageService = app.getMessageService();
+      const app = getApp<SaysAppInstance>();
+      const messageService = app.getMessageService() as MessageService | null;
 
       if (!messageService) {
         logger.warn('Message service not available for typing indicator');
         return;
       }
 
-      // Get contact info
-      const contact = await this.getContactByConvId(convId);
+      const contact = await getContactByConvId(convId);
       if (!contact) {
         logger.warn('Contact not found for typing indicator', { convId });
         return;
       }
+      const contactQiaoId = contact.contact_qiao_id;
+      if (!contactQiaoId) {
+        logger.warn('Contact lacks qiao id for typing indicator', { convId });
+        return;
+      }
 
-      // Get user info
-      const userInfo = await this.getUserInfo();
+      const userInfo = await getStoredUserInfo();
       if (!userInfo) {
         logger.warn('User info not found for typing indicator');
         return;
       }
 
-      // Send typing end message
       await messageService.sendMessage({
         from: userInfo.qiao_id,
-        to: contact.contact_qiao_id,
+        to: contactQiaoId,
         conv_id: convId,
         content: '',
         message_type: MESSAGE_TYPE.TYPING_END,
-        supports_typing: true
+        supports_typing: true,
       });
 
       state.status = 'idle';
@@ -230,16 +236,14 @@ class TypingManager {
   /**
    * Force stop typing state (e.g., when sending message)
    */
-  forceStopTyping(convId) {
+  forceStopTyping(convId: string): void {
     const state = this.getState(convId);
 
-    // Clear timer
     if (state.timer) {
       clearTimeout(state.timer);
       state.timer = null;
     }
 
-    // Reset state
     state.status = 'idle';
     state.isComposing = false;
   }
@@ -247,30 +251,13 @@ class TypingManager {
   /**
    * Clean up typing state for a conversation
    */
-  cleanup(convId) {
+  cleanup(convId: string): void {
     const state = this.typingStates.get(convId);
     if (state && state.timer) {
       clearTimeout(state.timer);
     }
     this.typingStates.delete(convId);
   }
-
-  /**
-   * Helper: Get contact by convId from storage
-   */
-  async getContactByConvId(convId) {
-    const { getContactByConvId } = require('./storage');
-    return await getContactByConvId(convId);
-  }
-
-  /**
-   * Helper: Get user info from storage
-   */
-  async getUserInfo() {
-    const { getUserInfo } = require('./storage');
-    return await getUserInfo();
-  }
 }
 
-// Export singleton instance
 export default new TypingManager();

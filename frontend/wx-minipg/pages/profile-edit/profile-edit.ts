@@ -4,46 +4,93 @@ import { getLogger } from '../../utils/logger';
 
 const logger = getLogger('ProfileEdit');
 
-// Field configurations
+type FieldType = 'text' | 'region' | 'gender';
+
+interface FieldConfig {
+  title: string;
+  placeholder: string;
+  maxLength: number;
+  hint: string;
+  type: FieldType;
+}
+
 const FIELD_CONFIG = {
   nickname: {
     title: '编辑昵称',
     placeholder: '请输入昵称',
     maxLength: 10,
     hint: '',
-    type: 'text'
+    type: 'text',
   },
   username: {
-    title: '编辑敲敲ID',
-    placeholder: '请输入敲敲ID',
+    title: '编辑敲敲号',
+    placeholder: '请输入敲敲号',
     maxLength: 20,
-    hint: '敲敲ID可以包含字母、数字和下划线，3-20个字符',
-    type: 'text'
+    hint: '敲敲号可以包含字母、数字和下划线，3-20个字符',
+    type: 'text',
   },
   bio: {
     title: '编辑个性签名',
     placeholder: '请输入个性签名',
     maxLength: 70,
     hint: '',
-    type: 'text'
+    type: 'text',
   },
   region: {
     title: '编辑地区',
     placeholder: '',
     maxLength: 0,
     hint: '',
-    type: 'region'
+    type: 'region',
   },
   gender: {
     title: '编辑性别',
     placeholder: '',
     maxLength: 0,
     hint: '',
-    type: 'gender'
+    type: 'gender',
+  },
+} as const satisfies Record<string, FieldConfig>;
+
+type FieldKey = keyof typeof FIELD_CONFIG;
+
+interface ProfileEditPageData {
+  field: FieldKey | '';
+  fieldType: FieldType | '';
+  value: string;
+  placeholder: string;
+  maxLength: number;
+  hint: string;
+  saving: boolean;
+  genderOptions: string[];
+  genderIndex: number;
+  regionValue: string[];
+  regionDisplay: string;
+}
+
+interface ProfileEditPageCustom {
+  onInput(event: WechatMiniprogram.CustomEvent<{ value: string }>): void;
+  onGenderChange(event: WechatMiniprogram.PickerChange): void;
+  onRegionChange(event: WechatMiniprogram.PickerChange): void;
+  handleSave(): Promise<void>;
+}
+
+const decodeValue = (value?: string): string => {
+  try {
+    return decodeURIComponent(value ?? '');
+  } catch {
+    return value ?? '';
   }
 };
 
-Page({
+const showErrorToast = (title: string): void => {
+  void wx.showToast({
+    title,
+    icon: 'none',
+  });
+};
+
+Page<ProfileEditPageData, ProfileEditPageCustom>({
   data: {
     field: '',
     fieldType: '',
@@ -52,159 +99,128 @@ Page({
     maxLength: 0,
     hint: '',
     saving: false,
-    // Gender picker
     genderOptions: ['男', '女', '其他', '未知'],
     genderIndex: 0,
-    // Region picker
     regionValue: [],
-    regionDisplay: ''
+    regionDisplay: '',
   },
 
   onLoad(options) {
-    const { field, value } = options;
-    const config = FIELD_CONFIG[field];
+    const rawField = (options?.field ?? '') as FieldKey;
+    const config = FIELD_CONFIG[rawField];
 
     if (!config) {
-      wx.showToast({
-        title: '参数错误',
-        icon: 'none'
-      });
+      showErrorToast('参数错误');
       setTimeout(() => {
-        wx.navigateBack();
+        void wx.navigateBack();
       }, 1500);
       return;
     }
 
-    // Set navigation bar title
-    wx.setNavigationBarTitle({
-      title: config.title
+    void wx.setNavigationBarTitle({
+      title: config.title,
     });
 
-    // Initialize data based on field type
     if (config.type === 'gender') {
-      const genderValue = parseInt(value) || 0;
+      const genderValue = Number.parseInt(options?.value ?? '0', 10) || 0;
       this.setData({
-        field,
+        field: rawField,
         fieldType: config.type,
-        genderIndex: genderValue > 0 ? genderValue - 1 : 0
-      });
-    } else if (config.type === 'region') {
-      this.setData({
-        field,
-        fieldType: config.type,
-        regionDisplay: decodeURIComponent(value || ''),
-        regionValue: []
-      });
-    } else {
-      this.setData({
-        field,
-        fieldType: config.type,
-        value: decodeURIComponent(value || ''),
+        genderIndex: genderValue > 0 ? genderValue - 1 : 0,
         placeholder: config.placeholder,
         maxLength: config.maxLength,
-        hint: config.hint
+        hint: config.hint,
       });
+      return;
     }
 
-    logger.info('Profile edit page loaded', { field });
+    if (config.type === 'region') {
+      this.setData({
+        field: rawField,
+        fieldType: config.type,
+        regionDisplay: decodeValue(options?.value),
+        regionValue: [],
+      });
+      return;
+    }
+
+    this.setData({
+      field: rawField,
+      fieldType: config.type,
+      value: decodeValue(options?.value),
+      placeholder: config.placeholder,
+      maxLength: config.maxLength,
+      hint: config.hint,
+    });
+
+    logger.info('Profile edit page loaded', { field: rawField });
   },
 
-  /**
-   * Handle input change
-   */
-  onInput(e) {
+  onInput(event) {
     this.setData({
-      value: e.detail.value
+      value: event.detail.value,
     });
   },
 
-  /**
-   * Handle gender change
-   */
-  onGenderChange(e) {
+  onGenderChange(event) {
     this.setData({
-      genderIndex: parseInt(e.detail.value)
+      genderIndex: Number.parseInt(String(event.detail.value), 10),
     });
   },
 
-  /**
-   * Handle region change
-   */
-  onRegionChange(e) {
-    const regionArray = e.detail.value;
-    const [province, city, district] = regionArray;
+  onRegionChange(event) {
+    const regionArray = event.detail.value as string[];
+    const [province = '', city = '', district = ''] = regionArray;
 
-    let actualCity = city;
+    let actualCity: string | null = city;
 
-    // Handle special administrative divisions
     if (city === '省直辖县级行政区划' || city === '自治区直辖县级行政区划') {
-      // For province/autonomous region-administered county-level divisions, use district as city
-      // e.g., "湖北省" "省直辖县级行政区划" "仙桃市" -> use "仙桃市" as city
       actualCity = district;
     } else if (city === '县') {
-      // For municipalities' counties, use only province (municipality) name
-      // e.g., "重庆市" "县" "丰都县" -> use only "重庆市"
       actualCity = null;
     }
 
-    const regionDisplay = actualCity ? formatRegion(province, actualCity) : formatRegion(province, province);
+    const regionDisplay = actualCity
+      ? formatRegion(province, actualCity)
+      : formatRegion(province, province);
     this.setData({
       regionValue: actualCity ? [province, actualCity] : [province],
-      regionDisplay
+      regionDisplay,
     });
   },
 
-  /**
-   * Handle save
-   */
   async handleSave() {
     try {
-      // Validate input
       if (this.data.fieldType === 'text') {
         const trimmedValue = this.data.value.trim();
 
         if (!trimmedValue) {
-          wx.showToast({
-            title: '请输入内容',
-            icon: 'none'
-          });
+          showErrorToast('请输入内容');
           return;
         }
 
-        // Username validation
         if (this.data.field === 'username') {
           if (trimmedValue.length < 3) {
-            wx.showToast({
-              title: '敲敲ID至少3个字符',
-              icon: 'none'
-            });
+            showErrorToast('敲敲号至少3个字符');
             return;
           }
 
-          // Check username format (letters, numbers, underscore)
           if (!/^[a-zA-Z0-9_]+$/.test(trimmedValue)) {
-            wx.showToast({
-              title: '敲敲ID只能包含字母、数字和下划线',
-              icon: 'none'
-            });
+            showErrorToast('敲敲号只能包含字母、数字和下划线');
             return;
           }
         }
       } else if (this.data.fieldType === 'region') {
         if (!this.data.regionDisplay) {
-          wx.showToast({
-            title: '请选择地区',
-            icon: 'none'
-          });
+          showErrorToast('请选择地区');
           return;
         }
       }
 
       this.setData({ saving: true });
 
-      // Prepare update data
-      let updateData = {};
-      if (this.data.fieldType === 'text') {
+      const updateData: Record<string, unknown> = {};
+      if (this.data.fieldType === 'text' && this.data.field) {
         updateData[this.data.field] = this.data.value.trim();
       } else if (this.data.fieldType === 'gender') {
         updateData.gender = this.data.genderIndex + 1;
@@ -214,33 +230,27 @@ Page({
 
       logger.info('Updating profile', { field: this.data.field, data: updateData });
 
-      // Call API
       await put('/user/profile', updateData);
 
-      wx.showToast({
+      void wx.showToast({
         title: '保存成功',
-        icon: 'success'
+        icon: 'success',
       });
 
       logger.info('Profile updated successfully', { field: this.data.field });
 
-      // Navigate back after a short delay
       setTimeout(() => {
-        wx.navigateBack();
+        void wx.navigateBack();
       }, 1500);
     } catch (error) {
       logger.error('Update profile failed', {
         field: this.data.field,
-        error: error.message || String(error)
+        error,
       });
 
-      wx.showToast({
-        title: error.message || '保存失败,请稍后再试',
-        icon: 'none'
-      });
-
+      const message = error instanceof Error ? error.message : '保存失败,请稍后再试';
+      showErrorToast(message);
       this.setData({ saving: false });
     }
-  }
+  },
 });
-

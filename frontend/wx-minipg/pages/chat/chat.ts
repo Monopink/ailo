@@ -7,134 +7,495 @@ import { get } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { MESSAGE_CONFIG } from '../../utils/config';
 import { getUserFriendlyError } from '../../utils/error-messages';
-import logger from '../../utils/logger';
-import { MESSAGE_STATUS, MESSAGE_TYPE } from '../../utils/message/constants';
-import { addMessage, getContactByConvId, getContacts, getMessages, getUserInfo, saveContacts } from '../../utils/storage';
+import { getLogger } from '../../utils/logger';
+import { MESSAGE_STATUS, MESSAGE_TYPE, type MessageType } from '../../utils/message/constants';
+import {
+  addMessage,
+  getContactByConvId,
+  getContacts,
+  getMessages,
+  getUserInfo,
+  saveContacts,
+  type StoredContact,
+  type StoredMessage,
+  type StoredMessages,
+} from '../../utils/storage';
 import typingManager from '../../utils/typing-manager';
 import conversationStore from '../../utils/message/conversation-store';
 
+const logger = getLogger('Chat');
+
 // Standard emoji list
 const EMOJI_LIST = [
-  '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
-  '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
-  '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔',
-  '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥',
-  '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮',
-  '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓',
-  '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺',
-  '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣',
-  '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈',
-  '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾',
-  '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾',
-  '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟',
-  '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎',
-  '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏',
-  '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻',
-  '👃', '🧠', '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '🩸',
-  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
-  '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️',
-  '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐',
-  '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐',
-  '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳',
-  '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️',
-  '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️',
-  '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️',
-  '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓',
-  '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️',
-  '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠'
+  '😀',
+  '😃',
+  '😄',
+  '😁',
+  '😆',
+  '😅',
+  '🤣',
+  '😂',
+  '🙂',
+  '🙃',
+  '😉',
+  '😊',
+  '😇',
+  '🥰',
+  '😍',
+  '🤩',
+  '😘',
+  '😗',
+  '😚',
+  '😙',
+  '😋',
+  '😛',
+  '😜',
+  '🤪',
+  '😝',
+  '🤑',
+  '🤗',
+  '🤭',
+  '🤫',
+  '🤔',
+  '🤐',
+  '🤨',
+  '😐',
+  '😑',
+  '😶',
+  '😏',
+  '😒',
+  '🙄',
+  '😬',
+  '🤥',
+  '😌',
+  '😔',
+  '😪',
+  '🤤',
+  '😴',
+  '😷',
+  '🤒',
+  '🤕',
+  '🤢',
+  '🤮',
+  '🤧',
+  '🥵',
+  '🥶',
+  '🥴',
+  '😵',
+  '🤯',
+  '🤠',
+  '🥳',
+  '😎',
+  '🤓',
+  '🧐',
+  '😕',
+  '😟',
+  '🙁',
+  '☹️',
+  '😮',
+  '😯',
+  '😲',
+  '😳',
+  '🥺',
+  '😦',
+  '😧',
+  '😨',
+  '😰',
+  '😥',
+  '😢',
+  '😭',
+  '😱',
+  '😖',
+  '😣',
+  '😞',
+  '😓',
+  '😩',
+  '😫',
+  '🥱',
+  '😤',
+  '😡',
+  '😠',
+  '🤬',
+  '😈',
+  '👿',
+  '💀',
+  '☠️',
+  '💩',
+  '🤡',
+  '👹',
+  '👺',
+  '👻',
+  '👽',
+  '👾',
+  '🤖',
+  '😺',
+  '😸',
+  '😹',
+  '😻',
+  '😼',
+  '😽',
+  '🙀',
+  '😿',
+  '😾',
+  '👋',
+  '🤚',
+  '🖐️',
+  '✋',
+  '🖖',
+  '👌',
+  '🤏',
+  '✌️',
+  '🤞',
+  '🤟',
+  '🤘',
+  '🤙',
+  '👈',
+  '👉',
+  '👆',
+  '🖕',
+  '👇',
+  '☝️',
+  '👍',
+  '👎',
+  '✊',
+  '👊',
+  '🤛',
+  '🤜',
+  '👏',
+  '🙌',
+  '👐',
+  '🤲',
+  '🤝',
+  '🙏',
+  '✍️',
+  '💅',
+  '🤳',
+  '💪',
+  '🦾',
+  '🦿',
+  '🦵',
+  '🦶',
+  '👂',
+  '🦻',
+  '👃',
+  '🧠',
+  '🦷',
+  '🦴',
+  '👀',
+  '👁️',
+  '👅',
+  '👄',
+  '💋',
+  '🩸',
+  '❤️',
+  '🧡',
+  '💛',
+  '💚',
+  '💙',
+  '💜',
+  '🖤',
+  '🤍',
+  '🤎',
+  '💔',
+  '❣️',
+  '💕',
+  '💞',
+  '💓',
+  '💗',
+  '💖',
+  '💘',
+  '💝',
+  '💟',
+  '☮️',
+  '✝️',
+  '☪️',
+  '🕉️',
+  '☸️',
+  '✡️',
+  '🔯',
+  '🕎',
+  '☯️',
+  '☦️',
+  '🛐',
+  '⛎',
+  '♈',
+  '♉',
+  '♊',
+  '♋',
+  '♌',
+  '♍',
+  '♎',
+  '♏',
+  '♐',
+  '♑',
+  '♒',
+  '♓',
+  '🆔',
+  '⚛️',
+  '🉑',
+  '☢️',
+  '☣️',
+  '📴',
+  '📳',
+  '🈶',
+  '🈚',
+  '🈸',
+  '🈺',
+  '🈷️',
+  '✴️',
+  '🆚',
+  '💮',
+  '🉐',
+  '㊙️',
+  '㊗️',
+  '🈴',
+  '🈵',
+  '🈹',
+  '🈲',
+  '🅰️',
+  '🅱️',
+  '🆎',
+  '🆑',
+  '🅾️',
+  '🆘',
+  '❌',
+  '⭕',
+  '🛑',
+  '⛔',
+  '📛',
+  '🚫',
+  '💯',
+  '💢',
+  '♨️',
+  '🚷',
+  '🚯',
+  '🚳',
+  '🚱',
+  '🔞',
+  '📵',
+  '🚭',
+  '❗',
+  '❕',
+  '❓',
+  '❔',
+  '‼️',
+  '⁉️',
+  '🔅',
+  '🔆',
+  '〽️',
+  '⚠️',
+  '🚸',
+  '🔱',
+  '⚜️',
+  '🔰',
+  '♻️',
+  '✅',
+  '🈯',
+  '💹',
+  '❇️',
+  '✳️',
+  '❎',
+  '🌐',
+  '💠',
 ];
 
-Page({
+type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
+
+interface ChatMessage extends StoredMessage {
+  from_me?: boolean;
+  showTimestamp?: boolean;
+  timestampText?: string;
+  isSystemMessage?: boolean;
+  systemContent?: string;
+  status?: MessageStatus;
+}
+
+interface ContactProfile {
+  avatar_url?: string;
+  nickname?: string;
+  gender?: number | null;
+}
+
+interface ConversationResponse {
+  contact_profile?: ContactProfile;
+  contact_qiao_id: string;
+  im_conv_id: string;
+}
+
+interface ChatPageData {
+  convId: string;
+  contactName: string;
+  contactAvatar: string;
+  contactQiaoId: string;
+  imConvId: string;
+  userAvatar: string;
+  messages: ChatMessage[];
+  scrollToView: string;
+  inputText: string;
+  inputPlaceholder: string;
+  inputFocused: boolean;
+  maxMessageLength: number;
+  prevInputValue: string;
+  showEmojiPicker: boolean;
+  emojiList: readonly string[];
+  isContactTyping: boolean;
+}
+
+type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
+
+interface ChatPageCustom {
+  typingTimer: ReturnType<typeof setTimeout> | null;
+  unsubscribeConversationStore: (() => void) | null;
+  _sendRetried: boolean;
+  _retryRefreshed: boolean;
+  showErrorMessage(error: unknown): Promise<void>;
+  refreshContactInfo(convId: string): Promise<ConversationResponse>;
+  refreshConversationChannel(): Promise<string>;
+  handleChatInfoAction(message: ChatMessage): void;
+  loadMessages(): Promise<void>;
+  processMessages(messages: StoredMessages): ChatMessage[];
+  isSystemMessage(message: StoredMessage): boolean;
+  getSystemMessageContent(message: StoredMessage): string;
+  formatTimestamp(timestamp: number): string;
+  onInputChange(event: InputEvent): void;
+  onInputFocus(): void;
+  onInputBlur(): void;
+  onCompositionStart(): void;
+  onCompositionEnd(event: InputEvent): void;
+  onToggleEmoji(): void;
+  onSelectEmoji(event: WechatMiniprogram.TouchEvent): void;
+  onSendMessage(): Promise<void>;
+  onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
+  onMessageReceived(message: Says.MessagePayload): Promise<void>;
+  onTypingReceived(payload: Says.TypingEvent): void;
+  showTypingIndicator(): void;
+  hideTypingIndicator(): void;
+  updateMessageStatus(messageId: string, status: MessageStatus): void;
+}
+
+const normalizeError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+const showToast = (
+  title: string,
+  icon: WechatMiniprogram.ShowToastOption['icon'] = 'none'
+): void => {
+  void wx.showToast({ title, icon });
+};
+
+const buildClientMessageId = (): string =>
+  `client_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+
+const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unknown => {
+  const dataset = event?.currentTarget?.dataset as Record<string, unknown> | undefined;
+  return dataset?.[key];
+};
+
+const ensureMessageService = (): Says.MessageService => {
+  const app = getApp<SaysAppInstance>();
+  const messageService = app.getMessageService();
+  if (!messageService) {
+    throw new Error('MESSAGE_SERVICE_DISCONNECTED');
+  }
+  return messageService;
+};
+
+Page<ChatPageData, ChatPageCustom>({
   data: {
-    // Conversation info
     convId: '',
     contactName: '',
     contactAvatar: '',
     contactQiaoId: '',
     imConvId: '',
     userAvatar: '',
-
-    // Messages
-    messages: [],
+    messages: [] as ChatMessage[],
     scrollToView: '',
-
-    // Input
     inputText: '',
     inputPlaceholder: '请输入消息',
     inputFocused: false,
-    maxMessageLength: MESSAGE_CONFIG.maxLength || 1000,
+    maxMessageLength: MESSAGE_CONFIG.maxLength ?? 1000,
     prevInputValue: '',
-
-    // Emoji
     showEmojiPicker: false,
     emojiList: EMOJI_LIST,
-
-    // Typing indicator
     isContactTyping: false,
-    typingTimer: null
   },
 
-  /**
-   * Show error message as CHAT_INFO
-   */
-  async showErrorMessage(error) {
-    const errorMsg = {
+  typingTimer: null,
+  unsubscribeConversationStore: null,
+  _sendRetried: false,
+  _retryRefreshed: false,
+
+  async showErrorMessage(error: unknown) {
+    const messageContent = getUserFriendlyError(error as Error | string | null | undefined);
+    const errorMsg: ChatMessage = {
       msg_id: `error_${Date.now()}`,
-      content: getUserFriendlyError(error),
+      conv_id: this.data.convId,
+      content: messageContent,
       message_type: MESSAGE_TYPE.CHAT_INFO,
       sent_time: Date.now(),
-      from_me: false
+      from_me: false,
     };
 
-    // Save to local storage for persistence
     await addMessage(this.data.convId, errorMsg);
 
-    const updatedMessages = [...this.data.messages, errorMsg];
+    const updatedMessages: StoredMessages = [...this.data.messages, errorMsg];
     const processedMessages = this.processMessages(updatedMessages);
     this.setData({
       messages: processedMessages,
-      scrollToView: `msg-${errorMsg.msg_id}`
+      scrollToView: `msg-${errorMsg.msg_id}`,
     });
   },
 
   /**
    * Refresh contact info from backend
    */
-  async refreshContactInfo(convId) {
-    // Fetch latest conversation info from backend
-    const result = await get(`/contacts/${convId}/conversation`);
+  async refreshContactInfo(convId: string) {
+    const conversation = await get<ConversationResponse>(`/contacts/${convId}/conversation`);
 
-    if (!result || !result.conversation) {
+    if (!conversation) {
       throw new Error('CONVERSATION_NOT_FOUND');
     }
 
-    const conversation = result.conversation;
-
-    // Update contact name and avatar
-    const contactName = conversation.alias || conversation.nickname || '';
+    const profile = conversation.contact_profile ?? {};
+    const contactName = profile.nickname || this.data.contactName || '';
     if (contactName) {
-      wx.setNavigationBarTitle({ title: contactName });
+      void wx.setNavigationBarTitle({ title: contactName });
     }
 
     this.setData({
       contactName,
-      contactAvatar: getAvatarUrl(conversation.avatar_url),
+      contactAvatar: getAvatarUrl(profile.avatar_url || this.data.contactAvatar),
       contactQiaoId: conversation.contact_qiao_id,
-      imConvId: conversation.im_conv_id
+      imConvId: conversation.im_conv_id,
     });
 
-    // Update local cache with latest contact info
     const contacts = await getContacts();
-    const contactIndex = contacts.findIndex(c => c.conv_id === convId);
+    const contactIndex = contacts.findIndex((contact) => contact.conv_id === convId);
 
     if (contactIndex !== -1) {
+      const current = contacts[contactIndex];
       contacts[contactIndex] = {
-        ...contacts[contactIndex],
+        ...current,
         im_conv_id: conversation.im_conv_id,
         contact_qiao_id: conversation.contact_qiao_id,
-        avatar_url: conversation.avatar_url,
-        nickname: conversation.nickname,
-        alias: conversation.alias
+        avatar_url: profile.avatar_url || current.avatar_url,
+        nickname: profile.nickname || current.nickname,
+        gender: profile.gender ?? current.gender,
+        profile: {
+          ...(current.profile || {}),
+          ...profile,
+        },
       };
       await saveContacts(contacts);
       logger.info('Contact info refreshed and cached', { convId });
@@ -143,15 +504,11 @@ Page({
     return conversation;
   },
 
-  /**
-   * Refresh LeanCloud channel after cache invalidation
-   */
   async refreshConversationChannel() {
-    const app = getApp();
-    const messageService = app.getMessageService();
+    const messageService = ensureMessageService();
     const previousImConvId = this.data.imConvId;
 
-    if (messageService && typeof messageService.invalidateConversation === 'function') {
+    if (typeof messageService.invalidateConversation === 'function') {
       await messageService.invalidateConversation(previousImConvId);
     }
 
@@ -162,7 +519,8 @@ Page({
       const refreshedState = await conversationStore.refresh();
       nextImConvId = refreshedState?.im_conv_id || nextImConvId;
     } catch (error) {
-      logger.error('Failed to refresh conversation store', { error });
+      const err = normalizeError(error);
+      logger.error('Failed to refresh conversation store', { error: err.message });
     }
 
     this.setData({ imConvId: nextImConvId });
@@ -170,82 +528,79 @@ Page({
     logger.info('Conversation channel refreshed', {
       convId: this.data.convId,
       oldImConvId: previousImConvId,
-      imConvId: nextImConvId
+      imConvId: nextImConvId,
     });
 
     return nextImConvId;
   },
 
-  handleChatInfoAction(message) {
-    if (!message.action) return;
+  handleChatInfoAction(message: ChatMessage) {
+    const action = message.action as { type?: string; target_msg_id?: string } | null;
+    if (!action) {
+      return;
+    }
 
-    if (message.action.type === 'mark_message_failed' && message.action.target_msg_id) {
-      this.updateMessageStatus(message.action.target_msg_id, MESSAGE_STATUS.FAILED);
+    if (action.type === 'mark_message_failed' && action.target_msg_id) {
+      this.updateMessageStatus(action.target_msg_id, MESSAGE_STATUS.FAILED);
     }
   },
 
-  /**
-   * Page lifecycle - Load
-   */
-  async onLoad(options) {
-    const convId = options.id;
+  async onLoad(options: Record<string, string | undefined>) {
+    const convId = options?.id;
     if (!convId) {
-      wx.showToast({ title: '参数错误', icon: 'none' });
-      wx.navigateBack();
+      showToast('参数错误');
+      void wx.navigateBack();
       return;
     }
 
     this.setData({ convId });
-    this.unsubscribeConversationStore = conversationStore.subscribe(state => {
-      if (state && state.im_conv_id) {
+    this.unsubscribeConversationStore = conversationStore.subscribe((state) => {
+      if (state?.im_conv_id) {
         this.setData({ imConvId: state.im_conv_id });
       }
     });
 
     try {
-      // Load user info
       const userInfo = await getUserInfo();
-      this.setData({ userAvatar: getAvatarUrl(userInfo.avatar_url) });
+      if (!userInfo?.qiao_id) {
+        throw new Error('User info missing');
+      }
+      this.setData({ userAvatar: getAvatarUrl(userInfo?.avatar ?? '') });
 
-      // Load contact info from cache
       const contact = await getContactByConvId(convId);
       if (!contact) {
         logger.error('Contact not found', { convId });
-        wx.showToast({ title: '联系人不存在', icon: 'none' });
+        showToast('联系人不存在');
         return;
       }
 
       const contactName = contact.alias || contact.nickname || '';
       if (contactName) {
-        wx.setNavigationBarTitle({ title: contactName });
+        void wx.setNavigationBarTitle({ title: contactName });
       }
 
+      const contactWithIm = contact as StoredContact & { im_conv_id?: string };
       const conversationState = await conversationStore.getState();
-      const currentImConvId = conversationState?.im_conv_id || contact.im_conv_id || '';
+      const currentImConvId = conversationState?.im_conv_id || contactWithIm.im_conv_id || '';
 
       this.setData({
         contactName,
-        contactAvatar: getAvatarUrl(contact.avatar_url),
-        contactQiaoId: contact.contact_qiao_id,
-        imConvId: currentImConvId
+        contactAvatar: getAvatarUrl(contact.avatar_url ?? ''),
+        contactQiaoId: contact.contact_qiao_id ?? '',
+        imConvId: currentImConvId,
       });
 
-      // Load messages
       await this.loadMessages();
     } catch (error) {
-      logger.error('Failed to load chat page', { error });
-      wx.showToast({ title: '加载失败', icon: 'none' });
+      const err = normalizeError(error);
+      logger.error('Failed to load chat page', { error: err.message });
+      showToast('加载失败');
     }
   },
 
-  /**
-   * Page lifecycle - Unload
-   */
   onUnload() {
-    // Clean up typing manager
     typingManager.cleanup(this.data.convId);
 
-    // Clear typing timer
     if (this.typingTimer) {
       clearTimeout(this.typingTimer);
       this.typingTimer = null;
@@ -257,49 +612,42 @@ Page({
     }
   },
 
-  /**
-   * Load messages from storage
-   */
   async loadMessages() {
     try {
       const messages = await getMessages(this.data.convId);
       const userInfo = await getUserInfo();
+      if (!userInfo?.qiao_id) {
+        throw new Error('User info missing');
+      }
 
-      // Mark messages as from_me
-      const markedMessages = messages.map(msg => ({
+      const markedMessages: StoredMessages = messages.map((msg) => ({
         ...msg,
-        from_me: msg.from === userInfo.qiao_id
+        from_me: msg.from === userInfo.qiao_id,
       }));
 
-      // Process messages for display
       const processedMessages = this.processMessages(markedMessages);
 
-      // Set messages and scroll to bottom in one setData call
       if (processedMessages.length > 0) {
         const lastMsg = processedMessages[processedMessages.length - 1];
         this.setData({
           messages: processedMessages,
-          scrollToView: `msg-${lastMsg.msg_id}`
+          scrollToView: `msg-${lastMsg.msg_id}`,
         });
       } else {
         this.setData({ messages: processedMessages });
       }
     } catch (error) {
-      logger.error('Failed to load messages', { error });
-      wx.showToast({ title: '加载消息失败', icon: 'none' });
+      const err = normalizeError(error);
+      logger.error('Failed to load messages', { error: err.message });
+      showToast('加载消息失败');
     }
   },
 
-  /**
-   * Process messages - add timestamp display logic
-   */
-  processMessages(messages) {
-    const processed = [];
-    let prevMsg = null;
+  processMessages(messages: StoredMessages) {
+    const processed: ChatMessage[] = [];
+    let prevMsg: ChatMessage | null = null;
 
     for (const msg of messages) {
-      // Filter out messages that should not be displayed
-      // TYPING_START (2), TYPING_END (3), NOTIFICATION (9) should not appear in chat window
       if (
         msg.message_type === MESSAGE_TYPE.TYPING_START ||
         msg.message_type === MESSAGE_TYPE.TYPING_END ||
@@ -308,11 +656,13 @@ Page({
         continue;
       }
 
-      const processedMsg = { ...msg };
+      const processedMsg: ChatMessage = {
+        ...msg,
+        status: msg.status as MessageStatus | undefined,
+      };
       processedMsg.sent_time = processedMsg.sent_time || Date.now();
 
-      // Show timestamp if gap > 5 minutes
-      if (!prevMsg || processedMsg.sent_time - prevMsg.sent_time > 5 * 60 * 1000) {
+      if (!prevMsg || processedMsg.sent_time - (prevMsg.sent_time || 0) > 5 * 60 * 1000) {
         processedMsg.showTimestamp = true;
         processedMsg.timestampText = this.formatTimestamp(processedMsg.sent_time);
       } else {
@@ -331,25 +681,24 @@ Page({
     return processed;
   },
 
-  isSystemMessage(message) {
+  isSystemMessage(message: StoredMessage) {
     // Only CHAT_INFO messages are displayed as system messages in chat window
     return message.message_type === MESSAGE_TYPE.CHAT_INFO;
   },
 
-  getSystemMessageContent(message) {
+  getSystemMessageContent(message: StoredMessage) {
     return message.content || '';
   },
 
-  /**
-   * Format timestamp for display
-   */
-  formatTimestamp(timestamp) {
+  formatTimestamp(timestamp: number) {
     const now = Date.now();
     const diff = now - timestamp;
     const date = new Date(timestamp);
 
     // Within 1 minute
-    if (diff < 60000) return '刚刚';
+    if (diff < 60000) {
+      return '刚刚';
+    }
 
     // Within 1 hour
     if (diff < 3600000) {
@@ -399,13 +748,13 @@ Page({
   /**
    * Handle input change
    */
-  onInputChange(e) {
-    const newValue = e.detail.value;
+  onInputChange(event: InputEvent) {
+    const newValue = event.detail.value;
     const oldValue = this.data.prevInputValue;
 
     this.setData({
       inputText: newValue,
-      prevInputValue: newValue
+      prevInputValue: newValue,
     });
 
     // Notify typing manager
@@ -418,7 +767,7 @@ Page({
   onInputFocus() {
     this.setData({
       inputFocused: true,
-      showEmojiPicker: false
+      showEmojiPicker: false,
     });
 
     // Notify typing manager
@@ -442,8 +791,8 @@ Page({
     typingManager.onCompositionStart(this.data.convId, this.data.inputText);
   },
 
-  onCompositionEnd(e) {
-    const value = (e && e.detail && e.detail.value) || this.data.inputText;
+  onCompositionEnd(event: InputEvent) {
+    const value = event?.detail?.value ?? this.data.inputText;
     typingManager.onCompositionEnd(this.data.convId, value);
   },
 
@@ -454,399 +803,218 @@ Page({
     const show = !this.data.showEmojiPicker;
     this.setData({
       showEmojiPicker: show,
-      inputFocused: !show
+      inputFocused: !show,
     });
   },
 
   /**
    * Select emoji
    */
-  onSelectEmoji(e) {
-    const emoji = e.currentTarget.dataset.emoji;
+  onSelectEmoji(event: WechatMiniprogram.TouchEvent) {
+    const emojiValue = getDatasetValue(event, 'emoji');
+    if (typeof emojiValue !== 'string') {
+      return;
+    }
+    const emoji = emojiValue;
     const newText = this.data.inputText + emoji;
 
     // Check length
     if (newText.length > this.data.maxMessageLength) {
-      wx.showToast({
-        title: `消息长度不能超过${this.data.maxMessageLength}字`,
-        icon: 'none'
-      });
+      showToast(`消息长度不能超过${this.data.maxMessageLength}字`);
       return;
     }
 
     const oldValue = this.data.inputText;
     this.setData({
       inputText: newText,
-      prevInputValue: newText
+      prevInputValue: newText,
     });
 
     // Notify typing manager
     typingManager.onInputChange(this.data.convId, newText, oldValue);
   },
 
-  /**
-   * Send message
-   */
-  async onSendMessage() {
-    console.log('=== onSendMessage START ===');
-    const content = this.data.inputText.trim();
-    if (!content) return;
-
-    // Check length
-    if (content.length > this.data.maxMessageLength) {
-      wx.showToast({
-        title: `消息长度不能超过${this.data.maxMessageLength}字`,
-        icon: 'none'
-      });
+  async onRetryMessage(event: WechatMiniprogram.BaseEvent) {
+    const msgIdValue = getDatasetValue(event, 'msgid');
+    if (typeof msgIdValue !== 'string') {
       return;
     }
-
-    // Check contact info
-    const currentImConvId = await conversationStore.getImConvId();
-    if (!this.data.contactQiaoId || !currentImConvId) {
-      console.error('❌ Missing contact info:', {
-        contactQiaoId: this.data.contactQiaoId,
-        imConvId: this.data.imConvId
-      });
-      logger.error('Missing contact info', {
-        contactQiaoId: this.data.contactQiaoId,
-        imConvId: this.data.imConvId
-      });
-      this.showErrorMessage('CONVERSATION_NOT_FOUND');
-      return;
-    }
-
-    console.log('✅ Contact info OK:', {
-      contactQiaoId: this.data.contactQiaoId,
-      imConvId: this.data.imConvId
-    });
-
-    // Stop typing state
-    typingManager.forceStopTyping(this.data.convId);
-    this.hideTypingIndicator();
-
-    let clientMsgId = '';
-
-    try {
-      const userInfo = await getUserInfo();
-      console.log('✅ User info loaded:', { qiao_id: userInfo.qiao_id });
-
-      // Create optimistic message
-      clientMsgId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      const optimisticMsg = {
-        msg_id: clientMsgId,
-        from: userInfo.qiao_id,
-        to: this.data.contactQiaoId,
-        conv_id: this.data.convId,
-        content,
-        message_type: MESSAGE_TYPE.TEXT,
-        supports_typing: true,
-        sent_time: Date.now(),
-        status: MESSAGE_STATUS.SENDING,
-        from_me: true
-      };
-
-      // Add to UI immediately
-      const updatedMessages = [...this.data.messages, optimisticMsg];
-      const processedMessages = this.processMessages(updatedMessages);
-      this.setData({
-        messages: processedMessages,
-        inputText: '',
-        prevInputValue: '',
-        scrollToView: `msg-${clientMsgId}`
-      });
-
-      // Save to storage
-      await addMessage(this.data.convId, optimisticMsg);
-
-      // Send via message service
-      const app = getApp();
-      const messageService = app.getMessageService();
-
-      if (!messageService) {
-        console.error('❌ Message service is NULL');
-        throw new Error('MESSAGE_SERVICE_DISCONNECTED');
-      }
-
-      await messageService.sendMessage({
-        client_msg_id: clientMsgId,
-        from: userInfo.qiao_id,
-        to: this.data.contactQiaoId,
-        conv_id: this.data.convId,
-        content,
-        message_type: MESSAGE_TYPE.TEXT,
-        supports_typing: true
-      });
-
-      // Update status to SENT
-      const sentMessages = this.data.messages.map(msg =>
-        msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
-      );
-      this.setData({ messages: sentMessages });
-
-      logger.info('Message sent', { msg_id: clientMsgId });
-    } catch (error) {
-      logger.error('Failed to send message', { error });
-
-      // If conversation not found, try to refresh contact info and retry once
-      if (error.message === 'CONVERSATION_NOT_FOUND' && !this._sendRetried) {
-        this._sendRetried = true;
-        logger.info('Conversation not found, refreshing contact info and retrying', {
-          convId: this.data.convId,
-          oldImConvId: this.data.imConvId
-        });
-
-        try {
-          const refreshedImConvId = await this.refreshConversationChannel();
-          const nextImConvId = refreshedImConvId || this.data.imConvId;
-
-          logger.info('Contact info refreshed, retrying send', {
-            newImConvId: nextImConvId
-          });
-
-          // Retry send with updated im_conv_id
-          const userInfo = await getUserInfo();
-
-          await messageService.sendMessage({
-            client_msg_id: clientMsgId,
-            from: userInfo.qiao_id,
-            to: this.data.contactQiaoId,
-            conv_id: this.data.convId,
-            content,
-            message_type: MESSAGE_TYPE.TEXT,
-            supports_typing: true
-          });
-
-          // Update status to SENT and remove error CHAT_INFO messages
-          const sentMessages = this.data.messages
-            .filter(msg => {
-              // Remove CHAT_INFO error messages that were added after the original message failed
-              if (msg.message_type === MESSAGE_TYPE.CHAT_INFO && msg.msg_id.startsWith('error_')) {
-                return false;
-              }
-              return true;
-            })
-            .map(msg =>
-              msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
-            );
-
-          this.setData({ messages: this.processMessages(sentMessages) });
-          this._sendRetried = false;
-          logger.info('Message sent successfully after refresh', { msg_id: clientMsgId });
-          return;
-        } catch (retryError) {
-          logger.error('Retry send failed after refresh', {
-            error: retryError.message || String(retryError),
-            errorType: retryError.constructor.name
-          });
-          this._sendRetried = false;
-          // Fall through to show error message
-        }
-      }
-
-      const failedMessages = this.data.messages.map(msg =>
-        msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.FAILED } : msg
-      );
-
-      this.setData({ messages: this.processMessages(failedMessages) });
-      this.showErrorMessage(error);
-    }
-  },
-
-  /**
-   * Retry failed message
-   */
-  async onRetryMessage(e) {
-    const msgId = e.currentTarget.dataset.msgid;
-    const message = this.data.messages.find(msg => msg.msg_id === msgId);
+    const msgId = msgIdValue;
+    const message = this.data.messages.find((msg) => msg.msg_id === msgId);
 
     if (!message || message.status !== MESSAGE_STATUS.FAILED) {
       return;
     }
 
-    // Stop typing state
     typingManager.forceStopTyping(this.data.convId);
     this.hideTypingIndicator();
 
-    try {
-      const app = getApp();
-      const messageService = app.getMessageService();
+    const messageService = ensureMessageService();
 
-      if (!messageService) {
-        throw new Error('MESSAGE_SERVICE_DISCONNECTED');
+    let newClientMsgId = '';
+
+    try {
+      const userInfo = await getUserInfo();
+      if (!userInfo?.qiao_id) {
+        throw new Error('User info missing');
       }
 
-      const userInfo = await getUserInfo();
-
-      // Generate new client message ID for retry
-      const newClientMsgId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-
-      // Remove old failed message from list
-      const messagesWithoutOld = this.data.messages.filter(msg => msg.msg_id !== msgId);
-
-      // Create new message with new ID and timestamp
-      const newMessage = {
+      newClientMsgId = buildClientMessageId();
+      const messagesWithoutOld = this.data.messages.filter((msg) => msg.msg_id !== msgId);
+      const newMessage: ChatMessage = {
         ...message,
         msg_id: newClientMsgId,
         sent_time: Date.now(),
-        status: MESSAGE_STATUS.SENDING
+        status: MESSAGE_STATUS.SENDING as MessageStatus,
       };
 
-      // Add new message to the end
-      const updatedMessages = [...messagesWithoutOld, newMessage];
+      const updatedMessages: StoredMessages = [...messagesWithoutOld, newMessage];
       const processedMessages = this.processMessages(updatedMessages);
       this.setData({
         messages: processedMessages,
-        scrollToView: `msg-${newClientMsgId}`
+        scrollToView: `msg-${newClientMsgId}`,
       });
 
-      // Save to storage
       await addMessage(this.data.convId, newMessage);
 
-      // Send via message service
       await messageService.sendMessage({
         client_msg_id: newClientMsgId,
         from: userInfo.qiao_id,
         to: this.data.contactQiaoId,
         conv_id: this.data.convId,
-        content: message.content,
-        message_type: message.message_type || MESSAGE_TYPE.TEXT,
-        supports_typing: message.supports_typing !== false
+        content: message.content || '',
+        message_type: (message.message_type ?? MESSAGE_TYPE.TEXT) as MessageType,
+        supports_typing: message.supports_typing !== false,
       });
 
-      // Update status to SENT
-      const sentMessages = this.data.messages.map(msg =>
-        msg.msg_id === newClientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+      const sentMessages = this.data.messages.map((msg) =>
+        msg.msg_id === newClientMsgId
+          ? { ...msg, status: MESSAGE_STATUS.SENT as MessageStatus }
+          : msg
       );
       this.setData({ messages: sentMessages });
 
       logger.info('Message retry successful', { old_msg_id: msgId, new_msg_id: newClientMsgId });
     } catch (error) {
-      logger.error('Failed to retry message', { msg_id: msgId, error });
+      const err = normalizeError(error);
+      logger.error('Failed to retry message', { msg_id: msgId, error: err.message });
 
-      // If conversation not found, try to refresh contact info and retry once
-      if (error.message === 'CONVERSATION_NOT_FOUND' && !this._retryRefreshed) {
+      if (err.message === 'CONVERSATION_NOT_FOUND' && !this._retryRefreshed) {
         this._retryRefreshed = true;
         logger.info('Retry failed due to conversation not found, refreshing contact info', {
           convId: this.data.convId,
-          oldImConvId: this.data.imConvId
+          oldImConvId: this.data.imConvId,
         });
 
         try {
           const refreshedImConvId = await this.refreshConversationChannel();
           const nextImConvId = refreshedImConvId || this.data.imConvId;
-
           logger.info('Contact info refreshed for retry, retrying send', {
-            newImConvId: nextImConvId
+            newImConvId: nextImConvId,
           });
 
-          // Retry send with updated im_conv_id
           const userInfo = await getUserInfo();
+          if (!userInfo?.qiao_id) {
+            throw new Error('User info missing');
+          }
 
           await messageService.sendMessage({
             client_msg_id: newClientMsgId,
             from: userInfo.qiao_id,
             to: this.data.contactQiaoId,
             conv_id: this.data.convId,
-            content: message.content,
-            message_type: message.message_type || MESSAGE_TYPE.TEXT,
-            supports_typing: message.supports_typing !== false
+            content: message.content || '',
+            message_type: (message.message_type ?? MESSAGE_TYPE.TEXT) as MessageType,
+            supports_typing: message.supports_typing !== false,
           });
 
-          // Update status to SENT and remove error CHAT_INFO messages
           const sentMessages = this.data.messages
-            .filter(msg => {
-              // Remove CHAT_INFO error messages that were added after the original message failed
+            .filter((msg) => {
               if (msg.message_type === MESSAGE_TYPE.CHAT_INFO && msg.msg_id.startsWith('error_')) {
                 return false;
               }
               return true;
             })
-            .map(msg =>
-              msg.msg_id === newClientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+            .map((msg) =>
+              msg.msg_id === newClientMsgId
+                ? { ...msg, status: MESSAGE_STATUS.SENT as MessageStatus }
+                : msg
             );
 
-          this.setData({ messages: this.processMessages(sentMessages) });
+          this.setData({ messages: this.processMessages(sentMessages as StoredMessages) });
           this._retryRefreshed = false;
-          logger.info('Message retry successful after refresh', { old_msg_id: msgId, new_msg_id: newClientMsgId });
+          logger.info('Message retry successful after refresh', { old_msg_id: msgId });
           return;
         } catch (retryError) {
+          const retryErr = normalizeError(retryError);
           logger.error('Retry send failed after refresh', {
-            error: retryError.message || String(retryError),
-            errorType: retryError.constructor.name
+            error: retryErr.message,
+            errorType: retryError instanceof Error ? retryError.constructor.name : 'Unknown',
           });
           this._retryRefreshed = false;
-          // Fall through to show error message
         }
       }
 
-      // Mark the new message as FAILED
-      const failedMessages = this.data.messages.map(msg => {
-        // Find the message we just added (it should be the last one with SENDING status)
+      const failedMessages = this.data.messages.map((msg) => {
         if (msg.status === MESSAGE_STATUS.SENDING && msg.content === message.content) {
-          return { ...msg, status: MESSAGE_STATUS.FAILED };
+          return { ...msg, status: MESSAGE_STATUS.FAILED as MessageStatus };
         }
         return msg;
       });
 
-      this.setData({ messages: this.processMessages(failedMessages) });
-      this.showErrorMessage(error);
+      this.setData({ messages: this.processMessages(failedMessages as StoredMessages) });
+      await this.showErrorMessage(err);
     }
   },
 
-  /**
-   * Handle incoming message (called by app.js)
-   */
-  async onMessageReceived(message) {
+  async onMessageReceived(message: Says.MessagePayload) {
     try {
       if (message.conv_id !== this.data.convId) {
         return;
       }
 
-      logger.info('Message received', { msg_id: message.msg_id });
-
       const userInfo = await getUserInfo();
-
-      // Hide typing indicator
+      if (!userInfo?.qiao_id) {
+        return;
+      }
       this.hideTypingIndicator();
 
-      // Add to messages
-      const newMessage = {
+      const newMessage: ChatMessage = {
         ...message,
-        from_me: message.from === userInfo.qiao_id
+        from_me: message.from === userInfo.qiao_id,
+        status: message.status as MessageStatus | undefined,
       };
 
       if (newMessage.message_type === MESSAGE_TYPE.CHAT_INFO) {
         this.handleChatInfoAction(newMessage);
       }
 
-      const updatedMessages = [...this.data.messages, newMessage];
+      const updatedMessages: StoredMessages = [...this.data.messages, newMessage];
       const processedMessages = this.processMessages(updatedMessages);
       this.setData({
         messages: processedMessages,
-        scrollToView: `msg-${message.msg_id}`
+        scrollToView: `msg-${message.msg_id}`,
       });
     } catch (error) {
-      logger.error('Failed to handle received message', { error });
+      const err = normalizeError(error);
+      logger.error('Failed to handle received message', { error: err.message });
     }
   },
 
-  /**
-   * Handle typing indicator (called by app.js)
-   */
-  onTypingReceived(typing) {
+  onTypingReceived(typing: Says.TypingEvent) {
     try {
       if (typing.conv_id !== this.data.convId) {
         return;
       }
 
-      if (typing.isTyping) {
+      if (typing.typing) {
         this.showTypingIndicator();
       } else {
         this.hideTypingIndicator();
       }
     } catch (error) {
-      logger.error('Failed to handle typing indicator', { error });
+      const err = normalizeError(error);
+      logger.error('Failed to handle typing indicator', { error: err.message });
     }
   },
 
@@ -854,25 +1022,18 @@ Page({
    * Show typing indicator
    */
   showTypingIndicator() {
-    // Clear existing timer
     if (this.typingTimer) {
       clearTimeout(this.typingTimer);
     }
 
     this.setData({ isContactTyping: true });
+    void wx.setNavigationBarTitle({ title: '对方正在输入...' });
 
-    // Update title
-    wx.setNavigationBarTitle({ title: '对方正在输入...' });
-
-    // Auto hide after 30 seconds
     this.typingTimer = setTimeout(() => {
       this.hideTypingIndicator();
     }, 30000);
   },
 
-  /**
-   * Hide typing indicator
-   */
   hideTypingIndicator() {
     if (this.typingTimer) {
       clearTimeout(this.typingTimer);
@@ -881,9 +1042,154 @@ Page({
 
     this.setData({ isContactTyping: false });
 
-    // Restore title
     if (this.data.contactName) {
-      wx.setNavigationBarTitle({ title: this.data.contactName });
+      void wx.setNavigationBarTitle({ title: this.data.contactName });
     }
-  }
+  },
+
+  updateMessageStatus(messageId: string, status: MessageStatus) {
+    const messages = this.data.messages.map((msg) =>
+      msg.msg_id === messageId ? { ...msg, status } : msg
+    );
+    this.setData({ messages });
+  },
+
+  async onSendMessage() {
+    const content = this.data.inputText.trim();
+    if (!content) {
+      return;
+    }
+
+    if (content.length > this.data.maxMessageLength) {
+      showToast(`消息长度不能超过${this.data.maxMessageLength}字`);
+      return;
+    }
+
+    const currentImConvId = await conversationStore.getImConvId();
+    if (!this.data.contactQiaoId || !currentImConvId) {
+      logger.error('Missing contact info', {
+        contactQiaoId: this.data.contactQiaoId,
+        imConvId: this.data.imConvId,
+      });
+      await this.showErrorMessage('CONVERSATION_NOT_FOUND');
+      return;
+    }
+
+    typingManager.forceStopTyping(this.data.convId);
+    this.hideTypingIndicator();
+
+    const messageService = ensureMessageService();
+    let clientMsgId = '';
+
+    try {
+      const userInfo = await getUserInfo();
+      if (!userInfo?.qiao_id) {
+        throw new Error('User info missing');
+      }
+
+      clientMsgId = buildClientMessageId();
+      const optimisticMsg: ChatMessage = {
+        msg_id: clientMsgId,
+        from: userInfo.qiao_id,
+        to: this.data.contactQiaoId,
+        conv_id: this.data.convId,
+        content,
+        message_type: MESSAGE_TYPE.TEXT,
+        supports_typing: true,
+        sent_time: Date.now(),
+        status: MESSAGE_STATUS.SENDING as MessageStatus,
+        from_me: true,
+      };
+
+      const updatedMessages: StoredMessages = [...this.data.messages, optimisticMsg];
+      const processedMessages = this.processMessages(updatedMessages);
+      this.setData({
+        messages: processedMessages,
+        inputText: '',
+        prevInputValue: '',
+        scrollToView: `msg-${clientMsgId}`,
+      });
+
+      await addMessage(this.data.convId, optimisticMsg);
+
+      await messageService.sendMessage({
+        client_msg_id: clientMsgId,
+        from: userInfo.qiao_id,
+        to: this.data.contactQiaoId,
+        conv_id: this.data.convId,
+        content,
+        message_type: MESSAGE_TYPE.TEXT,
+        supports_typing: true,
+      });
+
+      const sentMessages = this.data.messages.map((msg) =>
+        msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT as MessageStatus } : msg
+      );
+      this.setData({ messages: sentMessages });
+      logger.info('Message sent', { msg_id: clientMsgId });
+    } catch (error) {
+      const err = normalizeError(error);
+      logger.error('Failed to send message', { error: err.message });
+
+      if (err.message === 'CONVERSATION_NOT_FOUND' && !this._sendRetried) {
+        this._sendRetried = true;
+        logger.info('Conversation not found, refreshing contact info and retrying', {
+          convId: this.data.convId,
+          oldImConvId: this.data.imConvId,
+        });
+
+        try {
+          const refreshedImConvId = await this.refreshConversationChannel();
+          const nextImConvId = refreshedImConvId || this.data.imConvId;
+          logger.info('Contact info refreshed, retrying send', { newImConvId: nextImConvId });
+
+          const userInfo = await getUserInfo();
+          if (!userInfo?.qiao_id) {
+            throw new Error('User info missing');
+          }
+
+          await messageService.sendMessage({
+            client_msg_id: clientMsgId,
+            from: userInfo.qiao_id,
+            to: this.data.contactQiaoId,
+            conv_id: this.data.convId,
+            content,
+            message_type: MESSAGE_TYPE.TEXT,
+            supports_typing: true,
+          });
+
+          const sentMessages = this.data.messages
+            .filter((msg) => {
+              if (msg.message_type === MESSAGE_TYPE.CHAT_INFO && msg.msg_id.startsWith('error_')) {
+                return false;
+              }
+              return true;
+            })
+            .map((msg) =>
+              msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
+            );
+
+          this.setData({ messages: this.processMessages(sentMessages as StoredMessages) });
+          this._sendRetried = false;
+          logger.info('Message sent successfully after refresh', { msg_id: clientMsgId });
+          return;
+        } catch (retryError) {
+          const retryErr = normalizeError(retryError);
+          logger.error('Retry send failed after refresh', {
+            error: retryErr.message,
+            errorType: retryError instanceof Error ? retryError.constructor.name : 'Unknown',
+          });
+          this._sendRetried = false;
+        }
+      }
+
+      const failedMessages = this.data.messages.map((msg) =>
+        msg.msg_id === clientMsgId
+          ? { ...msg, status: MESSAGE_STATUS.FAILED as MessageStatus }
+          : msg
+      );
+      this.setData({ messages: this.processMessages(failedMessages as StoredMessages) });
+      await this.showErrorMessage(err);
+    }
+  },
 });

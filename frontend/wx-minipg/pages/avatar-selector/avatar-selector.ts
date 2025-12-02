@@ -3,103 +3,113 @@ import { getLogger } from '../../utils/logger';
 
 const logger = getLogger('AvatarSelector');
 
-Page({
+const PRESET_AVATAR_IDS = ['1574', '2454', '3758'] as const;
+
+interface AvatarItem {
+  id: string;
+  url: string;
+  name: string;
+}
+
+interface AvatarSelectorPageData {
+  loading: boolean;
+  presetAvatars: AvatarItem[];
+  currentAvatar: string;
+  selectedAvatar: string;
+  error: string | null;
+}
+
+type AvatarTapEvent = WechatMiniprogram.TouchEvent<
+  WechatMiniprogram.IAnyObject,
+  WechatMiniprogram.IAnyObject,
+  { id?: string }
+>;
+
+interface AvatarSelectorPageCustom {
+  loadPresetAvatars(): void;
+  selectAvatar(event: AvatarTapEvent): void;
+  confirmSelection(): Promise<void>;
+  cancel(): void;
+}
+
+const buildAvatarItems = (): AvatarItem[] =>
+  PRESET_AVATAR_IDS.map((id) => ({
+    id: `assets://${id}`,
+    url: `/assets/avatars/${id}.jpg`,
+    name: id,
+  }));
+
+Page<AvatarSelectorPageData, AvatarSelectorPageCustom>({
   data: {
     loading: true,
     presetAvatars: [],
     currentAvatar: '',
     selectedAvatar: '',
-    error: null
+    error: null,
   },
 
   onLoad(options) {
     logger.info('Avatar selector page loaded');
-
-    // Get current avatar from options
-    const currentAvatar = options.avatar || '';
+    const currentAvatar = options?.avatar ?? '';
     this.setData({ currentAvatar });
-
     this.loadPresetAvatars();
   },
 
-  /**
-   * Load preset avatars
-   */
   loadPresetAvatars() {
     logger.info('Loading preset avatars');
-
-    // Local preset avatars
-    const presetAvatarIds = ['1574', '2454', '3758'];
-
-    const avatars = presetAvatarIds.map(id => ({
-      id: `assets://${id}`,
-      url: `/assets/avatars/${id}.jpg`,
-      name: id
-    }));
-
+    const avatars = buildAvatarItems();
     this.setData({
       presetAvatars: avatars,
-      loading: false
+      loading: false,
     });
-
     logger.info('Preset avatars loaded', { count: avatars.length });
   },
 
-  /**
-   * Select avatar
-   */
-  selectAvatar(e) {
-    const avatarId = e.currentTarget.dataset.id;
+  selectAvatar(event) {
+    const avatarId = event.currentTarget.dataset.id;
+    if (!avatarId) {
+      return;
+    }
     logger.info('Avatar selected', { avatarId });
-
-    this.setData({ selectedAvatar: avatarId });
+    this.setData({ selectedAvatar: String(avatarId) });
   },
 
-  /**
-   * Confirm selection
-   */
   async confirmSelection() {
     if (!this.data.selectedAvatar) {
-      wx.showToast({
+      void wx.showToast({
         title: '请选择头像',
-        icon: 'none'
+        icon: 'none',
       });
       return;
     }
 
     try {
       logger.info('Updating avatar', { avatar: this.data.selectedAvatar });
-
       await put('/user/profile', {
-        avatar_url: this.data.selectedAvatar
+        avatar_url: this.data.selectedAvatar,
       });
 
-      wx.showToast({
+      void wx.showToast({
         title: '头像已更新',
-        icon: 'success'
+        icon: 'success',
       });
 
-      // Navigate back after short delay
       setTimeout(() => {
-        wx.navigateBack();
+        void wx.navigateBack();
       }, 1000);
     } catch (error) {
       logger.error('Update avatar failed', {
-        error: error.message || String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
 
-      wx.showToast({
+      void wx.showToast({
         title: '更新失败',
-        icon: 'none'
+        icon: 'none',
       });
     }
   },
 
-  /**
-   * Cancel selection
-   */
   cancel() {
-    wx.navigateBack();
-  }
+    void wx.navigateBack();
+  },
 });
-

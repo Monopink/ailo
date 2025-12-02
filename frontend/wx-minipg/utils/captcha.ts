@@ -1,159 +1,240 @@
-import { getLogger } from './logger';
 import { get } from './api';
+import { getLogger } from './logger';
 
 const logger = getLogger('CaptchaUtil');
 
-export async function fetchCaptchaConfig() {
+type CaptchaConfig = Says.CaptchaConfig;
+type CaptchaHandlers = Says.CaptchaHandlers;
+type CaptchaPageInstance = Says.CaptchaPageInstance;
+
+interface CaptchaConfigResponse {
+  provider?: string;
+  scene_id?: string;
+  region?: string;
+  mode?: string;
+  language?: string;
+}
+
+let cachedConfig: CaptchaConfig | null = null;
+
+const getDefaultConfig = (): CaptchaConfig => ({
+  provider: 'none',
+  sceneId: '',
+  region: 'cn',
+  mode: 'popup',
+  language: 'cn',
+});
+
+export async function fetchCaptchaConfig(): Promise<CaptchaConfig> {
   try {
-    const cfg = await get('/system/captcha-config', {}, { auth: false });
+    const cfg = await get<CaptchaConfigResponse>('/system/captcha-config', {}, { auth: false });
     return {
       provider: cfg.provider || 'none',
       sceneId: cfg.scene_id || '',
       region: cfg.region || 'cn',
       mode: cfg.mode || 'popup',
-      language: cfg.language || 'cn'
+      language: cfg.language || 'cn',
     };
-  } catch (e) {
-    logger.error('fetchCaptchaConfig failed', { error: e.message || String(e) });
-    return { provider: 'none', sceneId: '', region: 'cn', mode: 'popup', language: 'cn' };
+  } catch (error) {
+    logger.error('fetchCaptchaConfig failed', { error });
+    return getDefaultConfig();
   }
 }
 
-// In-memory cache + bridge to app.globalData
-let _cached = null;
-
-export function setCachedCaptchaConfig(cfg) {
-  _cached = cfg;
+export function setCachedCaptchaConfig(cfg: CaptchaConfig): void {
+  cachedConfig = cfg;
   try {
-    const app = getApp && getApp();
-    if (app && app.globalData) app.globalData.captchaConfig = cfg;
-  } catch (_) {}
+    const app = getApp<SaysAppInstance>();
+    if (app && app.globalData) {
+      app.globalData.captchaConfig = cfg;
+    }
+  } catch (_) {
+    // ignore
+  }
 }
 
-export function getCachedCaptchaConfig() {
-  if (_cached) return _cached;
+export function getCachedCaptchaConfig(): CaptchaConfig | null {
+  if (cachedConfig) {
+    return cachedConfig;
+  }
   try {
-    const app = getApp && getApp();
-    if (app && app.globalData && app.globalData.captchaConfig) {
-      _cached = app.globalData.captchaConfig;
-      return _cached;
+    const app = getApp<SaysAppInstance>();
+    const config = app?.globalData?.captchaConfig;
+    if (config) {
+      cachedConfig = config;
+      return cachedConfig;
     }
-  } catch (_) {}
+  } catch (_) {
+    // ignore
+  }
   return null;
 }
 
-export async function ensureCaptchaConfig() {
+export async function ensureCaptchaConfig(): Promise<CaptchaConfig> {
   const cached = getCachedCaptchaConfig();
-  if (cached) return cached;
+  if (cached) {
+    return cached;
+  }
   const cfg = await fetchCaptchaConfig();
   setCachedCaptchaConfig(cfg);
   return cfg;
 }
 
-export function initCaptcha(page, cfg, handlers) {
+export function initCaptcha(
+  page: CaptchaPageInstance,
+  cfg: CaptchaConfig,
+  handlers?: CaptchaHandlers
+): void {
   const provider = (cfg?.provider || 'none').toLowerCase();
   page._captchaActive = false;
   page.setData({ captchaProvider: provider, captchaSceneId: cfg?.sceneId || '' });
 
   if (provider === 'aliyun' && cfg?.sceneId) {
-    const success = handlers?.success || (() => {});
-    const fail = handlers?.fail || (() => {});
-    const onReady = handlers?.onReady || null;
-    page.setData({
-      pluginProps: {
-        SceneId: cfg.sceneId,
-        mode: cfg.mode || 'popup',
-        language: cfg.language || 'cn',
-        region: cfg.region || 'cn',
-        success: (token) => { page._captchaActive = false; page._captchaRetryCount = 0; success(token); },
-        fail: (err) => {
-          // Robust fail handling: retry show once if active
-          if (!page._captchaActive) { page._captchaRetryCount = 0; return; }
-          try { page._captchaRetryCount = Number(page._captchaRetryCount || 0); } catch (_) { page._captchaRetryCount = 0; }
-          try {
-            const AliyunCaptcha = requirePlugin('AliyunCaptcha');
-            if (page._captchaRetryCount < 1) {
-              page._captchaRetryCount += 1;
-              // Small delay before retrying show
-              const retry = () => {
-                try { AliyunCaptcha.show(); } catch (e) { /* swallow */ }
-              };
-              if (typeof wx.nextTick === 'function') wx.nextTick(() => setTimeout(retry, 200));
-              else setTimeout(retry, 240);
-              return; // don't propagate to page fail yet
+    const success = handlers?.success
+      ? (token: string) => handlers.success?.(token)
+      : () => undefined;
+    const fail = handlers?.fail ? (error: unknown) => handlers.fail?.(error) : () => undefined;
+    const onReady = handlers?.onReady ? () => handlers.onReady?.() : null;
+    page.setData(
+      {
+        pluginProps: {
+          SceneId: cfg.sceneId,
+          mode: cfg.mode || 'popup',
+          language: cfg.language || 'cn',
+          region: cfg.region || 'cn',
+          success: (token: string) => {
+            page._captchaActive = false;
+            page._captchaRetryCount = 0;
+            success(token);
+          },
+          fail: (err: unknown) => {
+            if (!page._captchaActive) {
+              page._captchaRetryCount = 0;
+              return;
             }
-          } catch (_) { /* ignore */ }
-          // After retry already attempted, propagate to page fail
-          try { if (typeof fail === 'function') fail(err); } catch (_) {}
-          page._captchaActive = false;
-          page._captchaRetryCount = 0;
-        }
+            page._captchaRetryCount = Number(page._captchaRetryCount || 0);
+            try {
+              const AliyunCaptcha = requirePlugin('AliyunCaptcha') as { show: () => void };
+              if ((page._captchaRetryCount || 0) < 1) {
+                page._captchaRetryCount = (page._captchaRetryCount || 0) + 1;
+                const retry = (): void => {
+                  try {
+                    AliyunCaptcha.show();
+                  } catch {
+                    /* ignore */
+                  }
+                };
+                if (typeof wx.nextTick === 'function') {
+                  wx.nextTick(() => setTimeout(retry, 200));
+                } else {
+                  setTimeout(retry, 240);
+                }
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            try {
+              fail(err);
+            } catch {
+              // ignore
+            }
+            page._captchaActive = false;
+            page._captchaRetryCount = 0;
+          },
+        },
+        loadCaptcha: true,
       },
-      loadCaptcha: true
-    }, () => {
-      // Mark ready after component mounted
-      page._captchaReady = true;
-      if (typeof onReady === 'function') {
-        try { onReady(); } catch (e) { logger.error('captcha onReady error', { error: e.message || String(e) }); }
+      () => {
+        page._captchaReady = true;
+        if (typeof onReady === 'function') {
+          try {
+            onReady();
+          } catch (error) {
+            logger.error('captcha onReady error', { error });
+          }
+        }
       }
-    });
+    );
   }
 }
 
-export async function showCaptcha(page) {
+export async function showCaptcha(page: CaptchaPageInstance): Promise<void> {
   const provider = (page.data.captchaProvider || '').toLowerCase();
-  if (provider !== 'aliyun') return;
+  if (provider !== 'aliyun') {
+    return;
+  }
   const sceneId = page.data.captchaSceneId;
-  try { logger.debug('showCaptcha begin', { load: !!page.data.loadCaptcha, ready: !!page._captchaReady, scene: !!sceneId }); } catch (_) {}
+  try {
+    logger.debug('showCaptcha begin', {
+      load: Boolean(page.data.loadCaptcha),
+      ready: Boolean(page._captchaReady),
+      scene: Boolean(sceneId),
+    });
+  } catch {
+    // ignore
+  }
 
-  // If plugin not mounted/ready or missing SceneId, (re)init with cached config then show when ready
   if (!page.data.loadCaptcha || !sceneId || !page._captchaReady) {
     try {
-      const cfg = getCachedCaptchaConfig() || await ensureCaptchaConfig();
-      if (!cfg || cfg.provider !== 'aliyun' || !cfg.sceneId) return;
-      try { logger.debug('showCaptcha path', { path: 'init' }); } catch (_) {}
+      const cfg = getCachedCaptchaConfig() || (await ensureCaptchaConfig());
+      if (!cfg || cfg.provider !== 'aliyun' || !cfg.sceneId) {
+        return;
+      }
+      try {
+        logger.debug('showCaptcha path', { path: 'init' });
+      } catch {
+        // ignore
+      }
       initCaptcha(page, cfg, {
-        success: (token) => { page._captchaActive = false; page._captchaRetryCount = 0; if (page.onCaptchaSuccess) page.onCaptchaSuccess(token); },
-        // Fail propagation will be handled inside initCaptcha with single retry
-        fail: (/* err */) => { /* swallow here; page handler will be called only after retry fails */ },
+        success: (token: string) => {
+          page._captchaActive = false;
+          page._captchaRetryCount = 0;
+          if (typeof page.onCaptchaSuccess === 'function') {
+            page.onCaptchaSuccess(token);
+          }
+        },
+        fail: () => undefined,
         onReady: () => {
-          // After mounted, show popup
           page._captchaActive = true;
           page._captchaRetryCount = 0;
           try {
-            const AliyunCaptcha = requirePlugin('AliyunCaptcha');
+            const AliyunCaptcha = requirePlugin('AliyunCaptcha') as { show: () => void };
             if (typeof wx.nextTick === 'function') {
               wx.nextTick(() => AliyunCaptcha.show());
             } else {
               setTimeout(() => AliyunCaptcha.show(), 0);
             }
-          } catch (e) {
-            logger.error('showCaptcha failed after init', { error: e.message || String(e) });
+          } catch (error) {
+            logger.error('showCaptcha failed after init', { error });
             page._captchaActive = false;
             page._captchaRetryCount = 0;
           }
-        }
+        },
       });
-      return; // Avoid calling show twice
-    } catch (e) {
-      logger.error('showCaptcha init failed', { error: e.message || String(e) });
+      return;
+    } catch (error) {
+      logger.error('showCaptcha init failed', { error });
       return;
     }
   }
 
-  // Already mounted and ready
   page._captchaActive = true;
   page._captchaRetryCount = 0;
-  try { logger.debug('showCaptcha path', { path: 'ready' }); } catch (_) {}
   try {
-    const AliyunCaptcha = requirePlugin('AliyunCaptcha');
+    logger.debug('showCaptcha path', { path: 'ready' });
+  } catch {
+    // ignore
+  }
+  try {
+    const AliyunCaptcha = requirePlugin('AliyunCaptcha') as { show: () => void };
     if (typeof wx.nextTick === 'function') {
       wx.nextTick(() => AliyunCaptcha.show());
     } else {
       setTimeout(() => AliyunCaptcha.show(), 0);
     }
-  } catch (e) {
-    logger.error('showCaptcha failed', { error: e.message || String(e) });
+  } catch (error) {
+    logger.error('showCaptcha failed', { error });
     page._captchaActive = false;
     page._captchaRetryCount = 0;
   }
@@ -165,5 +246,5 @@ export default {
   getCachedCaptchaConfig,
   ensureCaptchaConfig,
   initCaptcha,
-  showCaptcha
+  showCaptcha,
 };

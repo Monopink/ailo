@@ -1,170 +1,125 @@
-/**
- * Typing Manager
- * Manages typing indicator state with debounce and timeout
- */
-
 import { getLogger } from '../logger';
 import { MESSAGE_CONFIG } from '../config';
-import { MESSAGE_TYPES } from './provider/base';
+import { MESSAGE_TYPE } from './constants';
 
 const logger = getLogger('TypingManager');
 
-/**
- * Typing manager class
- */
+interface TypingState {
+  isTyping: boolean;
+  timeout: ReturnType<typeof setTimeout> | null;
+}
+
+interface TypingManagerOptions {
+  typingDebounce?: number;
+  typingTimeout?: number;
+}
+
+interface MessageService {
+  sendMessage(convId: string, content: string, type: number): Promise<void>;
+}
+
 export class TypingManager {
-  constructor(messageService) {
+  private messageService: MessageService;
+  private typingStates = new Map<string, TypingState>();
+  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private debounceDelay: number;
+  private typingTimeout: number;
+
+  constructor(messageService: MessageService, options: TypingManagerOptions = {}) {
     this.messageService = messageService;
-    this.typingStates = new Map(); // convId -> { isTyping, timer, timeout }
-    this.debounceTimers = new Map(); // convId -> timer
+    this.debounceDelay = options.typingDebounce ?? MESSAGE_CONFIG.typingDebounce;
+    this.typingTimeout = options.typingTimeout ?? MESSAGE_CONFIG.typingTimeout;
   }
 
-  /**
-   * Handle input change
-   * @param {string} convId - Conversation ID
-   * @param {string} text - Input text
-   * @param {boolean} isComposing - Whether composing (IME active)
-   */
-  handleInput(convId, text, isComposing = false) {
-    // Don't send typing indicator during composition
+  handleInput(convId: string, text: string, isComposing = false): void {
     if (isComposing) {
       return;
     }
 
-    // Clear existing debounce timer
-    if (this.debounceTimers.has(convId)) {
-      clearTimeout(this.debounceTimers.get(convId));
+    const existingTimer = this.debounceTimers.get(convId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
 
-    // If text is empty, stop typing
     if (!text || text.trim().length === 0) {
-      this.stopTyping(convId);
+      void this.stopTyping(convId);
       return;
     }
 
-    // Set debounce timer
     const timer = setTimeout(() => {
-      this.startTyping(convId);
-    }, MESSAGE_CONFIG.typingDebounce);
+      void this.startTyping(convId);
+    }, this.debounceDelay);
 
     this.debounceTimers.set(convId, timer);
   }
 
-  /**
-   * Start typing indicator
-   * @param {string} convId - Conversation ID
-   */
-  async startTyping(convId) {
+  private async startTyping(convId: string): Promise<void> {
     try {
       const state = this.typingStates.get(convId);
-
-      // If already typing, just reset timeout
-      if (state && state.isTyping) {
+      if (state?.isTyping) {
         this.resetTimeout(convId);
         return;
       }
 
       logger.debug('Start typing', { convId });
+      await this.messageService.sendMessage(convId, '', MESSAGE_TYPE.TYPING_START);
 
-      // Send typing start message
-      await this.messageService.sendMessage(
-        convId,
-        '',
-        MESSAGE_TYPES.TYPING_START
-      );
-
-      // Set typing state
       const timeout = setTimeout(() => {
-        this.stopTyping(convId);
-      }, MESSAGE_CONFIG.typingTimeout);
+        void this.stopTyping(convId);
+      }, this.typingTimeout);
 
       this.typingStates.set(convId, {
         isTyping: true,
-        timeout
+        timeout,
       });
     } catch (error) {
       logger.error('Start typing failed', { convId, error });
     }
   }
 
-  /**
-   * Stop typing indicator
-   * @param {string} convId - Conversation ID
-   */
-  async stopTyping(convId) {
+  async stopTyping(convId: string): Promise<void> {
     try {
       const state = this.typingStates.get(convId);
-
-      // If not typing, do nothing
-      if (!state || !state.isTyping) {
+      if (!state?.isTyping) {
         return;
       }
 
       logger.debug('Stop typing', { convId });
-
-      // Clear timeout
       if (state.timeout) {
         clearTimeout(state.timeout);
       }
 
-      // Send typing end message
-      await this.messageService.sendMessage(
-        convId,
-        '',
-        MESSAGE_TYPES.TYPING_END
-      );
-
-      // Clear typing state
+      await this.messageService.sendMessage(convId, '', MESSAGE_TYPE.TYPING_END);
       this.typingStates.delete(convId);
     } catch (error) {
       logger.error('Stop typing failed', { convId, error });
     }
   }
 
-  /**
-   * Reset typing timeout
-   * @param {string} convId - Conversation ID
-   */
-  resetTimeout(convId) {
+  private resetTimeout(convId: string): void {
     const state = this.typingStates.get(convId);
-
     if (!state) {
       return;
     }
 
-    // Clear existing timeout
     if (state.timeout) {
       clearTimeout(state.timeout);
     }
 
-    // Set new timeout
-    const timeout = setTimeout(() => {
-      this.stopTyping(convId);
-    }, MESSAGE_CONFIG.typingTimeout);
-
-    state.timeout = timeout;
+    state.timeout = setTimeout(() => {
+      void this.stopTyping(convId);
+    }, this.typingTimeout);
   }
 
-  /**
-   * Check if typing
-   * @param {string} convId - Conversation ID
-   * @returns {boolean} True if typing
-   */
-  isTyping(convId) {
-    const state = this.typingStates.get(convId);
-    return state ? state.isTyping : false;
+  isTyping(convId: string): boolean {
+    return Boolean(this.typingStates.get(convId)?.isTyping);
   }
 
-  /**
-   * Clear all typing states
-   */
-  clear() {
-    // Clear all debounce timers
-    this.debounceTimers.forEach(timer => clearTimeout(timer));
+  clear(): void {
+    this.debounceTimers.forEach((timer) => clearTimeout(timer));
     this.debounceTimers.clear();
 
-    // Clear all typing timeouts
-    this.typingStates.forEach(state => {
+    this.typingStates.forEach((state) => {
       if (state.timeout) {
         clearTimeout(state.timeout);
       }
@@ -176,4 +131,3 @@ export class TypingManager {
 }
 
 export default TypingManager;
-

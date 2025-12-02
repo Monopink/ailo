@@ -5,12 +5,17 @@
 
 import { VALIDATION_RULES } from './config';
 
+export interface ValidationResult {
+  valid: boolean;
+  message?: string;
+}
+
 /**
  * Validate phone number
  * @param {string} phone - Phone number
  * @returns {Object} Validation result
  */
-export function validatePhone(phone) {
+export function validatePhone(phone: string | null | undefined): ValidationResult {
   if (!phone) {
     return { valid: false, message: '请输入手机号' };
   }
@@ -27,7 +32,7 @@ export function validatePhone(phone) {
  * @param {string} code - SMS code
  * @returns {Object} Validation result
  */
-export function validateSmsCode(code) {
+export function validateSmsCode(code: string | null | undefined): ValidationResult {
   if (!code) {
     return { valid: false, message: '请输入验证码' };
   }
@@ -44,7 +49,7 @@ export function validateSmsCode(code) {
  * @param {string} nickname - Nickname
  * @returns {Object} Validation result
  */
-export function validateNickname(nickname) {
+export function validateNickname(nickname: string | null | undefined): ValidationResult {
   if (!nickname) {
     return { valid: false, message: '请输入昵称' };
   }
@@ -65,7 +70,7 @@ export function validateNickname(nickname) {
  * @param {string} bio - Bio
  * @returns {Object} Validation result
  */
-export function validateBio(bio) {
+export function validateBio(bio: string | null | undefined): ValidationResult {
   if (!bio) {
     return { valid: true }; // Bio is optional
   }
@@ -82,7 +87,7 @@ export function validateBio(bio) {
  * @param {string} message - Message
  * @returns {Object} Validation result
  */
-export function validateMessage(message) {
+export function validateMessage(message: string | null | undefined): ValidationResult {
   if (!message || message.trim().length === 0) {
     return { valid: false, message: '请输入消息内容' };
   }
@@ -99,13 +104,16 @@ export function validateMessage(message) {
  * @param {string} message - Verify message
  * @returns {Object} Validation result
  */
-export function validateVerifyMessage(message) {
+export function validateVerifyMessage(message: string | null | undefined): ValidationResult {
   if (!message) {
     return { valid: true }; // Verify message is optional
   }
 
   if (message.length > VALIDATION_RULES.verifyMessageMaxLength) {
-    return { valid: false, message: `验证消息最多${VALIDATION_RULES.verifyMessageMaxLength}个字符` };
+    return {
+      valid: false,
+      message: `验证消息最多${VALIDATION_RULES.verifyMessageMaxLength}个字符`,
+    };
   }
 
   return { valid: true };
@@ -116,7 +124,7 @@ export function validateVerifyMessage(message) {
  * @param {number} gender - Gender
  * @returns {Object} Validation result
  */
-export function validateGender(gender) {
+export function validateGender(gender: number | null | undefined): ValidationResult {
   if (gender === null || gender === undefined) {
     return { valid: false, message: '请选择性别' };
   }
@@ -133,7 +141,7 @@ export function validateGender(gender) {
  * @param {string} code - CAPTCHA code
  * @returns {Object} Validation result
  */
-export function validateCaptcha(code) {
+export function validateCaptcha(code: string | null | undefined): ValidationResult {
   if (!code) {
     return { valid: false, message: '请输入图形验证码' };
   }
@@ -153,6 +161,5 @@ export default {
   validateMessage,
   validateVerifyMessage,
   validateGender,
-  validateCaptcha
+  validateCaptcha,
 };
-

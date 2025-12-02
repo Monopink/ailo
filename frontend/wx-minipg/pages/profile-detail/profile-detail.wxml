@@ -34,9 +34,9 @@
       </view>
     </view>
 
-    <!-- Username (敲敲ID) -->
+    <!-- Username (敲敲号) -->
     <view class="detail-item" bindtap="editUsername">
-      <text class="label">敲敲ID</text>
+      <text class="label">敲敲号</text>
       <view class="value-with-arrow">
         <text class="value">{{profile.username}}</text>
         <text class="arrow">›</text>

@@ -8,7 +8,7 @@
  * - Business errors: Message blocked, not friends
  */
 
-const ERROR_MESSAGES = {
+export const ERROR_MESSAGES = {
   // Network layer errors
   NETWORK_ERROR: '网络连接失败，请检查网络',
   TIMEOUT_ERROR: '网络连接失败，请检查网络',
@@ -24,49 +24,52 @@ const ERROR_MESSAGES = {
   NOT_FRIEND: '你们还不是好友',
 
   // Default error
-  UNKNOWN_ERROR: '服务暂时不可用，请稍后重试'
-};
+  UNKNOWN_ERROR: '服务暂时不可用，请稍后重试',
+} as const;
+
+export type ErrorMessageKey = keyof typeof ERROR_MESSAGES;
+
+const isKnownErrorCode = (code: string): code is ErrorMessageKey =>
+  Boolean(code && Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, code));
 
 /**
  * Get user-friendly error message
  * @param {Error|string} error - Error object or error code
  * @returns {string} User-friendly error message
  */
-export function getUserFriendlyError(error) {
+type ErrorLike = Error | { message?: string } | string | null | undefined;
+
+export function getUserFriendlyError(error: ErrorLike): string {
   if (!error) {
     return ERROR_MESSAGES.UNKNOWN_ERROR;
   }
 
-  const errorCode = typeof error === 'string' ? error : error.message;
+  const errorCode =
+    typeof error === 'string' ? error : typeof error?.message === 'string' ? error.message : '';
 
   // Check if it's a known error code
-  if (ERROR_MESSAGES[errorCode]) {
+  if (isKnownErrorCode(errorCode)) {
     return ERROR_MESSAGES[errorCode];
   }
 
   // Check for network errors (network layer)
-  if (errorCode && (
-    errorCode.includes('network') ||
-    errorCode.includes('timeout') ||
-    errorCode.includes('连接') ||
-    errorCode.includes('Network') ||
-    errorCode.includes('Timeout')
-  )) {
+  if (
+    errorCode &&
+    (errorCode.includes('network') ||
+      errorCode.includes('timeout') ||
+      errorCode.includes('连接') ||
+      errorCode.includes('Network') ||
+      errorCode.includes('Timeout'))
+  ) {
     return ERROR_MESSAGES.NETWORK_ERROR;
   }
 
   // Check for business errors
-  if (errorCode && (
-    errorCode.includes('blocked') ||
-    errorCode.includes('拒收')
-  )) {
+  if (errorCode && (errorCode.includes('blocked') || errorCode.includes('拒收'))) {
     return ERROR_MESSAGES.MESSAGE_BLOCKED;
   }
 
-  if (errorCode && (
-    errorCode.includes('not_friend') ||
-    errorCode.includes('不是好友')
-  )) {
+  if (errorCode && (errorCode.includes('not_friend') || errorCode.includes('不是好友'))) {
     return ERROR_MESSAGES.NOT_FRIEND;
   }
 
@@ -76,5 +79,5 @@ export function getUserFriendlyError(error) {
 
 export default {
   getUserFriendlyError,
-  ERROR_MESSAGES
+  ERROR_MESSAGES,
 };

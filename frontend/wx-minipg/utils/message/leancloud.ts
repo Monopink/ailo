@@ -19,22 +19,85 @@ import { LEANCLOUD_CONFIG } from '../config';
 import { ENABLE_LEANCLOUD_DEBUG } from '../env';
 import { getLogger } from '../logger';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
+import type { MessageType } from './constants';
 
-// Import LeanCloud SDK from local files
-const IM = require('../../libs/im.min.js');
-const initTypedMessages = require('../../libs/typed-messages.min.js');
-const adapters = require('../../libs/leancloud-adapters-weapp.js');
+import * as IM from '../../libs/im.min.js';
+import type { Conversation } from '../../libs/im.min.js';
+import initTypedMessages from '../../libs/typed-messages.min.js';
+import adapters from '../../libs/leancloud-adapters-weapp.js';
 
-// Extract SDK components
 const { Realtime, setAdapters, TypedMessage, messageType, messageField, debug } = IM;
-
-// Initialize typed messages plugin
 const { TypedMessagesPlugin } = initTypedMessages(null, IM);
 
-// Set adapters for WeChat MiniProgram
 setAdapters(adapters);
 
 const logger = getLogger('LCAdapter');
+
+const toError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+export interface BusinessMessagePayload {
+  msg_id: string;
+  from: string;
+  to: string;
+  conv_id: string;
+  content: string;
+  message_type: MessageType;
+  supports_typing: boolean;
+  sent_time: number;
+  action?: string | null;
+  notification_type?: string | null;
+  data?: Record<string, unknown> | null;
+}
+
+export type MessageSignature = {
+  signature: string;
+  timestamp: number;
+  nonce: string;
+};
+
+export type AdapterMessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
+
+export interface AdapterSendResult extends BusinessMessagePayload {
+  lc_msg_id: string;
+  lc_timestamp: number;
+}
+
+export interface AdapterMessage extends AdapterSendResult {
+  status: AdapterMessageStatus;
+}
+
+export type AdapterTypingPayload = {
+  from: string;
+  conv_id: string;
+  isTyping: boolean;
+};
+
+export interface MessageAdapter {
+  connect(userId: string, signature: MessageSignature): Promise<void>;
+  disconnect(): Promise<void>;
+  sendMessage(message: BusinessMessagePayload, imConvId: string): Promise<AdapterSendResult>;
+  onMessage(handler: (message: AdapterMessage) => void): void;
+  onTyping(handler: (payload: AdapterTypingPayload) => void): void;
+  onError(handler: (error: Error) => void): void;
+  invalidateConversation?(imConvId?: string | null): void;
+  isConnected(): boolean;
+}
+
+type MessageCallback = (payload: AdapterMessage) => void;
+type TypingCallback = (payload: AdapterTypingPayload) => void;
+type ErrorCallback = (error: Error) => void;
 
 /**
  * LeanCloud message type for business messages (internal use only)
@@ -46,23 +109,23 @@ const BUSINESS_MESSAGE_TYPE = 1;
  * Wraps business layer message structure in LeanCloud TypedMessage
  */
 class BusinessMessage extends TypedMessage {
-  /**
-   * Constructor
-   * @param {Object} data - Message data
-   */
-  constructor(data = {}) {
+  id?: string;
+  timestamp?: number;
+  msg_id = '';
+  from = '';
+  to = '';
+  conv_id = '';
+  content = '';
+  message_type: MessageType = MESSAGE_TYPE.TEXT;
+  supports_typing = true;
+  sent_time = 0;
+  action: string | null = null;
+  notification_type: string | null = null;
+  data: Record<string, unknown> | null = null;
+
+  constructor(data: Partial<BusinessMessagePayload> = {}) {
     super();
-    this.msg_id = data.msg_id || '';
-    this.from = data.from || '';
-    this.to = data.to || '';
-    this.conv_id = data.conv_id || '';
-    this.content = data.content || '';
-    this.message_type = data.message_type || 1;
-    this.supports_typing = data.supports_typing !== undefined ? data.supports_typing : true;
-    this.sent_time = data.sent_time || 0;
-    this.action = data.action || null;
-    this.notification_type = data.notification_type ?? null;
-    this.data = data.data ?? null;
+    Object.assign(this, data);
   }
 }
 
@@ -78,7 +141,7 @@ messageField([
   'sent_time',
   'action',
   'notification_type',
-  'data'
+  'data',
 ])(BusinessMessage);
 
 // Specify LeanCloud message type
@@ -87,9 +150,16 @@ messageType(BUSINESS_MESSAGE_TYPE)(BusinessMessage);
 /**
  * LeanCloud message adapter
  */
-export class LCAdapter {
+export class LCAdapter implements MessageAdapter {
+  private connected = false;
+  private realtime: IM.Realtime | null = null;
+  private imClient: IM.IMClient | null = null;
+  private conversations = new Map<string, Conversation>();
+  private messageCallbacks: MessageCallback[] = [];
+  private typingCallbacks: TypingCallback[] = [];
+  private errorCallbacks: ErrorCallback[] = [];
+
   constructor() {
-    // Disable LeanCloud SDK debug logging based on environment
     if (!ENABLE_LEANCLOUD_DEBUG && debug && typeof debug.disable === 'function') {
       debug.disable();
       logger.info('LeanCloud debug logging disabled');
@@ -97,14 +167,6 @@ export class LCAdapter {
       debug.enable();
       logger.info('LeanCloud debug logging enabled');
     }
-
-    this.connected = false;
-    this.realtime = null;
-    this.imClient = null;
-    this.conversations = new Map();
-    this.messageCallbacks = [];
-    this.typingCallbacks = [];
-    this.errorCallbacks = [];
   }
 
   /**
@@ -113,45 +175,41 @@ export class LCAdapter {
    * @param {Object} signature - Authentication signature
    * @returns {Promise<void>}
    */
-  async connect(userId, signature) {
+  async connect(userId: string, signature: MessageSignature): Promise<void> {
     try {
       logger.info('Connecting to LeanCloud', { userId });
 
-      // Initialize Realtime (SDK already imported at top level)
       this.realtime = new Realtime({
         appId: LEANCLOUD_CONFIG.appId,
         appKey: LEANCLOUD_CONFIG.appKey,
         server: LEANCLOUD_CONFIG.serverUrl,
-        plugins: [TypedMessagesPlugin]
+        plugins: [TypedMessagesPlugin],
       });
 
-      // Register BusinessMessage type
       this.realtime.register(BusinessMessage);
 
-      // Create IM client with signature
       this.imClient = await this.realtime.createIMClient(userId, {
-        signatureFactory: () => Promise.resolve({
-          signature: signature.signature,
-          timestamp: signature.timestamp,
-          nonce: signature.nonce
-        })
+        signatureFactory: () =>
+          Promise.resolve({
+            signature: signature.signature,
+            timestamp: signature.timestamp,
+            nonce: signature.nonce,
+          }),
       });
 
-      // Register message handler
       this.imClient.on('message', this.handleMessage.bind(this));
-
-      // Register error handler
       this.imClient.on('disconnect', this.handleDisconnect.bind(this));
-      this.imClient.on('error', this.handleError.bind(this));
+      this.imClient.on('error', (err: unknown) => this.handleError(toError(err)));
 
       this.connected = true;
       logger.info('Connected to LeanCloud');
     } catch (error) {
+      const err = toError(error);
       logger.error('Connect to LeanCloud failed', {
-        error: error.message || String(error),
-        stack: error.stack
+        error: err.message,
+        stack: err.stack,
       });
-      throw error;
+      throw err;
     }
   }
 
@@ -159,7 +217,7 @@ export class LCAdapter {
    * Disconnect from LeanCloud
    * @returns {Promise<void>}
    */
-  async disconnect() {
+  async disconnect(): Promise<void> {
     try {
       if (this.imClient) {
         await this.imClient.close();
@@ -171,11 +229,12 @@ export class LCAdapter {
 
       logger.info('Disconnected from LeanCloud');
     } catch (error) {
+      const err = toError(error);
       logger.error('Disconnect from LeanCloud failed', {
-        error: error.message || String(error),
-        stack: error.stack
+        error: err.message,
+        stack: err.stack,
       });
-      throw error;
+      throw err;
     }
   }
 
@@ -183,7 +242,7 @@ export class LCAdapter {
    * Register message callback
    * @param {Function} callback - Callback function
    */
-  onMessage(callback) {
+  onMessage(callback: MessageCallback): void {
     if (typeof callback === 'function') {
       this.messageCallbacks.push(callback);
     }
@@ -193,7 +252,7 @@ export class LCAdapter {
    * Register typing callback
    * @param {Function} callback - Callback function
    */
-  onTyping(callback) {
+  onTyping(callback: TypingCallback): void {
     if (typeof callback === 'function') {
       this.typingCallbacks.push(callback);
     }
@@ -203,7 +262,7 @@ export class LCAdapter {
    * Register error callback
    * @param {Function} callback - Callback function
    */
-  onError(callback) {
+  onError(callback: ErrorCallback): void {
     if (typeof callback === 'function') {
       this.errorCallbacks.push(callback);
     }
@@ -213,18 +272,14 @@ export class LCAdapter {
    * Check if connected
    * @returns {boolean} True if connected
    */
-  isConnected() {
+  isConnected(): boolean {
     return this.connected;
   }
 
-  /**
-   * Resolve LeanCloud conversation instance with caching
-   * @param {string} imConvId
-   * @param {boolean} forceRefresh
-   * @returns {Promise<Object>}
-   * @private
-   */
-  async _getConversationInstance(imConvId, forceRefresh = false) {
+  private async getConversationInstance(
+    imConvId: string,
+    forceRefresh = false
+  ): Promise<IM.Conversation> {
     if (!imConvId) {
       throw new Error('IM_CONVERSATION_ID_REQUIRED');
     }
@@ -240,7 +295,7 @@ export class LCAdapter {
     }
 
     try {
-      const conversation = await this.imClient.getConversation(imConvId);
+      const conversation = await this.imClient!.getConversation(imConvId);
       if (!conversation) {
         logger.error('Conversation lookup returned empty result', { imConvId });
         throw new Error('CONVERSATION_NOT_FOUND');
@@ -249,33 +304,27 @@ export class LCAdapter {
       logger.info('Conversation fetched from LeanCloud', { imConvId });
       return conversation;
     } catch (error) {
+      const err = toError(error);
+      const rawDetails = error as { code?: unknown; constructor?: { name?: string } };
       logger.error('Get conversation failed', {
         imConvId,
-        error: error.message || String(error),
-        errorCode: error.code,
-        errorType: error.constructor?.name
+        error: err.message,
+        errorCode: rawDetails?.code,
+        errorType: rawDetails?.constructor?.name,
+        stack: err.stack,
       });
-      const wrappedError = new Error('CONVERSATION_NOT_FOUND');
+      const wrappedError = new Error('CONVERSATION_NOT_FOUND') as Error & {
+        originalError?: unknown;
+      };
       wrappedError.originalError = error;
       throw wrappedError;
     }
   }
 
-  /**
-   * Send message
-   * @param {Object} messageData - Business message data
-   * @param {string} messageData.msg_id - Message ID
-   * @param {string} messageData.from - Sender qiao_id
-   * @param {string} messageData.to - Receiver qiao_id
-   * @param {string} messageData.conv_id - Conversation ID
-   * @param {string} messageData.content - Message content
-   * @param {number} messageData.message_type - Message type
-   * @param {boolean} messageData.supports_typing - Supports typing indicator
-   * @param {number} messageData.sent_time - Sent timestamp
-   * @param {string} imConvId - LeanCloud conversation ID
-   * @returns {Promise<Object>} Sent message
-   */
-  async sendMessage(messageData, imConvId) {
+  async sendMessage(
+    messageData: BusinessMessagePayload,
+    imConvId: string
+  ): Promise<AdapterSendResult> {
     try {
       if (!this.connected || !this.imClient) {
         throw new Error('MESSAGE_SERVICE_DISCONNECTED');
@@ -283,54 +332,61 @@ export class LCAdapter {
 
       logger.debug('Sending message', {
         msg_id: messageData.msg_id,
-        imConvId
+        imConvId,
       });
 
-      // Get or create conversation
-      const conversation = await this._getConversationInstance(imConvId);
+      const conversation = await this.getConversationInstance(imConvId);
 
-      // Create business message
       const businessMessage = new BusinessMessage(messageData);
 
-      // Send message - wrap in try-catch to catch send errors
-      let sentMessage;
+      type SendResult = { id?: string; timestamp?: number };
+      let sentMessage: SendResult;
       try {
-        sentMessage = await conversation.send(businessMessage);
+        sentMessage = (await conversation.send(businessMessage)) as SendResult;
       } catch (sendError) {
+        const err = toError(sendError);
+        const rawDetails = sendError as { code?: unknown; constructor?: { name?: string } };
         logger.error('Conversation send failed', {
           imConvId,
-          error: sendError.message || String(sendError),
-          errorCode: sendError.code,
-          errorType: sendError.constructor.name
+          error: err.message,
+          errorCode: rawDetails?.code,
+          errorType: rawDetails?.constructor?.name,
+          stack: err.stack,
         });
         this.invalidateConversation(imConvId);
-
-        // If send fails, it might be because conversation is invalid
-        // Wrap as CONVERSATION_NOT_FOUND to trigger refresh
-        const error = new Error('CONVERSATION_NOT_FOUND');
-        error.originalError = sendError;
-        throw error;
+        const wrappedError = new Error('CONVERSATION_NOT_FOUND') as Error & {
+          originalError?: unknown;
+        };
+        wrappedError.originalError = sendError;
+        throw wrappedError;
       }
+
+      const lcMsgId =
+        typeof sentMessage.id === 'string' && sentMessage.id ? sentMessage.id : messageData.msg_id;
+      const lcTimestamp =
+        typeof sentMessage.timestamp === 'number' && Number.isFinite(sentMessage.timestamp)
+          ? sentMessage.timestamp
+          : Date.now();
 
       logger.info('Message sent successfully', {
         msg_id: messageData.msg_id,
-        lc_msg_id: sentMessage.id
+        lc_msg_id: lcMsgId,
       });
 
-      // Return sent message data
       return {
         ...messageData,
-        lc_msg_id: sentMessage.id,
-        lc_timestamp: sentMessage.timestamp
+        lc_msg_id: lcMsgId,
+        lc_timestamp: lcTimestamp,
       };
     } catch (error) {
+      const err = toError(error);
       logger.error('Send message failed', {
         msg_id: messageData.msg_id,
         imConvId,
-        error: error.message || String(error),
-        stack: error.stack
+        error: err.message,
+        stack: err.stack,
       });
-      throw error;
+      throw err;
     }
   }
 
@@ -338,7 +394,7 @@ export class LCAdapter {
    * Invalidate cached conversation
    * @param {string} imConvId
    */
-  invalidateConversation(imConvId) {
+  invalidateConversation(imConvId?: string | null): void {
     if (!imConvId) {
       this.conversations.clear();
       logger.warn('Conversation cache cleared (no id provided)');
@@ -354,14 +410,15 @@ export class LCAdapter {
    * Trigger message callbacks
    * @param {Object} message - Message object
    */
-  triggerMessageCallbacks(message) {
-    this.messageCallbacks.forEach(callback => {
+  private triggerMessageCallbacks(message: Parameters<MessageCallback>[0]): void {
+    this.messageCallbacks.forEach((callback) => {
       try {
         callback(message);
       } catch (error) {
+        const err = toError(error);
         logger.error('Message callback error', {
-          error: error.message || String(error),
-          stack: error.stack
+          error: err.message,
+          stack: err.stack,
         });
       }
     });
@@ -371,14 +428,15 @@ export class LCAdapter {
    * Trigger typing callbacks
    * @param {Object} typing - Typing object
    */
-  triggerTypingCallbacks(typing) {
-    this.typingCallbacks.forEach(callback => {
+  private triggerTypingCallbacks(typing: Parameters<TypingCallback>[0]): void {
+    this.typingCallbacks.forEach((callback) => {
       try {
         callback(typing);
       } catch (error) {
+        const err = toError(error);
         logger.error('Typing callback error', {
-          error: error.message || String(error),
-          stack: error.stack
+          error: err.message,
+          stack: err.stack,
         });
       }
     });
@@ -388,14 +446,15 @@ export class LCAdapter {
    * Trigger error callbacks
    * @param {Error} error - Error object
    */
-  triggerErrorCallbacks(error) {
-    this.errorCallbacks.forEach(callback => {
+  private triggerErrorCallbacks(error: Error): void {
+    this.errorCallbacks.forEach((callback) => {
       try {
         callback(error);
       } catch (err) {
+        const normalized = toError(err);
         logger.error('Error callback error', {
-          error: err.message || String(err),
-          stack: err.stack
+          error: normalized.message,
+          stack: normalized.stack,
         });
       }
     });
@@ -405,17 +464,21 @@ export class LCAdapter {
    * Handle incoming message (internal)
    * @param {Object} message - LeanCloud message object
    */
-  handleMessage(message) {
+  private handleMessage(message: unknown): void {
     try {
       logger.debug('Message received', {
-        type: message.constructor.name,
-        from: message.from
+        type: (message as { constructor: { name: string } }).constructor.name,
+        from: (message as { from?: string }).from,
       });
 
-      // Check if it's a BusinessMessage
       if (message instanceof BusinessMessage) {
-        // Extract business data
-        const businessData = {
+        const lcMsgId = typeof message.id === 'string' && message.id ? message.id : message.msg_id;
+        const lcTimestamp =
+          typeof message.timestamp === 'number' && Number.isFinite(message.timestamp)
+            ? message.timestamp
+            : Date.now();
+
+        const businessData: AdapterMessage = {
           msg_id: message.msg_id,
           from: message.from,
           to: message.to,
@@ -425,34 +488,39 @@ export class LCAdapter {
           supports_typing: message.supports_typing,
           sent_time: message.sent_time,
           status: MESSAGE_STATUS.RECEIVED,
-          lc_msg_id: message.id,
-          lc_timestamp: message.timestamp,
+          lc_msg_id: lcMsgId,
+          lc_timestamp: lcTimestamp,
           action: message.action || null,
           notification_type: message.notification_type ?? null,
-          data: message.data ?? null
+          data: message.data ?? null,
         };
 
-        // Check if it's a typing indicator
-        if (businessData.message_type === MESSAGE_TYPE.TYPING_START ||
-          businessData.message_type === MESSAGE_TYPE.TYPING_END) {
+        if (
+          businessData.message_type === MESSAGE_TYPE.TYPING_START ||
+          businessData.message_type === MESSAGE_TYPE.TYPING_END
+        ) {
           this.triggerTypingCallbacks({
             from: businessData.from,
             conv_id: businessData.conv_id,
-            isTyping: businessData.message_type === MESSAGE_TYPE.TYPING_START
+            isTyping: businessData.message_type === MESSAGE_TYPE.TYPING_START,
           });
         } else {
-          // Trigger message callbacks
           this.triggerMessageCallbacks(businessData);
         }
       } else {
+        const nonBusinessType =
+          typeof message === 'object' && message !== null && 'constructor' in message
+            ? ((message as { constructor?: { name?: string } }).constructor?.name ?? 'Unknown')
+            : typeof message;
         logger.warn('Received non-business message', {
-          type: message.constructor.name
+          type: nonBusinessType,
         });
       }
     } catch (error) {
+      const err = toError(error);
       logger.error('Handle message error', {
-        error: error.message || String(error),
-        stack: error.stack
+        error: err.message,
+        stack: err.stack,
       });
     }
   }
@@ -460,7 +528,7 @@ export class LCAdapter {
   /**
    * Handle disconnect (internal)
    */
-  handleDisconnect() {
+  private handleDisconnect(): void {
     logger.warn('Disconnected from LeanCloud');
     this.connected = false;
   }
@@ -469,14 +537,13 @@ export class LCAdapter {
    * Handle error (internal)
    * @param {Error} error - Error object
    */
-  handleError(error) {
+  private handleError(error: Error): void {
     logger.error('LeanCloud error', {
       error: error.message || String(error),
-      stack: error.stack
+      stack: error.stack,
     });
     this.triggerErrorCallbacks(error);
   }
 }
 
-// Export default instance
 export default new LCAdapter();

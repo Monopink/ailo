@@ -3,17 +3,24 @@
  * Provides formatting functions for display
  */
 
-// Phone number mask
-export function formatPhone(phone) {
-  if (!phone || phone.length !== 11) return phone;
+export function formatPhone(phone: string | null | undefined): string {
+  if (!phone || phone.length !== 11) {
+    return phone || '';
+  }
   return `${phone.substring(0, 3)}******${phone.substring(9)}`;
 }
 
-// Format timestamp to human readable string
-export function formatTime(timestamp, showDate = false) {
-  if (!timestamp) return '';
+export function formatTime(
+  timestamp: number | string | null | undefined,
+  showDate = false
+): string {
+  if (!timestamp && timestamp !== 0) {
+    return '';
+  }
   const date = new Date(Number(timestamp));
-  if (isNaN(date.getTime())) return '';
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
 
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
@@ -40,11 +47,14 @@ export function formatTime(timestamp, showDate = false) {
   }
 }
 
-// Format relative time used in list items
-export function formatMessageTime(timestamp) {
-  if (!timestamp) return '';
+export function formatMessageTime(timestamp: number | string | null | undefined): string {
+  if (!timestamp && timestamp !== 0) {
+    return '';
+  }
   const date = new Date(Number(timestamp));
-  if (isNaN(date.getTime())) return '';
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -52,45 +62,69 @@ export function formatMessageTime(timestamp) {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return '刚刚';
-  if (diffMins < 60) return `${diffMins}分钟前`;
-  if (diffHours < 24) return `${diffHours}小时前`;
-  if (diffDays < 7) return `${diffDays}天前`;
+  if (diffMins < 1) {
+    return '刚刚';
+  }
+  if (diffMins < 60) {
+    return `${diffMins}分钟前`;
+  }
+  if (diffHours < 24) {
+    return `${diffHours}小时前`;
+  }
+  if (diffDays < 7) {
+    return `${diffDays}天前`;
+  }
   return formatTime(timestamp, false);
 }
 
-// Chat timestamp shown sparsely in conversation
-export function formatChatTimestamp(currentTimestamp, previousTimestamp) {
-  if (!currentTimestamp) return '';
-  if (!previousTimestamp) return formatTime(currentTimestamp, true);
+export function formatChatTimestamp(
+  currentTimestamp: number | string,
+  previousTimestamp: number | string | null | undefined
+): string | null {
+  if (!currentTimestamp && currentTimestamp !== 0) {
+    return '';
+  }
+  if (!previousTimestamp && previousTimestamp !== 0) {
+    return formatTime(currentTimestamp, true);
+  }
   const diff = Number(currentTimestamp) - Number(previousTimestamp);
-  if (diff >= 5 * 60 * 1000) return formatTime(currentTimestamp, true);
+  if (diff >= 5 * 60 * 1000) {
+    return formatTime(currentTimestamp, true);
+  }
   return null;
 }
 
-// File size formatting
-export function formatFileSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1048576) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  if (bytes < 1073741824) {
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+  }
   return `${(bytes / 1073741824).toFixed(1)} GB`;
 }
 
-// Number formatting with K/M suffix
-export function formatNumber(num) {
-  if (num < 1000) return num.toString();
-  if (num < 1000000) return `${(num / 1000).toFixed(1)}K`;
+export function formatNumber(num: number): string {
+  if (num < 1000) {
+    return num.toString();
+  }
+  if (num < 1000000) {
+    return `${(num / 1000).toFixed(1)}K`;
+  }
   return `${(num / 1000000).toFixed(1)}M`;
 }
 
-// Truncate text
-export function truncate(text, maxLength) {
-  if (!text || text.length <= maxLength) return text;
+export function truncate(text: string, maxLength: number): string {
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
   return `${text.substring(0, maxLength)}...`;
 }
 
-// Gender
-export function formatGender(gender) {
+export function formatGender(gender: number | string | null | undefined): string {
   switch (gender) {
     case 1:
       return '男';
@@ -101,17 +135,23 @@ export function formatGender(gender) {
   }
 }
 
-// Age
-export function formatAge(birthYear) {
-  if (!birthYear) return 0;
+export function formatAge(birthYear: number | null | undefined): number {
+  if (!birthYear) {
+    return 0;
+  }
   const currentYear = new Date().getFullYear();
   return currentYear - birthYear;
 }
 
 // Region formatting
 // Remove suffixes (省/市/自治区/特别行政区) and merge duplicates for municipalities
-export function formatRegion(province, city) {
-  if (!province || !city) return '';
+export function formatRegion(
+  province: string | null | undefined,
+  city: string | null | undefined
+): string {
+  if (!province || !city) {
+    return '';
+  }
 
   // Remove common suffixes and ethnic names for autonomous regions (province level)
   const cleanProvince = province
@@ -163,6 +203,5 @@ export default {
   truncate,
   formatGender,
   formatAge,
-  formatRegion
+  formatRegion,
 };
-

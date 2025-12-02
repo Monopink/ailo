@@ -14,7 +14,7 @@
           <text class="nickname">{{profile.nickname || '未设置昵称'}}</text>
           <text wx:if="{{profile.genderText}}" class="gender">{{profile.genderText}}</text>
         </view>
-        <text class="qiao-id">敲敲ID: {{profile.qiao_id}}</text>
+        <text class="qiao-id">敲敲号: {{profile.qiao_id}}</text>
       </view>
     </view>
 
@@ -45,4 +45,3 @@
     </view>
   </view>
 </view>
-

@@ -14,20 +14,27 @@ import { getLogger } from './logger';
 
 const logger = getLogger('Auth');
 
-/**
- * Send SMS verification code
- * @param {string} phone - Phone number
- * @param {string} captchaKey - CAPTCHA key
- * @param {string} captchaCode - CAPTCHA code
- * @returns {Promise<void>}
- */
-export async function sendSmsCode(phone, captchaKey, captchaCode) {
+interface CaptchaResponse {
+  key: string;
+  image: string;
+  expire_at?: number;
+}
+
+export async function sendSmsCode(
+  phone: string,
+  captchaKey: string,
+  captchaCode: string
+): Promise<void> {
   try {
-    await post('/auth/send-sms', {
-      phone,
-      captcha_key: captchaKey,
-      captcha_code: captchaCode
-    }, { auth: false });
+    await post(
+      '/auth/send-sms',
+      {
+        phone,
+        captcha_key: captchaKey,
+        captcha_code: captchaCode,
+      },
+      { auth: false }
+    );
 
     logger.info('SMS code sent', { phone });
   } catch (error) {
@@ -36,13 +43,9 @@ export async function sendSmsCode(phone, captchaKey, captchaCode) {
   }
 }
 
-/**
- * Get CAPTCHA image
- * @returns {Promise<Object>} CAPTCHA data
- */
-export async function getCaptcha() {
+export async function getCaptcha(): Promise<CaptchaResponse> {
   try {
-    const data = await get('/auth/captcha', {}, { auth: false });
+    const data = await get<CaptchaResponse>('/auth/captcha', {}, { auth: false });
     logger.info('CAPTCHA obtained', { key: data.key });
     return data;
   } catch (error) {
@@ -51,14 +54,9 @@ export async function getCaptcha() {
   }
 }
 
-/**
- * Get message client signature
- * @param {string} clientId - Client ID (user's qiao_id)
- * @returns {Promise<Object>} Signature data
- */
-export async function getMessageClientSignature(clientId) {
+export async function getMessageClientSignature(clientId: string): Promise<Says.MessageSignature> {
   try {
-    const data = await post('/auth/message-client', { client_id: clientId });
+    const data = await post<Says.MessageSignature>('/lc-im/signature', { client_id: clientId });
     logger.info('Message client signature obtained');
     return data;
   } catch (error) {
@@ -70,5 +68,5 @@ export async function getMessageClientSignature(clientId) {
 export default {
   sendSmsCode,
   getCaptcha,
-  getMessageClientSignature
+  getMessageClientSignature,
 };

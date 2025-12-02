@@ -6,141 +6,175 @@ import { getLogger } from '../../utils/logger';
 
 const logger = getLogger('Profile');
 
-Page({
+type AnyObject = WechatMiniprogram.IAnyObject;
+type AuthGuardPage = WechatMiniprogram.Page.Instance<
+  Record<string, unknown>,
+  Record<string, unknown>
+>;
+
+interface UserProfile extends AnyObject {
+  qiao_id?: string;
+  avatar_url?: string | null;
+  custom_avatar_url?: string | null;
+  gender?: number | null;
+}
+
+interface ProfilePageData extends Record<string, unknown> {
+  loading: boolean;
+  profile: UserProfile | null;
+  error: string | null;
+}
+
+interface ProfilePageCustom {
+  loadProfile(): Promise<void>;
+  navigateToProfileDetail(): void;
+  handleLogout(): Promise<void>;
+  getGenderText(gender?: number | null): string;
+}
+
+const toError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+const showModal = async (
+  options: WechatMiniprogram.ShowModalOption
+): Promise<WechatMiniprogram.ShowModalSuccessCallbackResult> =>
+  await new Promise((resolve, reject) => {
+    wx.showModal({
+      ...options,
+      success: resolve,
+      fail: reject,
+    });
+  });
+
+Page<ProfilePageData, ProfilePageCustom>({
   data: {
     loading: true,
     profile: null,
-    error: null
+    error: null,
   },
 
   async onLoad() {
     logger.info('Profile page loaded');
+    const isAuth = await requireAuth(this as unknown as AuthGuardPage);
+    if (!isAuth) {
+      return;
+    }
 
-    // Require authentication
-    const isAuth = await requireAuth(this);
-    if (!isAuth) return;
-
-    this.loadProfile();
+    await this.loadProfile();
   },
 
   async onShow() {
-    // Check auth status
-    const isAuth = await requireAuth(this);
-    if (!isAuth) return;
-
-    // Reload profile when page shows
-    this.loadProfile();
+    const isAuth = await requireAuth(this as unknown as AuthGuardPage);
+    if (!isAuth) {
+      return;
+    }
+    await this.loadProfile();
   },
 
-  /**
-   * Load user profile
-   */
   async loadProfile() {
     try {
       this.setData({
         loading: true,
-        error: null
+        error: null,
       });
 
       logger.info('Loading user profile');
-      const profile = await get('/user/profile');
+      const profile = await get<UserProfile>('/user/profile');
 
       this.setData({
         profile: {
           ...profile,
-          avatar_url: getAvatarUrl(profile.avatar_url)
+          avatar_url: getAvatarUrl(profile?.avatar_url ?? ''),
         },
-        loading: false
+        loading: false,
       });
 
-      logger.info('Profile loaded', { qiao_id: profile.qiao_id });
+      logger.info('Profile loaded', { qiao_id: profile?.qiao_id });
     } catch (error) {
-      logger.error('Load profile failed', {
-        error: error.message || String(error)
-      });
+      const err = toError(error);
+      logger.error('Load profile failed', { error: err.message });
 
       this.setData({
         error: '加载失败,请稍后再试',
-        loading: false
+        loading: false,
       });
 
-      wx.showToast({
+      void wx.showToast({
         title: '加载失败',
-        icon: 'none'
+        icon: 'none',
       });
     }
   },
 
-  /**
-   * Navigate to profile detail
-   */
   navigateToProfileDetail() {
-    wx.navigateTo({
-      url: '/pages/profile-detail/profile-detail'
+    void wx.navigateTo({
+      url: '/pages/profile-detail/profile-detail',
     });
   },
 
-  /**
-   * Handle logout action
-   */
   async handleLogout() {
     try {
-      const result = await wx.showModal({
+      const result = await showModal({
         title: '退出登录',
         content: '确定要退出当前账号吗？',
         confirmText: '退出',
-        cancelText: '取消'
+        cancelText: '取消',
       });
 
       if (!result.confirm) {
         return;
       }
 
-      wx.showLoading({
+      void wx.showLoading({
         title: '正在退出',
-        mask: true
+        mask: true,
       });
 
-      // Logout using authService
       await authService.logout();
 
-      // Disconnect message service
-      const app = getApp();
-      if (app.globalData.messageService) {
-        app.globalData.messageService.disconnect();
+      const app = getApp<SaysAppInstance>();
+      const messageService = app.getMessageService();
+      if (messageService) {
+        await messageService.disconnect();
         app.globalData.messageService = null;
       }
 
-      wx.hideLoading();
+      void wx.hideLoading();
 
-      // Redirect to login page
-      wx.reLaunch({
-        url: '/pages/login/login'
+      void wx.reLaunch({
+        url: '/pages/login/login',
       });
     } catch (error) {
-      logger.error('Logout failed', {
-        error: error.message || String(error)
-      });
+      const err = toError(error);
+      logger.error('Logout failed', { error: err.message });
 
-      wx.hideLoading();
+      void wx.hideLoading();
 
-      wx.showToast({
+      void wx.showToast({
         title: '退出失败，请稍后重试',
-        icon: 'none'
+        icon: 'none',
       });
     }
   },
 
-  /**
-   * Get gender text
-   */
   getGenderText(gender) {
-    const genderMap = {
+    const genderMap: Record<number, string> = {
       1: '男',
       2: '女',
       3: '其他',
-      4: '未知'
+      4: '未知',
     };
-    return genderMap[gender] || '未设置';
-  }
+    return genderMap[Number(gender)] ?? '未设置';
+  },
 });

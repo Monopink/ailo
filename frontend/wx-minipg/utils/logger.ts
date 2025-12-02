@@ -3,51 +3,53 @@
  * Provides structured logging with different log levels
  */
 
-import { LOG_LEVEL } from './env';
+/* eslint-disable no-console */
+import { LOG_LEVEL, LogLevel } from './env';
 
-const LOG_LEVELS = {
+export type LogLevelName = LogLevel | 'INFO' | 'WARN' | 'ERROR';
+
+const LOG_LEVELS: Record<LogLevelName, number> = {
   DEBUG: 0,
   INFO: 1,
   WARN: 2,
   ERROR: 3,
-  NONE: 4  // No logging
+  NONE: 4,
 };
 
-// Current log level (configured from environment)
-let currentLogLevel = LOG_LEVELS.hasOwnProperty(LOG_LEVEL) ? LOG_LEVELS[LOG_LEVEL] : LOG_LEVELS.NONE;
+let currentLogLevel: number = Object.prototype.hasOwnProperty.call(LOG_LEVELS, LOG_LEVEL)
+  ? LOG_LEVELS[LOG_LEVEL]
+  : LOG_LEVELS.NONE;
 
-/**
- * Set log level
- * @param {string} level - Log level (DEBUG, INFO, WARN, ERROR)
- */
-export function setLogLevel(level) {
+type LogPayload = unknown;
+
+const serializePayload = (payload: LogPayload): string | null => {
+  if (payload === undefined) {
+    return null;
+  }
+  if (typeof payload === 'string') {
+    return payload;
+  }
+  try {
+    return JSON.stringify(payload);
+  } catch (error) {
+    return String(payload);
+  }
+};
+
+export function setLogLevel(level: LogLevelName): void {
   if (LOG_LEVELS[level] !== undefined) {
     currentLogLevel = LOG_LEVELS[level];
   }
 }
 
-/**
- * Format log message
- * @param {string} level - Log level
- * @param {string} tag - Log tag
- * @param {string} message - Log message
- * @param {Object} data - Additional data
- * @returns {string} Formatted log message
- */
-function formatLog(level, tag, message, data) {
+function formatLog(level: LogLevelName, tag: string, message: string, data?: LogPayload): string {
   const timestamp = new Date().toISOString();
-  const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+  const serialized = serializePayload(data);
+  const dataStr = serialized ? ` ${serialized}` : '';
   return `[${timestamp}] [${level}] [${tag}] ${message}${dataStr}`;
 }
 
-/**
- * Log message
- * @param {string} level - Log level
- * @param {string} tag - Log tag
- * @param {string} message - Log message
- * @param {Object} data - Additional data
- */
-function log(level, tag, message, data) {
+function log(level: LogLevelName, tag: string, message: string, data?: LogPayload): void {
   const logLevel = LOG_LEVELS[level];
 
   if (logLevel < currentLogLevel) {
@@ -70,29 +72,34 @@ function log(level, tag, message, data) {
   }
 }
 
-/**
- * Create logger instance
- * @param {string} tag - Logger tag
- * @returns {Object} Logger instance
- */
-export function getLogger(tag) {
+export interface Logger {
+  debug(message: string, data?: LogPayload): void;
+  info(message: string, data?: LogPayload): void;
+  warn(message: string, data?: LogPayload): void;
+  error(message: string, data?: LogPayload): void;
+}
+
+export function getLogger(tag: string): Logger {
   return {
     debug: (message, data) => log('DEBUG', tag, message, data),
     info: (message, data) => log('INFO', tag, message, data),
     warn: (message, data) => log('WARN', tag, message, data),
-    error: (message, data) => log('ERROR', tag, message, data)
+    error: (message, data) => log('ERROR', tag, message, data),
   };
 }
 
-// Default logger instance for backward compatibility
-const defaultLogger = {
+interface DefaultLogger extends Logger {
+  getLogger: typeof getLogger;
+  setLogLevel: typeof setLogLevel;
+}
+
+const defaultLogger: DefaultLogger = {
   debug: (message, data) => log('DEBUG', 'App', message, data),
   info: (message, data) => log('INFO', 'App', message, data),
   warn: (message, data) => log('WARN', 'App', message, data),
   error: (message, data) => log('ERROR', 'App', message, data),
   getLogger,
-  setLogLevel
+  setLogLevel,
 };
 
 export default defaultLogger;
-

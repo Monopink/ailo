@@ -1,27 +1,36 @@
-/**
- * Conversation Store
- * Single source of truth for IM provider conversation identifiers.
- */
-
 import { get } from '../api';
 import { getLogger } from '../logger';
 
+const logger = getLogger('ConversationStore');
 const STORAGE_KEY = 'conversation_state';
 
+interface ConversationState {
+  im_conv_id: string;
+  version: string | number;
+  updated_at: string | null;
+}
+
+interface ConversationStateResponse {
+  im_conv_id: string;
+  version: string | number;
+  updated_at?: string | null;
+}
+
+type Subscriber = (state: ConversationState | null) => void;
+
 class ConversationStore {
+  private state: ConversationState | null = null;
+  private subscribers = new Set<Subscriber>();
+  private initializing: Promise<ConversationState | null> | null = null;
+  private refreshPromise: Promise<ConversationState> | null = null;
+
   constructor() {
-    this.state = null;
-    this.subscribers = new Set();
-    this.initializing = null;
-    this.refreshPromise = null;
+    this.loadFromStorage();
   }
 
-  /**
-   * Load cached state from storage.
-   */
-  loadFromStorage() {
+  private loadFromStorage(): void {
     try {
-      const stored = wx.getStorageSync(STORAGE_KEY);
+      const stored = wx.getStorageSync<ConversationState>(STORAGE_KEY);
       if (stored && stored.im_conv_id && stored.version) {
         this.state = stored;
       }
@@ -30,10 +39,7 @@ class ConversationStore {
     }
   }
 
-  /**
-   * Persist state to storage.
-   */
-  persist(state) {
+  private persist(state: ConversationState): void {
     try {
       wx.setStorageSync(STORAGE_KEY, state);
     } catch (error) {
@@ -41,8 +47,8 @@ class ConversationStore {
     }
   }
 
-  notify(state) {
-    this.subscribers.forEach(callback => {
+  private notify(state: ConversationState | null): void {
+    this.subscribers.forEach((callback) => {
       try {
         callback(state);
       } catch (error) {
@@ -51,19 +57,15 @@ class ConversationStore {
     });
   }
 
-  subscribe(callback) {
-    if (typeof callback === 'function') {
-      this.subscribers.add(callback);
-      if (this.state) {
-        callback(this.state);
-      }
-    }
+  subscribe(callback: Subscriber): () => void {
+    this.subscribers.add(callback);
+    callback(this.state);
     return () => {
       this.subscribers.delete(callback);
     };
   }
 
-  async init(force = false) {
+  async init(force = false): Promise<ConversationState | null> {
     if (this.state && !force) {
       return this.state;
     }
@@ -83,7 +85,7 @@ class ConversationStore {
     return this.initializing;
   }
 
-  async getState() {
+  async getState(): Promise<ConversationState | null> {
     if (this.state) {
       return this.state;
     }
@@ -91,29 +93,29 @@ class ConversationStore {
     return this.state;
   }
 
-  async getImConvId() {
+  async getImConvId(): Promise<string> {
     const state = await this.getState();
     return state ? state.im_conv_id : '';
   }
 
-  async refresh() {
+  async refresh(): Promise<ConversationState> {
     if (this.refreshPromise) {
       return this.refreshPromise;
     }
 
     this.refreshPromise = (async () => {
-      const response = await get('/conversation/current');
-      const nextState = {
+      const response = await get<ConversationStateResponse>('/conversation/current');
+      const nextState: ConversationState = {
         im_conv_id: response.im_conv_id,
         version: response.version,
-        updated_at: response.updated_at || null
+        updated_at: response.updated_at ?? null,
       };
       this.state = nextState;
       this.persist(nextState);
       this.notify(nextState);
       logger.info('Conversation state refreshed', {
         version: response.version,
-        updated_at: response.updated_at
+        updated_at: response.updated_at,
       });
       return nextState;
     })().finally(() => {
@@ -124,8 +126,4 @@ class ConversationStore {
   }
 }
 
-const logger = getLogger('ConversationStore');
-
-const conversationStore = new ConversationStore();
-
-export default conversationStore;
+export default new ConversationStore();

@@ -1,69 +1,90 @@
 /**
  * Message Service
- * High-level message service that manages message adapter and message queue
- *
- * Design: Uses dependency injection for message adapter (default: LeanCloud)
- * To replace adapter: import different adapter and pass to constructor
+ * High-level message service that manages message adapter interactions.
  */
 
 import { getMessageClientSignature } from '../auth';
 import { getLogger } from '../logger';
 import { addMessage, getUserInfo } from '../storage';
+import type { StoredMessage } from '../storage';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
-import leancloudAdapter from './leancloud';
-import { MessageQueue } from './queue';
+import type { MessageType } from './constants';
 import conversationStore from './conversation-store';
+import leancloudAdapter, {
+  type AdapterMessage,
+  type AdapterSendResult,
+  type AdapterTypingPayload,
+  type BusinessMessagePayload,
+  type MessageAdapter,
+  type MessageSignature,
+} from './leancloud';
 
 const logger = getLogger('MessageService');
 
-/**
- * Message service class
- */
-class MessageService {
-  constructor(adapter = leancloudAdapter) {
+type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
+
+interface MessageData {
+  from: string;
+  to: string;
+  conv_id: string;
+  content: string;
+  message_type?: MessageType;
+  supports_typing?: boolean;
+  client_msg_id?: string;
+}
+
+const generateClientMessageId = (): string =>
+  `client_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const normalizeError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+type BusinessMessage = StoredMessage &
+  BusinessMessagePayload & {
+    status: MessageStatus;
+    adapter_metadata?: Record<string, unknown>;
+    error_reason?: string;
+  };
+
+export class MessageService {
+  private adapter: MessageAdapter;
+  private initialized = false;
+
+  constructor(adapter: MessageAdapter = leancloudAdapter) {
     this.adapter = adapter;
-    this.queue = null;
-    this.initialized = false;
   }
 
-  /**
-   * Persist message to local storage
-   * @private
-   */
-  async persistMessage(convId, message) {
+  private async persistMessage(convId: string, message: StoredMessage): Promise<void> {
     await addMessage(convId, message);
   }
 
-  /**
-   * Initialize message service
-   * @param {string} userId - User ID (qiao_id)
-   * @returns {Promise<void>}
-   */
-  async initialize(userId) {
-    try {
-      if (this.initialized) {
-        logger.warn('Message service already initialized');
-        return;
-      }
+  async initialize(userId: string): Promise<void> {
+    if (this.initialized) {
+      logger.warn('Message service already initialized');
+      return;
+    }
 
+    try {
       logger.info('Initializing message service', { userId });
 
-      // Get signature from backend
       const signature = await getMessageClientSignature(userId);
+      await this.adapter.connect(userId, signature as MessageSignature);
 
-      // Connect to adapter
-      await this.adapter.connect(userId, signature);
-
-      // Create message queue
-      this.queue = new MessageQueue(this.adapter);
-
-      // Register message handler
-      this.adapter.onMessage(this.handleMessage.bind(this));
-
-      // Register typing handler
+      this.adapter.onMessage((message) => {
+        void this.handleMessage(message);
+      });
       this.adapter.onTyping(this.handleTyping.bind(this));
-
-      // Register error handler
       this.adapter.onError(this.handleError.bind(this));
 
       this.initialized = true;
@@ -74,143 +95,105 @@ class MessageService {
     }
   }
 
-  /**
-   * Send message
-   * @param {Object} messageData - Message data
-   * @param {string} messageData.from - Sender qiao_id
-   * @param {string} messageData.to - Receiver qiao_id
-   * @param {string} messageData.conv_id - Conversation ID
-   * @param {string} messageData.content - Message content
-   * @param {number} messageData.message_type - Message type
-   * @param {boolean} messageData.supports_typing - Supports typing indicator
-   * @returns {Promise<Object>} Message object
-   */
-  async sendMessage(messageData) {
+  async sendMessage(messageData: MessageData): Promise<BusinessMessage> {
+    if (!this.initialized) {
+      throw new Error('Message service not initialized');
+    }
+
+    logger.info('Sending message', {
+      conv_id: messageData.conv_id,
+      message_type: messageData.message_type,
+      content_length: messageData.content ? messageData.content.length : 0,
+      from: messageData.from,
+      to: messageData.to,
+      client_msg_id: messageData.client_msg_id,
+    });
+
+    const msgId = messageData.client_msg_id || generateClientMessageId();
+
+    const message: BusinessMessage = {
+      msg_id: msgId,
+      from: messageData.from,
+      to: messageData.to,
+      conv_id: messageData.conv_id,
+      content: messageData.content,
+      message_type: messageData.message_type ?? MESSAGE_TYPE.TEXT,
+      supports_typing:
+        messageData.supports_typing !== undefined ? messageData.supports_typing : true,
+      sent_time: Date.now(),
+      status: MESSAGE_STATUS.SENDING,
+    };
+
+    await this.persistMessage(messageData.conv_id, message);
+
     try {
-      if (!this.initialized) {
-        throw new Error('Message service not initialized');
-      }
-
-      logger.info('Sending message', {
-        conv_id: messageData.conv_id,
-        message_type: messageData.message_type,
-        content_length: messageData.content ? messageData.content.length : 0,
-        from: messageData.from,
-        to: messageData.to,
-        client_msg_id: messageData.client_msg_id
-      });
-
-      // Generate message ID (allow client-provided id for optimistic UI)
-      const msg_id = messageData.client_msg_id || `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-
-      // Build complete message object
-      const message = {
-        msg_id,
-        from: messageData.from,
-        to: messageData.to,
-        conv_id: messageData.conv_id,
-        content: messageData.content,
-        message_type: messageData.message_type || MESSAGE_TYPE.TEXT,
-        supports_typing: messageData.supports_typing !== undefined ? messageData.supports_typing : true,
-        sent_time: Date.now(),
-        status: MESSAGE_STATUS.SENDING
-      };
-
-      // Save to local storage with SENDING status
-      await this.persistMessage(messageData.conv_id, message);
-
-      // Send via adapter
-      try {
-        const sentMessage = await this._sendViaAdapter(message, messageData);
-
-        // Update status to SENT
-        const sentPayload = {
-          ...message,
-          status: MESSAGE_STATUS.SENT,
-          adapter_metadata: {
-            msg_id: sentMessage.lc_msg_id,
-            timestamp: sentMessage.lc_timestamp
-          }
-        };
-
-        // Update in local storage
-        await this.persistMessage(messageData.conv_id, sentPayload);
-
-        logger.info('Message sent successfully', {
-          msg_id,
-          conv_id: messageData.conv_id,
-          message_type: message.message_type,
-          status: sentPayload.status
-        });
-      } catch (error) {
-        const failedPayload = {
-          ...message,
-          status: MESSAGE_STATUS.FAILED,
-          error_reason: error && (error.message || String(error))
-        };
-
-        // Update in local storage
-        await this.persistMessage(messageData.conv_id, failedPayload);
-
-        logger.error('Send message via adapter failed', {
-          msg_id,
-          conv_id: messageData.conv_id,
-          message_type: message.message_type,
-          error: error.message || String(error)
-        });
-
-        throw error;
-      }
-
-      return {
+      const sentMessage = await this.sendViaAdapter(message);
+      const sentPayload: BusinessMessage = {
         ...message,
-        status: MESSAGE_STATUS.SENT
+        status: MESSAGE_STATUS.SENT,
+        adapter_metadata: {
+          msg_id: sentMessage.lc_msg_id,
+          timestamp: sentMessage.lc_timestamp,
+        },
       };
-    } catch (error) {
-      logger.error('Send message failed', {
+
+      await this.persistMessage(messageData.conv_id, sentPayload);
+      logger.info('Message sent successfully', {
+        msg_id: msgId,
         conv_id: messageData.conv_id,
-        error: error.message || String(error)
+        message_type: message.message_type,
+        status: sentPayload.status,
       });
-      throw error;
+
+      return sentPayload;
+    } catch (error) {
+      const err = normalizeError(error);
+      const failedPayload: BusinessMessage = {
+        ...message,
+        status: MESSAGE_STATUS.FAILED,
+        error_reason: err.message,
+      };
+
+      await this.persistMessage(messageData.conv_id, failedPayload);
+
+      logger.error('Send message via adapter failed', {
+        msg_id: msgId,
+        conv_id: messageData.conv_id,
+        message_type: message.message_type,
+        error: err.message,
+      });
+
+      throw err;
     }
   }
 
-  /**
-   * Send via adapter with retry when conversation changes
-   * @private
-   */
-  async _sendViaAdapter(message, messageData, options = { allowRetry: true }) {
+  private async sendViaAdapter(
+    message: BusinessMessage,
+    options: { allowRetry?: boolean } = { allowRetry: true }
+  ): Promise<AdapterSendResult> {
     const allowRetry = options.allowRetry !== false;
     const imConvId = await conversationStore.getImConvId();
 
     try {
       return await this.adapter.sendMessage(message, imConvId);
     } catch (error) {
-      if (error.message === 'CONVERSATION_NOT_FOUND' && allowRetry) {
+      const err = normalizeError(error);
+      if (err.message === 'CONVERSATION_NOT_FOUND' && allowRetry) {
         logger.warn('Conversation not found, refreshing conversation state');
         await conversationStore.refresh();
-        return this._sendViaAdapter(message, messageData, { allowRetry: false });
+        return this.sendViaAdapter(message, { allowRetry: false });
       }
-      throw error;
+      throw err;
     }
   }
 
-  /**
-   * Invalidate cached conversation inside adapter
-   * @param {string} imConvId
-   * @returns {Promise<void>}
-   */
-  async invalidateConversation(imConvId) {
-    if (this.adapter && typeof this.adapter.invalidateConversation === 'function') {
-      this.adapter.invalidateConversation(imConvId);
+  async invalidateConversation(imConvId?: string | null): Promise<void> {
+    if (this.adapter.invalidateConversation) {
+      await Promise.resolve(this.adapter.invalidateConversation(imConvId));
     }
   }
 
-  /**
-   * Handle incoming message
-   * @param {Object} message - Business message object
-   */
-  async handleMessage(message) {
+  async handleMessage(message: AdapterMessage): Promise<void> {
     try {
       logger.info('Message received', {
         msg_id: message.msg_id,
@@ -218,77 +201,65 @@ class MessageService {
         to: message.to,
         conv_id: message.conv_id,
         message_type: message.message_type,
-        content_length: message.content ? message.content.length : 0
+        content_length: message.content ? message.content.length : 0,
       });
 
-      // Save to local storage
-      await addMessage(message.conv_id, message);
+      const storedMessage: StoredMessage = { ...message };
+      await addMessage(message.conv_id, storedMessage);
 
-      // Notify app
-      const app = getApp();
-      if (app.onMessageReceived) {
+      const app = getApp<SaysAppInstance>();
+      if (typeof app.onMessageReceived === 'function') {
         app.onMessageReceived(message);
       }
 
       logger.info('Message handled successfully', {
         msg_id: message.msg_id,
-        conv_id: message.conv_id
+        conv_id: message.conv_id,
       });
     } catch (error) {
+      const err = normalizeError(error);
       logger.error('Handle message error', {
         msg_id: message.msg_id,
         conv_id: message.conv_id,
         message_type: message.message_type,
-        error: error.message || String(error)
+        error: err.message,
       });
     }
   }
 
-  /**
-   * Handle typing indicator
-   * @param {Object} typing - Typing object
-   */
-  handleTyping(typing) {
+  handleTyping(typing: AdapterTypingPayload): void {
     try {
       logger.debug('Typing indicator received', { typing });
 
-      // Notify app
-      const app = getApp();
-      if (app.onTypingReceived) {
-        app.onTypingReceived(typing);
+      const app = getApp<SaysAppInstance>();
+      if (typeof app.onTypingReceived === 'function') {
+        app.onTypingReceived({
+          conv_id: typing.conv_id,
+          from: typing.from,
+          to: '',
+          typing: typing.isTyping,
+          timestamp: Date.now(),
+        });
       }
     } catch (error) {
-      logger.error('Handle typing error', { error });
+      const err = normalizeError(error);
+      logger.error('Handle typing error', { error: err.message });
     }
   }
 
-  /**
-   * Handle error
-   * @param {Error} error - Error object
-   */
-  handleError(error) {
+  handleError(error: Error): void {
     logger.error('Message service error', { error });
 
-    // Notify app
-    const app = getApp();
-    if (app.onMessageError) {
+    const app = getApp<SaysAppInstance>();
+    if (typeof app.onMessageError === 'function') {
       app.onMessageError(error);
     }
   }
 
-  /**
-   * Disconnect
-   * @returns {Promise<void>}
-   */
-  async disconnect() {
+  async disconnect(): Promise<void> {
     try {
-      if (this.adapter) {
-        await this.adapter.disconnect();
-      }
-
-      this.queue = null;
+      await this.adapter.disconnect();
       this.initialized = false;
-
       logger.info('Message service disconnected');
     } catch (error) {
       logger.error('Disconnect message service failed', { error });
@@ -296,23 +267,14 @@ class MessageService {
     }
   }
 
-  /**
-   * Check if initialized
-   * @returns {boolean} True if initialized
-   */
-  isInitialized() {
+  isInitialized(): boolean {
     return this.initialized;
   }
 }
 
-// Singleton instance
-let messageServiceInstance = null;
+let messageServiceInstance: MessageService | null = null;
 
-/**
- * Initialize message service
- * @returns {Promise<MessageService>} Message service instance
- */
-export async function initMessageService() {
+export async function initMessageService(): Promise<MessageService> {
   if (messageServiceInstance) {
     logger.info('Message service already initialized');
     return messageServiceInstance;
@@ -320,21 +282,19 @@ export async function initMessageService() {
 
   logger.info('Initializing message service');
 
-  // Get user info from storage
   const userInfo = await getUserInfo();
 
   if (!userInfo || !userInfo.qiao_id) {
     const error = new Error('User info not found or invalid');
     logger.error('Cannot initialize message service', {
-      hasUserInfo: !!userInfo,
-      hasQiaoId: userInfo ? !!userInfo.qiao_id : false
+      hasUserInfo: Boolean(userInfo),
+      hasQiaoId: Boolean(userInfo?.qiao_id),
     });
     throw error;
   }
 
   logger.info('User info loaded', { qiao_id: userInfo.qiao_id });
 
-  // Create and initialize message service
   messageServiceInstance = new MessageService();
   await messageServiceInstance.initialize(userInfo.qiao_id);
 
@@ -343,13 +303,8 @@ export async function initMessageService() {
   return messageServiceInstance;
 }
 
-/**
- * Get message service instance
- * @returns {MessageService} Message service instance
- */
-export function getMessageService() {
+export function getMessageService(): MessageService | null {
   return messageServiceInstance;
 }
 
-// Export default instance for direct use
 export default messageServiceInstance;

@@ -5,8 +5,9 @@
 - **语言**: TypeScript 5.3+
 - **运行时**: 微信小程序 (ES2020)
 - **即时通讯**: Leancloud IM SDK
-- **代码检查**: ESLint + @typescript-eslint
-- **代码格式化**: Prettier
+- **代码检查**: ESLint + @typescript-eslint + eslint-plugin-wxml
+- **代码格式化**: Prettier (TS/JS/JSON/WXSS)
+- **WXML 检查**: eslint-plugin-wxml + @wxml/parser
 - **类型定义**: miniprogram-api-typings
 
 ## 参考资料
@@ -128,8 +129,13 @@ npm run check  # 必须通过
 
 检查内容:
 - TypeScript 类型检查 (`npm run type-check`)
-- ESLint 检查 (`npm run lint`)
-- 代码格式化 (`npm run format`)
+- ESLint 检查 - TS/JS/WXML (`npm run lint`)
+- 代码格式化 - TS/JS/JSON/WXSS (`npm run format`)
+
+**Pre-commit Hook 自动执行**:
+- TS/JS 文件: ESLint 检查 + Prettier 格式化
+- WXML 文件: ESLint 语法检查（使用 eslint-plugin-wxml）
+- JSON/WXSS 文件: Prettier 格式化
 
 详细说明: [docs/tech/CODE_QUALITY.md](../../docs/tech/CODE_QUALITY.md)
 
@@ -145,6 +151,8 @@ npm run check  # 必须通过
 - ❌ 多次调用 setData (必须批量更新)
 - ❌ 提交未格式化的代码
 - ❌ 提交有类型错误的代码
+- ❌ WXML 中 `wx:for` 不配 `wx:key`
+- ❌ WXML 标签未正确闭合
 
 ## Page 定义规范
 

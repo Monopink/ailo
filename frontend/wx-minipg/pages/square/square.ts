@@ -1,7 +1,10 @@
-import { get, post } from '../../utils/api';
+import { get } from '../../utils/api';
 import { requireAuth } from '../../utils/auth-guard';
 import { getAvatarUrl } from '../../utils/avatar';
-import logger from '../../utils/logger';
+import { getLogger } from '../../utils/logger';
+import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
+
+const logger = getLogger('Square');
 
 const CATEGORIES = [
   { key: null, label: '全部' },
@@ -9,13 +12,134 @@ const CATEGORIES = [
   { key: 2, label: '恋爱' },
   { key: 3, label: '倾诉' },
   { key: 4, label: '闺蜜' },
-  { key: 5, label: '同好' }
-];
+  { key: 5, label: '同好' },
+] as const;
 
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const STALE_PERIOD = 60 * 60 * 1000; // 1 hour
 
-Page({
+type AuthGuardPage = WechatMiniprogram.Page.Instance<
+  Record<string, unknown>,
+  Record<string, unknown>
+>;
+
+interface CategoryItem {
+  key: number | null;
+  label: string;
+}
+
+interface SquareContact {
+  id: string;
+  qiao_id: string;
+  nickname?: string;
+  gender?: number | null;
+  avatar_url?: string;
+  bio?: string;
+  region?: string;
+  category?: number | null;
+}
+
+interface SquareApiContact {
+  qiao_id: string;
+  nickname?: string;
+  gender?: number | null;
+  avatar_url?: string;
+  bio?: string;
+  region?: string;
+  category?: number | null;
+}
+
+interface SquareApiResponse {
+  items: SquareApiContact[];
+  pagination: {
+    has_more: boolean;
+  };
+}
+
+interface CacheEntry {
+  contacts: SquareContact[];
+  hasMore: boolean;
+  timestamp: number;
+}
+
+interface SquarePageData {
+  categories: readonly CategoryItem[];
+  currentCategory: number | null;
+  contacts: SquareContact[];
+  loading: boolean;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+}
+
+interface SquarePageCustom {
+  getCacheKey(): string;
+  loadContactsWithCache(): void;
+  revalidateCache(cacheKey: string): Promise<void>;
+  loadContacts(isRefresh?: boolean): Promise<void>;
+  processContacts(items: SquareApiContact[] | undefined): SquareContact[];
+  selectCategory(event: WechatMiniprogram.TouchEvent): void;
+  onPullDownRefresh(): void;
+  onReachBottom(): void;
+  handleContactTap(event: WechatMiniprogram.BaseEvent): void;
+  handleAddContact(event: WechatMiniprogram.BaseEvent): Promise<void>;
+}
+
+const normalizeError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+const showToast = (
+  title: string,
+  icon: WechatMiniprogram.ShowToastOption['icon'] = 'none'
+): void => {
+  void wx.showToast({ title, icon });
+};
+
+const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unknown => {
+  const dataset = event?.currentTarget?.dataset as Record<string, unknown> | undefined;
+  return dataset?.[key];
+};
+
+const toCategoryValue = (value: unknown): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    if (value === 'null' || value === '') {
+      return null;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+};
+
+const toStringValue = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return String(value);
+  }
+  return undefined;
+};
+
+Page<SquarePageData, SquarePageCustom>({
   data: {
     categories: CATEGORIES,
     currentCategory: null,
@@ -24,229 +148,238 @@ Page({
     page: 1,
     pageSize: 20,
     hasMore: true,
-    loadingMore: false
+    loadingMore: false,
   },
 
   async onLoad() {
-    const isAuth = await requireAuth(this);
-    if (!isAuth) return;
+    const isAuth = await requireAuth(this as unknown as AuthGuardPage);
+    if (!isAuth) {
+      return;
+    }
     this.loadContactsWithCache();
   },
 
-  // Cache key for current category
   getCacheKey() {
-    return `square_${this.data.currentCategory || 'all'}`;
+    const category = this.data.currentCategory;
+    return `square_${category ?? 'all'}`;
   },
 
-  // Load contacts with cache strategy
-  async loadContactsWithCache() {
+  loadContactsWithCache() {
     const cacheKey = this.getCacheKey();
-    const cache = wx.getStorageSync(cacheKey);
+    const cache = wx.getStorageSync<CacheEntry | null>(cacheKey);
     const now = Date.now();
 
-    if (cache && cache.timestamp) {
+    if (cache && typeof cache.timestamp === 'number') {
       const age = now - cache.timestamp;
 
-      // Fresh cache (< 10 min): use directly
       if (age < CACHE_TTL) {
         this.setData({ contacts: cache.contacts, hasMore: cache.hasMore });
         logger.info('Using fresh cache', { age: Math.floor(age / 1000) });
         return;
       }
 
-      // Stale cache (10 min - 1 hour): show cache, revalidate in background
       if (age < CACHE_TTL + STALE_PERIOD) {
         this.setData({ contacts: cache.contacts, hasMore: cache.hasMore });
         logger.info('Using stale cache, revalidating', { age: Math.floor(age / 1000) });
-        this.revalidateCache(cacheKey);
+        void this.revalidateCache(cacheKey);
         return;
       }
     }
 
-    // No cache or expired: must fetch
-    this.loadContacts(true);
+    void this.loadContacts(true);
   },
 
-  // Background revalidation (silent)
   async revalidateCache(cacheKey) {
     try {
-      const params = { page: 1, page_size: this.data.pageSize };
+      const params: Record<string, number> = { page: 1, page_size: this.data.pageSize };
       if (this.data.currentCategory !== null) {
         params.category = this.data.currentCategory;
       }
 
-      const result = await get('/discovery/square', params);
+      const result = await get<SquareApiResponse>('/discovery/square', params);
       const contacts = this.processContacts(result.items);
 
-      // Save to cache
-      wx.setStorageSync(cacheKey, {
+      const cacheEntry: CacheEntry = {
         contacts,
-        hasMore: result.pagination.has_more,
-        timestamp: Date.now()
-      });
+        hasMore: result.pagination?.has_more ?? false,
+        timestamp: Date.now(),
+      };
+      wx.setStorageSync(cacheKey, cacheEntry);
 
-      // Update UI silently
-      this.setData({ contacts, hasMore: result.pagination.has_more });
+      this.setData({ contacts, hasMore: result.pagination?.has_more ?? false });
       logger.info('Cache revalidated');
     } catch (error) {
-      // Silent failure - keep using stale cache
-      logger.warn('Revalidation failed, keeping stale cache', { error: error.message });
+      const err = normalizeError(error);
+      logger.warn('Revalidation failed, keeping stale cache', { error: err.message });
     }
   },
 
-  // Load contacts from API
   async loadContacts(isRefresh = false) {
-    if (this.data.loading) return;
+    if (this.data.loading) {
+      return;
+    }
 
     this.setData({ loading: true });
 
     try {
-      const params = {
+      const params: Record<string, number> = {
         page: isRefresh ? 1 : this.data.page,
-        page_size: this.data.pageSize
+        page_size: this.data.pageSize,
       };
 
       if (this.data.currentCategory !== null) {
         params.category = this.data.currentCategory;
       }
 
-      const result = await get('/discovery/square', params);
+      const result = await get<SquareApiResponse>('/discovery/square', params);
       const contacts = this.processContacts(result.items);
+      const hasMore = result.pagination?.has_more ?? false;
 
       this.setData({
         contacts: isRefresh ? contacts : [...this.data.contacts, ...contacts],
         page: isRefresh ? 2 : this.data.page + 1,
-        hasMore: result.pagination.has_more,
-        loading: false
+        hasMore,
+        loading: false,
       });
 
-      // Save first page to cache
       if (isRefresh) {
-        wx.setStorageSync(this.getCacheKey(), {
+        const cacheEntry: CacheEntry = {
           contacts,
-          hasMore: result.pagination.has_more,
-          timestamp: Date.now()
-        });
+          hasMore,
+          timestamp: Date.now(),
+        };
+        wx.setStorageSync(this.getCacheKey(), cacheEntry);
       }
 
       logger.info('Contacts loaded', {
         category: this.data.currentCategory,
-        count: contacts.length
+        count: contacts.length,
       });
-
     } catch (error) {
+      const err = normalizeError(error);
       this.setData({ loading: false });
 
-      // Check if we have stale cache to fall back to
-      const cache = wx.getStorageSync(this.getCacheKey());
-      if (cache && cache.timestamp) {
+      const cache = wx.getStorageSync<CacheEntry | null>(this.getCacheKey());
+      if (cache && typeof cache.timestamp === 'number') {
         const age = Date.now() - cache.timestamp;
-
-        // Within stale period: keep cache, no error
         if (age < CACHE_TTL + STALE_PERIOD) {
           logger.warn('Load failed, using stale cache', { age: Math.floor(age / 1000) });
           return;
         }
       }
 
-      // No valid cache: show error and clear
       wx.removeStorageSync(this.getCacheKey());
-      const errorMsg = error.message || '加载失败';
-      if (!errorMsg.includes('频繁')) {
-        wx.showToast({ title: errorMsg, icon: 'none' });
+      if (!err.message.includes('频繁')) {
+        showToast(err.message || '加载失败');
       }
-      logger.error('Load failed', { error: errorMsg });
+      logger.error('Load failed', { error: err.message });
     }
   },
 
-  // Process contacts data
   processContacts(items) {
-    return (items || []).map(contact => ({
+    return (items ?? []).map((contact) => ({
       id: contact.qiao_id,
       qiao_id: contact.qiao_id,
       nickname: contact.nickname,
-      gender: contact.gender,
-      avatar_url: getAvatarUrl(contact.avatar_url),
+      gender: contact.gender ?? null,
+      avatar_url: getAvatarUrl(contact.avatar_url ?? ''),
       bio: contact.bio,
       region: contact.region,
-      category: contact.category
+      category: contact.category ?? null,
     }));
   },
 
-  // Switch category
-  selectCategory(e) {
-    const category = e.currentTarget.dataset.category;
-    const categoryValue = category === 'null' ? null : parseInt(category);
-
-    if (categoryValue === this.data.currentCategory) return;
+  selectCategory(event) {
+    const category = toCategoryValue(getDatasetValue(event, 'category'));
+    if (category === this.data.currentCategory) {
+      return;
+    }
 
     this.setData({
-      currentCategory: categoryValue,
+      currentCategory: category,
       contacts: [],
       page: 1,
-      hasMore: true
+      hasMore: true,
     });
 
     this.loadContactsWithCache();
   },
 
-  // Pull down refresh
   onPullDownRefresh() {
     this.setData({
       contacts: [],
       page: 1,
-      hasMore: true
+      hasMore: true,
     });
 
-    this.loadContacts(true);
-    wx.stopPullDownRefresh();
+    void this.loadContacts(true);
+    void wx.stopPullDownRefresh();
   },
 
-  // Reach bottom - load more
   onReachBottom() {
-    if (!this.data.hasMore || this.data.loading || this.data.loadingMore) return;
+    if (!this.data.hasMore || this.data.loading || this.data.loadingMore) {
+      return;
+    }
 
     this.setData({ loadingMore: true });
-    this.loadContacts().finally(() => {
+    void this.loadContacts().finally(() => {
       this.setData({ loadingMore: false });
     });
   },
 
-  // Navigate to contact detail
-  handleContactTap(e) {
-    const qiaoId = e.currentTarget.dataset.id;
-    wx.navigateTo({
-      url: `/pages/stranger-info/stranger-info?id=${qiaoId}`
+  handleContactTap(event) {
+    const qiaoId = toStringValue(getDatasetValue(event, 'id'));
+    if (!qiaoId) {
+      return;
+    }
+
+    void wx.navigateTo({
+      url: `/pages/stranger-info/stranger-info?id=${qiaoId}`,
     });
   },
 
-  // Add contact
-  async handleAddContact(e) {
-    const qiaoId = e.currentTarget.dataset.id;
+  async handleAddContact(event) {
+    const qiaoId = toStringValue(getDatasetValue(event, 'id'));
+    if (!qiaoId) {
+      return;
+    }
 
-    wx.showLoading({ title: '发送中...', mask: true });
+    const originalContacts = this.data.contacts ?? [];
+    const message = await promptContactRequestMessage();
+    if (message === null) {
+      return;
+    }
+
+    void wx.showLoading({ title: '发送中...', mask: true });
 
     try {
-      await post('/contact-requests', {
-        to_qiao_id: qiaoId,
-        message: '你好，我想添加你为联系人'
+      await sendContactRequest({ qiaoId, message });
+
+      void wx.hideLoading();
+      showToast('请求已发送', 'success');
+
+      const updatedContacts = originalContacts.filter((contact) => contact.qiao_id !== qiaoId);
+      this.setData({
+        contacts: updatedContacts,
+        page: 1,
+        hasMore: true,
       });
 
-      wx.hideLoading();
-      wx.showToast({ title: '请求已发送', icon: 'success' });
+      const cacheKey = this.getCacheKey();
+      wx.removeStorageSync(cacheKey);
+
+      void this.loadContacts(true).catch((error) => {
+        const err = normalizeError(error);
+        logger.warn('Square page refresh failed after add contact', { error: err.message });
+      });
 
       logger.info('Contact request sent', { to_qiao_id: qiaoId });
     } catch (error) {
-      wx.hideLoading();
-      wx.showToast({
-        title: error.message || '发送失败',
-        icon: 'none'
-      });
-
-      logger.error('Failed to send contact request', {
-        to_qiao_id: qiaoId,
-        error: error.message || String(error)
-      });
+      const err = normalizeError(error);
+      void wx.hideLoading();
+      showToast(err.message || '发送失败');
+      logger.error('Failed to send contact request', { to_qiao_id: qiaoId, error: err.message });
+      this.setData({ contacts: originalContacts });
     }
-  }
+  },
 });

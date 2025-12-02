@@ -3,8 +3,13 @@
  * Centralized configuration for the miniprogram
  */
 
-// API Configuration
-export const API_CONFIG = {
+export interface ApiConfig {
+  baseUrl: string;
+  timeout: number;
+  version: string;
+}
+
+export const API_CONFIG: ApiConfig = {
   // Base URL for API requests
   baseUrl: 'http://localhost:8000',
 
@@ -12,11 +17,16 @@ export const API_CONFIG = {
   timeout: 10000,
 
   // API version
-  version: 'v1'
+  version: 'v1',
 };
 
-// LeanCloud Configuration
-export const LEANCLOUD_CONFIG = {
+export interface LeanCloudConfig {
+  appId: string;
+  appKey: string;
+  serverUrl?: string;
+}
+
+export const LEANCLOUD_CONFIG: LeanCloudConfig = {
   // LeanCloud App ID
   appId: 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz',
 
@@ -24,11 +34,20 @@ export const LEANCLOUD_CONFIG = {
   appKey: 'v8GM18oGSxzQTKpgQvdIfy2I',
 
   // LeanCloud Server URL (optional)
-  serverUrl: 'https://zcuk19lc.lc-cn-n1-shared.com'
+  serverUrl: 'https://zcuk19lc.lc-cn-n1-shared.com',
 };
 
-// Message Configuration
-export const MESSAGE_CONFIG = {
+export interface MessageConfig {
+  maxLength: number;
+  rateLimit: number;
+  rateLimitWindow: number;
+  typingDebounce: number;
+  typingTimeout: number;
+  maxRetryCount: number;
+  retryDelay: number;
+}
+
+export const MESSAGE_CONFIG: MessageConfig = {
   // Maximum message length
   maxLength: 49,
 
@@ -48,10 +67,9 @@ export const MESSAGE_CONFIG = {
   maxRetryCount: 3,
 
   // Message retry delay (ms)
-  retryDelay: 2000
+  retryDelay: 2000,
 };
 
-// Storage Keys
 export const STORAGE_KEYS = {
   // Auth token
   AUTH_TOKEN: 'auth_token',
@@ -67,11 +85,17 @@ export const STORAGE_KEYS = {
 
   // Local settings
   SETTINGS: 'local_settings',
+} as const;
 
-};
+export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 
-// App Configuration
-export const APP_CONFIG = {
+export interface AppConfig {
+  brandName: string;
+  maxNicknameLength: number;
+  maxBioLength: number;
+}
+
+export const APP_CONFIG: AppConfig = {
   // Brand name
   brandName: '敲敲',
 
@@ -79,11 +103,31 @@ export const APP_CONFIG = {
   maxNicknameLength: 10,
 
   // Max bio length
-  maxBioLength: 70
+  maxBioLength: 70,
 };
 
-// UI Configuration
-export const UI_CONFIG = {
+export interface AvatarSize {
+  small: number;
+  medium: number;
+  large: number;
+  xlarge: number;
+}
+
+export interface InputMaxLength {
+  nickname: number;
+  bio: number;
+  message: number;
+  verifyMessage: number;
+}
+
+export interface UiConfig {
+  primaryColor: string;
+  accentColor: string;
+  avatarSize: AvatarSize;
+  inputMaxLength: InputMaxLength;
+}
+
+export const UI_CONFIG: UiConfig = {
   // Primary color
   primaryColor: '#42db5a',
 
@@ -95,7 +139,7 @@ export const UI_CONFIG = {
     small: 32,
     medium: 48,
     large: 64,
-    xlarge: 80
+    xlarge: 80,
   },
 
   // Input max length
@@ -103,12 +147,21 @@ export const UI_CONFIG = {
     nickname: 10,
     bio: 70,
     message: 49,
-    verifyMessage: 100
-  }
+    verifyMessage: 100,
+  },
 };
 
-// Validation Rules
-export const VALIDATION_RULES = {
+export interface ValidationRules {
+  phone: RegExp;
+  smsCode: RegExp;
+  nicknameMinLength: number;
+  nicknameMaxLength: number;
+  bioMaxLength: number;
+  messageMaxLength: number;
+  verifyMessageMaxLength: number;
+}
+
+export const VALIDATION_RULES: ValidationRules = {
   // Phone number regex
   phone: /^1[3-9]\d{9}$/,
 
@@ -126,7 +179,7 @@ export const VALIDATION_RULES = {
   messageMaxLength: 49,
 
   // Verify message length
-  verifyMessageMaxLength: 100
+  verifyMessageMaxLength: 100,
 };
 
 // Captcha (Human Verification)
@@ -136,15 +189,17 @@ export const CAPTCHA_REGION = 'cn';
 // TODO: Replace with your Aliyun Captcha SceneId
 export const CAPTCHA_SCENE_ID = '1qtkm8nb';
 
-export default {
+const config = {
   APP_CONFIG,
   API_CONFIG,
   LEANCLOUD_CONFIG,
   MESSAGE_CONFIG,
   STORAGE_KEYS,
   UI_CONFIG,
-  VALIDATION_RULES
-  , CAPTCHA_PROVIDER
-  , CAPTCHA_REGION
-  , CAPTCHA_SCENE_ID
+  VALIDATION_RULES,
+  CAPTCHA_PROVIDER,
+  CAPTCHA_REGION,
+  CAPTCHA_SCENE_ID,
 };
+
+export default config;

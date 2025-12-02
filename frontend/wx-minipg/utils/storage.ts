@@ -7,45 +7,207 @@
 
 import { STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
+import { MESSAGE_TYPE } from './message/constants';
 
 const logger = getLogger('Storage');
 
-/**
- * Get current user's qiao_id from storage
- * @returns {Promise<string|null>} User qiao_id or null
- */
-async function getCurrentQiaoId() {
+type JsonRecord = Record<string, unknown>;
+
+interface WxError {
+  errMsg?: string;
+}
+
+const isWxError = (error: unknown): error is WxError =>
+  typeof error === 'object' && error !== null && 'errMsg' in error;
+
+const wxSetStorage = async <T>(key: string, data: T): Promise<void> =>
+  await new Promise((resolve, reject) => {
+    void wx.setStorage({
+      key,
+      data,
+      success: () => resolve(),
+      fail: reject,
+    });
+  });
+
+const wxGetStorage = async <T>(key: string): Promise<T | undefined> =>
+  await new Promise((resolve, reject) => {
+    void wx.getStorage<T>({
+      key,
+      success: (res: WechatMiniprogram.GetStorageSuccessCallbackResult<T>) => resolve(res.data),
+      fail: (error) => {
+        if (
+          isWxError(error) &&
+          typeof error.errMsg === 'string' &&
+          error.errMsg.includes('data not found')
+        ) {
+          resolve(undefined);
+          return;
+        }
+        reject(error);
+      },
+    });
+  });
+
+const wxRemoveStorage = async (key: string): Promise<void> =>
+  await new Promise((resolve, reject) => {
+    void wx.removeStorage({
+      key,
+      success: () => resolve(),
+      fail: reject,
+    });
+  });
+
+const wxClearStorage = async (): Promise<void> =>
+  await new Promise((resolve, reject) => {
+    void wx.clearStorage({
+      success: () => resolve(),
+      fail: reject,
+    });
+  });
+
+const wxGetStorageInfo = async (): Promise<WechatMiniprogram.GetStorageInfoSuccessCallbackOption> =>
+  await new Promise((resolve, reject) => {
+    void wx.getStorageInfo({
+      success: resolve,
+      fail: reject,
+    });
+  });
+
+export interface StoredContact extends JsonRecord {
+  conv_id?: string;
+  qiao_id?: string;
+  contact_qiao_id?: string;
+  nickname?: string;
+  alias?: string;
+  avatar_url?: string;
+  custom_avatar_url?: string;
+  contact_profile?: JsonRecord;
+  profile?: JsonRecord;
+  tags?: string[];
+  gender?: number | null;
+  contact_qiaoid?: string;
+}
+
+export type StoredContacts = StoredContact[];
+
+export interface StoredMessage extends JsonRecord {
+  msg_id: string;
+  conv_id: string;
+  from?: string;
+  to?: string;
+  content?: string;
+  message_type?: number;
+  supports_typing?: boolean;
+  sent_time?: number;
+  status?: number;
+  action?: string | null;
+  notification_type?: string | null;
+  data?: JsonRecord | null;
+  id?: string;
+  text?: string;
+  created_at?: number;
+  timestamp?: number;
+}
+
+export type StoredMessages = StoredMessage[];
+
+export interface LatestRenderableMessage {
+  content: string;
+  sent_time: number | string | null;
+}
+
+export interface LocalSettings {
+  notification: boolean;
+  sound: boolean;
+  vibrate: boolean;
+  [key: string]: unknown;
+}
+
+export interface StoredAuthUser extends JsonRecord {
+  qiao_id: string;
+  nickname?: string;
+  avatar?: string;
+}
+
+function normalizeContact(contact: unknown): StoredContact {
+  if (!contact || typeof contact !== 'object') {
+    return {} as StoredContact;
+  }
+
+  const record = contact as JsonRecord;
+  const profile = (record.profile as JsonRecord) || (record.contact_profile as JsonRecord) || {};
+  const normalized: StoredContact = { ...record } as StoredContact;
+
+  normalized.profile = profile;
+  normalized.contact_profile = profile;
+
+  if (!Array.isArray(normalized.tags)) {
+    const maybeTags = (normalized.tags as unknown as { tags?: unknown })?.tags;
+    normalized.tags = Array.isArray(maybeTags) ? (maybeTags as string[]) : [];
+  }
+
+  const profileNickname = typeof profile.nickname === 'string' ? profile.nickname : '';
+  const alias = typeof normalized.alias === 'string' ? normalized.alias : '';
+  const contactId =
+    typeof normalized.contact_qiao_id === 'string' ? normalized.contact_qiao_id : '';
+  const nickname = typeof normalized.nickname === 'string' ? normalized.nickname : '';
+  normalized.nickname = nickname || profileNickname || alias || contactId || '';
+
+  const resolvedAvatar =
+    (typeof normalized.custom_avatar_url === 'string' ? normalized.custom_avatar_url : '') ||
+    (typeof normalized.avatar_url === 'string' ? normalized.avatar_url : '') ||
+    (profile.avatar_url as string) ||
+    '';
+  normalized.avatar_url = resolvedAvatar;
+
+  if (normalized.gender === undefined || normalized.gender === null) {
+    normalized.gender = typeof profile.gender === 'number' ? profile.gender : null;
+  }
+
+  return normalized;
+}
+
+export function extractContactsFromPayload(payload: unknown): StoredContacts {
+  if (!payload) {
+    return [];
+  }
+  if (Array.isArray(payload)) {
+    return payload as StoredContacts;
+  }
+  if (payload && typeof payload === 'object') {
+    if (Array.isArray((payload as JsonRecord).items)) {
+      return (payload as { items: StoredContacts }).items;
+    }
+    if (Array.isArray((payload as JsonRecord).contacts)) {
+      return (payload as { contacts: StoredContacts }).contacts;
+    }
+  }
+  return [];
+}
+
+export function normalizeContactsPayload(payload: unknown): StoredContacts {
+  const contacts = extractContactsFromPayload(payload);
+  return contacts.map(normalizeContact);
+}
+
+async function getCurrentQiaoId(): Promise<string | null> {
   try {
-    const userInfo = await getStorage(STORAGE_KEYS.USER_INFO, null);
-    return userInfo?.qiao_id || null;
+    const userInfo = await getStorage<StoredAuthUser | null>(STORAGE_KEYS.USER_INFO, null);
+    return userInfo?.qiao_id ?? null;
   } catch (error) {
     logger.error('Get current qiao_id failed', { error });
     return null;
   }
 }
 
-/**
- * Build storage key with qiao_id prefix
- * @param {string} baseKey - Base storage key
- * @param {string} qiaoId - User qiao_id
- * @returns {string} Storage key with qiao_id prefix
- */
-function buildUserKey(baseKey, qiaoId) {
+function buildUserKey(baseKey: string, qiaoId: string): string {
   return `${qiaoId}_${baseKey}`;
 }
 
-/**
- * Set storage data
- * @param {string} key - Storage key
- * @param {any} data - Data to store
- * @returns {Promise<void>}
- */
-export async function setStorage(key, data) {
+export async function setStorage<T>(key: string, data: T): Promise<void> {
   try {
-    await wx.setStorage({
-      key,
-      data
-    });
+    await wxSetStorage(key, data);
     logger.debug('Storage set', { key });
   } catch (error) {
     logger.error('Set storage failed', { key, error });
@@ -53,35 +215,24 @@ export async function setStorage(key, data) {
   }
 }
 
-/**
- * Get storage data
- * @param {string} key - Storage key
- * @param {any} defaultValue - Default value if key not found
- * @returns {Promise<any>} Stored data or default value
- */
-export async function getStorage(key, defaultValue = null) {
+export async function getStorage<T>(key: string, defaultValue: T): Promise<T> {
   try {
-    const res = await wx.getStorage({ key });
+    const result = await wxGetStorage<T>(key);
     logger.debug('Storage get', { key });
-    return res.data;
-  } catch (error) {
-    if (error.errMsg && error.errMsg.includes('data not found')) {
+    if (typeof result === 'undefined') {
       logger.debug('Storage key not found', { key });
       return defaultValue;
     }
+    return result;
+  } catch (error) {
     logger.error('Get storage failed', { key, error });
     throw error;
   }
 }
 
-/**
- * Remove storage data
- * @param {string} key - Storage key
- * @returns {Promise<void>}
- */
-export async function removeStorage(key) {
+export async function removeStorage(key: string): Promise<void> {
   try {
-    await wx.removeStorage({ key });
+    await wxRemoveStorage(key);
     logger.debug('Storage removed', { key });
   } catch (error) {
     logger.error('Remove storage failed', { key, error });
@@ -89,13 +240,9 @@ export async function removeStorage(key) {
   }
 }
 
-/**
- * Clear all storage
- * @returns {Promise<void>}
- */
-export async function clearStorage() {
+export async function clearStorage(): Promise<void> {
   try {
-    await wx.clearStorage();
+    await wxClearStorage();
     logger.info('Storage cleared');
   } catch (error) {
     logger.error('Clear storage failed', { error });
@@ -103,13 +250,9 @@ export async function clearStorage() {
   }
 }
 
-/**
- * Get storage info
- * @returns {Promise<Object>} Storage info
- */
-export async function getStorageInfo() {
+export async function getStorageInfo(): Promise<WechatMiniprogram.GetStorageInfoSuccessCallbackOption> {
   try {
-    const info = await wx.getStorageInfo();
+    const info = await wxGetStorageInfo();
     logger.debug('Storage info', { info });
     return info;
   } catch (error) {
@@ -118,13 +261,7 @@ export async function getStorageInfo() {
   }
 }
 
-/**
- * Save messages for a conversation
- * @param {string} convId - Conversation ID
- * @param {Array} messages - Messages array
- * @returns {Promise<void>}
- */
-export async function saveMessages(convId, messages) {
+export async function saveMessages(convId: string, messages: StoredMessages): Promise<void> {
   const qiaoId = await getCurrentQiaoId();
   if (!qiaoId) {
     throw new Error('User not logged in');
@@ -134,54 +271,69 @@ export async function saveMessages(convId, messages) {
   await setStorage(key, messages);
 }
 
-/**
- * Get messages for a conversation
- * @param {string} convId - Conversation ID
- * @returns {Promise<Array>} Messages array
- */
-export async function getMessages(convId) {
+export async function getMessages(convId: string): Promise<StoredMessages> {
   const qiaoId = await getCurrentQiaoId();
   if (!qiaoId) {
     return [];
   }
 
   const key = buildUserKey(`${STORAGE_KEYS.MESSAGES}${convId}`, qiaoId);
-  return await getStorage(key, []);
+  return await getStorage(key, [] as StoredMessages);
 }
 
-/**
- * Add or update message in conversation
- * @param {string} convId - Conversation ID
- * @param {Object} message - Message object
- * @returns {Promise<void>}
- */
-export async function addMessage(convId, message) {
+export async function getLatestRenderableMessage(
+  convId: string
+): Promise<LatestRenderableMessage | null> {
   const messages = await getMessages(convId);
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (!message) {
+      continue;
+    }
 
-  // Check if message already exists
-  const existingIndex = messages.findIndex(m => m.msg_id === message.msg_id);
+    const type =
+      typeof message.message_type === 'number' ? message.message_type : MESSAGE_TYPE.TEXT;
+    if (
+      type === MESSAGE_TYPE.CHAT_INFO ||
+      type === MESSAGE_TYPE.TYPING_START ||
+      type === MESSAGE_TYPE.TYPING_END ||
+      type === MESSAGE_TYPE.NOTIFICATION
+    ) {
+      continue;
+    }
+
+    const content =
+      (typeof message.content === 'string' && message.content) ||
+      (typeof message.text === 'string' ? message.text : '') ||
+      '';
+    return {
+      content,
+      sent_time: message.sent_time ?? message.created_at ?? message.timestamp ?? null,
+    };
+  }
+  return null;
+}
+
+export async function addMessage(convId: string, message: StoredMessage): Promise<void> {
+  const messages = await getMessages(convId);
+  const existingIndex = messages.findIndex((m) => m.msg_id === message.msg_id);
 
   if (existingIndex !== -1) {
-    // Update existing message
     messages[existingIndex] = message;
   } else {
-    // Add new message
     messages.push(message);
   }
 
   await saveMessages(convId, messages);
 }
 
-/**
- * Update message in conversation
- * @param {string} convId - Conversation ID
- * @param {string} messageId - Message ID
- * @param {Object} updates - Message updates
- * @returns {Promise<void>}
- */
-export async function updateMessage(convId, messageId, updates) {
+export async function updateMessage(
+  convId: string,
+  messageId: string,
+  updates: Partial<StoredMessage>
+): Promise<void> {
   const messages = await getMessages(convId);
-  const index = messages.findIndex(m => m.id === messageId);
+  const index = messages.findIndex((m) => m.id === messageId);
 
   if (index !== -1) {
     messages[index] = { ...messages[index], ...updates };
@@ -189,12 +341,7 @@ export async function updateMessage(convId, messageId, updates) {
   }
 }
 
-/**
- * Clear messages for a conversation
- * @param {string} convId - Conversation ID
- * @returns {Promise<void>}
- */
-export async function clearMessages(convId) {
+export async function clearMessages(convId: string): Promise<void> {
   const qiaoId = await getCurrentQiaoId();
   if (!qiaoId) {
     return;
@@ -204,19 +351,15 @@ export async function clearMessages(convId) {
   await removeStorage(key);
 }
 
-/**
- * Save contacts list
- * @param {Array} contacts - Contacts array
- * @returns {Promise<void>}
- */
-export async function saveContacts(contacts) {
+export async function saveContacts(contacts: unknown): Promise<StoredContacts> {
   const qiaoId = await getCurrentQiaoId();
   if (!qiaoId) {
     throw new Error('User not logged in');
   }
 
+  const normalized = normalizeContactsPayload(contacts);
   const key = buildUserKey(STORAGE_KEYS.CONTACTS, qiaoId);
-  await setStorage(key, contacts);
+  await setStorage(key, normalized);
 
   const legacyKey = buildUserKey('contacts', qiaoId);
   if (legacyKey !== key) {
@@ -226,26 +369,24 @@ export async function saveContacts(contacts) {
       logger.debug('Legacy contacts key cleanup skipped', { legacyKey, error });
     }
   }
+
+  return normalized;
 }
 
-/**
- * Get contacts list
- * @returns {Promise<Array>} Contacts array
- */
-export async function getContacts() {
+export async function getContacts(): Promise<StoredContacts> {
   const qiaoId = await getCurrentQiaoId();
   if (!qiaoId) {
     return [];
   }
 
   const key = buildUserKey(STORAGE_KEYS.CONTACTS, qiaoId);
-  const contacts = await getStorage(key, null);
+  const contacts = await getStorage<StoredContacts | null>(key, null);
   if (contacts !== null) {
     return contacts;
   }
 
   const legacyKey = buildUserKey('contacts', qiaoId);
-  const legacyContacts = await getStorage(legacyKey, null);
+  const legacyContacts = await getStorage<StoredContacts | null>(legacyKey, null);
   if (legacyContacts !== null) {
     await setStorage(key, legacyContacts);
     try {
@@ -259,51 +400,28 @@ export async function getContacts() {
   return [];
 }
 
-/**
- * Get contact by conv_id
- * @param {string} convId - Conversation ID
- * @returns {Promise<Object|null>} Contact object or null
- */
-export async function getContactByConvId(convId) {
+export async function getContactByConvId(convId: string): Promise<StoredContact | null> {
   const contacts = await getContacts();
-  return contacts.find(c => c.conv_id === convId) || null;
+  return contacts.find((c) => c.conv_id === convId) || null;
 }
 
-/**
- * Save user info
- * @param {Object} userInfo - User info object
- * @returns {Promise<void>}
- */
-export async function saveUserInfo(userInfo) {
-  await setStorage(STORAGE_KEYS.USER_INFO, userInfo);
+export async function saveUserInfo(userInfo: StoredAuthUser | null): Promise<void> {
+  await setStorage<StoredAuthUser | null>(STORAGE_KEYS.USER_INFO, userInfo);
 }
 
-/**
- * Get user info
- * @returns {Promise<Object>} User info object
- */
-export async function getUserInfo() {
-  return await getStorage(STORAGE_KEYS.USER_INFO, null);
+export async function getUserInfo(): Promise<StoredAuthUser | null> {
+  return await getStorage<StoredAuthUser | null>(STORAGE_KEYS.USER_INFO, null);
 }
 
-/**
- * Save local settings
- * @param {Object} settings - Settings object
- * @returns {Promise<void>}
- */
-export async function saveSettings(settings) {
-  await setStorage(STORAGE_KEYS.SETTINGS, settings);
+export async function saveSettings(settings: LocalSettings): Promise<void> {
+  await setStorage<LocalSettings>(STORAGE_KEYS.SETTINGS, settings);
 }
 
-/**
- * Get local settings
- * @returns {Promise<Object>} Settings object
- */
-export async function getSettings() {
-  return await getStorage(STORAGE_KEYS.SETTINGS, {
+export async function getSettings(): Promise<LocalSettings> {
+  return await getStorage<LocalSettings>(STORAGE_KEYS.SETTINGS, {
     notification: true,
     sound: true,
-    vibrate: true
+    vibrate: true,
   });
 }
 
@@ -319,9 +437,12 @@ export default {
   updateMessage,
   clearMessages,
   saveContacts,
+  extractContactsFromPayload,
+  normalizeContactsPayload,
   getContacts,
+  getLatestRenderableMessage,
   saveUserInfo,
   getUserInfo,
   saveSettings,
-  getSettings
+  getSettings,
 };

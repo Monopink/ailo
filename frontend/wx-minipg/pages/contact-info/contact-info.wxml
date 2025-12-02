@@ -20,7 +20,7 @@
             <text class="nickname">{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
             <text wx:if="{{contact.gender}}" class="gender">{{contact.gender === 'male' ? '♂' : contact.gender === 'female' ? '♀' : ''}}</text>
           </view>
-          <text class="qiao-id">敲敲ID: {{contact.contact_qiao_id}}</text>
+          <text class="qiao-id">敲敲号: {{contact.contact_qiao_id}}</text>
         </view>
       </view>
 
@@ -65,4 +65,3 @@
     </view>
   </view>
 </view>
-

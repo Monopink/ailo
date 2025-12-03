@@ -1,12 +1,12 @@
 # Leancloud 接口
 
-LeanCloud 专用的 IM 接口统一放在 `lc-im` 命名空间下，涵盖系统配置、客户端鉴权签名以及 LeanCloud 回调。所有接口都要求调用方隐藏第三方实现细节，只暴露业务含义。
+LeanCloud 专用的客户端 IM 接口统一放在 `lc-im` 命名空间下，涵盖系统配置、客户端鉴权签名等，所有客户端接口都要求调用方隐藏第三方实现细节，只暴露业务含义。LeanCloud服务端回调使用 `leancloud`命名空间。
 
 ## 接口列表
 
 - [获取消息服务配置](#获取消息服务配置) - `GET /api/v1/lc-im/config`
 - [获取 LeanCloud 客户端签名](#获取-leancloud-客户端签名) - `POST /api/v1/lc-im/signature`
-- [LeanCloud 消息 Webhook](#leancloud-消息-webhook) - `POST /api/v1/lc-im/webhook/{webhook_token}`
+- [LeanCloud 消息 Webhook](#leancloud-消息-webhook) - `POST /api/v1/leancloud/webhook/{webhook_token}`
 
 ---
 
@@ -99,7 +99,7 @@ LeanCloud 专用的 IM 接口统一放在 `lc-im` 命名空间下，涵盖系统
 
 ### 基本信息
 
-- **路径**: `POST /api/v1/lc-im/webhook/{webhook_token}`
+- **路径**: `POST /api/v1/leancloud/webhook/{webhook_token}`
 - **认证**:
   - 路径参数 `webhook_token`（服务端生成）
   - LeanCloud 头部 `X-LC-Id`
@@ -166,7 +166,7 @@ Webhook 解析后得到的业务字段与 `docs/development/message-flow.md` 定
 
 ### 安全基线
 
-- 统一使用 `POST /api/v1/lc-im/webhook/{webhook_token}`，路径令牌由后端生成
+- 统一使用 `POST /api/v1/leancloud/webhook/{webhook_token}`，路径令牌由后端生成
 - 必须校验 LeanCloud 头部 `X-LC-Id` 与 `X-LC-Signature`
 - 限制 `timestamp` 漂移（±10 分钟），防止重放
 - 校验 `conv.objectId` 与系统配置中的 `im_conv_id` 一致
@@ -178,5 +178,3 @@ Webhook 解析后得到的业务字段与 `docs/development/message-flow.md` 定
 - Webhook 只负责将 LeanCloud payload 解析为内部 `InboundMessageEvent`，具体业务逻辑见 `docs/development/message-flow.md`
 - `provider_metadata` 字段会存储 `msgId`、`lc_conv_id`、`raw_webhook` 等原始信息，便于排查
 - 如果解密失败或对话不存在，服务端会记录日志并返回 200（LeanCloud 按成功处理），同时向监控告警
-
-

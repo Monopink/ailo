@@ -8,6 +8,7 @@
 - [屏蔽联系人](#屏蔽联系人) - `POST /api/v1/contacts/{conv_id}/block`
 - [取消屏蔽联系人](#取消屏蔽联系人) - `POST /api/v1/contacts/{conv_id}/unblock`
 - [删除联系人](#删除联系人) - `DELETE /api/v1/contacts/{conv_id}`
+- [获取对话信息](#获取对话信息) - `GET /api/v1/contacts/{conv_id}/conversation`
 
 ---
 
@@ -331,3 +332,56 @@
 - 删除联系人关系
 - 不删除聊天记录（客户端本地管理）
 - 如果再次添加该联系人，会恢复联系人关系
+
+---
+
+## 获取对话信息
+
+### 基本信息
+
+- **路径**: `GET /api/v1/contacts/{conv_id}/conversation`
+- **认证**: Bearer Token（必需）
+
+### 路径参数
+
+- `conv_id` (string, 必填) - 对话ID
+
+### 成功响应 (200)
+
+```json
+{
+  "conv_id": "conv_xyz789",
+  "im_conv_id": "system_conversation_id",
+  "contact_qiao_id": "qiao_xm001",
+  "contact_info": {
+    "nickname": "小萌",
+    "avatar_url": "assets://8923",
+    "gender": 2
+  }
+}
+```
+
+**字段说明**:
+
+- `conv_id` (string) - 对话ID
+- `im_conv_id` (string) - IM系统对话ID，用于初始化消息客户端连接
+- `contact_qiao_id` (string) - 联系人的qiao_id
+- `contact_info` (object) - 联系人信息
+  - `nickname` (string) - 昵称
+  - `avatar_url` (string) - 头像URL
+  - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
+
+### 错误响应
+
+**400 Bad Request**:
+
+- `"操作异常"` - 对话不存在或无权访问
+
+**500 Internal Server Error**:
+
+- `"系统错误"` - 服务器内部错误
+
+### 业务说明
+
+- 此接口用于对话页面初始化，提供 `im_conv_id` 用于连接消息服务
+- `im_conv_id` 来自系统注册表，前端需要使用系统接口保持同步

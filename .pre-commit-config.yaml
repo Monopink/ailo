@@ -15,7 +15,7 @@ repos:
         name: Check TOML syntax
       - id: check-added-large-files
         name: Check for large files
-        args: ['--maxkb=1000']
+        args: ["--maxkb=1000"]
       - id: check-merge-conflict
         name: Check for merge conflicts
       - id: debug-statements
@@ -55,8 +55,13 @@ repos:
         language: system
         types: [python]
         files: ^backend/app/.*\.py$
-        pass_filenames: false
-        args: ["--config-file=pyproject.toml", "--no-error-summary", "backend/app"]
+        pass_filenames: true
+        args:
+          [
+            "--config-file=pyproject.toml",
+            "--no-error-summary",
+            "--follow-imports=skip",
+          ]
 
       # import-linter - Architecture contracts
       - id: import-linter

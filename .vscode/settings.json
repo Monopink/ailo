@@ -1,9 +1,15 @@
 {
+    // ============================================
+    // Python Configuration
+    // ============================================
+    // Use project virtual environment
     "python.defaultInterpreterPath": "./venv/Scripts/python.exe",
     "python.terminal.activateEnvironment": true,
+    // Python analysis settings
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.autoSearchPaths": true,
+    // Add backend/app to Python path for proper imports
     "python.analysis.extraPaths": [
         "./backend/app"
     ],
@@ -16,30 +22,99 @@
         ".git",
         "./venv"
     ],
+    // Downgrade missing imports to warnings instead of errors
     "python.analysis.diagnosticSeverityOverrides": {
         "reportMissingImports": "warning"
     },
+    // Python testing with pytest
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+        "backend/app"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    // ============================================
+    // Language-Specific Editor Settings
+    // ============================================
     "[python]": {
-        "diffEditor.ignoreTrimWhitespace": false,
-        "editor.defaultColorDecorators": "never",
-        "gitlens.codeLens.symbolScopes": [
-            "!Module"
-        ],
         "editor.formatOnType": true,
         "editor.wordBasedSuggestions": "off",
-        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
-            "source.organizeImports": "never"
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
         }
     },
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-        "source.organizeImports": "explicit"
+    // WeChat Mini Program TypeScript/JavaScript
+    "[typescript]": {
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 2,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.eslint": "explicit"
+        }
     },
-    "black-formatter.args": [
-        "--line-length=100"
-    ],
+    "[javascript]": {
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 2,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.eslint": "explicit"
+        }
+    },
+    // JSON configuration files (manual format with Shift+Alt+F)
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features",
+        "editor.formatOnSave": false,
+        "editor.tabSize": 2
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features",
+        "editor.formatOnSave": false,
+        "editor.tabSize": 2
+    },
+    // HTML and WeChat Mini Program templates
+    "[html]": {
+        "editor.formatOnSave": false,
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false
+    },
+    "[wxml]": {
+        "editor.formatOnSave": false,
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+    },
+    // Markdown settings
+    "[markdown]": {
+        "editor.formatOnSave": false,
+        "editor.wordWrap": "on",
+        // Disable all markdown validation and linting
+        "editor.quickSuggestions": {
+            "comments": "off",
+            "strings": "off",
+            "other": "off"
+        }
+    },
+    // ============================================
+    // HTML Formatting
+    // ============================================
+    "html.format.wrapLineLength": 0,
+    "html.format.indentInnerHtml": false,
+    "html.format.extraLiners": "",
+    // ============================================
+    // File Settings
+    // ============================================
+    "files.encoding": "utf8",
+    "files.autoGuessEncoding": true,
+    // Associate WeChat Mini Program files with proper language modes
+    "files.associations": {
+        "*.wxml": "html",
+        "*.wxss": "css",
+        ".env.*": "dotenv"
+    },
+    // Hide Python and test artifacts from file explorer
     "files.exclude": {
         "**/__pycache__": true,
         "**/*.pyc": true,
@@ -61,27 +136,25 @@
         "**/.pytest_cache": true,
         "**/.hypothesis": true
     },
-    "python.testing.pytestEnabled": true,
-    "python.testing.pytestArgs": [
-        "backend/app"
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.autoTestDiscoverOnSaveEnabled": true,
-    "files.encoding": "utf8",
-    "files.autoGuessEncoding": true,
-    "[html]": {
-        "editor.formatOnSave": false,
-        "editor.tabSize": 2,
-        "editor.insertSpaces": true,
-        "editor.detectIndentation": false
-    },
-    "html.format.wrapLineLength": 0,
-    "html.format.indentInnerHtml": false,
-    "html.format.extraLiners": "",
-    "git.autorefresh": false,
+    // ============================================
+    // Git Settings
+    // ============================================
+    "git.autorefresh": true,
     "git.autofetch": false,
     "git.autoStash": false,
     "git.postCommitCommand": "none",
-    "git.showProgress": false,
-    "git.scanRepositories": []
+    // ============================================
+    // Markdown Validation (Disabled)
+    // ============================================
+    // Disable markdown language server validation
+    "markdown.validate.enabled": false,
+    // Disable specific markdown diagnostics
+    "markdown.validate.fileLinks.enabled": false,
+    "markdown.validate.fragmentLinks.enabled": false,
+    "markdown.validate.referenceLinks.enabled": false,
+    "markdown.validate.ignoredLinks": [],
+    // Disable markdown lint extensions if installed
+    "markdownlint.config": {
+        "default": false
+    }
 }

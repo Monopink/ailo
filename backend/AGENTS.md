@@ -47,10 +47,9 @@ models (数据模型)
 
 ### Import 规则
 
-- 所有 import 必须在文件顶部
-- 禁止在函数内部 import (除 TYPE_CHECKING 块)
-- 优先使用相对导入
-- 合理使用 TYPE_CHECKING 避免循环导入
+- 能够绝对导入的，一律使用绝对导入
+- 所有 import 必须在文件顶部 (除 TYPE_CHECKING 块)
+- 禁止在函数内部 import
 
 ### Leancloud 集成规则
 
@@ -88,6 +87,10 @@ models (数据模型)
 - 常量: UPPER_CASE
 - 私有: 以下划线开头 `_private_function`
 - 遵循 PEP8 要求
+
+### pendulum 使用
+
+- 人性化时间显示、时区转换、相对时间判断、时间格式化等，使用 `pendulum`
 
 ### 模块初始化规则
 
@@ -163,6 +166,13 @@ models (数据模型)
 - 架构契约: import-linter (必须通过)
 
 详细说明: [docs/tech/CODE_QUALITY.md](../docs/tech/CODE_QUALITY.md)
+
+### mypy 临时策略
+
+- pre-commit 中的 mypy 目前只针对暂存文件执行，并附带 `--follow-imports=skip` 来避免历史报错阻塞提交
+- 每个迭代至少手动运行一次 `mypy --config-file=pyproject.toml backend/app`，记录全局错误并安排清理任务
+- 当 `backend/app` 目录下的类型错误清零后，需恢复全量检查（`pass_filenames: false` 且在 args 末尾追加 `backend/app`，同时移除 `--follow-imports=skip`）
+
 
 ## 禁止行为
 

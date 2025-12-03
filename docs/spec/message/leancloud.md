@@ -28,7 +28,7 @@ LeanCloud 作为消息传输层，与系统解耦，便于未来替换。
 
 完整接口定义见 [api/leancloud-message.md](../../api/leancloud-message.md#leancloud-消息-webhook)
 
-**路径**：`POST /api/v1/lc-im/webhook/{webhook_token}`
+**路径**：`POST /api/v1/leancloud/webhook/{webhook_token}`
 
 ### 安全验证
 

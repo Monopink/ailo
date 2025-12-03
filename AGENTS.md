@@ -25,7 +25,7 @@
 开发小程序，同时了解 [小程序规则](frontend\wx-minipg\AGENTS.md)
 
 [参考资料目录](docs\references\)
-相关参考内容:[微信小程序文档索引](docs\references\weixin-miniprogram-docs\)[Doubao文档目录](docs\references\doubao-docs\) [Leancloud文档目录](docs\references\leancloud-docs\) [Leancloud示例Web Demo目录](docs\references\leancloud-message-web-demo\) [starlette-admin源码及文档](docs\references\starlette-admin\)
+相关参考内容:[微信小程序文档索引目录](docs\references\weixin-miniprogram-docs\)[Doubao文档目录](docs\references\doubao-docs\) [Leancloud文档目录](docs\references\leancloud-docs\) [Leancloud示例Web Demo目录](docs\references\leancloud-message-web-demo\) [Starlette Admin源码及文档](docs\references\starlette-admin\)
 
 ### Docker Compose 基本信息
 
@@ -88,7 +88,7 @@
 - 如果修改过程中出现问题，如发现实施与预期或文档不符合、需要用户澄清或提供细节、实施出现分歧、无法获取信息、发现代码问题或完成某项操作（MCP调用失败、命令执行失败等）等情况，立即停止编码，并报告用户，请求用户提供更多信息
 - 使用明确、无歧义的变量名、函数名与类名。仅为复杂算法、业务逻辑或特定技术决策添加注释。
 - 修改的同时更新注释，同时精简过时和冗余注释
-- **禁止直接任何形式删除任何文件，所有需要删除的文件直接移动到 deleted/ 目录下**，如果文件命名重复，则重命名文件或创建子目录
+- **禁止任何形式删除任何文件，所有需要删除的文件直接移动到 deleted/ 目录下**，如果文件命名重复，则重命名文件或创建子目录
 - **禁止以写入占位注释、清空文件的方式变相删除文件**
 
 ### 6. 检查和测试

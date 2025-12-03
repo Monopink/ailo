@@ -32,32 +32,32 @@ flowchart TB
     B --> C[Webhook接收<br/>leancloud.md]
     C --> D[消息验证和解密<br/>encryption.md]
     D --> E{消息类型}
-    
+
     E -->|TEXT| F[安全检测]
     E -->|TYPING| G[special-types.md]
     E -->|CHAT_INFO| G
     E -->|NOTIFICATION| G
-    
+
     F --> H[频率限制]
     H --> I[消息缓冲<br/>buffer.md]
     I --> J{计时器到期?}
-    
+
     J -->|否| K[等待更多消息]
     K --> I
-    
+
     J -->|是| L[锁定窗口<br/>LOCKED]
     L --> M[构建上下文<br/>context.md]
     M --> N[LLM调用]
     N --> O[响应处理]
     O --> P[消息发送]
-    
+
     P --> Q{发送成功?}
     Q -->|是| R[写入message_history<br/>schema.md]
     Q -->|否| S[写入message_delivery_failures<br/>failure-handling.md]
-    
+
     R --> T[LeanCloud发送]
     T --> U[客户端接收]
-    
+
     S --> V[重试机制]
     V --> P
 ```
@@ -97,7 +97,7 @@ flowchart TB
 
 - GET /api/v1/lc-im/config - 获取消息服务配置 ([api/leancloud-message.md](../../api/leancloud-message.md))
 - POST /api/v1/lc-im/signature - 获取客户端签名 ([api/leancloud-message.md](../../api/leancloud-message.md))
-- POST /api/v1/lc-im/webhook/{token} - LeanCloud消息回调 ([api/leancloud-message.md](../../api/leancloud-message.md))
+- POST /api/v1/leancloud/webhook/{token} - LeanCloud消息回调 ([api/leancloud-message.md](../../api/leancloud-message.md))
 
 ## 关键配置
 

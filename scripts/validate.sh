@@ -238,7 +238,8 @@ check_mypy() {
 check_import_linter() {
     print_header "6. Architecture Contracts (import-linter)"
 
-    if (cd backend && lint-imports 2>/dev/null); then
+    # Use the wrapper script which sets correct PYTHONPATH
+    if python scripts/run_import_linter.py; then
         print_success "Architecture contracts satisfied"
     else
         print_error "Architecture contract violations found"

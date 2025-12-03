@@ -9,13 +9,14 @@ import unicodedata
 from datetime import UTC, datetime
 from typing import Any
 
-from crud.contact import contact as contact_crud
-from enums import MessageType
-from models.ai import AIConversationState
-from services.ai.queries.updates import create_conversation_item
-from services.message.outbound.sender import send_message
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from utils.logging import get_logger
+
+from app.crud.contact import contact as contact_crud
+from app.enums import MessageType
+from app.models.ai import AIConversationState
+from app.services.ai.queries.updates import create_conversation_item
+from app.services.message.outbound.sender import send_message
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

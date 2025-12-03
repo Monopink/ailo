@@ -9,7 +9,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.schemas.common import BaseSchema
 
 if TYPE_CHECKING:
     from .provider import LLMProviderResponse

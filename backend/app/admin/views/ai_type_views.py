@@ -7,13 +7,14 @@ Provides a lightweight interface for managing the new ai_types table.
 from collections.abc import Sequence
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from models.ai.template import AIPersona, AITemplate, AIType
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette_admin import IntegerField, StringField, TextAreaField
 from starlette_admin.contrib.sqla import ModelView
+
+from app.admin.fields import LocalDateTimeField
+from app.models.ai.template import AIPersona, AITemplate, AIType
 
 
 class CountField(IntegerField):

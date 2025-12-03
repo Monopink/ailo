@@ -32,10 +32,10 @@ def main() -> int:
     app_dir = os.path.join(backend_dir, "app")
     config_path = os.path.join(project_root, ".importlinter")
 
-    # Set PYTHONPATH to backend/app (same as Dockerfile: ENV PYTHONPATH=/app)
-    # This allows imports like "from core.database" to work
+    # Set PYTHONPATH to backend (same as Dockerfile: ENV PYTHONPATH=/backend)
+    # This allows imports like "from app.core.database" to work
     env = os.environ.copy()
-    env["PYTHONPATH"] = app_dir
+    env["PYTHONPATH"] = backend_dir
 
     # Disable rich library colors and Unicode decorations
     # This prevents Unicode encoding issues on Windows console

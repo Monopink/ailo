@@ -2,18 +2,19 @@
 Admin APIs for discovery management.
 """
 
-from core.database import get_db
-from crud.discovery import square_entry
 from fastapi import APIRouter, Depends, HTTPException
-from schemas.discovery import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.crud.discovery import square_entry
+from app.schemas.discovery import (
     PaginationInfo,
     SquareEntry,
     SquareEntryCreate,
     SquareEntryListResponse,
     SquareEntryUpdate,
 )
-from services.discovery.validators import ensure_ai_type_has_active_persona
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.discovery.validators import ensure_ai_type_has_active_persona
 
 router = APIRouter()
 

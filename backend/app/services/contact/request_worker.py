@@ -12,14 +12,15 @@ the request path for stability.
 import asyncio
 from datetime import UTC, datetime
 
-from core.database import get_sessionmaker
-from crud.contact import contact_request as contact_request_crud
-from enums import ContactRequestStatus, ContactType
-from models.contact import ContactRequest
-from services.contact.request_service import _process_ai_contact_request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.database import get_sessionmaker
+from app.crud.contact import contact_request as contact_request_crud
+from app.enums import ContactRequestStatus, ContactType
+from app.models.contact import ContactRequest
+from app.services.contact.request_service import _process_ai_contact_request
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

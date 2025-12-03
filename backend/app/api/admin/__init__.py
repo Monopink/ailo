@@ -5,8 +5,9 @@ Combines all admin API endpoints for management backend.
 All admin API endpoints require authentication via Starlette-Admin session.
 """
 
-from api.deps import verify_admin_session
 from fastapi import APIRouter, Depends
+
+from app.api.deps import verify_admin_session
 
 from .ai_dimension import dimension_router
 from .ai_instance import ai_instance_router

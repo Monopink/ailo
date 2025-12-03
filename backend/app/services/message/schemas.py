@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from enums import MessageType
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.enums import MessageType
 
 CURRENT_SCHEMA_VERSION = "1.0.0"
 EventType = Literal["inbound_message", "outbound_message"]

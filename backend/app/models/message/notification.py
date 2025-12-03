@@ -7,11 +7,12 @@ This module contains SQLAlchemy model for notification push history.
 from datetime import datetime
 from typing import Any
 
-from enums import NotificationStatus
-from models.base import SnowflakeModel
 from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.enums import NotificationStatus
+from app.models.base import SnowflakeModel
 
 
 class NotificationPushHistory(SnowflakeModel):

@@ -2,24 +2,25 @@
 Custom authentication provider for Starlette-Admin with security features.
 """
 
-from core.database import get_sessionmaker
-from core.security import verify_password
-from crud.admin import admin_user as admin_user_crud
-from services.security.auth_tracker import (
-    check_lockout,
-    record_auth_failure,
-    reset_failures,
-    should_require_captcha,
-)
-from services.security.captcha.factory import create_captcha_provider
-from services.system_config import get_config
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import BaseAdmin
 from starlette_admin.auth import AdminConfig, AdminUser, AuthProvider
-from utils.admin_logs import create_login_log
-from utils.logging import get_logger
+
+from app.core.database import get_sessionmaker
+from app.core.security import verify_password
+from app.crud.admin import admin_user as admin_user_crud
+from app.services.security.auth_tracker import (
+    check_lockout,
+    record_auth_failure,
+    reset_failures,
+    should_require_captcha,
+)
+from app.services.security.captcha.factory import create_captcha_provider
+from app.services.system_config import get_config
+from app.utils.admin_logs import create_login_log
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

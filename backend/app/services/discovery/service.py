@@ -4,18 +4,19 @@ Discovery service business logic.
 This module provides business logic for discovery page operations.
 """
 
-from crud.system import system_configs
-from enums import SquareCategory
-from schemas.discovery import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.system import system_configs
+from app.enums import SquareCategory
+from app.schemas.discovery import (
     PaginationInfo,
     SquareContactListResponse,
     SquareContactResponse,
     StrangerProfileResponse,
 )
-from services.discovery import data as discovery_data
-from services.security.rate_limiter import check_rate_limit
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.services.discovery import data as discovery_data
+from app.services.security.rate_limiter import check_rate_limit
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

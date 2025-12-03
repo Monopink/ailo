@@ -6,19 +6,24 @@ This module provides user profile management endpoints including:
 - Update user profile
 """
 
-from api.deps import get_current_user
-from core.database import get_db
-from crud.profile import profile as profile_crud
-from crud.user import user as user_crud
-from enums import ProfileOwnerType
 from fastapi import APIRouter, Depends, HTTPException
-from models.user import User
-from schemas.profile import ProfileCreate, ProfileUpdate
-from schemas.user_profile import UserAccountResponse, UserProfileResponse, UserProfileUpdateRequest
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.email import mask_email
-from utils.logging import get_logger
-from utils.phone import mask_phone
+
+from app.api.deps import get_current_user
+from app.core.database import get_db
+from app.crud.profile import profile as profile_crud
+from app.crud.user import user as user_crud
+from app.enums import ProfileOwnerType
+from app.models.user import User
+from app.schemas.profile import ProfileCreate, ProfileUpdate
+from app.schemas.user_profile import (
+    UserAccountResponse,
+    UserProfileResponse,
+    UserProfileUpdateRequest,
+)
+from app.utils.email import mask_email
+from app.utils.logging import get_logger
+from app.utils.phone import mask_phone
 
 logger = get_logger(__name__)
 

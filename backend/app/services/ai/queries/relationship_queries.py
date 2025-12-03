@@ -7,7 +7,10 @@ with clear separation of concerns and pure function design.
 
 from typing import Any
 
-from models.ai import (
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.ai import (
     AIDimension,
     AIDimensionRelationshipMapping,
     AIInstance,
@@ -15,9 +18,7 @@ from models.ai import (
     AIRelationship,
     AIStyleDimension,
 )
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

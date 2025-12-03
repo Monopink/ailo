@@ -6,8 +6,9 @@ This module contains Pydantic schemas for discovery page operations.
 
 from datetime import datetime
 
-from enums import ExposureStrategy, SquareCategory
 from pydantic import BaseModel, Field
+
+from app.enums import ExposureStrategy, SquareCategory
 
 
 class SquareContactResponse(BaseModel):

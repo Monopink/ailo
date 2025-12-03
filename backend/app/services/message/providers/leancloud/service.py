@@ -8,26 +8,26 @@ Functions orchestrate API calls and database operations.
 import secrets
 from typing import TYPE_CHECKING, Any
 
-from crud.system import system_configs
-from enums import MessageType
-from services.config import config_service
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
-from utils.snowflake import generate_snowflake_id
 
-from ..base import MessageResult
-from .adapter import build_outbound_typed_message
-from .client import (
+from app.crud.system import system_configs
+from app.enums import MessageType
+from app.services.config import config_service
+from app.services.message.providers.base import MessageResult
+from app.services.message.providers.leancloud.adapter import build_outbound_typed_message
+from app.services.message.providers.leancloud.client import (
     check_service_conversation_exists,
     create_system_conversation,
     send_service_message,
     subscribe_user_to_conversation,
     unsubscribe_user_from_conversation,
 )
-from .health import check_leancloud_health
+from app.services.message.providers.leancloud.health import check_leancloud_health
+from app.utils.logging import get_logger
+from app.utils.snowflake import generate_snowflake_id
 
 if TYPE_CHECKING:
-    from services.message.schemas import InboundMessageEvent
+    from app.services.message.schemas import InboundMessageEvent
 
 logger = get_logger(__name__)
 

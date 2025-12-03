@@ -7,10 +7,11 @@ This module contains SQLAlchemy model for LLM configuration testing logs.
 from datetime import datetime
 from typing import Any
 
-from models.base import ImmutableSnowflakeModel
 from sqlalchemy import DECIMAL, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import ImmutableSnowflakeModel
 
 
 class LLMTestLog(ImmutableSnowflakeModel):

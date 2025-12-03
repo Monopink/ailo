@@ -6,14 +6,15 @@ This module handles creating AI instances from personas/templates.
 
 from typing import Any
 
-from crud.ai import ai_instance
-from enums import AIInstanceCreator
-from models.ai import AIInstance
-from models.ai.template import AIPersona, AITemplate
-from schemas.ai import AIInstanceCreate
-from services.ai.relationship_scoring import initialize_relationship_scores
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.ai import ai_instance
+from app.enums import AIInstanceCreator
+from app.models.ai import AIInstance
+from app.models.ai.template import AIPersona, AITemplate
+from app.schemas.ai import AIInstanceCreate
+from app.services.ai.relationship_scoring import initialize_relationship_scores
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

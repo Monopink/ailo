@@ -4,10 +4,11 @@ Inbound message deduplicator (business layer).
 Handles message deduplication logic.
 """
 
-from crud.message import message as message_crud
-from services.message.schemas import InboundMessageEvent
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.message import message as message_crud
+from app.services.message.schemas import InboundMessageEvent
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

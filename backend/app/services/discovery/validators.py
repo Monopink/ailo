@@ -4,11 +4,12 @@ Discovery admin validators.
 Contains helpers shared between admin APIs and views.
 """
 
-from enums import AIPersonaStatus, ProfileOwnerType
-from models.ai import AIPersona
-from models.profile import Profile
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.enums import AIPersonaStatus, ProfileOwnerType
+from app.models.ai import AIPersona
+from app.models.profile import Profile
 
 
 async def ensure_ai_type_has_active_persona(db: AsyncSession, type_id: int) -> None:

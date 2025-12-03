@@ -54,7 +54,7 @@ services:
       DEBUG: false
       LOG_LEVEL: INFO
     volumes:
-      - /opt/says-test/logs:/app/logs
+      - /opt/says-test/logs:/backend/logs
     networks:
       - says-test-network
     depends_on:

@@ -5,9 +5,14 @@ Creates ModelView instances for message system and media management.
 
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField
-from enums import (
+from starlette.requests import Request
+from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField
+from app.enums import (
     FileStatus,
     FileType,
     MessageDirection,
@@ -19,15 +24,11 @@ from enums import (
     ServiceProvider,
     UploaderType,
 )
-from models.message import MessageDeliveryFailure
-from models.message.media import MediaFile
-from models.message.message import MessageHistory
-from models.message.notification import NotificationPushHistory
-from models.system import PresetAsset
-from starlette.requests import Request
-from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin.exceptions import FormValidationError
+from app.models.message import MessageDeliveryFailure
+from app.models.message.media import MediaFile
+from app.models.message.message import MessageHistory
+from app.models.message.notification import NotificationPushHistory
+from app.models.system import PresetAsset
 
 
 class MessageHistoryView(ModelView):

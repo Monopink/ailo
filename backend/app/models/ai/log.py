@@ -7,10 +7,11 @@ This module contains SQLAlchemy models for AI service request logging.
 from datetime import datetime
 from typing import Any
 
-from models.base import ImmutableSnowflakeModel
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import ImmutableSnowflakeModel
 
 
 class AIRequestLog(ImmutableSnowflakeModel):

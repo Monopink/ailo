@@ -7,16 +7,17 @@ and relationship selection logic.
 
 from typing import Any
 
-from core.database import get_sessionmaker
-from services.admin.data.style_dimensions import get_dimension_relationship_mappings
-from services.admin.testing.style_algorithm import run_style_score_test
-from services.ai.utils.position_mapping import get_algorithm_info, get_algorithm_param_specs
 from sqlalchemy import text
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-from utils.logging import get_logger
+
+from app.core.database import get_sessionmaker
+from app.services.admin.data.style_dimensions import get_dimension_relationship_mappings
+from app.services.admin.testing.style_algorithm import run_style_score_test
+from app.services.ai.utils.position_mapping import get_algorithm_info, get_algorithm_param_specs
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -9,8 +9,8 @@ All algorithms are stateless and maintain initial position as origin.
 import math
 from typing import Any, Literal, TypedDict, Union, cast
 
-from enums.common import PositionMappingAlgorithm
-from utils.logging import get_logger
+from app.enums.common import PositionMappingAlgorithm
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

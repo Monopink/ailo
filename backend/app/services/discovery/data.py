@@ -5,14 +5,15 @@ This module handles discovery page queries that rely on square exposure entries
 and the corresponding AI persona profiles.
 """
 
-from enums import AIPersonaStatus, ContactType, ProfileOwnerType, SquareEntryStatus
-from models.ai import AIPersona
-from models.contact import Contact
-from models.discovery import SquareTypeEntry
-from models.profile import Profile
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.enums import AIPersonaStatus, ContactType, ProfileOwnerType, SquareEntryStatus
+from app.models.ai import AIPersona
+from app.models.contact import Contact
+from app.models.discovery import SquareTypeEntry
+from app.models.profile import Profile
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

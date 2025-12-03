@@ -4,12 +4,13 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from core.config import Settings, get_settings
-from core.database import get_engine
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from starlette_admin import CustomView, DropDown
 from starlette_admin.contrib.sqla import Admin
+
+from app.core.config import Settings, get_settings
+from app.core.database import get_engine
 
 from .auth import CustomAuthProvider
 from .views import (

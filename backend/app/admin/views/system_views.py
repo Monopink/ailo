@@ -5,17 +5,18 @@ Creates ModelView instances for user management and admin system models.
 
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField
-from core.security import get_password_hash
-from enums import AdminLoginResult, AdminRole, AdminStatus, ConfigType
-from models.admin import AdminLoginLog, AdminOperationLog, AdminUser
-from models.system.config import SystemConfig
 from sqlalchemy import select
 from starlette.requests import Request
 from starlette_admin import JSONField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField
+from app.core.security import get_password_hash
+from app.enums import AdminLoginResult, AdminRole, AdminStatus, ConfigType
+from app.models.admin import AdminLoginLog, AdminOperationLog, AdminUser
+from app.models.system.config import SystemConfig
 
 from .base import BaseRoleAwareModelView
 

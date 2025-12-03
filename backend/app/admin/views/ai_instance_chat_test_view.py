@@ -7,17 +7,18 @@ following the architectural patterns and prototype design specifications.
 
 import json
 
-from core.database import get_sessionmaker
-from services.admin.testing.instance_chat import (
-    AIInstanceChatTestError,
-    ai_instance_chat_test_service,
-)
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-from utils.form_helpers import FormFieldError, get_int_field, get_text_field
-from utils.logging import get_logger
+
+from app.core.database import get_sessionmaker
+from app.services.admin.testing.instance_chat import (
+    AIInstanceChatTestError,
+    ai_instance_chat_test_service,
+)
+from app.utils.form_helpers import FormFieldError, get_int_field, get_text_field
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

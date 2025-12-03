@@ -55,8 +55,8 @@ repos:
         language: system
         types: [python]
         files: ^backend/app/.*\.py$
-        pass_filenames: true
-        args: ["--config-file=pyproject.toml", "--no-error-summary"]
+        pass_filenames: false
+        args: ["--config-file=pyproject.toml", "--no-error-summary", "backend/app"]
 
       # import-linter - Architecture contracts
       - id: import-linter

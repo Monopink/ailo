@@ -8,7 +8,8 @@ All functions are stateless and return explicit results.
 from typing import Any
 
 import httpx
-from utils.logging import get_logger
+
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

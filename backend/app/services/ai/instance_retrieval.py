@@ -7,10 +7,11 @@ with clear error handling and single responsibility principle.
 
 from typing import Any
 
-from exceptions import AIInstanceInactiveError, AIInstanceNotFoundError
-from services.ai.types import InstanceContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.exceptions import AIInstanceInactiveError, AIInstanceNotFoundError
+from app.services.ai.types import InstanceContext
+from app.utils.logging import get_logger
 
 from .queries import get_instance_context
 

@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from models.llm import LLMConfig, LLMProvider
-from services.llm.types import LLMProviderResult, LLMRequestOptions
-from utils.logging import get_logger
+from app.models.llm import LLMConfig, LLMProvider
+from app.services.llm.types import LLMProviderResult, LLMRequestOptions
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

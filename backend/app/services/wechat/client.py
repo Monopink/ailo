@@ -3,9 +3,10 @@ WeChat Mini Program API client
 """
 
 import httpx
-from core.config import get_settings
-from services.wechat import cache
-from utils.logging import get_logger
+
+from app.core.config import get_settings
+from app.services.wechat import cache
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

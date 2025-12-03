@@ -7,13 +7,14 @@ This module contains CRUD operations for system configuration management.
 import json
 from typing import Any
 
-from crud.base import CRUDBase
-from enums import ConfigType
-from models.system import SystemConfig
-from schemas.system import SystemConfigCreate, SystemConfigUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.base import CRUDBase
+from app.enums import ConfigType
+from app.models.system import SystemConfig
+from app.schemas.system import SystemConfigCreate, SystemConfigUpdate
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

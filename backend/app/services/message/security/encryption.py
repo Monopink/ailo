@@ -10,8 +10,9 @@ import secrets
 from typing import Any
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from enums import EncryptionType, EncryptionVersion
-from utils.logging import get_logger
+
+from app.enums import EncryptionType, EncryptionVersion
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

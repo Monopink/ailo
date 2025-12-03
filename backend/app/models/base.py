@@ -13,7 +13,8 @@ from typing import Any
 from sqlalchemy import BigInteger, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from utils.snowflake import generate_snowflake_id
+
+from app.utils.snowflake import generate_snowflake_id
 
 
 def generate_qiao_id() -> str:

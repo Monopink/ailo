@@ -6,9 +6,10 @@ This module contains Pydantic schemas for media file management.
 
 from datetime import datetime
 
-from enums import FileStatus, FileType, UploaderType
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.enums import FileStatus, FileType, UploaderType
+from app.schemas.common import BaseSchema
 
 # Media File Schemas
 

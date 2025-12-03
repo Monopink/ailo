@@ -4,16 +4,17 @@ API dependencies for authentication and authorization.
 
 from datetime import UTC, datetime
 
-from core.database import get_db
-from crud.user import user as user_crud
-from crud.user import user_token as token_crud
 from fastapi import Depends, HTTPException, status
-from services.security.auth_tracker import should_require_captcha
-from services.security.captcha.factory import create_captcha_provider
-from services.security.rate_limiter import check_message_rate_limit, check_rate_limit
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
-from utils.logging import get_logger
+
+from app.core.database import get_db
+from app.crud.user import user as user_crud
+from app.crud.user import user_token as token_crud
+from app.services.security.auth_tracker import should_require_captcha
+from app.services.security.captcha.factory import create_captcha_provider
+from app.services.security.rate_limiter import check_message_rate_limit, check_rate_limit
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

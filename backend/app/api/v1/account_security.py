@@ -7,13 +7,15 @@ This module provides account security management endpoints including:
 - Phone number management (change)
 """
 
-from api.deps import get_current_user
-from api.v1.auth import _consume_sms_code, _verify_operation_token
-from core.database import get_db
-from crud.user import user as user_crud
 from fastapi import APIRouter, Depends, HTTPException, status
-from models.user import User
-from schemas.email_manage import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user
+from app.api.v1.auth import _consume_sms_code, _verify_operation_token
+from app.core.database import get_db
+from app.crud.user import user as user_crud
+from app.models.user import User
+from app.schemas.email_manage import (
     BindEmailRequest,
     BindEmailResponse,
     ChangeEmailRequest,
@@ -22,11 +24,10 @@ from schemas.email_manage import (
     EmailSendCodeResponse,
     UnbindEmailRequest,
 )
-from schemas.phone_manage import ChangePhoneRequest, ChangePhoneResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.email import mask_email, validate_email
-from utils.logging import get_logger
-from utils.phone import mask_phone, normalize_phone
+from app.schemas.phone_manage import ChangePhoneRequest, ChangePhoneResponse
+from app.utils.email import mask_email, validate_email
+from app.utils.logging import get_logger
+from app.utils.phone import mask_phone, normalize_phone
 
 logger = get_logger(__name__)
 

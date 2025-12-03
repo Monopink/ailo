@@ -6,15 +6,16 @@ Provides admin tooling for Square exposure tables.
 
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField
-from enums import ExposureStrategy, SquareCategory, SquareEntryStatus
-from models.discovery import SquareTypeEntry
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from starlette_admin import HasOne, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField
+from app.enums import ExposureStrategy, SquareCategory, SquareEntryStatus
+from app.models.discovery import SquareTypeEntry
 
 
 class _AITypeDisplayNameField(StringField):

@@ -9,13 +9,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from enums import MessageDirection, MessageParticipantType, MessageStatus, ServiceProvider
-from models.message.message import MessageHistory
-from services.message.schemas import InboundMessageEvent, OutboundMessageEvent
-from services.message.storage.participant_resolver import get_participant_info
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
-from utils.snowflake import generate_snowflake_id
+
+from app.enums import MessageDirection, MessageParticipantType, MessageStatus, ServiceProvider
+from app.models.message.message import MessageHistory
+from app.services.message.schemas import InboundMessageEvent, OutboundMessageEvent
+from app.services.message.storage.participant_resolver import get_participant_info
+from app.utils.logging import get_logger
+from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 

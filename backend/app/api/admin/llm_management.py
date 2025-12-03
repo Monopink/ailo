@@ -5,12 +5,13 @@ Provides LLM testing and management functionality for admin panel.
 
 from typing import Any
 
-from core.database import get_db
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from services.llm.config import get_active_configs
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.database import get_db
+from app.services.llm.config import get_active_configs
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -7,22 +7,23 @@ based on dimension scores and mapping algorithms.
 
 from typing import Any
 
-from crud.ai.instance_dimension import get_by_instance
-from models.ai.instance import AIInstance
-from models.ai.style import AIDimension, AIStyleDimension
-from services.ai.queries import get_instance_context
-from services.ai.relationship_scoring import (
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.crud.ai.instance_dimension import get_by_instance
+from app.models.ai.instance import AIInstance
+from app.models.ai.style import AIDimension, AIStyleDimension
+from app.services.ai.queries import get_instance_context
+from app.services.ai.relationship_scoring import (
     calculate_new_scores,
     update_instance_current_relationship,
     update_relationship_positions,
 )
-from services.ai.relationship_selection import collect_candidates, select_final_relationship
-from services.ai.utils.position_mapping import map_score_to_position
-from services.ai.utils.score_mapping import map_to_permille
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from utils.logging import get_logger
+from app.services.ai.relationship_selection import collect_candidates, select_final_relationship
+from app.services.ai.utils.position_mapping import map_score_to_position
+from app.services.ai.utils.score_mapping import map_to_permille
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

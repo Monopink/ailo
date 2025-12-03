@@ -4,15 +4,16 @@ Discovery API endpoints.
 This module contains API endpoints for discovery page operations.
 """
 
-from api.deps import get_current_user
-from core.database import get_db
-from enums import SquareCategory
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from models.user import User
-from schemas.discovery import SquareContactListResponse, StrangerProfileResponse
-from services.discovery import service as discovery_service
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.api.deps import get_current_user
+from app.core.database import get_db
+from app.enums import SquareCategory
+from app.models.user import User
+from app.schemas.discovery import SquareContactListResponse, StrangerProfileResponse
+from app.services.discovery import service as discovery_service
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

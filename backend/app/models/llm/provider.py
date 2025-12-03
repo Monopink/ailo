@@ -6,9 +6,10 @@ This module contains the LLMProvider SQLAlchemy model.
 
 from typing import TYPE_CHECKING
 
-from models.base import AutoIncrementModel
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import AutoIncrementModel
 
 if TYPE_CHECKING:
     from .config import LLMConfig

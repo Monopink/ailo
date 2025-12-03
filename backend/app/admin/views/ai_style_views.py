@@ -6,21 +6,22 @@ This module contains Starlette-Admin views for AI style and relationship system.
 
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField
-from enums import AIStyleStatus
-from models.ai.style import (
+from starlette.requests import Request
+from starlette_admin import EnumField, FloatField, HasOne, IntegerField, StringField, TextAreaField
+from starlette_admin.actions import link_row_action
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField
+from app.enums import AIStyleStatus
+from app.models.ai.style import (
     AIDimension,
     AIDimensionRelationshipMapping,
     AIRelationship,
     AIStyle,
     AIStyleDimension,
 )
-from starlette.requests import Request
-from starlette_admin import EnumField, FloatField, HasOne, IntegerField, StringField, TextAreaField
-from starlette_admin.actions import link_row_action
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin.exceptions import FormValidationError
 
 
 class _DimensionDisplayNameField(StringField):

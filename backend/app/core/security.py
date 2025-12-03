@@ -7,8 +7,9 @@ import string
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from core.config import get_settings
 from passlib.context import CryptContext
+
+from app.core.config import get_settings
 
 # Password context for hashing and verification
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

@@ -8,10 +8,18 @@ import string
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField, convert_empty_strings_to_none
-from core.security import get_password_hash
-from enums import (
+from sqlalchemy import desc, select
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+from starlette_admin import CustomView, HasOne, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin.actions import link_row_action
+from starlette_admin.contrib.sqla import ModelView
+from starlette_admin.exceptions import FormValidationError
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField, convert_empty_strings_to_none
+from app.core.security import get_password_hash
+from app.enums import (
     ContactRequestSource,
     ContactRequestStatus,
     ContactType,
@@ -21,20 +29,13 @@ from enums import (
     UserStatus,
     UserType,
 )
-from models.ai.instance import AIInstance
-from models.ai.template import AIPersona
-from models.contact import Contact, ContactRequest
-from models.profile import Profile, UserProfileLog
-from models.user import User
-from services.contact.request_service import retry_pending_contact_request
-from services.system_config import get_config
-from sqlalchemy import desc, select
-from starlette.requests import Request
-from starlette.responses import RedirectResponse
-from starlette_admin import CustomView, HasOne, IntegerField, JSONField, StringField, TextAreaField
-from starlette_admin.actions import link_row_action
-from starlette_admin.contrib.sqla import ModelView
-from starlette_admin.exceptions import FormValidationError
+from app.models.ai.instance import AIInstance
+from app.models.ai.template import AIPersona
+from app.models.contact import Contact, ContactRequest
+from app.models.profile import Profile, UserProfileLog
+from app.models.user import User
+from app.services.contact.request_service import retry_pending_contact_request
+from app.services.system_config import get_config
 
 from .base import BaseRoleAwareModelView
 

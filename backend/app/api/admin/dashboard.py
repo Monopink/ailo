@@ -5,11 +5,12 @@ Provides system statistics and monitoring data for admin panel.
 
 from typing import Any
 
-from core.database import get_db
 from fastapi import APIRouter, Depends
-from services.admin.data.dashboard import get_dashboard_stats
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.database import get_db
+from app.services.admin.data.dashboard import get_dashboard_stats
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

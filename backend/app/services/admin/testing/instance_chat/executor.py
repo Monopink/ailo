@@ -10,20 +10,21 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from enums import MessageType
-from models.ai.instance import AIInstance
-from models.ai.log import AIRequestLog
-from models.user import User
-from services.ai.orchestrators.conversation_flow import process_conversation
-from services.message.processing.buffer import (
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.enums import MessageType
+from app.models.ai.instance import AIInstance
+from app.models.ai.log import AIRequestLog
+from app.models.user import User
+from app.services.ai.orchestrators.conversation_flow import process_conversation
+from app.services.message.processing.buffer import (
     add_message_to_buffer,
     finalize_buffer_if_locked,
     force_lock_latest_window,
 )
-from services.message.schemas import InboundMessageEvent
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.services.message.schemas import InboundMessageEvent
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

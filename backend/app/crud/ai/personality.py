@@ -7,12 +7,13 @@ for AI personality management.
 
 from typing import Any
 
-from crud.base import CRUDBase
-from models.ai import AIPersonality, AIPersonalityPlaceholder
-from schemas.ai import AIPersonalityCreate, AIPersonalityUpdate
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.base import CRUDBase
+from app.models.ai import AIPersonality, AIPersonalityPlaceholder
+from app.schemas.ai import AIPersonalityCreate, AIPersonalityUpdate
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

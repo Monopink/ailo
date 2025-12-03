@@ -6,7 +6,11 @@ All views are read-only.
 """
 
 # Import statistics models
-from models.system.stats import (
+from starlette.requests import Request
+from starlette_admin import DateField, IntegerField, StringField
+from starlette_admin.contrib.sqla import ModelView
+
+from app.models.system.stats import (
     StatsAIDaily,
     StatsAIMonthly,
     StatsAIWeekly,
@@ -20,9 +24,6 @@ from models.system.stats import (
     StatsUserMonthly,
     StatsUserWeekly,
 )
-from starlette.requests import Request
-from starlette_admin import DateField, IntegerField, StringField
-from starlette_admin.contrib.sqla import ModelView
 
 
 class StatsUserDailyView(ModelView):

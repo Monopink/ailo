@@ -13,7 +13,8 @@ from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -2,21 +2,22 @@
 LeanCloud IM configuration and signature endpoints.
 """
 
-from api.deps import get_current_user
-from core.config import get_settings
-from core.database import get_db
-from crud.system import system_configs
 from fastapi import APIRouter, Depends, HTTPException, status
-from models.user import User
-from schemas.message import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user
+from app.core.config import get_settings
+from app.core.database import get_db
+from app.crud.system import system_configs
+from app.models.user import User
+from app.schemas.message import (
     LeanCloudConfigResponse,
     LeanCloudSignatureRequest,
     LeanCloudSignatureResponse,
 )
-from services.message.providers.leancloud import service as leancloud_service
-from services.message.providers.leancloud.signature import create_login_signature
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.services.message.providers.leancloud import service as leancloud_service
+from app.services.message.providers.leancloud.signature import create_login_signature
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

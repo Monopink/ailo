@@ -6,18 +6,19 @@ This module contains Starlette-Admin views for managing user security logs and s
 
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField
-
-# Import enums
-from enums import AutoAction, ManualReviewStatus, RiskLevel, SeverityLevel, ViolationType
-
-# Import security models
-from models.security import UserRiskStats, UserViolationLog
 from starlette.requests import Request
 from starlette_admin import IntegerField, StringField, TextAreaField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField
+
+# Import enums
+from app.enums import AutoAction, ManualReviewStatus, RiskLevel, SeverityLevel, ViolationType
+
+# Import security models
+from app.models.security import UserRiskStats, UserViolationLog
 
 
 class UserViolationLogView(ModelView):

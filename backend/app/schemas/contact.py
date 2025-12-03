@@ -6,9 +6,10 @@ This module contains Pydantic schemas for contact relationships and requests.
 
 from datetime import datetime
 
-from enums import ContactRequestSource, ContactRequestStatus, ContactType
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.enums import ContactRequestSource, ContactRequestStatus, ContactType
+from app.schemas.common import BaseSchema
 
 # Contact Schemas
 

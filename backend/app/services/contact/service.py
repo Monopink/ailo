@@ -6,22 +6,23 @@ This module provides business logic for contact management operations.
 
 from typing import Any
 
-from crud.contact import contact as contact_crud
-from crud.profile import profile as profile_crud
-from crud.system import system_configs
-from enums import ContactType
-from models.contact import Contact
-from models.profile import Profile
-from schemas.contact import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.contact import contact as contact_crud
+from app.crud.profile import profile as profile_crud
+from app.crud.system import system_configs
+from app.enums import ContactType
+from app.models.contact import Contact
+from app.models.profile import Profile
+from app.schemas.contact import (
     ContactDetailResponse,
     ContactListItem,
     ContactProfileSummary,
     ContactUpdate,
     ConversationInfoResponse,
 )
-from services.message.providers.leancloud.service import ensure_system_conversation
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.services.message.providers.leancloud.service import ensure_system_conversation
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -4,11 +4,12 @@ Preset asset CRUD operations.
 This module provides CRUD operations for preset assets (avatars, emoticons, etc.).
 """
 
-from crud.base import CRUDBase
-from models.system import PresetAsset
-from schemas.system import PresetAssetCreate, PresetAssetUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.base import CRUDBase
+from app.models.system import PresetAsset
+from app.schemas.system import PresetAssetCreate, PresetAssetUpdate
 
 
 class CRUDPresetAsset(CRUDBase[PresetAsset, PresetAssetCreate, PresetAssetUpdate]):

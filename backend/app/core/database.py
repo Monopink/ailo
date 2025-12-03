@@ -4,7 +4,6 @@ import asyncio
 from collections.abc import AsyncGenerator
 from functools import lru_cache
 
-from core.config import Settings, get_settings
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
@@ -13,7 +12,9 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from utils.logging import get_logger
+
+from app.core.config import Settings, get_settings
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -5,14 +5,15 @@ Handles personality management including prompts, schemas, and placeholders.
 
 from typing import Any
 
-from core.database import get_db
-from crud.ai import ai_personality as personality_crud
-from crud.ai import ai_personality_placeholder as placeholder_crud
 from fastapi import APIRouter, Depends, HTTPException
-from models.ai.personality import AIPersonalityPlaceholder
-from services.ai.response_schema import generate_json_schema
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.database import get_db
+from app.crud.ai import ai_personality as personality_crud
+from app.crud.ai import ai_personality_placeholder as placeholder_crud
+from app.models.ai.personality import AIPersonalityPlaceholder
+from app.services.ai.response_schema import generate_json_schema
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

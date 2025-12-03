@@ -7,9 +7,9 @@ can share the same implementation without introducing circular imports.
 
 from typing import Any
 
-from exceptions import AIServiceError
-from services.ai.types import InstanceContext
-from utils.logging import get_logger
+from app.exceptions import AIServiceError
+from app.services.ai.types import InstanceContext
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

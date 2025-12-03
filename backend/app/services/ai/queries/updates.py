@@ -7,11 +7,12 @@ or perform single-entity updates.
 
 from typing import Any
 
-from enums.common import ConversationItemContextStatus
-from models.ai import AIConversationItem, AIDimension, AIInstance, AIInstanceDimension
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.enums.common import ConversationItemContextStatus
+from app.models.ai import AIConversationItem, AIDimension, AIInstance, AIInstanceDimension
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

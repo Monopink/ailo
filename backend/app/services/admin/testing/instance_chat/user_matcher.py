@@ -7,16 +7,17 @@ chat testing with AI instances.
 
 from typing import Any
 
-from crud.profile import profile as profile_crud
-from enums import ContactType, ProfileOwnerType, UserType
-from models.contact import Contact
-from models.profile import Profile
-from models.user import User
-from schemas.profile import ProfileCreate
-from services.ai.types import InstanceContext
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.profile import profile as profile_crud
+from app.enums import ContactType, ProfileOwnerType, UserType
+from app.models.contact import Contact
+from app.models.profile import Profile
+from app.models.user import User
+from app.schemas.profile import ProfileCreate
+from app.services.ai.types import InstanceContext
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

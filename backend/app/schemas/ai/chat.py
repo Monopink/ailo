@@ -5,7 +5,8 @@ This module contains Pydantic schemas for AI chat interactions and relationship 
 """
 
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.schemas.common import BaseSchema
 
 # AI Chat Request/Response Schemas
 

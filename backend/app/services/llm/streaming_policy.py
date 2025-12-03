@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from models.llm import LLMConfig, LLMProvider
-from services.llm.types import LLMStreamingDecision
+from app.models.llm import LLMConfig, LLMProvider
+from app.services.llm.types import LLMStreamingDecision
 
 
 def extract_stream_override(overrides: dict[str, Any] | None) -> bool | None:

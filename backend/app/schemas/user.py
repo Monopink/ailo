@@ -7,9 +7,10 @@ This module contains Pydantic schemas for user accounts, tokens, and authenticat
 from datetime import datetime
 from typing import Any
 
-from enums import AuthType, DeviceType, LoginResult, LoginType, UserStatus, UserType
 from pydantic import BaseModel, Field, model_validator
-from schemas.common import BaseSchema
+
+from app.enums import AuthType, DeviceType, LoginResult, LoginType, UserStatus, UserType
+from app.schemas.common import BaseSchema
 
 # User Schemas
 

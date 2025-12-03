@@ -4,9 +4,10 @@ Media file related models.
 This module contains SQLAlchemy models for media file management.
 """
 
-from models.base import SnowflakeModel
 from sqlalchemy import BigInteger, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import SnowflakeModel
 
 
 class MediaFile(SnowflakeModel):

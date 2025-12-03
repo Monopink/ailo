@@ -4,9 +4,10 @@ LLM configuration functions.
 This module provides functions for retrieving LLM configurations.
 """
 
-from crud.llm import llm_config, llm_provider
-from models.llm import LLMConfig, LLMProvider
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.llm import llm_config, llm_provider
+from app.models.llm import LLMConfig, LLMProvider
 
 
 async def get_llm_config(

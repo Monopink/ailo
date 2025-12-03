@@ -6,11 +6,12 @@ Provides unified create/edit/delete permissions based on admin role.
 
 from typing import Any
 
-from enums import AdminRole
 from starlette.requests import Request
 from starlette_admin import EnumField
 from starlette_admin._types import RequestAction
 from starlette_admin.contrib.sqla import ModelView
+
+from app.enums import AdminRole
 
 
 def convert_empty_strings_to_none(obj: Any, field_names: list[str]) -> None:

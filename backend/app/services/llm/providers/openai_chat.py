@@ -8,9 +8,9 @@ Chat Completions or compatible providers are reintroduced.
 
 from __future__ import annotations
 
-from models.llm import LLMConfig, LLMProvider
-from services.llm.providers.base import ProviderCapabilities
-from services.llm.types import LLMProviderResult, LLMRequestOptions
+from app.models.llm import LLMConfig, LLMProvider
+from app.services.llm.providers.base import ProviderCapabilities
+from app.services.llm.types import LLMProviderResult, LLMRequestOptions
 
 CAPABILITIES = ProviderCapabilities(
     supports_streaming=True,

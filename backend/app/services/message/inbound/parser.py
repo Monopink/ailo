@@ -6,10 +6,10 @@ Converts intermediate format to InboundMessageEvent with business logic.
 
 from typing import Any
 
-from enums import MessageType
-from services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
-from services.message.security.encryption import decrypt_from_transport
-from utils.logging import get_logger
+from app.enums import MessageType
+from app.services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
+from app.services.message.security.encryption import decrypt_from_transport
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

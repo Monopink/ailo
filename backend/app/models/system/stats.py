@@ -6,9 +6,10 @@ This module contains SQLAlchemy models for various system statistics.
 
 from datetime import date
 
-from models.base import ImmutableAutoIncrementModel
 from sqlalchemy import DECIMAL, Date, Integer, text
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import ImmutableAutoIncrementModel
 
 # User Statistics Tables
 

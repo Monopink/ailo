@@ -5,15 +5,16 @@ Handles dimension queries and relationship mappings.
 
 from typing import Any
 
-from core.database import get_db
 from fastapi import APIRouter, Depends, HTTPException
-from models.ai.style import AIDimension
-from services.admin.data.style_dimensions import (
-    get_dimension_relationship_mappings as admin_get_dimension_relationship_mappings,
-)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.database import get_db
+from app.models.ai.style import AIDimension
+from app.services.admin.data.style_dimensions import (
+    get_dimension_relationship_mappings as admin_get_dimension_relationship_mappings,
+)
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

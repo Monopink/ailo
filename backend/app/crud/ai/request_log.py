@@ -8,12 +8,13 @@ for AI request logging and analytics.
 from datetime import datetime, timedelta
 from typing import Any
 
-from crud.base import CRUDBase
-from models.ai import AIRequestLog
-from schemas.ai import AIRequestLogCreate, AIRequestLogUpdate
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.base import CRUDBase
+from app.models.ai import AIRequestLog
+from app.schemas.ai import AIRequestLogCreate, AIRequestLogUpdate
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

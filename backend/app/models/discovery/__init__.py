@@ -6,12 +6,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from models.base import AutoIncrementModel
 from sqlalchemy import ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.models.base import AutoIncrementModel
+
 if TYPE_CHECKING:
-    from models.ai.template import AIType
+    from app.models.ai.template import AIType
 
 
 class SquareTypeEntry(AutoIncrementModel):

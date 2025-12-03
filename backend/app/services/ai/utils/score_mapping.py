@@ -8,7 +8,7 @@ All functions are stateless and raise ValueError on invalid inputs so that
 callers can decide whether to short-circuit selection and return empty.
 """
 
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

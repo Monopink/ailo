@@ -4,14 +4,15 @@ Inbound message router (business layer).
 Routes messages to appropriate handlers.
 """
 
-from crud.contact import contact as contact_crud
-from enums import MessageType
-from services.message.processing import buffer
-from services.message.schemas import InboundMessageEvent
-from services.message.storage.persistence import store_message
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
-from utils.snowflake import generate_snowflake_id
+
+from app.crud.contact import contact as contact_crud
+from app.enums import MessageType
+from app.services.message.processing import buffer
+from app.services.message.schemas import InboundMessageEvent
+from app.services.message.storage.persistence import store_message
+from app.utils.logging import get_logger
+from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 

@@ -8,7 +8,7 @@ standardized data structures for internal use.
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from services.message.schemas import InboundMessageEvent
+from app.services.message.schemas import InboundMessageEvent
 
 
 @dataclass

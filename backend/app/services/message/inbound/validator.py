@@ -4,10 +4,11 @@ Inbound message validator (business layer).
 Validates messages against business rules.
 """
 
-from crud.contact import contact as contact_crud
-from services.message.schemas import InboundMessageEvent
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.contact import contact as contact_crud
+from app.services.message.schemas import InboundMessageEvent
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

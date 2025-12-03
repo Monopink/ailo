@@ -6,13 +6,14 @@ This module provides CRUD operations for AI instance dimension scores.
 
 from typing import Any
 
-from models.ai.instance import AIInstance
-from models.ai.instance_dimension import AIInstanceDimension
-from models.ai.style import AIDimension, AIStyleDimension
-from services.ai.utils.position_mapping import map_score_to_position
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.models.ai.instance import AIInstance
+from app.models.ai.instance_dimension import AIInstanceDimension
+from app.models.ai.style import AIDimension, AIStyleDimension
+from app.services.ai.utils.position_mapping import map_score_to_position
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

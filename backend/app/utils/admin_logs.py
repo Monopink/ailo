@@ -4,9 +4,10 @@ Provides both operation logging and login logging functionality.
 """
 
 from fastapi import Request
-from models.admin import AdminLoginLog, AdminOperationLog
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.models.admin import AdminLoginLog, AdminOperationLog
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -4,12 +4,13 @@ CRUD operations for LLM configurations.
 This module provides database operations for LLM configurations.
 """
 
-from crud.base import CRUDBase
-from models.llm import LLMConfig
-from schemas.llm import LLMConfigCreate, LLMConfigUpdate
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.crud.base import CRUDBase
+from app.models.llm import LLMConfig
+from app.schemas.llm import LLMConfigCreate, LLMConfigUpdate
 
 
 class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):

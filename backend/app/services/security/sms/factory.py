@@ -4,9 +4,10 @@ SMS Provider Factory
 Creates SMS provider instances based on configuration.
 """
 
-from services.system_config import get_config
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.services.system_config import get_config
+from app.utils.logging import get_logger
 
 from .base import SMSProvider
 from .mock import MockSMSProvider

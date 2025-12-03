@@ -7,9 +7,10 @@ This module contains Pydantic schemas for AI instances and contexts.
 from datetime import datetime
 from typing import Any
 
-from enums import AIInstanceCreator
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.enums import AIInstanceCreator
+from app.schemas.common import BaseSchema
 
 
 class AIInstanceBase(BaseSchema):

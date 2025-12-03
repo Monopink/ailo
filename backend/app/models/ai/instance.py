@@ -7,15 +7,7 @@ This module contains SQLAlchemy models for AI instances and conversation context
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-from enums.common import ConversationItemContextStatus
 from markupsafe import escape
-from models.base import (
-    Base,
-    ImmutableSnowflakeModel,
-    SnowflakeModel,
-    SnowflakeQiaoModel,
-    TimestampMixin,
-)
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -30,11 +22,20 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.enums.common import ConversationItemContextStatus
+from app.models.base import (
+    Base,
+    ImmutableSnowflakeModel,
+    SnowflakeModel,
+    SnowflakeQiaoModel,
+    TimestampMixin,
+)
+
 if TYPE_CHECKING:
-    from models.ai.instance_dimension import AIInstanceDimension
-    from models.ai.personality import AIPersonality
-    from models.ai.style import AIRelationship, AIStyle
-    from models.user import User
+    from app.models.ai.instance_dimension import AIInstanceDimension
+    from app.models.ai.personality import AIPersonality
+    from app.models.ai.style import AIRelationship, AIStyle
+    from app.models.user import User
 
 
 class AIInstance(SnowflakeQiaoModel):

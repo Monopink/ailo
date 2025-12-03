@@ -12,19 +12,22 @@ import random
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from api.deps import get_current_user
-from core.database import get_db
-from crud.system import system_configs
-from crud.user import user as user_crud
-from crud.user import user_auth as user_auth_crud
-from crud.user import user_token as token_crud
-from enums import AuthType, DeviceType, ProfileOwnerType
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from models.base import generate_qiao_id
-from models.profile import Profile
-from models.user import User, UserToken
 from pydantic import BaseModel, Field
-from schemas.auth import (
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user
+from app.core.database import get_db
+from app.crud.system import system_configs
+from app.crud.user import user as user_crud
+from app.crud.user import user_auth as user_auth_crud
+from app.crud.user import user_token as token_crud
+from app.enums import AuthType, DeviceType, ProfileOwnerType
+from app.models.base import generate_qiao_id
+from app.models.profile import Profile
+from app.models.user import User, UserToken
+from app.schemas.auth import (
     BindPhoneRequest,
     BindPhoneResponse,
     CompleteRegistrationRequest,
@@ -34,24 +37,22 @@ from schemas.auth import (
     WeChatLoginRequest,
     WeChatLoginResponse,
 )
-from schemas.verify import (
+from app.schemas.verify import (
     OperationTokenResponse,
     VerifyConfirmRequest,
     VerifySendCodeRequest,
     VerifySendCodeResponse,
 )
-from services.security.captcha.factory import create_captcha_provider_for_request
-from services.security.captcha.none import NoneCaptchaProvider
-from services.security.rate_limiter import check_rate_limit
-from services.security.sms.factory import create_sms_provider
-from services.wechat import code_manager
-from services.wechat.client import WeChatAPIError, WeChatClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
-from utils.phone import is_china_phone, normalize_phone
-from utils.snowflake import generate_snowflake_id
-from utils.token import calculate_token_expiry, generate_jwt_token
+from app.services.security.captcha.factory import create_captcha_provider_for_request
+from app.services.security.captcha.none import NoneCaptchaProvider
+from app.services.security.rate_limiter import check_rate_limit
+from app.services.security.sms.factory import create_sms_provider
+from app.services.wechat import code_manager
+from app.services.wechat.client import WeChatAPIError, WeChatClient
+from app.utils.logging import get_logger
+from app.utils.phone import is_china_phone, normalize_phone
+from app.utils.snowflake import generate_snowflake_id
+from app.utils.token import calculate_token_expiry, generate_jwt_token
 
 logger = get_logger(__name__)
 

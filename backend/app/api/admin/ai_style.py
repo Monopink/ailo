@@ -5,13 +5,19 @@ Handles style management including dimensions, associations, and relationship ma
 
 from typing import Any
 
-from core.database import get_db
-from crud.ai import ai_style as style_crud
 from fastapi import APIRouter, Depends, HTTPException
-from models.ai.style import AIDimension, AIDimensionRelationshipMapping, AIStyle, AIStyleDimension
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.database import get_db
+from app.crud.ai import ai_style as style_crud
+from app.models.ai.style import (
+    AIDimension,
+    AIDimensionRelationshipMapping,
+    AIStyle,
+    AIStyleDimension,
+)
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -11,7 +11,9 @@ import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from exceptions.llm import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.exceptions.llm import (
     ConfigNotVerifiedError,
     JSONSchemaNotSupportedError,
     LLMConfigurationError,
@@ -20,9 +22,8 @@ from exceptions.llm import (
     LLMResponseFormatError,
     LLMTimeoutError,
 )
-from models.llm import LLMConfig, LLMProvider
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.models.llm import LLMConfig, LLMProvider
+from app.utils.logging import get_logger
 
 from .config import get_active_configs, get_config_by_provider, get_llm_config, get_primary_config
 from .providers import factory

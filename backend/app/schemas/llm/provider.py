@@ -7,7 +7,8 @@ This module contains Pydantic schemas for LLM providers.
 from datetime import datetime
 
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.schemas.common import BaseSchema
 
 
 class LLMProviderBase(BaseSchema):

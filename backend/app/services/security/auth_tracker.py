@@ -7,9 +7,10 @@ Tracks authentication failures for lockout and CAPTCHA triggering.
 import time
 from collections import deque
 
-from services.system_config import get_config
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.services.system_config import get_config
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

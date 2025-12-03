@@ -8,11 +8,12 @@ from docs/prototype/message-flow.md (lines 486-554).
 
 from dataclasses import dataclass
 
-from enums import ChatInfoType
-from models.ai.instance import AIInstance
-from models.contact import Contact
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.enums import ChatInfoType
+from app.models.ai.instance import AIInstance
+from app.models.contact import Contact
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -10,36 +10,39 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from core.database import get_sessionmaker
-from enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
-from exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
-from models.ai.instance import AIInstance
-from models.contact import Contact
-from services.llm.client import select_config_for_ai, validate_ai_response
-from services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
-from services.llm.types import LLMSessionContext
-from services.message.outbound.helpers import send_chat_info
-from services.message.processing.buffer import is_buffer_cancelled
-from services.message.security.validation import message_validation_service
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
 
-from ..conversation_memory import archive_old_contexts, process_memory_operations
-from ..conversation_prompt import build_conversation_context, build_system_prompt
-from ..queries import get_instance_context, get_instance_relationship_scores
-from ..queries.updates import mark_conversation_item_as_excluded, update_instance_status
-from ..relationship_scoring import (
+from app.core.database import get_sessionmaker
+from app.enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
+from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
+from app.models.ai.instance import AIInstance
+from app.models.contact import Contact
+from app.services.ai.conversation_memory import archive_old_contexts, process_memory_operations
+from app.services.ai.conversation_prompt import build_conversation_context, build_system_prompt
+from app.services.ai.orchestrators.llm_response_handler import process_llm_response
+from app.services.ai.queries import get_instance_context, get_instance_relationship_scores
+from app.services.ai.queries.updates import (
+    mark_conversation_item_as_excluded,
+    update_instance_status,
+)
+from app.services.ai.relationship_scoring import (
     calculate_new_scores,
     determine_relationship_type,
     get_relationship_scores,
     update_instance_current_relationship,
     update_relationship_positions,
 )
-from ..response_schema import build_response_schema
-from ..types import InstanceContext
-from ..utils.validator import invoke_llm_with_validation
-from .llm_response_handler import process_llm_response
+from app.services.ai.response_schema import build_response_schema
+from app.services.ai.types import InstanceContext
+from app.services.ai.utils.validator import invoke_llm_with_validation
+from app.services.llm.client import select_config_for_ai, validate_ai_response
+from app.services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
+from app.services.llm.types import LLMSessionContext
+from app.services.message.outbound.helpers import send_chat_info
+from app.services.message.processing.buffer import is_buffer_cancelled
+from app.services.message.security.validation import message_validation_service
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -8,25 +8,25 @@ asynchronous message sending tasks.
 import asyncio
 from typing import Any
 
-from models.ai import AIInstance
-from services.message.processing.buffer import finalize_buffer_if_locked
-from services.message.processing.sender import send_ai_messages_with_typing
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from utils.logging import get_logger
 
-from ..conversation_memory import process_memory_operations
-from ..queries.instance_queries import get_instance_relationship_config
-from ..queries.relationship_queries import get_instance_relationship_scores
-from ..queries.transactions import save_ai_request_log
-from ..queries.updates import (
+from app.models.ai import AIInstance
+from app.services.ai.conversation_memory import process_memory_operations
+from app.services.ai.queries.instance_queries import get_instance_relationship_config
+from app.services.ai.queries.relationship_queries import get_instance_relationship_scores
+from app.services.ai.queries.transactions import save_ai_request_log
+from app.services.ai.queries.updates import (
     mark_conversation_item_as_excluded,
     set_instance_current_relationship,
     update_instance_relationship_scores,
     update_instance_status,
 )
-from ..relationship_scoring import determine_relationship_type
-from ..types import InstanceContext
+from app.services.ai.relationship_scoring import determine_relationship_type
+from app.services.ai.types import InstanceContext
+from app.services.message.processing.buffer import finalize_buffer_if_locked
+from app.services.message.processing.sender import send_ai_messages_with_typing
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -8,20 +8,21 @@ configurations and relationships are properly established before test execution.
 import json
 from typing import Any
 
-from crud.profile import profile as profile_crud
-from enums import ContactType, ProfileOwnerType, UserType
-from exceptions import AIDataAccessError
-from models.ai.instance import AIInstance
-from models.contact import Contact
-from models.user import User
-from schemas.profile import ProfileCreate
-from services.ai.queries import get_instance_context
-from services.ai.relationship_scoring import get_relationship_scores
-from services.ai.types import InstanceContext
-from services.llm.config import get_active_configs
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.profile import profile as profile_crud
+from app.enums import ContactType, ProfileOwnerType, UserType
+from app.exceptions import AIDataAccessError
+from app.models.ai.instance import AIInstance
+from app.models.contact import Contact
+from app.models.user import User
+from app.schemas.profile import ProfileCreate
+from app.services.ai.queries import get_instance_context
+from app.services.ai.relationship_scoring import get_relationship_scores
+from app.services.ai.types import InstanceContext
+from app.services.llm.config import get_active_configs
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

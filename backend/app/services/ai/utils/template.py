@@ -10,8 +10,8 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from models.ai import AIPersonalityPlaceholder
-from utils.logging import get_logger
+from app.models.ai import AIPersonalityPlaceholder
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

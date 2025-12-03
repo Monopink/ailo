@@ -5,9 +5,10 @@ This module contains SQLAlchemy models for AI styles and relationship configurat
 """
 
 from markupsafe import escape
-from models.base import AutoIncrementModel
 from sqlalchemy import CheckConstraint, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import AutoIncrementModel
 
 
 class AIStyle(AutoIncrementModel):

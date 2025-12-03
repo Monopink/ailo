@@ -6,23 +6,24 @@ This module contains Starlette-Admin views for AI instance system.
 
 from typing import Any
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField
-from enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerType
-from models.ai import AIInstanceDimension
-from models.ai.instance import AIInstance
-from models.ai.style import AIStyleDimension
-from models.base import generate_qiao_id
-from models.profile import Profile
-from models.user import User
-from services.ai.utils.position_mapping import map_score_to_position
 from sqlalchemy import select
 from starlette.requests import Request
 from starlette_admin import HasOne, IntegerField, JSONField, StringField, TextAreaField
 from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
-from utils.snowflake import generate_snowflake_id
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField
+from app.enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerType
+from app.models.ai import AIInstanceDimension
+from app.models.ai.instance import AIInstance
+from app.models.ai.style import AIStyleDimension
+from app.models.base import generate_qiao_id
+from app.models.profile import Profile
+from app.models.user import User
+from app.services.ai.utils.position_mapping import map_score_to_position
+from app.utils.snowflake import generate_snowflake_id
 
 
 class _ProfileRelatedStringField(StringField):

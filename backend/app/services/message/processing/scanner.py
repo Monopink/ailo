@@ -13,19 +13,20 @@ Design: Follows ai-message-processing.md specification
 import asyncio
 import random
 
-from core.database import get_sessionmaker
-from enums.common import AIMessageBufferState
-from models.ai.instance import AIMessageBuffer
-from services.ai.orchestrators.conversation_flow import process_conversation
-from services.ai.queries.instance_queries import get_instance_relationship_config
-from services.message.processing.buffer import (
+from sqlalchemy import and_, or_, select, update
+
+from app.core.database import get_sessionmaker
+from app.enums.common import AIMessageBufferState
+from app.models.ai.instance import AIMessageBuffer
+from app.services.ai.orchestrators.conversation_flow import process_conversation
+from app.services.ai.queries.instance_queries import get_instance_relationship_config
+from app.services.message.processing.buffer import (
     _get_db_now_ms,
     finalize_buffer_if_locked,
     get_locked_context,
     lock_conversation_preemptively,
 )
-from sqlalchemy import and_, or_, select, update
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

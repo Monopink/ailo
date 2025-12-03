@@ -7,9 +7,12 @@ separation of concerns and pure function design.
 
 from typing import Any
 
-from enums import ContactType
-from exceptions import AIDataAccessError
-from models.ai import (
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.enums import ContactType
+from app.exceptions import AIDataAccessError
+from app.models.ai import (
     AIDimension,
     AIDimensionRelationshipMapping,
     AIInstance,
@@ -19,10 +22,10 @@ from models.ai import (
     AIStyle,
     AIStyleDimension,
 )
-from models.contact import Contact
-from models.profile import Profile
-from models.user import User
-from services.ai.types import (
+from app.models.contact import Contact
+from app.models.profile import Profile
+from app.models.user import User
+from app.services.ai.types import (
     AITypeInfo,
     CurrentRelationship,
     DimensionSpec,
@@ -32,9 +35,7 @@ from services.ai.types import (
     RelationshipCounts,
     StyleInfo,
 )
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -7,14 +7,15 @@ This module contains SQLAlchemy models for AI configuration templates.
 from typing import TYPE_CHECKING, Any
 
 from markupsafe import escape
-from models.base import AutoIncrementModel, SnowflakeQiaoModel
 from sqlalchemy import Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.models.base import AutoIncrementModel, SnowflakeQiaoModel
+
 if TYPE_CHECKING:
-    from models.ai.personality import AIPersonality
-    from models.ai.style import AIStyle
+    from app.models.ai.personality import AIPersonality
+    from app.models.ai.style import AIStyle
 
 
 class AIType(AutoIncrementModel):

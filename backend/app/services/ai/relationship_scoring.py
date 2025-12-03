@@ -7,17 +7,18 @@ based on AI style configurations and score positions.
 
 from typing import Any
 
-from crud.ai.instance_dimension import get_by_instance
-from exceptions import AIRelationshipError
-from models.ai import AIInstance
-from models.ai.instance_dimension import AIInstanceDimension
-from models.ai.style import AIStyleDimension
-from services.ai.response_schema import build_response_schema
-from services.ai.types import InstanceContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from utils.logging import get_logger
+
+from app.crud.ai.instance_dimension import get_by_instance
+from app.exceptions import AIRelationshipError
+from app.models.ai import AIInstance
+from app.models.ai.instance_dimension import AIInstanceDimension
+from app.models.ai.style import AIStyleDimension
+from app.services.ai.response_schema import build_response_schema
+from app.services.ai.types import InstanceContext
+from app.utils.logging import get_logger
 
 from .queries import (
     get_instance_id_by_qiao_id,

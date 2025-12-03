@@ -4,14 +4,15 @@ Profile CRUD operations
 
 from typing import Any
 
-from crud.base import CRUDBase
-from enums import ProfileOwnerType
-from models.profile import Profile
-from schemas.profile import ProfileCreate, ProfileUpdate
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
-from utils.snowflake import generate_snowflake_id
+
+from app.crud.base import CRUDBase
+from app.enums import ProfileOwnerType
+from app.models.profile import Profile
+from app.schemas.profile import ProfileCreate, ProfileUpdate
+from app.utils.logging import get_logger
+from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 

@@ -1,11 +1,12 @@
 from typing import TYPE_CHECKING, Optional
 
-from models.base import AutoIncrementModel
 from sqlalchemy import BigInteger, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.models.base import AutoIncrementModel
+
 if TYPE_CHECKING:
-    from models.message import MediaFile
+    from app.models.message import MediaFile
 
 
 class PresetAsset(AutoIncrementModel):

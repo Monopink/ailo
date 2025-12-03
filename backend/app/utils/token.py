@@ -6,9 +6,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
-from core.config import get_settings
-from enums import DeviceType
-from utils.snowflake import generate_snowflake_id
+
+from app.core.config import get_settings
+from app.enums import DeviceType
+from app.utils.snowflake import generate_snowflake_id
 
 
 def generate_jwt_token(

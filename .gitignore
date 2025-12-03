@@ -1,6 +1,7 @@
 *.log
 *.pyc
-__pycache__/
+nul
+*cache*
 node_modules/
 /logs/
 /deployment/.env

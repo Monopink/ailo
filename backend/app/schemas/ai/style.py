@@ -7,7 +7,8 @@ This module contains Pydantic schemas for AI styles and relationships.
 from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
-from schemas.common import BaseSchema
+
+from app.schemas.common import BaseSchema
 
 # AI Style Schemas
 

@@ -7,15 +7,16 @@ for all models.
 
 from typing import Any, Generic, TypeVar
 
-from models.protocols import (
+from pydantic import BaseModel
+from sqlalchemy import desc, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.protocols import (
     IdModelProtocol,
     ImmutableModelProtocol,
     QiaoIdModelProtocol,
     StatusModelProtocol,
 )
-from pydantic import BaseModel
-from sqlalchemy import desc, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Type variables for generic CRUD operations
 ModelType = TypeVar("ModelType", bound=IdModelProtocol)

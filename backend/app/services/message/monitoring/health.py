@@ -7,11 +7,12 @@ Provides provider-agnostic health check functionality for the message service.
 from datetime import UTC, datetime
 from typing import Any
 
-from crud.system import system_configs
-from services.config import config_service
-from services.message.providers.leancloud import create_leancloud_provider
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.system import system_configs
+from app.services.config import config_service
+from app.services.message.providers.leancloud import create_leancloud_provider
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -2,10 +2,11 @@
 Public system endpoints (no auth) for client bootstrapping configs.
 """
 
-from core.database import get_db
-from crud.system import system_configs
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.crud.system import system_configs
 
 router = APIRouter(prefix="/system", tags=["System Public"])
 

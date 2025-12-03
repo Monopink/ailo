@@ -11,7 +11,7 @@ import secrets
 import time
 from typing import Any
 
-from core.config import get_settings
+from app.core.config import get_settings
 
 
 def generate_nonce() -> str:

@@ -8,18 +8,19 @@ the facade pattern for clean separation of concerns.
 
 from typing import Any
 
-from crud.ai.instance_dimension import get_by_instance as _get_instance_dims
-from crud.contact import contact as contact_crud
-from enums import ContactType
-from models.base import generate_conv_id
-from schemas.contact import ContactCreate
-from services.ai.queries.transactions import archive_all_conversation_items
-from services.ai.relationship_scoring import determine_relationship_type as _determine
-from services.ai.relationship_scoring import get_relationship_scores
-from services.ai.response_schema import build_response_schema
-from services.ai.types import InstanceContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.ai.instance_dimension import get_by_instance as _get_instance_dims
+from app.crud.contact import contact as contact_crud
+from app.enums import ContactType
+from app.models.base import generate_conv_id
+from app.schemas.contact import ContactCreate
+from app.services.ai.queries.transactions import archive_all_conversation_items
+from app.services.ai.relationship_scoring import determine_relationship_type as _determine
+from app.services.ai.relationship_scoring import get_relationship_scores
+from app.services.ai.response_schema import build_response_schema
+from app.services.ai.types import InstanceContext
+from app.utils.logging import get_logger
 
 from .executor import ExecutorError, executor_service
 from .user_matcher import UserMatcherError, user_matcher_service

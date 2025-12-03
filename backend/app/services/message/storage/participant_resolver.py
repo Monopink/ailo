@@ -4,12 +4,13 @@ Participant resolver for message storage.
 Resolves qiao_id to participant type and ID.
 """
 
-from crud.user import user as user_crud
-from enums import MessageParticipantType
-from models.ai.instance import AIInstance
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.user import user as user_crud
+from app.enums import MessageParticipantType
+from app.models.ai.instance import AIInstance
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

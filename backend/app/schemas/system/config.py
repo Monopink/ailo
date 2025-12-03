@@ -7,9 +7,10 @@ This module contains Pydantic schemas for system configuration management.
 import json
 from datetime import datetime
 
-from enums import ConfigType
 from pydantic import BaseModel, Field, field_validator
-from schemas.common import BaseSchema
+
+from app.enums import ConfigType
+from app.schemas.common import BaseSchema
 
 # System Configuration Schemas
 

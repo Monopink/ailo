@@ -12,11 +12,12 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any
 
-from exceptions.llm import LLMConfigurationError
-from models.llm import LLMConfig, LLMProvider
 from openai import AsyncOpenAI
-from services.llm.types import LLMProviderResult, LLMRequestOptions
-from utils.logging import get_logger
+
+from app.exceptions.llm import LLMConfigurationError
+from app.models.llm import LLMConfig, LLMProvider
+from app.services.llm.types import LLMProviderResult, LLMRequestOptions
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -7,12 +7,13 @@ for template and persona management.
 
 from collections.abc import Sequence
 
-from crud.base import CRUDBase
-from models.ai import AIPersona, AITemplate
-from schemas.ai import AIPersonaCreate, AIPersonaUpdate, AITemplateCreate, AITemplateUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.base import CRUDBase
+from app.models.ai import AIPersona, AITemplate
+from app.schemas.ai import AIPersonaCreate, AIPersonaUpdate, AITemplateCreate, AITemplateUpdate
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

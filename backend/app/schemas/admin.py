@@ -6,9 +6,10 @@ This module contains Pydantic schemas for admin users and operation logs.
 
 from datetime import datetime
 
-from enums import AdminRole
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.enums import AdminRole
+from app.schemas.common import BaseSchema
 
 # Admin User Schemas
 

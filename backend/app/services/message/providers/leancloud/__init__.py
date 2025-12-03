@@ -4,10 +4,9 @@ LeanCloud message provider implementation.
 This module implements the MessageProvider protocol for LeanCloud messaging service.
 """
 
-from typing import Dict, List, Optional
-
-from services.message.schemas import InboundMessageEvent
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.message.schemas import InboundMessageEvent
 
 from ..base import MessageProvider, MessageResult
 from . import service

@@ -15,18 +15,19 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-from enums import MessageType
-from enums.common import AIMessageBufferState, ConversationRole
-from models.ai.instance import AIConversationItem, AIMessageBuffer
-from services.ai.queries.instance_queries import get_instance_relationship_config
-from services.ai.queries.updates import create_conversation_item
-from services.config import config_service
-from services.message.processing.sender import interrupt_sending_task
-from services.message.schemas import InboundMessageEvent
 from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.enums import MessageType
+from app.enums.common import AIMessageBufferState, ConversationRole
+from app.models.ai.instance import AIConversationItem, AIMessageBuffer
+from app.services.ai.queries.instance_queries import get_instance_relationship_config
+from app.services.ai.queries.updates import create_conversation_item
+from app.services.config import config_service
+from app.services.message.processing.sender import interrupt_sending_task
+from app.services.message.schemas import InboundMessageEvent
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

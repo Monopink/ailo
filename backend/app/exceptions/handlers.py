@@ -9,13 +9,14 @@ import traceback
 from datetime import UTC, datetime
 from typing import Any
 
-from exceptions.base import BaseAppException
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from utils.logging import get_logger
+
+from app.exceptions.base import BaseAppException
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -4,7 +4,7 @@ Access token cache for WeChat API
 
 import time
 
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

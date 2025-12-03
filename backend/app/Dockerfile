@@ -2,9 +2,10 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+# Set PYTHONPATH to /backend so that 'from app.xxx' imports work correctly
+ENV PYTHONPATH=/backend
 
-WORKDIR /app
+WORKDIR /backend
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -13,13 +14,17 @@ RUN apt-get update \
 
 RUN pip install --no-cache-dir --upgrade pip
 
-COPY requirements.txt .
+# Copy requirements from app directory
+COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy the entire app directory to /backend/app
+COPY app /backend/app
 
-RUN mkdir -p logs static/uploads
+# Create necessary directories
+RUN mkdir -p /backend/logs /backend/app/static/uploads
 
 EXPOSE 8000
 
-CMD ["python", "main.py"]
+# Run the application from the app directory
+CMD ["python", "/backend/app/main.py"]

@@ -6,16 +6,17 @@ This module contains SQLAlchemy models for user profiles and profile change logs
 
 from typing import TYPE_CHECKING, Optional
 
-from enums import ProfileOwnerType
-from models.base import ImmutableSnowflakeModel, SnowflakeModel
 from sqlalchemy import BigInteger, Index, Integer, String, Text
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.enums import ProfileOwnerType
+from app.models.base import ImmutableSnowflakeModel, SnowflakeModel
+
 if TYPE_CHECKING:
-    from models.ai.instance import AIInstance
-    from models.ai.template import AIPersona
-    from models.user import User
+    from app.models.ai.instance import AIInstance
+    from app.models.ai.template import AIPersona
+    from app.models.user import User
 
 
 class Profile(SnowflakeModel):

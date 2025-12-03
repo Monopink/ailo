@@ -11,10 +11,11 @@ For write operations, use crud.system.config and reload cache.
 import os
 from typing import Any
 
-from core.config import get_settings
-from exceptions import ConfigurationError, MissingConfigurationError
-from services.system_config import SystemConfigService
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
+from app.exceptions import ConfigurationError, MissingConfigurationError
+from app.services.system_config import SystemConfigService
 
 
 class ConfigService:

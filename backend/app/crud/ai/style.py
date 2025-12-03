@@ -7,18 +7,24 @@ for AI style and relationship mapping management.
 
 from typing import Any
 
-from crud.base import CRUDBase
-from models.ai import (
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.base import CRUDBase
+from app.models.ai import (
     AIDimension,
     AIDimensionRelationshipMapping,
     AIRelationship,
     AIStyle,
     AIStyleDimension,
 )
-from schemas.ai import AIStyleCreate, AIStyleDimensionCreate, AIStyleDimensionUpdate, AIStyleUpdate
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.schemas.ai import (
+    AIStyleCreate,
+    AIStyleDimensionCreate,
+    AIStyleDimensionUpdate,
+    AIStyleUpdate,
+)
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

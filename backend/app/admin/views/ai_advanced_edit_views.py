@@ -5,20 +5,6 @@ Provides specialized editing interfaces for prompt_variables and position_mappin
 
 import json
 
-from core.database import get_sessionmaker
-from crud.ai import ai_personality_placeholder as personality_crud
-from crud.ai.instance_dimension import get_by_instance
-from models.ai.instance import AIInstance
-from models.ai.personality import AIPersonality
-from models.ai.style import (
-    AIDimension,
-    AIDimensionRelationshipMapping,
-    AIRelationship,
-    AIStyle,
-    AIStyleDimension,
-)
-from models.ai.template import AITemplate
-from services.ai.utils.position_mapping import get_algorithm_param_specs
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from starlette.exceptions import HTTPException
@@ -26,7 +12,22 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-from utils.logging import get_logger
+
+from app.core.database import get_sessionmaker
+from app.crud.ai import ai_personality_placeholder as personality_crud
+from app.crud.ai.instance_dimension import get_by_instance
+from app.models.ai.instance import AIInstance
+from app.models.ai.personality import AIPersonality
+from app.models.ai.style import (
+    AIDimension,
+    AIDimensionRelationshipMapping,
+    AIRelationship,
+    AIStyle,
+    AIStyleDimension,
+)
+from app.models.ai.template import AITemplate
+from app.services.ai.utils.position_mapping import get_algorithm_param_specs
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -4,13 +4,19 @@ Contact management CRUD operations.
 This module contains CRUD operations for contact relationships and requests.
 """
 
-from crud.base import CRUDBase
-from enums import ContactRequestStatus, ContactType
-from models.contact import Contact, ContactRequest
-from schemas.contact import ContactCreate, ContactRequestCreate, ContactRequestUpdate, ContactUpdate
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.snowflake import generate_snowflake_id
+
+from app.crud.base import CRUDBase
+from app.enums import ContactRequestStatus, ContactType
+from app.models.contact import Contact, ContactRequest
+from app.schemas.contact import (
+    ContactCreate,
+    ContactRequestCreate,
+    ContactRequestUpdate,
+    ContactUpdate,
+)
+from app.utils.snowflake import generate_snowflake_id
 
 
 class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):

@@ -8,11 +8,12 @@ stored in ai_conversation_items.
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from enums.common import ConversationItemContextStatus
-from models.ai import AIConversationItem
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.enums.common import ConversationItemContextStatus
+from app.models.ai import AIConversationItem
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

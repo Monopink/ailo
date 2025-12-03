@@ -3,14 +3,15 @@ Dashboard views for non-database functionality.
 All business logic is handled through internal API calls.
 """
 
-from crud.system import system_configs
-from services.config import config_service
-from services.message.monitoring.health import get_message_service_status
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
-from utils.logging import get_logger
+
+from app.crud.system import system_configs
+from app.services.config import config_service
+from app.services.message.monitoring.health import get_message_service_status
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

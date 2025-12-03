@@ -6,11 +6,14 @@ This module contains CRUD operations for user accounts, tokens, and authenticati
 
 from datetime import UTC, datetime, timedelta
 
-from core.security import verify_password
-from crud.base import CRUDBase, CRUDBaseWithQiaoId, ImmutableCRUDBase
-from enums import AuthType, DeviceType, LoginResult, UserStatus
-from models.user import LoginRecord, User, UserAuth, UserToken
-from schemas.user import (
+from sqlalchemy import and_, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import verify_password
+from app.crud.base import CRUDBase, CRUDBaseWithQiaoId, ImmutableCRUDBase
+from app.enums import AuthType, DeviceType, LoginResult, UserStatus
+from app.models.user import LoginRecord, User, UserAuth, UserToken
+from app.schemas.user import (
     LoginRecordCreate,
     TokenCreate,
     TokenUpdate,
@@ -19,9 +22,7 @@ from schemas.user import (
     UserCreate,
     UserUpdate,
 )
-from sqlalchemy import and_, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.snowflake import generate_snowflake_id
+from app.utils.snowflake import generate_snowflake_id
 
 
 class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):

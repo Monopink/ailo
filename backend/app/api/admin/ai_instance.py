@@ -5,15 +5,16 @@ Handles instance management including prompt variables, dimensions, and relation
 
 from typing import Any
 
-from core.database import get_db
-from crud.ai import ai_instance as ai_instance_crud
-from crud.ai.instance_dimension import update_dimension, update_dimensions_batch
-from enums.common import PositionMappingAlgorithm
 from fastapi import APIRouter, Depends, HTTPException
-from services.admin.instance_relationship import generate_relationship_for_instance
-from services.ai.utils.position_mapping import parse_algorithm_params
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.database import get_db
+from app.crud.ai import ai_instance as ai_instance_crud
+from app.crud.ai.instance_dimension import update_dimension, update_dimensions_batch
+from app.enums.common import PositionMappingAlgorithm
+from app.services.admin.instance_relationship import generate_relationship_for_instance
+from app.services.ai.utils.position_mapping import parse_algorithm_params
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

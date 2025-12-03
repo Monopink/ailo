@@ -8,8 +8,8 @@ import json
 import os
 from typing import Any
 
-from models.llm import LLMProvider
-from utils.logging import get_logger
+from app.models.llm import LLMProvider
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

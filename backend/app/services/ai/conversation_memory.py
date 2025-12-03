@@ -7,11 +7,12 @@ context status updates, and context archiving.
 
 from typing import Any
 
-from services.config import config_service
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.config import config_service
+
 # AIServiceError import removed - memory operations now use tolerant error handling
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 from .queries import get_instance_context, get_items_for_archiving
 from .queries.transactions import archive_contexts_transaction

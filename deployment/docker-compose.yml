@@ -56,8 +56,8 @@ services:
   backend:
     container_name: backend_container
     build:
-      context: ../backend/app
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: app/Dockerfile
     env_file:
       - .env
     environment:
@@ -66,8 +66,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ../backend/app:/app
-      - ../logs:/app/logs
+      # Mount the app directory to /backend/app for hot-reload during development
+      - ../backend/app:/backend/app
+      - ../logs:/backend/logs
     networks:
       - says-network
     depends_on:

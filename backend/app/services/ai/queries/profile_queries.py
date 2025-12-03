@@ -7,10 +7,11 @@ separation of concerns and pure function design.
 
 from typing import Any
 
-from models.profile import Profile
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.models.profile import Profile
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

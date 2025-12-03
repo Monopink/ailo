@@ -4,12 +4,13 @@ Media file CRUD operations.
 This module contains CRUD operations for media file management.
 """
 
-from crud.base import CRUDBase
-from enums import FileStatus
-from models.message import MediaFile
-from schemas.message import MediaFileUpload
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.base import CRUDBase
+from app.enums import FileStatus
+from app.models.message import MediaFile
+from app.schemas.message import MediaFileUpload
 
 
 class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):

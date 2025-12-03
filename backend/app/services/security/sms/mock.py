@@ -6,7 +6,7 @@ Logs SMS to application logs for testing purposes.
 
 import time
 
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 from .base import SMSResult
 

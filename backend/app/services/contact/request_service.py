@@ -6,13 +6,18 @@ This module provides business logic for contact request processing.
 
 from datetime import UTC, datetime, timedelta
 
-from crud.ai import ai_persona as ai_persona_crud
-from crud.contact import contact as contact_crud
-from crud.contact import contact_request as contact_request_crud
-from crud.profile import profile as profile_crud
-from crud.system import system_configs
-from crud.user import user as user_crud
-from enums import (
+from fastapi import HTTPException, status
+from fastapi import status as http_status
+from sqlalchemy import BigInteger, cast, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.ai import ai_persona as ai_persona_crud
+from app.crud.contact import contact as contact_crud
+from app.crud.contact import contact_request as contact_request_crud
+from app.crud.profile import profile as profile_crud
+from app.crud.system import system_configs
+from app.crud.user import user as user_crud
+from app.enums import (
     AIPersonaStatus,
     ChatInfoType,
     ContactRequestFailureCode,
@@ -21,12 +26,10 @@ from enums import (
     ContactType,
     ProfileOwnerType,
 )
-from enums.templates import CHAT_INFO_TEMPLATES
-from fastapi import HTTPException, status
-from fastapi import status as http_status
-from models.ai.instance import AIInstance
-from models.contact import Contact, ContactRequest
-from schemas.contact import (
+from app.enums.templates import CHAT_INFO_TEMPLATES
+from app.models.ai.instance import AIInstance
+from app.models.contact import Contact, ContactRequest
+from app.schemas.contact import (
     ContactCreate,
     ContactDetailResponse,
     ContactProfileSummary,
@@ -35,14 +38,12 @@ from schemas.contact import (
     ContactRequestListResponse,
     ContactRequestWithProfile,
 )
-from services.ai.contact_handler import handle_ai_contact_request
-from services.ai.instance_creation import create_instance_from_persona
-from services.contact.service import _get_im_conv_id, get_contact_with_profile
-from services.message.outbound.helpers import send_chat_info, send_contact_request_notification
-from sqlalchemy import BigInteger, cast, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
-from utils.snowflake import generate_snowflake_id
+from app.services.ai.contact_handler import handle_ai_contact_request
+from app.services.ai.instance_creation import create_instance_from_persona
+from app.services.contact.service import _get_im_conv_id, get_contact_with_profile
+from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
+from app.utils.logging import get_logger
+from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 

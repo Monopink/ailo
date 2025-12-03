@@ -4,26 +4,27 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import uvicorn
-from admin import get_admin
-from api.admin import admin_api_router
-from api.v1 import v1_router
-from core.config import Settings, get_settings
-from core.database import close_database, get_sessionmaker, init_database
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from middleware.rate_limit import APIRateLimitMiddleware
-from services.contact.request_worker import start_contact_request_worker
-from services.message.processing import reset_open_conversation_windows
-from services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
-from services.message.providers.leancloud import create_leancloud_provider
-from services.system_config import get_config
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from utils.logging import configure_logging, get_logger
-from utils.snowflake import init_snowflake
+
+from app.admin import get_admin
+from app.api.admin import admin_api_router
+from app.api.v1 import v1_router
+from app.core.config import Settings, get_settings
+from app.core.database import close_database, get_sessionmaker, init_database
+from app.middleware.rate_limit import APIRateLimitMiddleware
+from app.services.contact.request_worker import start_contact_request_worker
+from app.services.message.processing import reset_open_conversation_windows
+from app.services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
+from app.services.message.providers.leancloud import create_leancloud_provider
+from app.services.system_config import get_config
+from app.utils.logging import configure_logging, get_logger
+from app.utils.snowflake import init_snowflake
 
 logger = get_logger(__name__)
 

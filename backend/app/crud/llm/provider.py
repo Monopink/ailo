@@ -4,11 +4,12 @@ CRUD operations for LLM providers.
 This module provides database operations for LLM providers.
 """
 
-from crud.base import CRUDBase
-from models.llm import LLMProvider
-from schemas.llm import LLMProviderCreate, LLMProviderUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.base import CRUDBase
+from app.models.llm import LLMProvider
+from app.schemas.llm import LLMProviderCreate, LLMProviderUpdate
 
 
 class CRUDLLMProvider(CRUDBase[LLMProvider, LLMProviderCreate, LLMProviderUpdate]):

@@ -6,12 +6,13 @@ This module contains CRUD operations for admin users and operation logs.
 
 from datetime import UTC, datetime, timedelta
 
-from crud.base import CRUDBase, CRUDBaseWithStatus
-from enums import AdminRole, AdminStatus
-from models.admin import AdminLoginLog, AdminOperationLog, AdminUser
-from schemas.admin import AdminOperationLogCreate, AdminUserCreate, AdminUserUpdate
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.base import CRUDBase, CRUDBaseWithStatus
+from app.enums import AdminRole, AdminStatus
+from app.models.admin import AdminLoginLog, AdminOperationLog, AdminUser
+from app.schemas.admin import AdminOperationLogCreate, AdminUserCreate, AdminUserUpdate
 
 
 class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpdate]):

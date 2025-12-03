@@ -7,9 +7,10 @@ This module contains Pydantic schemas for AI request logging and statistics.
 from datetime import datetime
 from typing import Any
 
-from enums import AIRequestStatus
 from pydantic import BaseModel, Field
-from schemas.common import BaseSchema
+
+from app.enums import AIRequestStatus
+from app.schemas.common import BaseSchema
 
 # AI Request Log Schemas
 

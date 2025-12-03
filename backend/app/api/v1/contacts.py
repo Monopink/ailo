@@ -6,17 +6,19 @@ This module provides endpoints for managing user contacts and conversations.
 
 import base64
 
-from api.deps import get_current_user
-from core.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from models.user import User
-from schemas.contact import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user
+from app.core.database import get_db
+from app.models.user import User
+from app.schemas.contact import (
     ContactDetailResponse,
     ContactListResult,
     ContactUpdate,
     ConversationInfoResponse,
 )
-from services.contact import (
+from app.services.contact import (
     block_contact,
     delete_contact,
     get_contact_with_profile,
@@ -25,8 +27,7 @@ from services.contact import (
     unblock_contact,
     update_contact,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

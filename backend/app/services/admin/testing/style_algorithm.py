@@ -6,17 +6,18 @@ Provides testing functionality for AI style score mapping and relationship selec
 
 from typing import Any
 
-from enums.common import PositionMappingAlgorithm
-from services.ai.relationship_selection import collect_candidates, select_final_relationship
-from services.ai.utils.position_mapping import (
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.enums.common import PositionMappingAlgorithm
+from app.services.ai.relationship_selection import collect_candidates, select_final_relationship
+from app.services.ai.utils.position_mapping import (
     get_algorithm_param_specs,
     map_score_to_position,
     parse_algorithm_params,
 )
-from services.ai.utils.score_mapping import map_to_permille
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+from app.services.ai.utils.score_mapping import map_to_permille
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

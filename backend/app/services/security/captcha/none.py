@@ -4,7 +4,7 @@ None CAPTCHA Provider
 Disables CAPTCHA verification (always returns True).
 """
 
-from utils.logging import get_logger
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

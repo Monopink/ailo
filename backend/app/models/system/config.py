@@ -4,10 +4,11 @@ System configuration related models.
 This module contains SQLAlchemy models for system configuration management.
 """
 
-from models.base import AutoIncrementModel
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import AutoIncrementModel
 
 
 class SystemConfig(AutoIncrementModel):

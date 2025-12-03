@@ -4,13 +4,14 @@ AI Log admin views.
 This module contains Starlette-Admin views for AI request logging.
 """
 
-from admin.fields import LocalDateTimeField
-from admin.views.base import IntegerEnumField
-from enums import AIRequestStatus
-from models.ai.log import AIRequestLog
 from starlette_admin import BooleanField, IntegerField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.fields import JSONField
+
+from app.admin.fields import LocalDateTimeField
+from app.admin.views.base import IntegerEnumField
+from app.enums import AIRequestStatus
+from app.models.ai.log import AIRequestLog
 
 
 class AIRequestLogView(ModelView):

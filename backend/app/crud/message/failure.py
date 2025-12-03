@@ -6,11 +6,12 @@ This module contains CRUD operations for message delivery failures and retry log
 
 from datetime import UTC, datetime
 
-from crud.base import CRUDBase
-from models.message import MessageDeliveryFailure
 from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.base import CRUDBase
+from app.models.message import MessageDeliveryFailure
 
 
 class CRUDMessageFailure(CRUDBase[MessageDeliveryFailure, BaseModel, BaseModel]):

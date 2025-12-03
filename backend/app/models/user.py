@@ -7,12 +7,13 @@ This module contains SQLAlchemy models for user accounts, tokens, and login reco
 from datetime import datetime
 from typing import Any
 
-from enums import UserType
 from markupsafe import escape
-from models.base import Base, SnowflakeIDMixin, SnowflakeModel, SnowflakeQiaoModel, StatusMixin
 from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.enums import UserType
+from app.models.base import Base, SnowflakeIDMixin, SnowflakeModel, SnowflakeQiaoModel, StatusMixin
 
 
 class User(SnowflakeQiaoModel, StatusMixin):

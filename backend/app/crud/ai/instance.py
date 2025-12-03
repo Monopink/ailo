@@ -7,14 +7,15 @@ for AI instance management.
 
 from typing import Any
 
-from crud.base import CRUDBase
-from enums import AIInstanceCreator, ContactType
-from models.ai import AIInstance
-from models.contact import Contact
-from schemas.ai import AIInstanceCreate, AIInstanceUpdate
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.base import CRUDBase
+from app.enums import AIInstanceCreator, ContactType
+from app.models.ai import AIInstance
+from app.models.contact import Contact
+from app.schemas.ai import AIInstanceCreate, AIInstanceUpdate
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

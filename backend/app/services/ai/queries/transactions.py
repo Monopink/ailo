@@ -9,13 +9,14 @@ import secrets
 import string
 from typing import Any
 
-from models.ai import AIConversationItem, AIConversationItemArchive, AIInstance, AIRequestLog
-from models.contact import Contact
-from models.profile import Profile
-from services.ai.types import InstanceContext
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.models.ai import AIConversationItem, AIConversationItemArchive, AIInstance, AIRequestLog
+from app.models.contact import Contact
+from app.models.profile import Profile
+from app.services.ai.types import InstanceContext
+from app.utils.logging import get_logger
 
 from .instance_queries import get_user_id_by_qiao_id
 

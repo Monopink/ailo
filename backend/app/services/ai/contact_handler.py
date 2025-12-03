@@ -8,12 +8,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from enums import AIPersonaStatus, AITemplateStatus, ReusableStatus
-from models.ai.template import AIPersona, AITemplate
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from utils.logging import get_logger
+
+from app.enums import AIPersonaStatus, AITemplateStatus, ReusableStatus
+from app.models.ai.template import AIPersona, AITemplate
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

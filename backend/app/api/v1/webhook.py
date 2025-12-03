@@ -8,29 +8,57 @@ import hashlib
 import secrets
 import time
 
-from core.config import get_settings
-from core.database import get_db
-from crud.system import system_configs
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from services.message.inbound.router import route_message
-from services.message.providers.leancloud.webhook import parse_leancloud_webhook
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.core.config import get_settings
+from app.core.database import get_db
+from app.crud.system import system_configs
+from app.services.message.inbound.router import route_message
+from app.services.message.providers.leancloud.webhook import parse_leancloud_webhook
+from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/lc-im", tags=["LeanCloud IM Webhook"])
+router = APIRouter(prefix="/leancloud", tags=["LeanCloud IM Webhook"])
 
 _settings = get_settings()
 WEBHOOK_TIMESTAMP_TOLERANCE_MS = 10 * 60 * 1000  # 10 minutes
+_SIGNATURE_PARTS_WITH_NONCE = 3
+_TOKEN_PREFIX_LENGTH = 8
+
+
+def _raise_invalid_signature_header() -> None:
+    """Raise HTTPException for invalid signature header."""
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature header")
+
+
+def _raise_invalid_signature_timestamp() -> None:
+    """Raise HTTPException for invalid signature timestamp."""
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature timestamp")
+
+
+def _raise_signature_expired() -> None:
+    """Raise HTTPException for expired signature."""
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Signature expired")
+
+
+def _raise_signature_mismatch() -> None:
+    """Raise HTTPException for signature mismatch."""
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Signature mismatch")
 
 
 def _validate_signature(signature_header: str, master_key: str) -> None:
+    """
+    Validate LeanCloud webhook signature.
+
+    Note: Uses MD5 as required by LeanCloud's webhook signature protocol.
+    This is not a security concern as it's used for HMAC-like verification,
+    not for cryptographic hashing.
+    """
     parts = signature_header.split(",")
     if len(parts) not in (2, 3):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature header"
-        )
+        _raise_invalid_signature_header()
 
     signature = parts[0]
     try:
@@ -39,22 +67,53 @@ def _validate_signature(signature_header: str, master_key: str) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature timestamp"
         ) from exc
-    nonce = parts[2] if len(parts) == 3 else ""
+    nonce = parts[2] if len(parts) == _SIGNATURE_PARTS_WITH_NONCE else ""
 
     now_ms = int(time.time() * 1000)
     if abs(now_ms - timestamp_ms) > WEBHOOK_TIMESTAMP_TOLERANCE_MS:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Signature expired")
+        _raise_signature_expired()
 
     material = f"{timestamp_ms}{nonce}{master_key}"
-    expected = hashlib.md5(material.encode("utf-8")).hexdigest()
+    # MD5 is required by LeanCloud's signature protocol (not a security issue here)
+    expected = hashlib.md5(material.encode("utf-8"), usedforsecurity=False).hexdigest()
     if expected.lower() != signature.lower():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Signature mismatch")
+        _raise_signature_mismatch()
+
+
+def _raise_webhook_not_configured() -> None:
+    """Raise HTTPException for webhook not configured."""
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Webhook not configured",
+    )
+
+
+def _raise_invalid_webhook_token() -> None:
+    """Raise HTTPException for invalid webhook token."""
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid webhook token")
+
+
+def _raise_missing_leancloud_headers() -> None:
+    """Raise HTTPException for missing LeanCloud headers."""
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing LeanCloud headers")
+
+
+def _raise_invalid_leancloud_app_id() -> None:
+    """Raise HTTPException for invalid LeanCloud App ID."""
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid LeanCloud App ID")
+
+
+def _raise_invalid_payload_format() -> None:
+    """Raise HTTPException for invalid payload format."""
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload format")
 
 
 @router.post("/webhook/{webhook_token}")
 async def leancloud_webhook(
-    webhook_token: str, request: Request, db: AsyncSession = Depends(get_db)
-):
+    webhook_token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+) -> dict[str, int]:
     """
     Receive messages from LeanCloud webhook.
 
@@ -81,43 +140,35 @@ async def leancloud_webhook(
 
         if not correct_token:
             logger.error("webhook_token_not_configured")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Webhook not configured",
-            )
+            _raise_webhook_not_configured()
 
         # Use constant-time comparison to prevent timing attacks
         if not secrets.compare_digest(webhook_token, correct_token):
             logger.warning(
                 "invalid_webhook_token_attempt",
-                token_prefix=webhook_token[:8] if len(webhook_token) >= 8 else "***",
+                token_prefix=(
+                    webhook_token[:_TOKEN_PREFIX_LENGTH]
+                    if len(webhook_token) >= _TOKEN_PREFIX_LENGTH
+                    else "***"
+                ),
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid webhook token"
-            )
+            _raise_invalid_webhook_token()
 
         # 2. Validate LeanCloud headers
         app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
         if not app_id:
             logger.error("leancloud_im_app_id_not_configured_for_webhook")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Webhook not configured",
-            )
+            _raise_webhook_not_configured()
 
         lc_id = request.headers.get("X-LC-Id")
         signature_header = request.headers.get("X-LC-Signature")
 
         if not lc_id or not signature_header:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Missing LeanCloud headers"
-            )
+            _raise_missing_leancloud_headers()
 
         if lc_id != app_id:
             logger.warning("leancloud_app_id_mismatch", received=lc_id)
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid LeanCloud App ID"
-            )
+            _raise_invalid_leancloud_app_id()
 
         _validate_signature(signature_header, _settings.LEANCLOUD_MASTER_KEY)
 
@@ -126,9 +177,7 @@ async def leancloud_webhook(
 
         if not isinstance(messages, list):
             logger.error("invalid_webhook_payload_format", payload_type=type(messages).__name__)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload format"
-            )
+            _raise_invalid_payload_format()
 
         logger.info("webhook_messages_received", count=len(messages))
 
@@ -144,10 +193,9 @@ async def leancloud_webhook(
                     await route_message(db, inbound_event)
                     processed_count += 1
 
-            except Exception as e:
-                logger.error(
+            except Exception:
+                logger.exception(
                     "webhook_message_processing_failed",
-                    error=str(e),
                     message_id=message.get("msgId"),
                 )
                 # Continue processing other messages
@@ -155,14 +203,14 @@ async def leancloud_webhook(
 
         logger.info("webhook_processing_completed", processed=processed_count, total=len(messages))
 
-        # 5. Return success response (LeanCloud expects {"code": 200})
-        return {"code": 200}
-
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("webhook_processing_error", error=str(e))
+    except Exception:
+        logger.exception("webhook_processing_error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Webhook processing failed",
-        )
+        ) from None
+
+    # 5. Return success response (LeanCloud expects {"code": 200})
+    return {"code": 200}

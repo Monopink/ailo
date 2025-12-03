@@ -10,21 +10,42 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from enums.common import ConversationRole
-from exceptions import AIServiceError
-from models.ai import AIConversationState
-from services.ai.types import InstanceContext
+import pendulum
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.enums.common import ConversationRole
+from app.exceptions import AIServiceError
+from app.models.ai import AIConversationState
+from app.services.ai.types import InstanceContext
+from app.utils.logging import get_logger
 
 from .queries import get_conversation_contexts, get_personality_with_placeholders, get_user_profile
 from .relationship_scoring import get_relationship_scores
 
 logger = get_logger(__name__)
 
+# Constants for magic values
+_TEMPLATE_PREVIEW_LENGTH = 200
+_MIN_PROMPT_LENGTH = 10
+_DAYS_IN_WEEK_START = 2
+_DAYS_IN_WEEK_END = 6
+_DAYS_IN_MONTH_START = 7
+_DAYS_IN_MONTH_END = 30
+_DAYS_IN_YEAR_START = 31
+_DAYS_IN_YEAR = 365
+
 
 # Exception classes moved to exceptions/business.py for consistency
+
+
+def _raise_personality_not_found(personality_id: int | str) -> None:
+    """Raise AIServiceError for personality not found."""
+    raise AIServiceError(
+        ai_service="prompt_building",
+        reason="personality_not_found",
+        message=f"Personality not found: {personality_id}",
+    )
 
 
 async def build_system_prompt(
@@ -55,14 +76,12 @@ async def build_system_prompt(
         personality_id = context["personality"]["id"]
 
         personality_data = await get_personality_with_placeholders(db, personality_id)
-        if not personality_data:
-            raise AIServiceError(
-                ai_service="prompt_building",
-                reason="personality_not_found",
-                message=f"Personality not found: {personality_id}",
-            )
+        if personality_data is None:
+            _raise_personality_not_found(personality_id)
 
-        available_placeholders = personality_data["placeholders"]
+        # Type narrowing: personality_data is guaranteed to be dict here
+        assert personality_data is not None
+        available_placeholders: list[Any] = personality_data["placeholders"]
 
         # Build placeholder values
         placeholder_values = await _build_placeholder_values(
@@ -84,12 +103,11 @@ async def build_system_prompt(
             placeholders_used=len(placeholder_values),
         )
 
-        return system_prompt
-
+    except AIServiceError:
+        raise
     except Exception as e:
-        logger.error(
+        logger.exception(
             "system_prompt_build_failed",
-            error=str(e),
             instance_qiao_id=context.get("instance_qiao_id"),
             user_qiao_id=user_qiao_id,
         )
@@ -97,7 +115,9 @@ async def build_system_prompt(
             ai_service="prompt_building",
             reason="build_failed",
             message=f"Failed to build system prompt: {e!s}",
-        )
+        ) from e
+
+    return system_prompt
 
 
 def replace_placeholders(template: str, placeholders: dict[str, Any]) -> str:
@@ -147,7 +167,11 @@ def replace_placeholders(template: str, placeholders: dict[str, Any]) -> str:
         logger.warning(
             "unknown_placeholders_detected_clearing",
             unknown_placeholders=unknown_matches,
-            template_preview=template[:200] if len(template) > 200 else template,
+            template_preview=(
+                template[:_TEMPLATE_PREVIEW_LENGTH]
+                if len(template) > _TEMPLATE_PREVIEW_LENGTH
+                else template
+            ),
         )
         # Clear all unknown placeholders
         result = re.sub(unknown_pattern, "", result)
@@ -170,7 +194,7 @@ async def _build_placeholder_values(
     context: InstanceContext,
     relationship_type: dict[str, Any] | None,
     user_qiao_id: str,
-    available_placeholders: dict[str, Any],
+    available_placeholders: list[Any],
 ) -> dict[str, Any]:
     """
     Build placeholder values for system prompt.
@@ -230,6 +254,7 @@ async def _build_placeholder_values(
     # Fill in template-defined placeholders with defaults if not already provided
     if available_placeholders:
         for placeholder in available_placeholders:
+            key: str | None = None
             if isinstance(placeholder, dict):
                 key = placeholder.get("placeholder_key")
             else:
@@ -317,7 +342,7 @@ async def _build_pending_messages_placeholder(
     )
 
 
-def _format_profile(profile: Any) -> str:
+def _format_profile(profile: dict[str, Any] | object) -> str:
     """
     Format profile information for prompt.
 
@@ -345,27 +370,27 @@ def _format_profile(profile: Any) -> str:
         )
 
         if nickname:
-            parts.append(f"昵称：{nickname}")
+            parts.append(f"昵称: {nickname}")
 
         if gender:
             gender_map = {1: "男", 2: "女", 3: "其他", 4: "未知"}
             gender_str = gender_map.get(gender, "未知")
-            parts.append(f"性别：{gender_str}")
+            parts.append(f"性别: {gender_str}")
 
         if bio:
-            parts.append(f"简介：{bio}")
+            parts.append(f"简介: {bio}")
 
         if region:
-            parts.append(f"地区：{region}")
+            parts.append(f"地区: {region}")
 
-        return "；".join(parts) if parts else "暂无资料"
+        return "; ".join(parts) if parts else "暂无资料"
 
-    except Exception as e:
-        logger.error("profile_formatting_failed", error=str(e))
+    except Exception:
+        logger.exception("profile_formatting_failed")
         return "资料格式化失败"
 
 
-async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Any | None:
+async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, Any] | None:
     """
     Get user profile information.
 
@@ -376,28 +401,28 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> Any | None:
     Returns:
         User profile or None
     """
-    return await get_user_profile(db, user_qiao_id)
+    return await get_user_profile(db, user_qiao_id)  # type: ignore[no-any-return]
 
 
-def _get_current_datetime(context: dict[str, Any]) -> str:
+def _get_current_datetime(context: dict[str, Any] | InstanceContext) -> str:
     """
     Get current datetime string based on instance timezone.
 
     Falls back to Asia/Shanghai when timezone is invalid or missing.
+    Uses Pendulum for better timezone handling.
     """
     try:
         tz_name = (context or {}).get("timezone") or "Asia/Shanghai"
         try:
-            tzinfo = ZoneInfo(tz_name)
+            now = pendulum.now(tz_name)
         except Exception:
             logger.warning("invalid_timezone_fallback", timezone=tz_name)
-            tzinfo = ZoneInfo("Asia/Shanghai")
+            now = pendulum.now("Asia/Shanghai")
 
-        now = datetime.now(tzinfo)
-        return now.strftime("%Y年%m月%d日 %H:%M")
+        return str(now.format("YYYY年MM月DD日 HH:mm", locale="zh"))
 
-    except Exception as e:
-        logger.error("datetime_formatting_failed", error=str(e))
+    except Exception:
+        logger.exception("datetime_formatting_failed")
         return "时间获取失败"
 
 
@@ -412,11 +437,15 @@ def _get_base_response_schema(
         "properties": {
             "current_state": {
                 "type": "string",
-                "description": "根据当前时间等信息，推测补充你当前的所处的地点环境、正在做的事情、你的心情",
+                "description": (
+                    "根据当前时间等信息, 推测补充你当前的所处的地点环境, " "正在做的事情, 你的心情"
+                ),
             },
             "internal_thoughts": {
                 "type": "string",
-                "description": "回复前的思考（整理你与{USER}的关系，{USER}的身份、意图，回复的原则）",
+                "description": (
+                    "回复前的思考(整理你与{USER}的关系, {USER}的身份, 意图, " "回复的原则)"
+                ),
             },
             "attack_detected": {
                 "type": "boolean",
@@ -425,7 +454,7 @@ def _get_base_response_schema(
             "should_reply": {"type": "boolean", "description": "是否要回复{USER}"},
             "outgoing_messages": {
                 "type": "array",
-                "description": "多条消息数组，每条消息单独发送",
+                "description": "多条消息数组, 每条消息单独发送",
                 "items": {"type": "string"},
             },
             "score": {
@@ -436,36 +465,39 @@ def _get_base_response_schema(
             },
             "followup_messages": {
                 "type": "array",
-                "description": "备发消息数组，每条消息单独发送",
+                "description": "备发消息数组, 每条消息单独发送",
                 "items": {"type": "string"},
             },
             "should_block": {
                 "type": "boolean",
-                "description": "是否删除好友，如果删除，{USER}将无法再给你发消息",
+                "description": "是否删除好友, 如果删除, {USER}将无法再给你发消息",
             },
             "should_update_memory": {"type": "boolean", "description": "本轮是否对记忆进行修改"},
             "memory_operations": {
                 "type": "array",
-                "description": "顺序执行的记忆操作列表，每条操作会在前一条操作修改后的记忆上执行",
+                "description": ("顺序执行的记忆操作列表, 每条操作会在前一条操作修改后的记忆上执行"),
                 "items": {
                     "type": "object",
                     "properties": {
                         "operation": {
                             "type": "string",
                             "enum": ["add", "replace", "delete"],
-                            "description": "操作类型：增加、替换或删除",
+                            "description": "操作类型: 增加, 替换或删除",
                         },
                         "content": {
                             "type": "string",
-                            "description": "新增或替换的内容，仅在 add 和 replace 时必填",
+                            "description": "新增或替换的内容, 仅在 add 和 replace 时必填",
                         },
                         "target_text": {
                             "type": "string",
-                            "description": "要匹配的旧文本，仅在 replace 和 delete 时必填",
+                            "description": "要匹配的旧文本, 仅在 replace 和 delete 时必填",
                         },
                         "insert_position": {
                             "type": "string",
-                            "description": "新增内容的插入位置，仅在 add 时有效，可为 'start', 'end', 'after:<text>', 'before:<text>'",
+                            "description": (
+                                "新增内容的插入位置, 仅在 add 时有效, "
+                                "可为 'start', 'end', 'after:<text>', 'before:<text>'"
+                            ),
                         },
                     },
                     "required": ["operation"],
@@ -556,12 +588,9 @@ async def build_conversation_context(
             messages_count=len(messages),
         )
 
-        return messages
-
     except Exception as e:
-        logger.error(
+        logger.exception(
             "conversation_context_build_failed",
-            error=str(e),
             instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
         )
@@ -569,7 +598,9 @@ async def build_conversation_context(
             ai_service="context_building",
             reason="build_failed",
             message=f"Failed to build conversation context: {e!s}",
-        )
+        ) from e
+
+    return messages
 
 
 def _map_context_role_to_message_role(role: str) -> str:
@@ -590,7 +621,7 @@ def _map_context_role_to_message_role(role: str) -> str:
     return role_mapping.get(role, "user")
 
 
-def _format_time_prefix(created_at: Any, instance_timezone: str | None) -> str | None:
+def _format_time_prefix(created_at: datetime | None, instance_timezone: str | None) -> str | None:
     """
     Format timestamp for conversation history using instance timezone with humanized relative time.
 
@@ -602,32 +633,37 @@ def _format_time_prefix(created_at: Any, instance_timezone: str | None) -> str |
     - [今天17:19]
 
     Falls back to Asia/Shanghai timezone.
+    Uses Pendulum for simplified timezone handling.
     """
     try:
         if created_at is None:
             return None
 
         tz_name = instance_timezone or "Asia/Shanghai"
+
+        # Convert to Pendulum instance (handles naive datetime automatically)
         try:
-            tzinfo = ZoneInfo(tz_name)
+            pdt = pendulum.instance(created_at, tz="UTC")
+            local_dt = pdt.in_timezone(tz_name)
         except Exception:
-            tzinfo = ZoneInfo("Asia/Shanghai")
+            # Fallback to Asia/Shanghai if timezone is invalid
+            pdt = pendulum.instance(created_at, tz="UTC")
+            local_dt = pdt.in_timezone("Asia/Shanghai")
+            tz_name = "Asia/Shanghai"
 
-        if hasattr(created_at, "tzinfo") and created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=ZoneInfo("UTC"))
+        # Convert back to datetime for compatibility with _format_humanized_time
+        local_dt_native = local_dt.naive()
+        tzinfo = ZoneInfo(tz_name)
+        local_dt_aware = local_dt_native.replace(tzinfo=tzinfo)
 
-        local_dt = created_at.astimezone(tzinfo) if hasattr(created_at, "astimezone") else None
-        if not local_dt:
-            return None
-
-        return _format_humanized_time(local_dt, tzinfo)
+        return _format_humanized_time(local_dt_aware, tzinfo)
     except Exception:
         return None
 
 
 def _format_humanized_time(dt: datetime, tzinfo: ZoneInfo) -> str:
     """
-    Format datetime with humanized relative time description.
+    Format datetime with humanized relative time description using Pendulum.
 
     Args:
         dt: Datetime to format (already in target timezone)
@@ -636,75 +672,43 @@ def _format_humanized_time(dt: datetime, tzinfo: ZoneInfo) -> str:
     Returns:
         Humanized time string like "今天17:19", "昨天17:19", "[11-18(五天前) 17:19]"
     """
-    now = datetime.now(tzinfo)
-
-    # Calculate time difference
-    time_diff = now - dt
-    days_diff = time_diff.days
+    # Convert to Pendulum for easier manipulation
+    pdt = pendulum.instance(dt)
+    now = pendulum.now(str(tzinfo))
 
     # Get formatted components
-    time_str = dt.strftime("%H:%M")
-    date_str = dt.strftime("%m-%d")
+    time_str = pdt.format("HH:mm")
+    date_str = pdt.format("MM-DD")
 
     # Today
-    if days_diff == 0 and dt.date() == now.date():
+    if pdt.is_today():
         return f"今天{time_str}"
 
     # Yesterday
-    if days_diff == 1 or (days_diff == 0 and dt.date() < now.date()):
+    if pdt.is_yesterday():
         return f"昨天{time_str}"
 
+    # Calculate days difference
+    days_diff = now.diff(pdt).in_days()
+
     # Within a week (2-6 days ago)
-    if 2 <= days_diff <= 6:
-        relative_label = _format_day_relative_label(days_diff)
-        return f"{date_str}({relative_label}) {time_str}"
+    if _DAYS_IN_WEEK_START <= days_diff <= _DAYS_IN_WEEK_END:
+        relative = pdt.diff_for_humans(now, locale="zh")
+        return f"{date_str}({relative}) {time_str}"
 
     # Within a month (7-30 days ago)
-    if 7 <= days_diff <= 30:
-        weeks = days_diff // 7
-        if weeks == 1:
-            relative = "一周前"
-        elif weeks == 2:
-            relative = "两周前"
-        elif weeks == 3:
-            relative = "三周前"
-        else:
-            relative = f"{weeks}周前"
+    if _DAYS_IN_MONTH_START <= days_diff <= _DAYS_IN_MONTH_END:
+        relative = pdt.diff_for_humans(now, locale="zh")
         return f"{date_str}({relative}) {time_str}"
 
     # Within a year (31-364 days ago)
-    if 31 <= days_diff < 365:
-        months = days_diff // 30
-        if months == 1:
-            relative = "一个月前"
-        elif months == 2:
-            relative = "两个月前"
-        elif months == 3:
-            relative = "三个月前"
-        else:
-            relative = f"{months}个月前"
+    if _DAYS_IN_YEAR_START <= days_diff < _DAYS_IN_YEAR:
+        relative = pdt.diff_for_humans(now, locale="zh")
         return f"{date_str}({relative}) {time_str}"
 
     # More than a year ago
-    years = days_diff // 365
-    if years == 1:
-        relative = "一年前"
-    else:
-        relative = f"{years}年前"
-    return f"{dt.year}-{dt.month:02d}-{dt.day:02d}({relative}) {time_str}"
-
-
-def _format_day_relative_label(days_diff: int) -> str:
-    """Return human-friendly label (e.g., "两天前") for small day offsets."""
-
-    mapping = {
-        2: "两天前",
-        3: "三天前",
-        4: "四天前",
-        5: "五天前",
-        6: "六天前",
-    }
-    return mapping.get(days_diff, f"{days_diff}天前")
+    relative = pdt.diff_for_humans(now, locale="zh")
+    return f"{pdt.year}-{pdt.month:02d}-{pdt.day:02d}({relative}) {time_str}"
 
 
 async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, template: str) -> str:
@@ -742,8 +746,7 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
                 instance_qiao_id=instance_qiao_id,
             )
             # Replace all score placeholders with empty string
-            result = re.sub(score_pattern, "", template)
-            return result
+            return re.sub(score_pattern, "", template)
 
         # Build score lookup dictionary
         score_lookup = {score["dimension_name"]: score["score"] for score in scores}
@@ -775,19 +778,18 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
             placeholders_replaced=replaced_count,
         )
 
-        return result
-
     except Exception as e:
-        logger.error(
+        logger.exception(
             "score_placeholder_formatting_failed",
-            error=str(e),
             instance_qiao_id=instance_qiao_id,
         )
         raise AIServiceError(
             ai_service="placeholder_formatting",
             reason="formatting_failed",
             message=f"Failed to format score placeholders: {e!s}",
-        )
+        ) from e
+
+    return result
 
 
 def validate_prompt_completeness(
@@ -808,7 +810,7 @@ def validate_prompt_completeness(
         - warnings: List[str] - List of validation warnings
     """
     try:
-        validation_result = {
+        validation_result: dict[str, Any] = {
             "is_valid": True,
             "missing_placeholders": [],
             "unresolved_placeholders": [],
@@ -822,8 +824,9 @@ def validate_prompt_completeness(
         if unresolved_matches:
             validation_result["unresolved_placeholders"] = unresolved_matches
             validation_result["is_valid"] = False
+            placeholders_str = ", ".join(unresolved_matches)
             validation_result["warnings"].append(
-                f"Found {len(unresolved_matches)} unresolved placeholders: {', '.join(unresolved_matches)}"
+                f"Found {len(unresolved_matches)} unresolved placeholders: " f"{placeholders_str}"
             )
 
         # Check for required placeholders if specified
@@ -835,7 +838,7 @@ def validate_prompt_completeness(
                     validation_result["is_valid"] = False
 
         # Check for empty or very short prompts
-        if not prompt or len(prompt.strip()) < 10:
+        if not prompt or len(prompt.strip()) < _MIN_PROMPT_LENGTH:
             validation_result["is_valid"] = False
             validation_result["warnings"].append("Prompt is empty or too short")
 
@@ -858,13 +861,13 @@ def validate_prompt_completeness(
             warnings_count=len(validation_result["warnings"]),
         )
 
-        return validation_result
-
     except Exception as e:
-        logger.error("prompt_validation_failed", error=str(e))
+        logger.exception("prompt_validation_failed")
         return {
             "is_valid": False,
             "missing_placeholders": [],
             "unresolved_placeholders": [],
             "warnings": [f"Validation failed: {e!s}"],
         }
+
+    return validation_result

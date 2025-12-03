@@ -5,15 +5,16 @@ This module provides webhook handling for LeanCloud messaging service,
 parsing incoming messages and converting them to standardized format.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
-from crud.contact import contact as contact_crud
-from enums import MessageType
-from services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
-from services.message.security.encryption import decrypt_from_transport
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.logging import get_logger
+
+from app.crud.contact import contact as contact_crud
+from app.enums import MessageType
+from app.services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
+from app.services.message.security.encryption import decrypt_from_transport
+from app.utils.logging import get_logger
 
 from .adapter import parse_webhook_to_dict
 
@@ -30,7 +31,7 @@ async def parse_leancloud_webhook(
     {
       "msgId": "nYH9iBSBS_uogCEgvZwE7Q",
       "from": "qiao_user001",
-      "data": "{\"from\":\"qiao_user001\",\"to\":\"qiao_xm001\",\"conv_id\":\"conv_xyz789\",\"content\":\"你好\",\"message_type\":1}",
+      "data": "{\"from\":\"qiao_user001\",\"to\":\"qiao_xm001\",...}",
       "conv": {"objectId": "68edda0a554ecc6e8843b246"},
       "createdAt": {"iso": "2015-07-30T14:37:42.584Z"}
     }
@@ -92,7 +93,7 @@ async def parse_leancloud_webhook(
         # Convert ISO timestamp to milliseconds
         timestamp = intermediate.get("timestamp_ms")
         if not timestamp:
-            timestamp = sent_time if sent_time else int(datetime.now().timestamp() * 1000)
+            timestamp = sent_time if sent_time else int(datetime.now(UTC).timestamp() * 1000)
 
         # Build metadata and apply decryption if needed
         encryption_metadata = {}
@@ -103,10 +104,9 @@ async def parse_leancloud_webhook(
             }
             try:
                 content = decrypt_from_transport(content, encryption_metadata)
-            except ValueError as e:
-                logger.error(
+            except ValueError:
+                logger.exception(
                     "leancloud_decrypt_failed",
-                    error=str(e),
                     msg_id=intermediate.get("msg_id_client"),
                 )
 
@@ -141,8 +141,9 @@ async def parse_leancloud_webhook(
             provider_metadata=provider_metadata,
         )
 
-    except Exception as e:
-        logger.error(
-            "webhook_parse_error", error=str(e), error_type=type(e).__name__, message=message
+    except Exception:
+        logger.exception(
+            "webhook_parse_error",
+            message=message,
         )
         return None

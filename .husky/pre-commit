@@ -2,8 +2,8 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 # Run Python pre-commit hooks for backend
-if command -v pre-commit > /dev/null; then
-  pre-commit run --config=.pre-commit-config.yaml
+if python -m pre_commit --version > /dev/null 2>&1; then
+  python -m pre_commit run --config=.pre-commit-config.yaml || exit 1
 else
   echo "Warning: pre-commit not found, skipping backend checks"
 fi

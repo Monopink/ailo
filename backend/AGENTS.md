@@ -1,4 +1,4 @@
-# Python 后端开发规则
+# 后端开发规范
 
 ## 技术栈
 
@@ -16,15 +16,12 @@
 - [API文档](../docs/api/)
 - [数据字典](../docs/data-dict/)
 - [迁移操作](../docs/tech/MIGRATION.md)
-- [代码检查](../docs/tech/CODE_QUALITY.md)
 - [Doubao文档](../references/doubao-docs/)
 - [Leancloud文档](../references/leancloud-docs/)
 
 ## 架构约束
 
-### 分层依赖规则
-
-**层级结构** (从上到下):
+**分层依赖规则** (从上到下):
 ```
 orchestrators (编排层)
     ↓
@@ -39,194 +36,41 @@ repositories (数据访问层)
 models (数据模型)
 ```
 
-**依赖规则**:
-- 上层可以依赖下层
-- 下层禁止依赖上层
+依赖约束:
+- 上层可以依赖下层，下层禁止依赖上层
 - 同层之间禁止相互依赖
 - 使用 import-linter 强制执行 (配置: `.importlinter`)
 
-### Import 规则
-
+**Import 规则**:
 - 能够绝对导入的，一律使用绝对导入
 - 所有 import 必须在文件顶部 (除 TYPE_CHECKING 块)
 - 禁止在函数内部 import
 
-### Leancloud 集成规则
-
+**Leancloud 集成规则**:
 - Leancloud 仅用于消息传输，不存储业务逻辑
 - 后端使用 REST API 调用
 - 全局使用唯一系统对话 ID
 - 业务数据必须存储在 PostgreSQL
 
-## 编程规范
+## 配置与数据库
 
-### 函数式编程优先
+**配置管理**:
+- 环境变量 (.env): 不会变更的配置、需要保证安全的配置 (API密钥等)
+- 数据库表 (system_configs): 可能变更的配置、不涉及安全的配置
 
-- 优先使用无状态函数
-- 避免使用类 (除 Model, Schema, Exception)
-- 如需使用类，必须说明原因
-
-### 类型注解
-
-- 函数必须有完整类型注解 (参数和返回值)
-- 禁止使用 `Any` 类型
-- 使用 `| None` 而非 `Optional[T]`
-- 使用 `dict[str, int]` 而非 `Dict[str, int]`
-- 即使代码能运行也要遵守类型检查器约束
-
-### SQLAlchemy Async 关系访问
-
-- 访问 ORM 关系属性前必须显式预加载
-- 使用 `.options(selectinload(...))` 等方式
-- 禁止依赖 `lazy="select"`
-
-### 命名规范
-
-- 函数/变量: snake_case
-- 类: PascalCase
-- 常量: UPPER_CASE
-- 私有: 以下划线开头 `_private_function`
-- 遵循 PEP8 要求
-
-### pendulum 使用
-
-- 人性化时间显示、时区转换、相对时间判断、时间格式化等，使用 `pendulum`
-
-### 模块初始化规则
-
-禁止在模块顶层直接实例化:
-- 应用对象
-- 配置对象
-- 数据库连接
-- 客户端实例 (如 OpenAI client)
-- 其他带副作用的实体
-
-必须通过显式函数创建:
-- 工厂函数 (如 `create_app()`)
-- 依赖注入函数
-- `@lru_cache()` 包装的加载函数
-
-## 注释规范
-
-禁止的注释:
-- 元注释 (如 `# Fix bug XX`, `# per request changed`)
-- 重复代码行为的注释 (如 `# Increment i by 1`)
-- 大块注释掉的旧代码
-
-## 配置管理
-
-**环境变量** (.env):
-- 不会变更的配置
-- 需要保证安全的配置 (API密钥等)
-
-**数据库表** (system_configs):
-- 可能变更的配置
-- 不涉及安全的配置
-
-## 数据库操作
-
-### 迁移管理
-
+**迁移管理**:
 - 统一使用 Alembic 系统
 - 操作文档: [docs/tech/MIGRATION.md](../docs/tech/MIGRATION.md)
 
-### 同步更新要求
+**同步更新要求**:
 
 修改数据库 schema 后必须同步更新:
 1. `backend/database/init/*.sql` - 初始化脚本
 2. `docs/data-dict/*.md` - 数据字典文档
 
-## 用户认证
+**数据库初始化**:
 
-- 非管理员用户: Hybrid 模式 (JWT + Token Store)
-- 管理员用户: Starlette Admin 内置认证
-- 管理后台: http://localhost:8000/qiao-dash/
-- 默认账号: admin / admin123
-
-## 人机验证
-
-- 使用阿里云 Captcha
-- 应用场景: 短信发送等敏感操作
-
-## 提交前检查
-
-```bash
-# 快速检查修改的文件（推荐）
-./scripts/validate.sh --quick
-
-# 完整系统验证（提交前运行）
-./scripts/full_check.sh
-```
-
-检查内容:
-- 语法检查: `python -m py_compile`
-- Import 位置: `check_local_imports.py`
-- 代码格式和质量: ruff (自动修复)
-- 类型检查: mypy (必须通过)
-- 架构契约: import-linter (必须通过)
-
-详细说明: [docs/tech/CODE_QUALITY.md](../docs/tech/CODE_QUALITY.md)
-
-### mypy 临时策略
-
-- pre-commit 中的 mypy 目前只针对暂存文件执行，并附带 `--follow-imports=skip` 来避免历史报错阻塞提交
-- 每个迭代至少手动运行一次 `mypy --config-file=pyproject.toml backend`，记录全局错误并安排清理任务
-- 当 `backend` 目录下的类型错误清零后，需恢复全量检查（`pass_filenames: false` 且在 args 末尾追加 `backend`，同时移除 `--follow-imports=skip`）
-
-
-## 禁止行为
-
-- ❌ 跳过代码检查 (validate.sh)
-- ❌ 在函数内部 import (除 TYPE_CHECKING)
-- ❌ 违反分层架构依赖规则
-- ❌ 使用 `Any` 类型
-- ❌ 函数缺少类型注解
-- ❌ 使用类 (除必要场景)
-- ❌ 在 Leancloud 存储业务逻辑
-- ❌ 向后兼容 hack (MVP 阶段不需要)
-- ❌ 使用过时或 deprecated API
-  - 禁止: `datetime.utcnow()` (已废弃)
-  - 禁止: Pydantic v1 写法 (如 `min_items`, `max_items`)
-- ❌ 使用黑魔法技巧
-  - 动态修改模块
-  - getattr 拦截属性
-  - 运行时注入变量
-  - 猴子补丁 (monkey patch)
-  - 隐式全局状态
-  - 隐式 lazy loading
-- ❌ 未使用的变量或导入
-- ❌ 使用临时方案绕过检查 (如 `type: ignore`, `# noqa`)
-
-## 开发原则
-
-- 从最本质的角度，用第一性原理分析问题
-- 使用正确的架构比最小修改更重要
-- 简单至上 (KISS): 避免不必要的复杂性
-- 精益求精 (YAGNI): 仅实现当前明确所需的功能
-- 坚实基础 (SOLID): 单一职责、开放封闭、依赖倒置等
-- 所有代码必须清晰、显式、可维护
-
-## Docker 环境
-
-### 容器信息 (开发环境)
-
-- **数据库容器**: postgres_db_container
-  - 数据库名: says
-  - 用户名: says_user
-  - 端口: 5432
-- **后端容器**: backend_container
-  - 端口: 8000
-  - 代码热更新: 已启用
-
-### 工作目录
-
-- Docker Compose: `deployment/`
-- 配置文件: `docker-compose.yml`
-- 环境变量: `.env` (项目根目录)
-
-### 数据库初始化
-
-**脚本位置**: `backend/database/init/`
+脚本位置: `backend/database/init/`
 
 执行顺序:
 1. `00_init_database.sh` - 初始化脚本
@@ -234,7 +78,135 @@ models (数据模型)
 3. `02_required_data.sql` - 必需数据
 4. `03_sample_data.sql` - 示例数据 (可选)
 
-**注意**: 初始化脚本仅在首次创建容器时执行，重新初始化需删除 volume。
+注意: 初始化脚本仅在首次创建容器时执行，重新初始化需删除 volume。
+
+## 认证与安全
+
+**用户认证**:
+- 非管理员用户: Hybrid 模式 (JWT + Token Store)
+- 管理员用户: Starlette Admin 内置认证
+- 管理后台: http://localhost:8000/qiao-dash/
+- 默认账号: admin / admin123
+
+**人机验证**:
+- 使用阿里云 Captcha
+- 应用场景: 短信发送等敏感操作
+
+## Docker 环境
+
+**容器信息** (开发环境):
+- 数据库容器: postgres_db_container (数据库名: says, 用户名: says_user, 端口: 5432)
+- 后端容器: backend_container (端口: 8000, 代码热更新: 已启用)
+- 工作目录: `deployment/`
+- 配置文件: `docker-compose.yml`
+- 环境变量: `.env` (项目根目录)
+
+## 编程规范
+
+**类型注解**:
+- 函数必须有完整类型注解 (参数和返回值)
+- 禁止使用 `Any` 类型
+- 使用 `| None` 而非 `Optional[T]`
+- 使用 `dict[str, int]` 而非 `Dict[str, int]`
+- 即使代码能运行也要遵守类型检查器约束
+
+**命名规范**:
+- 函数/变量: snake_case
+- 类: PascalCase
+- 常量: UPPER_CASE
+- 私有: 以下划线开头 `_private_function`
+- 遵循 PEP8 要求
+
+**函数式编程优先**:
+- 优先使用无状态函数
+- 避免使用类 (除 Model, Schema, Exception)
+- 如需使用类，必须说明原因
+
+**pendulum 使用**:
+- 人性化时间显示、时区转换、相对时间判断、时间格式化等，使用 `pendulum`
+
+## 其他开发原则
+
+- SQLAlchemy Async 关系访问：在异步上下文中访问 ORM 关系属性前必须使用 `.options(selectinload(...))` 等方式显式预加载，禁止依赖 `lazy="select"`
+- 不得使用任何已不推荐、过时、或在未来版本可能被移除的 API，禁用过时 API / Deprecated 写法
+- 禁止使用黑魔法技巧，例如：Python 的动态修改模块、使用 getattr 拦截属性、运行时注入变量、猴子补丁（monkey patch）、隐式全局状态、隐式 lazy loading 等。所有代码必须采用清晰、显式、可维护的写法。
+- 禁止在模块顶层（import 阶段）直接实例化应用对象、配置对象、数据库连接、客户端实例或其他可能带来副作用的实体。
+  包括但不限于在模块顶部执行：db = SessionLocal(), engine = create_engine(db_url), client = OpenAI(api_key=...) 等。这些对象必须通过显式函数创建，例如工厂函数（如 create_app()）、依赖注入函数、或 @lru_cache() 包装的加载函数。
+
+## 注释规范
+
+- 注释应当避免的内容：
+  - 写元注释，例如 `// Fix bug XX` 或 `// per request changed`
+  - 写重复代码行为的注释，如 `// Increment i by 1`
+  - 在最终提交中保留大块注释掉的旧代码。
+
+## 质量检查
+
+**代码修改后，必须执行以下检查流程，全部通过后才能报告"完成"。**
+
+- 如果任何检查失败，必须立即修复，不得报告"已完成"
+- 如果无法修复或不确定如何修复，立即停止工作并向用户说明情况
+- 不得使用临时方案（如局部 import、type: ignore）绕过检查
+
+### 改进策略 (临时)
+
+**渐进式修复原则**:
+- 在修改代码时，顺便修复相关的 ruff 问题
+- 修改文件时，运行 `ruff check --fix <文件>` 自动修复
+- 手动修复无法自动处理的问题
+- 不使用 `# noqa` 或 `type: ignore` 绕过检查
+- 优先修复高优先级问题
+- 提交前确保修改的文件通过 ruff 检查
+- **永远不要做只是为了通过检查的改动**
+- **虽然修复范围只在改动的文件中，但是如果问题根源涉及其他文件，必须将问题相关文件一同修复，确保问题根源解决，而不是在改动的文件中打补丁**
+
+### mypy 临时策略
+
+- pre-commit 中的 mypy 目前只针对暂存文件执行，并附带 `--follow-imports=skip` 来避免历史报错阻塞提交
+- 每个迭代至少手动运行一次 `mypy --config-file=pyproject.toml backend`，记录全局错误并安排清理任务
+- 当 `backend` 目录下的类型错误清零后，需恢复全量检查（`pass_filenames: false` 且在 args 末尾追加 `backend`，同时移除 `--follow-imports=skip`）
+
+### 快速检查（推荐）
+
+```bash
+# 只检查 git 修改的文件
+./scripts/validate.sh --quick
+
+# 完整系统验证（提交前运行）
+./scripts/full_check.sh
+```
+
+### 单独工具
+
+```bash
+# 代码格式化和质量检查（自动修复）
+ruff format backend/app/<文件>.py           # 格式化代码
+ruff check --fix backend/app/<文件>.py      # 检查并自动修复问题
+
+# 类型检查（必须通过）
+mypy backend/app/<文件>.py --config-file pyproject.toml
+
+# 架构契约检查（必须通过）
+cd backend && lint-imports
+
+# Import 位置检查（必须通过）
+python scripts/check_local_imports.py backend/app/<文件>.py
+
+# 语法检查（最基础）
+python -m py_compile backend/app/<文件>.py
+```
+
+### 测试和健康检查
+
+```bash
+# Docker 健康检查
+./scripts/check_docker.sh
+
+# 运行测试
+./scripts/run_tests.sh
+./scripts/run_tests.sh --fast        # 快速测试
+./scripts/run_tests.sh --coverage    # 生成覆盖率报告
+```
 
 ## 测试体系
 

@@ -15,14 +15,11 @@
 - [微信小程序官方文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
 - [API文档](../../docs/api/)
 - [数据字典](../../docs/data-dict/)
-- [代码检查](../../docs/tech/CODE_QUALITY.md)
 - [Leancloud IM 文档](../../references/leancloud-docs/)
 
 ## 架构约束
 
-### 分层依赖规则
-
-**层级结构** (从上到下):
+**分层依赖规则** (从上到下):
 ```
 Pages / Components (UI 层)
     ↓
@@ -31,13 +28,12 @@ Utils (工具层)
 Libs (第三方库)
 ```
 
-**依赖规则**:
+依赖规则:
 - Pages/Components 可以调用 Utils
 - Utils 可以调用 Libs
 - 禁止反向依赖 (下层不能依赖上层)
 
-### 目录结构
-
+**目录结构**:
 ```
 frontend/wx-minipg/
 ├── pages/              # 页面
@@ -52,8 +48,7 @@ frontend/wx-minipg/
 └── app.json            # 应用配置
 ```
 
-### Leancloud 集成规则
-
+**Leancloud 集成规则**:
 - IM 客户端在 `app.ts` 中初始化
 - 全局使用唯一系统对话 ID
 - Leancloud 仅用于消息传输，不存储业务逻辑
@@ -64,64 +59,38 @@ frontend/wx-minipg/
 
 ## 编程规范
 
-### 命名规范
+**命名规范**:
+- 文件: kebab-case (`contact-info.ts`, `message-queue.ts`)
+- 变量/函数: camelCase (`userName`, `fetchUserInfo`)
+- 类型/接口: PascalCase (`UserInfo`, `ApiResponse`)
+- 常量: UPPER_CASE (`API_BASE_URL`, `MAX_RETRY_COUNT`)
+- 事件处理器: 以 `handle` 或 `on` 开头 (`handleTap`, `onLoad`)
 
-- **文件**: kebab-case (`contact-info.ts`, `message-queue.ts`)
-- **变量/函数**: camelCase (`userName`, `fetchUserInfo`)
-- **类型/接口**: PascalCase (`UserInfo`, `ApiResponse`)
-- **常量**: UPPER_CASE (`API_BASE_URL`, `MAX_RETRY_COUNT`)
-- **事件处理器**: 以 `handle` 或 `on` 开头 (`handleTap`, `onLoad`)
-
-### 类型注解
-
+**类型注解**:
 - 函数必须有明确的参数和返回值类型
 - 禁止使用 `any` 类型，使用 `unknown` 或具体类型
 - 禁止使用 `var`，使用 `const` 或 `let`
 - Page 必须定义类型参数: `Page<PageData>`
 - 事件处理器必须明确事件类型: `WechatMiniprogram.TouchEvent`
 
-### API 调用规范
-
+**API 调用规范**:
 - 所有 API 调用必须通过 `utils/api.ts`
 - 禁止直接使用 `wx.request`
 - 使用泛型指定返回类型: `get<UserInfo>('/users/123')`
 
-### 存储操作规范
-
+**存储操作规范**:
 - 所有存储操作必须通过 `utils/storage.ts`
 - 禁止直接使用 `wx.getStorageSync` / `wx.setStorageSync`
 - 使用泛型指定存储类型: `getStorage<string>('token')`
 
-### 状态管理规范
-
+**状态管理规范**:
 - 使用 TypeScript 接口定义 Page Data
 - setData 必须批量更新，禁止多次调用
 - 使用路径更新: `this.setData({ 'user.name': newName })`
 
-## 环境配置
+**代码检查**:
 
-### 安装依赖
-
-```bash
-cd frontend/wx-minipg
-npm install
-```
-
-### 微信开发者工具配置
-
-确认 `project.config.json` 配置:
-```json
-{
-  "setting": {
-    "useCompilerPlugins": ["typescript"]
-  }
-}
-```
-
-**注意**: 微信开发者工具的编译器只移除类型注解，不进行类型检查。必须使用 `npm run type-check` 进行类型检查。
-
-### 提交前检查
-
+提交前必须运行:
 ```bash
 cd frontend/wx-minipg
 npm run check  # 必须通过
@@ -132,12 +101,40 @@ npm run check  # 必须通过
 - ESLint 检查 - TS/JS/WXML (`npm run lint`)
 - 代码格式化 - TS/JS/JSON/WXSS (`npm run format`)
 
-**Pre-commit Hook 自动执行**:
+单独工具:
+```bash
+npm run type-check      # TypeScript 类型检查
+npm run lint            # ESLint 检查
+npm run lint:fix        # 自动修复
+npm run format          # 代码格式化
+npm run format:check    # 仅检查不修复
+```
+
+Pre-commit Hook 自动执行:
 - TS/JS 文件: ESLint 检查 + Prettier 格式化
 - WXML 文件: ESLint 语法检查（使用 eslint-plugin-wxml）
 - JSON/WXSS 文件: Prettier 格式化
 
-详细说明: [docs/tech/CODE_QUALITY.md](../../docs/tech/CODE_QUALITY.md)
+## 环境配置
+
+**安装依赖**:
+```bash
+cd frontend/wx-minipg
+npm install
+```
+
+**微信开发者工具配置**:
+
+确认 `project.config.json` 配置:
+```json
+{
+  "setting": {
+    "useCompilerPlugins": ["typescript"]
+  }
+}
+```
+
+注意: 微信开发者工具的编译器只移除类型注解，不进行类型检查。必须使用 `npm run type-check` 进行类型检查。
 
 ## 禁止行为
 

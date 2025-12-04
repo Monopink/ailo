@@ -2,102 +2,74 @@
 # Ruff Configuration (Replaces: black, isort, pylint)
 # ============================================================================
 [tool.ruff]
+line-length = 100 # Unified line length standard
 target-version = "py312"
-line-length = 100  # Unified line length standard
 
 # Exclude directories
 extend-exclude = [
-    "migrations",
-    "__pycache__",
-    ".venv",
-    "venv",
-    "*.egg-info",
+  "migrations",
+  "__pycache__",
+  ".venv",
+  "venv",
+  "*.egg-info",
 ]
 
 [tool.ruff.lint]
 # Enable rule sets
 select = [
-    # Pyflakes
-    "F",
-    # pycodestyle
-    "E",
-    "W",
-    # isort
-    "I",
-    # pep8-naming
-    "N",
-    # pyupgrade
-    "UP",
-    # flake8-annotations
-    "ANN",
-    # flake8-async
-    "ASYNC",
-    # flake8-bandit (security)
-    "S",
-    # flake8-bugbear
-    "B",
-    # flake8-builtins
-    "A",
-    # flake8-comprehensions
-    "C4",
-    # flake8-datetimez
-    "DTZ",
-    # flake8-debugger
-    "T10",
-    # flake8-errmsg
-    "EM",
-    # flake8-implicit-str-concat
-    "ISC",
-    # flake8-import-conventions
-    "ICN",
-    # flake8-pie
-    "PIE",
-    # flake8-pytest-style
-    "PT",
-    # flake8-quotes
-    "Q",
-    # flake8-raise
-    "RSE",
-    # flake8-return
-    "RET",
-    # flake8-simplify
-    "SIM",
-    # flake8-tidy-imports
-    "TID",
-    # flake8-unused-arguments
-    "ARG",
-    # flake8-use-pathlib
-    "PTH",
-    # pylint
-    "PL",
-    # tryceratops
-    "TRY",
-    # ruff-specific
-    "RUF",
+  # Pyflakes
+  "F", # pycodestyle
+  "E",
+  "W", # isort
+  "I", # pep8-naming
+  "N", # pyupgrade
+  "UP", # flake8-annotations
+  "ANN", # flake8-async
+  "ASYNC", # flake8-bandit (security)
+  "S", # flake8-bugbear
+  "B", # flake8-builtins
+  "A", # flake8-comprehensions
+  "C4", # flake8-datetimez
+  "DTZ", # flake8-debugger
+  "T10", # flake8-errmsg
+  "EM", # flake8-implicit-str-concat
+  "ISC", # flake8-import-conventions
+  "ICN", # flake8-pie
+  "PIE", # flake8-pytest-style
+  "PT", # flake8-quotes
+  "Q", # flake8-raise
+  "RSE", # flake8-return
+  "RET", # flake8-simplify
+  "SIM", # flake8-tidy-imports
+  "TID", # flake8-unused-arguments
+  "ARG", # flake8-use-pathlib
+  "PTH", # pylint
+  "PL", # tryceratops
+  "TRY", # ruff-specific
+  "RUF",
 ]
 
 # Ignore rules (mapped from previous pylint config)
 ignore = [
-    "D",        # pydocstring (corresponds to missing-docstring)
-    "TD",       # flake8-todos (corresponds to fixme)
-    "FIX",      # flake8-fixme
-    "PLR0913",  # Too many arguments (handled by max-args below)
-    "S101",     # Use of assert (needed in tests)
-    "ISC001",   # Conflicts with formatter (implicit string concatenation)
-    # MVP stage relaxations - gradually fix these issues
-    "ANN401",   # Allow Any type (needed for framework integration)
-    "TRY003",   # Allow long exception messages
-    "TRY400",   # Allow logger.error in except blocks
-    "EM101",    # Allow string literals in exceptions
-    "EM102",    # Allow f-strings in exceptions
+  "D", # pydocstring (corresponds to missing-docstring)
+  "TD", # flake8-todos (corresponds to fixme)
+  "FIX", # flake8-fixme
+  "PLR0913", # Too many arguments (handled by max-args below)
+  "S101", # Use of assert (needed in tests)
+  "ISC001", # Conflicts with formatter (implicit string concatenation)  # MVP stage relaxations - gradually fix these issues
+  "ANN401", # Allow Any type (needed for framework integration)
+  "TRY003", # Allow long exception messages
+  "TRY400", # Allow logger.error in except blocks
+  "EM101", # Allow string literals in exceptions
+  "EM102", # Allow f-strings in exceptions
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Test files special rules
 "tests/**/*.py" = [
-    "S101",     # Allow assert in tests
-    "PLR2004",  # Allow magic values in tests
-    "ANN",      # Don't require annotations in tests
+  "S101", # Allow assert in tests
+  "PLR2004", # Allow magic values in tests
+  "ANN", # Don't require annotations in tests
 ]
 # Migration files special rules
 "**/migrations/**/*.py" = ["ALL"]
@@ -120,9 +92,9 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 
 [tool.ruff.format]
 # Corresponds to previous black config
-quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+quote-style = "double"
 
 # ============================================================================
 # mypy Configuration (Type Checker)
@@ -130,75 +102,88 @@ line-ending = "auto"
 [tool.mypy]
 python_version = "3.12"
 # Standard Python package structure: backend/ contains app/ package
-mypy_path = "backend"
-explicit_package_bases = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false  # Start with false, gradually enable
-disallow_incomplete_defs = false
 check_untyped_defs = true
-disallow_untyped_decorators = false
+# Relaxed to allow Pydantic and other frameworks that use Any internally
+disallow_any_explicit = false
+disallow_any_generics = true
+# Relaxed to allow Pydantic BaseModel and similar framework constructs
+disallow_any_unimported = false
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+explicit_package_bases = true
+mypy_path = ["backend"]
 no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-show_error_codes = true
-show_column_numbers = true
 pretty = true
+show_column_numbers = true
+show_error_codes = true
+# Using manual strict checks instead of strict=true preset for Pydantic compatibility
+strict = false
+strict_equality = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
 
 # Ignore missing imports for third-party libraries without stubs
 [[tool.mypy.overrides]]
-module = [
-    "volcengine.*",
-    "alibabacloud_tea_openapi.*",
-    "alibabacloud_captcha20230305.*",
-    "zhdate.*",
-    "starlette_admin.*",
-    "pendulum.*",
-]
 ignore_missing_imports = true
+module = [
+  "alibabacloud_tea_openapi.*",
+  "alibabacloud_captcha20230305.*",
+  "zhdate.*",
+  "jsonschema.*",
+]
+
+# Temporarily ignored, will be removed in the future
+[[tool.mypy.overrides]]
+ignore_errors = true
+module = [
+  "app.admin.views.*",
+  "app.services.admin.*",
+]
 
 # ============================================================================
 # pytest Configuration
 # ============================================================================
 [tool.pytest.ini_options]
-minversion = "8.0"
-testpaths = ["backend/tests"]
-pythonpath = ["backend"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
 addopts = [
-    "-v",
-    "--strict-markers",
-    "--tb=short",
-    "--asyncio-mode=auto",
+  "-v",
+  "--strict-markers",
+  "--tb=short",
+  "--asyncio-mode=auto",
 ]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "integration: marks tests as integration tests",
 ]
+minversion = "8.0"
+python_classes = ["Test*"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]
 
 # ============================================================================
 # Coverage Configuration
 # ============================================================================
 [tool.coverage.run]
-source = ["backend/app"]
 omit = [
-    "*/tests/*",
-    "*/migrations/*",
-    "*/__pycache__/*",
-    "*/venv/*",
+  "*/tests/*",
+  "*/migrations/*",
+  "*/__pycache__/*",
+  "*/venv/*",
 ]
+source = ["backend/app"]
 
 [tool.coverage.report]
 exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
 ]

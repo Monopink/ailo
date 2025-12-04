@@ -51,7 +51,7 @@ repos:
       # mypy - Type checker
       - id: mypy
         name: Type check with mypy
-        entry: mypy
+        entry: python -m mypy
         language: system
         types: [python]
         files: ^backend/app/.*\.py$
@@ -60,7 +60,7 @@ repos:
           [
             "--config-file=pyproject.toml",
             "--no-error-summary",
-            "--follow-imports=skip",
+            "--follow-imports=silent",
           ]
 
       # import-linter - Architecture contracts

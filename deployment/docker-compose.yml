@@ -57,7 +57,7 @@ services:
     container_name: backend_container
     build:
       context: ../backend
-      dockerfile: app/Dockerfile
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:
@@ -68,6 +68,8 @@ services:
     volumes:
       # Mount the app directory to /backend/app for hot-reload during development
       - ../backend/app:/backend/app
+      - ../backend/alembic:/backend/alembic
+      - ../backend/alembic.ini:/backend/alembic.ini
       - ../logs:/backend/logs
     networks:
       - says-network

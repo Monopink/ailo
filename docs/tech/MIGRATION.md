@@ -33,12 +33,12 @@ docker exec backend_container alembic revision --autogenerate -m "描述变更�
 
 ```
 backend/
-├── app/
-│   ├── alembic/               # Alembic 迁移目录（已移入 app）
-│   │   ├── versions/          # 迁移脚本目录
-│   │   ├── env.py             # Alembic 环境配置
-│   │   └── script.py.mako     # 迁移脚本模板
-│   ├── alembic.ini            # Alembic 配置文件
+├── alembic/                   # Alembic 迁移目录
+│   ├── versions/              # 迁移脚本目录
+│   ├── env.py                 # Alembic 环境配置
+│   └── script.py.mako         # 迁移脚本模板
+├── alembic.ini                # Alembic 配置文件
+├── app/                       # 应用代码目录
 │   └── ...                    # 其他应用代码
 └── README_MIGRATION.md        # 本文档
 ```
@@ -82,7 +82,7 @@ docker exec backend_container alembic revision --autogenerate -m "消息"  # 生
 
 1. **修改模型**: 在 `app/models/` 中修改 SQLAlchemy 模型
 2. **生成迁移**: `docker exec backend_container alembic revision --autogenerate -m "描述变更"`
-3. **审查迁移脚本**: 检查 `backend/app/alembic/versions/` 下生成的文件
+3. **审查迁移脚本**: 检查 `backend/alembic/versions/` 下生成的文件
 4. **应用迁移**: `docker exec backend_container alembic upgrade head`
 5. **测试验证**: 确保数据库结构正确
 
@@ -93,7 +93,7 @@ docker exec backend_container alembic revision --autogenerate -m "消息"  # 生
 docker exec backend_container alembic revision --autogenerate -m "Add user avatar field"
 
 # 2. 查看生成的迁移文件
-# 检查 backend/app/alembic/versions/ 目录下的新文件
+# 检查 backend/alembic/versions/ 目录下的新文件
 
 # 3. 应用迁移
 docker exec backend_container alembic upgrade head

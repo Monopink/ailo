@@ -29,7 +29,6 @@ def main() -> int:
     # Get directories
     project_root = os.path.dirname(os.path.dirname(__file__))
     backend_dir = os.path.join(project_root, "backend")
-    app_dir = os.path.join(backend_dir, "app")
     config_path = os.path.join(project_root, ".importlinter")
 
     # Set PYTHONPATH to backend (same as Dockerfile: ENV PYTHONPATH=/backend)

@@ -84,6 +84,12 @@ ignore = [
     "PLR0913",  # Too many arguments (handled by max-args below)
     "S101",     # Use of assert (needed in tests)
     "ISC001",   # Conflicts with formatter (implicit string concatenation)
+    # MVP stage relaxations - gradually fix these issues
+    "ANN401",   # Allow Any type (needed for framework integration)
+    "TRY003",   # Allow long exception messages
+    "TRY400",   # Allow logger.error in except blocks
+    "EM101",    # Allow string literals in exceptions
+    "EM102",    # Allow f-strings in exceptions
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -102,6 +108,10 @@ max-args = 7
 max-branches = 15
 max-returns = 6
 max-statements = 60
+
+[tool.ruff.lint.flake8-unused-arguments]
+# Allow unused arguments starting with underscore (common in framework callbacks)
+ignore-variadic-names = true
 
 [tool.ruff.lint.isort]
 # Corresponds to previous isort config

@@ -70,11 +70,10 @@ This directory contains utility scripts for development, testing, and validation
 **What it checks**:
 1. Syntax validation (py_compile)
 2. Import location check (no local imports)
-3. Code formatting (Black)
-4. Import sorting (isort)
+3. Code formatting (Ruff format)
+4. Code quality (Ruff lint)
 5. Type checking (mypy)
-6. Code quality (pylint)
-7. Architecture contracts (import-linter)
+6. Architecture contracts (import-linter)
 
 **Exit codes**:
 - 0: All checks passed

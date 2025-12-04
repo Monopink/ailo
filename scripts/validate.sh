@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-BACKEND_DIR="backend/app"
+BACKEND_DIR="backend"
 SCRIPTS_DIR="scripts"
 CHECK_MODE="all"
 FAILED_CHECKS=()
@@ -99,7 +99,7 @@ check_tools() {
 
     if [ ${#missing_tools[@]} -ne 0 ]; then
         print_error "Missing tools: ${missing_tools[*]}"
-        echo "Please install missing tools: pip install -r backend/app/requirements.txt"
+        echo "Please install missing tools: pip install -r backend/requirements.txt"
         exit 1
     fi
 }
@@ -160,7 +160,7 @@ check_ruff_format() {
             print_success "Code formatting is correct"
         else
             print_error "Code formatting issues found"
-            echo "Run: ruff format backend/app"
+            echo "Run: ruff format backend"
             FAILED_CHECKS+=("Ruff Format")
             return 1
         fi
@@ -190,7 +190,7 @@ check_ruff_lint() {
             print_success "Code quality check passed"
         else
             print_error "Code quality issues found"
-            echo "Run: ruff check --fix backend/app"
+            echo "Run: ruff check --fix backend"
             FAILED_CHECKS+=("Ruff Lint")
             return 1
         fi

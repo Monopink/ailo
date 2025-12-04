@@ -132,7 +132,7 @@ run_tests() {
 
     if [ "$RUN_COVERAGE" = true ]; then
         print_info "Running with coverage report"
-        PYTEST_ARGS="$PYTEST_ARGS --cov=backend/app --cov-report=term-missing --cov-report=html"
+        PYTEST_ARGS="$PYTEST_ARGS --cov=backend --cov-report=term-missing --cov-report=html"
     fi
 
     echo ""

@@ -52,22 +52,6 @@ curl http://localhost:8000/health
 
 ## Development Workflow
 
-### Code Quality
-```bash
-# Install linting tools (if not in requirements)
-pip install flake8 black isort mypy
-
-# Code formatting
-black backend/app/
-isort backend/app/
-
-# Linting
-flake8 backend/app/
-
-# Type checking
-mypy backend/app/
-```
-
 ### Logging and Monitoring
 - **Log Directory**: `logs/`
 - **Log Level**: Configured via environment variables
@@ -98,7 +82,7 @@ SELECT * FROM ai_characters LIMIT 5;
 # View backend logs
 docker logs backend_container -f
 
-# View database logs  
+# View database logs
 docker logs postgres_db_container -f
 
 # Check service status

@@ -3,11 +3,6 @@
 ## When Task is Completed
 
 ### 1. Code Quality Checks
-```bash
-# Run linting (if available)
-flake8 backend/app/
-black --check backend/app/
-isort --check backend/app/
 
 # Type checking
 mypy backend/app/

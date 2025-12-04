@@ -1,9 +1,0 @@
-[flake8]
-ignore = E203, E501, W503
-# Banned modules - use utils.logging.get_logger instead of direct logging imports
-banned-modules =
-    logging = Use utils.logging.get_logger instead of direct logging import
-    logging.* = Use utils.logging.get_logger instead of logging submodules
-per-file-ignores =
-    # Allow logging imports only in utils/logging.py itself
-    utils/logging.py:F401

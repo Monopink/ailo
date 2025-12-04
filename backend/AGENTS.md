@@ -170,8 +170,8 @@ models (数据模型)
 ### mypy 临时策略
 
 - pre-commit 中的 mypy 目前只针对暂存文件执行，并附带 `--follow-imports=skip` 来避免历史报错阻塞提交
-- 每个迭代至少手动运行一次 `mypy --config-file=pyproject.toml backend/app`，记录全局错误并安排清理任务
-- 当 `backend/app` 目录下的类型错误清零后，需恢复全量检查（`pass_filenames: false` 且在 args 末尾追加 `backend/app`，同时移除 `--follow-imports=skip`）
+- 每个迭代至少手动运行一次 `mypy --config-file=pyproject.toml backend`，记录全局错误并安排清理任务
+- 当 `backend` 目录下的类型错误清零后，需恢复全量检查（`pass_filenames: false` 且在 args 末尾追加 `backend`，同时移除 `--follow-imports=skip`）
 
 
 ## 禁止行为

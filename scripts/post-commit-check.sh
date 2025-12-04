@@ -21,10 +21,10 @@ mypy backend/app --config-file=pyproject.toml --no-error-summary --explicit-pack
 }
 
 echo ""
-echo "2. Running pylint code quality checker..."
+echo "2. Running Ruff code quality checker..."
 echo "------------------------------------------"
-pylint backend/app --rcfile=pyproject.toml --score=yes || {
-    echo "⚠️  pylint found issues"
+ruff check backend/app || {
+    echo "⚠️  Ruff found code quality issues"
     echo ""
 }
 

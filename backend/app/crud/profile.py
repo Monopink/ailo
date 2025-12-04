@@ -37,39 +37,23 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             raise
 
     async def get_by_owner_qiao_id(
-        self, db: AsyncSession, *, owner_qiao_id: str, owner_type: ProfileOwnerType
-    ) -> Profile | None:
-        """Get profile by owner qiao_id and type"""
-        try:
-            stmt = select(self.model).where(
-                and_(self.model.owner_qiao_id == owner_qiao_id, self.model.owner_type == owner_type)
-            )
-            result = await db.execute(stmt)
-            return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(
-                "get_profile_by_owner_qiao_id_error",
-                error=str(e),
-                owner_qiao_id=owner_qiao_id,
-                owner_type=owner_type,
-            )
-            raise
-
-    async def get_by_owner_qiao_id_any(
         self,
         db: AsyncSession,
         *,
         owner_qiao_id: str,
     ) -> Profile | None:
-        """Get profile by owner qiao_id regardless of owner type."""
+        """Get profile by owner qiao_id.
+
+        Note: qiao_id is globally unique across all entity types,
+        so owner_type is not needed for lookup.
+        """
         try:
             stmt = select(self.model).where(self.model.owner_qiao_id == owner_qiao_id)
             result = await db.execute(stmt)
             return result.scalar_one_or_none()
-        except Exception as e:
+        except Exception:
             logger.error(
-                "get_profile_by_owner_qiao_id_any_error",
-                error=str(e),
+                "get_profile_by_owner_qiao_id_error",
                 owner_qiao_id=owner_qiao_id,
             )
             raise
@@ -107,7 +91,6 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                 owner_qiao_id=owner_qiao_id,
                 owner_type=owner_type,
             )
-            return db_obj
         except Exception as e:
             await db.rollback()
             logger.error(
@@ -118,6 +101,8 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                 owner_type=owner_type,
             )
             raise
+        else:
+            return db_obj
 
     async def update_by_owner(
         self,
@@ -162,8 +147,6 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                     owner_id=owner_id,
                     owner_type=owner_type,
                 )
-
-            return db_obj
         except Exception as e:
             if commit:
                 await db.rollback()
@@ -171,6 +154,8 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                 "update_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type
             )
             raise
+        else:
+            return db_obj
 
     async def delete_by_owner(
         self, db: AsyncSession, *, owner_id: int, owner_type: ProfileOwnerType
@@ -183,17 +168,17 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             result = await db.execute(stmt)
             await db.commit()
 
-            deleted = result.rowcount > 0
+            deleted: bool = result.rowcount > 0
             if deleted:
                 logger.info("profile_deleted", owner_id=owner_id, owner_type=owner_type)
-
-            return deleted
         except Exception as e:
             await db.rollback()
             logger.error(
                 "delete_profile_error", error=str(e), owner_id=owner_id, owner_type=owner_type
             )
             raise
+        else:
+            return deleted
 
     async def get_profiles_by_gender(
         self, db: AsyncSession, gender: str, skip: int = 0, limit: int = 100
@@ -259,15 +244,15 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                 self.model.gender
             )
             gender_result = await db.execute(gender_stmt)
-            gender_distribution = {k: v for k, v in gender_result.all()}
-
+            gender_distribution = dict(gender_result.all())
+        except Exception as e:
+            logger.error("get_profile_stats_error", error=str(e))
+            raise
+        else:
             return {
                 "total_profiles": total_profiles,
                 "gender_distribution": gender_distribution,
             }
-        except Exception as e:
-            logger.error("get_profile_stats_error", error=str(e))
-            raise
 
 
 # Create instance

@@ -13,7 +13,6 @@ from app.enums import (
     NotificationActionType,
     NotificationTarget,
     NotificationType,
-    ProfileOwnerType,
 )
 from app.services.message.outbound.sender import send_message, send_notification
 from app.utils.logging import get_logger
@@ -77,9 +76,7 @@ async def send_contact_request_notification(
         message: Request message
     """
     # Get sender profile
-    sender_profile = await profile_crud.get_by_owner_qiao_id(
-        db, owner_qiao_id=from_qiao_id, owner_type=ProfileOwnerType.USER
-    )
+    sender_profile = await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=from_qiao_id)
 
     # Profile data (keep None if not found)
     from_nickname = None

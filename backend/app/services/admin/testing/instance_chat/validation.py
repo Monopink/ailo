@@ -31,8 +31,11 @@ class ValidationError(Exception):
     """Exception raised when validation fails"""
 
     def __init__(
-        self, message: str, error_code: str = "VALIDATION_ERROR", suggestions: list | None = None
-    ):
+        self,
+        message: str,
+        error_code: str = "VALIDATION_ERROR",
+        suggestions: list | None = None,
+    ) -> None:
         self.message = message
         self.error_code = error_code
         self.suggestions = suggestions or []
@@ -88,7 +91,16 @@ class ValidationService:
                 instance_id=instance_id,
                 instance_qiao_id=instance_context["instance_qiao_id"],
             )
-
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error("ai_instance_test_validation_error", instance_id=instance_id, error=str(e))
+            raise ValidationError(
+                f"系统校验失败: {e!s}",
+                error_code="SYSTEM_ERROR",
+                suggestions=["查看系统日志确认具体原因", "修复错误后重试"],
+            ) from e
+        else:
             return {
                 "valid": True,
                 "instance": instance_context,
@@ -100,16 +112,6 @@ class ValidationService:
                 "llm_configs": llm_configs,
             }
 
-        except ValidationError:
-            raise
-        except Exception as e:
-            logger.error("ai_instance_test_validation_error", instance_id=instance_id, error=str(e))
-            raise ValidationError(
-                f"系统校验失败：{e!s}",
-                error_code="SYSTEM_ERROR",
-                suggestions=["查看系统日志确认具体原因", "修复错误后重试"],
-            )
-
     async def _validate_instance(self, db: AsyncSession, instance_id: int) -> InstanceContext:
         """Validate AI instance exists and is active, returning context."""
         try:
@@ -120,14 +122,14 @@ class ValidationService:
                 reason_hint = exc.details.get("reason") or exc.details.get("query")
             readable_reason = reason_hint or getattr(exc, "reason", None) or str(exc)
             raise ValidationError(
-                f"无法加载实例上下文：{readable_reason}",
+                f"无法加载实例上下文: {readable_reason}",
                 error_code="INSTANCE_CONTEXT_QUERY_FAILED",
                 suggestions=[
                     "确认该实例的 Profile、风格、人格配置是否完整",
                     "检查 ai_instances.qiao_id 与 profiles.owner_qiao_id 是否匹配",
                     "查看后台日志获取更详细的 SQL 错误",
                 ],
-            )
+            ) from exc
 
         if not context:
             stmt = select(AIInstance).where(AIInstance.id == instance_id)
@@ -145,7 +147,7 @@ class ValidationService:
 
             if instance_record:
                 raise ValidationError(
-                    f"ID 为 {instance_id} 的 AI 实例存在，但无法加载运行上下文",
+                    f"ID 为 {instance_id} 的 AI 实例存在, 但无法加载运行上下文",
                     error_code="INSTANCE_CONTEXT_MISSING",
                     suggestions=[
                         "检查该实例是否已经正确配置头像、风格与性格",
@@ -163,7 +165,10 @@ class ValidationService:
 
         if context["status"] != 1:
             raise ValidationError(
-                f"AI 实例 {context['instance_qiao_id']} 未处于激活状态 (status={context['status']})",
+                (
+                    f"AI 实例 {context['instance_qiao_id']} "
+                    f"未处于激活状态 (status={context['status']})"
+                ),
                 error_code="INSTANCE_INACTIVE",
                 suggestions=[
                     "在 AI 实例管理中将该实例设为启用",
@@ -232,7 +237,10 @@ class ValidationService:
         if not scores:
             # If still no scores after auto-initialization, this is a critical error
             raise ValidationError(
-                f"无法为实例 {instance_context['instance_qiao_id']} 初始化关系分数（Style: {style_info['display_name']}）",
+                (
+                    f"无法为实例 {instance_context['instance_qiao_id']} "
+                    f"初始化关系分数(Style: {style_info['display_name']})"
+                ),
                 error_code="RELATIONSHIP_SCORES_INIT_FAILED",
                 suggestions=[
                     f"确认风格 {style_info['name']} 已在 ai_style_dimensions 中配置维度",
@@ -278,7 +286,7 @@ class ValidationService:
         ]
 
     async def _validate_prompt_variables(
-        self, instance_context: InstanceContext, personality_info: dict[str, Any]
+        self, instance_context: InstanceContext, _personality_info: dict[str, Any]
     ) -> None:
         """
         Validate prompt variables format (if present).
@@ -293,7 +301,10 @@ class ValidationService:
             logger.debug(
                 "prompt_variables_empty",
                 instance_qiao_id=instance_context["instance_qiao_id"],
-                message="No prompt variables configured, placeholders will be replaced with empty strings",
+                message=(
+                    "No prompt variables configured, "
+                    "placeholders will be replaced with empty strings"
+                ),
             )
             return
 
@@ -303,22 +314,22 @@ class ValidationService:
                 json.loads(prompt_variables)
         except (json.JSONDecodeError, TypeError) as e:
             raise ValidationError(
-                f"prompt_variables 字段不是合法的 JSON：{e!s}",
+                f"prompt_variables 字段不是合法的 JSON: {e!s}",
                 error_code="PROMPT_VARIABLES_INVALID_JSON",
                 suggestions=[
                     "请修复 prompt_variables 字段中的 JSON 字符串",
-                    '示例格式：{"key": "value"}',
+                    '示例格式: {"key": "value"}',
                 ],
-            )
+            ) from e
 
     async def _ensure_instance_profile_exists(self, db: AsyncSession, instance: AIInstance) -> None:
         """Ensure AI instance has a profile record (create empty profile if needed)."""
-        existing = await profile_crud.get_by_owner_qiao_id(
-            db, owner_qiao_id=instance.qiao_id, owner_type=ProfileOwnerType.AI_INSTANCE
-        )
+        # Check if profile exists - use qiao_id only, type is not needed
+        existing = await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=instance.qiao_id)
         if existing:
             return
 
+        # Create profile with correct owner_type
         await profile_crud.create_with_owner(
             db,
             obj_in=ProfileCreate(),
@@ -354,7 +365,7 @@ class ValidationService:
 
         if any(user_type != UserType.VIRTUAL for user_type in rows):
             raise ValidationError(
-                "AI 角色存在真实用户联系人，无法进入测试模式",
+                "AI 角色存在真实用户联系人, 无法进入测试模式",
                 error_code="NON_VIRTUAL_CONTACT_EXISTS",
                 suggestions=[
                     "删除所有非 virtual 联系人后再重试",

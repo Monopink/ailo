@@ -51,7 +51,7 @@ async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
         logger.error("im_conv_id_not_configured")
         raise ValueError("IM conversation ID not configured in system settings")
 
-    return conv_id
+    return str(conv_id)
 
 
 async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Profile | None:
@@ -65,7 +65,7 @@ async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Profil
     Returns:
         Profile object or None if not found
     """
-    return await profile_crud.get_by_owner_qiao_id_any(db, owner_qiao_id=contact_qiao_id)
+    return await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=contact_qiao_id)
 
 
 def _build_profile_summary(profile: Profile | None) -> ContactProfileSummary:

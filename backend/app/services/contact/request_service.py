@@ -24,7 +24,6 @@ from app.enums import (
     ContactRequestSource,
     ContactRequestStatus,
     ContactType,
-    ProfileOwnerType,
 )
 from app.enums.templates import CHAT_INFO_TEMPLATES
 from app.models.ai.instance import AIInstance
@@ -38,7 +37,7 @@ from app.schemas.contact import (
     ContactRequestListResponse,
     ContactRequestWithProfile,
 )
-from app.services.ai.contact_handler import handle_ai_contact_request
+from app.services.ai.contact_handler import ContactRequestDecision, handle_ai_contact_request
 from app.services.ai.instance_creation import create_instance_from_persona
 from app.services.contact.service import _get_im_conv_id, get_contact_with_profile
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
@@ -93,7 +92,7 @@ def _map_request_source_to_contact(source: int | None) -> str:
         return "unknown"
     try:
         enum_value = ContactRequestSource(source)
-        return enum_value.name.lower()
+        return str(enum_value.name).lower()
     except ValueError:
         return "unknown"
 
@@ -261,6 +260,7 @@ async def _process_ai_contact_request(
             contact_id=contact_id,
         )
 
+        # Send chat info (non-critical operation)
         try:
             content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
             await send_chat_info(
@@ -271,8 +271,9 @@ async def _process_ai_contact_request(
             )
         except Exception as e:
             logger.error("send_chat_info_failed", request_id=_req_id, error=str(e))
-
-        return {"message": "请求已发送"}
+            return {"message": "请求已发送"}
+        else:
+            return {"message": "请求已发送"}
 
     except Exception as e:
         await db.rollback()
@@ -299,7 +300,7 @@ async def _process_ai_contact_request(
         return {"message": "请求已发送"}
 
 
-def _handle_ai_decline(contact_request: ContactRequest, decision) -> None:
+def _handle_ai_decline(contact_request: ContactRequest, decision: ContactRequestDecision) -> None:
     """
     Apply failure metadata for AI declines.
     """
@@ -476,6 +477,18 @@ async def _check_ai_persona_duplicate(
             )
             return {"message": "请求已发送"}
 
+        # If we reach here without returning, contact exists and is not deleted
+    except Exception as exc:
+        logger.error(
+            "persona_dup_check_failed",
+            user_qiao_id=user_qiao_id,
+            persona_id=persona.id,
+            error=str(exc),
+        )
+        raise
+    else:
+        # Only executed if no exception and no early return
+        # Contact exists and is not deleted - this is an error case
         logger.error(
             "contact_already_exists_via_persona",
             user_qiao_id=user_qiao_id,
@@ -485,18 +498,6 @@ async def _check_ai_persona_duplicate(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="已添加该联系人",
         )
-
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error(
-            "persona_dup_check_failed",
-            user_qiao_id=user_qiao_id,
-            persona_id=persona.id,
-            error=str(exc),
-        )
-
-    return None
 
 
 async def _check_and_update_pending_request(
@@ -523,7 +524,7 @@ async def _check_and_update_pending_request(
         existing_request.source = request.source
         # Extend expiry window
         expiry_days = await _get_contact_expiration_days(db)
-        existing_request.expires_at = datetime.now() + timedelta(days=expiry_days)
+        existing_request.expires_at = datetime.now(UTC) + timedelta(days=expiry_days)
         existing_request.status = ContactRequestStatus.PENDING
         existing_request.retry_count = (existing_request.retry_count or 0) + 1
         existing_request.last_retry_at = datetime.now(UTC)
@@ -637,7 +638,7 @@ async def _create_request_record(
 
     # Calculate expiration time
     expiry_days = await _get_contact_expiration_days(db)
-    expires_at = datetime.now() + timedelta(days=expiry_days)
+    expires_at = datetime.now(UTC) + timedelta(days=expiry_days)
 
     # Create contact request record
     contact_request_obj = ContactRequest(
@@ -696,9 +697,10 @@ async def create_contact_request_service(
     target_type = await _determine_target_type(db, request.to_qiao_id)
     await _validate_ai_contact_limit(db, user_qiao_id, target_type)
 
-    if target_type == ContactType.AI:
-        if result := await _check_ai_persona_duplicate(db, user_qiao_id, request):
-            return result
+    if target_type == ContactType.AI and (
+        result := await _check_ai_persona_duplicate(db, user_qiao_id, request)
+    ):
+        return result
 
     if result := await _check_and_update_pending_request(db, user_qiao_id, request):
         return result
@@ -781,9 +783,9 @@ async def retry_pending_contact_request(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="重试请求失败",
-        )
-
-    return {"message": "请求已发送"}
+        ) from exc
+    else:
+        return {"message": "请求已发送"}
 
 
 # Background processing moved to services.contact.request_worker
@@ -793,7 +795,7 @@ async def get_contact_requests_service(
     db: AsyncSession,
     user_qiao_id: str,
     status_filter: ContactRequestStatus | None = None,
-    cursor: str | None = None,
+    _cursor: str | None = None,
     limit: int = 20,
 ) -> ContactRequestListResponse:
     """
@@ -829,14 +831,7 @@ async def get_contact_requests_service(
         items = []
         for req in requests:
             # Get applicant profile
-            profile_owner_type = (
-                ProfileOwnerType.USER
-                if req.from_type == ContactType.USER
-                else ProfileOwnerType.AI_INSTANCE
-            )
-            profile = await profile_crud.get_by_owner_qiao_id(
-                db, owner_qiao_id=req.from_qiao_id, owner_type=profile_owner_type
-            )
+            profile = await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=req.from_qiao_id)
 
             # Build profile info
             from_profile = ContactProfileSummary(
@@ -884,7 +879,7 @@ async def get_contact_requests_service(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="获取请求列表失败",
-        )
+        ) from e
 
 
 async def accept_contact_request_service(
@@ -909,46 +904,67 @@ async def accept_contact_request_service(
         HTTPException: If request not found, invalid status, or processing fails
     """
 
+    def _raise_request_not_found() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="请求不存在",
+        )
+
+    def _raise_forbidden() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="无权操作此请求",
+        )
+
+    def _raise_invalid_status() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="请求状态不正确",
+        )
+
+    def _raise_contact_exists() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="已添加该联系人",
+        )
+
+    def _raise_user_not_found() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="用户不存在",
+        )
+
+    def _raise_sync_failed() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="联系人信息同步失败",
+        )
+
     try:
         # Get contact request
         contact_request = await contact_request_crud.get(db, id=request_id)
         if not contact_request:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="请求不存在",
-            )
+            _raise_request_not_found()
 
         # Verify request is for current user
         if contact_request.to_qiao_id != user_qiao_id:
-            raise HTTPException(
-                status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="无权操作此请求",
-            )
+            _raise_forbidden()
 
         # Verify request status
         if contact_request.status != ContactRequestStatus.PENDING:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="请求状态不正确",
-            )
+            _raise_invalid_status()
 
         # Check if contact already exists
         existing = await contact_crud.get_user_contact(
             db, user_qiao_id=user_qiao_id, contact_qiao_id=contact_request.from_qiao_id
         )
         if existing:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="已添加该联系人",
-            )
+            _raise_contact_exists()
 
         # Get user info
         user = await user_crud.get_by_qiao_id(db, qiao_id=user_qiao_id)
         if not user:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="用户不存在",
-            )
+            _raise_user_not_found()
 
         # Create contact
         conv_id = await _get_im_conv_id(db, ensure_valid=True)
@@ -1000,10 +1016,7 @@ async def accept_contact_request_service(
             conv_id=contact.conv_id,
         )
         if not contact_response:
-            raise HTTPException(
-                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="联系人信息同步失败",
-            )
+            _raise_sync_failed()
 
         logger.info(
             "accept_contact_request_success",
@@ -1011,8 +1024,6 @@ async def accept_contact_request_service(
             request_id=request_id,
             contact_id=contact.id,
         )
-
-        return contact_response
 
     except HTTPException:
         raise
@@ -1027,7 +1038,9 @@ async def accept_contact_request_service(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="接受请求失败",
-        )
+        ) from e
+    else:
+        return contact_response
 
 
 async def ignore_contact_request_service(
@@ -1050,28 +1063,37 @@ async def ignore_contact_request_service(
         HTTPException: If request not found, invalid status, or processing fails
     """
 
+    def _raise_request_not_found() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="请求不存在",
+        )
+
+    def _raise_forbidden() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="无权操作此请求",
+        )
+
+    def _raise_invalid_status() -> None:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="请求状态不正确",
+        )
+
     try:
         # Get contact request
         contact_request = await contact_request_crud.get(db, id=request_id)
         if not contact_request:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="请求不存在",
-            )
+            _raise_request_not_found()
 
         # Verify request is for current user
         if contact_request.to_qiao_id != user_qiao_id:
-            raise HTTPException(
-                status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="无权操作此请求",
-            )
+            _raise_forbidden()
 
         # Verify request status
         if contact_request.status != ContactRequestStatus.PENDING:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="请求状态不正确",
-            )
+            _raise_invalid_status()
 
         # Update request status to ignored
         await contact_request_crud.update_request_status(
@@ -1083,8 +1105,6 @@ async def ignore_contact_request_service(
             user_qiao_id=user_qiao_id,
             request_id=request_id,
         )
-
-        return {"message": "已忽略"}
 
     except HTTPException:
         raise
@@ -1099,4 +1119,6 @@ async def ignore_contact_request_service(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="忽略请求失败",
-        )
+        ) from e
+    else:
+        return {"message": "已忽略"}

@@ -5,12 +5,12 @@ This module contains SQLAlchemy models for user security logs and statistics.
 """
 
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import BigInteger, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.type_aliases import JSONDict
 from app.enums import AutoAction, ManualReviewStatus, RiskLevel
 from app.models.base import SnowflakeModel
 
@@ -43,7 +43,9 @@ class UserViolationLog(SnowflakeModel):
     violation_type: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        comment="Violation type: 1=prompt_injection, 2=abuse_content, 3=spam, 4=harassment, 5=other",
+        comment=(
+            "Violation type: 1=prompt_injection, 2=abuse_content, " "3=spam, 4=harassment, 5=other"
+        ),
     )
 
     severity_level: Mapped[int] = mapped_column(
@@ -102,11 +104,14 @@ class UserRiskStats(SnowflakeModel):
         comment="Total violation count",
     )
 
-    violation_by_type: Mapped[dict[str, Any]] = mapped_column(
+    violation_by_type: Mapped[JSONDict] = mapped_column(
         JSONB,
         nullable=False,
         server_default=text("'{}'::jsonb"),
-        comment='Violations by type: {"prompt_injection": 5, "abuse": 2} (JSONB for better performance)',
+        comment=(
+            'Violations by type: {"prompt_injection": 5, "abuse": 2} '
+            "(JSONB for better performance)"
+        ),
     )
 
     last_violation_at: Mapped[datetime | None] = mapped_column(

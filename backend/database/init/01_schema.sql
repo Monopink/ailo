@@ -563,6 +563,7 @@ CREATE TABLE IF NOT EXISTS ai_templates (
     memory TEXT,
     prompt_variables JSONB,
     request_params JSONB,
+    llm_config_id INTEGER,
     timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Shanghai',
     typing_speed_wpm INTEGER NOT NULL,
     display_name VARCHAR(100),
@@ -577,6 +578,7 @@ CREATE TABLE IF NOT EXISTS ai_templates (
 COMMENT ON TABLE ai_templates IS 'AI templates - core configuration templates for AI instances';
 COMMENT ON COLUMN ai_templates.type_id IS 'AI type ID (internal management), NOT related to Square categories';
 COMMENT ON COLUMN ai_templates.request_params IS 'Template-level LLM request parameters (temperature, max_tokens, etc.) - inherited by instances';
+COMMENT ON COLUMN ai_templates.llm_config_id IS 'Soft reference to llm_configs.id; NULL uses system default';
 COMMENT ON COLUMN ai_templates.timezone IS 'Default IANA timezone copied to AI instances';
 COMMENT ON COLUMN ai_templates.is_reusable IS '1=reusable (can create multiple instances), 0=non-reusable (can only create once)';
 COMMENT ON COLUMN ai_templates.priority IS 'Priority for selection, lower number = higher priority (non-reusable templates have priority)';
@@ -585,6 +587,7 @@ COMMENT ON COLUMN ai_templates.status IS '1=active, 2=inactive, 3=used (only for
 -- Create indexes for ai_templates table
 CREATE INDEX idx_ai_templates_ai_type ON ai_templates(type_id);
 CREATE INDEX idx_ai_templates_usage ON ai_templates(type_id, status, is_reusable);
+CREATE INDEX idx_ai_templates_llm_config ON ai_templates(llm_config_id) WHERE llm_config_id IS NOT NULL;
 
 -- Add foreign key constraints for ai_templates
 ALTER TABLE ai_templates ADD CONSTRAINT fk_ai_templates_type
@@ -636,6 +639,7 @@ CREATE TABLE IF NOT EXISTS ai_instances (
     relationship_id INTEGER,
     relationship_counts JSONB,
     request_params JSONB,
+    llm_config_id INTEGER,
     typing_speed_wpm INTEGER NOT NULL,
     timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Shanghai',
     created_by INTEGER NOT NULL,
@@ -650,6 +654,7 @@ CREATE INDEX idx_ai_instances_user_qiao_id ON ai_instances(user_qiao_id);
 CREATE INDEX idx_ai_instances_qiao_id ON ai_instances(qiao_id);
 CREATE INDEX idx_ai_instances_style_id ON ai_instances(style_id);
 CREATE INDEX idx_ai_instances_personality_id ON ai_instances(personality_id);
+CREATE INDEX idx_ai_instances_llm_config ON ai_instances(llm_config_id) WHERE llm_config_id IS NOT NULL;
 CREATE INDEX idx_ai_instances_creation_persona ON ai_instances USING gin((creation_metadata -> 'persona_id'));
 
 -- Add foreign key constraints for ai_instances
@@ -670,6 +675,7 @@ COMMENT ON COLUMN ai_instances.user_id IS 'Owning user ID (each row belongs to e
 COMMENT ON COLUMN ai_instances.user_qiao_id IS 'Owning user qiao_id (redundant for query convenience)';
 COMMENT ON COLUMN ai_instances.status IS '1=active, 2=inactive, 3=blocking (AI has blocked the user)';
 COMMENT ON COLUMN ai_instances.request_params IS 'AI instance request parameters configuration (JSON)';
+COMMENT ON COLUMN ai_instances.llm_config_id IS 'Preferred llm_configs.id; NULL falls back to primary config';
 COMMENT ON COLUMN ai_instances.timezone IS 'IANA timezone for the instance (e.g., Asia/Shanghai)';
 
 -- AI conversation state table - manages conversation state and pending messages
@@ -810,6 +816,7 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
     id BIGINT PRIMARY KEY,
     instance_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
+    user_qiao_id VARCHAR(32) NOT NULL,
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
     request_type VARCHAR(20) NOT NULL DEFAULT 'production',
@@ -829,6 +836,7 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
 );
 
 CREATE INDEX idx_ai_request_logs_response_id ON ai_request_logs(response_id);
+CREATE INDEX idx_ai_request_logs_user_qiao_id ON ai_request_logs(user_qiao_id);
 
 -- llm_session_cache removed in refactor (Responses API session cache conflicts with dynamic prompts)
 

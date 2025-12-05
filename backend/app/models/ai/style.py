@@ -7,6 +7,7 @@ This module contains SQLAlchemy models for AI styles and relationship configurat
 from markupsafe import escape
 from sqlalchemy import CheckConstraint, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from starlette.requests import Request
 
 from app.models.base import AutoIncrementModel
 
@@ -38,7 +39,7 @@ class AIStyle(AutoIncrementModel):
         cascade="all, delete-orphan",
     )
 
-    def __admin_select2_repr__(self, request) -> str:
+    def __admin_select2_repr__(self, request: Request) -> str:
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 
@@ -81,7 +82,7 @@ class AIDimension(AutoIncrementModel):
         cascade="all, delete-orphan",
     )
 
-    def __admin_select2_repr__(self, request) -> str:
+    def __admin_select2_repr__(self, request: Request) -> str:
         display = escape(self.display_name) if self.display_name else escape(self.name)
         return f"<span>[{self.id}] {display}</span>"
 
@@ -90,7 +91,8 @@ class AIStyleDimension(AutoIncrementModel):
     """
     AI style dimension model.
 
-    Style-specific dimension configurations (many-to-many relationship between styles and dimensions).
+    Style-specific dimension configurations (many-to-many relationship
+    between styles and dimensions).
     """
 
     __tablename__ = "ai_style_dimensions"
@@ -231,7 +233,7 @@ class AIRelationship(AutoIncrementModel):
         ),
     )
 
-    def __admin_select2_repr__(self, request) -> str:
+    def __admin_select2_repr__(self, request: Request) -> str:
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 

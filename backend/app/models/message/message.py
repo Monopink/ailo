@@ -5,12 +5,12 @@ This module contains SQLAlchemy models for message history and delivery failures
 """
 
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.type_aliases import JSONDict
 from app.models.base import ImmutableSnowflakeModel, SnowflakeModel
 
 
@@ -100,7 +100,7 @@ class MessageHistory(ImmutableSnowflakeModel):
         comment="Message status: 1=sent, 2=delivered, 3=read, 4=failed",
     )
 
-    message_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+    message_metadata: Mapped[JSONDict | None] = mapped_column(
         JSONB, nullable=True, comment="Message metadata (JSONB for better performance)"
     )
 

@@ -4,11 +4,12 @@ AI Instance Dimension CRUD operations.
 This module provides CRUD operations for AI instance dimension scores.
 """
 
-from typing import Any
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.type_aliases import JSONDict, JSONValue
 from app.models.ai.instance import AIInstance
 from app.models.ai.instance_dimension import AIInstanceDimension
 from app.models.ai.style import AIDimension, AIStyleDimension
@@ -18,7 +19,7 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def get_by_instance(db: AsyncSession, instance_id: int) -> list[dict[str, Any]]:
+async def get_by_instance(db: AsyncSession, instance_id: int) -> list[JSONDict]:
     """Get all dimensions for an instance with style dimension info."""
     try:
         stmt = (
@@ -48,7 +49,7 @@ async def get_by_instance(db: AsyncSession, instance_id: int) -> list[dict[str, 
 
 
 async def update_dimension(
-    db: AsyncSession, instance_id: int, dimension_id: int, update_data: dict[str, Any]
+    db: AsyncSession, instance_id: int, dimension_id: int, update_data: JSONDict
 ) -> bool:
     """Update a single dimension."""
     try:
@@ -64,13 +65,10 @@ async def update_dimension(
                 "dimension_not_found", instance_id=instance_id, dimension_id=dimension_id
             )
             return False
-
         for key, value in update_data.items():
             setattr(dimension, key, value)
 
         await db.commit()
-        logger.debug("dimension_updated", instance_id=instance_id, dimension_id=dimension_id)
-        return True
     except Exception as e:
         logger.error(
             "update_dimension_failed",
@@ -80,10 +78,24 @@ async def update_dimension(
         )
         await db.rollback()
         return False
+    else:
+        logger.debug("dimension_updated", instance_id=instance_id, dimension_id=dimension_id)
+        return True
+
+
+@dataclass(slots=True)
+class DimensionPayload:
+    """Validated payload for a single dimension update."""
+
+    dimension_id: int
+    score_int: int
+    score_float: float
+    algorithm: int
+    params: dict[str, object] | None
 
 
 async def update_dimensions_batch(
-    db: AsyncSession, instance_id: int, dimensions_data: list[dict[str, Any]]
+    db: AsyncSession, instance_id: int, dimensions_data: list[JSONDict]
 ) -> dict[str, int]:
     """
     Batch update/create instance dimensions.
@@ -111,7 +123,7 @@ async def update_dimensions_batch(
             return {"updated": 0, "created": 0}
 
         # Get existing dimensions with initial_position via style join
-        stmt = (
+        existing_stmt = (
             select(AIInstanceDimension, AIStyleDimension.initial_position)
             .join(
                 AIStyleDimension,
@@ -120,17 +132,27 @@ async def update_dimensions_batch(
             )
             .where(AIInstanceDimension.instance_id == instance_id)
         )
-        result = await db.execute(stmt)
+        result = await db.execute(existing_stmt)
         existing_dimensions = {dim.dimension_id: (dim, initial_pos) for dim, initial_pos in result}
 
+        payloads: list[DimensionPayload] = []
+        for raw_dimension in dimensions_data:
+            parsed = _parse_dimension_payload(raw_dimension)
+            if parsed:
+                payloads.append(parsed)
+
+        if not payloads:
+            logger.warning("no_valid_dimensions_to_update", instance_id=instance_id)
+            return {"updated": 0, "created": 0}
+
         # Get initial positions for new dimensions under this style
-        dimension_ids = [d["dimension_id"] for d in dimensions_data]
+        dimension_ids = [payload.dimension_id for payload in payloads]
         if dimension_ids:
-            stmt = select(AIStyleDimension).where(
+            style_stmt = select(AIStyleDimension).where(
                 (AIStyleDimension.style_id == style_id)
                 & (AIStyleDimension.dimension_id.in_(dimension_ids))
             )
-            result = await db.execute(stmt)
+            result = await db.execute(style_stmt)
             style_dimensions = {
                 dim.dimension_id: dim.initial_position for dim in result.scalars().all()
             }
@@ -140,77 +162,62 @@ async def update_dimensions_batch(
         updated = 0
         created = 0
 
-        for dim_data in dimensions_data:
-            dimension_id = dim_data["dimension_id"]
-            score = dim_data["score"]
-            algorithm = dim_data["position_mapping_algorithm"]
-            params = dim_data.get("position_mapping_params", {})
-
+        for payload in payloads:
+            dimension_id = payload.dimension_id
             # Get initial position
             if dimension_id in existing_dimensions:
                 _, initial_position = existing_dimensions[dimension_id]
             else:
                 initial_position = style_dimensions.get(dimension_id)
-                if initial_position is None:
-                    logger.error(
-                        "initial_position_not_found",
-                        instance_id=instance_id,
-                        dimension_id=dimension_id,
-                    )
-                    # Skip this dimension (no default values)
-                    continue
+            if initial_position is None:
+                logger.error(
+                    "initial_position_not_found",
+                    instance_id=instance_id,
+                    dimension_id=dimension_id,
+                )
+                # Skip this dimension (no default values)
+                continue
 
             # Calculate position using position mapping algorithm
             try:
                 position = int(
                     map_score_to_position(
-                        algorithm=algorithm,
-                        score=float(score),
+                        algorithm=payload.algorithm,
+                        score=payload.score_float,
                         initial_position=float(initial_position),
-                        params=params,
+                        params=payload.params,
                     )
                 )
             except Exception as e:
                 logger.warning(
                     "position_calculation_failed_using_score",
                     dimension_id=dimension_id,
-                    score=score,
+                    score=payload.score_float,
                     error=str(e),
                 )
                 # Fallback: use score as position
-                position = score
+                position = payload.score_int
 
             if dimension_id in existing_dimensions:
                 # Update existing dimension
                 dimension, _ = existing_dimensions[dimension_id]
-                dimension.score = score
+                dimension.score = payload.score_int
                 dimension.position = position
-                dimension.position_mapping_algorithm = algorithm
-                dimension.position_mapping_params = params
+                dimension.position_mapping_algorithm = payload.algorithm
+                dimension.position_mapping_params = payload.params or {}
                 updated += 1
             else:
                 # Create new dimension
                 new_dimension = AIInstanceDimension(
                     instance_id=instance_id,
                     dimension_id=dimension_id,
-                    score=score,
+                    score=payload.score_int,
                     position=position,
-                    position_mapping_algorithm=algorithm,
-                    position_mapping_params=params,
+                    position_mapping_algorithm=payload.algorithm,
+                    position_mapping_params=payload.params or {},
                 )
                 db.add(new_dimension)
                 created += 1
-
-        await db.commit()
-
-        logger.info(
-            "dimensions_batch_updated",
-            instance_id=instance_id,
-            updated=updated,
-            created=created,
-        )
-
-        return {"updated": updated, "created": created}
 
     except Exception as e:
         logger.error(
@@ -218,3 +225,90 @@ async def update_dimensions_batch(
         )
         await db.rollback()
         raise
+    else:
+        await db.commit()
+        logger.info(
+            "dimensions_batch_updated",
+            instance_id=instance_id,
+            updated=updated,
+            created=created,
+        )
+        return {"updated": updated, "created": created}
+
+
+def _coerce_dimension_id(value: JSONValue | None) -> int | None:
+    """Convert dynamic payload values into integer dimension identifiers."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_score_value(value: JSONValue | None) -> float | None:
+    """Normalize score payloads to floats."""
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_algorithm(value: JSONValue | None) -> int | None:
+    """Normalize mapping algorithm identifiers."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_params(value: JSONValue | None) -> dict[str, object] | None:
+    """Ensure position mapping parameters are dictionary-based."""
+    if isinstance(value, dict):
+        return dict(value)
+    return None
+
+
+def _parse_dimension_payload(raw_dimension: JSONDict) -> DimensionPayload | None:
+    """Validate incoming dimension data and convert to structured payload."""
+    dimension_id = _coerce_dimension_id(raw_dimension.get("dimension_id"))
+    if dimension_id is None:
+        logger.warning("invalid_dimension_id", data=raw_dimension)
+        return None
+
+    score_value = _coerce_score_value(raw_dimension.get("score"))
+    if score_value is None:
+        logger.warning("invalid_dimension_score", dimension_id=dimension_id, data=raw_dimension)
+        return None
+
+    algorithm = _coerce_algorithm(raw_dimension.get("position_mapping_algorithm"))
+    if algorithm is None:
+        logger.warning(
+            "invalid_mapping_algorithm",
+            dimension_id=dimension_id,
+            algorithm=raw_dimension.get("position_mapping_algorithm"),
+        )
+        return None
+
+    params = _coerce_params(raw_dimension.get("position_mapping_params"))
+    score_int = int(score_value)
+
+    return DimensionPayload(
+        dimension_id=dimension_id,
+        score_int=score_int,
+        score_float=score_value,
+        algorithm=algorithm,
+        params=params,
+    )

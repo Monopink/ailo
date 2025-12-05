@@ -5,10 +5,10 @@ This module contains Pydantic schemas for AI instances and contexts.
 """
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.core.type_aliases import JSONDict
 from app.enums import AIInstanceCreator
 from app.schemas.common import BaseSchema
 
@@ -18,21 +18,20 @@ class AIInstanceBase(BaseSchema):
 
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
-    creation_metadata: dict[str, Any] = Field(
+    creation_metadata: JSONDict = Field(
         default_factory=dict,
         description="Snapshot of creation data stored with the instance",
     )
     status: int | None = Field(1, ge=1, le=3, description="Instance status")
     relationship_id: int | None = Field(None, description="Current relationship ID")
-    relationship_counts: dict[str, Any] | None = Field(
-        None, description="Relationship usage counts"
-    )
+    relationship_counts: JSONDict | None = Field(None, description="Relationship usage counts")
     memory: str | None = Field(None, description="Instance memory settings")
-    prompt_variables: dict[str, Any] | None = Field(
+    prompt_variables: JSONDict | None = Field(
         None, description="Placeholder overrides used for this instance"
     )
-    request_params: dict[str, Any] | None = Field(
-        None, description="LLM request parameter overrides"
+    request_params: JSONDict | None = Field(None, description="LLM request parameter overrides")
+    llm_config_id: int | None = Field(
+        None, description="Preferred llm_configs.id for this instance"
     )
     timezone: str | None = Field(
         "Asia/Shanghai",
@@ -51,16 +50,16 @@ class AIInstanceCreate(BaseModel):
     user_qiao_id: str = Field(..., max_length=32, description="Owning user qiao_id")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
-    creation_metadata: dict[str, Any] | None = Field(
+    creation_metadata: JSONDict | None = Field(
         None,
         description="Snapshot of persona/template metadata captured at creation time",
     )
     memory: str | None = Field(None, description="Instance memory settings")
-    placeholder_overrides: dict[str, Any] | None = Field(
+    placeholder_overrides: JSONDict | None = Field(
         None,
         description="Prompt placeholder overrides used to populate prompt_variables",
     )
-    request_params: dict[str, Any] | None = Field(
+    request_params: JSONDict | None = Field(
         None,
         description="LLM request parameters override",
         examples=[
@@ -72,8 +71,11 @@ class AIInstanceCreate(BaseModel):
             }
         ],
     )
+    llm_config_id: int | None = Field(
+        None, description="LLM config ID to associate with this instance"
+    )
     relationship_id: int | None = Field(None, description="Initial relationship ID")
-    relationship_counts: dict[str, Any] | None = Field(
+    relationship_counts: JSONDict | None = Field(
         None, description="Initial relationship usage counts"
     )
     status: int | None = Field(1, ge=1, le=3, description="Instance status")
@@ -95,16 +97,11 @@ class AIInstanceUpdate(BaseModel):
     personality_id: int | None = Field(None, description="Personality ID")
     status: int | None = Field(None, ge=1, le=3, description="Instance status")
     relationship_id: int | None = Field(None, description="Current relationship ID")
-    relationship_counts: dict[str, Any] | None = Field(
-        None, description="Relationship usage counts"
-    )
+    relationship_counts: JSONDict | None = Field(None, description="Relationship usage counts")
     memory: str | None = Field(None, description="Instance memory settings")
-    prompt_variables: dict[str, Any] | None = Field(
-        None, description="Prompt placeholder overrides"
-    )
-    request_params: dict[str, Any] | None = Field(
-        None, description="LLM request parameter overrides"
-    )
+    prompt_variables: JSONDict | None = Field(None, description="Prompt placeholder overrides")
+    request_params: JSONDict | None = Field(None, description="LLM request parameter overrides")
+    llm_config_id: int | None = Field(None, description="LLM config ID")
     timezone: str | None = Field(None, max_length=50, description="IANA timezone for this instance")
     typing_speed_wpm: int | None = Field(
         None, ge=1, description="Typing speed for this instance in words per minute"
@@ -131,12 +128,15 @@ class AIInstanceListResponse(BaseSchema):
     user_qiao_id: str = Field(..., description="Owning user qiao_id")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
-    creation_metadata: dict[str, Any] = Field(
+    creation_metadata: JSONDict = Field(
         default_factory=dict, description="Snapshot of instance creation payload"
     )
     typing_speed_wpm: int = Field(..., description="Typing speed words per minute")
     created_by: AIInstanceCreator = Field(..., description="Creator type")
     created_at: datetime = Field(..., description="Creation time")
+    llm_config_id: int | None = Field(
+        None, description="Preferred llm_configs.id for this instance"
+    )
 
 
 class BatchAIInstanceDelete(BaseModel):

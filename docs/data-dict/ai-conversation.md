@@ -86,6 +86,7 @@ AI请求日志表，记录所有AI请求和响应（包括生产环境和测试�
 id -- Snowflake ID
 instance_id -- 关联ai_instances.id
 user_id -- 关联users.id
+user_qiao_id -- 用户 external ID
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
 request_type -- 请求类型：production（生产环境）或test（测试环境），默认production

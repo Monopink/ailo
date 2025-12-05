@@ -4,8 +4,8 @@ AI Template admin views.
 This module contains Starlette-Admin views for AI instance configuration and persona inventory.
 """
 
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import MutableMapping, Sequence
+from typing import ClassVar
 
 from sqlalchemy import select
 from starlette.requests import Request
@@ -23,24 +23,29 @@ from app.models.ai.template import AIPersona, AITemplate
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
 
+FormData = MutableMapping[str, object]
+
 
 class AITemplateView(ModelView):
     """Enhanced AI Template view with proper field configuration."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "created_at",
         "updated_at",
         "type_id",  # Auto-filled from ai_type relationship
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "created_at",
         "updated_at",
         "type_id",  # Auto-filled from ai_type relationship
     ]
-    exclude_fields_from_list = [
+    exclude_fields_from_list: ClassVar[list[str]] = [
         "type_id",  # Redundant with ai_type relationship field
+    ]
+    exclude_fields_from_detail: ClassVar[list[str]] = [
+        "type_id",
     ]
 
     def is_active(self, request: Request) -> bool:
@@ -53,10 +58,10 @@ class AITemplateView(ModelView):
         path = request.scope["path"]
         return f"/{self.identity}/advanced-edit/" in path
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, _request: Request, _data: FormData, obj: AITemplate) -> None:
         """Auto-fill foreign keys before creating template."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
@@ -65,6 +70,10 @@ class AITemplateView(ModelView):
             obj.style_id = obj.style.id
         if hasattr(obj, "personality") and obj.personality is not None:
             obj.personality_id = obj.personality.id
+        if hasattr(obj, "llm_config") and obj.llm_config is not None:
+            obj.llm_config_id = obj.llm_config.id
+        else:
+            obj.llm_config_id = None
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -81,9 +90,36 @@ class AITemplateView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = []
-    sortable_fields = [
+    async def before_edit(self, _request: Request, _data: FormData, obj: AITemplate) -> None:
+        """Auto-fill foreign keys before editing template."""
+        if hasattr(obj, "ai_type") and obj.ai_type is not None:
+            obj.type_id = obj.ai_type.id
+        if hasattr(obj, "style") and obj.style is not None:
+            obj.style_id = obj.style.id
+        if hasattr(obj, "personality") and obj.personality is not None:
+            obj.personality_id = obj.personality.id
+        if hasattr(obj, "llm_config") and obj.llm_config is not None:
+            obj.llm_config_id = obj.llm_config.id
+        else:
+            obj.llm_config_id = None
+
+        if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
+            obj.timezone = "Asia/Shanghai"
+
+        errors = {}
+        if not hasattr(obj, "type_id") or obj.type_id is None:
+            errors["ai_type"] = "AI Type is required"
+        if not hasattr(obj, "style_id") or obj.style_id is None:
+            errors["style"] = "AI Style is required"
+        if not hasattr(obj, "personality_id") or obj.personality_id is None:
+            errors["personality"] = "AI Personality is required"
+
+        if errors:
+            raise FormValidationError(errors)
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = []
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "type_id",
         "style_id",
@@ -96,7 +132,7 @@ class AITemplateView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal AI template ID"),
         StringField(
             "display_name",
@@ -129,17 +165,28 @@ class AITemplateView(ModelView):
             help_text="AI personality for this template",
             required=True,
         ),
+        HasOne(
+            "llm_config",
+            identity="llm_config",
+            label="LLM Config",
+            help_text=(
+                "Default llm_configs.id inherited by instances (leave blank for system default)"
+            ),
+            required=False,
+        ),
+        JSONField(
+            "request_params",
+            label="Request Parameters",
+            help_text=(
+                "LLM request parameters (temperature, max_tokens, etc.) - inherited by AI instances"
+            ),
+        ),
         TextAreaField(
             "memory",
             label="Memory Settings",
             help_text="Default memory settings for AI instances using this template",
         ),
         "prompt_variables",
-        JSONField(
-            "request_params",
-            label="Request Parameters",
-            help_text="LLM request parameters (temperature, max_tokens, etc.) - inherited by AI instances",
-        ),
         StringField(
             "timezone",
             label="Timezone",
@@ -149,7 +196,9 @@ class AITemplateView(ModelView):
         IntegerField(
             "typing_speed_wpm",
             label="Typing Speed (WPM)",
-            help_text="Default typing speed that downstream AI instances inherit (words per minute)",
+            help_text=(
+                "Default typing speed that downstream AI instances inherit (words per minute)"
+            ),
             required=True,
         ),
         JSONField(
@@ -185,7 +234,7 @@ class AITemplateView(ModelView):
         self,
         request: Request,
         action: RequestAction = RequestAction.LIST,
-    ) -> Sequence[Any]:
+    ) -> Sequence[object]:
         """Skip relation fields that point to missing model attributes."""
         base_fields = super().get_fields_list(request, action)
         filtered_fields = []
@@ -195,14 +244,14 @@ class AITemplateView(ModelView):
             filtered_fields.append(field)
         return filtered_fields
 
-    row_actions = ["view", "edit", "advanced_edit"]
+    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit"]
 
     @link_row_action(
         name="advanced_edit",
         text="Advanced Edit",
         icon_class="fas fa-cogs",
     )
-    def advanced_edit_row_action(self, request: Request, pk: Any) -> str:
+    def advanced_edit_row_action(self, _request: Request, pk: str) -> str:
         """Link to edit AI template JSON fields."""
         return f"/qiao-dash/ai_template/advanced-edit/{pk}"
 
@@ -210,14 +259,14 @@ class AITemplateView(ModelView):
 class _PersonaRelatedStringField(StringField):
     """Computed field showing Profile attribute for an AIPersona."""
 
-    def __init__(self, name: str, profile_attr: str, label: str):
+    def __init__(self, name: str, profile_attr: str, label: str) -> None:
         super().__init__(name=name, label=label)
         self._profile_attr = profile_attr
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, request: Request, obj: AIPersona) -> str | None:
         try:
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
@@ -236,7 +285,7 @@ class _PersonaRelatedStringField(StringField):
                 return "(No Profile)"
 
             # Profile exists, check field value
-            profile_id, value = row
+            _profile_id, value = row
             if value is None:
                 return None  # Framework will display as -null-
             if value == "":
@@ -249,13 +298,13 @@ class _PersonaRelatedStringField(StringField):
 class _PersonaGenderField(StringField):
     """Computed field showing Profile.gender as enum name for an AIPersona."""
 
-    def __init__(self, name: str = "profile_gender", label: str = "Profile Gender"):
+    def __init__(self, name: str = "profile_gender", label: str = "Profile Gender") -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, request: Request, obj: AIPersona) -> str | None:
         try:
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
@@ -274,11 +323,11 @@ class _PersonaGenderField(StringField):
                 return "(No Profile)"
 
             # Profile exists, check gender value
-            profile_id, value = row
+            _profile_id, value = row
             if value is None:
                 return None  # Framework will display as -null-
             try:
-                return Gender(int(value)).name
+                return str(Gender(int(value)).name)
             except Exception:
                 return str(value)
         except Exception:
@@ -288,7 +337,7 @@ class _PersonaGenderField(StringField):
 class AIPersonaView(ModelView):
     """AI persona inventory view."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "type_id",
         "profile_nickname",
@@ -296,7 +345,7 @@ class AIPersonaView(ModelView):
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "type_id",
         "profile_nickname",
@@ -305,7 +354,7 @@ class AIPersonaView(ModelView):
         "updated_at",
     ]
 
-    async def create(self, request: Request, data: dict[str, Any]) -> Any:
+    async def create(self, request: Request, data: FormData) -> AIPersona:
         """Ensure qiao_id is generated if the admin did not override it."""
         if not data.get("qiao_id"):
             data["qiao_id"] = generate_qiao_id()
@@ -316,16 +365,16 @@ class AIPersonaView(ModelView):
 
         return await super().create(request, data)
 
-    def _sync_ai_type(self, obj: Any) -> None:
+    def _sync_ai_type(self, obj: AIPersona) -> None:
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
             obj.type_id = getattr(obj.ai_type, "id", obj.type_id)
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["qiao_id"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "qiao_id",
         "is_reusable",
@@ -334,7 +383,7 @@ class AIPersonaView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal persona identifier"),
         StringField(
             "qiao_id",
@@ -370,7 +419,7 @@ class AIPersonaView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, _request: Request, _data: FormData, obj: AIPersona) -> None:
         """Ensure ai_type is set before creating a persona."""
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
             obj.type_id = obj.ai_type.id
@@ -382,7 +431,7 @@ class AIPersonaView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, _data: FormData, obj: AIPersona) -> None:
         """Ensure ai_type stays synchronized during edits."""
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
             obj.type_id = obj.ai_type.id

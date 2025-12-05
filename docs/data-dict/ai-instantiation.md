@@ -41,6 +41,7 @@ personality_id -- 关联ai_personalities.id
 memory -- 记忆设定
 prompt_variables -- 占位符覆盖值，JSON格式
 request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
+llm_config_id -- 软引用到 llm_configs.id，NULL 表示实例化时走系统默认配置
 timezone -- 默认 IANA 时区标识（如 Asia/Shanghai），用于实例化拷贝
 typing_speed_wpm -- 模板层的打字速度（词/分钟，整数，必填），角色创建时拷贝，运行阶段若遇到非法值再退回 35 WPM
 position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
@@ -82,6 +83,7 @@ relationship_counts -- 各关系类型使用次数统计，JSONB，如 {"friend"
 memory -- 实例级记忆
 prompt_variables -- 实例级占位符覆盖
 request_params -- 实例级LLM请求参数覆盖
+llm_config_id -- 实例自定义的 llm_configs.id，NULL 时运行期回落到系统主配置
 typing_speed_wpm -- 打字速度（词/分钟），默认沿用模板值
 timezone -- IANA时区标识（如 Asia/Shanghai）
 creation_metadata -- JSONB，创建时的完整快照（不可变），包含 source、persona_id、persona_qiao_id、persona_type_id、persona_type_name、persona_is_reusable、template_id、template_display_name、template_priority、assigned_at、assigned_by 等字段

@@ -4,6 +4,9 @@ AI Log admin views.
 This module contains Starlette-Admin views for AI request logging.
 """
 
+from typing import ClassVar
+
+from starlette.requests import Request
 from starlette_admin import BooleanField, IntegerField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.fields import JSONField
@@ -17,7 +20,7 @@ from app.models.ai.log import AIRequestLog
 class AIRequestLogView(ModelView):
     """Enhanced AI Request Log view - read-only for monitoring."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "instance_id",
         "user_id",
@@ -34,7 +37,7 @@ class AIRequestLogView(ModelView):
         "response_time",
         "created_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "instance_id",
         "user_id",
@@ -51,29 +54,33 @@ class AIRequestLogView(ModelView):
         "response_time",
         "created_at",
     ]
-    exclude_fields_from_list = ["request", "response"]
-    exclude_fields_from_detail = []  # Show all fields in detail view
+    exclude_fields_from_list: ClassVar[list[str]] = ["request", "response"]
+    exclude_fields_from_detail: ClassVar[list[str]] = []  # Show all fields in detail view
 
-    def can_create(self, request):
+    def can_create(self, request: Request) -> bool:
+        _ = request
         return False
 
-    def can_edit(self, request):
+    def can_edit(self, request: Request) -> bool:
+        _ = request
         return False
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
+        _ = request
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = [
         "id",
         "instance_id",
         "user_id",
+        "user_qiao_id",
         "provider_name",
         "model_name",
         "response_id",
         "buffer_id",
     ]
-    sortable_fields = [
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "instance_id",
         "user_id",
@@ -85,10 +92,15 @@ class AIRequestLogView(ModelView):
         "completed_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal request log ID"),
         StringField("instance_id", label="AI Instance ID", help_text="AI instance snowflake ID"),
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
+        StringField(
+            "user_qiao_id",
+            label="User Qiao ID",
+            help_text="User external qiao_id identifier",
+        ),
         IntegerField("style_id", label="AI Style ID"),
         IntegerField("personality_id", label="AI Personality ID"),
         StringField("request_type", label="Request Type", help_text="production or test"),

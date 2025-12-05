@@ -6,7 +6,9 @@ instance-related data consistent and detached from ORM objects.
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import TypedDict
+
+from app.core.type_aliases import JSONDict
 
 
 class StyleInfo(TypedDict):
@@ -23,7 +25,7 @@ class PersonalityInfo(TypedDict):
     display_name: str
     prompt: str
     status: int
-    json_schema: dict[str, Any] | None
+    json_schema: JSONDict | None
 
 
 class ProfileInfo(TypedDict):
@@ -75,11 +77,12 @@ class InstanceContext(TypedDict):
     ai_type: AITypeInfo | None
     status: int
     created_by: int
+    llm_config_id: int | None
 
     # Prompt + runtime configuration
     memory: str | None
-    prompt_variables: dict[str, Any]
-    request_params: dict[str, Any]
+    prompt_variables: JSONDict
+    request_params: JSONDict
     typing_speed_wpm: int
     timezone: str
     created_from_profile_qiao_id: str | None

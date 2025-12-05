@@ -19,3 +19,5 @@ CHAT_INFO_TEMPLATES = {
     ChatInfoType.MESSAGE_BLOCKED: "消息已发出,但对方拒收了",
     ChatInfoType.NOT_FRIEND: "对方还没有添加你为联系人",
 }
+
+__all__ = ["CHAT_INFO_TEMPLATES", "ChatInfoType"]

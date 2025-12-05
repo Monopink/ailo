@@ -1,14 +1,15 @@
 import logging
 import logging.handlers
-import os
-from typing import Any
+from collections.abc import Callable, Mapping
+from pathlib import Path
+from typing import Protocol, cast
 
 import structlog
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
-from structlog.types import EventDict
+from structlog.typing import EventDict, Processor, WrappedLogger
 
 
-def format_log_level(_, __, event_dict: EventDict) -> EventDict:
+def format_log_level(_logger: WrappedLogger, _name: str, event_dict: EventDict) -> EventDict:
     """
     Map python log levels to short uppercase names.
     e.g., 'warning' -> 'WARN', 'critical' -> 'FATAL'
@@ -29,7 +30,7 @@ def configure_logging(
     log_format: str = "json",
     log_dir: str = "./logs",
     service_name: str = "backend",
-):
+) -> None:
     """
     Configure structured logging for the backend.
     This setup ensures that logs are processed as JSON and saved to files.
@@ -41,13 +42,14 @@ def configure_logging(
         service_name: Name of the service for log identification
     """
     # Ensure logs directory exists
-    os.makedirs(log_dir, exist_ok=True)
+    log_dir_path = Path(log_dir)
+    log_dir_path.mkdir(parents=True, exist_ok=True)
 
     # Convert string log level to logging constant
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
 
     # Configure file handler with rotation
-    log_file = os.path.join(log_dir, f"{service_name}.log")
+    log_file = log_dir_path / f"{service_name}.log"
     file_handler = logging.handlers.RotatingFileHandler(
         log_file,
         maxBytes=10 * 1024 * 1024,
@@ -67,7 +69,7 @@ def configure_logging(
 
     # Choose processors based on format
     if log_format.lower() == "json":
-        processors = [
+        processors: list[Processor] = [
             structlog.stdlib.add_log_level,
             format_log_level,
             structlog.stdlib.add_logger_name,
@@ -109,7 +111,18 @@ def configure_logging(
     )
 
 
-def get_logger(name: str | None = None) -> structlog.BoundLogger:
+class BoundLoggerProtocol(Protocol):
+    """Subset of structlog BoundLogger used by the application."""
+
+    def bind(self, **kwargs: object) -> "BoundLoggerProtocol": ...
+    def debug(self, event: str, **kwargs: object) -> object: ...
+    def info(self, event: str, **kwargs: object) -> object: ...
+    def warning(self, event: str, **kwargs: object) -> object: ...
+    def error(self, event: str, **kwargs: object) -> object: ...
+    def critical(self, event: str, **kwargs: object) -> object: ...
+
+
+def get_logger(name: str | None = None) -> BoundLoggerProtocol:
     """
     Get a preconfigured structured logger
 
@@ -120,10 +133,10 @@ def get_logger(name: str | None = None) -> structlog.BoundLogger:
         structlog.BoundLogger: The structured logger instance
     """
     logger = structlog.get_logger(name)
-    return logger
+    return cast(BoundLoggerProtocol, logger)
 
 
-def bind_context(logger: structlog.BoundLogger, **kwargs) -> structlog.BoundLogger:
+def bind_context(logger: BoundLoggerProtocol, **kwargs: object) -> BoundLoggerProtocol:
     """
     Bind context data to a logger
 
@@ -138,11 +151,11 @@ def bind_context(logger: structlog.BoundLogger, **kwargs) -> structlog.BoundLogg
 
 
 def log_with_context(
-    logger: structlog.BoundLogger,
+    logger: BoundLoggerProtocol,
     level: str,
     event: str,
-    context: dict[str, Any] | None = None,
-    **kwargs,
+    context: Mapping[str, object] | None = None,
+    **kwargs: object,
 ) -> None:
     """
     Log an event with context
@@ -154,7 +167,7 @@ def log_with_context(
         context: Additional context data
         **kwargs: Other key-value pairs to log
     """
-    log_method = getattr(logger, level)
+    log_method = cast(Callable[..., object], getattr(logger, level))
 
     if context:
         kwargs.update(context)

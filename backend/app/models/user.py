@@ -5,13 +5,14 @@ This module contains SQLAlchemy models for user accounts, tokens, and login reco
 """
 
 from datetime import datetime
-from typing import Any
 
 from markupsafe import escape
 from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
+from starlette.requests import Request
 
+from app.core.type_aliases import JSONDict
 from app.enums import UserType
 from app.models.base import Base, SnowflakeIDMixin, SnowflakeModel, SnowflakeQiaoModel, StatusMixin
 
@@ -59,7 +60,7 @@ class User(SnowflakeQiaoModel, StatusMixin):
         comment="Verification source (e.g., public_security, alipay, wechat, tencentcloud)",
     )
 
-    verification_info: Mapped[dict[str, Any] | None] = mapped_column(
+    verification_info: Mapped[JSONDict | None] = mapped_column(
         JSONB, nullable=True, comment="Verification extra info (JSON)"
     )
 
@@ -77,9 +78,9 @@ class User(SnowflakeQiaoModel, StatusMixin):
 
     # Indexes - Only essential indexes for MVP
     # Note: phone, email already have unique indexes
-    __table_args__ = tuple()
+    __table_args__ = ()
 
-    def __admin_select2_repr__(self, request) -> str:
+    def __admin_select2_repr__(self, request: Request) -> str:
         return f"<span>[{self.id}] {escape(self.qiao_id)} / {escape(self.username)}</span>"
 
 
@@ -110,7 +111,7 @@ class UserToken(SnowflakeModel):
         String(128), nullable=True, comment="Device unique identifier"
     )
 
-    platform_info: Mapped[dict[str, Any] | None] = mapped_column(
+    platform_info: Mapped[JSONDict | None] = mapped_column(
         JSONB, nullable=True, comment="Platform information (JSONB for better performance)"
     )
 
@@ -171,9 +172,7 @@ class UserAuth(SnowflakeModel, StatusMixin):
 
     app_id: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="Provider app ID")
 
-    extra_data: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True, comment="Extra info"
-    )
+    extra_data: Mapped[JSONDict | None] = mapped_column(JSONB, nullable=True, comment="Extra info")
 
     revoked_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Unbind time"

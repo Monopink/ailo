@@ -4,10 +4,16 @@ LLM configuration functions.
 This module provides functions for retrieving LLM configurations.
 """
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.llm import llm_config, llm_provider
+from app.exceptions.llm import LLMNoConfigError
+from app.models.ai.instance import AIInstance
 from app.models.llm import LLMConfig, LLMProvider
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 async def get_llm_config(
@@ -121,4 +127,87 @@ async def get_config_by_provider(
 
     # Return the highest priority config
     config = min(configs, key=lambda c: c.priority)
+    return config, provider
+
+
+async def get_instance_llm_config(
+    db: AsyncSession, instance_id: int
+) -> tuple[LLMConfig, LLMProvider]:
+    """
+    Resolve an instance's LLM configuration with fallback to the system primary config.
+
+    Args:
+        db: Database session
+        instance_id: AI instance ID
+
+    Returns:
+        Tuple of (config, provider)
+
+    Raises:
+        LLMNoConfigError: If no valid config can be resolved
+    """
+
+    result = await db.execute(
+        select(AIInstance.llm_config_id, AIInstance.qiao_id).where(AIInstance.id == instance_id)
+    )
+    row = result.first()
+    if not row:
+        raise LLMNoConfigError(
+            message=f"Instance not found: {instance_id}",
+            details={"instance_id": instance_id},
+        )
+
+    llm_config_id, instance_qiao_id = row
+
+    if llm_config_id:
+        config_result = await get_llm_config(db, config_id=llm_config_id)
+        if config_result:
+            config, provider = config_result
+            if config.status == 1:
+                logger.info(
+                    "instance_llm_config_resolved",
+                    level="instance",
+                    instance_id=instance_id,
+                    instance_qiao_id=instance_qiao_id,
+                    config_id=config.id,
+                    config_name=config.name,
+                )
+                return config, provider
+
+            logger.warning(
+                "instance_llm_config_inactive",
+                instance_id=instance_id,
+                instance_qiao_id=instance_qiao_id,
+                config_id=config.id,
+                fallback="system_primary",
+            )
+        else:
+            logger.warning(
+                "instance_llm_config_not_found",
+                instance_id=instance_id,
+                instance_qiao_id=instance_qiao_id,
+                config_id=llm_config_id,
+                fallback="system_primary",
+            )
+
+    config_result = await get_primary_config(db)
+    if not config_result:
+        raise LLMNoConfigError(
+            message="No valid LLM config found at instance or system level",
+            details={
+                "instance_id": instance_id,
+                "instance_qiao_id": instance_qiao_id,
+                "instance_config_id": llm_config_id,
+            },
+        )
+
+    config, provider = config_result
+    logger.info(
+        "instance_llm_config_resolved",
+        level="system_primary",
+        instance_id=instance_id,
+        instance_qiao_id=instance_qiao_id,
+        config_id=config.id,
+        config_name=config.name,
+    )
     return config, provider

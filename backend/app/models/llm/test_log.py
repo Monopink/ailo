@@ -5,12 +5,12 @@ This module contains SQLAlchemy model for LLM configuration testing logs.
 """
 
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import DECIMAL, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.type_aliases import JSONDict
 from app.models.base import ImmutableSnowflakeModel
 
 
@@ -60,11 +60,11 @@ class LLMTestLog(ImmutableSnowflakeModel):
     )
 
     # Request and response
-    request: Mapped[dict[str, Any]] = mapped_column(
+    request: Mapped[JSONDict] = mapped_column(
         JSONB, nullable=False, comment="Complete request payload"
     )
 
-    response: Mapped[dict[str, Any] | None] = mapped_column(
+    response: Mapped[JSONDict | None] = mapped_column(
         JSONB, nullable=True, comment="Complete response data"
     )
 

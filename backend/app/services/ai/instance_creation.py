@@ -4,8 +4,6 @@ AI instance creation service.
 This module handles creating AI instances from personas/templates.
 """
 
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.ai import ai_instance
@@ -43,7 +41,7 @@ async def create_instance_from_persona(
         Newly created AI instance
     """
 
-    def _type_display_name(entity: Any) -> str | None:
+    def _type_display_name(entity: object) -> str | None:
         ai_type = getattr(entity, "ai_type", None)
         return getattr(ai_type, "display_name", None) if ai_type is not None else None
 
@@ -78,6 +76,10 @@ async def create_instance_from_persona(
         memory=template.memory,
         placeholder_overrides=template.prompt_variables,
         request_params=template.request_params,
+        llm_config_id=template.llm_config_id,
+        relationship_id=None,
+        relationship_counts=None,
+        status=1,
         typing_speed_wpm=template.typing_speed_wpm,
         timezone=getattr(template, "timezone", "Asia/Shanghai"),
         created_by=int(created_by),

@@ -211,6 +211,7 @@ INSERT INTO ai_templates (
     memory,
     prompt_variables,
     request_params,
+    llm_config_id,
     typing_speed_wpm,
     display_name,
     position_mapping_config,
@@ -225,6 +226,7 @@ INSERT INTO ai_templates (
     '刚刚上大学',
     '{"instance_name": "小乔", "personality_traits": "友善、耐心"}'::jsonb,
     NULL,
+    NULL,
     48,
     'Romantic Default Config',
     NULL,
@@ -238,6 +240,7 @@ INSERT INTO ai_templates (
     3,  -- friendly_buddy personality
     '找到新的工作',
     '{"instance_name": "小甜", "hobbies": "音乐、电影"}'::jsonb,
+    NULL,
     NULL,
     42,
     'Friendly Default Config',
@@ -313,6 +316,7 @@ INSERT INTO ai_instances (
     relationship_id,
     relationship_counts,
     request_params,
+    llm_config_id,
     typing_speed_wpm,
     timezone,
     created_by
@@ -342,6 +346,7 @@ INSERT INTO ai_instances (
     '{"personality_traits": "温柔、善良、有耐心、喜欢音乐和电影、邻家女孩的感觉", "instance_name": "小乔"}'::jsonb,
     1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
+    NULL,
     NULL,
     48,
     'Asia/Shanghai',
@@ -373,6 +378,7 @@ INSERT INTO ai_instances (
     1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
     NULL,
+    NULL,
     42,
     'Asia/Shanghai',
     1
@@ -402,6 +408,7 @@ INSERT INTO ai_instances (
     '{"personality_traits": "开朗、幽默、可靠、热爱运动和游戏", "instance_name": "阿杰"}'::jsonb,
     1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
+    NULL,
     NULL,
     45,
     'Asia/Shanghai',
@@ -531,9 +538,9 @@ INSERT INTO login_records (id, user_id, user_qiao_id, login_time, login_type, pl
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample AI request logs (Snowflake ID)
-INSERT INTO ai_request_logs (id, instance_id, user_id, style_id, personality_id, request, response, status, token_count, response_time) VALUES
-(223788765171155007, 223788765171154944, 223788765171154945, 1, 1, '{"message": "你好，小乔！", "context": "greeting"}', '{"reply": "你好！很高兴认识你～", "emotion": "happy"}', 1, 45, 1250),
-(223788765171155008, 223788765171154944, 223788765171154946, 1, 1, '{"message": "你喜欢什么音乐？", "context": "music_discussion"}', '{"reply": "我喜欢轻音乐和民谣，你呢？", "emotion": "curious"}', 1, 38, 980)
+INSERT INTO ai_request_logs (id, instance_id, user_id, user_qiao_id, style_id, personality_id, request, response, status, token_count, response_time) VALUES
+(223788765171155007, 223788765171154944, 223788765171154945, 'qqid_test_user_001', 1, 1, '{"message": "你好，小乔！", "context": "greeting"}', '{"reply": "你好！很高兴认识你～", "emotion": "happy"}', 1, 45, 1250),
+(223788765171155008, 223788765171154944, 223788765171154946, 'qqid_test_user_002', 1, 1, '{"message": "你喜欢什么音乐？", "context": "music_discussion"}', '{"reply": "我喜欢轻音乐和民谣，你呢？", "emotion": "curious"}', 1, 38, 980)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

@@ -4,12 +4,15 @@ LLM configuration model.
 This module contains the LLMConfig SQLAlchemy model.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from markupsafe import escape
 from sqlalchemy import DECIMAL, Boolean, CheckConstraint, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from starlette.requests import Request
 
+from app.core.type_aliases import JSONDict
 from app.models.base import AutoIncrementModel
 
 if TYPE_CHECKING:
@@ -104,10 +107,13 @@ class LLMConfig(AutoIncrementModel):
     json_schema_mode: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,
-        comment="JSON Schema support status: strict=verified supported, disabled=verified not supported, auto=not verified",
+        comment=(
+            "JSON Schema support status: strict=verified supported, "
+            "disabled=verified not supported, auto=not verified"
+        ),
     )
 
-    default_tools: Mapped[list[dict[str, Any]]] = mapped_column(
+    default_tools: Mapped[list[JSONDict]] = mapped_column(
         JSONB,
         nullable=False,
         default=list,
@@ -139,7 +145,7 @@ class LLMConfig(AutoIncrementModel):
         comment="Maximum number of tool calls per request",
     )
 
-    default_extra_headers: Mapped[dict[str, Any]] = mapped_column(
+    default_extra_headers: Mapped[JSONDict] = mapped_column(
         JSONB,
         nullable=False,
         default=dict,
@@ -147,7 +153,7 @@ class LLMConfig(AutoIncrementModel):
         comment="Default extra headers passed to the provider",
     )
 
-    default_extra_query: Mapped[dict[str, Any]] = mapped_column(
+    default_extra_query: Mapped[JSONDict] = mapped_column(
         JSONB,
         nullable=False,
         default=dict,
@@ -179,7 +185,7 @@ class LLMConfig(AutoIncrementModel):
         comment="Priority for failover (lower number = higher priority)",
     )
 
-    extra_params: Mapped[dict | None] = mapped_column(
+    extra_params: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Provider-specific parameters (e.g., max_completion_tokens, service_tier)",
@@ -204,3 +210,14 @@ class LLMConfig(AutoIncrementModel):
         ),
         CheckConstraint("max_tool_calls >= 0", name="check_max_tool_calls"),
     )
+
+    def __admin_select2_repr__(self, request: Request) -> str:
+        provider = getattr(self, "provider", None)
+        provider_name = getattr(provider, "display_name", None)
+        parts: list[str] = [escape(self.name)]
+        if provider_name:
+            parts.append(escape(provider_name))
+        if self.model_name:
+            parts.append(escape(self.model_name))
+        joined = " / ".join(parts)
+        return f"<span>[{self.id}] {joined}</span>"

@@ -89,10 +89,15 @@ class AdminUser(AutoIncrementModel, StatusMixin):
         }
 
         # Ensure role exists in permissions mapping
-        if self.role not in role_permissions:
+        try:
+            role = AdminRole(self.role)
+        except ValueError as exc:
+            raise ValueError(f"Unknown admin role: {self.role}") from exc
+
+        if role not in role_permissions:
             raise ValueError(f"Unknown admin role: {self.role}")
 
-        return permission in role_permissions[self.role]
+        return permission in role_permissions[role]
 
     def is_super_admin(self) -> bool:
         """Check if user is super admin."""
@@ -110,9 +115,13 @@ class AdminUser(AutoIncrementModel, StatusMixin):
             AdminRole.ADMIN: "Admin",
             AdminRole.VIEWER: "Viewer",
         }
-        if self.role not in role_names:
+        try:
+            role = AdminRole(self.role)
+        except ValueError as exc:
+            raise ValueError(f"Unknown admin role: {self.role}") from exc
+        if role not in role_names:
             raise ValueError(f"Unknown admin role: {self.role}")
-        return role_names[self.role]
+        return role_names[role]
 
 
 class AdminOperationLog(ImmutableAutoIncrementModel):

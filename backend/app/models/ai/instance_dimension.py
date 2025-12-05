@@ -4,12 +4,13 @@ AI instance dimension related models.
 This module contains SQLAlchemy models for AI instance dimension scores.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Index, Integer, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.type_aliases import JSONDict
 from app.models.base import SnowflakeModel
 
 if TYPE_CHECKING:
@@ -48,7 +49,7 @@ class AIInstanceDimension(SnowflakeModel):
         comment="Position mapping algorithm: 1=direct, 2=V1",
     )
 
-    position_mapping_params: Mapped[dict[str, Any] | None] = mapped_column(
+    position_mapping_params: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         server_default=text("'{}'::jsonb"),

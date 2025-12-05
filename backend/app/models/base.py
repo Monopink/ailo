@@ -7,8 +7,8 @@ that are shared across all database models.
 
 import secrets
 import string
+from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Any
 
 from sqlalchemy import BigInteger, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -95,7 +95,7 @@ class BaseModel(Base, TimestampMixin):
 
     __abstract__ = True
 
-    def to_dict(self, exclude: set | None = None) -> dict[str, Any]:
+    def to_dict(self, exclude: set[str] | None = None) -> dict[str, object]:
         """
         Convert model instance to dictionary.
 
@@ -105,11 +105,11 @@ class BaseModel(Base, TimestampMixin):
         Returns:
             Dict containing model data
         """
-        exclude = exclude or set()
-        result = {}
+        excluded = exclude or set()
+        result: dict[str, object] = {}
 
         for column in self.__table__.columns:
-            if column.name not in exclude:
+            if column.name not in excluded:
                 value = getattr(self, column.name)
                 # Convert datetime objects to ISO format strings
                 if isinstance(value, datetime):
@@ -118,7 +118,7 @@ class BaseModel(Base, TimestampMixin):
 
         return result
 
-    def update_from_dict(self, data: dict[str, Any], exclude: set | None = None) -> None:
+    def update_from_dict(self, data: Mapping[str, object], exclude: set[str] | None = None) -> None:
         """
         Update model instance from dictionary.
 
@@ -126,10 +126,10 @@ class BaseModel(Base, TimestampMixin):
             data: Dictionary containing field values
             exclude: Set of field names to exclude from update
         """
-        exclude = exclude or {"id", "created_at"}
+        excluded = exclude or {"id", "created_at"}
 
         for key, value in data.items():
-            if key not in exclude and hasattr(self, key):
+            if key not in excluded and hasattr(self, key):
                 setattr(self, key, value)
 
 

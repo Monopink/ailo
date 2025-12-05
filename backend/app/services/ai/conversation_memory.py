@@ -5,10 +5,9 @@ This module handles AI memory operations (add, replace, delete),
 context status updates, and context archiving.
 """
 
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.type_aliases import JSONDict
 from app.services.config import config_service
 
 # AIServiceError import removed - memory operations now use tolerant error handling
@@ -25,7 +24,7 @@ logger = get_logger(__name__)
 
 
 async def process_memory_operations(
-    db: AsyncSession, instance_qiao_id: str, operations: list[dict[str, Any]]
+    db: AsyncSession, instance_qiao_id: str, operations: list[JSONDict]
 ) -> bool:
     """
     Process memory operations for AI instance.
@@ -40,11 +39,12 @@ async def process_memory_operations(
     Returns:
         True if successful, False otherwise
     """
-    try:
-        if not operations:
-            logger.debug("no_memory_operations_to_process", instance_qiao_id=instance_qiao_id)
-            return True
+    if not operations:
+        logger.debug("no_memory_operations_to_process", instance_qiao_id=instance_qiao_id)
+        return True
 
+    operation_success = False
+    try:
         # Get instance context
         context = await get_instance_context(db, instance_qiao_id=instance_qiao_id)
 
@@ -88,8 +88,7 @@ async def process_memory_operations(
             operations_count=len(operations),
             final_memory_length=len(current_memory),
         )
-
-        return True
+        operation_success = True
 
     except Exception as e:
         logger.error(
@@ -98,7 +97,9 @@ async def process_memory_operations(
             instance_qiao_id=instance_qiao_id,
             operations=operations,
         )
-        return False
+        operation_success = False
+
+    return operation_success
 
 
 # Context status updates are handled by the data.mutations layer
@@ -116,8 +117,10 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, instance_qia
     Returns:
         Number of contexts archived
     """
+    archived_count = 0
     try:
-        # Keep archive retention readable (config stored in days) but convert to seconds for queries.
+        # Keep archive retention readable (config stored in days)
+        # but convert to seconds for queries.
         archive_time_days = await config_service.get_int(db, "ai_conversation_archive_time_days")
         archive_time_seconds = archive_time_days * 86400
         archive_max_count = await config_service.get_int(db, "ai_conversation_archive_max_count")
@@ -140,30 +143,25 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, instance_qia
                 user_qiao_id=user_qiao_id,
                 reason="below_min_count",
             )
-            return 0
-
-        if not items_to_archive:
+        elif not items_to_archive:
             logger.debug(
                 "no_contexts_to_archive",
                 instance_qiao_id=instance_qiao_id,
                 user_qiao_id=user_qiao_id,
                 reason="no_candidates",
             )
-            return 0
+        else:
+            archived_count = await archive_contexts_transaction(
+                db, contexts_to_archive=items_to_archive, instance_qiao_id=instance_qiao_id
+            )
 
-        archived_count = await archive_contexts_transaction(
-            db, contexts_to_archive=items_to_archive, instance_qiao_id=instance_qiao_id
-        )
-
-        logger.info(
-            "contexts_archived",
-            instance_qiao_id=instance_qiao_id,
-            user_qiao_id=user_qiao_id,
-            archived_count=archived_count,
-            total_contexts=len(items_to_archive),
-        )
-
-        return archived_count
+            logger.info(
+                "contexts_archived",
+                instance_qiao_id=instance_qiao_id,
+                user_qiao_id=user_qiao_id,
+                archived_count=archived_count,
+                total_contexts=len(items_to_archive),
+            )
 
     except Exception as e:
         logger.error(
@@ -172,10 +170,12 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, instance_qia
             instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
         )
-        return 0
+        archived_count = 0
+
+    return archived_count
 
 
-def _apply_memory_operation(memory: str, operation: dict[str, Any]) -> str:
+def _apply_memory_operation(memory: str, operation: JSONDict) -> str:
     """
     Apply a single memory operation to memory string.
 
@@ -189,56 +189,71 @@ def _apply_memory_operation(memory: str, operation: dict[str, Any]) -> str:
     Raises:
         MemoryOperationError: If operation is invalid
     """
+    result_memory = memory
     try:
-        op_type = operation.get("operation")
+        op_type = _get_str(operation, "operation")
 
         if op_type == "add":
-            return _apply_add_operation(memory, operation)
-        if op_type == "replace":
-            return _apply_replace_operation(memory, operation)
-        if op_type == "delete":
-            return _apply_delete_operation(memory, operation)
-        logger.warning("unknown_memory_operation_type", op_type=op_type, operation=operation)
-        return memory  # Return unchanged memory for unknown operation types
+            result_memory = _apply_add_operation(memory, operation)
+        elif op_type == "replace":
+            result_memory = _apply_replace_operation(memory, operation)
+        elif op_type == "delete":
+            result_memory = _apply_delete_operation(memory, operation)
+        else:
+            logger.warning("unknown_memory_operation_type", op_type=op_type, operation=operation)
+            result_memory = memory  # Return unchanged memory for unknown operation types
 
     except Exception as e:
         logger.error("memory_operation_application_failed", error=str(e), operation=operation)
-        return memory  # Return unchanged memory if operation fails
+        result_memory = memory  # Return unchanged memory if operation fails
+
+    return result_memory
 
 
-def _apply_add_operation(memory: str, operation: dict[str, Any]) -> str:
+def _apply_add_operation(memory: str, operation: JSONDict) -> str:
     """Apply add operation to memory."""
-    content = operation.get("content", "")
+    content = _get_str(operation, "content")
     if not content:
         logger.warning("add_operation_missing_content", operation=operation)
         return memory  # Return unchanged memory if no content to add
 
-    insert_position = operation.get("insert_position", "end")
+    insert_position = _get_str(operation, "insert_position") or "end"
 
+    def _append(target_memory: str, payload: str) -> str:
+        return f"{target_memory}\n{payload}" if target_memory else payload
+
+    def _prepend(target_memory: str, payload: str) -> str:
+        return f"{payload}\n{target_memory}" if target_memory else payload
+
+    updated_memory = memory
     if insert_position == "start":
-        return content + "\n" + memory if memory else content
-    if insert_position == "end":
-        return memory + "\n" + content if memory else content
-    if insert_position.startswith("after:"):
-        target = insert_position[6:]  # Remove "after:" prefix
-        if target in memory:
-            return memory.replace(target, target + "\n" + content, 1)
-        # Target not found, append to end
-        return memory + "\n" + content if memory else content
-    if insert_position.startswith("before:"):
-        target = insert_position[7:]  # Remove "before:" prefix
-        if target in memory:
-            return memory.replace(target, content + "\n" + target, 1)
-        # Target not found, prepend to start
-        return content + "\n" + memory if memory else content
-    # Default to end
-    return memory + "\n" + content if memory else content
+        updated_memory = _prepend(memory, content)
+    elif insert_position == "end":
+        updated_memory = _append(memory, content)
+    elif insert_position.startswith("after:"):
+        target = insert_position[6:]
+        updated_memory = (
+            memory.replace(target, f"{target}\n{content}", 1)
+            if target in memory
+            else _append(memory, content)
+        )
+    elif insert_position.startswith("before:"):
+        target = insert_position[7:]
+        updated_memory = (
+            memory.replace(target, f"{content}\n{target}", 1)
+            if target in memory
+            else _prepend(memory, content)
+        )
+    else:
+        updated_memory = _append(memory, content)
+
+    return updated_memory
 
 
-def _apply_replace_operation(memory: str, operation: dict[str, Any]) -> str:
+def _apply_replace_operation(memory: str, operation: JSONDict) -> str:
     """Apply replace operation to memory."""
-    target_text = operation.get("target_text", "")
-    content = operation.get("content", "")
+    target_text = _get_str(operation, "target_text")
+    content = _get_str(operation, "content") or ""
 
     if not target_text:
         logger.warning("replace_operation_missing_target_text", operation=operation)
@@ -250,9 +265,9 @@ def _apply_replace_operation(memory: str, operation: dict[str, Any]) -> str:
     return memory  # Return unchanged if target not found - memory operations can be tolerant
 
 
-def _apply_delete_operation(memory: str, operation: dict[str, Any]) -> str:
+def _apply_delete_operation(memory: str, operation: JSONDict) -> str:
     """Apply delete operation to memory."""
-    target_text = operation.get("target_text", "")
+    target_text = _get_str(operation, "target_text")
 
     if not target_text:
         logger.warning("delete_operation_missing_target_text", operation=operation)
@@ -266,3 +281,11 @@ def _apply_delete_operation(memory: str, operation: dict[str, Any]) -> str:
         return result.strip()
     logger.warning("delete_target_not_found", target_text=target_text, memory_length=len(memory))
     return memory  # Return unchanged if target not found - memory operations can be tolerant
+
+
+def _get_str(operation: JSONDict, key: str) -> str | None:
+    """Extract string values from JSON memory operations."""
+    value = operation.get(key)
+    if isinstance(value, str):
+        return value
+    return None

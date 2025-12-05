@@ -4,9 +4,9 @@ AI template schemas.
 This module contains Pydantic schemas for AI template-related operations.
 """
 
-from typing import Any
-
 from pydantic import BaseModel, Field
+
+from app.core.type_aliases import JSONDict
 
 
 class AITypeBase(BaseModel):
@@ -45,10 +45,10 @@ class AITemplateBase(BaseModel):
     style_id: int = Field(..., description="Style ID, references ai_styles.id")
     personality_id: int = Field(..., description="Personality ID, references ai_personalities.id")
     memory: str | None = Field(None, description="Memory settings")
-    prompt_variables: dict[str, Any] | None = Field(
+    prompt_variables: JSONDict | None = Field(
         None, description="Prompt variables/placeholder overrides"
     )
-    position_mapping_config: dict[str, Any] | None = Field(
+    position_mapping_config: JSONDict | None = Field(
         None, description="Per-dimension position mapping configuration"
     )
     timezone: str | None = Field(
@@ -61,6 +61,10 @@ class AITemplateBase(BaseModel):
     )
     is_reusable: int = Field(1, description="Is reusable: 1=reusable, 0=single_use")
     status: int = Field(1, description="Status: 1=active, 2=inactive")
+    llm_config_id: int | None = Field(
+        None,
+        description="Preferred llm_configs.id for instances created from this template",
+    )
 
 
 class AITemplateCreate(AITemplateBase):
@@ -73,8 +77,8 @@ class AITemplateUpdate(BaseModel):
     style_id: int | None = Field(None, description="Style ID")
     personality_id: int | None = Field(None, description="Personality ID")
     memory: str | None = Field(None, description="Memory settings")
-    prompt_variables: dict[str, Any] | None = Field(None, description="Prompt variables")
-    position_mapping_config: dict[str, Any] | None = Field(
+    prompt_variables: JSONDict | None = Field(None, description="Prompt variables")
+    position_mapping_config: JSONDict | None = Field(
         None, description="Per-dimension position mapping configuration"
     )
     timezone: str | None = Field(
@@ -87,6 +91,9 @@ class AITemplateUpdate(BaseModel):
     )
     is_reusable: int | None = Field(None, description="Is reusable")
     status: int | None = Field(None, description="Status")
+    llm_config_id: int | None = Field(
+        None, description="Preferred llm_configs.id for this template"
+    )
 
 
 class AITemplate(AITemplateBase):

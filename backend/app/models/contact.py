@@ -4,15 +4,18 @@ Contact management related models.
 This module contains SQLAlchemy models for contact relationships and requests.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums import ContactRequestStatus
+from app.core.type_aliases import JSONDict
+from app.enums import ContactRequestStatus, ContactType
 from app.models.base import SnowflakeModel, SoftDeleteMixin
 
 if TYPE_CHECKING:
@@ -61,7 +64,9 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         String(500), nullable=True, comment="Custom avatar URL for this contact"
     )
 
-    tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True, comment="Contact tags (JSONB)")
+    tags: Mapped[JSONDict | None] = mapped_column(
+        JSONB, nullable=True, comment="Contact tags (JSONB)"
+    )
 
     remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Contact remark/notes")
 
@@ -98,7 +103,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
     )
 
     # Relationships
-    user: Mapped[Optional["User"]] = relationship(
+    user: Mapped[User | None] = relationship(
         "User",
         primaryjoin="Contact.user_id == User.id",
         foreign_keys=[user_id],
@@ -107,27 +112,33 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
     )
 
     # Polymorphic contact relationships
-    _contact_user: Mapped[Optional["User"]] = relationship(
+    _contact_user: Mapped[User | None] = relationship(
         "User",
-        primaryjoin="and_(Contact.contact_id == User.id, Contact.contact_type == 1)",
+        primaryjoin=(
+            "and_(Contact.contact_id == User.id, "
+            f"Contact.contact_type == {ContactType.USER.value})"
+        ),
         foreign_keys=[contact_id],
         lazy="select",
         viewonly=True,
     )
-    _contact_instance: Mapped[Optional["AIInstance"]] = relationship(
+    _contact_instance: Mapped[AIInstance | None] = relationship(
         "AIInstance",
-        primaryjoin="and_(Contact.contact_id == AIInstance.id, Contact.contact_type == 2)",
+        primaryjoin=(
+            "and_(Contact.contact_id == AIInstance.id, "
+            f"Contact.contact_type == {ContactType.AI.value})"
+        ),
         foreign_keys=[contact_id],
         lazy="select",
         viewonly=True,
     )
 
     @hybrid_property
-    def contact(self):
+    def contact(self) -> User | AIInstance | None:
         """Return the appropriate contact object based on contact_type."""
-        if self.contact_type == 1:  # User
+        if self.contact_type == ContactType.USER.value:
             return self._contact_user
-        if self.contact_type == 2:  # AI Instance
+        if self.contact_type == ContactType.AI.value:
             return self._contact_instance
         return None
 
@@ -196,7 +207,7 @@ class ContactRequest(SnowflakeModel):
         comment="Failure code explaining why request is pending (e.g., NO_TEMPLATE_AVAILABLE)",
     )
 
-    failure_detail: Mapped[dict | None] = mapped_column(
+    failure_detail: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Structured failure metadata (template shortage details, etc.)",
@@ -222,7 +233,7 @@ class ContactRequest(SnowflakeModel):
 
     # Polymorphic from relationships
     # from_type=1 (USER) → users table (includes all user types)
-    _from_user: Mapped[Optional["User"]] = relationship(
+    _from_user: Mapped[User | None] = relationship(
         "User",
         primaryjoin="and_(ContactRequest.from_id == User.id, ContactRequest.from_type == 1)",
         foreign_keys=[from_id],
@@ -231,7 +242,7 @@ class ContactRequest(SnowflakeModel):
     )
 
     # from_type=2 (AI) → ai_instances table
-    _from_instance: Mapped[Optional["AIInstance"]] = relationship(
+    _from_instance: Mapped[AIInstance | None] = relationship(
         "AIInstance",
         primaryjoin="and_(ContactRequest.from_id == AIInstance.id, ContactRequest.from_type == 2)",
         foreign_keys=[from_id],
@@ -241,7 +252,7 @@ class ContactRequest(SnowflakeModel):
 
     # Polymorphic to relationships
     # to_type=1 (USER) → users table (includes all user types)
-    _to_user: Mapped[Optional["User"]] = relationship(
+    _to_user: Mapped[User | None] = relationship(
         "User",
         primaryjoin="and_(ContactRequest.to_id == User.id, ContactRequest.to_type == 1)",
         foreign_keys=[to_id],
@@ -250,7 +261,7 @@ class ContactRequest(SnowflakeModel):
     )
 
     # to_type=2 (AI) → ai_instances table
-    _to_instance: Mapped[Optional["AIInstance"]] = relationship(
+    _to_instance: Mapped[AIInstance | None] = relationship(
         "AIInstance",
         primaryjoin="and_(ContactRequest.to_id == AIInstance.id, ContactRequest.to_type == 2)",
         foreign_keys=[to_id],

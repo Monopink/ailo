@@ -388,6 +388,8 @@ memory_operations 数组按顺序执行
 
 记录内容：
 
+- user_id: 关联 users.id
+- user_qiao_id: 用户 external ID
 - buffer_id: 关联的 buffer
 - llm_config_id: 使用的 LLM 配置
 - response_id: Doubao 返回的 response_id

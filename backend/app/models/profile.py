@@ -4,7 +4,9 @@ Profile management related models.
 This module contains SQLAlchemy models for user profiles and profile change logs.
 """
 
-from typing import TYPE_CHECKING, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Index, Integer, String, Text
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -66,7 +68,7 @@ class Profile(SnowflakeModel):
 
     # Polymorphic owner relationships
     # owner_type=1 (USER) → users table (includes all user types: normal, official, virtual)
-    _owner_user: Mapped[Optional["User"]] = relationship(
+    _owner_user: Mapped[User | None] = relationship(
         "User",
         primaryjoin="and_(Profile.owner_id == User.id, Profile.owner_type == 1)",
         foreign_keys=[owner_id],
@@ -75,7 +77,7 @@ class Profile(SnowflakeModel):
     )
 
     # owner_type=2 (AI_PERSONA) → ai_personas table
-    _owner_persona: Mapped[Optional["AIPersona"]] = relationship(
+    _owner_persona: Mapped[AIPersona | None] = relationship(
         "AIPersona",
         primaryjoin="and_(Profile.owner_id == AIPersona.id, Profile.owner_type == 2)",
         foreign_keys=[owner_id],
@@ -84,7 +86,7 @@ class Profile(SnowflakeModel):
     )
 
     # owner_type=3 (AI_INSTANCE) → ai_instances table
-    _owner_instance: Mapped[Optional["AIInstance"]] = relationship(
+    _owner_instance: Mapped[AIInstance | None] = relationship(
         "AIInstance",
         primaryjoin="and_(Profile.owner_id == AIInstance.id, Profile.owner_type == 3)",
         foreign_keys=[owner_id],
@@ -93,7 +95,7 @@ class Profile(SnowflakeModel):
     )
 
     @hybrid_property
-    def owner(self):
+    def owner(self) -> User | AIPersona | AIInstance | None:
         """Return the appropriate owner object based on owner_type."""
         if self.owner_type == ProfileOwnerType.USER:
             return self._owner_user

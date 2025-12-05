@@ -7,10 +7,19 @@ Generates 64-bit unique IDs with timestamp, machine ID, and sequence components.
 
 import threading
 import time
+from typing import TypedDict
 
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class SnowflakeComponents(TypedDict):
+    timestamp: int
+    datetime: str
+    datacenter_id: int
+    machine_id: int
+    sequence: int
 
 
 class SnowflakeGenerator:
@@ -43,7 +52,7 @@ class SnowflakeGenerator:
     DATACENTER_ID_SHIFT = SEQUENCE_BITS + MACHINE_ID_BITS  # 17
     TIMESTAMP_SHIFT = SEQUENCE_BITS + MACHINE_ID_BITS + DATACENTER_ID_BITS  # 22
 
-    def __init__(self, datacenter_id: int = 0, machine_id: int = 0):
+    def __init__(self, datacenter_id: int = 0, machine_id: int = 0) -> None:
         """
         Initialize Snowflake generator.
 
@@ -111,14 +120,12 @@ class SnowflakeGenerator:
             self.last_timestamp = timestamp
 
             # Construct the ID
-            snowflake_id = (
+            return (
                 ((timestamp - self.EPOCH) << self.TIMESTAMP_SHIFT)
                 | (self.datacenter_id << self.DATACENTER_ID_SHIFT)
                 | (self.machine_id << self.MACHINE_ID_SHIFT)
                 | self.sequence
             )
-
-            return snowflake_id
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
@@ -131,7 +138,7 @@ class SnowflakeGenerator:
             timestamp = self._get_timestamp()
         return timestamp
 
-    def parse_id(self, snowflake_id: int) -> dict:
+    def parse_id(self, snowflake_id: int) -> SnowflakeComponents:
         """
         Parse a Snowflake ID into its components.
 
@@ -155,8 +162,8 @@ class SnowflakeGenerator:
         }
 
 
-# Global instance - will be initialized in main.py or config
-_snowflake_generator: SnowflakeGenerator | None = None
+# Global instance holder - initialized in main.py or config
+_snowflake_state: dict[str, SnowflakeGenerator | None] = {"instance": None}
 
 
 def init_snowflake(datacenter_id: int = 0, machine_id: int = 0) -> None:
@@ -167,8 +174,7 @@ def init_snowflake(datacenter_id: int = 0, machine_id: int = 0) -> None:
         datacenter_id: Datacenter identifier (0-31)
         machine_id: Machine identifier (0-31)
     """
-    global _snowflake_generator
-    _snowflake_generator = SnowflakeGenerator(datacenter_id, machine_id)
+    _snowflake_state["instance"] = SnowflakeGenerator(datacenter_id, machine_id)
     logger.info("global_snowflake_generator_initialized")
 
 
@@ -182,13 +188,14 @@ def generate_snowflake_id() -> int:
     Raises:
         RuntimeError: If generator is not initialized
     """
-    if _snowflake_generator is None:
+    generator = _snowflake_state["instance"]
+    if generator is None:
         raise RuntimeError("Snowflake generator not initialized. Call init_snowflake() first.")
 
-    return _snowflake_generator.generate_id()
+    return generator.generate_id()
 
 
-def parse_snowflake_id(snowflake_id: int) -> dict:
+def parse_snowflake_id(snowflake_id: int) -> SnowflakeComponents:
     """
     Parse a Snowflake ID using the global generator.
 
@@ -201,10 +208,11 @@ def parse_snowflake_id(snowflake_id: int) -> dict:
     Raises:
         RuntimeError: If generator is not initialized
     """
-    if _snowflake_generator is None:
+    generator = _snowflake_state["instance"]
+    if generator is None:
         raise RuntimeError("Snowflake generator not initialized. Call init_snowflake() first.")
 
-    return _snowflake_generator.parse_id(snowflake_id)
+    return generator.parse_id(snowflake_id)
 
 
 def get_snowflake_generator() -> SnowflakeGenerator:
@@ -217,7 +225,8 @@ def get_snowflake_generator() -> SnowflakeGenerator:
     Raises:
         RuntimeError: If generator is not initialized
     """
-    if _snowflake_generator is None:
+    generator = _snowflake_state["instance"]
+    if generator is None:
         raise RuntimeError("Snowflake generator not initialized. Call init_snowflake() first.")
 
-    return _snowflake_generator
+    return generator

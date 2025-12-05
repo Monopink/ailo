@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for AI instances and conversation context
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING
 
 from markupsafe import escape
 from sqlalchemy import (
@@ -20,8 +20,11 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import relationship as orm_relationship
+from starlette.requests import Request
 
+from app.core.type_aliases import JSONDict
 from app.enums.common import ConversationItemContextStatus
 from app.models.base import (
     Base,
@@ -63,7 +66,7 @@ class AIInstance(SnowflakeQiaoModel):
         Integer, nullable=False, comment="Personality ID, references ai_personalities.id"
     )
 
-    creation_metadata: Mapped[dict[str, Any]] = mapped_column(
+    creation_metadata: Mapped[JSONDict] = mapped_column(
         JSONB,
         nullable=False,
         server_default=text("'{}'::jsonb"),
@@ -82,16 +85,21 @@ class AIInstance(SnowflakeQiaoModel):
         Text, nullable=True, comment="Instance-specific memory"
     )
 
-    prompt_variables: Mapped[dict[str, Any] | None] = mapped_column(
+    prompt_variables: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Prompt variables/placeholder overrides (JSONB for better performance)",
     )
 
-    request_params: Mapped[dict[str, Any] | None] = mapped_column(
+    request_params: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="AI instance request parameter overrides (LLM settings)",
+    )
+    llm_config_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="LLM config ID for this instance (no FK constraint)",
     )
 
     typing_speed_wpm: Mapped[int] = mapped_column(
@@ -104,7 +112,7 @@ class AIInstance(SnowflakeQiaoModel):
         Integer, nullable=True, comment="Current relationship type ID"
     )
 
-    relationship_counts: Mapped[dict[str, Any] | None] = mapped_column(
+    relationship_counts: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         server_default=text("'{}'::jsonb"),
@@ -124,39 +132,46 @@ class AIInstance(SnowflakeQiaoModel):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(
+    user: Mapped["User"] = orm_relationship(
         "User",
         primaryjoin="AIInstance.user_id == User.id",
         foreign_keys=[user_id],
         lazy="select",
         viewonly=True,
     )
-    style: Mapped["AIStyle"] = relationship(
+    style: Mapped["AIStyle"] = orm_relationship(
         "AIStyle",
         primaryjoin="AIInstance.style_id == AIStyle.id",
         foreign_keys=[style_id],
         lazy="select",
         viewonly=True,
     )
-    personality: Mapped["AIPersonality"] = relationship(
+    personality: Mapped["AIPersonality"] = orm_relationship(
         "AIPersonality",
         primaryjoin="AIInstance.personality_id == AIPersonality.id",
         foreign_keys=[personality_id],
         lazy="select",
         viewonly=True,
     )
-    instance_dimensions: Mapped[list["AIInstanceDimension"]] = relationship(
+    instance_dimensions: Mapped[list["AIInstanceDimension"]] = orm_relationship(
         "AIInstanceDimension",
         primaryjoin="AIInstance.id == foreign(AIInstanceDimension.instance_id)",
         lazy="select",
         viewonly=True,
     )
-    relationship: Mapped[Optional["AIRelationship"]] = relationship(
+    relationship: Mapped["AIRelationship | None"] = orm_relationship(
         "AIRelationship",
         primaryjoin="AIInstance.relationship_id == AIRelationship.id",
         foreign_keys=[relationship_id],
         lazy="select",
         viewonly=True,
+    )
+    llm_config = orm_relationship(
+        "LLMConfig",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+        primaryjoin="AIInstance.llm_config_id == foreign(LLMConfig.id)",
     )
 
     # Indexes - Only essential indexes for MVP
@@ -168,7 +183,7 @@ class AIInstance(SnowflakeQiaoModel):
         Index("idx_ai_instances_personality_id", "personality_id"),
     )
 
-    def __admin_select2_repr__(self, request) -> str:
+    def __admin_select2_repr__(self, request: Request) -> str:
         return f"<span>[{self.id}] {escape(self.qiao_id)} / {escape(self.user_qiao_id)}</span>"
 
 
@@ -304,7 +319,7 @@ class AIConversationItem(ImmutableSnowflakeModel):
         nullable=True,
         comment="Media URL for image/audio messages",
     )
-    media_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+    media_metadata: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Media metadata (dimensions, transcript, duration, etc.)",
@@ -372,10 +387,13 @@ class AIConversationState(Base, TimestampMixin):
 
     user_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     instance_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    pending_messages: Mapped[dict[str, Any] | None] = mapped_column(
+    pending_messages: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
-        comment='Pending messages structure: {"outgoing": [...], "followup": [...], "total_pending": N}',
+        comment=(
+            'Pending messages structure: {"outgoing": [...], '
+            '"followup": [...], "total_pending": N}'
+        ),
     )
     interrupted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
@@ -417,7 +435,7 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
         nullable=True,
         comment="Media URL for image/audio messages",
     )
-    media_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+    media_metadata: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
         comment="Media metadata (dimensions, transcript, duration, etc.)",

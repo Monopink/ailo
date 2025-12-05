@@ -4,7 +4,8 @@ AI Instance admin views.
 This module contains Starlette-Admin views for AI instance system.
 """
 
-from typing import Any
+from collections.abc import MutableMapping
+from typing import Any, ClassVar, cast
 
 from sqlalchemy import select
 from starlette.requests import Request
@@ -25,6 +26,13 @@ from app.models.user import User
 from app.services.ai.utils.position_mapping import map_score_to_position
 from app.utils.snowflake import generate_snowflake_id
 
+FormData = MutableMapping[str, object]
+
+POSITION_MIN = 0
+POSITION_MAX = 1000
+SCORE_MIN = 0
+SCORE_MAX = 1000
+
 
 class _ProfileRelatedStringField(StringField):
     """Computed field showing Profile attribute for an AIInstance.
@@ -33,14 +41,14 @@ class _ProfileRelatedStringField(StringField):
     the selected attribute as string.
     """
 
-    def __init__(self, name: str, profile_attr: str, label: str):
+    def __init__(self, name: str, profile_attr: str, label: str) -> None:
         super().__init__(name=name, label=label)
         self._profile_attr = profile_attr
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, request: Request, obj: AIInstance) -> str | None:
         try:
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
@@ -72,13 +80,13 @@ class _ProfileRelatedStringField(StringField):
 class _ProfileGenderField(StringField):
     """Computed field showing Profile.gender as enum name for an AIInstance."""
 
-    def __init__(self, name: str = "profile_gender", label: str = "Profile Gender"):
+    def __init__(self, name: str = "profile_gender", label: str = "Profile Gender") -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, request: Request, obj: AIInstance) -> str | None:
         try:
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
@@ -97,11 +105,11 @@ class _ProfileGenderField(StringField):
                 return "(No Profile)"
 
             # Profile exists, check gender value
-            profile_id, value = row
+            _profile_id, value = row
             if value is None:
                 return None  # Framework will display as -null-
             try:
-                return Gender(int(value)).name
+                return str(Gender(int(value)).name)
             except Exception:
                 return str(value)
         except Exception:
@@ -111,13 +119,13 @@ class _ProfileGenderField(StringField):
 class _ProfileOwnerTypeField(StringField):
     """Computed field showing Profile.owner_type as enum name for an AIInstance."""
 
-    def __init__(self, name: str = "profile_owner_type", label: str = "Profile Type"):
+    def __init__(self, name: str = "profile_owner_type", label: str = "Profile Type") -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, request: Request, obj: AIInstance) -> str | None:
         try:
             session = request.state.session
             if not getattr(obj, "qiao_id", None):
@@ -136,11 +144,11 @@ class _ProfileOwnerTypeField(StringField):
                 return "(No Profile)"
 
             # Profile exists, check owner_type value
-            profile_id, value = row
+            _profile_id, value = row
             if value is None:
                 return None  # Framework will display as -null-
             try:
-                return ProfileOwnerType(int(value)).name
+                return str(ProfileOwnerType(int(value)).name)
             except Exception:
                 return str(value)
         except Exception:
@@ -150,13 +158,17 @@ class _ProfileOwnerTypeField(StringField):
 class _RelationshipDisplayNameField(StringField):
     """Computed field to show relationship display_name for AIInstance."""
 
-    def __init__(self, name: str = "relationship_display_name", label: str = "Relationship Name"):
+    def __init__(
+        self,
+        name: str = "relationship_display_name",
+        label: str = "Relationship Name",
+    ) -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, _request: Request, obj: AIInstance) -> str | None:
         try:
             # Check if relationship exists
             if not hasattr(obj, "relationship"):
@@ -180,25 +192,25 @@ class _RelationshipDisplayNameField(StringField):
 class _DimensionDisplayNameField(StringField):
     """Computed field to show dimension display_name for AIInstanceDimension."""
 
-    def __init__(self, name: str = "dimension_display_name", label: str = "Dimension Name"):
+    def __init__(self, name: str = "dimension_display_name", label: str = "Dimension Name") -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, _request: Request, obj: AIInstanceDimension) -> str:
         try:
             if hasattr(obj, "dimension") and obj.dimension is not None:
                 return str(getattr(obj.dimension, "display_name", "") or "")
-            return ""
         except Exception:
             return ""
+        return ""
 
 
 class AIInstanceView(ModelView):
     """Enhanced AI Instance view with proper field configuration and chat test functionality."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "qiao_id",
         "user_id",
@@ -211,7 +223,7 @@ class AIInstanceView(ModelView):
         "profile_owner_type",
         "relationship_display_name",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "qiao_id",
         "user",
@@ -225,12 +237,12 @@ class AIInstanceView(ModelView):
         "profile_owner_type",
         "relationship_display_name",
     ]
-    exclude_fields_from_list = [
+    exclude_fields_from_list: ClassVar[list[str]] = [
         "creation_metadata",
     ]
 
     def is_active(self, request: Request) -> bool:
-        """Check if current page is related to this model (including advanced-edit and chat-test)."""
+        """Check if current page is related to this model or its custom pages."""
         # Standard identity check for list/edit/detail pages
         if request.path_params.get("identity", None) == self.identity:
             return True
@@ -239,10 +251,10 @@ class AIInstanceView(ModelView):
         path = request.scope["path"]
         return f"/{self.identity}/advanced-edit/" in path or f"/{self.identity}/chat-test/" in path
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    async def create(self, request: Request, data: dict[str, Any]) -> Any:
+    async def create(self, request: Request, data: FormData) -> AIInstance:
         """Override create to automatically set created_by field and generate IDs."""
         # Set created_by to 2 (Admin) for admin panel creations
         data["created_by"] = 2
@@ -257,11 +269,11 @@ class AIInstanceView(ModelView):
 
         return await super().create(request, data)
 
-    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
+    async def edit(self, request: Request, pk: str, data: FormData) -> AIInstance:
         """Override edit to handle data processing."""
         return await super().edit(request, pk, data)
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, _request: Request, data: FormData, obj: AIInstance) -> None:
         """Auto-fill foreign keys and required fields before creating instance."""
         # Set created_by to 2 (Admin) for admin panel creations
         obj.created_by = 2
@@ -281,6 +293,10 @@ class AIInstanceView(ModelView):
             obj.relationship_id = obj.relationship.id
         else:
             obj.relationship_id = None
+        if hasattr(obj, "llm_config") and obj.llm_config is not None:
+            obj.llm_config_id = obj.llm_config.id
+        else:
+            obj.llm_config_id = None
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -300,7 +316,7 @@ class AIInstanceView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, _data: FormData, obj: AIInstance) -> None:
         """Auto-fill foreign keys before editing instance."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "style") and obj.style is not None:
@@ -311,6 +327,10 @@ class AIInstanceView(ModelView):
             obj.relationship_id = obj.relationship.id
         else:
             obj.relationship_id = None
+        if hasattr(obj, "llm_config") and obj.llm_config is not None:
+            obj.llm_config_id = obj.llm_config.id
+        else:
+            obj.llm_config_id = None
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -328,9 +348,9 @@ class AIInstanceView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["qiao_id", "user_qiao_id"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["qiao_id", "user_qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_id",
         "qiao_id",
@@ -340,7 +360,7 @@ class AIInstanceView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal instance ID"),
         HasOne(
             "user",
@@ -377,6 +397,18 @@ class AIInstanceView(ModelView):
             help_text="Current relationship type",
             required=False,
         ),
+        StringField(
+            "timezone",
+            label="Timezone",
+            help_text="IANA timezone for this instance (e.g., Asia/Shanghai)",
+            required=True,
+        ),
+        IntegerField(
+            "typing_speed_wpm",
+            label="Typing Speed (WPM)",
+            help_text="Words per minute used for typing simulation",
+            required=True,
+        ),
         _RelationshipDisplayNameField(),
         TextAreaField(
             "memory",
@@ -393,22 +425,19 @@ class AIInstanceView(ModelView):
             label="Relationship Counts",
             help_text="Relationship type occurrence counts",
         ),
+        HasOne(
+            "llm_config",
+            identity="llm_config",
+            label="LLM Config",
+            help_text=(
+                "Preferred llm_configs.id for this instance (NULL falls back to system default)"
+            ),
+            required=False,
+        ),
         JSONField(
             "request_params",
             label="Request Parameters",
             help_text="LLM request parameters (temperature, max_tokens, etc.)",
-        ),
-        StringField(
-            "timezone",
-            label="Timezone",
-            help_text="IANA timezone for this instance (e.g., Asia/Shanghai)",
-            required=True,
-        ),
-        IntegerField(
-            "typing_speed_wpm",
-            label="Typing Speed (WPM)",
-            help_text="Words per minute used for typing simulation",
-            required=True,
         ),
         JSONField(
             "creation_metadata",
@@ -432,14 +461,14 @@ class AIInstanceView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions = ["view", "edit", "advanced_edit", "chat_test"]
+    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit", "chat_test"]
 
     @link_row_action(
         name="advanced_edit",
         text="Advanced Edit",
         icon_class="fas fa-cogs",
     )
-    def advanced_edit_row_action(self, request: Request, pk: Any) -> str:
+    def advanced_edit_row_action(self, _request: Request, pk: str) -> str:
         """Link to instance advanced edit."""
         return f"/qiao-dash/ai_instance/advanced-edit/{pk}"
 
@@ -448,7 +477,7 @@ class AIInstanceView(ModelView):
         text="Chat Test",
         icon_class="fas fa-flask",
     )
-    def chat_test_row_action(self, request: Request, pk: Any) -> str:
+    def chat_test_row_action(self, _request: Request, pk: str) -> str:
         """Link to AI instance chat test page."""
         return f"/qiao-dash/ai_instance/chat-test/{pk}"
 
@@ -459,8 +488,13 @@ class AIInstanceDimensionView(ModelView):
     label = "Instance Dimensions"
     name = "Instance Dimensions"
 
-    exclude_fields_from_create = ["id", "dimension_display_name", "created_at", "updated_at"]
-    exclude_fields_from_edit = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
+        "id",
+        "dimension_display_name",
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "dimension_display_name",
         "instance_id",
@@ -469,13 +503,13 @@ class AIInstanceDimensionView(ModelView):
         "updated_at",
     ]
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         """Disable delete action for relationship scores."""
         return False
 
-    fields_default_sort = [("score", True)]
-    searchable_fields = []
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("score", True)]
+    searchable_fields: ClassVar[list[str]] = []
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "instance_id",
         "dimension_id",
@@ -485,7 +519,7 @@ class AIInstanceDimensionView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal instance dimension ID"),
         HasOne(
             "instance",
@@ -520,21 +554,31 @@ class AIInstanceDimensionView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: FormData) -> None:
         """Custom validation for relationship scores."""
         errors = {}
 
         # Validate score range (if provided)
         if "score" in data and data["score"] is not None:
-            score = data["score"]
-            if score < 0 or score > 1000:
-                errors["score"] = "Score must be between 0 and 1000"
+            score_obj = data["score"]
+            if not isinstance(score_obj, int | float):
+                errors["score"] = "Score must be a number"
+            else:
+                score_value = int(score_obj)
+                if score_value < SCORE_MIN or score_value > SCORE_MAX:
+                    errors["score"] = f"Score must be between {SCORE_MIN} and {SCORE_MAX}"
 
         # Validate position range (if provided)
         if "position" in data and data["position"] is not None:
-            position = data["position"]
-            if position < 0 or position > 1000:
-                errors["position"] = "Position must be between 0 and 1000"
+            position_obj = data["position"]
+            if not isinstance(position_obj, int | float):
+                errors["position"] = "Position must be a number"
+            else:
+                position_value = int(position_obj)
+                if position_value < POSITION_MIN or position_value > POSITION_MAX:
+                    errors["position"] = (
+                        f"Position must be between {POSITION_MIN} and {POSITION_MAX}"
+                    )
 
         # If position is not provided, score must be provided to compute position
         if ("position" not in data or data["position"] is None) and not data.get("score"):
@@ -543,9 +587,11 @@ class AIInstanceDimensionView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-        return await super().validate(request, data)
+        await super().validate(request, data)
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(
+        self, request: Request, data: FormData, obj: AIInstanceDimension
+    ) -> None:
         """Auto-fill FKs, validate uniqueness, and compute default position if missing."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "instance") and obj.instance is not None:
@@ -573,8 +619,9 @@ class AIInstanceDimensionView(ModelView):
                 existing_score = result.scalar_one_or_none()
                 if existing_score:
                     errors["dimension"] = (
-                        f"Dimension score already exists for this instance and dimension "
-                        f"(ID: {existing_score.id}). Each instance can only have one score per dimension."
+                        "Dimension score already exists for this instance and dimension "
+                        f"(ID: {existing_score.id}). Each instance can only have one score "
+                        "per dimension."
                     )
 
         if errors:
@@ -607,17 +654,19 @@ class AIInstanceDimensionView(ModelView):
                 if initial_position is None:
                     raise FormValidationError(
                         {
-                            "dimension": "Initial position not configured for this style and dimension"
+                            "dimension": (
+                                "Initial position not configured for this style and dimension"
+                            )
                         }
                     )
 
                 # Determine algorithm and params with defaults
-                algorithm = (
+                algorithm_raw = (
                     getattr(obj, "position_mapping_algorithm", None)
                     or data.get("position_mapping_algorithm")
                     or 1
                 )
-                params = (
+                params_raw = (
                     getattr(obj, "position_mapping_params", None)
                     or data.get("position_mapping_params")
                     or {}
@@ -626,20 +675,33 @@ class AIInstanceDimensionView(ModelView):
                 if score_val is None:
                     raise FormValidationError({"score": "Score is required and cannot be None."})
 
+                if not isinstance(score_val, int | float):
+                    raise FormValidationError({"score": "Score must be numeric"})
+
+                if not isinstance(params_raw, dict):
+                    raise FormValidationError(
+                        {"position_mapping_params": "Params must be a JSON object"}
+                    )
+
                 try:
                     score_float = float(score_val)
+                    algorithm_int = int(cast(Any, algorithm_raw))
                     obj.position = int(
                         map_score_to_position(
-                            algorithm=int(algorithm),
+                            algorithm=algorithm_int,
                             score=score_float,
                             initial_position=float(initial_position),
-                            params=params or {},
+                            params=cast(dict[str, Any], params_raw) or {},
                         )
                     )
                 except Exception as e:
-                    raise FormValidationError({"position": f"Failed to calculate position: {e!s}"})
+                    raise FormValidationError(
+                        {"position": f"Failed to calculate position: {e!s}"}
+                    ) from e
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(
+        self, _request: Request, _data: FormData, obj: AIInstanceDimension
+    ) -> None:
         """Auto-fill foreign keys before editing score."""
         # Nothing to fill here beyond FKs
 

@@ -5,11 +5,10 @@ This module provides instance-related read/query functions with clear
 separation of concerns and pure function design.
 """
 
-from typing import Any
-
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.type_aliases import JSONDict
 from app.enums import ContactType
 from app.exceptions import AIDataAccessError
 from app.models.ai import (
@@ -80,7 +79,7 @@ async def get_instance_context(
         instance, personality, style, profile, relationship = row
         ai_type_info = _build_ai_type(instance.creation_metadata)
 
-        dimensions = await _get_style_dimensions(db, style.id)
+        dimensions = await get_style_dimensions(db, style.id)
 
         context: InstanceContext = {
             "instance_id": instance.id,
@@ -90,6 +89,7 @@ async def get_instance_context(
             "ai_type": ai_type_info,
             "status": instance.status,
             "created_by": instance.created_by,
+            "llm_config_id": instance.llm_config_id,
             "memory": instance.memory,
             "prompt_variables": dict(instance.prompt_variables or {}),
             "request_params": dict(instance.request_params or {}),
@@ -112,8 +112,6 @@ async def get_instance_context(
             dimension_count=len(dimensions),
         )
 
-        return context
-
     except AIDataAccessError:
         raise
     except Exception as exc:
@@ -133,11 +131,13 @@ async def get_instance_context(
                 "instance_id": instance_id,
             },
         ) from exc
+    else:
+        return context
 
 
 async def get_personality_with_placeholders(
     db: AsyncSession, personality_id: int
-) -> dict[str, Any] | None:
+) -> dict[str, object] | None:
     """
     Get personality with its placeholders.
 
@@ -173,21 +173,23 @@ async def get_personality_with_placeholders(
             placeholders_count=len(placeholders),
         )
 
-        return {
+        payload = {
             "personality": personality,
             "placeholders": placeholders,
         }
 
-    except Exception as e:
+    except Exception as exc:
         logger.error(
             "personality_with_placeholders_query_failed",
-            error=str(e),
+            error=str(exc),
             personality_id=personality_id,
         )
         return None
+    else:
+        return payload
 
 
-async def _get_style_dimensions(db: AsyncSession, style_id: int) -> list[DimensionSpec]:
+async def get_style_dimensions(db: AsyncSession, style_id: int) -> list[DimensionSpec]:
     result = await db.execute(
         select(
             AIDimension.id.label("id"),
@@ -211,16 +213,16 @@ async def _get_style_dimensions(db: AsyncSession, style_id: int) -> list[Dimensi
     ]
 
 
-def _normalize_relationship_counts(raw_counts: dict[str, Any] | None) -> RelationshipCounts:
+def _normalize_relationship_counts(raw_counts: JSONDict | None) -> RelationshipCounts:
     if not raw_counts:
         return {}
 
     normalized: RelationshipCounts = {}
     for key, value in raw_counts.items():
-        try:
-            normalized[str(key)] = int(value)
-        except (TypeError, ValueError):
+        coerced_value = _coerce_relationship_count(value)
+        if coerced_value is None:
             continue
+        normalized[str(key)] = coerced_value
 
     return normalized
 
@@ -241,7 +243,7 @@ def _build_personality(personality: AIPersonality) -> PersonalityInfo:
 
 def _build_profile(profile: Profile) -> ProfileInfo:
     return ProfileInfo(
-        nickname=profile.nickname,
+        nickname=_resolve_profile_nickname(profile),
         bio=profile.bio,
         gender=profile.gender,
         avatar_url=profile.avatar_url,
@@ -250,17 +252,23 @@ def _build_profile(profile: Profile) -> ProfileInfo:
     )
 
 
-def _build_ai_type(creation_metadata: dict[str, Any] | None) -> AITypeInfo | None:
+def _build_ai_type(creation_metadata: JSONDict | None) -> AITypeInfo | None:
     if not creation_metadata:
         return None
 
-    def _parse_type_id(value: Any) -> int | None:
+    def _parse_type_id(value: object) -> int | None:
         if value is None:
             return None
-        try:
+        if isinstance(value, bool):
             return int(value)
-        except (ValueError, TypeError):
-            return None
+        if isinstance(value, int | float):
+            return int(value)
+        if isinstance(value, str):
+            try:
+                return int(value)
+            except ValueError:
+                return None
+        return None
 
     type_id = creation_metadata.get("persona_type_id") or creation_metadata.get("template_type_id")
     type_name = creation_metadata.get("persona_type_name") or creation_metadata.get(
@@ -281,11 +289,11 @@ def _build_current_relationship(relationship: AIRelationship | None) -> CurrentR
     return CurrentRelationship(
         id=relationship.id,
         display_name=relationship.display_name,
-        prompt_fragment=relationship.prompt_fragment,
+        prompt_fragment=relationship.prompt_fragment or "",
     )
 
 
-async def get_style_with_relationships(db: AsyncSession, style_id: int) -> dict[str, Any] | None:
+async def get_style_with_relationships(db: AsyncSession, style_id: int) -> dict[str, object] | None:
     """
     Get style with relationship mappings.
 
@@ -341,20 +349,22 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> dict[
             relationships_count=len(relationships),
         )
 
-        return {
+        payload = {
             "style": style,
             "relationships": relationships,
         }
 
-    except Exception as e:
-        logger.error("style_with_relationships_query_failed", error=str(e), style_id=style_id)
+    except Exception as exc:
+        logger.error("style_with_relationships_query_failed", error=str(exc), style_id=style_id)
         return None
+    else:
+        return payload
 
 
 async def get_instance_relationship_config(
     db: AsyncSession,
     instance_qiao_id: str,
-) -> dict[str, Any] | None:
+) -> JSONDict | None:
     """
     Fetch wake timing configuration for the instance's current relationship.
 
@@ -394,17 +404,17 @@ async def get_instance_relationship_config(
                 instance_qiao_id=instance_qiao_id,
                 relationship_id=relationship_id,
             )
-            return _default_relationship_timing()
-
-        return {
-            "wake_time_min_ms": int(relationship.wake_time_min_ms),
-            "wake_time_max_ms": int(relationship.wake_time_max_ms),
-            "wake_time_bias": relationship.wake_time_bias,
-            "wake_window_ms": int(relationship.wake_window_ms),
-            "wake_time_adjustment": relationship.wake_time_adjustment,
-            "no_reply_probability": float(relationship.no_reply_probability or 0.0),
-            "followup_delay_ms": int(getattr(relationship, "followup_delay_ms", 5000)),
-        }
+            timing = _default_relationship_timing()
+        else:
+            timing = {
+                "wake_time_min_ms": int(relationship.wake_time_min_ms),
+                "wake_time_max_ms": int(relationship.wake_time_max_ms),
+                "wake_time_bias": relationship.wake_time_bias,
+                "wake_window_ms": int(relationship.wake_window_ms),
+                "wake_time_adjustment": relationship.wake_time_adjustment,
+                "no_reply_probability": float(relationship.no_reply_probability or 0.0),
+                "followup_delay_ms": int(getattr(relationship, "followup_delay_ms", 5000)),
+            }
 
     except Exception as exc:
         logger.error(
@@ -413,6 +423,8 @@ async def get_instance_relationship_config(
             instance_qiao_id=instance_qiao_id,
         )
         return _default_relationship_timing()
+    else:
+        return timing
 
 
 async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) -> int | None:
@@ -436,11 +448,11 @@ async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) ->
         if instance_id is None:
             logger.warning("instance_id_not_found", instance_qiao_id=instance_qiao_id)
 
-        return instance_id
-
-    except Exception as e:
-        logger.error("instance_id_query_failed", error=str(e), instance_qiao_id=instance_qiao_id)
+    except Exception as exc:
+        logger.error("instance_id_query_failed", error=str(exc), instance_qiao_id=instance_qiao_id)
         return None
+    else:
+        return instance_id
 
 
 async def get_user_id_by_qiao_id(db: AsyncSession, user_qiao_id: str) -> int | None:
@@ -462,14 +474,14 @@ async def get_user_id_by_qiao_id(db: AsyncSession, user_qiao_id: str) -> int | N
         if user_id is None:
             logger.warning("user_id_not_found", user_qiao_id=user_qiao_id)
 
+    except Exception as exc:
+        logger.error("user_id_query_failed", error=str(exc), user_qiao_id=user_qiao_id)
+        return None
+    else:
         return user_id
 
-    except Exception as e:
-        logger.error("user_id_query_failed", error=str(e), user_qiao_id=user_qiao_id)
-        return None
 
-
-async def get_all_instances(db: AsyncSession) -> list[dict[str, Any]]:
+async def get_all_instances(db: AsyncSession) -> list[JSONDict]:
     """
     Get all active instances for admin interface.
 
@@ -514,17 +526,17 @@ async def get_all_instances(db: AsyncSession) -> list[dict[str, Any]]:
             count=len(instances),
         )
 
-        return instances
-
-    except Exception as e:
+    except Exception as exc:
         logger.error(
             "all_instances_retrieval_failed",
-            error=str(e),
+            error=str(exc),
         )
         return []
+    else:
+        return instances
 
 
-def _default_relationship_timing() -> dict[str, Any]:
+def _default_relationship_timing() -> JSONDict:
     """Provide sane defaults when relationship timing data is unavailable."""
 
     return {
@@ -536,3 +548,33 @@ def _default_relationship_timing() -> dict[str, Any]:
         "no_reply_probability": 0.0,
         "followup_delay_ms": 5000,
     }
+
+
+def _resolve_profile_nickname(profile: Profile) -> str:
+    """
+    Normalize profile nickname for TypedDict requirements.
+
+    Falls back to owner qiao_id when nickname is not populated.
+    """
+    if profile.nickname:
+        return profile.nickname
+    fallback = getattr(profile, "owner_qiao_id", None)
+    if isinstance(fallback, str) and fallback:
+        return fallback
+    return "Unknown"
+
+
+def _coerce_relationship_count(value: object) -> int | None:
+    """Convert JSON-style counters to integers."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None

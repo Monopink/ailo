@@ -4,8 +4,11 @@ Provides specialized editing interfaces for prompt_variables and position_mappin
 """
 
 import json
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -14,6 +17,7 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.core.database import get_sessionmaker
+from app.core.type_aliases import JSONDict
 from app.crud.ai import ai_personality_placeholder as personality_crud
 from app.crud.ai.instance_dimension import get_by_instance
 from app.models.ai.instance import AIInstance
@@ -26,6 +30,9 @@ from app.models.ai.style import (
     AIStyleDimension,
 )
 from app.models.ai.template import AITemplate
+from app.models.llm import LLMConfig
+from app.services.ai.queries.instance_queries import get_style_dimensions
+from app.services.ai.types import DimensionSpec
 from app.services.ai.utils.position_mapping import get_algorithm_param_specs
 from app.utils.logging import get_logger
 
@@ -37,205 +44,198 @@ class InstanceAdvancedEditView(CustomView):
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         """Render the advanced editing page."""
-        instance_id = request.path_params.get("id")
-
-        if not instance_id:
-            raise HTTPException(status_code=400, detail="Instance ID is required")
-
         try:
-            instance_id = int(instance_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid instance ID")
+            instance_id = int(request.path_params["id"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid instance ID") from exc
 
-        try:
-            session_factory = get_sessionmaker()
-            async with session_factory() as db:
-                # Get instance with eager loading
-                result = await db.execute(
-                    select(AIInstance)
-                    .where(AIInstance.id == instance_id)
-                    .options(
-                        selectinload(AIInstance.personality),
-                        selectinload(AIInstance.style),
-                        selectinload(AIInstance.relationship),
-                    )
-                )
-                instance = result.scalar_one_or_none()
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
+            instance = await self._load_instance(db, instance_id)
+            placeholders = await personality_crud.get_placeholders_by_personality(
+                db, personality_id=instance.personality_id
+            )
 
-                if not instance:
-                    raise HTTPException(status_code=404, detail="Instance not found")
+            schema_dims = self._load_schema_dimensions(instance)
+            style_dimensions = await get_style_dimensions(db, instance.style_id)
+            dimension_view = self._build_dimension_view(
+                schema_dims=schema_dims,
+                style_dimensions=style_dimensions,
+                raw_dimensions=await get_by_instance(db, instance.id),
+            )
 
-                # Get placeholders for the personality
-                placeholders = await personality_crud.get_placeholders_by_personality(
-                    db, personality_id=instance.personality_id
-                )
+            instance_data = self._build_instance_summary(instance)
 
-                # Get JSON Schema from personality
-                json_schema = instance.personality.json_schema or {}
-                score_props = (
-                    json_schema.get("properties", {}).get("score", {}).get("properties", {})
-                )
+        context = {
+            "request": request,
+            "instance": instance_data,
+            "dimensions": dimension_view.dimensions,
+            "warnings": dimension_view.warnings,
+            "placeholders": placeholders,
+            "schema_mismatch": dimension_view.schema_mismatch,
+            "schema_status": dimension_view.schema_status,
+            "schema_errors": dimension_view.schema_errors,
+            "style_status": "success",
+            "style_errors": [],
+            "instance_status": dimension_view.instance_status,
+            "instance_warnings": dimension_view.instance_warnings,
+            "algorithm_param_specs": get_algorithm_param_specs(),
+        }
 
-                # Extract schema dimensions
-                schema_dims = {}
-                for dim_name, dim_schema in score_props.items():
-                    schema_dims[dim_name] = {
-                        "min": dim_schema.get("minimum", 0),
-                        "max": dim_schema.get("maximum", 1000),
-                    }
+        return templates.TemplateResponse("custom_views/ai_instance_advanced_edit.html", context)
 
-                # Get style dimensions
-                style_dimensions_result = await db.execute(
-                    select(AIDimension, AIStyleDimension.initial_position)
-                    .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
-                    .where(AIStyleDimension.style_id == instance.style_id)
-                    .order_by(AIDimension.name)
-                )
-                style_dimensions = [
-                    type(
-                        "_Tmp",
-                        (),
-                        {
-                            "id": dim.id,
-                            "name": dim.name,
-                            "display_name": dim.display_name,
-                            "initial_position": init_pos,
-                        },
-                    )
-                    for dim, init_pos in style_dimensions_result.all()
-                ]
+    async def _load_instance(self, db: AsyncSession, instance_id: int) -> AIInstance:
+        result = await db.execute(
+            select(AIInstance)
+            .where(AIInstance.id == instance_id)
+            .options(
+                selectinload(AIInstance.personality),
+                selectinload(AIInstance.style),
+                selectinload(AIInstance.relationship),
+                selectinload(AIInstance.llm_config).selectinload(LLMConfig.provider),
+            )
+        )
+        instance = result.scalar_one_or_none()
+        if not instance:
+            raise HTTPException(status_code=404, detail="Instance not found")
+        return instance
 
-                # Check schema vs style dimension mismatch
-                schema_dim_names = set(schema_dims.keys())
-                style_dim_names = {d.name for d in style_dimensions}
-                schema_mismatch = schema_dim_names != style_dim_names
+    @staticmethod
+    def _load_schema_dimensions(instance: AIInstance) -> dict[str, dict[str, int]]:
+        personality = instance.personality
+        schema = personality.json_schema if personality and personality.json_schema else {}
+        score_props = schema.get("properties", {}).get("score", {}).get("properties", {})
+        compiled: dict[str, dict[str, int]] = {}
+        for dim_name, dim_schema in score_props.items():
+            compiled[dim_name] = {
+                "min": int(dim_schema.get("minimum", 0) or 0),
+                "max": int(dim_schema.get("maximum", 1000) or 1000),
+            }
+        return compiled
 
-                # Get instance dimensions
-                instance_dimensions = await get_by_instance(db, instance_id)
+    @dataclass
+    class _DimensionView:
+        dimensions: list[JSONDict]
+        warnings: list[dict[str, str]]
+        schema_mismatch: bool
+        schema_status: str
+        schema_errors: list[str]
+        instance_status: str
+        instance_warnings: list[str]
 
-                # Build dimension map
-                char_dim_map = {d["dimension_id"]: d for d in instance_dimensions}
+    def _build_dimension_view(
+        self,
+        *,
+        schema_dims: dict[str, dict[str, int]],
+        style_dimensions: Iterable[DimensionSpec],
+        raw_dimensions: list[JSONDict],
+    ) -> "_DimensionView":
+        schema_dim_names = set(schema_dims.keys())
+        style_dim_names = {dim["name"] for dim in style_dimensions}
+        schema_mismatch = schema_dim_names != style_dim_names
 
-                # Check for mismatches
-                warnings = []
-                dimension_data = []
-
-                if schema_mismatch:
-                    warnings.append(
-                        {
-                            "level": "error",
-                            "message": f"JSON Schema dimensions mismatch with Style dimensions. Schema: {sorted(schema_dim_names)}, Style: {sorted(style_dim_names)}",
-                        }
-                    )
-
-                for style_dim in style_dimensions:
-                    char_dim = char_dim_map.get(style_dim.id)
-                    schema_info = schema_dims.get(style_dim.name, {"min": 0, "max": 1000})
-
-                    if not char_dim:
-                        warnings.append(
-                            {
-                                "level": "warning",
-                                "message": f"Missing instance dimension: {style_dim.display_name}",
-                            }
-                        )
-
-                    dimension_data.append(
-                        {
-                            "dimension_id": style_dim.id,
-                            "dimension_name": style_dim.name,
-                            "display_name": style_dim.display_name,
-                            # JSON Schema info
-                            "schema_min": schema_info["min"],
-                            "schema_max": schema_info["max"],
-                            "schema_exists": style_dim.name in schema_dims,
-                            # Style dimension info
-                            "initial_position": style_dim.initial_position,
-                            # Instance dimension info
-                            "score": char_dim["score"] if char_dim else None,
-                            "position": char_dim["position"] if char_dim else None,
-                            "current_relationship": (
-                                char_dim.get("current_relationship") if char_dim else None
-                            ),
-                            "position_mapping_algorithm": (
-                                char_dim["position_mapping_algorithm"] if char_dim else None
-                            ),
-                            "position_mapping_params": (
-                                char_dim["position_mapping_params"] if char_dim else None
-                            ),
-                        }
-                    )
-
-                # Check for extra dimensions
-                style_dim_ids = {d.id for d in style_dimensions}
-                for char_dim in instance_dimensions:
-                    if char_dim["dimension_id"] not in style_dim_ids:
-                        warnings.append(
-                            {
-                                "level": "warning",
-                                "message": f"Extra instance dimension: {char_dim['dimension_name']}",
-                            }
-                        )
-
-                # Extract instance data
-                instance_data = {
-                    "id": instance.id,
-                    "qiao_id": instance.qiao_id,
-                    "personality_display_name": (
-                        instance.personality.display_name if instance.personality else "N/A"
+        raw_map = {row["dimension_id"]: row for row in raw_dimensions}
+        warnings: list[dict[str, str]] = []
+        if schema_mismatch:
+            warnings.append(
+                {
+                    "level": "error",
+                    "message": (
+                        "JSON Schema dimensions mismatch with Style dimensions. "
+                        f"Schema: {sorted(schema_dim_names)}, Style: {sorted(style_dim_names)}"
                     ),
-                    "style_display_name": (
-                        instance.style.display_name if instance.style else "N/A"
-                    ),
-                    "prompt_variables": instance.prompt_variables or {},
-                    "relationship_display_name": (
-                        instance.relationship.display_name if instance.relationship else None
-                    ),
-                    "typing_speed_wpm": instance.typing_speed_wpm,
                 }
+            )
 
-            # Prepare status indicators
-            schema_status = "error" if schema_mismatch else "success"
-            schema_errors = [w["message"] for w in warnings if w.get("level") == "error"]
+        dimensions_payload: list[JSONDict] = []
+        for style_dim in style_dimensions:
+            dim_id = style_dim["id"]
+            dim_name = style_dim["name"]
+            char_dim = raw_map.get(dim_id)
+            schema_info = schema_dims.get(dim_name, {"min": 0, "max": 1000})
 
-            style_status = "success"  # Style is always OK if loaded
-            style_errors = []
+            if char_dim is None:
+                warnings.append(
+                    {
+                        "level": "warning",
+                        "message": f"Missing instance dimension: {style_dim['display_name']}",
+                    }
+                )
 
-            instance_status = "success"
-            instance_warnings = [w["message"] for w in warnings if w.get("level") == "warning"]
-            if instance_warnings:
-                instance_status = "warning"
+            dimensions_payload.append(
+                {
+                    "dimension_id": dim_id,
+                    "dimension_name": dim_name,
+                    "display_name": style_dim["display_name"],
+                    "schema_min": schema_info["min"],
+                    "schema_max": schema_info["max"],
+                    "schema_exists": dim_name in schema_dims,
+                    "initial_position": style_dim["initial_position"],
+                    "score": char_dim["score"] if char_dim else None,
+                    "position": char_dim["position"] if char_dim else None,
+                    "current_relationship": (
+                        char_dim.get("current_relationship") if char_dim else None
+                    ),
+                    "position_mapping_algorithm": (
+                        char_dim["position_mapping_algorithm"] if char_dim else None
+                    ),
+                    "position_mapping_params": (
+                        char_dim["position_mapping_params"] if char_dim else None
+                    ),
+                }
+            )
 
-            context = {
-                "request": request,
-                "instance": instance_data,
-                "dimensions": dimension_data,
-                "warnings": warnings,
-                "placeholders": placeholders,
-                "schema_mismatch": schema_mismatch,
-                "schema_status": schema_status,
-                "schema_errors": schema_errors,
-                "style_status": style_status,
-                "style_errors": style_errors,
-                "instance_status": instance_status,
-                "instance_warnings": instance_warnings,
-                "algorithm_param_specs": get_algorithm_param_specs(),
+        style_dim_ids = {dim["id"] for dim in style_dimensions}
+        for char_dim in raw_dimensions:
+            if char_dim["dimension_id"] not in style_dim_ids:
+                warnings.append(
+                    {
+                        "level": "warning",
+                        "message": f"Extra instance dimension: {char_dim['dimension_name']}",
+                    }
+                )
+
+        schema_errors = [msg["message"] for msg in warnings if msg["level"] == "error"]
+        instance_warnings = [msg["message"] for msg in warnings if msg["level"] == "warning"]
+
+        return self._DimensionView(
+            dimensions=dimensions_payload,
+            warnings=warnings,
+            schema_mismatch=schema_mismatch,
+            schema_status="error" if schema_errors else "success",
+            schema_errors=schema_errors,
+            instance_status="warning" if instance_warnings else "success",
+            instance_warnings=instance_warnings,
+        )
+
+    @staticmethod
+    def _build_instance_summary(instance: AIInstance) -> JSONDict:
+        llm_summary: JSONDict | None = None
+        if instance.llm_config:
+            provider_name = (
+                instance.llm_config.provider.display_name if instance.llm_config.provider else None
+            )
+            llm_summary = {
+                "id": instance.llm_config.id,
+                "name": instance.llm_config.name,
+                "provider": provider_name,
             }
 
-            return templates.TemplateResponse(
-                "custom_views/ai_instance_advanced_edit.html", context
-            )
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(
-                "ai_instance_advanced_edit_error",
-                instance_id=instance_id,
-                error=str(e),
-                exc_info=True,
-            )
-            raise HTTPException(status_code=500, detail=f"Failed to load instance edit page: {e!s}")
+        return {
+            "id": instance.id,
+            "qiao_id": instance.qiao_id,
+            "personality_display_name": (
+                instance.personality.display_name if instance.personality else "N/A"
+            ),
+            "style_display_name": instance.style.display_name if instance.style else "N/A",
+            "prompt_variables": instance.prompt_variables or {},
+            "relationship_display_name": (
+                instance.relationship.display_name if instance.relationship else None
+            ),
+            "typing_speed_wpm": instance.typing_speed_wpm,
+            "llm_config_id": instance.llm_config_id,
+            "llm_config": llm_summary,
+        }
 
 
 class TemplateAdvancedEditView(CustomView):
@@ -243,100 +243,23 @@ class TemplateAdvancedEditView(CustomView):
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         """Render the advanced editing page."""
-        template_id = request.path_params.get("id")
-
-        if not template_id:
-            raise HTTPException(status_code=400, detail="Template ID is required")
-
         try:
-            template_id = int(template_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid template ID")
+            template_id = int(request.path_params["id"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid template ID") from exc
 
         session_factory = get_sessionmaker()
         async with session_factory() as db:
-            # Get template with eager loading
-            result = await db.execute(
-                select(AITemplate)
-                .where(AITemplate.id == template_id)
-                .options(
-                    selectinload(AITemplate.personality),
-                    selectinload(AITemplate.style),
-                )
-            )
-            template = result.scalar_one_or_none()
-
-            if not template:
-                raise HTTPException(status_code=404, detail="Template not found")
-
-            # Get placeholders for the personality
+            template = await self._load_template(db, template_id)
             placeholders = await personality_crud.get_placeholders_by_personality(
                 db, personality_id=template.personality_id
             )
 
-            # Get style dimensions
-            style_dimensions_result = await db.execute(
-                select(AIDimension, AIStyleDimension.initial_position)
-                .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
-                .where(AIStyleDimension.style_id == template.style_id)
-                .order_by(AIDimension.name)
-            )
-            style_dimensions = [
-                type(
-                    "_Tmp",
-                    (),
-                    {
-                        "id": dim.id,
-                        "name": dim.name,
-                        "display_name": dim.display_name,
-                        "initial_position": init_pos,
-                    },
-                )
-                for dim, init_pos in style_dimensions_result.all()
-            ]
-
-            # Parse prompt_variables robustly (could be JSON string)
-            pv = template.prompt_variables
-            if isinstance(pv, str):
-                try:
-                    pv = json.loads(pv)
-                except Exception:
-                    pv = {}
-            elif pv is None or not isinstance(pv, dict):
-                pv = {}
-
-            # Parse position_mapping_config robustly (could be JSON string)
-            position_mapping_config = template.position_mapping_config
-            if isinstance(position_mapping_config, str):
-                try:
-                    position_mapping_config = json.loads(position_mapping_config)
-                except Exception:
-                    position_mapping_config = {}
-            elif position_mapping_config is None or not isinstance(position_mapping_config, dict):
-                position_mapping_config = {}
-
-            # Build dimension config list
-            dimension_configs = []
-            for dim in style_dimensions:
-                dim_config = position_mapping_config.get(dim.name, {})
-                dimension_configs.append(
-                    {
-                        "dimension_name": dim.name,
-                        "display_name": dim.display_name,
-                        "algorithm": dim_config.get("algorithm", 1),
-                        "params": dim_config.get("params", {}),
-                    }
-                )
-
-            # Extract data while session is active
-            template_data = {
-                "id": template.id,
-                "personality_display_name": (
-                    template.personality.display_name if template.personality else "N/A"
-                ),
-                "prompt_variables": pv,
-                "typing_speed_wpm": template.typing_speed_wpm,
-            }
+            style_dimensions = await get_style_dimensions(db, template.style_id)
+            prompt_variables = self._coerce_json_dict(template.prompt_variables)
+            position_mapping = self._coerce_json_dict(template.position_mapping_config)
+            dimension_configs = self._build_dimension_configs(style_dimensions, position_mapping)
+            template_data = self._build_template_summary(template, prompt_variables)
 
         context = {
             "request": request,
@@ -347,6 +270,77 @@ class TemplateAdvancedEditView(CustomView):
         }
 
         return templates.TemplateResponse("custom_views/ai_template_advanced_edit.html", context)
+
+    async def _load_template(self, db: AsyncSession, template_id: int) -> AITemplate:
+        result = await db.execute(
+            select(AITemplate)
+            .where(AITemplate.id == template_id)
+            .options(
+                selectinload(AITemplate.personality),
+                selectinload(AITemplate.style),
+                selectinload(AITemplate.llm_config).selectinload(LLMConfig.provider),
+            )
+        )
+        template = result.scalar_one_or_none()
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+        return template
+
+    @staticmethod
+    def _coerce_json_dict(value: object) -> JSONDict:
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    @staticmethod
+    def _build_dimension_configs(
+        style_dimensions: Iterable[DimensionSpec],
+        position_mapping_config: JSONDict,
+    ) -> list[JSONDict]:
+        configs: list[JSONDict] = []
+        for dim in style_dimensions:
+            dim_name = dim["name"]
+            raw_config = position_mapping_config.get(dim_name, {})
+            config_dict = raw_config if isinstance(raw_config, dict) else {}
+            algorithm = config_dict.get("algorithm", 1)
+            params = config_dict.get("params", {})
+            configs.append(
+                {
+                    "dimension_name": dim_name,
+                    "display_name": dim["display_name"],
+                    "algorithm": algorithm if isinstance(algorithm, int) else 1,
+                    "params": params if isinstance(params, dict) else {},
+                }
+            )
+        return configs
+
+    @staticmethod
+    def _build_template_summary(template: AITemplate, prompt_variables: JSONDict) -> JSONDict:
+        personality_name = template.personality.display_name if template.personality else "N/A"
+        llm_summary = None
+        if template.llm_config:
+            provider = (
+                template.llm_config.provider.display_name if template.llm_config.provider else None
+            )
+            llm_summary = {
+                "id": template.llm_config.id,
+                "name": template.llm_config.name,
+                "provider": provider,
+            }
+        return {
+            "id": template.id,
+            "personality_display_name": personality_name,
+            "prompt_variables": prompt_variables,
+            "typing_speed_wpm": template.typing_speed_wpm,
+            "llm_config_id": template.llm_config_id,
+            "llm_config": llm_summary,
+        }
 
 
 # Create view instances
@@ -377,8 +371,8 @@ class PersonalityAdvancedEditView(CustomView):
 
         try:
             personality_id = int(personality_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid personality ID")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid personality ID") from exc
 
         session_factory = get_sessionmaker()
         async with session_factory() as db:
@@ -446,8 +440,8 @@ class StyleAdvancedEditView(CustomView):
 
         try:
             style_id = int(style_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid style ID")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid style ID") from exc
 
         session_factory = get_sessionmaker()
         async with session_factory() as db:
@@ -465,19 +459,16 @@ class StyleAdvancedEditView(CustomView):
                 .where(AIStyleDimension.style_id == style_id)
                 .order_by(AIDimension.name)
             )
-            dimensions = [
-                type(
-                    "_Tmp",
-                    (),
-                    {
-                        "id": dim.id,
-                        "name": dim.name,
-                        "display_name": dim.display_name,
-                        "description": dim.description,
-                        "initial_position": init_pos,
-                    },
-                )
-                for dim, init_pos in dimensions_result.all()
+            dimensions_rows = dimensions_result.all()
+            dimensions_data = [
+                {
+                    "id": dim.id,
+                    "name": dim.name,
+                    "display_name": dim.display_name,
+                    "description": dim.description,
+                    "initial_position": init_pos,
+                }
+                for dim, init_pos in dimensions_rows
             ]
 
             # Get mappings for this style with dimension names via JOIN
@@ -500,7 +491,7 @@ class StyleAdvancedEditView(CustomView):
                 .where(AIStyleDimension.style_id == style_id)
                 .order_by(AIDimensionRelationshipMapping.start_position)
             )
-            mappings = mappings_result.all()
+            mapping_rows = mappings_result.all()
 
             # Get all active relationships for dropdown
             relationships_result = await db.execute(
@@ -511,29 +502,27 @@ class StyleAdvancedEditView(CustomView):
             relationships = relationships_result.scalars().all()
 
             # Convert to dicts for JSON serialization
-            dimensions_data = [
-                {
-                    "id": d.id,
-                    "name": d.name,
-                    "display_name": d.display_name,
-                    "description": getattr(d, "description", None),
-                    "initial_position": d.initial_position,
-                }
-                for d in dimensions
-            ]
-
             mappings_data = [
                 {
-                    "id": i.id,
-                    "dimension_id": i.dimension_id,
-                    "dimension_display_name": i.dimension_display_name,
-                    "start_position": i.start_position,
-                    "end_position": i.end_position,
-                    "relationship_id": i.relationship_id,
-                    "priority": i.priority,
-                    "limit_count": i.limit_count,
+                    "id": mapping_id,
+                    "dimension_id": dimension_id,
+                    "dimension_display_name": dimension_display_name,
+                    "start_position": start_position,
+                    "end_position": end_position,
+                    "relationship_id": relationship_id,
+                    "priority": priority,
+                    "limit_count": limit_count,
                 }
-                for i in mappings
+                for (
+                    mapping_id,
+                    dimension_id,
+                    dimension_display_name,
+                    start_position,
+                    end_position,
+                    relationship_id,
+                    priority,
+                    limit_count,
+                ) in mapping_rows
             ]
 
             relationships_data = [

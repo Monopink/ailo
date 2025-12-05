@@ -8,6 +8,7 @@ from sqlalchemy import Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.type_aliases import JSONArray
 from app.models.base import AutoIncrementModel
 
 
@@ -43,9 +44,9 @@ class SystemConfig(AutoIncrementModel):
     )
 
     group_name: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="分组名称，用于显示分组"
+        String(50), nullable=True, comment="Group name used for display grouping"
     )
 
-    allowed_values: Mapped[list | None] = mapped_column(
+    allowed_values: Mapped[JSONArray | None] = mapped_column(
         JSONB, nullable=True, comment="Allowed values for enum type (JSON array)"
     )

@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.type_aliases import JSONDict, JSONValue
 from app.models.ai import AIInstance
 from app.services.ai.conversation_memory import process_memory_operations
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
@@ -49,7 +50,6 @@ async def process_llm_response(
 
     try:
         new_scores = ai_response.get("score")
-        memory_operations = ai_response.get("memory_operations")
 
         if new_scores:
             await update_instance_relationship_scores(
@@ -70,8 +70,9 @@ async def process_llm_response(
                         db, instance_context["instance_id"], relationship.id, display_name
                     )
 
-        if memory_operations:
-            await process_memory_operations(db, instance_qiao_id, memory_operations)
+        memory_ops_payload = _normalize_memory_operations(ai_response.get("memory_operations"))
+        if memory_ops_payload:
+            await process_memory_operations(db, instance_qiao_id, memory_ops_payload)
 
         if ai_response.get("attack_detected") and user_message_item_id:
             await mark_conversation_item_as_excluded(db, user_message_item_id)
@@ -126,7 +127,7 @@ async def process_llm_response(
         typing_speed_seconds_per_word = DEFAULT_TYPING_SPEED_SECONDS_PER_WORD
         followup_delay_seconds = 0.0
 
-    asyncio.create_task(
+    send_task = asyncio.create_task(
         send_ai_messages_with_typing(
             session_factory=session_factory,
             user_qiao_id=user_qiao_id,
@@ -138,6 +139,7 @@ async def process_llm_response(
             followup_delay_seconds=followup_delay_seconds,
         )
     )
+    send_task.add_done_callback(_log_send_task_failure)
 
     return {
         "success": True,
@@ -171,8 +173,42 @@ async def _resolve_followup_delay_seconds(db: AsyncSession, instance_qiao_id: st
     if not config:
         raise ValueError("Missing followup_delay_ms configuration")
 
-    followup_delay_ms = config.get("followup_delay_ms")
+    followup_delay_ms_value = config.get("followup_delay_ms")
+    followup_delay_ms = _coerce_delay_value(followup_delay_ms_value)
     if followup_delay_ms is None:
         raise ValueError("Missing followup_delay_ms configuration")
 
-    return float(followup_delay_ms) / 1000.0
+    return followup_delay_ms / 1000.0
+
+
+def _normalize_memory_operations(value: Any) -> list[JSONDict]:
+    """Ensure ai_response memory operations are structured as JSON dictionaries."""
+    if not isinstance(value, list):
+        return []
+    operations: list[JSONDict] = []
+    for entry in value:
+        if isinstance(entry, dict):
+            operations.append(entry)
+    return operations
+
+
+def _coerce_delay_value(value: JSONValue | None) -> float | None:
+    """Convert JSON-style delay values to floats."""
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _log_send_task_failure(task: asyncio.Task[Any]) -> None:
+    """Log any exceptions raised by the background send task."""
+    try:
+        task.result()
+    except Exception as exc:  # pragma: no cover - log only
+        logger.error("send_ai_messages_task_failed", error=str(exc))

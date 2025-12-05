@@ -4,13 +4,13 @@ AI personality related models.
 This module contains SQLAlchemy models for AI personality templates and placeholders.
 """
 
-from typing import Any
-
 from markupsafe import escape
 from sqlalchemy import Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from starlette.requests import Request
 
+from app.core.type_aliases import JSONDict
 from app.models.base import AutoIncrementModel
 
 
@@ -27,7 +27,7 @@ class AIPersonality(AutoIncrementModel):
 
     prompt: Mapped[str] = mapped_column(Text, nullable=False, comment="Personality prompt template")
 
-    json_schema: Mapped[dict[str, Any] | None] = mapped_column(
+    json_schema: Mapped[JSONDict | None] = mapped_column(
         JSONB, nullable=True, comment="JSON schema definition (JSONB for better performance)"
     )
 
@@ -39,7 +39,7 @@ class AIPersonality(AutoIncrementModel):
         comment="Status: 1=active, 2=inactive",
     )
 
-    def __admin_select2_repr__(self, request) -> str:
+    def __admin_select2_repr__(self, request: Request) -> str:
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
 
 

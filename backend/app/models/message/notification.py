@@ -5,12 +5,12 @@ This module contains SQLAlchemy model for notification push history.
 """
 
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.type_aliases import JSONDict
 from app.enums import NotificationStatus
 from app.models.base import SnowflakeModel
 
@@ -31,7 +31,7 @@ class NotificationPushHistory(SnowflakeModel):
         Integer, nullable=False, comment="Notification type: 1=contact_request"
     )
 
-    action_data: Mapped[dict[str, Any]] = mapped_column(
+    action_data: Mapped[JSONDict] = mapped_column(
         JSONB, nullable=False, comment="Action and data objects (JSON)"
     )
 

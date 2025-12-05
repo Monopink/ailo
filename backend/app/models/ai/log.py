@@ -5,12 +5,12 @@ This module contains SQLAlchemy models for AI service request logging.
 """
 
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.type_aliases import JSONDict
 from app.models.base import ImmutableSnowflakeModel
 
 
@@ -82,11 +82,9 @@ class AIRequestLog(ImmutableSnowflakeModel):
         comment="Associated ai_message_buffer.id that triggered the request",
     )
 
-    request: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, comment="Request content"
-    )
+    request: Mapped[JSONDict] = mapped_column(JSONB, nullable=False, comment="Request content")
 
-    response: Mapped[dict[str, Any] | None] = mapped_column(
+    response: Mapped[JSONDict | None] = mapped_column(
         JSONB, nullable=True, comment="Response content"
     )
 

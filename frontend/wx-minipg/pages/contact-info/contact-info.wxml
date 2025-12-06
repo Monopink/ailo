@@ -18,7 +18,7 @@
         <view class="header-info">
           <view class="name-row">
             <text class="nickname">{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
-            <text wx:if="{{contact.gender}}" class="gender">{{contact.gender === 'male' ? '♂' : contact.gender === 'female' ? '♀' : ''}}</text>
+            <text wx:if="{{contact.gender}}" class="gender">{{contact.gender === 1 ? '♂' : contact.gender === 2 ? '♀' : ''}}</text>
           </view>
           <text class="qiao-id">敲敲号: {{contact.contact_qiao_id}}</text>
         </view>

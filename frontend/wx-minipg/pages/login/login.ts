@@ -1,4 +1,4 @@
-import { get, post } from '../../utils/api';
+import { post } from '../../utils/api';
 import authService from '../../utils/auth-service';
 import {
   ensureCaptchaConfig,
@@ -8,6 +8,7 @@ import {
 } from '../../utils/captcha';
 import { checkStorage } from '../../utils/debug';
 import { getLogger } from '../../utils/logger';
+import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { saveContacts, type StoredAuthUser } from '../../utils/storage';
 
 const logger = getLogger('Login');
@@ -138,8 +139,8 @@ const markWelcomeSeen = (): void => {
 
 const loadContacts = async (): Promise<void> => {
   try {
-    const response = await get('/contacts');
-    const contacts = await saveContacts(response);
+    const remoteContacts = await fetchAllContactsFromApi();
+    const contacts = await saveContacts(remoteContacts);
     logger.info('Contacts loaded and saved', { count: contacts.length });
   } catch (error) {
     logger.error('Failed to load contacts', { error });

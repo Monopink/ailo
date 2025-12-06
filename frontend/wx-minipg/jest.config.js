@@ -3,4 +3,3 @@ module.exports = {
   testTimeout: 30000,
   testMatch: ['**/test/**/*.test.js'],
 };
-

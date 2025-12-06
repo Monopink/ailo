@@ -11,7 +11,6 @@ import { initMessageService } from './utils/message/service';
 import type { MessageService } from './utils/message/service';
 import conversationStore from './utils/message/conversation-store';
 
-type CaptchaConfig = Says.CaptchaConfig;
 type MessagePayload = Says.MessagePayload;
 type TypingEvent = Says.TypingEvent;
 type LaunchOptions = WechatMiniprogram.App.LaunchShowOption;
@@ -28,13 +27,6 @@ type MessageHandlerPage = AnyPageInstance & {
   onTypingReceived?(payload: TypingEvent): void;
   onMessageError?(error: Error): void;
 };
-
-interface AppGlobalData {
-  messageService: MessageService | null;
-  systemInfo: WechatMiniprogram.SystemInfo | null;
-  captchaConfig: CaptchaConfig | null;
-  conversationStore: typeof conversationStore;
-}
 
 const logger = getLogger('App');
 
@@ -63,7 +55,7 @@ const appOptions: WechatMiniprogram.App.Options<SaysAppInstance> = {
     systemInfo: null,
     captchaConfig: null,
     conversationStore,
-  } satisfies AppGlobalData,
+  } satisfies Says.GlobalData,
 
   onLaunch(options: LaunchOptions) {
     logger.info('App launched', { options });

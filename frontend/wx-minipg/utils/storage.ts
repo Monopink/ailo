@@ -74,19 +74,31 @@ const wxGetStorageInfo = async (): Promise<WechatMiniprogram.GetStorageInfoSucce
     });
   });
 
+export interface ContactProfile {
+  nickname?: string | null;
+  avatar_url?: string | null;
+  gender?: number | null;
+  bio?: string | null;
+  region?: string | null;
+}
+
 export interface StoredContact extends JsonRecord {
   conv_id?: string;
-  qiao_id?: string;
   contact_qiao_id?: string;
-  nickname?: string;
-  alias?: string;
-  avatar_url?: string;
-  custom_avatar_url?: string;
-  contact_profile?: JsonRecord;
-  profile?: JsonRecord;
+  alias?: string | null;
   tags?: string[];
+  is_pinned?: boolean;
+  is_muted?: boolean;
+  is_blocked?: boolean;
+  profile?: ContactProfile;
+  custom_avatar_url?: string;
+  // Legacy fields for backward compatibility
+  qiao_id?: string;
+  nickname?: string;
+  avatar_url?: string;
   gender?: number | null;
   contact_qiaoid?: string;
+  contact_profile?: JsonRecord;
 }
 
 export type StoredContacts = StoredContact[];

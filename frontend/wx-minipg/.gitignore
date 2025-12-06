@@ -23,3 +23,8 @@ dist/
 # Depend
 libs/*
 !libs/README.md
+
+# TypeScript compiled files
+**/*.js
+!miniprogram_npm/**/*.js
+!*.config.js

@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Says AI Chat MiniProgram",
   "scripts": {
+    "build:ts": "tsc",
+    "build": "npm run build:ts",
+    "watch": "tsc --watch",
     "lint": "eslint . --ext .ts,.js,.wxml",
     "lint:fix": "eslint . --ext .ts,.js,.wxml --fix",
     "format": "prettier --write \"**/*.{ts,js,json,wxss}\"",

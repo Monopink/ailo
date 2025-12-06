@@ -20,11 +20,19 @@ import { ENABLE_LEANCLOUD_DEBUG } from '../env';
 import { getLogger } from '../logger';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
 import type { MessageType } from './constants';
+import type {
+  AdapterMessage,
+  AdapterSendResult,
+  AdapterTypingPayload,
+  BusinessMessagePayload,
+  MessageAdapter,
+  MessageSignature,
+} from './adapter-types';
 
 import * as IM from '../../libs/im.min.js';
 import type { Conversation } from '../../libs/im.min.js';
 import initTypedMessages from '../../libs/typed-messages.min.js';
-import adapters from '../../libs/leancloud-adapters-weapp.js';
+import * as adapters from '../../libs/leancloud-adapters-weapp.js';
 
 const { Realtime, setAdapters, TypedMessage, messageType, messageField, debug } = IM;
 const { TypedMessagesPlugin } = initTypedMessages(null, IM);
@@ -46,54 +54,6 @@ const toError = (error: unknown): Error => {
     return new Error('Unknown error');
   }
 };
-
-export interface BusinessMessagePayload {
-  msg_id: string;
-  from: string;
-  to: string;
-  conv_id: string;
-  content: string;
-  message_type: MessageType;
-  supports_typing: boolean;
-  sent_time: number;
-  action?: string | null;
-  notification_type?: string | null;
-  data?: Record<string, unknown> | null;
-}
-
-export type MessageSignature = {
-  signature: string;
-  timestamp: number;
-  nonce: string;
-};
-
-export type AdapterMessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
-
-export interface AdapterSendResult extends BusinessMessagePayload {
-  lc_msg_id: string;
-  lc_timestamp: number;
-}
-
-export interface AdapterMessage extends AdapterSendResult {
-  status: AdapterMessageStatus;
-}
-
-export type AdapterTypingPayload = {
-  from: string;
-  conv_id: string;
-  isTyping: boolean;
-};
-
-export interface MessageAdapter {
-  connect(userId: string, signature: MessageSignature): Promise<void>;
-  disconnect(): Promise<void>;
-  sendMessage(message: BusinessMessagePayload, imConvId: string): Promise<AdapterSendResult>;
-  onMessage(handler: (message: AdapterMessage) => void): void;
-  onTyping(handler: (payload: AdapterTypingPayload) => void): void;
-  onError(handler: (error: Error) => void): void;
-  invalidateConversation?(imConvId?: string | null): void;
-  isConnected(): boolean;
-}
 
 type MessageCallback = (payload: AdapterMessage) => void;
 type TypingCallback = (payload: AdapterTypingPayload) => void;

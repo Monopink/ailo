@@ -131,4 +131,3 @@
 .add-btn::after {
   border: none;
 }
-

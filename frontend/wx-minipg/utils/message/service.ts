@@ -10,14 +10,15 @@ import type { StoredMessage } from '../storage';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
 import type { MessageType } from './constants';
 import conversationStore from './conversation-store';
-import leancloudAdapter, {
-  type AdapterMessage,
-  type AdapterSendResult,
-  type AdapterTypingPayload,
-  type BusinessMessagePayload,
-  type MessageAdapter,
-  type MessageSignature,
-} from './leancloud';
+import type {
+  AdapterMessage,
+  AdapterSendResult,
+  AdapterTypingPayload,
+  BusinessMessagePayload,
+  MessageAdapter,
+  MessageSignature,
+} from './adapter-types';
+import { getMessageAdapter } from './provider';
 
 const logger = getLogger('MessageService');
 
@@ -61,7 +62,7 @@ export class MessageService {
   private adapter: MessageAdapter;
   private initialized = false;
 
-  constructor(adapter: MessageAdapter = leancloudAdapter) {
+  constructor(adapter: MessageAdapter = getMessageAdapter()) {
     this.adapter = adapter;
   }
 

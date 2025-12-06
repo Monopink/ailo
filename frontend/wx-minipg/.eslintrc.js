@@ -96,5 +96,7 @@ module.exports = {
     'test/',
     'minitest/',
     '*.config.js',
+    '**/*.js', // Ignore all compiled JS files from TypeScript
+    '!.eslintrc.js', // But keep ESLint config
   ],
 };

@@ -44,4 +44,3 @@ describe('MiniProgram Auto Test', () => {
     }
   });
 });
-

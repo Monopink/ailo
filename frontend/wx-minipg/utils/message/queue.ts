@@ -1,6 +1,6 @@
 import { getLogger } from '../logger';
 import { MESSAGE_CONFIG } from '../config';
-import type { AdapterSendResult, BusinessMessagePayload, MessageAdapter } from './leancloud';
+import type { AdapterSendResult, BusinessMessagePayload, MessageAdapter } from './adapter-types';
 
 const logger = getLogger('MessageQueue');
 

@@ -11,9 +11,10 @@ import {
   type StoredContact,
   type StoredContacts,
 } from '../../utils/storage';
-import { del, get } from '../../utils/api';
+import { del } from '../../utils/api';
 import { MESSAGE_TYPE } from '../../utils/message/constants';
 import { formatMessageTime } from '../../utils/format';
+import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 
 const logger = getLogger('ContactList');
 
@@ -169,8 +170,8 @@ Page<ContactListPageData, ContactListPageCustom>({
     const loadTask: Promise<void> = (async () => {
       this.setData({ loading: true });
       try {
-        const response = await get('/contacts');
-        const normalizedContacts = await saveContacts(response);
+        const remoteContacts = await fetchAllContactsFromApi();
+        const normalizedContacts = await saveContacts(remoteContacts);
         const enrichedContacts = await this.attachLatestMessages(normalizedContacts);
         this.updateContactList(enrichedContacts);
       } catch (error) {
@@ -244,7 +245,7 @@ Page<ContactListPageData, ContactListPageCustom>({
       return {
         ...contact,
         avatarUrl: getAvatarUrl(contact.custom_avatar_url ?? contact.avatar_url ?? ''),
-        displayName: contact.alias ?? contact.nickname ?? contact.contact_qiao_id ?? '',
+        displayName: contact.alias || contact.nickname || contact.contact_qiao_id || '',
         lastMessageTime: formatMessageTime(lastMessageTimeRaw),
         lastMessage: lastMessageContent,
         hasUnread: unreadCount > 0,

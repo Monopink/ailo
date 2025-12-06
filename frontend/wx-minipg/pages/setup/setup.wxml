@@ -56,4 +56,3 @@
   <!-- Submit button -->
   <button bindtap="handleSubmit" loading="{{loading}}">完成</button>
 </view>
-

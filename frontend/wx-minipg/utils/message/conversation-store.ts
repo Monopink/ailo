@@ -6,14 +6,17 @@ const STORAGE_KEY = 'conversation_state';
 
 interface ConversationState {
   im_conv_id: string;
-  version: string | number;
-  updated_at: string | null;
+  signature_algorithm: string;
+  signature_version: string;
+  signature_ttl_ms: number;
+  fetched_at: number;
 }
 
-interface ConversationStateResponse {
+interface ConversationConfigResponse {
   im_conv_id: string;
-  version: string | number;
-  updated_at?: string | null;
+  signature_algorithm: string;
+  signature_version: string;
+  signature_ttl_ms: number;
 }
 
 type Subscriber = (state: ConversationState | null) => void;
@@ -31,7 +34,7 @@ class ConversationStore {
   private loadFromStorage(): void {
     try {
       const stored = wx.getStorageSync<ConversationState>(STORAGE_KEY);
-      if (stored && stored.im_conv_id && stored.version) {
+      if (stored && stored.im_conv_id && stored.signature_algorithm) {
         this.state = stored;
       }
     } catch (error) {
@@ -104,18 +107,20 @@ class ConversationStore {
     }
 
     this.refreshPromise = (async () => {
-      const response = await get<ConversationStateResponse>('/conversation/current');
+      const response = await get<ConversationConfigResponse>('/lc-im/config');
       const nextState: ConversationState = {
         im_conv_id: response.im_conv_id,
-        version: response.version,
-        updated_at: response.updated_at ?? null,
+        signature_algorithm: response.signature_algorithm,
+        signature_version: response.signature_version,
+        signature_ttl_ms: response.signature_ttl_ms,
+        fetched_at: Date.now(),
       };
       this.state = nextState;
       this.persist(nextState);
       this.notify(nextState);
       logger.info('Conversation state refreshed', {
-        version: response.version,
-        updated_at: response.updated_at,
+        signature_version: response.signature_version,
+        im_conv_id: response.im_conv_id,
       });
       return nextState;
     })().finally(() => {

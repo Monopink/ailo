@@ -18,6 +18,8 @@ interface ContactProfile {
   nickname?: string;
   avatar_url?: string;
   gender?: number | null;
+  bio?: string;
+  region?: string;
   [key: string]: unknown;
 }
 
@@ -30,6 +32,8 @@ type ContactRecord = StoredContact & {
   is_muted?: boolean;
   custom_avatar_url?: string | null;
   avatar_url?: string | null;
+  bio?: string | null;
+  region?: string | null;
 };
 
 interface ContactInfoPageData {
@@ -50,13 +54,41 @@ interface ContactInfoPageCustom {
   deleteContact(): void;
 }
 
-const normalizeContact = (contact: StoredContact): ContactRecord => ({
-  ...contact,
-  avatar_url: getAvatarUrl(contact.avatar_url ?? ''),
-  custom_avatar_url: contact.custom_avatar_url
-    ? getAvatarUrl(contact.custom_avatar_url)
-    : undefined,
-});
+const normalizeContact = (contact: StoredContact): ContactRecord => {
+  const profile =
+    (contact.profile as ContactProfile | undefined) ??
+    (contact.contact_profile as ContactProfile | undefined) ??
+    {};
+
+  const avatarFallback = profile.avatar_url ?? '';
+  const avatarUrl = contact.avatar_url ?? avatarFallback;
+
+  const resolvedGender =
+    typeof contact.gender === 'number'
+      ? contact.gender
+      : typeof profile.gender === 'number'
+        ? profile.gender
+        : null;
+
+  const resolvedBio =
+    typeof profile.bio === 'string' && profile.bio.trim().length > 0 ? profile.bio : undefined;
+  const resolvedRegion =
+    typeof profile.region === 'string' && profile.region.trim().length > 0
+      ? profile.region
+      : undefined;
+
+  return {
+    ...contact,
+    avatar_url: getAvatarUrl(avatarUrl ?? ''),
+    custom_avatar_url: contact.custom_avatar_url
+      ? getAvatarUrl(contact.custom_avatar_url)
+      : undefined,
+    gender: resolvedGender,
+    bio: resolvedBio ?? (typeof contact.bio === 'string' ? contact.bio : undefined) ?? null,
+    region:
+      resolvedRegion ?? (typeof contact.region === 'string' ? contact.region : undefined) ?? null,
+  };
+};
 
 const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {

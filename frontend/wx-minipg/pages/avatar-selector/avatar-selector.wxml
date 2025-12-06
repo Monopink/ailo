@@ -6,8 +6,8 @@
 
   <!-- Avatar grid -->
   <view wx:else class="avatar-grid">
-    <view 
-      wx:for="{{presetAvatars}}" 
+    <view
+      wx:for="{{presetAvatars}}"
       wx:key="id"
       class="avatar-item {{selectedAvatar === item.id ? 'selected' : ''}}"
       bindtap="selectAvatar"
@@ -24,4 +24,3 @@
     <button class="action-btn confirm-btn" bindtap="confirmSelection">确定</button>
   </view>
 </view>
-

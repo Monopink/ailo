@@ -42,4 +42,3 @@
     <button class="btn-primary" bindtap="handleStartUse">开始使用</button>
   </view>
 </view>
-

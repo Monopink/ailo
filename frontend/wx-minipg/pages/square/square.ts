@@ -51,14 +51,12 @@ interface SquareApiContact {
 
 interface SquareApiResponse {
   items: SquareApiContact[];
-  pagination: {
-    has_more: boolean;
-  };
+  refresh_available_at?: string | null;
 }
 
 interface CacheEntry {
   contacts: SquareContact[];
-  hasMore: boolean;
+  nextRefreshAvailableAt: number | null;
   timestamp: number;
 }
 
@@ -67,21 +65,24 @@ interface SquarePageData {
   currentCategory: number | null;
   contacts: SquareContact[];
   loading: boolean;
-  page: number;
-  pageSize: number;
-  hasMore: boolean;
-  loadingMore: boolean;
+  nextRefreshAvailableAt: number | null;
+}
+
+interface LoadContactsOptions {
+  respectCooldown?: boolean;
+  silentOnCooldown?: boolean;
 }
 
 interface SquarePageCustom {
   getCacheKey(): string;
   loadContactsWithCache(): void;
-  revalidateCache(cacheKey: string): Promise<void>;
-  loadContacts(isRefresh?: boolean): Promise<void>;
+  revalidateCache(): Promise<void>;
+  loadContacts(options?: LoadContactsOptions): Promise<void>;
+  canRefreshNow(): boolean;
+  getRefreshWaitSeconds(): number;
   processContacts(items: SquareApiContact[] | undefined): SquareContact[];
   selectCategory(event: WechatMiniprogram.TouchEvent): void;
   onPullDownRefresh(): void;
-  onReachBottom(): void;
   handleContactTap(event: WechatMiniprogram.BaseEvent): void;
   handleAddContact(event: WechatMiniprogram.BaseEvent): Promise<void>;
 }
@@ -139,16 +140,21 @@ const toStringValue = (value: unknown): string | undefined => {
   return undefined;
 };
 
+const parseRefreshTimestamp = (value?: string | null): number | null => {
+  if (typeof value !== 'string' || !value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
 Page<SquarePageData, SquarePageCustom>({
   data: {
     categories: CATEGORIES,
     currentCategory: null,
     contacts: [],
     loading: false,
-    page: 1,
-    pageSize: 20,
-    hasMore: true,
-    loadingMore: false,
+    nextRefreshAvailableAt: null,
   },
 
   async onLoad() {
@@ -173,48 +179,48 @@ Page<SquarePageData, SquarePageCustom>({
       const age = now - cache.timestamp;
 
       if (age < CACHE_TTL) {
-        this.setData({ contacts: cache.contacts, hasMore: cache.hasMore });
+        this.setData({
+          contacts: cache.contacts,
+          nextRefreshAvailableAt: cache.nextRefreshAvailableAt ?? null,
+        });
         logger.info('Using fresh cache', { age: Math.floor(age / 1000) });
         return;
       }
 
       if (age < CACHE_TTL + STALE_PERIOD) {
-        this.setData({ contacts: cache.contacts, hasMore: cache.hasMore });
+        this.setData({
+          contacts: cache.contacts,
+          nextRefreshAvailableAt: cache.nextRefreshAvailableAt ?? null,
+        });
         logger.info('Using stale cache, revalidating', { age: Math.floor(age / 1000) });
-        void this.revalidateCache(cacheKey);
+        void this.revalidateCache();
         return;
       }
     }
 
-    void this.loadContacts(true);
+    void this.loadContacts({ respectCooldown: false });
   },
 
-  async revalidateCache(cacheKey) {
+  async revalidateCache() {
     try {
-      const params: Record<string, number> = { page: 1, page_size: this.data.pageSize };
-      if (this.data.currentCategory !== null) {
-        params.category = this.data.currentCategory;
-      }
-
-      const result = await get<SquareApiResponse>('/discovery/square', params);
-      const contacts = this.processContacts(result.items);
-
-      const cacheEntry: CacheEntry = {
-        contacts,
-        hasMore: result.pagination?.has_more ?? false,
-        timestamp: Date.now(),
-      };
-      wx.setStorageSync(cacheKey, cacheEntry);
-
-      this.setData({ contacts, hasMore: result.pagination?.has_more ?? false });
-      logger.info('Cache revalidated');
+      await this.loadContacts({ respectCooldown: false, silentOnCooldown: true });
     } catch (error) {
       const err = normalizeError(error);
       logger.warn('Revalidation failed, keeping stale cache', { error: err.message });
     }
   },
 
-  async loadContacts(isRefresh = false) {
+  async loadContacts(options: LoadContactsOptions = {}) {
+    const { respectCooldown = true, silentOnCooldown = false } = options;
+    if (respectCooldown && !this.canRefreshNow()) {
+      if (!silentOnCooldown) {
+        const waitSeconds = this.getRefreshWaitSeconds();
+        showToast(waitSeconds > 0 ? `请${waitSeconds}秒后再试` : '暂不可刷新');
+      }
+      return;
+    }
+
+    const cacheKey = this.getCacheKey();
     if (this.data.loading) {
       return;
     }
@@ -222,34 +228,27 @@ Page<SquarePageData, SquarePageCustom>({
     this.setData({ loading: true });
 
     try {
-      const params: Record<string, number> = {
-        page: isRefresh ? 1 : this.data.page,
-        page_size: this.data.pageSize,
-      };
-
+      const params: Record<string, number> = {};
       if (this.data.currentCategory !== null) {
         params.category = this.data.currentCategory;
       }
 
       const result = await get<SquareApiResponse>('/discovery/square', params);
       const contacts = this.processContacts(result.items);
-      const hasMore = result.pagination?.has_more ?? false;
+      const nextRefreshAvailableAt = parseRefreshTimestamp(result.refresh_available_at);
 
       this.setData({
-        contacts: isRefresh ? contacts : [...this.data.contacts, ...contacts],
-        page: isRefresh ? 2 : this.data.page + 1,
-        hasMore,
+        contacts,
         loading: false,
+        nextRefreshAvailableAt,
       });
 
-      if (isRefresh) {
-        const cacheEntry: CacheEntry = {
-          contacts,
-          hasMore,
-          timestamp: Date.now(),
-        };
-        wx.setStorageSync(this.getCacheKey(), cacheEntry);
-      }
+      const cacheEntry: CacheEntry = {
+        contacts,
+        nextRefreshAvailableAt,
+        timestamp: Date.now(),
+      };
+      wx.setStorageSync(cacheKey, cacheEntry);
 
       logger.info('Contacts loaded', {
         category: this.data.currentCategory,
@@ -269,11 +268,27 @@ Page<SquarePageData, SquarePageCustom>({
       }
 
       wx.removeStorageSync(this.getCacheKey());
-      if (!err.message.includes('频繁')) {
-        showToast(err.message || '加载失败');
-      }
+      showToast(err.message || '加载失败');
       logger.error('Load failed', { error: err.message });
     }
+  },
+
+  canRefreshNow() {
+    const { nextRefreshAvailableAt } = this.data;
+    if (!nextRefreshAvailableAt) {
+      return true;
+    }
+    return Date.now() >= nextRefreshAvailableAt;
+  },
+
+  getRefreshWaitSeconds() {
+    const { nextRefreshAvailableAt } = this.data;
+    if (!nextRefreshAvailableAt) {
+      return 0;
+    }
+    const diffMs = nextRefreshAvailableAt - Date.now();
+    const seconds = Math.ceil(diffMs / 1000);
+    return seconds > 0 ? seconds : 0;
   },
 
   processContacts(items) {
@@ -298,32 +313,15 @@ Page<SquarePageData, SquarePageCustom>({
     this.setData({
       currentCategory: category,
       contacts: [],
-      page: 1,
-      hasMore: true,
+      nextRefreshAvailableAt: null,
     });
 
     this.loadContactsWithCache();
   },
 
   onPullDownRefresh() {
-    this.setData({
-      contacts: [],
-      page: 1,
-      hasMore: true,
-    });
-
-    void this.loadContacts(true);
-    void wx.stopPullDownRefresh();
-  },
-
-  onReachBottom() {
-    if (!this.data.hasMore || this.data.loading || this.data.loadingMore) {
-      return;
-    }
-
-    this.setData({ loadingMore: true });
     void this.loadContacts().finally(() => {
-      this.setData({ loadingMore: false });
+      void wx.stopPullDownRefresh();
     });
   },
 
@@ -361,14 +359,12 @@ Page<SquarePageData, SquarePageCustom>({
       const updatedContacts = originalContacts.filter((contact) => contact.qiao_id !== qiaoId);
       this.setData({
         contacts: updatedContacts,
-        page: 1,
-        hasMore: true,
       });
 
       const cacheKey = this.getCacheKey();
       wx.removeStorageSync(cacheKey);
 
-      void this.loadContacts(true).catch((error) => {
+      void this.loadContacts({ silentOnCooldown: true }).catch((error) => {
         const err = normalizeError(error);
         logger.warn('Square page refresh failed after add contact', { error: err.message });
       });

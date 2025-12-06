@@ -54,10 +54,10 @@ All adapters must work with this standard business message object:
   message_type: number,     // Message type (1=TEXT, 2=TYPING_START, etc.)
   supports_typing: boolean, // Whether supports typing indicator
   sent_time: number,        // Sent timestamp (milliseconds)
-  
+
   // Optional fields (managed by MessageService)
   status: number,           // Message status (1=SENDING, 2=SENT, 3=FAILED, 4=RECEIVED)
-  
+
   // Optional fields (added by adapter)
   lc_msg_id: string,        // LeanCloud message ID (adapter-specific)
   lc_timestamp: number      // LeanCloud timestamp (adapter-specific)
@@ -211,14 +211,14 @@ class LCAdapter {
       // ... other fields
     }
   }
-  
+
   async sendMessage(messageData, imConvId) {
     // Convert business object to LeanCloud format
     const lcMessage = new BusinessMessage(messageData);
-    
+
     // Send via LeanCloud
     const sent = await conversation.send(lcMessage);
-    
+
     // Return business object with LeanCloud-specific fields
     return {
       ...messageData,
@@ -226,7 +226,7 @@ class LCAdapter {
       lc_timestamp: sent.timestamp
     };
   }
-  
+
   handleMessage(lcMessage) {
     // Convert LeanCloud message to business object
     const businessData = {
@@ -236,7 +236,7 @@ class LCAdapter {
       // ... extract all business fields
       status: MESSAGE_STATUS.RECEIVED
     };
-    
+
     // Trigger callback with business object
     this.triggerMessageCallbacks(businessData);
   }
@@ -254,24 +254,24 @@ class WebSocketAdapter {
       room: roomId,
       data: messageData
     };
-    
+
     // Send via WebSocket
     this.ws.send(JSON.stringify(wsMessage));
-    
+
     // Return business object
     return messageData;
   }
-  
+
   handleMessage(wsMessage) {
     // Parse WebSocket message
     const data = JSON.parse(wsMessage);
-    
+
     // Extract business object
     const businessData = {
       ...data.data,
       status: MESSAGE_STATUS.RECEIVED
     };
-    
+
     // Trigger callback with business object
     this.triggerMessageCallbacks(businessData);
   }
@@ -296,4 +296,3 @@ class WebSocketAdapter {
 - ✅ Service-specific classes (like BusinessMessage) are internal to adapter
 - ✅ Replacing service only requires implementing new adapter
 - ✅ Application code remains unchanged when switching services
-

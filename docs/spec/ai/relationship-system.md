@@ -16,7 +16,7 @@
 
 ### Style
 
-关系风格，定义角色的关系演进模式。
+关系风格，定义关系演进模式。
 
 **职责**：
 
@@ -66,9 +66,9 @@
 
 ### 触发时机
 
-当角色首次需要 relationship scores 时自动初始化。
+当实例首次需要 relationship scores 时自动初始化。
 
-调用位置：get_relationship_scores 函数发现角色没有 scores 时
+调用位置：get_relationship_scores 函数发现实例没有 scores 时
 
 实现位置：backend/app/services/ai/relationship.py
 

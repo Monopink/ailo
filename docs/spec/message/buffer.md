@@ -282,7 +282,7 @@ WHERE id = $buffer_id AND aggregate_state = 2;
 
 1. Buffer 标记为 COMPLETE 后，调用 process_llm_response 处理 LLM 响应中的所有操作：
    - attack_detected：标记攻击消息
-   - should_block：阻断角色
+   - should_block：拉黑用户
    - memory_operations：更新记忆
    - score：更新关系分数
    - **消息发送**：通过 send_ai_messages_with_typing 异步发送消息

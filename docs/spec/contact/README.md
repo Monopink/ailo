@@ -51,7 +51,7 @@
 - contacts - 联系人关系表 ([data-dict/contact.md](../../data-dict/contact.md))
 - contact_requests - 联系人请求表 ([data-dict/contact.md](../../data-dict/contact.md))
 - square_type_entries - Square 曝光配置 ([data-dict/discovery.md](../../data-dict/discovery.md))
-- ai_personas - AI 角色定义 ([data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md))
+- ai_personas - AI 人设定义 ([data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md))
 - ai_templates - AI 模板库 ([data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md))
 - ai_instances - AI 实例 ([data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md))
 

@@ -9,7 +9,7 @@ Square 曝光表，决定哪些 `type_id` 被上架到 Square 以及采用何种
 ```txt
 id -- 自增ID
 square_category -- Square 分类枚举：backend/app/enums/common.py
-type_id -- 关联 ai_types.id，代表被曝光的角色类型
+type_id -- 关联 ai_types.id，代表被曝光的type
 exposure_strategy -- 曝光策略枚举：common.py
 status -- common.py（inactive 时该 type_id 不出现在 Square）
 created_at

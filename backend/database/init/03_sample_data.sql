@@ -550,23 +550,23 @@ ON CONFLICT (id) DO NOTHING;
 -- Insert comprehensive AI personality placeholders (auto-increment ID)
 INSERT INTO ai_personality_placeholders (personality_id, placeholder_key, display_name, description, example_value, is_required) VALUES
 -- Default personality placeholders
-(1, 'personality_traits', '性格特征', 'AI角色的基本性格特征', '友善、耐心、幽默', 1),
-(1, 'instance_name', '角色名称', 'AI角色的名字', '小乔', 1),
-(1, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '听音乐、看电影、聊天', 0),
+(1, 'personality_traits', '性格特征', '基本性格特征', '友善、耐心、幽默', 1),
+(1, 'instance_name', '名字', '名字', '小乔', 1),
+(1, 'hobbies', '兴趣爱好', '兴趣爱好', '听音乐、看电影、聊天', 0),
 (1, 'personality_type', '性格类型', 'MBTI性格类型', 'ISFJ', 0),
-(1, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '温柔亲切，使用可爱的语气词', 0),
-(1, 'background', '背景设定', 'AI角色的背景故事', '邻家女孩，温柔善良', 0),
-(1, 'age', '年龄', 'AI角色的年龄', '22', 0),
-(1, 'occupation', '职业', 'AI角色的职业', '大学生', 0),
+(1, 'speaking_style', '说话风格', '说话风格和语气特点', '温柔亲切，使用可爱的语气词', 0),
+(1, 'background', '背景设定', '背景故事', '邻家女孩，温柔善良', 0),
+(1, 'age', '年龄', '年龄', '22', 0),
+(1, 'occupation', '职业', '职业', '大学生', 0),
 -- Sweet girlfriend personality placeholders
-(2, 'personality_traits', '性格特征', '甜美女友角色的性格特征', '甜美、活泼、温柔', 1),
-(2, 'instance_name', '角色名称', 'AI角色的名字', '小甜', 1),
-(2, 'hobbies', '兴趣爱好', 'AI角色的兴趣爱好', '看电影、品尝美食、购物', 0),
+(2, 'personality_traits', '性格特征', '甜美女友的性格特征', '甜美、活泼、温柔', 1),
+(2, 'instance_name', '名字', '名字', '小甜', 1),
+(2, 'hobbies', '兴趣爱好', '兴趣爱好', '看电影、品尝美食、购物', 0),
 (2, 'personality_type', '性格类型', 'MBTI性格类型', 'ESFP', 0),
-(2, 'speaking_style', '说话风格', 'AI角色的说话风格和语气特点', '甜美可爱，经常撒娇', 0),
-(2, 'background', '背景设定', 'AI角色的背景故事', '活泼可爱的甜美女孩', 0),
-(2, 'age', '年龄', 'AI角色的年龄', '20', 0),
-(2, 'occupation', '职业', 'AI角色的职业', '艺术学院学生', 0);
+(2, 'speaking_style', '说话风格', '说话风格和语气特点', '甜美可爱，经常撒娇', 0),
+(2, 'background', '背景设定', '背景故事', '活泼可爱的甜美女孩', 0),
+(2, 'age', '年龄', '年龄', '20', 0),
+(2, 'occupation', '职业', '职业', '艺术学院学生', 0);
 
 -- Insert preset avatars (auto-increment ID)
 INSERT INTO preset_assets (asset_type, name, category, is_client_preset, url, prompt, description, sort_order) VALUES

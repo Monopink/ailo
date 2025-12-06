@@ -1,20 +1,20 @@
 # AI 对话系统
 
-AI 对话系统负责 AI 角色的生命周期管理、关系演进、对话生成和消息发送。
+AI 对话系统负责 AI 实例的生命周期管理、关系演进、对话生成和消息发送。
 
 ## 核心概念
 
-- **AI Persona** - AI 角色原型，定义基础人设和 qiao_id
-- **AI Template** - AI 实例模板，定义 LLM 配置和 personality
+- **AI Persona** - 定义基础人设和 qiao_id
+- **AI Template** - 定义 LLM 配置和 personality
 - **AI Instance** - 用户的 AI 联系人实例，继承 persona 的 qiao_id
 - **Relationship** - 关系等级，影响 AI 行为和响应速度
 - **Dimension** - 关系维度，多维度分数决定关系等级
 
 ## 文档索引
 
-**角色管理**
+**实例管理**
 
-- [character-lifecycle.md](character-lifecycle.md) - 角色创建、实例化、状态管理
+- [instance-lifecycle.md](instance-lifecycle.md) - 实例化、状态管理
 
 **关系系统**
 
@@ -36,7 +36,7 @@ AI 对话系统负责 AI 角色的生命周期管理、关系演进、对话生�
 
 用户操作：
 
-- 用户添加 AI 角色 → [character-lifecycle.md](character-lifecycle.md#用户添加流程)
+- 用户添加 AI  → [instance-lifecycle.md](instance-lifecycle.md#用户添加流程)
 - 用户发送消息 → [conversation-flow.md](conversation-flow.md#消息接收)
 
 系统处理：

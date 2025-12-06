@@ -365,7 +365,7 @@ class ValidationService:
 
         if any(user_type != UserType.VIRTUAL for user_type in rows):
             raise ValidationError(
-                "AI 角色存在真实用户联系人, 无法进入测试模式",
+                "AI Instance 存在真实用户联系人, 无法进入测试模式",
                 error_code="NON_VIRTUAL_CONTACT_EXISTS",
                 suggestions=[
                     "删除所有非 virtual 联系人后再重试",

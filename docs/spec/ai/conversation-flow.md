@@ -159,7 +159,7 @@ LeanCloud Webhook 接收
 
 1. 获取 personality.prompt 模板
 2. 替换系统占位符
-3. 替换角色占位符
+3. 替换实例占位符
 4. 查询对话历史（ai_conversation_items）
 5. 构建 context
 6. 合并为完整 messages 数组
@@ -196,7 +196,7 @@ LeanCloud Webhook 接收
 **步骤**：
 
 1. 处理 attack_detected（标记攻击消息）
-2. 处理 should_block（阻断角色）
+2. 处理 should_block（屏蔽用户）
 3. 处理 memory_operations（更新记忆）
 4. 处理 score（更新关系分数）
 5. 标记 buffer 为 COMPLETE
@@ -442,19 +442,3 @@ LeanCloud Webhook 接收
 - 关系变更频率
 - 攻击检测率
 - 中断发生率
-
-## 相关文档
-
-**基础设施**：
-
-- [../message/buffer.md](../message/buffer.md) - 消息缓冲机制
-- [../message/context.md](../message/context.md) - 上下文管理
-- [../message/leancloud.md](../message/leancloud.md) - LeanCloud 集成
-
-**业务逻辑**：
-
-- [character-lifecycle.md](character-lifecycle.md) - 角色生命周期
-- [relationship-system.md](relationship-system.md) - 关系系统
-- [prompt-building.md](prompt-building.md) - Prompt 构建
-- [llm-interaction.md](llm-interaction.md) - LLM 交互
-- [message-sending.md](message-sending.md) - 消息发送

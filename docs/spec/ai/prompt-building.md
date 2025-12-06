@@ -23,17 +23,17 @@
 
 ### Prompt Variables
 
-角色特定的占位符变量。
+实例特定的占位符变量。
 
 **存储位置**：ai_instances.prompt_variables（JSON 对象）
 
-**用途**：为 personality 模板提供角色特定的值
+**用途**：为 personality 模板提供实例特定的值
 
 ### System Placeholders
 
-系统预设的占位符，优先级高于角色变量。
+系统预设的占位符，优先级高于实例变量。
 
-**冲突处理**：如果角色变量与系统占位符同名，系统占位符优先
+**冲突处理**：如果实例变量与系统占位符同名，系统占位符优先
 
 ## Prompt 构建流程
 
@@ -44,7 +44,7 @@
   ↓
 替换系统占位符
   ↓
-替换角色占位符
+替换实例占位符
   ↓
 检测未知占位符
   ↓
@@ -101,7 +101,7 @@
 **{{memory}}**
 
 - 来源：ai_instances.memory
-- 内容：角色的记忆内容
+- 内容：实例的记忆内容
 - 如果为 NULL：空字符串
 
 **{{pending_messages}}**
@@ -112,7 +112,7 @@
 - 用途：提示 LLM 需要优先处理这些文本
 - 详见：[message-sending.md](message-sending.md#中断处理)
 
-### 步骤 3：替换角色占位符
+### 步骤 3：替换实例占位符
 
 输入：ai_instances.prompt_variables（JSON 对象）
 
@@ -164,7 +164,7 @@ messages = [
 ### 查询条件
 
 - user_qiao_id = 当前用户
-- instance_qiao_id = 当前角色
+- instance_qiao_id = 当前实例
 - is_excluded_from_context = false（排除攻击消息）
 - 按 created_at 排序
 - 限制数量（默认最近 20 条）
@@ -284,7 +284,7 @@ LLM 输出 attack_detected = true 时触发
 优先级从高到低：
 
 1. 系统占位符（固定逻辑）
-2. 角色占位符（ai_instances.prompt_variables）
+2. 实例占位符（ai_instances.prompt_variables）
 3. 未知占位符（自动清空）
 
 ## 错误处理

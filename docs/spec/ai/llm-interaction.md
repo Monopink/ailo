@@ -276,7 +276,7 @@ score 对象的字段必须与 ai_style_dimensions 一致
 如果为 true：
 
 - 更新 ai_instances.status = 2 (blocked)
-- 用户无法再给该角色发消息
+- 实例不再收到用户的消息
 
 **3. memory_operations**
 

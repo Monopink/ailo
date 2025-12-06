@@ -1,6 +1,6 @@
 # AI实例化业务
 
-管理AI角色的创建、分配和库存，包括类型、设定、模板和实例。
+管理AI实例的创建、分配和库存，包括类型、设定、模板和实例。
 
 ## ai_types
 
@@ -16,7 +16,7 @@ updated_at
 
 ## ai_personas
 
-AI设定表，管理角色的唯一qiao_id（类似商品SKU）。
+AI设定表，管理实例的唯一qiao_id（类似商品SKU）。
 
 ```txt
 id -- Snowflake ID
@@ -43,7 +43,7 @@ prompt_variables -- 占位符覆盖值，JSON格式
 request_params -- LLM请求参数覆盖配置，JSONB格式，用于覆盖默认LLM设置
 llm_config_id -- 软引用到 llm_configs.id，NULL 表示实例化时走系统默认配置
 timezone -- 默认 IANA 时区标识（如 Asia/Shanghai），用于实例化拷贝
-typing_speed_wpm -- 模板层的打字速度（词/分钟，整数，必填），角色创建时拷贝，运行阶段若遇到非法值再退回 35 WPM
+typing_speed_wpm -- 模板层的打字速度（词/分钟，整数，必填），实例创建时拷贝，运行阶段若遇到非法值再退回 35 WPM
 position_mapping_config -- JSON格式，存储各维度的mapping配置,示例：
 {
   "foo": {"algorithm": 1, "params": {}},
@@ -59,7 +59,7 @@ position_mapping_config -- JSON格式，存储各维度的mapping配置,示例�
     }
   }
 }
-is_reusable -- 是否可以复用：1=reusable（可创建多个角色）, 0=single_use（仅创建一次）
+is_reusable -- 是否可以复用：1=reusable（可创建多个实例）, 0=single_use（仅创建一次）
 priority -- 优先级，数字越小优先级越高（不可复用模板优先）
 status -- 状态：1=active, 2=inactive, 3=used（仅单次模板会被置为已使用）
 created_at

@@ -1,0 +1,1 @@
+<text class="gender-badge gender-badge--{{gender}}">{{genderSymbol}}</text>

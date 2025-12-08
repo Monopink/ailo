@@ -5,6 +5,7 @@ import { APP_CONFIG } from '../../utils/config';
 import logger from '../../utils/logger';
 import { formatRegion } from '../../utils/format';
 import { getStorage, removeStorage, type StoredAuthUser } from '../../utils/storage';
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 
 const VERIFIED_PHONE_TOKEN_KEY = 'verified_phone_token';
 const VERIFIED_PHONE_KEY = 'verified_phone';
@@ -52,6 +53,7 @@ interface PresetAvatar {
 }
 
 interface SetupPageData {
+  pageLayoutData: PageLayoutData;
   presetAvatars: PresetAvatar[];
   selectedAvatar: string;
   nickname: string;
@@ -91,6 +93,7 @@ interface SetupPageCustom {
   onRegionChange(event: RegionPickerChangeEvent): void;
   handleSubmit(): Promise<void>;
   handleCancel(): void;
+  onRetry(): void;
 }
 
 interface NormalizedRegion {
@@ -161,6 +164,9 @@ const clearVerifiedPhone = async (): Promise<void> => {
 
 Page<SetupPageData, SetupPageCustom>({
   data: {
+    pageLayoutData: createPageLayoutData({
+      hasFooter: true,
+    }),
     presetAvatars: [],
     selectedAvatar: '',
     nickname: '',
@@ -179,6 +185,7 @@ Page<SetupPageData, SetupPageCustom>({
 
   async onLoad() {
     logger.info('Registration profile setup page loaded');
+    this.setData({ 'pageLayoutData.isLoading': true });
 
     let verifiedPhoneToken: string | null = null;
     let phone: string | null = null;
@@ -194,9 +201,9 @@ Page<SetupPageData, SetupPageCustom>({
 
     if (!verifiedPhoneToken || !phone) {
       logger.error('No verified phone token found, redirect to login');
-      void wx.showToast({
-        title: '请先验证手机号',
-        icon: 'none',
+      this.setData({
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '请先验证手机号',
       });
       void wx.redirectTo({ url: '/pages/login/login' });
       return;
@@ -208,6 +215,14 @@ Page<SetupPageData, SetupPageCustom>({
     });
 
     await this.loadPresetAvatars();
+    this.setData({ 'pageLayoutData.isLoading': false });
+  },
+
+  onRetry() {
+    this.setData({
+      'pageLayoutData.hasError': false,
+    });
+    void this.loadPresetAvatars();
   },
 
   async loadPresetAvatars() {
@@ -217,10 +232,19 @@ Page<SetupPageData, SetupPageCustom>({
         id: String(asset.id),
         url: getAvatarUrl(asset.url),
       }));
-      this.setData({ presetAvatars: avatars });
+      this.setData({
+        presetAvatars: avatars,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': false,
+      });
     } catch (error) {
       logger.warn('Failed to load preset avatars, using default avatar', { error });
-      this.setData({ presetAvatars: [] });
+      this.setData({
+        presetAvatars: [],
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '头像加载失败，稍后再试',
+      });
     }
   },
 
@@ -270,17 +294,17 @@ Page<SetupPageData, SetupPageCustom>({
     const trimmedNickname = this.data.nickname.trim();
 
     if (!trimmedNickname || trimmedNickname.length < MIN_NICKNAME_LENGTH) {
-      void wx.showToast({
-        title: '请输入昵称(至少2个字符)',
-        icon: 'none',
+      this.setData({
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '请输入昵称(至少2个字符)',
       });
       return;
     }
 
     if (trimmedNickname.length > this.data.maxNicknameLength) {
-      void wx.showToast({
-        title: `昵称不能超过${this.data.maxNicknameLength}个字符`,
-        icon: 'none',
+      this.setData({
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': `昵称不能超过${this.data.maxNicknameLength}个字符`,
       });
       return;
     }
@@ -306,10 +330,10 @@ Page<SetupPageData, SetupPageCustom>({
       });
     } catch (error) {
       logger.error('Registration failed', { error });
-      this.setData({ loading: false });
-      void wx.showToast({
-        title: (error as Error).message || '注册失败',
-        icon: 'none',
+      this.setData({
+        loading: false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': (error as Error).message || '注册失败',
       });
     }
   },

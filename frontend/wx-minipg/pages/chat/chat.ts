@@ -8,6 +8,7 @@ import { getAvatarUrl } from '../../utils/avatar';
 import { MESSAGE_CONFIG } from '../../utils/config';
 import { getUserFriendlyError } from '../../utils/error-messages';
 import { getLogger } from '../../utils/logger';
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { MESSAGE_STATUS, MESSAGE_TYPE, type MessageType } from '../../utils/message/constants';
 import {
   addMessage,
@@ -24,280 +25,6 @@ import typingManager from '../../utils/typing-manager';
 import conversationStore from '../../utils/message/conversation-store';
 
 const logger = getLogger('Chat');
-
-// Standard emoji list
-const EMOJI_LIST = [
-  '😀',
-  '😃',
-  '😄',
-  '😁',
-  '😆',
-  '😅',
-  '🤣',
-  '😂',
-  '🙂',
-  '🙃',
-  '😉',
-  '😊',
-  '😇',
-  '🥰',
-  '😍',
-  '🤩',
-  '😘',
-  '😗',
-  '😚',
-  '😙',
-  '😋',
-  '😛',
-  '😜',
-  '🤪',
-  '😝',
-  '🤑',
-  '🤗',
-  '🤭',
-  '🤫',
-  '🤔',
-  '🤐',
-  '🤨',
-  '😐',
-  '😑',
-  '😶',
-  '😏',
-  '😒',
-  '🙄',
-  '😬',
-  '🤥',
-  '😌',
-  '😔',
-  '😪',
-  '🤤',
-  '😴',
-  '😷',
-  '🤒',
-  '🤕',
-  '🤢',
-  '🤮',
-  '🤧',
-  '🥵',
-  '🥶',
-  '🥴',
-  '😵',
-  '🤯',
-  '🤠',
-  '🥳',
-  '😎',
-  '🤓',
-  '🧐',
-  '😕',
-  '😟',
-  '🙁',
-  '☹️',
-  '😮',
-  '😯',
-  '😲',
-  '😳',
-  '🥺',
-  '😦',
-  '😧',
-  '😨',
-  '😰',
-  '😥',
-  '😢',
-  '😭',
-  '😱',
-  '😖',
-  '😣',
-  '😞',
-  '😓',
-  '😩',
-  '😫',
-  '🥱',
-  '😤',
-  '😡',
-  '😠',
-  '🤬',
-  '😈',
-  '👿',
-  '💀',
-  '☠️',
-  '💩',
-  '🤡',
-  '👹',
-  '👺',
-  '👻',
-  '👽',
-  '👾',
-  '🤖',
-  '😺',
-  '😸',
-  '😹',
-  '😻',
-  '😼',
-  '😽',
-  '🙀',
-  '😿',
-  '😾',
-  '👋',
-  '🤚',
-  '🖐️',
-  '✋',
-  '🖖',
-  '👌',
-  '🤏',
-  '✌️',
-  '🤞',
-  '🤟',
-  '🤘',
-  '🤙',
-  '👈',
-  '👉',
-  '👆',
-  '🖕',
-  '👇',
-  '☝️',
-  '👍',
-  '👎',
-  '✊',
-  '👊',
-  '🤛',
-  '🤜',
-  '👏',
-  '🙌',
-  '👐',
-  '🤲',
-  '🤝',
-  '🙏',
-  '✍️',
-  '💅',
-  '🤳',
-  '💪',
-  '🦾',
-  '🦿',
-  '🦵',
-  '🦶',
-  '👂',
-  '🦻',
-  '👃',
-  '🧠',
-  '🦷',
-  '🦴',
-  '👀',
-  '👁️',
-  '👅',
-  '👄',
-  '💋',
-  '🩸',
-  '❤️',
-  '🧡',
-  '💛',
-  '💚',
-  '💙',
-  '💜',
-  '🖤',
-  '🤍',
-  '🤎',
-  '💔',
-  '❣️',
-  '💕',
-  '💞',
-  '💓',
-  '💗',
-  '💖',
-  '💘',
-  '💝',
-  '💟',
-  '☮️',
-  '✝️',
-  '☪️',
-  '🕉️',
-  '☸️',
-  '✡️',
-  '🔯',
-  '🕎',
-  '☯️',
-  '☦️',
-  '🛐',
-  '⛎',
-  '♈',
-  '♉',
-  '♊',
-  '♋',
-  '♌',
-  '♍',
-  '♎',
-  '♏',
-  '♐',
-  '♑',
-  '♒',
-  '♓',
-  '🆔',
-  '⚛️',
-  '🉑',
-  '☢️',
-  '☣️',
-  '📴',
-  '📳',
-  '🈶',
-  '🈚',
-  '🈸',
-  '🈺',
-  '🈷️',
-  '✴️',
-  '🆚',
-  '💮',
-  '🉐',
-  '㊙️',
-  '㊗️',
-  '🈴',
-  '🈵',
-  '🈹',
-  '🈲',
-  '🅰️',
-  '🅱️',
-  '🆎',
-  '🆑',
-  '🅾️',
-  '🆘',
-  '❌',
-  '⭕',
-  '🛑',
-  '⛔',
-  '📛',
-  '🚫',
-  '💯',
-  '💢',
-  '♨️',
-  '🚷',
-  '🚯',
-  '🚳',
-  '🚱',
-  '🔞',
-  '📵',
-  '🚭',
-  '❗',
-  '❕',
-  '❓',
-  '❔',
-  '‼️',
-  '⁉️',
-  '🔅',
-  '🔆',
-  '〽️',
-  '⚠️',
-  '🚸',
-  '🔱',
-  '⚜️',
-  '🔰',
-  '♻️',
-  '✅',
-  '🈯',
-  '💹',
-  '❇️',
-  '✳️',
-  '❎',
-  '🌐',
-  '💠',
-];
 
 type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 
@@ -323,22 +50,22 @@ interface ConversationResponse {
 }
 
 interface ChatPageData {
+  pageLayoutData: PageLayoutData;
   convId: string;
   contactName: string;
+  navbarTitle: string;
   contactAvatar: string;
   contactQiaoId: string;
   imConvId: string;
   userAvatar: string;
   messages: ChatMessage[];
-  scrollToView: string;
   inputText: string;
   inputPlaceholder: string;
   inputFocused: boolean;
   maxMessageLength: number;
   prevInputValue: string;
-  showEmojiPicker: boolean;
-  emojiList: readonly string[];
   isContactTyping: boolean;
+  navbarHeight: number;
 }
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
@@ -348,6 +75,7 @@ interface ChatPageCustom {
   unsubscribeConversationStore: (() => void) | null;
   _sendRetried: boolean;
   _retryRefreshed: boolean;
+  updateMessagesState(messages: ChatMessage[], extra?: Record<string, unknown>): void;
   showErrorMessage(error: unknown): Promise<void>;
   refreshContactInfo(convId: string): Promise<ConversationResponse>;
   refreshConversationChannel(): Promise<string>;
@@ -362,9 +90,9 @@ interface ChatPageCustom {
   onInputBlur(): void;
   onCompositionStart(): void;
   onCompositionEnd(event: InputEvent): void;
-  onToggleEmoji(): void;
-  onSelectEmoji(event: WechatMiniprogram.TouchEvent): void;
   onSendMessage(): Promise<void>;
+  onNavbarReady(event: WechatMiniprogram.CustomEvent<{ totalHeight: number }>): void;
+  onNavbarTitleClick(): void;
   onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
   onMessageReceived(message: Says.MessagePayload): Promise<void>;
   onTypingReceived(payload: Says.TypingEvent): void;
@@ -413,28 +141,47 @@ const ensureMessageService = (): Says.MessageService => {
 
 Page<ChatPageData, ChatPageCustom>({
   data: {
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂未开始聊天',
+      hasFooter: true,
+    }),
     convId: '',
     contactName: '',
+    navbarTitle: '',
     contactAvatar: '',
     contactQiaoId: '',
     imConvId: '',
     userAvatar: '',
     messages: [] as ChatMessage[],
-    scrollToView: '',
     inputText: '',
     inputPlaceholder: '请输入消息',
     inputFocused: false,
     maxMessageLength: MESSAGE_CONFIG.maxLength ?? 1000,
     prevInputValue: '',
-    showEmojiPicker: false,
-    emojiList: EMOJI_LIST,
     isContactTyping: false,
+    navbarHeight: 0,
   },
 
   typingTimer: null,
   unsubscribeConversationStore: null,
   _sendRetried: false,
   _retryRefreshed: false,
+
+  updateMessagesState(
+    messages,
+    options: { scrollIntoView?: string; extraData?: Record<string, unknown> } = {}
+  ) {
+    const payload: Record<string, unknown> = {
+      messages,
+      'pageLayoutData.isEmpty': false,
+      'pageLayoutData.contentScrollIntoView': options.scrollIntoView ?? '',
+    };
+    if (options.extraData) {
+      Object.assign(payload, options.extraData);
+    }
+    this.setData(payload);
+  },
 
   async showErrorMessage(error: unknown) {
     const messageContent = getUserFriendlyError(error as Error | string | null | undefined);
@@ -451,10 +198,29 @@ Page<ChatPageData, ChatPageCustom>({
 
     const updatedMessages: StoredMessages = [...this.data.messages, errorMsg];
     const processedMessages = this.processMessages(updatedMessages);
-    this.setData({
-      messages: processedMessages,
-      scrollToView: `msg-${errorMsg.msg_id}`,
+    this.updateMessagesState(processedMessages, {
+      scrollIntoView: `msg-${errorMsg.msg_id}`,
     });
+  },
+
+  /**
+   * Handle navbar ready event - set navbar height for content padding
+   */
+  onNavbarReady(event: WechatMiniprogram.CustomEvent<{ totalHeight: number }>) {
+    const totalHeight = event.detail.totalHeight;
+    this.setData({
+      navbarHeight: totalHeight,
+    });
+  },
+
+  /**
+   * Handle navbar title click - navigate to contact info page
+   */
+  onNavbarTitleClick() {
+    const convId = this.data.convId;
+    if (convId) {
+      void wx.navigateTo({ url: `/pages/contact-info/contact-info?id=${convId}` });
+    }
   },
 
   /**
@@ -469,12 +235,10 @@ Page<ChatPageData, ChatPageCustom>({
 
     const profile = conversation.contact_profile ?? {};
     const contactName = profile.nickname || this.data.contactName || '';
-    if (contactName) {
-      void wx.setNavigationBarTitle({ title: contactName });
-    }
 
     this.setData({
       contactName,
+      navbarTitle: contactName,
       contactAvatar: getAvatarUrl(profile.avatar_url || this.data.contactAvatar),
       contactQiaoId: conversation.contact_qiao_id,
       imConvId: conversation.im_conv_id,
@@ -548,6 +312,11 @@ Page<ChatPageData, ChatPageCustom>({
   async onLoad(options: Record<string, string | undefined>) {
     const convId = options?.id;
     if (!convId) {
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '参数错误',
+      });
       showToast('参数错误');
       void wx.navigateBack();
       return;
@@ -570,14 +339,16 @@ Page<ChatPageData, ChatPageCustom>({
       const contact = await getContactByConvId(convId);
       if (!contact) {
         logger.error('Contact not found', { convId });
+        this.setData({
+          'pageLayoutData.isLoading': false,
+          'pageLayoutData.hasError': true,
+          'pageLayoutData.errorMessage': '联系人不存在',
+        });
         showToast('联系人不存在');
         return;
       }
 
       const contactName = contact.alias || contact.nickname || '';
-      if (contactName) {
-        void wx.setNavigationBarTitle({ title: contactName });
-      }
 
       const contactWithIm = contact as StoredContact & { im_conv_id?: string };
       const conversationState = await conversationStore.getState();
@@ -585,6 +356,7 @@ Page<ChatPageData, ChatPageCustom>({
 
       this.setData({
         contactName,
+        navbarTitle: contactName,
         contactAvatar: getAvatarUrl(contact.avatar_url ?? ''),
         contactQiaoId: contact.contact_qiao_id ?? '',
         imConvId: currentImConvId,
@@ -595,6 +367,11 @@ Page<ChatPageData, ChatPageCustom>({
       const err = normalizeError(error);
       logger.error('Failed to load chat page', { error: err.message });
       showToast('加载失败');
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': err.message || '加载失败',
+      });
     }
   },
 
@@ -629,17 +406,27 @@ Page<ChatPageData, ChatPageCustom>({
 
       if (processedMessages.length > 0) {
         const lastMsg = processedMessages[processedMessages.length - 1];
-        this.setData({
-          messages: processedMessages,
-          scrollToView: `msg-${lastMsg.msg_id}`,
+        this.updateMessagesState(processedMessages, {
+          scrollIntoView: `msg-${lastMsg.msg_id}`,
         });
       } else {
-        this.setData({ messages: processedMessages });
+        this.updateMessagesState(processedMessages);
       }
+
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.errorMessage': '',
+      });
     } catch (error) {
       const err = normalizeError(error);
       logger.error('Failed to load messages', { error: err.message });
       showToast('加载消息失败');
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': err.message || '加载消息失败',
+      });
     }
   },
 
@@ -767,7 +554,6 @@ Page<ChatPageData, ChatPageCustom>({
   onInputFocus() {
     this.setData({
       inputFocused: true,
-      showEmojiPicker: false,
     });
 
     // Notify typing manager
@@ -778,10 +564,7 @@ Page<ChatPageData, ChatPageCustom>({
    * Handle input blur
    */
   onInputBlur() {
-    // Delay to allow emoji selection
-    setTimeout(() => {
-      this.setData({ inputFocused: false });
-    }, 200);
+    this.setData({ inputFocused: false });
 
     // Notify typing manager
     typingManager.onInputBlur(this.data.convId);
@@ -794,44 +577,6 @@ Page<ChatPageData, ChatPageCustom>({
   onCompositionEnd(event: InputEvent) {
     const value = event?.detail?.value ?? this.data.inputText;
     typingManager.onCompositionEnd(this.data.convId, value);
-  },
-
-  /**
-   * Toggle emoji picker
-   */
-  onToggleEmoji() {
-    const show = !this.data.showEmojiPicker;
-    this.setData({
-      showEmojiPicker: show,
-      inputFocused: !show,
-    });
-  },
-
-  /**
-   * Select emoji
-   */
-  onSelectEmoji(event: WechatMiniprogram.TouchEvent) {
-    const emojiValue = getDatasetValue(event, 'emoji');
-    if (typeof emojiValue !== 'string') {
-      return;
-    }
-    const emoji = emojiValue;
-    const newText = this.data.inputText + emoji;
-
-    // Check length
-    if (newText.length > this.data.maxMessageLength) {
-      showToast(`消息长度不能超过${this.data.maxMessageLength}字`);
-      return;
-    }
-
-    const oldValue = this.data.inputText;
-    this.setData({
-      inputText: newText,
-      prevInputValue: newText,
-    });
-
-    // Notify typing manager
-    typingManager.onInputChange(this.data.convId, newText, oldValue);
   },
 
   async onRetryMessage(event: WechatMiniprogram.BaseEvent) {
@@ -870,9 +615,8 @@ Page<ChatPageData, ChatPageCustom>({
 
       const updatedMessages: StoredMessages = [...messagesWithoutOld, newMessage];
       const processedMessages = this.processMessages(updatedMessages);
-      this.setData({
-        messages: processedMessages,
-        scrollToView: `msg-${newClientMsgId}`,
+      this.updateMessagesState(processedMessages, {
+        scrollIntoView: `msg-${newClientMsgId}`,
       });
 
       await addMessage(this.data.convId, newMessage);
@@ -892,7 +636,7 @@ Page<ChatPageData, ChatPageCustom>({
           ? { ...msg, status: MESSAGE_STATUS.SENT as MessageStatus }
           : msg
       );
-      this.setData({ messages: sentMessages });
+      this.updateMessagesState(sentMessages);
 
       logger.info('Message retry successful', { old_msg_id: msgId, new_msg_id: newClientMsgId });
     } catch (error) {
@@ -941,7 +685,7 @@ Page<ChatPageData, ChatPageCustom>({
                 : msg
             );
 
-          this.setData({ messages: this.processMessages(sentMessages as StoredMessages) });
+          this.updateMessagesState(this.processMessages(sentMessages as StoredMessages));
           this._retryRefreshed = false;
           logger.info('Message retry successful after refresh', { old_msg_id: msgId });
           return;
@@ -962,7 +706,7 @@ Page<ChatPageData, ChatPageCustom>({
         return msg;
       });
 
-      this.setData({ messages: this.processMessages(failedMessages as StoredMessages) });
+      this.updateMessagesState(this.processMessages(failedMessages as StoredMessages));
       await this.showErrorMessage(err);
     }
   },
@@ -991,9 +735,8 @@ Page<ChatPageData, ChatPageCustom>({
 
       const updatedMessages: StoredMessages = [...this.data.messages, newMessage];
       const processedMessages = this.processMessages(updatedMessages);
-      this.setData({
-        messages: processedMessages,
-        scrollToView: `msg-${message.msg_id}`,
+      this.updateMessagesState(processedMessages, {
+        scrollIntoView: `msg-${message.msg_id}`,
       });
     } catch (error) {
       const err = normalizeError(error);
@@ -1026,8 +769,10 @@ Page<ChatPageData, ChatPageCustom>({
       clearTimeout(this.typingTimer);
     }
 
-    this.setData({ isContactTyping: true });
-    void wx.setNavigationBarTitle({ title: '对方正在输入...' });
+    this.setData({
+      isContactTyping: true,
+      navbarTitle: '对方正在输入...',
+    });
 
     this.typingTimer = setTimeout(() => {
       this.hideTypingIndicator();
@@ -1040,18 +785,17 @@ Page<ChatPageData, ChatPageCustom>({
       this.typingTimer = null;
     }
 
-    this.setData({ isContactTyping: false });
-
-    if (this.data.contactName) {
-      void wx.setNavigationBarTitle({ title: this.data.contactName });
-    }
+    this.setData({
+      isContactTyping: false,
+      navbarTitle: this.data.contactName,
+    });
   },
 
   updateMessageStatus(messageId: string, status: MessageStatus) {
     const messages = this.data.messages.map((msg) =>
       msg.msg_id === messageId ? { ...msg, status } : msg
     );
-    this.setData({ messages });
+    this.updateMessagesState(messages);
   },
 
   async onSendMessage() {
@@ -1103,11 +847,12 @@ Page<ChatPageData, ChatPageCustom>({
 
       const updatedMessages: StoredMessages = [...this.data.messages, optimisticMsg];
       const processedMessages = this.processMessages(updatedMessages);
-      this.setData({
-        messages: processedMessages,
-        inputText: '',
-        prevInputValue: '',
-        scrollToView: `msg-${clientMsgId}`,
+      this.updateMessagesState(processedMessages, {
+        scrollIntoView: `msg-${clientMsgId}`,
+        extraData: {
+          inputText: '',
+          prevInputValue: '',
+        },
       });
 
       await addMessage(this.data.convId, optimisticMsg);
@@ -1125,7 +870,7 @@ Page<ChatPageData, ChatPageCustom>({
       const sentMessages = this.data.messages.map((msg) =>
         msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT as MessageStatus } : msg
       );
-      this.setData({ messages: sentMessages });
+      this.updateMessagesState(sentMessages);
       logger.info('Message sent', { msg_id: clientMsgId });
     } catch (error) {
       const err = normalizeError(error);
@@ -1169,7 +914,7 @@ Page<ChatPageData, ChatPageCustom>({
               msg.msg_id === clientMsgId ? { ...msg, status: MESSAGE_STATUS.SENT } : msg
             );
 
-          this.setData({ messages: this.processMessages(sentMessages as StoredMessages) });
+          this.updateMessagesState(this.processMessages(sentMessages as StoredMessages));
           this._sendRetried = false;
           logger.info('Message sent successfully after refresh', { msg_id: clientMsgId });
           return;
@@ -1188,7 +933,7 @@ Page<ChatPageData, ChatPageCustom>({
           ? { ...msg, status: MESSAGE_STATUS.FAILED as MessageStatus }
           : msg
       );
-      this.setData({ messages: this.processMessages(failedMessages as StoredMessages) });
+      this.updateMessagesState(this.processMessages(failedMessages as StoredMessages));
       await this.showErrorMessage(err);
     }
   },

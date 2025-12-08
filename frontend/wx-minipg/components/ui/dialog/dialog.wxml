@@ -1,0 +1,18 @@
+<view wx:if="{{show}}" class="ui-dialog">
+  <view class="ui-dialog__mask" catchtap="handleMaskTap" catchtouchmove="true"></view>
+  <view class="ui-dialog__panel" catchtouchmove="true">
+    <view wx:if="{{title}}" class="ui-dialog__title">{{title}}</view>
+    <view wx:if="{{content}}" class="ui-dialog__content">{{content}}</view>
+    <slot></slot>
+    <view wx:if="{{buttons.length}}" class="ui-dialog__buttons">
+      <view
+        wx:for="{{buttons}}"
+        wx:key="index"
+        data-index="{{index}}"
+        class="ui-dialog__button ui-dialog__button--{{item.type || 'primary'}}"
+        bindtap="handleButtonTap">
+        {{item.text}}
+      </view>
+    </view>
+  </view>
+</view>

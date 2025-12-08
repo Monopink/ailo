@@ -1,0 +1,48 @@
+@import '/styles/design-tokens.wxss';
+
+.message-input {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-top: 1rpx solid var(--color-border-base);
+}
+
+.message-input__emoji,
+.message-input__extra {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-input);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+}
+
+.message-input__textarea {
+  flex: 1;
+  min-height: 72rpx;
+  max-height: 200rpx;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-input);
+  border: 1rpx solid var(--color-border-base);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-base);
+  resize: none;
+  color: var(--color-text-primary);
+}
+
+.message-input__textarea::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.message-input__counter {
+  margin: var(--space-xs) var(--padding-page);
+  text-align: right;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-quaternary);
+}

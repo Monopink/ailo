@@ -1,0 +1,78 @@
+@import '/styles/design-tokens.wxss';
+
+.phone-bind-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  padding: var(--padding-page);
+  background-color: var(--color-bg-page);
+}
+
+.phone-bind-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.phone-bind-header__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.phone-bind-header__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.phone-bind-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.phone-bind-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.phone-bind-divider__line {
+  flex: 1;
+  height: 1rpx;
+  background-color: var(--color-separator);
+}
+
+.phone-bind-divider__text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.phone-bind-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.phone-bind-form__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.phone-bind-form__sms {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;
+}
+
+.phone-bind-form__sms-input {
+  flex: 1;
+}
+
+.phone-bind-options__submit {
+  margin-top: var(--space-xl);
+}
+
+.phone-bind-captcha {
+  margin-top: var(--space-md);
+}

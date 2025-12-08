@@ -1,73 +1,75 @@
-/* Setup page - Profile setup */
-.setup-container {
-  min-height: 100vh;
-  padding: 40rpx;
-  background-color: #f5f5f5;
+@import '/styles/design-tokens.wxss';
+
+.setup-page {
+  background-color: var(--color-bg-page);
 }
 
-/* Form section */
-.form-section {
-  margin-bottom: 40rpx;
-  padding: 30rpx;
-  background-color: #fff;
-  border-radius: 16rpx;
+/* Group - iOS style */
+.setup-group {
+  background-color: var(--color-bg-secondary);
+  margin-top: var(--space-md);
+  overflow: hidden;
 }
 
-.form-section > text {
-  display: block;
-  font-size: 28rpx;
-  font-weight: bold;
-  margin-bottom: 20rpx;
-  color: #333;
+.setup-group__header {
+  padding: var(--space-md) var(--padding-page) var(--space-xs);
 }
 
-/* Avatar list */
-.avatar-list {
+.setup-group__title {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+/* Avatar selection */
+.setup-avatar__list {
+  width: 100%;
+  padding: var(--space-sm) 0;
+}
+
+.setup-avatar__items {
   display: flex;
-  gap: 20rpx;
-  white-space: nowrap;
+  gap: var(--space-md);
+  padding: 0 var(--padding-page);
 }
 
-.avatar-item {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 60rpx;
-  border: 3rpx solid transparent;
+.setup-avatar__item {
+  padding: var(--space-xs);
+  border-radius: var(--radius-lg);
+  border: var(--border-width-medium) solid transparent;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
-.avatar-item.selected {
-  border-color: #333;
+.setup-avatar__item--selected {
+  border-color: var(--color-primary);
 }
 
 /* Input fields */
-.form-section input,
-.form-section textarea {
+.setup-input {
+  min-width: 320rpx;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  text-align: right;
+}
+
+.setup-picker {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+.setup-textarea {
   width: 100%;
-  padding: 25rpx 30rpx;
-  background-color: #f5f5f5;
-  border-radius: 16rpx;
-  font-size: 28rpx;
+  min-height: 200rpx;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-base);
 }
 
-.form-section textarea {
-  min-height: 150rpx;
-}
-
-/* Picker */
-.picker {
-  padding: 25rpx 30rpx;
-  background-color: #f5f5f5;
-  border-radius: 16rpx;
-  font-size: 28rpx;
-  color: #333;
-}
-
-/* Submit button */
-button {
-  width: 100%;
-  padding: 30rpx;
-  margin-top: 40rpx;
-  background-color: #fff;
-  border-radius: 16rpx;
-  font-size: 32rpx;
+/* Footer */
+.setup-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--padding-page) calc(var(--space-md) + var(--safe-area-inset-bottom));
+  background-color: var(--color-bg-secondary);
+  border-top: 1rpx solid var(--color-separator);
 }

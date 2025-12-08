@@ -1,0 +1,81 @@
+@import '/styles/design-tokens.wxss';
+
+/* Navbar container - solid background */
+.ui-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-index-navbar);
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1rpx solid var(--color-border-light);
+}
+
+/* Status bar placeholder */
+.ui-navbar__status-bar {
+  width: 100%;
+}
+
+/* Navigation bar content */
+.ui-navbar__content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 0 var(--space-md);
+}
+
+/* Back button - no background */
+.ui-navbar__back {
+  position: absolute;
+  left: var(--space-md);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Back icon - chevron left */
+.ui-navbar__back-icon {
+  width: 20rpx;
+  height: 20rpx;
+  border-left: 3rpx solid var(--color-text-primary);
+  border-bottom: 3rpx solid var(--color-text-primary);
+  transform: rotate(45deg);
+  margin-left: 4rpx;
+}
+
+/* Title */
+.ui-navbar__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-primary);
+  text-align: center;
+  max-width: 400rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-navbar__title--clickable {
+  cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.ui-navbar__title--clickable:active {
+  opacity: 0.6;
+}
+
+/* Right slot */
+.ui-navbar__right {
+  position: absolute;
+  right: var(--space-md);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}

@@ -1,88 +1,71 @@
-/* Profile page container */
-.profile-page {
-  min-height: 100vh;
-  background-color: #f5f5f5;
+@import '/styles/design-tokens.wxss';
+
+.profile {
+  background-color: var(--color-bg-page);
 }
 
-/* Loading and error states */
-.loading-container,
-.error-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 40rpx;
-}
-
-.error-container button {
-  margin-top: 20rpx;
-}
-
-/* Profile content */
-.profile-content {
-  padding: 40rpx;
-}
-
-/* Profile header */
-.profile-header {
+/* Hero section - WeChat style horizontal layout */
+.profile__hero {
   display: flex;
   align-items: center;
-  padding: 40rpx;
-  background-color: #fff;
-  border-radius: 16rpx;
-  margin-bottom: 20rpx;
-  position: relative;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--padding-page);
+  background-color: var(--color-bg-secondary);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.avatar {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 8rpx;
-  margin-right: 30rpx;
+.profile__hero:active {
+  background-color: var(--color-bg-hover);
 }
 
-.basic-info {
-  display: flex;
-  flex-direction: column;
+.profile__hero-info {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
 }
 
-.nickname {
-  font-size: 36rpx;
-  font-weight: bold;
-  margin-bottom: 10rpx;
+.profile__hero-name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-primary);
 }
 
-.qiao-id {
-  font-size: 28rpx;
-  color: #999;
+.profile__hero-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
-.arrow {
-  font-size: 48rpx;
-  color: #ccc;
-  margin-left: 20rpx;
+.profile__hero-id {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
-/* Profile actions */
-.profile-actions {
-  margin-top: 40rpx;
-}
-
-.logout-button {
-  width: 100%;
-  height: 88rpx;
-  background-color: #fff;
-  border-radius: 16rpx;
-  font-size: 32rpx;
-  color: #ff4d4f;
+.profile__hero-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
-.logout-button::after {
-  border: none;
+.profile__hero-arrow-icon {
+  font-size: var(--font-size-xxl);
+  color: var(--color-text-quaternary);
+  line-height: 1;
+}
+
+/* Info groups - iOS style */
+.profile__group {
+  background-color: var(--color-bg-secondary);
+  margin-top: var(--space-md);
+  overflow: hidden;
+}
+
+/* Actions section - Modern inline style */
+.profile__actions {
+  margin-top: var(--space-xxl);
+  padding: 0 var(--padding-page);
 }

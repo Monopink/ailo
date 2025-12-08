@@ -8,10 +8,12 @@
     "watch": "tsc --watch",
     "lint": "eslint . --ext .ts,.js,.wxml",
     "lint:fix": "eslint . --ext .ts,.js,.wxml --fix",
+    "lint:style": "stylelint \"components/ui/**/*.wxss\" \"components/page-layout/**/*.wxss\" \"pages/index/**/*.wxss\" \"pages/chat/**/*.wxss\" app.wxss",
     "format": "prettier --write \"**/*.{ts,js,json,wxss}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,wxss}\"",
     "type-check": "tsc --noEmit",
-    "check": "npm run type-check && npm run lint",
+    "ui:audit": "node ./ui-audit.cjs",
+    "check": "npm run type-check && npm run lint && npm run lint:style && npm run ui:audit",
     "test": "npm run check",
     "prepare": "husky"
   },
@@ -26,6 +28,9 @@
     "lint-staged": "^15.2.0",
     "miniprogram-api-typings": "^3.12.2",
     "prettier": "^3.2.0",
+    "stylelint": "^16.2.1",
+    "stylelint-config-standard": "^36.0.0",
+    "stylelint-declaration-strict-value": "^1.9.2",
     "typescript": "^5.3.0"
   },
   "lint-staged": {
@@ -38,6 +43,68 @@
     ],
     "*.wxml": [
       "eslint --fix"
+    ]
+  },
+  "stylelint": {
+    "extends": [
+      "stylelint-config-standard"
+    ],
+    "ignoreFiles": [
+      "node_modules/**/*",
+      "dist/**/*"
+    ],
+    "rules": {
+      "color-no-hex": true,
+      "selector-class-pattern": [
+        "^[a-z0-9-]+(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?$",
+        {
+          "resolveNestedSelectors": true,
+          "message": "Use BEM naming (block__element--modifier)"
+        }
+      ],
+      "selector-type-no-unknown": [
+        true,
+        {
+          "ignoreTypes": [
+            "page"
+          ]
+        }
+      ],
+      "import-notation": null,
+      "unit-no-unknown": [
+        true,
+        {
+          "ignoreUnits": [
+            "rpx"
+          ]
+        }
+      ],
+      "unit-allowed-list": [
+        "rpx",
+        "%",
+        "deg",
+        "turn",
+        "s",
+        "ms",
+        "vh",
+        "vw",
+        "px"
+      ],
+      "value-keyword-case": null,
+      "font-family-name-quotes": null,
+      "rule-empty-line-before": null,
+      "property-no-vendor-prefix": true,
+      "declaration-block-no-redundant-longhand-properties": null
+    },
+    "overrides": [
+      {
+        "files": [
+          "styles/design-tokens.wxss"
+        ],
+        "rules": {
+          "color-no-hex": null
+        }
+      }
     ]
   }
 }

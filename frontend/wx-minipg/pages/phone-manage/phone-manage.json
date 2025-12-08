@@ -1,6 +1,10 @@
 {
   "navigationBarTitleText": "修改手机号",
   "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-button": "/components/ui/button/button",
+    "ui-input": "/components/ui/input/input",
+    "ui-cell": "/components/ui/cell/cell",
     "aliyun-captcha": "plugin://AliyunCaptcha/captcha"
   }
 }

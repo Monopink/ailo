@@ -1,3 +1,4 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { get } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
@@ -30,19 +31,25 @@ interface StrangerProfileResponse {
   gender?: number;
   category?: string;
   bio?: string;
-  [key: string]: unknown;
+  region?: string;
 }
 
-interface StrangerProfileView extends StrangerProfileResponse {
+interface StrangerProfileView {
+  qiaoId: string;
   avatarUrl: string;
+  displayName: string;
+  gender: number;
   genderText: string;
+  genderType: 'success' | 'danger' | 'default';
   categoryText: string;
+  regionText: string;
+  bioText: string;
 }
 
 interface StrangerInfoPageData {
   qiaoId: string;
   profile: StrangerProfileView | null;
-  loading: boolean;
+  pageLayoutData: PageLayoutData;
   isLoggedIn: boolean;
 }
 
@@ -50,6 +57,7 @@ interface StrangerInfoPageCustom {
   loadProfile(): Promise<void>;
   handleAddContact(): Promise<void>;
   sendContactRequest(message: string): Promise<void>;
+  onRetry(): void;
 }
 
 interface ApiError {
@@ -78,12 +86,27 @@ const getCategoryText = (category?: string): string => {
   return '';
 };
 
-const normalizeProfile = (profile: StrangerProfileResponse): StrangerProfileView => ({
-  ...profile,
-  avatarUrl: getAvatarUrl(profile.avatar_url ?? ''),
-  genderText: getGenderText(profile.gender),
-  categoryText: getCategoryText(profile.category),
-});
+const normalizeProfile = (profile: StrangerProfileResponse): StrangerProfileView => {
+  const displayName = profile.nickname || profile.qiao_id || '未命名用户';
+  const genderText = getGenderText(profile.gender);
+  let genderType: 'success' | 'danger' | 'default' = 'default';
+  if (profile.gender === 1) {
+    genderType = 'success';
+  } else if (profile.gender === 2) {
+    genderType = 'danger';
+  }
+  return {
+    qiaoId: profile.qiao_id,
+    avatarUrl: getAvatarUrl(profile.avatar_url ?? ''),
+    displayName,
+    gender: profile.gender ?? 0,
+    genderText,
+    genderType,
+    categoryText: getCategoryText(profile.category),
+    regionText: profile.region ?? '',
+    bioText: profile.bio ?? '',
+  };
+};
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (isApiError(error) && typeof error.data?.detail === 'string') {
@@ -103,7 +126,11 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
   data: {
     qiaoId: '',
     profile: null,
-    loading: true,
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂无用户信息',
+      hasFooter: true,
+    }),
     isLoggedIn: false,
   },
 
@@ -131,18 +158,27 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
 
   async loadProfile() {
     try {
-      this.setData({ loading: true });
+      this.setData({
+        'pageLayoutData.isLoading': true,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.errorMessage': '',
+      });
       const profile = await get<StrangerProfileResponse>(`/discovery/profile/${this.data.qiaoId}`);
 
       this.setData({
         profile: normalizeProfile(profile),
-        loading: false,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.isEmpty': false,
       });
 
       logger.info('Stranger profile loaded', { qiao_id: this.data.qiaoId });
     } catch (error) {
       logger.error('Failed to load stranger profile', { error });
-      this.setData({ loading: false });
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': getErrorMessage(error, '加载失败'),
+      });
 
       void wx.showToast({
         title: getErrorMessage(error, '加载失败'),
@@ -161,7 +197,7 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
     if (!this.data.isLoggedIn) {
       void wx.showModal({
         title: '提示',
-        content: '请先登录',
+        content: '登录后才能发送联系人申请，是否前往登录？',
         confirmText: '去登录',
         success: (res) => {
           if (res.confirm) {
@@ -209,5 +245,9 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
         icon: 'none',
       });
     }
+  },
+
+  onRetry() {
+    void this.loadProfile();
   },
 });

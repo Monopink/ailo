@@ -1,3 +1,4 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { del, get } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
@@ -36,12 +37,12 @@ type ContactRecord = StoredContact & {
   region?: string | null;
 };
 
-interface ContactInfoPageData {
+interface ContactInfoPageData extends Record<string, unknown> {
   convId: string;
   contact: ContactRecord | null;
-  loading: boolean;
   isPinned: boolean;
   isMuted: boolean;
+  pageLayoutData: PageLayoutData;
 }
 
 interface ContactInfoPageCustom {
@@ -108,9 +109,13 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
   data: {
     convId: '',
     contact: null,
-    loading: true,
     isPinned: false,
     isMuted: false,
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂无联系人资料',
+      hasFooter: true,
+    }),
   },
 
   async onLoad(options: PageQuery) {
@@ -133,7 +138,8 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
         contact: normalizeContact(cachedContact),
         isPinned: Boolean(cachedContact.is_pinned),
         isMuted: Boolean(cachedContact.is_muted),
-        loading: false,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.isEmpty': false,
       });
     }
 
@@ -172,13 +178,18 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
 
       this.setData({
         contact: normalizeContact(updatedContacts[index]),
-        loading: false,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.isEmpty': false,
       });
 
       logger.info('Contact info refreshed', { conv_id: this.data.convId });
     } catch (error) {
       logger.error('Failed to refresh contact info', { error: toErrorMessage(error) });
-      this.setData({ loading: false });
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '加载资料失败，请稍后重试',
+      });
     }
   },
 

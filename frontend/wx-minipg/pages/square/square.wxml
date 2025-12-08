@@ -1,75 +1,52 @@
-<view class="square-container">
-  <!-- Category tabs -->
-  <scroll-view scroll-x class="category-tabs">
-    <view class="tabs-inner">
-      <view
-        wx:for="{{categories}}"
-        wx:key="key"
-        class="tab-item {{currentCategory === item.key ? 'active' : ''}}"
-        bindtap="selectCategory"
-        data-category="{{item.key}}">
-        <text>{{item.label}}</text>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <!-- Category tabs - always visible in header -->
+  <view slot="header" class="square-header">
+    <scroll-view scroll-x class="square-tabs" show-scrollbar="{{false}}">
+      <view class="square-tabs__list">
+        <view
+          wx:for="{{categories}}"
+          wx:key="key"
+          class="square-tabs__item {{currentCategory === item.key ? 'square-tabs__item--active' : ''}}"
+          bindtap="selectCategory"
+          data-category="{{item.key}}">
+          {{item.label}}
+        </view>
       </view>
-    </view>
-  </scroll-view>
+    </scroll-view>
+  </view>
 
   <!-- Contact list -->
-  <scroll-view
-    scroll-y
-    class="contact-list"
-    bindscrolltolower="onReachBottom"
-    lower-threshold="100">
+  <view slot="content" class="square-page">
+    <view class="square-list">
+      <view
+        wx:for="{{contacts}}"
+        wx:key="qiao_id"
+        class="square-item"
+        bindtap="handleContactTap"
+        data-id="{{item.qiao_id}}">
+        <!-- Avatar -->
+        <ui-avatar
+          src="{{item.avatar_url}}"
+          size="large"
+          class="square-item__avatar" />
 
-    <!-- Contact cards -->
-    <view
-      wx:for="{{contacts}}"
-      wx:key="id"
-      class="contact-card"
-      bindtap="handleContactTap"
-      data-id="{{item.id}}">
-
-      <image src="{{item.avatar_url}}" class="avatar" mode="aspectFill" />
-
-      <view class="info">
-        <view class="name-row">
-          <text class="nickname">{{item.nickname}}</text>
-          <text class="gender" wx:if="{{item.gender}}">
-            {{item.gender === 1 ? '♂' : item.gender === 2 ? '♀' : ''}}
-          </text>
+        <!-- Info -->
+        <view class="square-item__info">
+          <view class="square-item__header">
+            <text class="square-item__name">{{item.nickname || '未命名'}}</text>
+            <gender-badge wx:if="{{item.gender}}" gender="{{item.gender}}" />
+          </view>
+          <text wx:if="{{item.bio}}" class="square-item__bio">{{item.bio}}</text>
+          <text wx:if="{{item.region}}" class="square-item__region">{{item.region}}</text>
         </view>
-
-        <text class="bio" wx:if="{{item.bio}}">{{item.bio}}</text>
-
-        <text class="region" wx:if="{{item.region}}">{{item.region}}</text>
       </view>
-
-      <button
-        class="add-btn"
-        catchtap="handleAddContact"
-        data-id="{{item.id}}">
-        添加
-      </button>
     </view>
-
-    <!-- Empty state -->
-    <view wx:if="{{contacts.length === 0 && !loading}}" class="empty-state">
-      <text class="empty-text">暂无内容</text>
-      <text class="empty-hint">试试切换分类</text>
-    </view>
-
-    <!-- Loading state -->
-    <view wx:if="{{loading}}" class="loading-state">
-      <text class="loading-text">加载中...</text>
-    </view>
-
-    <!-- Load more indicator -->
-    <view wx:if="{{loadingMore}}" class="loading-more">
-      <text>加载更多...</text>
-    </view>
-
-    <!-- No more data -->
-    <view wx:if="{{!hasMore && contacts.length > 0}}" class="no-more">
-      <text>没有更多了</text>
-    </view>
-  </scroll-view>
-</view>
+  </view>
+</page-layout>

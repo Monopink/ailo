@@ -1,0 +1,4 @@
+<view wx:if="{{dot || showZero || count > 0}}" class="ui-badge">
+  <view wx:if="{{dot}}" class="ui-badge__dot"></view>
+  <text wx:else class="ui-badge__text">{{displayCount}}</text>
+</view>

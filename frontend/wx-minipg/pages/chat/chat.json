@@ -1,3 +1,9 @@
 {
-  "navigationBarTitleText": ""
+  "navigationBarTitleText": "",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-avatar": "/components/ui/avatar/avatar",
+    "ui-navbar": "/components/ui/navbar/navbar"
+  }
 }

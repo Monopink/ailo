@@ -1,0 +1,66 @@
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="phone-login-page">
+    <view class="phone-login-header">
+      <text class="phone-login-header__title">手机号登录</text>
+      <text class="phone-login-header__subtitle">未注册的手机号将自动创建账号</text>
+    </view>
+
+    <view class="phone-login-form">
+      <view class="phone-login-form__field">
+        <ui-input
+          label="手机号"
+          type="number"
+          placeholder="请输入手机号"
+          value="{{phone}}"
+          maxLength="{{11}}"
+          bindinput="handlePhoneInput" />
+      </view>
+
+      <view class="phone-login-form__field">
+        <ui-input
+          label="验证码"
+          type="number"
+          placeholder="请输入验证码"
+          value="{{smsCode}}"
+          maxLength="{{6}}"
+          bindinput="handleSmsCodeInput" />
+      </view>
+
+      <view class="phone-login-form__field">
+        <ui-button
+          type="secondary"
+          block="{{true}}"
+          disabled="{{!canSendSms || smsCountdown > 0}}"
+          bindtap="handleSendSms">
+          {{smsCountdown > 0 ? smsCountdown + 's' : '获取验证码'}}
+        </ui-button>
+      </view>
+
+      <aliyun-captcha
+        wx:if="{{showCaptcha}}"
+        class="phone-login-captcha"
+        scene="{{captchaScene}}"
+        bind:onVerify="handleCaptchaVerify"
+        bind:onClose="handleCaptchaClose" />
+
+      <!-- Submit button - Inline as part of form -->
+      <view class="phone-login-form__submit">
+        <ui-button
+          type="primary"
+          block="{{true}}"
+          disabled="{{!canLogin}}"
+          loading="{{loginLoading}}"
+          bindtap="handleLogin">
+          登录
+        </ui-button>
+      </view>
+    </view>
+  </view>
+</page-layout>

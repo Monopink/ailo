@@ -1,6 +1,6 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { get } from '../../utils/api';
 import { requireAuth } from '../../utils/auth-guard';
-import authService from '../../utils/auth-service';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
 
@@ -20,16 +20,16 @@ interface UserProfile extends AnyObject {
 }
 
 interface ProfilePageData extends Record<string, unknown> {
-  loading: boolean;
+  pageLayoutData: PageLayoutData;
   profile: UserProfile | null;
-  error: string | null;
 }
 
 interface ProfilePageCustom {
   loadProfile(): Promise<void>;
   navigateToProfileDetail(): void;
-  handleLogout(): Promise<void>;
-  getGenderText(gender?: number | null): string;
+  navigateToAccountSecurity(): void;
+  navigateToAbout(): void;
+  onRetry(): void;
 }
 
 const toError = (error: unknown): Error => {
@@ -46,22 +46,14 @@ const toError = (error: unknown): Error => {
   }
 };
 
-const showModal = async (
-  options: WechatMiniprogram.ShowModalOption
-): Promise<WechatMiniprogram.ShowModalSuccessCallbackResult> =>
-  await new Promise((resolve, reject) => {
-    wx.showModal({
-      ...options,
-      success: resolve,
-      fail: reject,
-    });
-  });
-
 Page<ProfilePageData, ProfilePageCustom>({
   data: {
-    loading: true,
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂未获取到个人信息',
+      hasFooter: true,
+    }),
     profile: null,
-    error: null,
   },
 
   async onLoad() {
@@ -85,19 +77,24 @@ Page<ProfilePageData, ProfilePageCustom>({
   async loadProfile() {
     try {
       this.setData({
-        loading: true,
-        error: null,
+        'pageLayoutData.isLoading': true,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.errorMessage': '',
       });
 
       logger.info('Loading user profile');
       const profile = await get<UserProfile>('/user/profile');
+      const normalizedProfile = profile
+        ? {
+            ...profile,
+            avatar_url: getAvatarUrl(profile.avatar_url ?? ''),
+          }
+        : null;
 
       this.setData({
-        profile: {
-          ...profile,
-          avatar_url: getAvatarUrl(profile?.avatar_url ?? ''),
-        },
-        loading: false,
+        profile: normalizedProfile,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.isEmpty': !normalizedProfile,
       });
 
       logger.info('Profile loaded', { qiao_id: profile?.qiao_id });
@@ -106,8 +103,10 @@ Page<ProfilePageData, ProfilePageCustom>({
       logger.error('Load profile failed', { error: err.message });
 
       this.setData({
-        error: '加载失败,请稍后再试',
-        loading: false,
+        profile: null,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
       });
 
       void wx.showToast({
@@ -123,58 +122,19 @@ Page<ProfilePageData, ProfilePageCustom>({
     });
   },
 
-  async handleLogout() {
-    try {
-      const result = await showModal({
-        title: '退出登录',
-        content: '确定要退出当前账号吗？',
-        confirmText: '退出',
-        cancelText: '取消',
-      });
-
-      if (!result.confirm) {
-        return;
-      }
-
-      void wx.showLoading({
-        title: '正在退出',
-        mask: true,
-      });
-
-      await authService.logout();
-
-      const app = getApp<SaysAppInstance>();
-      const messageService = app.getMessageService();
-      if (messageService) {
-        await messageService.disconnect();
-        app.globalData.messageService = null;
-      }
-
-      void wx.hideLoading();
-
-      void wx.reLaunch({
-        url: '/pages/login/login',
-      });
-    } catch (error) {
-      const err = toError(error);
-      logger.error('Logout failed', { error: err.message });
-
-      void wx.hideLoading();
-
-      void wx.showToast({
-        title: '退出失败，请稍后重试',
-        icon: 'none',
-      });
-    }
+  navigateToAccountSecurity() {
+    void wx.navigateTo({
+      url: '/pages/account-security/account-security',
+    });
   },
 
-  getGenderText(gender) {
-    const genderMap: Record<number, string> = {
-      1: '男',
-      2: '女',
-      3: '其他',
-      4: '未知',
-    };
-    return genderMap[Number(gender)] ?? '未设置';
+  navigateToAbout() {
+    void wx.navigateTo({
+      url: '/pages/about/about',
+    });
+  },
+
+  onRetry() {
+    void this.loadProfile();
   },
 });

@@ -1,8 +1,10 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { getLogger } from '../../utils/logger';
 
 const logger = getLogger('Boot');
 
 interface BootPageData {
+  pageLayoutData: PageLayoutData;
   routed: boolean;
 }
 
@@ -28,6 +30,11 @@ type RouteOptions = Record<string, string | undefined>;
 
 Page<BootPageData, BootPageCustom>({
   data: {
+    pageLayoutData: createPageLayoutData({
+      isLoading: false,
+      hasFooter: false,
+      emptyMessage: '',
+    }),
     routed: false,
   },
 
@@ -38,11 +45,9 @@ Page<BootPageData, BootPageCustom>({
 
     try {
       const token = wx.getStorageSync<string | null>('auth_token');
-      const hasSeenWelcome = Boolean(wx.getStorageSync<boolean>('hasSeenWelcome'));
 
       logger.info('Boot routing', {
         hasToken: Boolean(token),
-        hasSeenWelcome,
         options,
       });
 
@@ -53,20 +58,15 @@ Page<BootPageData, BootPageCustom>({
         return;
       }
 
-      if (!hasSeenWelcome) {
-        this._routeOnce(() => {
-          void wx.redirectTo({ url: '/pages/welcome/welcome' });
-        });
-      } else {
-        this._routeOnce(() => {
-          void wx.redirectTo({ url: '/pages/login/login' });
-        });
-      }
+      // Always show login page when not logged in
+      this._routeOnce(() => {
+        void wx.redirectTo({ url: '/pages/login/login' });
+      });
     } catch (error) {
       const err = toError(error);
       logger.error('Boot routing error', { error: err.message });
       this._routeOnce(() => {
-        void wx.redirectTo({ url: '/pages/welcome/welcome' });
+        void wx.redirectTo({ url: '/pages/login/login' });
       });
     }
   },

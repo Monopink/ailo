@@ -1,34 +1,38 @@
-<view class="profile-page">
-  <!-- Loading state -->
-  <view wx:if="{{loading}}" class="loading-container">
-    <text>加载中...</text>
-  </view>
-
-  <!-- Error state -->
-  <view wx:elif="{{error}}" class="error-container">
-    <text>{{error}}</text>
-    <button bindtap="loadProfile">重试</button>
-  </view>
-
-  <!-- Profile content -->
-  <view wx:else class="profile-content">
-    <!-- Avatar and basic info - Click to view detail -->
-    <view class="profile-header" bindtap="navigateToProfileDetail">
-      <image
-        class="avatar"
-        src="{{profile.avatar_url || '/assets/avatars/default.png'}}"
-        mode="aspectFill"
-      />
-      <view class="basic-info">
-        <text class="nickname">{{profile.nickname || '未设置昵称'}}</text>
-        <text class="qiao-id">敲敲号: {{profile.username}}</text>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="profile">
+    <view wx:if="{{profile}}">
+      <!-- Hero section - WeChat style -->
+      <view class="profile__hero" bindtap="navigateToProfileDetail">
+        <ui-avatar
+          src="{{profile.avatar_url || '/assets/avatars/default.png'}}"
+          size="xlarge" />
+        <view class="profile__hero-info">
+          <text class="profile__hero-name">{{profile.nickname || '未设置昵称'}}</text>
+          <view class="profile__hero-meta">
+            <text class="profile__hero-id">敲敲号：{{profile.username || '--'}}</text>
+          </view>
+        </view>
+        <view class="profile__hero-arrow">
+          <text class="profile__hero-arrow-icon">›</text>
+        </view>
       </view>
-      <text class="arrow">›</text>
-    </view>
 
-    <!-- Actions -->
-    <view class="profile-actions">
-      <button class="logout-button" bindtap="handleLogout">退出登录</button>
+      <!-- Settings group -->
+      <view class="profile__group">
+        <ui-cell title="账号与安全" link="{{true}}" bindtap="navigateToAccountSecurity" />
+      </view>
+
+      <!-- About group -->
+      <view class="profile__group">
+        <ui-cell title="关于" link="{{true}}" bindtap="navigateToAbout" />
+      </view>
     </view>
   </view>
-</view>
+</page-layout>

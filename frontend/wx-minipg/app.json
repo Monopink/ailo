@@ -1,20 +1,23 @@
 {
   "pages": [
     "pages/boot/boot",
-    "pages/welcome/welcome",
     "pages/square/square",
     "pages/login/login",
+    "pages/phone-login/phone-login",
+    "pages/phone-bind/phone-bind",
     "pages/setup/setup",
     "pages/index/index",
     "pages/chat/chat",
     "pages/profile/profile",
     "pages/profile-detail/profile-detail",
     "pages/profile-edit/profile-edit",
+    "pages/account-security/account-security",
     "pages/phone-manage/phone-manage",
     "pages/contact-info/contact-info",
     "pages/contact-requests/contact-requests",
     "pages/stranger-info/stranger-info",
-    "pages/avatar-selector/avatar-selector"
+    "pages/avatar-selector/avatar-selector",
+    "pages/about/about"
   ],
   "window": {
     "backgroundTextStyle": "light",

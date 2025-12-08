@@ -1,92 +1,99 @@
-<view class="login-container">
-  <!-- Brand name -->
-  <view class="brand-section">
-    <text class="brand-name">敲敲</text>
-  </view>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{false}}"
+  disableScroll="{{true}}"
+  bind:retry="onRetry">
+  <view slot="content" class="login-page">
+    <!-- Animated background gradient - Full screen -->
+    <view class="login-bg"></view>
 
-  <!-- Login buttons (initial state) -->
-  <view wx:if="{{!showPhoneButton && !showPhoneBind}}" class="login-buttons">
-    <!-- WeChat login button -->
-    <button
-      class="login-btn wechat-login-btn"
-      bindtap="handleWeChatLogin"
-      loading="{{wechatLoading}}">
-      微信登录
-    </button>
+    <!-- Hero section - Integrated with background -->
+    <view class="login-hero">
+      <!-- Logo with pulse animation -->
+      <view class="login-hero__logo-wrapper">
+        <image class="login-hero__logo" src="/assets/logo.png" mode="aspectFit" />
+        <view class="login-hero__glow"></view>
+      </view>
 
-    <!-- Phone login button -->
-    <button
-      class="login-btn phone-login-btn"
-      bindtap="handlePhoneLogin">
-      手机号登录
-    </button>
-  </view>
-
-  <!-- Get phone number button (after WeChat login) -->
-  <view wx:if="{{showPhoneButton && !showPhoneBind}}" class="phone-auth">
-    <button
-      class="phone-auth-btn"
-      open-type="getPhoneNumber"
-      bindgetphonenumber="handleGetPhoneNumber"
-      loading="{{phoneLoading}}">
-      获取手机号
-    </button>
-  </view>
-
-  <!-- Phone bind page (fallback) -->
-  <view wx:if="{{showPhoneBind}}" class="phone-bind">
-    <view class="bind-title">
-      <text>绑定手机号</text>
+      <!-- Text with fade-in animation -->
+      <view class="login-hero__text">
+        <text class="login-hero__title">敲敲</text>
+        <text class="login-hero__subtitle">AI 陪伴 · 实时共鸣</text>
+        <text class="login-hero__description">一键进入与 AI 的沉浸式对话</text>
+      </view>
     </view>
 
-    <!-- Phone input -->
-    <view class="input-group">
-      <text class="country-code">+86</text>
-      <input
-        type="number"
-        placeholder="请输入手机号"
-        bindinput="onPhoneInput"
-        value="{{phone}}"
-        maxlength="11"
-        class="phone-input" />
+    <!-- Features section - Compact -->
+    <view class="login-features">
+      <view
+        class="login-features__item login-features__item--{{index}}"
+        wx:for="{{featureList}}"
+        wx:key="id"
+        wx:for-index="index">
+        <view class="login-features__icon">✨</view>
+        <text class="login-features__title">{{item.title}}</text>
+      </view>
     </view>
 
-    <!-- SMS code -->
-    <view class="sms-group">
-      <input
-        type="number"
-        placeholder="请输入验证码"
-        bindinput="onSmsCodeInput"
-        value="{{smsCode}}"
-        maxlength="6"
-        class="sms-input" />
-      <button
-        class="sms-btn {{(countdown > 0) ? 'disabled' : ''}}"
-        bindtap="sendSmsCode"
-        disabled="{{countdown > 0}}">
-        {{countdown > 0 ? countdown + 's' : '获取验证码'}}
-      </button>
+    <!-- Preview section - Auto scroll carousel -->
+    <view class="login-preview">
+      <text class="login-preview__title">发现有趣的 AI 伙伴</text>
+      <view class="login-preview__carousel">
+        <view class="login-preview__track">
+          <!-- Triple items for seamless infinite loop -->
+          <block wx:for="{{sampleContacts}}" wx:key="qiao_id" wx:for-item="contact1">
+            <view class="login-preview__item">
+              <view class="login-preview__avatar-wrapper">
+                <ui-avatar size="medium" src="{{contact1.avatar}}" />
+                <view class="login-preview__avatar-ring"></view>
+              </view>
+              <text class="login-preview__name">{{contact1.nickname}}</text>
+              <text class="login-preview__bio">{{contact1.bio}}</text>
+            </view>
+          </block>
+          <block wx:for="{{sampleContacts}}" wx:key="qiao_id" wx:for-item="contact2">
+            <view class="login-preview__item">
+              <view class="login-preview__avatar-wrapper">
+                <ui-avatar size="medium" src="{{contact2.avatar}}" />
+                <view class="login-preview__avatar-ring"></view>
+              </view>
+              <text class="login-preview__name">{{contact2.nickname}}</text>
+              <text class="login-preview__bio">{{contact2.bio}}</text>
+            </view>
+          </block>
+          <block wx:for="{{sampleContacts}}" wx:key="qiao_id" wx:for-item="contact3">
+            <view class="login-preview__item">
+              <view class="login-preview__avatar-wrapper">
+                <ui-avatar size="medium" src="{{contact3.avatar}}" />
+                <view class="login-preview__avatar-ring"></view>
+              </view>
+              <text class="login-preview__name">{{contact3.nickname}}</text>
+              <text class="login-preview__bio">{{contact3.bio}}</text>
+            </view>
+          </block>
+        </view>
+      </view>
     </view>
 
-    <!-- Bind button -->
-    <button
-      class="bind-btn"
-      bindtap="handleBindPhone"
-      loading="{{bindLoading}}">
-      确认绑定
-    </button>
+    <!-- Actions section - Login buttons -->
+    <view class="login-actions">
+      <ui-button
+        type="primary"
+        block="{{true}}"
+        loading="{{wechatLoading}}"
+        bindtap="handleWeChatLogin">
+        微信授权登录
+      </ui-button>
+      <ui-button
+        type="secondary"
+        block="{{true}}"
+        bindtap="handlePhoneLogin">
+        手机号登录
+      </ui-button>
+    </view>
   </view>
-
-  <!-- Aliyun Captcha Plugin (mounted only when needed) -->
-  <view wx:if="{{loadCaptcha}}">
-    <aliyun-captcha id="captcha-element" props="{{pluginProps}}" />
-  </view>
-
-  <!-- Agreement -->
-  <view class="agreement">
-    <text>登录即表示同意</text>
-    <text class="link">《用户协议》</text>
-    <text>和</text>
-    <text class="link">《隐私政策》</text>
-  </view>
-</view>
+</page-layout>

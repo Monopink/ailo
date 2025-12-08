@@ -1,0 +1,60 @@
+@import '/styles/design-tokens.wxss';
+
+.about {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background-color: var(--color-bg-page);
+}
+
+/* Header */
+.about__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-xxl) var(--padding-page);
+  gap: var(--space-md);
+}
+
+.about__logo {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.about__logo-text {
+  font-size: 64rpx;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-inverse);
+}
+
+.about__version {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+/* Group - iOS style */
+.about__group {
+  background-color: var(--color-bg-secondary);
+  margin-top: var(--space-md);
+  overflow: hidden;
+}
+
+/* Footer */
+.about__footer {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--space-xxl) var(--padding-page);
+  padding-bottom: calc(var(--space-xxl) + var(--safe-area-inset-bottom));
+}
+
+.about__copyright {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-quaternary);
+}

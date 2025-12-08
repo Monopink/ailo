@@ -1,170 +1,122 @@
-/* Chat Page - Complete Rewrite */
+@import '/styles/design-tokens.wxss';
 
-/* ========== Page Container ========== */
 .chat-page {
-  width: 100%;
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #EDEDED;
-  position: relative;
-  overflow: hidden;
+  gap: var(--space-sm);
 }
 
-/* ========== Messages Container ========== */
-.messages-container {
-  flex: 1;
+.chat-page__messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  box-sizing: border-box;
+}
+
+.chat-placeholder {
   width: 100%;
-  height: 0;
-  overflow-y: auto;
-}
-
-.messages-list {
-  padding: 20rpx 24rpx;
-  padding-bottom: 40rpx;
-}
-
-/* ========== Timestamp ========== */
-.timestamp {
+  padding: var(--space-xl);
   text-align: center;
-  font-size: 24rpx;
-  color: #999999;
-  line-height: 40rpx;
-  margin: 20rpx 0;
+  color: var(--color-text-tertiary);
 }
 
-/* ========== System Message ========== */
-.system-msg {
-  text-align: center;
-  font-size: 24rpx;
-  color: #999999;
-  line-height: 40rpx;
-  margin: 20rpx 0;
+.chat-placeholder__text {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
 }
 
-/* ========== Message Row ========== */
+.chat-timestamp,
+.chat-system-msg {
+  align-self: center;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-base);
+}
+
 .msg-row {
   display: flex;
-  align-items: flex-start;
-  margin-bottom: 20rpx;
-  width: 100%;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 .msg-row-me {
-  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
 
-.msg-row-other {
-  flex-direction: row;
-}
-
-/* ========== Avatar ========== */
 .msg-avatar {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 8rpx;
-  flex-shrink: 0;
-  background-color: #F0F0F0;
-}
-
-.msg-row-me .msg-avatar {
-  margin-left: 16rpx;
-}
-
-.msg-row-other .msg-avatar {
-  margin-right: 16rpx;
-}
-
-/* ========== Message Wrapper (contains status icon + bubble) ========== */
-.msg-wrapper {
-  display: flex;
-  align-items: center;
-  max-width: calc(100% - 120rpx);
-}
-
-/* For messages from me: icon on left, bubble on right */
-.msg-row-me .msg-wrapper {
-  flex-direction: row;
-}
-
-/* For messages from others: just bubble */
-.msg-row-other .msg-wrapper {
-  flex-direction: row;
-}
-
-/* ========== Status Icon (Failed) ========== */
-.msg-status-icon {
-  width: 40rpx;
-  height: 40rpx;
-  border-radius: 50%;
-  background-color: #FF3B30;
-  color: #FFFFFF;
-  font-size: 26rpx;
-  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-right: 12rpx;
 }
 
-/* ========== Message Bubble ========== */
+.msg-status-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  border-radius: var(--radius-full);
+  background-color: var(--color-error);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 .msg-bubble {
-  padding: 18rpx 24rpx;
-  border-radius: 8rpx;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-card);
+  color: var(--color-text-primary);
+  max-width: var(--message-bubble-max-width);
   word-wrap: break-word;
-  word-break: break-word;
-  max-width: 100%;
-  position: relative;
 }
 
 .msg-bubble-me {
-  background-color: #95EC69;
+  background-color: var(--color-primary-light);
+  color: var(--color-text-inverse);
+  border-radius: var(--radius-md) var(--radius-xs) var(--radius-md) var(--radius-md);
 }
 
 .msg-bubble-other {
-  background-color: #FFFFFF;
+  border-radius: var(--radius-xs) var(--radius-md) var(--radius-md) var(--radius-md);
 }
 
 .msg-text {
-  font-size: 32rpx;
-  line-height: 1.5;
-  color: #000000;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-base);
   white-space: pre-wrap;
 }
 
-/* ========== Typing Indicator ========== */
 .typing-indicator {
   display: flex;
+  gap: var(--space-xs);
   align-items: center;
-  justify-content: center;
-  padding: 24rpx 32rpx;
-  min-width: 100rpx;
 }
 
 .typing-dot {
-  width: 12rpx;
-  height: 12rpx;
-  border-radius: 50%;
-  background-color: #999999;
-  margin: 0 4rpx;
+  width: var(--typing-dot-size);
+  height: var(--typing-dot-size);
+  border-radius: var(--radius-full);
+  background-color: var(--color-text-tertiary);
   animation: typing-bounce 1.4s infinite ease-in-out;
 }
 
-.typing-dot:nth-child(1) {
-  animation-delay: 0s;
-}
-
 .typing-dot:nth-child(2) {
-  animation-delay: 0.2s;
+  animation-delay: 0.15s;
 }
 
 .typing-dot:nth-child(3) {
-  animation-delay: 0.4s;
+  animation-delay: 0.3s;
 }
 
 @keyframes typing-bounce {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
     opacity: 0.6;
   }
@@ -174,124 +126,70 @@
   }
 }
 
-/* ========== Input Area ========== */
-.input-area {
-  width: 100%;
-  background-color: #F7F7F7;
-  border-top: 1rpx solid #D9D9D9;
-  padding: 16rpx 24rpx;
+/* Chat footer - WeChat style */
+.chat-footer {
   display: flex;
   align-items: flex-end;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  z-index: 10;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-top: 1rpx solid var(--color-border-light);
 }
 
-/* ========== Input Box ========== */
-.input-box {
+/* Input wrapper */
+.chat-footer__input-wrapper {
   flex: 1;
-  background-color: #FFFFFF;
-  border-radius: 8rpx;
-  padding: 12rpx 20rpx;
-  margin-right: 12rpx;
+  display: flex;
+  align-items: center;
   min-height: 64rpx;
-  max-height: 200rpx;
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
+  padding: 0 var(--space-md);
+  border-radius: 12rpx;
+  background-color: var(--color-bg-input);
+  border: 1rpx solid var(--color-border-light);
 }
 
-.input-field {
+.chat-footer__input {
   width: 100%;
-  font-size: 32rpx;
-  line-height: 1.5;
-  min-height: 40rpx;
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-base);
 }
 
-/* ========== Emoji Button ========== */
-.input-emoji-btn {
+.chat-footer__input-placeholder {
+  color: var(--color-text-placeholder);
+}
+
+/* Send button - circular WeChat style */
+.chat-footer__send-button {
   width: 64rpx;
   height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-right: 12rpx;
-}
-
-/* Icon placeholder - will be replaced with iconfont */
-.input-emoji-btn .icon-placeholder {
-  font-size: 44rpx;
-  line-height: 1;
-}
-
-/* ========== Send Button ========== */
-.input-send-btn {
-  width: 64rpx;
-  height: 64rpx;
   border-radius: 50%;
-  background-color: #D9D9D9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
+  background-color: var(--color-bg-disabled);
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
-.input-send-btn-active {
-  background-color: #07C160;
+.chat-footer__send-button--active {
+  background-color: var(--color-primary);
 }
 
-/* Icon placeholder - will be replaced with iconfont */
-.input-send-btn .icon-placeholder {
-  font-size: 36rpx;
-  line-height: 1;
-  color: #999999;
-  transition: color 0.2s ease;
+.chat-footer__send-button:active {
+  transform: scale(0.95);
 }
 
-.input-send-btn-active .icon-placeholder {
-  color: #FFFFFF;
-}
-
-/* ========== Emoji Picker ========== */
-.emoji-picker {
-  width: 100%;
-  background-color: #F7F7F7;
-  border-top: 1rpx solid #D9D9D9;
+/* Send icon - arrow pointing up */
+.chat-footer__send-icon {
+  width: 0;
   height: 0;
-  overflow: hidden;
-  transition: height 0.3s ease;
-  flex-shrink: 0;
-  box-sizing: border-box;
+  border-left: 10rpx solid transparent;
+  border-right: 10rpx solid transparent;
+  border-bottom: 16rpx solid var(--color-text-quaternary);
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
-.emoji-picker-show {
-  height: 500rpx;
-}
-
-.emoji-scroll {
-  width: 100%;
-  height: 100%;
-}
-
-.emoji-grid {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 20rpx 16rpx;
-}
-
-.emoji-item {
-  width: 80rpx;
-  height: 80rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48rpx;
-  line-height: 1;
-}
-
-.emoji-item:active {
-  background-color: #E5E5E5;
-  border-radius: 8rpx;
+.chat-footer__send-button--active .chat-footer__send-icon {
+  border-bottom-color: var(--color-text-inverse);
 }

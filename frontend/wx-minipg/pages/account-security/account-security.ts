@@ -1,0 +1,172 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { get } from '../../utils/api';
+import { requireAuth } from '../../utils/auth-guard';
+import authService from '../../utils/auth-service';
+import { getLogger } from '../../utils/logger';
+
+const logger = getLogger('AccountSecurity');
+
+type AuthGuardPage = WechatMiniprogram.Page.Instance<
+  Record<string, unknown>,
+  Record<string, unknown>
+>;
+
+interface AccountInfo {
+  phone?: string;
+}
+
+interface AccountSecurityPageData extends Record<string, unknown> {
+  pageLayoutData: PageLayoutData;
+  phoneMasked: string;
+  isLogoutProcessing: boolean;
+}
+
+interface AccountSecurityPageCustom {
+  loadAccountInfo(): Promise<void>;
+  navigateToPhoneManage(): void;
+  handleLogout(): Promise<void>;
+  onRetry(): void;
+}
+
+const toError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error('Unknown error');
+  }
+};
+
+const showModal = async (
+  options: WechatMiniprogram.ShowModalOption
+): Promise<WechatMiniprogram.ShowModalSuccessCallbackResult> =>
+  await new Promise((resolve, reject) => {
+    wx.showModal({
+      ...options,
+      success: resolve,
+      fail: reject,
+    });
+  });
+
+Page<AccountSecurityPageData, AccountSecurityPageCustom>({
+  data: {
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂无账号信息',
+      hasFooter: false,
+    }),
+    phoneMasked: '',
+    isLogoutProcessing: false,
+  },
+
+  async onLoad() {
+    logger.info('Account security page loaded');
+    const isAuth = await requireAuth(this as unknown as AuthGuardPage);
+    if (!isAuth) {
+      return;
+    }
+
+    await this.loadAccountInfo();
+  },
+
+  async loadAccountInfo() {
+    try {
+      this.setData({
+        'pageLayoutData.isLoading': true,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.errorMessage': '',
+      });
+
+      logger.info('Loading account info');
+      const account = await get<AccountInfo>('/user/account');
+
+      this.setData({
+        phoneMasked: account?.phone ?? '未绑定',
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.isEmpty': false,
+      });
+
+      logger.info('Account info loaded');
+    } catch (error) {
+      const err = toError(error);
+      logger.error('Load account info failed', { error: err.message });
+
+      this.setData({
+        phoneMasked: '',
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
+      });
+
+      void wx.showToast({
+        title: '加载失败',
+        icon: 'none',
+      });
+    }
+  },
+
+  navigateToPhoneManage() {
+    void wx.navigateTo({
+      url: '/pages/phone-manage/phone-manage',
+    });
+  },
+
+  async handleLogout() {
+    if (this.data.isLogoutProcessing) {
+      return;
+    }
+
+    const result = await showModal({
+      title: '退出登录',
+      content: '确定要退出当前账号吗？',
+      confirmText: '退出',
+      cancelText: '取消',
+    });
+
+    if (!result.confirm) {
+      return;
+    }
+
+    this.setData({ isLogoutProcessing: true });
+
+    try {
+      void wx.showLoading({
+        title: '正在退出',
+        mask: true,
+      });
+
+      await authService.logout();
+
+      const app = getApp<SaysAppInstance>();
+      const messageService = app.getMessageService();
+      if (messageService) {
+        await messageService.disconnect();
+        app.globalData.messageService = null;
+      }
+
+      void wx.reLaunch({
+        url: '/pages/login/login',
+      });
+    } catch (error) {
+      const err = toError(error);
+      logger.error('Logout failed', { error: err.message });
+
+      void wx.showToast({
+        title: '退出失败，请稍后重试',
+        icon: 'none',
+      });
+    } finally {
+      this.setData({ isLogoutProcessing: false });
+      void wx.hideLoading();
+    }
+  },
+
+  onRetry() {
+    void this.loadAccountInfo();
+  },
+});

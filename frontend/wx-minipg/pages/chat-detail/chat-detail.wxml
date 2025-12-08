@@ -1,0 +1,66 @@
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="chat-detail">
+    <!-- Hero section - horizontal layout -->
+    <view wx:if="{{contact}}" class="chat-detail__hero">
+      <ui-avatar src="{{contactView.avatar}}" size="xlarge" />
+      <view class="chat-detail__hero-info">
+        <view class="chat-detail__hero-name">
+          <text class="chat-detail__hero-text">{{contactView.name}}</text>
+          <ui-tag
+            wx:if="{{contactView.hasGender}}"
+            size="small"
+            variant="outline"
+            type="{{contactView.genderType}}">
+            {{contactView.genderLabel}}
+          </ui-tag>
+        </view>
+        <text class="chat-detail__hero-id">敲敲号：{{contact.contact_qiao_id || '--'}}</text>
+      </view>
+      <ui-button
+        type="secondary"
+        size="small"
+        bindtap="viewProfile">
+        查看资料
+      </ui-button>
+    </view>
+
+    <!-- Tags group -->
+    <view wx:if="{{contact}}" class="chat-detail__group">
+      <ui-cell title="联系人标签" link="{{true}}" bindtap="manageTags">
+        <text slot="footer" class="chat-detail__link">管理</text>
+      </ui-cell>
+    </view>
+
+    <!-- Settings group -->
+    <view wx:if="{{contact}}" class="chat-detail__group">
+      <ui-cell title="置顶聊天">
+        <ui-switch slot="footer" checked="{{isPinned}}" bindchange="onPinnedChange" />
+      </ui-cell>
+      <ui-cell title="消息免打扰">
+        <ui-switch slot="footer" checked="{{isMuted}}" bindchange="onMutedChange" />
+      </ui-cell>
+      <ui-cell title="聊天背景" hover="{{false}}">
+        <text slot="footer" class="chat-detail__muted-text">暂未开放</text>
+      </ui-cell>
+    </view>
+  </view>
+
+  <view slot="footer" class="chat-detail__footer" wx:if="{{contact}}">
+    <ui-button type="primary" block="{{true}}" bindtap="goToChat">
+      进入聊天
+    </ui-button>
+    <ui-button type="secondary" block="{{true}}" bindtap="clearChatHistory">
+      清空聊天记录
+    </ui-button>
+    <ui-button type="danger" block="{{true}}" bindtap="deleteContact">
+      删除联系人
+    </ui-button>
+  </view>
+</page-layout>

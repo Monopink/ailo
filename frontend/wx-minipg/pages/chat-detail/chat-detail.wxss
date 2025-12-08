@@ -1,0 +1,66 @@
+@import '/styles/design-tokens.wxss';
+
+.chat-detail {
+  background-color: var(--color-bg-page);
+}
+
+/* Hero section - horizontal layout */
+.chat-detail__hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--padding-page);
+  background-color: var(--color-bg-secondary);
+}
+
+.chat-detail__hero-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.chat-detail__hero-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.chat-detail__hero-text {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.chat-detail__hero-id {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Groups - iOS style */
+.chat-detail__group {
+  background-color: var(--color-bg-secondary);
+  margin-top: var(--space-md);
+  overflow: hidden;
+}
+
+.chat-detail__link {
+  font-size: var(--font-size-base);
+  color: var(--color-link);
+}
+
+.chat-detail__muted-text {
+  font-size: var(--font-size-base);
+  color: var(--color-text-tertiary);
+}
+
+/* Footer */
+.chat-detail__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--padding-page) calc(var(--space-md) + var(--safe-area-inset-bottom));
+  background-color: var(--color-bg-secondary);
+  border-top: 1rpx solid var(--color-separator);
+}

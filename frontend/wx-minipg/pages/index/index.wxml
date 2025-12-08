@@ -1,53 +1,54 @@
-<view class="index-container">
-  <!-- Contact list -->
-  <scroll-view scroll-y class="contact-list">
-    <view wx:for="{{contactList}}" wx:key="conv_id" class="chat-item-wrapper">
-      <!-- Chat item content -->
-      <view class="chat-item" bindtap="goToChat" data-id="{{item.conv_id}}" data-index="{{index}}">
-        <image src="{{item.avatarUrl}}" class="avatar" mode="aspectFill" />
-        <view class="info">
-          <view class="top-row">
-            <text class="name">{{item.displayName}}</text>
-            <view class="tags">
-              <text wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag" class="tag">{{tag}}</text>
-            </view>
-            <text class="time">{{item.lastMessageTime}}</text>
-          </view>
-          <view class="bottom-row">
-            <text class="last-message">{{item.lastMessage}}</text>
-            <view wx:if="{{item.hasUnread}}" class="unread-badge">{{item.unreadBadge}}</view>
-          </view>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  contentScrollIntoView="{{pageLayoutData.contentScrollIntoView}}"
+  contentScrollWithAnimation="{{pageLayoutData.contentScrollWithAnimation}}"
+  bind:retry="onRetry">
+  <view slot="content" class="contact-page">
+    <!-- iOS style list - no card, direct list -->
+    <view class="contact-list" wx:if="{{contactList.length > 0}}">
+      <ui-cell
+        wx:for="{{contactList}}"
+        wx:key="conv_id"
+        title="{{item.displayName}}"
+        label="{{item.lastMessage}}"
+        link="{{true}}"
+        bindtap="goToChat"
+        bindlongpress="onContactLongPress"
+        data-id="{{item.conv_id}}"
+        data-index="{{index}}"
+        data-name="{{item.displayName}}">
+        <view slot="icon">
+          <ui-avatar src="{{item.avatarUrl}}" size="large" />
         </view>
-        <!-- More button -->
-        <view class="more-btn" catchtap="showMenu" data-index="{{index}}">⋯</view>
-      </view>
-    </view>
-
-    <!-- Empty state -->
-    <view wx:if="{{isEmpty}}" class="empty-state">
-      <text>暂无联系人</text>
-    </view>
-  </scroll-view>
-
-  <!-- Popup menu overlay -->
-  <view wx:if="{{currentMenuIndex >= 0}}" class="menu-overlay" catchtap="hideMenu">
-    <view class="menu-popup" catchtap="stopPropagation">
-      <!-- Contact info header -->
-      <view class="menu-header">
-        <image src="{{contactList[currentMenuIndex].avatarUrl}}" class="menu-avatar" mode="aspectFill" />
-        <text class="menu-name">{{contactList[currentMenuIndex].displayName}}</text>
-      </view>
-
-      <!-- Menu items -->
-      <view class="menu-item" catchtap="goToContactInfo" data-index="{{currentMenuIndex}}" data-id="{{contactList[currentMenuIndex].conv_id}}">
-        联系人信息
-      </view>
-      <view class="menu-item" catchtap="markAsUnread" data-index="{{currentMenuIndex}}">
-        标为未读
-      </view>
-      <view class="menu-item delete" catchtap="deleteContact" data-index="{{currentMenuIndex}}" data-id="{{contactList[currentMenuIndex].conv_id}}">
-        删除联系人
-      </view>
+        <view wx:if="{{item.tags && item.tags.length}}" class="contact-item__tags">
+          <ui-tag
+            wx:for="{{item.tags}}"
+            wx:for-item="tag"
+            wx:key="*this"
+            size="small"
+            variant="outline">
+            {{tag}}
+          </ui-tag>
+        </view>
+        <view slot="footer" class="contact-item__meta">
+          <text class="contact-item__time">{{item.lastMessageTime}}</text>
+          <ui-badge wx:if="{{item.hasUnread}}" count="{{item.unreadBadge}}" />
+        </view>
+      </ui-cell>
     </view>
   </view>
-</view>
+</page-layout>
+
+<!-- Action Sheet for contact actions -->
+<ui-action-sheet
+  show="{{actionSheet.show}}"
+  title="{{actionSheet.displayName}}"
+  actions="{{actionSheetActions}}"
+  maskClosable="{{true}}"
+  bind:select="handleActionSelect"
+  bind:close="handleActionSheetClose" />

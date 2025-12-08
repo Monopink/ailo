@@ -1,123 +1,56 @@
-/* Phone manage page container */
-.phone-manage-page {
-  min-height: 100vh;
-  background-color: #f5f5f5;
-}
+@import '/styles/design-tokens.wxss';
 
-/* Loading container */
-.loading-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-}
-
-/* Phone manage content */
-.phone-manage-content {
-  padding: 40rpx;
+.phone-manage {
+  background-color: var(--color-bg-page);
+  padding: var(--padding-page);
 }
 
 /* Info section */
-.info-section {
-  background-color: #fff;
-  border-radius: 16rpx;
-  padding: 40rpx;
-  margin-bottom: 40rpx;
-}
-
-.info-label {
-  display: block;
-  font-size: 28rpx;
-  color: #999;
-  margin-bottom: 10rpx;
-}
-
-.info-value {
-  display: block;
-  font-size: 32rpx;
-  color: #333;
-}
-
-/* Section */
-.section {
-  margin-bottom: 40rpx;
-}
-
-.section-title {
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 30rpx;
-}
-
-/* Input item */
-.input-item {
-  background-color: #fff;
-  border-radius: 16rpx;
-  padding: 30rpx 40rpx;
-  margin-bottom: 20rpx;
-}
-
-.input-item .label {
-  display: block;
-  font-size: 28rpx;
-  color: #999;
-  margin-bottom: 20rpx;
-}
-
-.input-field {
-  width: 100%;
-  font-size: 32rpx;
-  color: #333;
-  border: none;
-  outline: none;
-}
-
-/* Code section */
-.code-section {
+.phone-manage__info {
   display: flex;
-  gap: 20rpx;
-  margin-bottom: 20rpx;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
 }
 
-.code-input {
-  flex: 1;
-  padding: 30rpx;
-  background-color: #fff;
-  border-radius: 16rpx;
-  font-size: 32rpx;
-  color: #333;
+.phone-manage__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
-.send-code-button {
-  width: 240rpx;
-  padding: 30rpx 20rpx;
-  background-color: #fff;
-  color: #333;
-  border-radius: 16rpx;
-  font-size: 28rpx;
-  text-align: center;
-  border: none;
+.phone-manage__value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
 }
 
-.send-code-button[disabled] {
-  background-color: #f5f5f5;
-  color: #999;
+/* Form */
+.phone-manage__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
-/* Action button */
-.action-button {
-  width: 100%;
-  padding: 30rpx;
-  background-color: #fff;
-  color: #333;
-  border-radius: 16rpx;
-  font-size: 32rpx;
-  text-align: center;
-  border: none;
+.phone-manage__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
-.action-button[disabled] {
-  background-color: #f5f5f5;
-  color: #999;
+.phone-manage__hint {
+  padding: var(--space-sm) 0;
+}
+
+.phone-manage__hint-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-loose);
+}
+
+/* Actions */
+.phone-manage__actions {
+  margin-top: var(--space-xl);
 }

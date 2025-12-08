@@ -2,8 +2,8 @@ import { requireAuth } from '../../utils/auth-guard';
 import { getAvatarUrl } from '../../utils/avatar';
 import { APP_CONFIG } from '../../utils/config';
 import { getLogger } from '../../utils/logger';
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import {
-  clearMessages,
   getContacts,
   getLatestRenderableMessage,
   saveContacts,
@@ -11,12 +11,30 @@ import {
   type StoredContact,
   type StoredContacts,
 } from '../../utils/storage';
-import { del } from '../../utils/api';
 import { MESSAGE_TYPE } from '../../utils/message/constants';
 import { formatMessageTime } from '../../utils/format';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 
 const logger = getLogger('ContactList');
+
+type ContactAction = 'contact-info' | 'mark-unread';
+
+interface ActionSheetAction {
+  text: string;
+  type?: 'default' | 'destructive';
+  disabled?: boolean;
+  action: ContactAction;
+}
+
+const ACTION_SHEET_ACTIONS: ReadonlyArray<ActionSheetAction> = [
+  { text: '联系人信息', type: 'default', action: 'contact-info' },
+  { text: '标为未读', type: 'default', action: 'mark-unread' },
+];
+
+type ActionSelectEvent = WechatMiniprogram.CustomEvent<{
+  index: number;
+  action: ActionSheetAction;
+}>;
 
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
@@ -44,12 +62,19 @@ interface ContactListItem extends ContactWithPreview {
   unreadBadge: string;
 }
 
+interface ActionSheetState {
+  show: boolean;
+  targetIndex: number;
+  targetConvId: string;
+  displayName: string;
+}
+
 interface ContactListPageData {
+  pageLayoutData: PageLayoutData;
   contactList: ContactListItem[];
   unreadTotal: number;
-  loading: boolean;
-  currentMenuIndex: number;
-  isEmpty: boolean;
+  actionSheet: ActionSheetState;
+  actionSheetActions: ReadonlyArray<ActionSheetAction>;
 }
 
 interface ContactListPageCustom {
@@ -61,12 +86,13 @@ interface ContactListPageCustom {
   attachLatestMessages(contacts: StoredContacts): Promise<ContactWithPreview[]>;
   updateContactList(contacts: ContactWithPreview[]): void;
   goToChat(event: WechatMiniprogram.BaseEvent): void;
-  showMenu(event: WechatMiniprogram.BaseEvent): void;
-  hideMenu(): void;
-  stopPropagation(event: WechatMiniprogram.BaseEvent): void;
-  goToContactInfo(event: WechatMiniprogram.BaseEvent): void;
-  markAsUnread(event: WechatMiniprogram.BaseEvent): void;
-  deleteContact(event: WechatMiniprogram.BaseEvent): void;
+  onContactLongPress(event: WechatMiniprogram.BaseEvent): void;
+  handleActionSheetClose(): void;
+  handleActionSelect(event: ActionSelectEvent): void;
+  handleContactAction(action?: ContactAction): void;
+  resetActionSheet(): void;
+  navigateToContactInfo(convId?: string): void;
+  markContactAsUnreadByIndex(index: number): void;
   onMessageReceived(message: Says.MessagePayload): void;
 }
 
@@ -121,11 +147,20 @@ const getDatasetNumber = (event: WechatMiniprogram.BaseEvent, key: string): numb
 
 Page<ContactListPageData, ContactListPageCustom>({
   data: {
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂无联系人',
+      hasFooter: false,
+    }),
     contactList: [],
     unreadTotal: 0,
-    loading: false,
-    currentMenuIndex: -1,
-    isEmpty: false,
+    actionSheet: {
+      show: false,
+      targetIndex: -1,
+      targetConvId: '',
+      displayName: '',
+    },
+    actionSheetActions: ACTION_SHEET_ACTIONS,
   },
 
   _loadPromise: null,
@@ -168,7 +203,11 @@ Page<ContactListPageData, ContactListPageCustom>({
     }
 
     const loadTask: Promise<void> = (async () => {
-      this.setData({ loading: true });
+      this.setData({
+        'pageLayoutData.isLoading': true,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.errorMessage': '',
+      });
       try {
         const remoteContacts = await fetchAllContactsFromApi();
         const normalizedContacts = await saveContacts(remoteContacts);
@@ -188,7 +227,12 @@ Page<ContactListPageData, ContactListPageCustom>({
       .catch((error) => {
         const err = normalizeError(error);
         logger.error('Failed to load contact list', { error: err.message });
-        this.setData({ loading: false, isEmpty: true });
+        this.setData({
+          'pageLayoutData.isLoading': false,
+          'pageLayoutData.hasError': true,
+          'pageLayoutData.errorMessage': err.message || '加载失败，请稍后重试',
+          'pageLayoutData.isEmpty': false,
+        });
         showToast('加载失败');
       })
       .finally(() => {
@@ -254,10 +298,15 @@ Page<ContactListPageData, ContactListPageCustom>({
     });
 
     const unreadTotal = contactList.reduce((sum, contact) => sum + (contact.unreadCount ?? 0), 0);
-    const loading = false;
-    const isEmpty = contactList.length === 0 && !loading;
 
-    this.setData({ contactList, unreadTotal, loading, isEmpty });
+    this.setData({
+      contactList,
+      unreadTotal,
+      'pageLayoutData.isLoading': false,
+      'pageLayoutData.isEmpty': contactList.length === 0,
+      'pageLayoutData.hasError': false,
+      'pageLayoutData.errorMessage': '',
+    });
     this.updateNavigationTitle();
   },
 
@@ -269,33 +318,74 @@ Page<ContactListPageData, ContactListPageCustom>({
     void wx.navigateTo({ url: `/pages/chat/chat?id=${convId}` });
   },
 
-  showMenu(event) {
+  onContactLongPress(event) {
     const index = getDatasetNumber(event, 'index');
-    if (typeof index === 'number') {
-      this.setData({ currentMenuIndex: index });
-    }
-  },
-
-  hideMenu() {
-    this.setData({ currentMenuIndex: -1 });
-  },
-
-  stopPropagation(_event) {
-    // noop; used to prevent overlay dismissal
-  },
-
-  goToContactInfo(event) {
     const convId = getDatasetString(event, 'id');
-    this.setData({ currentMenuIndex: -1 });
+    if (typeof index !== 'number' || !convId) {
+      return;
+    }
+    const normalizedIndex = index;
+    const displayName =
+      getDatasetString(event, 'name') ?? this.data.contactList[normalizedIndex]?.displayName ?? '';
+
+    this.setData({
+      actionSheet: {
+        show: true,
+        targetIndex: normalizedIndex,
+        targetConvId: convId,
+        displayName,
+      },
+    });
+  },
+
+  handleActionSheetClose() {
+    this.resetActionSheet();
+  },
+
+  handleActionSelect(event: ActionSelectEvent) {
+    const action = event?.detail?.action?.action;
+    this.handleContactAction(action);
+  },
+
+  handleContactAction(action?: ContactAction) {
+    if (!action) {
+      this.resetActionSheet();
+      return;
+    }
+
+    switch (action) {
+      case 'contact-info':
+        this.navigateToContactInfo(this.data.actionSheet.targetConvId);
+        break;
+      case 'mark-unread':
+        this.markContactAsUnreadByIndex(this.data.actionSheet.targetIndex);
+        break;
+      default:
+        break;
+    }
+    this.resetActionSheet();
+  },
+
+  resetActionSheet() {
+    this.setData({
+      actionSheet: {
+        show: false,
+        targetIndex: -1,
+        targetConvId: '',
+        displayName: '',
+      },
+    });
+  },
+
+  navigateToContactInfo(convId?: string) {
     if (!convId) {
       return;
     }
     void wx.navigateTo({ url: `/pages/contact-info/contact-info?id=${convId}` });
   },
 
-  markAsUnread(event) {
-    const index = getDatasetNumber(event, 'index');
-    if (typeof index !== 'number') {
+  markContactAsUnreadByIndex(index: number) {
+    if (!Number.isInteger(index) || index < 0) {
       return;
     }
 
@@ -317,54 +407,10 @@ Page<ContactListPageData, ContactListPageCustom>({
 
     this.setData({
       contactList,
-      currentMenuIndex: -1,
       unreadTotal,
     });
     this.updateNavigationTitle();
     showToast('已标为未读', 'success');
-  },
-
-  deleteContact(event) {
-    const convId = getDatasetString(event, 'id');
-    this.setData({ currentMenuIndex: -1 });
-    if (!convId) {
-      return;
-    }
-
-    void wx.showModal({
-      title: '删除联系人',
-      content: '删除后将解除联系并清空本地聊天记录，确定继续？',
-      confirmColor: '#ff4d4f',
-      success: async (res) => {
-        if (!res.confirm) {
-          return;
-        }
-
-        void wx.showLoading({ title: '处理中', mask: true });
-        try {
-          await del(`/contacts/${convId}`);
-
-          const currentContacts = await getContacts();
-          const updatedContacts = (currentContacts ?? []).filter(
-            (contact) => contact.conv_id !== convId
-          );
-          await saveContacts(updatedContacts);
-          await clearMessages(convId);
-
-          const enrichedContacts = await this.attachLatestMessages(updatedContacts);
-          this.updateContactList(enrichedContacts);
-
-          showToast('已删除', 'success');
-          logger.info('Contact deleted', { convId });
-        } catch (error) {
-          const err = normalizeError(error);
-          logger.error('Delete contact failed', { convId, error: err.message });
-          showToast(err.message || '删除失败，请稍后重试');
-        } finally {
-          void wx.hideLoading();
-        }
-      },
-    });
   },
 
   async attachLatestMessages(contacts) {

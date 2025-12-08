@@ -1,58 +1,72 @@
-<view class="phone-manage-page">
-  <!-- Loading state -->
-  <view wx:if="{{loading}}" class="loading-container">
-    <text>加载中...</text>
-  </view>
-
-  <!-- Phone manage content -->
-  <view wx:else class="phone-manage-content">
-    <!-- Current phone info -->
-    <view class="info-section">
-      <text class="info-label">当前手机号</text>
-      <text class="info-value">{{currentPhone}}</text>
-    </view>
-
-    <!-- Change phone section -->
-    <view class="section">
-      <view class="section-title">修改手机号</view>
-
-      <view class="input-item">
-        <text class="label">新手机号</text>
-        <input
-          class="input-field"
-          type="number"
-          placeholder="请输入新手机号"
-          value="{{newPhone}}"
-          bindinput="onNewPhoneInput"
-        />
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{false}}"
+  bind:retry="onRetry">
+  <view slot="content" class="phone-manage">
+    <view wx:if="{{!pageLayoutData.isLoading}}">
+      <!-- Current phone info -->
+      <view class="phone-manage__info">
+        <text class="phone-manage__label">当前手机号</text>
+        <text class="phone-manage__value">{{currentPhone || '未绑定'}}</text>
       </view>
 
-      <view class="code-section">
-        <input
-          class="code-input"
-          type="number"
-          placeholder="请输入验证码"
-          value="{{smsCode}}"
-          bindinput="onSmsCodeInput"
-          maxlength="6"
-        />
-        <button
-          class="send-code-button"
-          bindtap="sendSmsCode"
-          disabled="{{cooldown > 0 || sending}}"
-        >
-          {{cooldown > 0 ? cooldown + 's' : (sending ? '发送中...' : '发送验证码')}}
-        </button>
+      <!-- New phone form -->
+      <view class="phone-manage__form">
+        <view class="phone-manage__field">
+          <ui-input
+            label="新手机号"
+            type="number"
+            placeholder="请输入新手机号"
+            value="{{newPhone}}"
+            maxLength="11"
+            bindinput="onNewPhoneInput" />
+        </view>
+
+        <view class="phone-manage__field">
+          <ui-input
+            label="验证码"
+            type="number"
+            placeholder="请输入验证码"
+            value="{{smsCode}}"
+            maxLength="6"
+            bindinput="onSmsCodeInput" />
+        </view>
+
+        <view class="phone-manage__field">
+          <ui-button
+            type="secondary"
+            block="{{true}}"
+            loading="{{sending}}"
+            disabled="{{cooldown > 0 || sending}}"
+            bindtap="sendSmsCode">
+            {{cooldown > 0 ? cooldown + 's' : '发送验证码'}}
+          </ui-button>
+        </view>
+
+        <view class="phone-manage__hint">
+          <text class="phone-manage__hint-text">每次更换手机号都需要短信验证，请确保手机号可接收验证码。</text>
+        </view>
       </view>
 
-      <button class="action-button" bindtap="handleChangePhone" disabled="{{saving}}">
-        {{saving ? '修改中...' : '确认修改'}}
-      </button>
+      <!-- Submit button -->
+      <view class="phone-manage__actions">
+        <ui-button
+          type="primary"
+          block="{{true}}"
+          loading="{{saving}}"
+          disabled="{{saving}}"
+          bindtap="handleChangePhone">
+          {{saving ? '修改中...' : '确认修改'}}
+        </ui-button>
+      </view>
     </view>
   </view>
+</page-layout>
 
-  <!-- Aliyun Captcha Plugin (mounted only when needed) -->
-  <view wx:if="{{loadCaptcha}}">
-    <aliyun-captcha id="captcha-element" props="{{pluginProps}}" />
-  </view>
+<view wx:if="{{loadCaptcha}}">
+  <aliyun-captcha id="captcha-element" props="{{pluginProps}}" />
 </view>

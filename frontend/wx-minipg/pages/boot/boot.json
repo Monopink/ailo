@@ -1,5 +1,9 @@
 {
   "navigationBarTitleText": "",
   "navigationStyle": "default",
-  "backgroundColor": "#ffffff"
+  "backgroundColor": "#ffffff",
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-loading": "/components/ui/loading/loading"
+  }
 }

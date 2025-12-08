@@ -3,6 +3,7 @@ import { requireAuth } from '../../utils/auth-guard';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
 import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 
 const logger = getLogger('Square');
 
@@ -61,6 +62,7 @@ interface CacheEntry {
 }
 
 interface SquarePageData {
+  pageLayoutData: PageLayoutData;
   categories: readonly CategoryItem[];
   currentCategory: number | null;
   contacts: SquareContact[];
@@ -71,6 +73,7 @@ interface SquarePageData {
 interface LoadContactsOptions {
   respectCooldown?: boolean;
   silentOnCooldown?: boolean;
+  showGlobalLoading?: boolean;
 }
 
 interface SquarePageCustom {
@@ -85,6 +88,7 @@ interface SquarePageCustom {
   onPullDownRefresh(): void;
   handleContactTap(event: WechatMiniprogram.BaseEvent): void;
   handleAddContact(event: WechatMiniprogram.BaseEvent): Promise<void>;
+  onRetry(): void;
 }
 
 const normalizeError = (error: unknown): Error => {
@@ -150,6 +154,7 @@ const parseRefreshTimestamp = (value?: string | null): number | null => {
 
 Page<SquarePageData, SquarePageCustom>({
   data: {
+    pageLayoutData: createPageLayoutData(),
     categories: CATEGORIES,
     currentCategory: null,
     contacts: [],
@@ -182,6 +187,10 @@ Page<SquarePageData, SquarePageCustom>({
         this.setData({
           contacts: cache.contacts,
           nextRefreshAvailableAt: cache.nextRefreshAvailableAt ?? null,
+          'pageLayoutData.isLoading': false,
+          'pageLayoutData.hasError': false,
+          'pageLayoutData.isEmpty': cache.contacts.length === 0,
+          'pageLayoutData.errorMessage': '',
         });
         logger.info('Using fresh cache', { age: Math.floor(age / 1000) });
         return;
@@ -191,6 +200,10 @@ Page<SquarePageData, SquarePageCustom>({
         this.setData({
           contacts: cache.contacts,
           nextRefreshAvailableAt: cache.nextRefreshAvailableAt ?? null,
+          'pageLayoutData.isLoading': false,
+          'pageLayoutData.hasError': false,
+          'pageLayoutData.isEmpty': cache.contacts.length === 0,
+          'pageLayoutData.errorMessage': '',
         });
         logger.info('Using stale cache, revalidating', { age: Math.floor(age / 1000) });
         void this.revalidateCache();
@@ -203,15 +216,27 @@ Page<SquarePageData, SquarePageCustom>({
 
   async revalidateCache() {
     try {
-      await this.loadContacts({ respectCooldown: false, silentOnCooldown: true });
+      await this.loadContacts({
+        respectCooldown: false,
+        silentOnCooldown: true,
+        showGlobalLoading: false,
+      });
     } catch (error) {
       const err = normalizeError(error);
       logger.warn('Revalidation failed, keeping stale cache', { error: err.message });
     }
   },
 
+  onRetry() {
+    this.setData({
+      'pageLayoutData.hasError': false,
+      'pageLayoutData.isLoading': true,
+    });
+    void this.loadContacts({ respectCooldown: false, showGlobalLoading: true });
+  },
+
   async loadContacts(options: LoadContactsOptions = {}) {
-    const { respectCooldown = true, silentOnCooldown = false } = options;
+    const { respectCooldown = true, silentOnCooldown = false, showGlobalLoading = true } = options;
     if (respectCooldown && !this.canRefreshNow()) {
       if (!silentOnCooldown) {
         const waitSeconds = this.getRefreshWaitSeconds();
@@ -225,7 +250,15 @@ Page<SquarePageData, SquarePageCustom>({
       return;
     }
 
-    this.setData({ loading: true });
+    this.setData({
+      loading: true,
+      ...(showGlobalLoading
+        ? {
+            'pageLayoutData.isLoading': true,
+            'pageLayoutData.hasError': false,
+          }
+        : null),
+    });
 
     try {
       const params: Record<string, number> = {};
@@ -241,6 +274,10 @@ Page<SquarePageData, SquarePageCustom>({
         contacts,
         loading: false,
         nextRefreshAvailableAt,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.isEmpty': contacts.length === 0,
+        'pageLayoutData.errorMessage': '',
       });
 
       const cacheEntry: CacheEntry = {
@@ -256,7 +293,10 @@ Page<SquarePageData, SquarePageCustom>({
       });
     } catch (error) {
       const err = normalizeError(error);
-      this.setData({ loading: false });
+      this.setData({
+        loading: false,
+        'pageLayoutData.isLoading': false,
+      });
 
       const cache = wx.getStorageSync<CacheEntry | null>(this.getCacheKey());
       if (cache && typeof cache.timestamp === 'number') {
@@ -269,6 +309,10 @@ Page<SquarePageData, SquarePageCustom>({
 
       wx.removeStorageSync(this.getCacheKey());
       showToast(err.message || '加载失败');
+      this.setData({
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': err.message || '加载失败',
+      });
       logger.error('Load failed', { error: err.message });
     }
   },
@@ -314,6 +358,7 @@ Page<SquarePageData, SquarePageCustom>({
       currentCategory: category,
       contacts: [],
       nextRefreshAvailableAt: null,
+      'pageLayoutData.isEmpty': false,
     });
 
     this.loadContactsWithCache();
@@ -359,15 +404,18 @@ Page<SquarePageData, SquarePageCustom>({
       const updatedContacts = originalContacts.filter((contact) => contact.qiao_id !== qiaoId);
       this.setData({
         contacts: updatedContacts,
+        'pageLayoutData.isEmpty': updatedContacts.length === 0,
       });
 
       const cacheKey = this.getCacheKey();
       wx.removeStorageSync(cacheKey);
 
-      void this.loadContacts({ silentOnCooldown: true }).catch((error) => {
-        const err = normalizeError(error);
-        logger.warn('Square page refresh failed after add contact', { error: err.message });
-      });
+      void this.loadContacts({ silentOnCooldown: true, showGlobalLoading: false }).catch(
+        (error) => {
+          const err = normalizeError(error);
+          logger.warn('Square page refresh failed after add contact', { error: err.message });
+        }
+      );
 
       logger.info('Contact request sent', { to_qiao_id: qiaoId });
     } catch (error) {

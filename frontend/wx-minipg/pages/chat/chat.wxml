@@ -1,123 +1,115 @@
-<view class="chat-page">
-  <!-- Messages Container -->
-  <scroll-view
-    class="messages-container"
-    scroll-y
-    scroll-into-view="{{scrollToView}}"
-    scroll-with-animation="{{true}}"
-    enhanced="{{true}}"
-    show-scrollbar="{{false}}">
+<!-- Floating navbar -->
+<ui-navbar
+  title="{{navbarTitle}}"
+  showBack="{{true}}"
+  clickable="{{true}}"
+  bind:titleclick="onNavbarTitleClick"
+  bind:ready="onNavbarReady" />
 
-    <view class="messages-list">
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  fixedFooter="{{true}}"
+  contentScrollIntoView="{{pageLayoutData.contentScrollIntoView}}"
+  contentScrollWithAnimation="{{pageLayoutData.contentScrollWithAnimation}}"
+  bind:retry="onRetry">
+  <view slot="content" class="chat-page" style="padding-top: {{navbarHeight}}px;">
+    <view class="chat-page__messages">
+      <view wx:if="{{!messages.length && !pageLayoutData.isLoading}}" class="chat-placeholder">
+        <text class="chat-placeholder__text">开始和对方聊天吧～</text>
+      </view>
+
       <block wx:for="{{messages}}" wx:key="msg_id">
-        <!-- Timestamp -->
-        <view wx:if="{{item.showTimestamp}}" class="timestamp">
+        <view wx:if="{{item.showTimestamp}}" class="chat-timestamp">
           {{item.timestampText}}
         </view>
 
-        <!-- System / Chat Info Message -->
-        <view wx:if="{{item.isSystemMessage}}" class="system-msg">
+        <view wx:if="{{item.isSystemMessage}}" class="chat-system-msg">
           {{item.systemContent}}
         </view>
 
-        <!-- User Message -->
         <view wx:else class="msg-row {{item.from_me ? 'msg-row-me' : 'msg-row-other'}}" id="msg-{{item.msg_id}}">
-          <!-- Avatar -->
-          <image
-            class="msg-avatar"
-            src="{{item.from_me ? userAvatar : contactAvatar}}"
-            mode="aspectFill" />
-
-          <!-- Message Content Wrapper -->
-          <view class="msg-wrapper">
-            <!-- Failed Icon (left of bubble) -->
+          <!-- For "my messages" (right side): status icon - bubble - avatar -->
+          <block wx:if="{{item.from_me}}">
             <view
-              wx:if="{{item.from_me && item.status === 3}}"
+              wx:if="{{item.status === 3}}"
               class="msg-status-icon"
               bindtap="onRetryMessage"
               data-msgid="{{item.msg_id}}">
-              <!-- TODO: Replace with icon-warning from iconfont -->
               !
             </view>
 
-            <!-- Message Bubble -->
-            <view class="msg-bubble {{item.from_me ? 'msg-bubble-me' : 'msg-bubble-other'}}">
+            <view class="msg-bubble msg-bubble-me">
               <text class="msg-text">{{item.content}}</text>
             </view>
-          </view>
+
+            <view class="msg-avatar">
+              <ui-avatar src="{{userAvatar}}" size="medium" />
+            </view>
+          </block>
+
+          <!-- For "other messages" (left side): avatar - bubble -->
+          <block wx:else>
+            <view class="msg-avatar">
+              <ui-avatar src="{{contactAvatar}}" size="medium" />
+            </view>
+
+            <view class="msg-bubble msg-bubble-other">
+              <text class="msg-text">{{item.content}}</text>
+            </view>
+          </block>
         </view>
       </block>
 
-      <!-- Typing Indicator -->
-      <view wx:if="{{isContactTyping}}" class="msg-row msg-row-other">
-        <image
-          class="msg-avatar"
-          src="{{contactAvatar}}"
-          mode="aspectFill" />
-
-        <view class="msg-wrapper">
-          <view class="msg-bubble msg-bubble-other typing-indicator">
-            <view class="typing-dot"></view>
-            <view class="typing-dot"></view>
-            <view class="typing-dot"></view>
-          </view>
+      <view wx:if="{{isContactTyping}}" class="msg-row msg-row-other typing-row">
+        <view class="msg-avatar">
+          <ui-avatar src="{{contactAvatar}}" size="medium" />
+        </view>
+        <view class="msg-bubble msg-bubble-other typing-indicator">
+          <view class="typing-dot"></view>
+          <view class="typing-dot"></view>
+          <view class="typing-dot"></view>
         </view>
       </view>
     </view>
-  </scroll-view>
-
-  <!-- Input Area -->
-  <view class="input-area">
-    <!-- Emoji Button -->
-    <view class="input-emoji-btn {{showEmojiPicker ? 'keyboard-mode' : ''}}" bindtap="onToggleEmoji">
-      <!-- TODO: Replace with icon-smile / icon-keyboard from iconfont -->
-      <view class="icon-placeholder">{{showEmojiPicker ? '⌨️' : '😊'}}</view>
-    </view>
-
-    <!-- Text Input -->
-    <view class="input-box">
-      <input
-        class="input-field"
-        type="text"
-        placeholder="{{inputPlaceholder}}"
-        value="{{inputText}}"
-        bindinput="onInputChange"
-        bindfocus="onInputFocus"
-        bindblur="onInputBlur"
-        bindconfirm="onSendMessage"
-        bindcompositionstart="onCompositionStart"
-        bindcompositionend="onCompositionEnd"
-        maxlength="{{maxMessageLength}}"
-        confirm-type="send"
-        ignoreCompositionEvent="{{false}}"
-        show-confirm-bar="{{false}}"
-        adjust-position="{{true}}"
-        cursor-spacing="8"
-        focus="{{inputFocused}}" />
-    </view>
-
-    <!-- Send Button -->
-    <view
-      class="input-send-btn {{inputText ? 'input-send-btn-active' : ''}}"
-      bindtap="onSendMessage">
-      <!-- TODO: Replace with icon-send from iconfont -->
-      <view class="icon-placeholder">↑</view>
-    </view>
   </view>
 
-  <!-- Emoji Picker -->
-  <view class="emoji-picker {{showEmojiPicker ? 'emoji-picker-show' : ''}}">
-    <scroll-view class="emoji-scroll" scroll-y>
-      <view class="emoji-grid">
-        <view
-          wx:for="{{emojiList}}"
-          wx:key="index"
-          class="emoji-item"
-          bindtap="onSelectEmoji"
-          data-emoji="{{item}}">
-          {{item}}
-        </view>
+  <view slot="footer">
+    <!-- Input bar -->
+    <view class="chat-footer">
+      <!-- Input field -->
+      <view class="chat-footer__input-wrapper">
+        <input
+          class="chat-footer__input"
+          type="text"
+          placeholder="{{inputPlaceholder}}"
+          placeholder-class="chat-footer__input-placeholder"
+          value="{{inputText}}"
+          bindinput="onInputChange"
+          bindfocus="onInputFocus"
+          bindblur="onInputBlur"
+          bindconfirm="onSendMessage"
+          bindcompositionstart="onCompositionStart"
+          bindcompositionend="onCompositionEnd"
+          maxlength="{{maxMessageLength}}"
+          confirm-type="send"
+          ignoreCompositionEvent="{{false}}"
+          show-confirm-bar="{{false}}"
+          adjust-position="{{true}}"
+          cursor-spacing="16"
+          focus="{{inputFocused}}" />
       </view>
-    </scroll-view>
+
+      <!-- Send button - circular WeChat style -->
+      <view
+        class="chat-footer__send-button {{inputText ? 'chat-footer__send-button--active' : ''}}"
+        bindtap="onSendMessage">
+        <view class="chat-footer__send-icon"></view>
+      </view>
+    </view>
   </view>
-</view>
+</page-layout>

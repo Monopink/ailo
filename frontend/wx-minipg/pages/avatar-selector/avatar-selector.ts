@@ -1,3 +1,4 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { put } from '../../utils/api';
 import { getLogger } from '../../utils/logger';
 
@@ -12,11 +13,11 @@ interface AvatarItem {
 }
 
 interface AvatarSelectorPageData {
-  loading: boolean;
+  pageLayoutData: PageLayoutData;
   presetAvatars: AvatarItem[];
   currentAvatar: string;
   selectedAvatar: string;
-  error: string | null;
+  isConfirming: boolean;
 }
 
 type AvatarTapEvent = WechatMiniprogram.TouchEvent<
@@ -41,11 +42,15 @@ const buildAvatarItems = (): AvatarItem[] =>
 
 Page<AvatarSelectorPageData, AvatarSelectorPageCustom>({
   data: {
-    loading: true,
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂无可用头像',
+      hasFooter: true,
+    }),
     presetAvatars: [],
     currentAvatar: '',
     selectedAvatar: '',
-    error: null,
+    isConfirming: false,
   },
 
   onLoad(options) {
@@ -60,7 +65,9 @@ Page<AvatarSelectorPageData, AvatarSelectorPageCustom>({
     const avatars = buildAvatarItems();
     this.setData({
       presetAvatars: avatars,
-      loading: false,
+      'pageLayoutData.isLoading': false,
+      'pageLayoutData.isEmpty': avatars.length === 0,
+      'pageLayoutData.hasFooter': avatars.length > 0,
     });
     logger.info('Preset avatars loaded', { count: avatars.length });
   },
@@ -83,7 +90,12 @@ Page<AvatarSelectorPageData, AvatarSelectorPageCustom>({
       return;
     }
 
+    if (this.data.isConfirming) {
+      return;
+    }
+
     try {
+      this.setData({ isConfirming: true });
       logger.info('Updating avatar', { avatar: this.data.selectedAvatar });
       await put('/user/profile', {
         avatar_url: this.data.selectedAvatar,
@@ -106,6 +118,8 @@ Page<AvatarSelectorPageData, AvatarSelectorPageCustom>({
         title: '更新失败',
         icon: 'none',
       });
+    } finally {
+      this.setData({ isConfirming: false });
     }
   },
 

@@ -1,3 +1,9 @@
 {
-  "navigationBarTitleText": "联系人申请"
+  "navigationBarTitleText": "联系人申请",
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-cell": "/components/ui/cell/cell",
+    "ui-avatar": "/components/ui/avatar/avatar",
+    "ui-button": "/components/ui/button/button"
+  }
 }

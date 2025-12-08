@@ -1,0 +1,25 @@
+<view class="ui-input {{borderless ? 'ui-input--borderless' : ''}} ui-input--{{status}}">
+  <text wx:if="{{label}}" class="ui-input__label">{{label}}</text>
+  <view class="ui-input__control">
+    <input
+      class="ui-input__field"
+      value="{{value}}"
+      placeholder="{{placeholder}}"
+      type="{{type}}"
+      disabled="{{disabled}}"
+      password="{{type === 'password'}}"
+      readonly="{{readonly}}"
+      maxlength="{{maxLength}}"
+      auto-focus="{{autoFocus}}"
+      confirm-type="{{confirmType}}"
+      bindinput="handleInput"
+      bindconfirm="handleConfirm"
+      bindfocus="handleFocus"
+      bindblur="handleBlur" />
+  </view>
+  <view wx:if="{{error || helperText}}"
+    class="ui-input__meta">
+    <text wx:if="{{error}}" class="ui-input__helper ui-input__helper--error">{{error}}</text>
+    <text wx:elif="{{helperText}}" class="ui-input__helper">{{helperText}}</text>
+  </view>
+</view>

@@ -1,4 +1,12 @@
 {
   "navigationBarTitleText": "聊天",
-  "enablePullDownRefresh": true
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-cell": "/components/ui/cell/cell",
+    "ui-avatar": "/components/ui/avatar/avatar",
+    "ui-badge": "/components/ui/badge/badge",
+    "ui-tag": "/components/ui/tag/tag",
+    "ui-action-sheet": "/components/ui/action-sheet/action-sheet"
+  }
 }

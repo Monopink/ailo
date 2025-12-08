@@ -6,6 +6,7 @@ import {
   showCaptcha,
 } from '../../utils/captcha';
 import { getLogger } from '../../utils/logger';
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 
 const logger = getLogger('Verify');
 
@@ -36,6 +37,7 @@ interface VerifyConfirmResponse {
 }
 
 interface VerifyPageData extends Says.CaptchaPageData {
+  pageLayoutData: PageLayoutData;
   verifyType: 'phone' | 'email';
   maskedPhone: string;
   maskedEmail: string;
@@ -56,6 +58,7 @@ interface VerifyPageCustom {
   _captchaReady?: boolean;
   _captchaRetryCount?: number;
   loadAccountInfo(): Promise<void>;
+  onRetry(): void;
   selectPhone(): void;
   selectEmail(): void;
   onCodeInput(event: InputEvent): void;
@@ -100,6 +103,11 @@ const normalizeErrorMessage = (error: unknown, fallback: string): string => {
 
 Page<VerifyPageData, VerifyPageCustom>({
   data: {
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      hasFooter: true,
+      emptyMessage: '',
+    }),
     verifyType: 'phone',
     maskedPhone: '',
     maskedEmail: '',
@@ -142,17 +150,36 @@ Page<VerifyPageData, VerifyPageCustom>({
   },
 
   async loadAccountInfo() {
+    this.setData({
+      'pageLayoutData.isLoading': true,
+      'pageLayoutData.hasError': false,
+      'pageLayoutData.errorMessage': '',
+    });
     try {
       const account = await get<AccountInfo>('/user/account');
       this.setData({
         maskedPhone: account.phone,
         maskedEmail: account.email ?? '',
         hasEmail: Boolean(account.email),
+        'pageLayoutData.isLoading': false,
       });
     } catch (error) {
       logger.error('Load account info failed', { error });
       showToast('加载失败');
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
+      });
     }
+  },
+
+  onRetry() {
+    this.setData({
+      'pageLayoutData.hasError': false,
+      'pageLayoutData.errorMessage': '',
+    });
+    void this.loadAccountInfo();
   },
 
   selectPhone() {

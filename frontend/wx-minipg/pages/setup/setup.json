@@ -3,5 +3,11 @@
   "navigationBarBackgroundColor": "#ffffff",
   "navigationBarTextStyle": "black",
   "backgroundColor": "#f5f7fa",
-  "enablePullDownRefresh": false
+  "enablePullDownRefresh": false,
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-button": "/components/ui/button/button",
+    "ui-cell": "/components/ui/cell/cell",
+    "ui-avatar": "/components/ui/avatar/avatar"
+  }
 }

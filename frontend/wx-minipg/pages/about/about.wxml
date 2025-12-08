@@ -1,0 +1,35 @@
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="about">
+    <!-- App info -->
+    <view class="about__header">
+      <view class="about__logo">
+        <text class="about__logo-text">敲敲</text>
+      </view>
+      <text class="about__version">版本 {{version}}</text>
+    </view>
+
+    <!-- Links group -->
+    <view class="about__group">
+      <ui-cell
+        title="用户协议"
+        link="{{true}}"
+        bindtap="navigateToUserAgreement" />
+      <ui-cell
+        title="隐私政策"
+        link="{{true}}"
+        bindtap="navigateToPrivacyPolicy" />
+    </view>
+
+    <!-- Copyright -->
+    <view class="about__footer">
+      <text class="about__copyright">© 2025 敲敲</text>
+    </view>
+  </view>
+</page-layout>

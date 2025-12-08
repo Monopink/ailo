@@ -1,0 +1,29 @@
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="account-security">
+    <view wx:if="{{!pageLayoutData.isLoading}}">
+      <!-- Account info group - Using ui-card -->
+      <ui-card padding="none">
+        <ui-cell
+          title="手机号"
+          value="{{phoneMasked || '未绑定'}}"
+          link="{{true}}"
+          bindtap="navigateToPhoneManage" />
+      </ui-card>
+
+      <!-- Logout action - Using ui-card -->
+      <ui-card padding="none">
+        <ui-cell
+          title="退出登录"
+          link="{{true}}"
+          bindtap="handleLogout" />
+      </ui-card>
+    </view>
+  </view>
+</page-layout>

@@ -1,0 +1,11 @@
+<view class="ui-avatar ui-avatar--{{size}} ui-avatar--{{shape}}">
+  <image
+    class="ui-avatar__image"
+    wx:if="{{src && !hasError}}"
+    src="{{src}}"
+    mode="aspectFill"
+    binderror="handleError"
+    bindload="handleLoad" />
+  <view wx:else class="ui-avatar__placeholder"></view>
+  <view wx:if="{{gender}}" class="ui-avatar__gender ui-avatar__gender--{{gender}}"></view>
+</view>

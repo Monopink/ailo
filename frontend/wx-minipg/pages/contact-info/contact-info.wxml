@@ -1,67 +1,78 @@
-<view class="contact-info-page">
-  <!-- Loading state -->
-  <view wx:if="{{loading && !contact}}" class="loading-state">
-    <text>加载中...</text>
-  </view>
-
-  <!-- Contact info -->
-  <view wx:else class="contact-info">
-    <!-- Profile section (资料区域) -->
-    <view class="profile-section">
-      <!-- Avatar and basic info -->
-      <view class="profile-header">
-        <image
-          src="{{contact.custom_avatar_url || contact.avatar_url || '/assets/avatars/default.png'}}"
-          class="avatar"
-          mode="aspectFill"
-        />
-        <view class="header-info">
-          <view class="name-row">
-            <text class="nickname">{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
-            <text wx:if="{{contact.gender}}" class="gender">{{contact.gender === 1 ? '♂' : contact.gender === 2 ? '♀' : ''}}</text>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="refreshContactInfo">
+  <view slot="content" class="contact-info">
+    <view wx:if="{{contact}}">
+      <!-- Hero section - Using ui-card + standard layout -->
+      <ui-card padding="medium" shadow="{{false}}">
+        <view class="info-hero">
+          <ui-avatar
+            src="{{contact.custom_avatar_url || contact.avatar_url || '/assets/avatars/default.png'}}"
+            size="xlarge" />
+          <view class="info-hero__content">
+            <view class="info-hero__name">
+              <text>{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
+              <gender-badge wx:if="{{contact.gender}}" gender="{{contact.gender}}" />
+            </view>
+            <text class="info-hero__subtitle">敲敲号：{{contact.contact_qiao_id}}</text>
           </view>
-          <text class="qiao-id">敲敲号: {{contact.contact_qiao_id}}</text>
+        </view>
+      </ui-card>
+
+      <!-- Bio section - Using ui-card -->
+      <ui-card wx:if="{{contact.bio}}" padding="medium">
+        <view style="display: flex; flex-direction: column; gap: 8rpx;">
+          <text class="text-tertiary">个性签名</text>
+          <text class="text-secondary">{{contact.bio}}</text>
+        </view>
+      </ui-card>
+
+      <!-- Tags - Using ui-card -->
+      <ui-card wx:if="{{contact.tags && contact.tags.length}}" padding="medium">
+        <view class="tags-container" style="padding: 0;">
+          <ui-tag
+            wx:for="{{contact.tags}}"
+            wx:key="*this"
+            size="small"
+            variant="outline">
+            {{item}}
+          </ui-tag>
+        </view>
+      </ui-card>
+
+      <!-- Settings group - Using ui-card -->
+      <ui-card padding="none">
+        <ui-cell title="备注和标签" link="{{true}}" bindtap="editRemarkAndTags" />
+      </ui-card>
+
+      <ui-card padding="none">
+        <ui-cell title="置顶聊天">
+          <ui-switch slot="footer" checked="{{isPinned}}" bindchange="onPinnedChange" />
+        </ui-cell>
+        <ui-cell title="消息免打扰">
+          <ui-switch slot="footer" checked="{{isMuted}}" bindchange="onMutedChange" />
+        </ui-cell>
+      </ui-card>
+
+      <!-- Actions section - Using standard layout class -->
+      <view class="page-actions">
+        <ui-button type="primary" block="{{true}}" bindtap="goToChat">
+          发送消息
+        </ui-button>
+        <view class="page-actions__secondary">
+          <ui-button type="secondary" block="{{true}}" bindtap="clearChatHistory">
+            清空聊天记录
+          </ui-button>
+          <ui-button type="danger" block="{{true}}" bindtap="deleteContact">
+            删除联系人
+          </ui-button>
         </view>
       </view>
-
-      <!-- Bio -->
-      <view wx:if="{{contact.bio}}" class="bio-section">
-        <text class="bio">{{contact.bio}}</text>
-      </view>
-
-      <!-- Tags -->
-      <view wx:if="{{contact.tags && contact.tags.length > 0}}" class="tags-section">
-        <view class="tags">
-          <text wx:for="{{contact.tags}}" wx:key="*this" class="tag">{{item}}</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- Remark and tags entry (备注和标签区域) -->
-    <view class="entry-section">
-      <view class="entry-item" bindtap="editRemarkAndTags">
-        <text class="label">备注和标签</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <!-- Chat settings section (对话设置区域) -->
-    <view class="settings-section">
-      <view class="setting-item">
-        <text class="label">置顶聊天</text>
-        <switch checked="{{isPinned}}" bindchange="onPinnedChange" color="#42db5a" />
-      </view>
-      <view class="setting-item">
-        <text class="label">消息免打扰</text>
-        <switch checked="{{isMuted}}" bindchange="onMutedChange" color="#42db5a" />
-      </view>
-    </view>
-
-    <!-- Actions section (操作按钮区域) -->
-    <view class="actions-section">
-      <button class="action-btn primary" bindtap="goToChat">发送消息</button>
-      <button class="action-btn" bindtap="clearChatHistory">清空聊天记录</button>
-      <button class="action-btn danger" bindtap="deleteContact">删除联系人</button>
     </view>
   </view>
-</view>
+</page-layout>

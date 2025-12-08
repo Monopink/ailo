@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "关于",
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-cell": "/components/ui/cell/cell"
+  }
+}

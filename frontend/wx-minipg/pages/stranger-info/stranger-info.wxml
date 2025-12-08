@@ -1,47 +1,60 @@
-<view class="stranger-info-page">
-  <!-- Loading state -->
-  <view wx:if="{{loading}}" class="loading-state">
-    <text>加载中...</text>
-  </view>
-
-  <!-- Profile content -->
-  <view wx:else class="profile-content">
-    <!-- Header section - WeChat style -->
-    <view class="header-section">
-      <image src="{{profile.avatarUrl || '/assets/avatars/default.png'}}" class="avatar" mode="aspectFill" />
-      <view class="header-info">
-        <view class="name-row">
-          <text class="nickname">{{profile.nickname || '未设置昵称'}}</text>
-          <text wx:if="{{profile.genderText}}" class="gender">{{profile.genderText}}</text>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="stranger-info">
+    <view wx:if="{{profile}}">
+      <!-- Hero section - Using ui-card + standard layout -->
+      <ui-card padding="medium" shadow="{{false}}">
+        <view class="info-hero">
+          <ui-avatar src="{{profile.avatarUrl}}" size="xlarge" />
+          <view class="info-hero__content">
+            <view class="info-hero__name">
+              <text>{{profile.displayName}}</text>
+              <gender-badge wx:if="{{profile.gender}}" gender="{{profile.gender}}" />
+            </view>
+            <ui-tag
+              wx:if="{{profile.categoryText}}"
+              size="small"
+              type="success"
+              variant="outline">
+              {{profile.categoryText}}
+            </ui-tag>
+          </view>
         </view>
-        <text class="qiao-id">敲敲号: {{profile.qiao_id}}</text>
-      </view>
-    </view>
+      </ui-card>
 
-    <!-- Info list -->
-    <view class="info-list">
-      <!-- Category -->
-      <view wx:if="{{profile.categoryText}}" class="info-item">
-        <text class="label">分类</text>
-        <text class="value">{{profile.categoryText}}</text>
+      <!-- Bio section - Using ui-card -->
+      <ui-card wx:if="{{profile.bioText}}" padding="medium">
+        <view style="display: flex; flex-direction: column; gap: 8rpx;">
+          <text class="text-tertiary">个性签名</text>
+          <text class="text-secondary">{{profile.bioText}}</text>
+        </view>
+      </ui-card>
+
+      <!-- Info section - Using ui-card -->
+      <ui-card wx:if="{{profile.regionText}}" padding="none">
+        <ui-cell title="地区" value="{{profile.regionText}}" hover="{{false}}" />
+      </ui-card>
+
+      <!-- Tip message -->
+      <view wx:if="{{!isLoggedIn}}" style="font-size: var(--font-size-sm); color: var(--color-text-tertiary); text-align: center; margin-top: var(--space-lg); padding: 0 var(--padding-page);">
+        登录后才能发送联系人申请
       </view>
 
-      <!-- Region -->
-      <view wx:if="{{profile.region}}" class="info-item">
-        <text class="label">地区</text>
-        <text class="value">{{profile.region}}</text>
+      <!-- Actions - Fixed bottom using standard layout class -->
+      <view class="page-actions--fixed">
+        <ui-button
+          type="primary"
+          block="{{true}}"
+          bindtap="handleAddContact">
+          {{isLoggedIn ? '添加联系人' : '登录后添加'}}
+        </ui-button>
       </view>
-
-      <!-- Bio -->
-      <view wx:if="{{profile.bio}}" class="info-item bio-item">
-        <text class="label">简介</text>
-        <text class="value bio-value">{{profile.bio}}</text>
-      </view>
-    </view>
-
-    <!-- Add contact button -->
-    <view class="action-section">
-      <button class="add-btn" bindtap="handleAddContact">添加联系人</button>
     </view>
   </view>
-</view>
+</page-layout>

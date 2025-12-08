@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "账号与安全",
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-card": "/components/ui/card/card",
+    "ui-cell": "/components/ui/cell/cell",
+    "ui-button": "/components/ui/button/button"
+  }
+}

@@ -134,11 +134,10 @@ const appOptions: WechatMiniprogram.App.Options<SaysAppInstance> = {
 
       logger.info('User not authenticated');
 
-      const hasSeenWelcome = wx.getStorageSync<boolean>('hasSeenWelcome');
       const currentPage = getActivePage();
 
-      if (!hasSeenWelcome && currentPage?.route !== 'pages/welcome/welcome') {
-        logger.info('User has not seen welcome, redirecting');
+      if (currentPage?.route !== 'pages/welcome/welcome') {
+        logger.info('User not on welcome page, redirecting');
         void wx.reLaunch({ url: '/pages/welcome/welcome' });
       }
     } catch (error) {

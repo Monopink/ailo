@@ -1,3 +1,4 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { get } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
@@ -27,11 +28,10 @@ interface AccountInfo {
   phone?: string;
 }
 
-interface ProfileDetailPageData {
-  loading: boolean;
+interface ProfileDetailPageData extends Record<string, unknown> {
+  pageLayoutData: PageLayoutData;
   profile: UserProfile | null;
   phoneMasked: string;
-  error: string | null;
   genderText: string;
 }
 
@@ -44,6 +44,8 @@ interface ProfileDetailPageCustom {
   editGender(): void;
   editRegion(): void;
   editBio(): void;
+  handleFooterAction(): void;
+  onRetry(): void;
 }
 
 const normalizeGenderText = (gender?: number): string => {
@@ -77,10 +79,13 @@ const encodeValue = (value: string | undefined | null): string => encodeURICompo
 
 Page<ProfileDetailPageData, ProfileDetailPageCustom>({
   data: {
-    loading: true,
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂无详细资料',
+      hasFooter: false,
+    }),
     profile: null,
     phoneMasked: '',
-    error: null,
     genderText: '未设置',
   },
 
@@ -96,8 +101,10 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
   async loadProfile() {
     try {
       this.setData({
-        loading: true,
-        error: null,
+        'pageLayoutData.isLoading': true,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.errorMessage': '',
+        'pageLayoutData.hasFooter': false,
       });
 
       logger.info('Loading user profile');
@@ -112,14 +119,20 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       const [profile, account] = await Promise.all([profilePromise, accountPromise]);
       const genderText = normalizeGenderText(profile.gender);
 
+      const normalizedProfile = profile
+        ? {
+            ...profile,
+            avatar_url: getAvatarUrl(profile.avatar_url ?? ''),
+          }
+        : null;
+
       this.setData({
-        profile: {
-          ...profile,
-          avatar_url: getAvatarUrl(profile.avatar_url ?? ''),
-        },
+        profile: normalizedProfile,
         phoneMasked: account?.phone ?? '',
         genderText,
-        loading: false,
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.isEmpty': !normalizedProfile,
+        'pageLayoutData.hasFooter': Boolean(normalizedProfile),
       });
 
       logger.info('Profile loaded', { qiao_id: profile.qiao_id });
@@ -129,8 +142,13 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       });
 
       this.setData({
-        error: '加载失败,请稍后再试',
-        loading: false,
+        profile: null,
+        phoneMasked: '',
+        genderText: '未设置',
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
+        'pageLayoutData.hasFooter': false,
       });
 
       void wx.showToast({
@@ -182,5 +200,13 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     void wx.navigateTo({
       url: `/pages/profile-edit/profile-edit?field=bio&value=${encodeValue(this.data.profile?.bio)}`,
     });
+  },
+
+  handleFooterAction() {
+    this.editPhone();
+  },
+
+  onRetry() {
+    void this.loadProfile();
   },
 });

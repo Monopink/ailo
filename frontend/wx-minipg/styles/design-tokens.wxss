@@ -1,0 +1,527 @@
+/**
+ * Design Tokens - WeChat MiniProgram Design System
+ *
+ * Design Philosophy: Gentle, Clean, Modern
+ * - Inspired by iOS design language with WeChat's simplicity
+ * - Subtle shadows and rounded corners for a soft feel
+ * - Generous spacing for breathing room
+ * - Muted colors for a calm, professional appearance
+ *
+ * Technical Specs:
+ * - Screen width: 750rpx (iPhone 6 as base)
+ * - Spacing base: 8rpx (all spacing must be multiples of 8)
+ * - Primary color: #07C160 (WeChat Green)
+ *
+ * IMPORTANT: All page styles MUST reference these variables.
+ * DO NOT hardcode any color, spacing, font-size, or border-radius values.
+ */
+
+page {
+  /* ========================================
+     Color System - Gentle & Muted Palette
+     ======================================== */
+
+  /* Primary Colors - WeChat Green with softer variations */
+  --color-primary: #07c160; /* WeChat green - primary actions */
+  --color-primary-light: #38cd7f; /* Softer light green - message bubble (me) */
+  --color-primary-lighter: #e8f8f0; /* Very light green - subtle backgrounds */
+  --color-primary-dark: #06ad56; /* Dark green - pressed state */
+
+  /* Accent Colors - Subtle and warm */
+  --color-accent: #ffc300; /* Warm yellow - highlights */
+  --color-accent-light: #fff4d9; /* Very light yellow - subtle highlights */
+
+  /* Neutral Colors - Background (iOS-inspired layering) */
+  --color-bg-primary: #f5f5f5; /* Primary page background (soft gray) */
+  --color-bg-secondary: #ffffff; /* Secondary background (cards, elevated) */
+  --color-bg-tertiary: #fafafa; /* Tertiary background (subtle distinction) */
+  --color-bg-input: #f8f8f8; /* Input field background (very light gray) */
+  --color-bg-hover: #f0f0f0; /* Hover state background */
+  --color-bg-disabled: #f5f5f5; /* Disabled state background */
+  --color-bg-mask: rgba(0, 0, 0, 0.4); /* Modal mask overlay (softer) */
+
+  /* Legacy aliases for backward compatibility */
+  --color-bg-page: var(--color-bg-primary);
+  --color-bg-card: var(--color-bg-secondary);
+
+  /* Neutral Colors - Text (softer blacks, warmer grays) */
+  --color-text-primary: #1a1a1a; /* Primary text (soft black) */
+  --color-text-secondary: #666666; /* Secondary text (medium gray) */
+  --color-text-tertiary: #999999; /* Tertiary text (light gray) */
+  --color-text-quaternary: #c0c0c0; /* Quaternary text (very light gray) */
+  --color-text-placeholder: #b0b0b0; /* Placeholder text (slightly darker than quaternary) */
+  --color-text-disabled: #c0c0c0; /* Disabled text */
+  --color-text-inverse: #ffffff; /* Text on dark background */
+
+  /* Neutral Colors - Border (subtle and soft) */
+  --color-border-base: #e8e8e8; /* Base border color (very light) */
+  --color-border-light: #f0f0f0; /* Light border color (barely visible) */
+  --color-border-dark: #d0d0d0; /* Dark border color (more visible) */
+  --color-separator: rgba(0, 0, 0, 0.06); /* iOS-style separator (ultra-subtle) */
+
+  /* Status Colors - Muted for gentleness */
+  --color-success: #07c160; /* Success state (same as primary) */
+  --color-warning: #ff9500; /* Warning state (iOS orange) */
+  --color-error: #ff3b30; /* Error/danger state (iOS red) */
+  --color-info: #007aff; /* Info state (iOS blue) */
+
+  /* Special Colors */
+  --color-unread: #ff3b30; /* Unread badge (iOS red) */
+  --color-link: #007aff; /* Link text (iOS blue) */
+
+  /* Gender Badge Colors */
+  --color-gender-male: #4a90e2; /* Male - Blue */
+  --color-gender-female: #ff6b9d; /* Female - Pink */
+  --color-gender-other: #9b59b6; /* Other - Purple */
+  --color-gender-unknown: #95a5a6; /* Unknown - Gray */
+
+  /* ========================================
+     Spacing System - Generous & Breathable
+     ======================================== */
+
+  /* Base spacing scale (8rpx base) */
+  --space-xs: 8rpx; /* Extra small - 8rpx */
+  --space-sm: 16rpx; /* Small - 16rpx */
+  --space-md: 24rpx; /* Medium - 24rpx */
+  --space-lg: 32rpx; /* Large - 32rpx */
+  --space-xl: 48rpx; /* Extra large - 48rpx (increased for breathing room) */
+  --space-xxl: 64rpx; /* 2X large - 64rpx (increased for section spacing) */
+
+  /* Semantic spacing - Page level */
+  --padding-page: 32rpx; /* Page horizontal padding */
+  --padding-section: 24rpx; /* Section spacing within page */
+  --gap-section: 32rpx; /* Gap between major sections */
+
+  /* Semantic spacing - Component level */
+  --padding-card: 32rpx; /* Card padding */
+  --padding-cell: 32rpx; /* Cell/list item padding */
+  --padding-button: 16rpx; /* Button horizontal padding */
+  --gap-list-item: 0rpx; /* Gap between list items (iOS style - no gap) */
+
+  /* ========================================
+     Typography System
+     ======================================== */
+
+  /* Font Sizes (750rpx base, 1rpx = 0.5px on iPhone 6) */
+  --font-size-xs: 20rpx; /* 10px - Tiny text */
+  --font-size-sm: 24rpx; /* 12px - Small text, captions */
+  --font-size-base: 28rpx; /* 14px - Base text, descriptions */
+  --font-size-md: 32rpx; /* 16px - Body text, buttons */
+  --font-size-lg: 36rpx; /* 18px - Titles, headings */
+  --font-size-xl: 40rpx; /* 20px - Large headings */
+  --font-size-xxl: 48rpx; /* 24px - Extra large headings */
+
+  /* Line Heights */
+  --line-height-tight: 1.2; /* Tight line height for headings */
+  --line-height-base: 1.5; /* Base line height for body text */
+  --line-height-loose: 1.8; /* Loose line height for readability */
+
+  /* Font Weights */
+  --font-weight-normal: 400; /* Normal weight */
+  --font-weight-medium: 500; /* Medium weight */
+  --font-weight-semibold: 600; /* Semibold weight */
+  --font-weight-bold: 700; /* Bold weight */
+
+  /* ========================================
+     Border Radius System - Gentle Curves
+     ======================================== */
+
+  /* Base radius scale */
+  --radius-xs: 6rpx; /* Extra small - subtle rounding (increased for softness) */
+  --radius-sm: 12rpx; /* Small - input fields, small buttons */
+  --radius-md: 16rpx; /* Medium - cards, buttons, message bubbles */
+  --radius-lg: 24rpx; /* Large - prominent cards, modals */
+  --radius-xl: 32rpx; /* Extra large - special elements */
+  --radius-full: 9999rpx; /* Full circle - avatars, badges */
+
+  /* Semantic radius - Component specific */
+  --radius-card: 16rpx; /* Card border radius */
+  --radius-button: 12rpx; /* Button border radius */
+  --radius-input: 12rpx; /* Input field border radius */
+  --radius-bubble: 20rpx; /* Message bubble border radius */
+  --radius-avatar: 12rpx; /* Avatar border radius (rounded square) */
+
+  /* ========================================
+     Shadow System - Subtle & Soft
+     ======================================== */
+
+  /* Base shadow scale (very subtle for gentleness) */
+  --shadow-xs: 0 1rpx 4rpx rgba(0, 0, 0, 0.04); /* Extra small - barely visible */
+  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.06); /* Small - card, hover */
+  --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.08); /* Medium - popup, elevated */
+  --shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.12); /* Large - modal, drawer */
+
+  /* Semantic shadows - Component specific */
+  --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.05); /* Card shadow (very subtle) */
+  --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.08); /* Card hover shadow */
+  --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.06); /* Button shadow (optional) */
+
+  /* ========================================
+     Size System
+     ======================================== */
+
+  /* Avatar Sizes */
+  --avatar-xs: 48rpx; /* Extra small avatar */
+  --avatar-sm: 64rpx; /* Small avatar */
+  --avatar-md: 80rpx; /* Medium avatar (default) */
+  --avatar-lg: 100rpx; /* Large avatar */
+  --avatar-xl: 128rpx; /* Extra large avatar */
+
+  /* Icon Sizes */
+  --icon-xs: 32rpx; /* Extra small icon */
+  --icon-sm: 40rpx; /* Small icon */
+  --icon-md: 48rpx; /* Medium icon (default) */
+  --icon-lg: 64rpx; /* Large icon */
+  --icon-xl: 80rpx; /* Extra large icon */
+
+  /* Button Heights */
+  --button-height-sm: 64rpx; /* Small button */
+  --button-height-md: 88rpx; /* Medium button (default) */
+  --button-height-lg: 104rpx; /* Large button */
+
+  /* Input Heights */
+  --input-height-sm: 56rpx; /* Small input */
+  --input-height-md: 72rpx; /* Medium input (default) */
+  --input-height-lg: 88rpx; /* Large input */
+
+  /* Badge Sizes */
+  --badge-size-sm: 16rpx; /* Small badge dot */
+  --badge-size-md: 32rpx; /* Medium badge with number */
+  --badge-size-lg: 40rpx; /* Large badge */
+
+  /* Message Bubble */
+  --message-bubble-max-width: 520rpx; /* Message bubble max width */
+
+  /* Typing Indicator */
+  --typing-dot-size: 12rpx; /* Typing indicator dot size */
+
+  /* Border Widths */
+  --border-width-thin: 1rpx; /* Thin border (default) */
+  --border-width-medium: 2rpx; /* Medium border (avatar, focus states) */
+  --border-width-thick: 3rpx; /* Thick border (emphasis) */
+
+  /* ========================================
+     Animation System
+     ======================================== */
+
+  /* Transition Durations */
+  --duration-fast: 150ms; /* Fast transition - hover effects */
+  --duration-base: 300ms; /* Base transition - most animations */
+  --duration-slow: 500ms; /* Slow transition - page transitions */
+
+  /* Easing Functions */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1); /* Ease in */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1); /* Ease out */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* Ease in-out (default) */
+  --ease-sharp: cubic-bezier(0.4, 0, 0.6, 1); /* Sharp easing */
+
+  /* ========================================
+     Z-Index System
+     ======================================== */
+
+  --z-index-base: 1; /* Base level */
+  --z-index-dropdown: 10; /* Dropdown menus */
+  --z-index-sticky: 100; /* Sticky elements */
+  --z-index-navbar: 500; /* Custom navbar (floating) */
+  --z-index-fixed: 500; /* Fixed elements (navbar, tabbar) */
+  --z-index-modal-backdrop: 1000; /* Modal backdrop */
+  --z-index-modal: 1001; /* Modal content */
+  --z-index-popover: 1010; /* Popover, tooltip */
+  --z-index-toast: 1100; /* Toast notifications */
+
+  /* ========================================
+     Opacity System
+     ======================================== */
+
+  --opacity-disabled: 0.4; /* Disabled state */
+  --opacity-hover: 0.8; /* Hover state */
+  --opacity-pressed: 0.6; /* Pressed state */
+
+  /* ========================================
+     Safe Area (iPhone X and above)
+     ======================================== */
+
+  --safe-area-inset-top: env(safe-area-inset-top);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom);
+  --safe-area-inset-left: env(safe-area-inset-left);
+  --safe-area-inset-right: env(safe-area-inset-right);
+}
+
+/**
+ * Dark Mode Tokens - Gentle Dark Theme
+ *
+ * Philosophy: Soft, comfortable dark mode that's easy on the eyes
+ * - True black (#000000) for OLED displays
+ * - Subtle elevation through layered grays
+ * - Slightly brighter primary colors for better visibility
+ * - Reduced contrast for gentleness
+ *
+ * We keep the exact same variable names so existing components
+ * automatically switch when the system theme changes.
+ */
+@media (prefers-color-scheme: dark) {
+  page {
+    /* Primary Colors - Slightly brighter for dark backgrounds */
+    --color-primary: #0bbf68;
+    --color-primary-light: #2ad17a;
+    --color-primary-lighter: #1a3d2a;
+    --color-primary-dark: #0a9f56;
+
+    /* Accent Colors */
+    --color-accent: #ffc300;
+    --color-accent-light: #3d3520;
+
+    /* Background - True black with subtle elevation */
+    --color-bg-primary: #000000; /* True black for OLED */
+    --color-bg-secondary: #1c1c1e; /* Elevated surface (iOS dark) */
+    --color-bg-tertiary: #2c2c2e; /* More elevated surface */
+    --color-bg-input: #1c1c1e; /* Input background */
+    --color-bg-hover: #2c2c2e; /* Hover state */
+    --color-bg-disabled: #1c1c1e; /* Disabled state */
+    --color-bg-mask: rgba(0, 0, 0, 0.6); /* Modal mask */
+
+    /* Legacy aliases */
+    --color-bg-page: var(--color-bg-primary);
+    --color-bg-card: var(--color-bg-secondary);
+
+    /* Text - Softer whites for reduced eye strain */
+    --color-text-primary: #f5f5f5; /* Soft white */
+    --color-text-secondary: #afafaf; /* Medium gray */
+    --color-text-tertiary: #8e8e93; /* Light gray (iOS) */
+    --color-text-quaternary: #636366; /* Very light gray */
+    --color-text-placeholder: #757575; /* Placeholder */
+    --color-text-disabled: #636366; /* Disabled */
+    --color-text-inverse: #000000; /* Text on light background */
+
+    /* Border - Subtle in dark mode */
+    --color-border-base: #38383a; /* Base border (iOS) */
+    --color-border-light: #2c2c2e; /* Light border */
+    --color-border-dark: #48484a; /* Dark border */
+    --color-separator: rgba(84, 84, 88, 0.6); /* iOS separator */
+
+    /* Status Colors - Slightly muted */
+    --color-success: #0bbf68;
+    --color-warning: #ff9f0a; /* iOS orange */
+    --color-error: #ff453a; /* iOS red */
+    --color-info: #0a84ff; /* iOS blue */
+
+    /* Special Colors */
+    --color-unread: #ff453a;
+    --color-link: #0a84ff;
+
+    /* Gender Badge Colors - slightly adjusted for dark mode */
+    --color-gender-male: #5ba3ff;
+    --color-gender-female: #ff7eb0;
+    --color-gender-other: #b57ce0;
+    --color-gender-unknown: #a8b8b9;
+
+    /* Shadows - More prominent in dark mode */
+    --shadow-xs: 0 1rpx 4rpx rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.6);
+    --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.4);
+    --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.5);
+    --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Allow explicit dark theme opt-in via page[theme='dark'] */
+page[theme='dark'] {
+  /* Primary Colors */
+  --color-primary: #0bbf68;
+  --color-primary-light: #2ad17a;
+  --color-primary-lighter: #1a3d2a;
+  --color-primary-dark: #0a9f56;
+
+  /* Accent Colors */
+  --color-accent: #ffc300;
+  --color-accent-light: #3d3520;
+
+  /* Background */
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #1c1c1e;
+  --color-bg-tertiary: #2c2c2e;
+  --color-bg-input: #1c1c1e;
+  --color-bg-hover: #2c2c2e;
+  --color-bg-disabled: #1c1c1e;
+  --color-bg-mask: rgba(0, 0, 0, 0.6);
+
+  /* Legacy aliases */
+  --color-bg-page: var(--color-bg-primary);
+  --color-bg-card: var(--color-bg-secondary);
+
+  /* Text */
+  --color-text-primary: #f5f5f5;
+  --color-text-secondary: #afafaf;
+  --color-text-tertiary: #8e8e93;
+  --color-text-quaternary: #636366;
+  --color-text-placeholder: #757575;
+  --color-text-disabled: #636366;
+  --color-text-inverse: #000000;
+
+  /* Border */
+  --color-border-base: #38383a;
+  --color-border-light: #2c2c2e;
+  --color-border-dark: #48484a;
+  --color-separator: rgba(84, 84, 88, 0.6);
+
+  /* Status Colors */
+  --color-success: #0bbf68;
+  --color-warning: #ff9f0a;
+  --color-error: #ff453a;
+  --color-info: #0a84ff;
+
+  /* Special Colors */
+  --color-unread: #ff453a;
+  --color-link: #0a84ff;
+
+  /* Shadows */
+  --shadow-xs: 0 1rpx 4rpx rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.5);
+  --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+   Standard Layout Classes - Shared Across Pages
+   ======================================== */
+
+/**
+ * Info Page Hero Layout
+ * Used in: contact-info, stranger-info, profile pages
+ * Purpose: Horizontal layout with avatar + content
+ */
+.info-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.info-hero__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0; /* Allow text truncation */
+}
+
+.info-hero__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-primary);
+}
+
+.info-hero__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/**
+ * Page Actions Layout
+ * Used in: All pages with action buttons
+ * Purpose: Standard button container with consistent spacing
+ */
+.page-actions {
+  margin-top: var(--space-xxl);
+  padding: 0 var(--padding-page);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.page-actions--fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--space-md) var(--padding-page);
+  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom));
+  background-color: var(--color-bg-secondary);
+  box-shadow: 0 -2rpx 8rpx rgba(0, 0, 0, 0.06);
+}
+
+.page-actions__secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/**
+ * Text Utility Classes
+ * Purpose: Common text styles without creating custom classes
+ */
+.text-primary {
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-base);
+}
+
+.text-secondary {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-base);
+}
+
+.text-tertiary {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-base);
+}
+
+/**
+ * Tag Container Layout
+ * Used in: Pages with tag lists
+ * Purpose: Horizontal scrollable tag container
+ */
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--padding-page);
+}
+
+/* ========================================
+   Usage Examples (DO NOT USE IN PRODUCTION)
+   ======================================== */
+
+/*
+Example 1: Info Page Hero
+<ui-card padding="medium" shadow="{{false}}">
+  <view class="info-hero">
+    <ui-avatar src="{{avatar}}" size="xlarge" />
+    <view class="info-hero__content">
+      <view class="info-hero__name">
+        <text>{{name}}</text>
+        <gender-badge gender="{{gender}}" />
+      </view>
+      <text class="info-hero__subtitle">敲敲号：{{qiaoId}}</text>
+    </view>
+  </view>
+</ui-card>
+
+Example 2: Page Actions (Inline)
+<view class="page-actions">
+  <ui-button type="primary" block>发送消息</ui-button>
+  <view class="page-actions__secondary">
+    <ui-button type="secondary" block>清空聊天记录</ui-button>
+  </view>
+</view>
+
+Example 3: Page Actions (Fixed Bottom)
+<view class="page-actions--fixed">
+  <ui-button type="primary" block>添加联系人</ui-button>
+</view>
+
+Example 4: Text with utility classes
+<ui-card padding="medium">
+  <text class="text-secondary">{{bio}}</text>
+</ui-card>
+*/

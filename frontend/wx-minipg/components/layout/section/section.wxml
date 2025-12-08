@@ -1,0 +1,41 @@
+<!--
+  Layout Section Component
+
+  Purpose: Groups related content with consistent spacing and optional styling
+
+  Props:
+  - title: Section title (optional)
+  - spacing: 'none' | 'small' | 'medium' | 'large' (default: 'medium')
+  - background: 'transparent' | 'card' | 'tertiary' (default: 'transparent')
+  - rounded: boolean (default: false) - Apply border radius
+  - shadow: boolean (default: false) - Apply shadow
+
+  Slots:
+  - header: Custom header content (optional)
+  - default: Main content
+  - footer: Footer content (optional)
+
+  Usage:
+  <layout-section title="Section Title" spacing="medium" background="card" rounded="{{true}}">
+    <view>Section content here</view>
+  </layout-section>
+-->
+
+<view class="layout-section layout-section--spacing-{{spacing}} layout-section--bg-{{background}} {{rounded ? 'layout-section--rounded' : ''}} {{shadow ? 'layout-section--shadow' : ''}}">
+  <!-- Header slot or title -->
+  <view wx:if="{{title || hasHeader}}" class="layout-section__header">
+    <slot name="header">
+      <text wx:if="{{title}}" class="layout-section__title">{{title}}</text>
+    </slot>
+  </view>
+
+  <!-- Main content -->
+  <view class="layout-section__content">
+    <slot></slot>
+  </view>
+
+  <!-- Footer slot -->
+  <view wx:if="{{hasFooter}}" class="layout-section__footer">
+    <slot name="footer"></slot>
+  </view>
+</view>

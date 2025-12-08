@@ -1,0 +1,30 @@
+<!-- Use native button when openType is specified -->
+<button
+  wx:if="{{openType}}"
+  class="ui-button ui-button--{{type}} ui-button--{{size}} {{block ? 'ui-button--block' : ''}} {{disabled ? 'ui-button--disabled' : ''}}"
+  hover-class="ui-button--active"
+  open-type="{{openType}}"
+  loading="{{loading}}"
+  disabled="{{disabled}}"
+  bindgetphonenumber="handleGetPhoneNumber"
+  bindcontact="handleContact"
+  bindgetuserinfo="handleGetUserInfo"
+  bindopensetting="handleOpenSetting"
+  binderror="handleError"
+  bindtap="handleTap">
+  <view class="ui-button__content">
+    <slot></slot>
+  </view>
+</button>
+
+<!-- Use view for normal buttons -->
+<view
+  wx:else
+  class="ui-button ui-button--{{type}} ui-button--{{size}} {{block ? 'ui-button--block' : ''}} {{disabled ? 'ui-button--disabled' : ''}}"
+  hover-class="ui-button--active"
+  bindtap="handleTap">
+  <view wx:if="{{loading}}" class="ui-button__spinner"></view>
+  <view class="ui-button__content">
+    <slot></slot>
+  </view>
+</view>

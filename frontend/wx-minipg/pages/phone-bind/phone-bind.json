@@ -1,0 +1,13 @@
+{
+  "navigationBarTitleText": "绑定手机号",
+  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#f5f7fa",
+  "enablePullDownRefresh": false,
+  "usingComponents": {
+    "aliyun-captcha": "plugin://AliyunCaptcha/captcha",
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-button": "/components/ui/button/button",
+    "ui-input": "/components/ui/input/input"
+  }
+}

@@ -1,3 +1,36 @@
-<view class="container">
-  <text>联系人申请页面 - 待实现</text>
-</view>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content">
+    <view class="contact-requests" wx:if="{{requests.length}}">
+      <ui-cell
+        wx:for="{{requests}}"
+        wx:key="id"
+        title="{{item.nickname}}"
+        label="{{item.message}}">
+        <ui-avatar slot="icon" src="{{item.avatar}}" size="large" />
+        <view slot="footer" class="contact-requests__actions">
+          <ui-button
+            type="secondary"
+            size="small"
+            data-id="{{item.id}}"
+            bindtap="handleReject">
+            拒绝
+          </ui-button>
+          <ui-button
+            type="primary"
+            size="small"
+            data-id="{{item.id}}"
+            bindtap="handleApprove">
+            同意
+          </ui-button>
+        </view>
+      </ui-cell>
+    </view>
+  </view>
+</page-layout>

@@ -1,0 +1,40 @@
+<!--
+  Card Component
+
+  Purpose: Container component with consistent styling, padding, and elevation
+
+  Props:
+  - padding: 'none' | 'small' | 'medium' | 'large' (default: 'medium')
+  - shadow: boolean (default: true) - Apply shadow
+  - bordered: boolean (default: false) - Apply border
+  - hoverable: boolean (default: false) - Add hover effect
+
+  Slots:
+  - header: Card header (optional)
+  - default: Main content
+  - footer: Card footer (optional)
+
+  Usage:
+  <ui-card padding="medium" shadow="{{true}}">
+    <view>Card content</view>
+  </ui-card>
+-->
+
+  <view
+    class="ui-card ui-card--padding-{{padding}} {{shadow ? 'ui-card--shadow' : ''}} {{bordered ? 'ui-card--bordered' : ''}} {{hoverable ? 'ui-card--hoverable' : ''}}"
+    bindtap="onCardTap">
+    <!-- Header slot -->
+    <view class="ui-card__header" hidden="{{!hasHeader}}">
+      <slot name="header"></slot>
+    </view>
+
+  <!-- Main content -->
+  <view class="ui-card__body">
+    <slot></slot>
+  </view>
+
+  <!-- Footer slot -->
+  <view class="ui-card__footer" hidden="{{!hasFooter}}">
+    <slot name="footer"></slot>
+  </view>
+</view>

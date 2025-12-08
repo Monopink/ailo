@@ -1,58 +1,95 @@
-<view class="setup-container">
-  <!-- Avatar selection -->
-  <view class="form-section">
-    <text>头像(可选)</text>
-    <scroll-view scroll-x class="avatar-list">
-      <image
-        wx:for="{{presetAvatars}}"
-        wx:key="id"
-        src="{{item.url}}"
-        class="avatar-item {{selectedAvatar === item.id ? 'selected' : ''}}"
-        bindtap="selectAvatar"
-        data-id="{{item.id}}" />
-    </scroll-view>
-  </view>
-
-  <!-- Nickname -->
-  <view class="form-section">
-    <text>昵称(可选)</text>
-    <input
-      placeholder="请输入昵称"
-      bindinput="onNicknameInput"
-      value="{{nickname}}"
-      maxlength="{{maxNicknameLength}}" />
-  </view>
-
-  <!-- Gender -->
-  <view class="form-section">
-    <text>性别(必填)</text>
-    <picker mode="selector" range="{{genderOptions}}" range-key="label" value="{{genderIndex}}" bindchange="onGenderChange">
-      <view class="picker">
-        {{genderOptions[genderIndex].label || '请选择性别'}}
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="setup-page">
+    <!-- Avatar selection group -->
+    <view class="setup-group">
+      <view class="setup-group__header">
+        <text class="setup-group__title">头像 (可选)</text>
       </view>
-    </picker>
+      <scroll-view scroll-x class="setup-avatar__list" show-scrollbar="{{false}}">
+        <view class="setup-avatar__items">
+          <view
+            wx:for="{{presetAvatars}}"
+            wx:key="id"
+            class="setup-avatar__item {{selectedAvatar === item.id ? 'setup-avatar__item--selected' : ''}}"
+            bindtap="selectAvatar"
+            data-id="{{item.id}}">
+            <ui-avatar src="{{item.url}}" size="medium" />
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- Basic info group -->
+    <view class="setup-group">
+      <ui-cell title="昵称 (可选)">
+        <input
+          slot="footer"
+          class="setup-input"
+          placeholder="请输入昵称"
+          bindinput="onNicknameInput"
+          value="{{nickname}}"
+          maxlength="{{maxNicknameLength}}" />
+      </ui-cell>
+
+      <ui-cell title="性别 (必填)" link="{{true}}">
+        <picker
+          slot="footer"
+          mode="selector"
+          range="{{genderOptions}}"
+          range-key="label"
+          value="{{genderIndex}}"
+          bindchange="onGenderChange">
+          <view class="setup-picker">
+            {{genderIndex >= 0 ? genderOptions[genderIndex].label : '请选择性别'}}
+          </view>
+        </picker>
+      </ui-cell>
+    </view>
+
+    <!-- Additional info group -->
+    <view class="setup-group">
+      <ui-cell title="个人简介 (可选)">
+        <textarea
+          slot="footer"
+          class="setup-textarea"
+          placeholder="请输入个人简介"
+          bindinput="onBioInput"
+          value="{{bio}}"
+          maxlength="{{maxBioLength}}"
+          auto-height />
+      </ui-cell>
+
+      <ui-cell title="地区 (可选)" link="{{true}}">
+        <picker
+          slot="footer"
+          mode="region"
+          value="{{regionValue}}"
+          bindchange="onRegionChange">
+          <view class="setup-picker">
+            {{regionDisplay || '请选择地区'}}
+          </view>
+        </picker>
+      </ui-cell>
+    </view>
   </view>
 
-  <!-- Bio -->
-  <view class="form-section">
-    <text>个人简介(可选)</text>
-    <textarea
-      placeholder="请输入个人简介"
-      bindinput="onBioInput"
-      value="{{bio}}"
-      maxlength="{{maxBioLength}}" />
+  <view slot="footer" class="setup-footer">
+    <ui-button
+      type="primary"
+      block="{{true}}"
+      loading="{{loading}}"
+      bindtap="handleSubmit">
+      完成
+    </ui-button>
+    <ui-button type="secondary" block="{{true}}" bindtap="handleCancel">
+      取消
+    </ui-button>
   </view>
-
-  <!-- Region -->
-  <view class="form-section">
-    <text>地区(可选)</text>
-    <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
-      <view class="picker">
-        {{regionDisplay || '请选择地区'}}
-      </view>
-    </picker>
-  </view>
-
-  <!-- Submit button -->
-  <button bindtap="handleSubmit" loading="{{loading}}">完成</button>
-</view>
+</page-layout>

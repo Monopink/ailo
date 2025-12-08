@@ -1,82 +1,62 @@
-<view class="profile-detail-page">
-  <!-- Loading state -->
-  <view wx:if="{{loading}}" class="loading-container">
-    <text>加载中...</text>
-  </view>
-
-  <!-- Error state -->
-  <view wx:elif="{{error}}" class="error-container">
-    <text>{{error}}</text>
-    <button bindtap="loadProfile">重试</button>
-  </view>
-
-  <!-- Profile detail content -->
-  <view wx:else class="profile-detail-content">
-    <!-- Avatar -->
-    <view class="detail-item" bindtap="editAvatar">
-      <text class="label">头像</text>
-      <view class="value-with-arrow">
-        <image
-          class="avatar-preview"
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="content" class="profile-detail">
+    <!-- Info groups - Using ui-card -->
+    <ui-card wx:if="{{profile}}" padding="none">
+      <ui-cell title="头像" link="{{true}}" bindtap="editAvatar">
+        <ui-avatar
+          slot="footer"
           src="{{profile.avatar_url || '/assets/avatars/default.png'}}"
-          mode="aspectFill"
+          size="large"
         />
-        <text class="arrow">›</text>
-      </view>
-    </view>
+      </ui-cell>
 
-    <!-- Nickname -->
-    <view class="detail-item" bindtap="editNickname">
-      <text class="label">昵称</text>
-      <view class="value-with-arrow">
-        <text class="value">{{profile.nickname || '未设置'}}</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
+      <ui-cell
+        title="昵称"
+        value="{{profile.nickname || '未设置'}}"
+        link="{{true}}"
+        bindtap="editNickname"
+      />
 
-    <!-- Username (敲敲号) -->
-    <view class="detail-item" bindtap="editUsername">
-      <text class="label">敲敲号</text>
-      <view class="value-with-arrow">
-        <text class="value">{{profile.username}}</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
+      <ui-cell
+        title="敲敲号"
+        value="{{profile.username || '--'}}"
+        link="{{true}}"
+        bindtap="editUsername"
+      />
 
-    <!-- Phone -->
-    <view class="detail-item" bindtap="editPhone">
-      <text class="label">手机号</text>
-      <view class="value-with-arrow">
-        <text class="value">{{phoneMasked || '未绑定'}}</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
+      <ui-cell
+        title="手机号"
+        value="{{phoneMasked || '未绑定'}}"
+        link="{{true}}"
+        bindtap="editPhone"
+      />
+    </ui-card>
 
-    <!-- Gender -->
-    <view class="detail-item" bindtap="editGender">
-      <text class="label">性别</text>
-      <view class="value-with-arrow">
-        <text class="value">{{genderText}}</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
+    <ui-card wx:if="{{profile}}" padding="none">
+      <ui-cell
+        title="性别"
+        value="{{genderText}}"
+        link="{{true}}"
+        bindtap="editGender"
+      />
 
-    <!-- Region -->
-    <view class="detail-item" bindtap="editRegion">
-      <text class="label">地区</text>
-      <view class="value-with-arrow">
-        <text class="value">{{profile.region || '未设置'}}</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
+      <ui-cell
+        title="地区"
+        value="{{profile.region || '未设置'}}"
+        link="{{true}}"
+        bindtap="editRegion"
+      />
 
-    <!-- Bio -->
-    <view class="detail-item" bindtap="editBio">
-      <text class="label">个性签名</text>
-      <view class="value-with-arrow">
-        <text class="value">{{profile.bio || '未设置'}}</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
+      <ui-cell title="个性签名" link="{{true}}" bindtap="editBio">
+        <text slot="footer" style="max-width: 320rpx; font-size: var(--font-size-base); color: var(--color-text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{profile.bio || '未设置'}}</text>
+      </ui-cell>
+    </ui-card>
   </view>
-</view>
+</page-layout>

@@ -1,3 +1,4 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { put } from '../../utils/api';
 import { formatRegion } from '../../utils/format';
 import { getLogger } from '../../utils/logger';
@@ -8,6 +9,7 @@ type FieldType = 'text' | 'region' | 'gender';
 
 interface FieldConfig {
   title: string;
+  label: string;
   placeholder: string;
   maxLength: number;
   hint: string;
@@ -17,6 +19,7 @@ interface FieldConfig {
 const FIELD_CONFIG = {
   nickname: {
     title: '编辑昵称',
+    label: '昵称',
     placeholder: '请输入昵称',
     maxLength: 10,
     hint: '',
@@ -24,6 +27,7 @@ const FIELD_CONFIG = {
   },
   username: {
     title: '编辑敲敲号',
+    label: '敲敲号',
     placeholder: '请输入敲敲号',
     maxLength: 20,
     hint: '敲敲号可以包含字母、数字和下划线，3-20个字符',
@@ -31,6 +35,7 @@ const FIELD_CONFIG = {
   },
   bio: {
     title: '编辑个性签名',
+    label: '个性签名',
     placeholder: '请输入个性签名',
     maxLength: 70,
     hint: '',
@@ -38,6 +43,7 @@ const FIELD_CONFIG = {
   },
   region: {
     title: '编辑地区',
+    label: '地区',
     placeholder: '',
     maxLength: 0,
     hint: '',
@@ -45,6 +51,7 @@ const FIELD_CONFIG = {
   },
   gender: {
     title: '编辑性别',
+    label: '性别',
     placeholder: '',
     maxLength: 0,
     hint: '',
@@ -54,9 +61,11 @@ const FIELD_CONFIG = {
 
 type FieldKey = keyof typeof FIELD_CONFIG;
 
-interface ProfileEditPageData {
+interface ProfileEditPageData extends Record<string, unknown> {
+  pageLayoutData: PageLayoutData;
   field: FieldKey | '';
   fieldType: FieldType | '';
+  fieldLabel: string;
   value: string;
   placeholder: string;
   maxLength: number;
@@ -66,6 +75,7 @@ interface ProfileEditPageData {
   genderIndex: number;
   regionValue: string[];
   regionDisplay: string;
+  valueLength: number;
 }
 
 interface ProfileEditPageCustom {
@@ -73,6 +83,7 @@ interface ProfileEditPageCustom {
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onRegionChange(event: WechatMiniprogram.PickerChange): void;
   handleSave(): Promise<void>;
+  onRetry(): void;
 }
 
 const decodeValue = (value?: string): string => {
@@ -92,8 +103,13 @@ const showErrorToast = (title: string): void => {
 
 Page<ProfileEditPageData, ProfileEditPageCustom>({
   data: {
+    pageLayoutData: createPageLayoutData({
+      hasFooter: true,
+      emptyMessage: '暂无可编辑字段',
+    }),
     field: '',
     fieldType: '',
+    fieldLabel: '',
     value: '',
     placeholder: '',
     maxLength: 0,
@@ -103,6 +119,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
     genderIndex: 0,
     regionValue: [],
     regionDisplay: '',
+    valueLength: 0,
   },
 
   onLoad(options) {
@@ -111,6 +128,11 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
 
     if (!config) {
       showErrorToast('参数错误');
+      this.setData({
+        'pageLayoutData.hasFooter': false,
+        'pageLayoutData.isEmpty': true,
+        'pageLayoutData.emptyMessage': '参数错误，无法编辑',
+      });
       setTimeout(() => {
         void wx.navigateBack();
       }, 1500);
@@ -126,10 +148,12 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       this.setData({
         field: rawField,
         fieldType: config.type,
+        fieldLabel: config.label,
         genderIndex: genderValue > 0 ? genderValue - 1 : 0,
         placeholder: config.placeholder,
         maxLength: config.maxLength,
         hint: config.hint,
+        'pageLayoutData.isEmpty': false,
       });
       return;
     }
@@ -138,27 +162,35 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       this.setData({
         field: rawField,
         fieldType: config.type,
+        fieldLabel: config.label,
         regionDisplay: decodeValue(options?.value),
         regionValue: [],
+        'pageLayoutData.isEmpty': false,
       });
       return;
     }
 
+    const decodedValue = decodeValue(options?.value);
     this.setData({
       field: rawField,
       fieldType: config.type,
-      value: decodeValue(options?.value),
+      fieldLabel: config.label,
+      value: decodedValue,
       placeholder: config.placeholder,
       maxLength: config.maxLength,
       hint: config.hint,
+      valueLength: decodedValue.length,
+      'pageLayoutData.isEmpty': false,
     });
 
     logger.info('Profile edit page loaded', { field: rawField });
   },
 
   onInput(event) {
+    const value = event.detail.value || '';
     this.setData({
-      value: event.detail.value,
+      value: value,
+      valueLength: value.length,
     });
   },
 
@@ -191,6 +223,10 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
 
   async handleSave() {
     try {
+      if (this.data.saving) {
+        return;
+      }
+
       if (this.data.fieldType === 'text') {
         const trimmedValue = this.data.value.trim();
 
@@ -252,5 +288,10 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       showErrorToast(message);
       this.setData({ saving: false });
     }
+  },
+
+  onRetry() {
+    // 编辑页无需远程加载，重试逻辑留空即可避免 page-layout 报错
+    logger.warn('ProfileEdit retry invoked but no remote data to reload');
   },
 });

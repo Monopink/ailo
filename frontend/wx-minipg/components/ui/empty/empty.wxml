@@ -1,0 +1,5 @@
+<view class="ui-empty ui-empty--{{type}}">
+  <view class="ui-empty__icon"></view>
+  <text class="ui-empty__message">{{message}}</text>
+  <view wx:if="{{actionText}}" class="ui-empty__action" bindtap="handleAction">{{actionText}}</view>
+</view>

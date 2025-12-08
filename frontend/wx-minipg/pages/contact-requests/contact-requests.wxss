@@ -1,3 +1,13 @@
-.container {
-  padding: 40rpx;
+@import '/styles/design-tokens.wxss';
+
+.contact-requests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--padding-page);
+}
+
+.contact-requests__actions {
+  display: flex;
+  gap: var(--space-xs);
 }

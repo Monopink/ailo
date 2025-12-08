@@ -1,0 +1,30 @@
+.ui-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.ui-loading__spinner {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  border: 4rpx solid var(--color-border-base);
+  border-top-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: ui-loading-spin var(--duration-base) linear infinite;
+}
+
+.ui-loading__text {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+@keyframes ui-loading-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

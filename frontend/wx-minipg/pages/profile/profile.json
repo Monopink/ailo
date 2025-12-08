@@ -1,3 +1,11 @@
 {
-  "navigationBarTitleText": "我的"
+  "navigationBarTitleText": "我的",
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-button": "/components/ui/button/button",
+    "ui-avatar": "/components/ui/avatar/avatar",
+    "ui-cell": "/components/ui/cell/cell",
+    "ui-tag": "/components/ui/tag/tag",
+    "ui-divider": "/components/ui/divider/divider"
+  }
 }

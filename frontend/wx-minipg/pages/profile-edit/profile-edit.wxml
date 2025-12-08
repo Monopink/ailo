@@ -1,66 +1,74 @@
-<view class="profile-edit-page">
-  <!-- Text input fields (nickname, username, bio, region) -->
-  <view wx:if="{{fieldType === 'text'}}" class="edit-content">
-    <view class="input-section">
-      <textarea
-        wx:if="{{field === 'bio'}}"
-        class="input-field textarea-field"
-        placeholder="{{placeholder}}"
-        value="{{value}}"
-        bindinput="onInput"
-        maxlength="{{maxLength}}"
-        auto-height
-      />
-      <input
-        wx:else
-        class="input-field"
-        type="text"
-        placeholder="{{placeholder}}"
-        value="{{value}}"
-        bindinput="onInput"
-        maxlength="{{maxLength}}"
-      />
-      <view class="char-count">{{value.length}}/{{maxLength}}</view>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{false}}"
+  bind:retry="onRetry">
+  <view slot="content" class="profile-edit">
+    <!-- Text input field -->
+    <view wx:if="{{fieldType === 'text'}}" class="profile-edit__form">
+      <view class="profile-edit__field">
+        <textarea
+          wx:if="{{field === 'bio'}}"
+          class="profile-edit__textarea"
+          placeholder="{{placeholder}}"
+          value="{{value}}"
+          bindinput="onInput"
+          maxlength="{{maxLength}}"
+          auto-height
+        />
+        <ui-input
+          wx:else
+          label="{{fieldLabel}}"
+          value="{{value}}"
+          placeholder="{{placeholder}}"
+          maxLength="{{maxLength}}"
+          bindinput="onInput" />
+      </view>
+      <view class="profile-edit__counter">{{valueLength}}/{{maxLength}}</view>
+      <view class="profile-edit__hint" wx:if="{{hint}}">
+        <text class="profile-edit__hint-text">{{hint}}</text>
+      </view>
     </view>
 
-    <view class="hint-section" wx:if="{{hint}}">
-      <text class="hint-text">{{hint}}</text>
+    <!-- Gender picker -->
+    <view wx:elif="{{fieldType === 'gender'}}" class="profile-edit__form">
+      <view class="profile-edit__field">
+        <view class="profile-edit__label">{{fieldLabel}}</view>
+        <picker mode="selector" range="{{genderOptions}}" value="{{genderIndex}}" bindchange="onGenderChange">
+          <view class="profile-edit__picker-display">
+            <text>{{genderOptions[genderIndex]}}</text>
+            <text class="profile-edit__picker-arrow">›</text>
+          </view>
+        </picker>
+      </view>
     </view>
 
-    <button class="save-button" bindtap="handleSave" disabled="{{saving}}">
-      {{saving ? '保存中...' : '保存'}}
-    </button>
+    <!-- Region picker -->
+    <view wx:elif="{{fieldType === 'region'}}" class="profile-edit__form">
+      <view class="profile-edit__field">
+        <view class="profile-edit__label">{{fieldLabel}}</view>
+        <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
+          <view class="profile-edit__picker-display">
+            <text>{{regionDisplay || '请选择地区'}}</text>
+            <text class="profile-edit__picker-arrow">›</text>
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <!-- Save button -->
+    <view class="profile-edit__actions">
+      <ui-button
+        type="primary"
+        block="{{true}}"
+        loading="{{saving}}"
+        disabled="{{saving || fieldType === ''}}"
+        bindtap="handleSave">
+        {{saving ? '保存中...' : '保存'}}
+      </ui-button>
+    </view>
   </view>
-
-  <!-- Gender picker -->
-  <view wx:elif="{{fieldType === 'gender'}}" class="edit-content">
-    <view class="picker-section">
-      <picker mode="selector" range="{{genderOptions}}" value="{{genderIndex}}" bindchange="onGenderChange">
-        <view class="picker-display">
-          <text>{{genderOptions[genderIndex]}}</text>
-          <text class="arrow">›</text>
-        </view>
-      </picker>
-    </view>
-
-    <button class="save-button" bindtap="handleSave" disabled="{{saving}}">
-      {{saving ? '保存中...' : '保存'}}
-    </button>
-  </view>
-
-  <!-- Region picker -->
-  <view wx:elif="{{fieldType === 'region'}}" class="edit-content">
-    <view class="picker-section">
-      <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
-        <view class="picker-display">
-          <text>{{regionDisplay || '请选择地区'}}</text>
-          <text class="arrow">›</text>
-        </view>
-      </picker>
-    </view>
-
-    <button class="save-button" bindtap="handleSave" disabled="{{saving}}">
-      {{saving ? '保存中...' : '保存'}}
-    </button>
-  </view>
-</view>
+</page-layout>

@@ -1,0 +1,55 @@
+@import '/styles/design-tokens.wxss';
+
+.phone-login-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  padding: var(--padding-page);
+  background-color: var(--color-bg-page);
+}
+
+.phone-login-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.phone-login-header__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.phone-login-header__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.phone-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.phone-login-form__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.phone-login-form__sms {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;
+}
+
+.phone-login-form__sms-input {
+  flex: 1;
+}
+
+.phone-login-form__submit {
+  margin-top: var(--space-xl);
+}
+
+.phone-login-captcha {
+  margin-top: var(--space-md);
+}

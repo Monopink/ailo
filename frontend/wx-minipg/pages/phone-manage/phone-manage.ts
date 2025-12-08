@@ -1,3 +1,4 @@
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { get, post, put } from '../../utils/api';
 import {
   ensureCaptchaConfig,
@@ -27,7 +28,7 @@ interface AccountInfo {
 }
 
 interface PhoneManagePageData extends Says.CaptchaPageData {
-  loading: boolean;
+  pageLayoutData: PageLayoutData;
   currentPhone: string;
   newPhone: string;
   smsCode: string;
@@ -54,6 +55,7 @@ interface PhoneManagePageCustom {
   requestSmsWithCaptcha(token: string): Promise<void>;
   startCooldown(seconds: number): void;
   handleChangePhone(): Promise<void>;
+  onRetry(): void;
 }
 
 const showToast = (
@@ -64,6 +66,17 @@ const showToast = (
 };
 
 const isValidPhone = (value: string): boolean => /^1\d{10}$/.test(value);
+
+const maskPhone = (phone: string | undefined): string => {
+  if (!phone) {
+    return '未绑定';
+  }
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (digits.length >= 11) {
+    return `${digits.slice(0, 3)}****${digits.slice(-4)}`;
+  }
+  return phone;
+};
 
 const needsCaptcha = (error: ApiError): boolean => {
   const status = Number(error.statusCode ?? error.status ?? 0);
@@ -108,7 +121,11 @@ const asCaptchaPage = (page: PhoneManagePageInstance): Says.CaptchaPageInstance 
 
 Page<PhoneManagePageData, PhoneManagePageCustom>({
   data: {
-    loading: true,
+    pageLayoutData: createPageLayoutData({
+      isLoading: true,
+      emptyMessage: '暂无账号信息',
+      hasFooter: true,
+    }),
     currentPhone: '',
     newPhone: '',
     smsCode: '',
@@ -148,27 +165,36 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
       const account = await get<AccountInfo>('/user/account');
 
       this.setData({
-        currentPhone: account.phone,
-        loading: false,
+        currentPhone: maskPhone(account.phone),
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.isEmpty': false,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.errorMessage': '',
       });
     } catch (error) {
       logger.error('Load account info failed', { error });
       showToast('加载失败');
-      this.setData({ loading: false });
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '加载失败，请稍后重试',
+      });
     }
   },
 
   /** Handle new phone input */
   onNewPhoneInput(event: InputEvent) {
+    const value = event.detail.value || '';
     this.setData({
-      newPhone: (event.detail.value || '').trim(),
+      newPhone: value.trim(),
     });
   },
 
   /** Handle SMS code input */
   onSmsCodeInput(event: InputEvent) {
+    const value = event.detail.value || '';
     this.setData({
-      smsCode: event.detail.value,
+      smsCode: value,
     });
   },
 
@@ -293,5 +319,9 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
     } finally {
       this.setData({ saving: false });
     }
+  },
+
+  onRetry() {
+    void this.loadAccountInfo();
   },
 });

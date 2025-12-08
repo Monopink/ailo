@@ -1,6 +1,17 @@
-<view class="boot-container">
-  <view class="boot-center">
-    <image class="boot-logo" src="/assets/logo.png" mode="aspectFit" />
-    <text class="boot-brand">敲敲</text>
+<page-layout
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}">
+  <view slot="content" class="boot-page">
+    <image class="boot-page__logo" src="/assets/logo.png" mode="aspectFit" />
+    <view class="boot-page__text">
+      <text class="boot-page__brand">敲敲</text>
+      <text class="boot-page__subtitle">AI 陪伴 · 实时共鸣</text>
+      <text class="boot-page__status">正在为你准备聊天体验…</text>
+    </view>
+    <ui-loading text="正在进入" />
   </view>
-</view>
+</page-layout>

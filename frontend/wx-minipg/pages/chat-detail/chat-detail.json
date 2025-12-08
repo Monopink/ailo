@@ -1,0 +1,10 @@
+{
+  "navigationBarTitleText": "聊天详情",
+  "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "ui-avatar": "/components/ui/avatar/avatar",
+    "ui-tag": "/components/ui/tag/tag",
+    "ui-cell": "/components/ui/cell/cell",
+    "ui-button": "/components/ui/button/button"
+  }
+}

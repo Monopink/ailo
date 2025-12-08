@@ -1,0 +1,7 @@
+{
+  "component": true,
+  "usingComponents": {
+    "ui-loading": "/components/ui/loading/loading",
+    "ui-empty": "/components/ui/empty/empty"
+  }
+}

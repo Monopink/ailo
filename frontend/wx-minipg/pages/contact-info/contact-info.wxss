@@ -1,5 +1,49 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
+/* Contact Info Page */
 .contact-info {
   background-color: var(--color-bg-page);
+}
+
+/* Header Section - Avatar and Name */
+.contact-info__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-xl) var(--space-md) var(--space-lg);
+}
+
+.contact-info__avatar {
+  margin-bottom: var(--space-md);
+}
+
+.contact-info__name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.contact-info__name {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.contact-info__qiao-id {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Cards Section */
+.contact-info__cards {
+  margin-top: var(--space-md);
+}
+
+/* Tags */
+.contact-info__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
 }

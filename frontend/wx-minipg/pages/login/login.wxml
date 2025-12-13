@@ -48,7 +48,7 @@
           <block wx:for="{{sampleContacts}}" wx:key="qiao_id" wx:for-item="contact1">
             <view class="login-preview__item">
               <view class="login-preview__avatar-wrapper">
-                <ui-avatar size="medium" src="{{contact1.avatar}}" />
+                <t-avatar size="medium" image="{{contact1.avatar}}" />
                 <view class="login-preview__avatar-ring"></view>
               </view>
               <text class="login-preview__name">{{contact1.nickname}}</text>
@@ -58,7 +58,7 @@
           <block wx:for="{{sampleContacts}}" wx:key="qiao_id" wx:for-item="contact2">
             <view class="login-preview__item">
               <view class="login-preview__avatar-wrapper">
-                <ui-avatar size="medium" src="{{contact2.avatar}}" />
+                <t-avatar size="medium" image="{{contact2.avatar}}" />
                 <view class="login-preview__avatar-ring"></view>
               </view>
               <text class="login-preview__name">{{contact2.nickname}}</text>
@@ -68,7 +68,7 @@
           <block wx:for="{{sampleContacts}}" wx:key="qiao_id" wx:for-item="contact3">
             <view class="login-preview__item">
               <view class="login-preview__avatar-wrapper">
-                <ui-avatar size="medium" src="{{contact3.avatar}}" />
+                <t-avatar size="medium" image="{{contact3.avatar}}" />
                 <view class="login-preview__avatar-ring"></view>
               </view>
               <text class="login-preview__name">{{contact3.nickname}}</text>
@@ -81,19 +81,19 @@
 
     <!-- Actions section - Login buttons -->
     <view class="login-actions">
-      <ui-button
-        type="primary"
-        block="{{true}}"
+      <t-button
+        theme="primary"
+        block
         loading="{{wechatLoading}}"
         bindtap="handleWeChatLogin">
         微信授权登录
-      </ui-button>
-      <ui-button
-        type="secondary"
-        block="{{true}}"
+      </t-button>
+      <t-button
+        variant="outline"
+        block
         bindtap="handlePhoneLogin">
         手机号登录
-      </ui-button>
+      </t-button>
     </view>
   </view>
 </page-layout>

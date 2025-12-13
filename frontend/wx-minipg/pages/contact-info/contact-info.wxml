@@ -8,69 +8,80 @@
   bind:retry="refreshContactInfo">
   <view slot="content" class="contact-info">
     <view wx:if="{{contact}}">
-      <!-- Hero section - Using ui-card + standard layout -->
-      <ui-card padding="medium" shadow="{{false}}">
-        <view class="info-hero">
-          <ui-avatar
-            src="{{contact.custom_avatar_url || contact.avatar_url || '/assets/avatars/default.png'}}"
-            size="xlarge" />
-          <view class="info-hero__content">
-            <view class="info-hero__name">
-              <text>{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
-              <gender-badge wx:if="{{contact.gender}}" gender="{{contact.gender}}" />
-            </view>
-            <text class="info-hero__subtitle">敲敲号：{{contact.contact_qiao_id}}</text>
+      <!-- Header Section - Avatar and Name -->
+      <view class="contact-info__header">
+        <t-avatar
+          image="{{contact.displayAvatar}}"
+          size="128rpx"
+          shape="circle"
+          class="contact-info__avatar" />
+
+        <view class="contact-info__name-row">
+          <text class="contact-info__name">{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
+          <gender-badge wx:if="{{contact.gender}}" gender="{{contact.gender}}" />
+        </view>
+
+        <text class="contact-info__qiao-id">敲敲号：{{contact.contact_qiao_id}}</text>
+      </view>
+
+      <!-- Cards Section -->
+      <view class="contact-info__cards card-container">
+        <!-- Bio Card -->
+        <view wx:if="{{contact.bio}}" class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="个性签名" note="{{contact.bio}}" />
+          </t-cell-group>
+        </view>
+
+        <!-- Tags Card -->
+        <view wx:if="{{contact.tags && contact.tags.length}}" class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="标签">
+              <view slot="note" class="contact-info__tags">
+                <t-tag
+                  wx:for="{{contact.tags}}"
+                  wx:key="*this"
+                  size="small"
+                  variant="outline">
+                  {{item}}
+                </t-tag>
+              </view>
+            </t-cell>
+          </t-cell-group>
+        </view>
+
+        <!-- Settings Card -->
+        <view class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="备注和标签" arrow hover bindtap="editRemarkAndTags" />
+          </t-cell-group>
+        </view>
+
+        <!-- Preferences Card -->
+        <view class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="置顶聊天">
+              <t-switch slot="note" value="{{isPinned}}" bindchange="onPinnedChange" />
+            </t-cell>
+            <t-cell title="消息免打扰">
+              <t-switch slot="note" value="{{isMuted}}" bindchange="onMutedChange" />
+            </t-cell>
+          </t-cell-group>
+        </view>
+
+        <!-- Actions section -->
+        <view class="page-actions">
+          <t-button theme="primary" block bindtap="goToChat">
+            发送消息
+          </t-button>
+          <view class="page-actions__secondary">
+            <t-button variant="outline" block bindtap="clearChatHistory">
+              清空聊天记录
+            </t-button>
+            <t-button theme="danger" block bindtap="deleteContact">
+              删除联系人
+            </t-button>
           </view>
-        </view>
-      </ui-card>
-
-      <!-- Bio section - Using ui-card -->
-      <ui-card wx:if="{{contact.bio}}" padding="medium">
-        <view style="display: flex; flex-direction: column; gap: 8rpx;">
-          <text class="text-tertiary">个性签名</text>
-          <text class="text-secondary">{{contact.bio}}</text>
-        </view>
-      </ui-card>
-
-      <!-- Tags - Using ui-card -->
-      <ui-card wx:if="{{contact.tags && contact.tags.length}}" padding="medium">
-        <view class="tags-container" style="padding: 0;">
-          <ui-tag
-            wx:for="{{contact.tags}}"
-            wx:key="*this"
-            size="small"
-            variant="outline">
-            {{item}}
-          </ui-tag>
-        </view>
-      </ui-card>
-
-      <!-- Settings group - Using ui-card -->
-      <ui-card padding="none">
-        <ui-cell title="备注和标签" link="{{true}}" bindtap="editRemarkAndTags" />
-      </ui-card>
-
-      <ui-card padding="none">
-        <ui-cell title="置顶聊天">
-          <ui-switch slot="footer" checked="{{isPinned}}" bindchange="onPinnedChange" />
-        </ui-cell>
-        <ui-cell title="消息免打扰">
-          <ui-switch slot="footer" checked="{{isMuted}}" bindchange="onMutedChange" />
-        </ui-cell>
-      </ui-card>
-
-      <!-- Actions section - Using standard layout class -->
-      <view class="page-actions">
-        <ui-button type="primary" block="{{true}}" bindtap="goToChat">
-          发送消息
-        </ui-button>
-        <view class="page-actions__secondary">
-          <ui-button type="secondary" block="{{true}}" bindtap="clearChatHistory">
-            清空聊天记录
-          </ui-button>
-          <ui-button type="danger" block="{{true}}" bindtap="deleteContact">
-            删除联系人
-          </ui-button>
         </view>
       </view>
     </view>

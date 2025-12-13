@@ -22,6 +22,8 @@ interface UserProfile {
   gender?: number;
   region?: string;
   bio?: string;
+  displayAvatar?: string;
+  displayUsername?: string;
 }
 
 interface AccountInfo {
@@ -123,12 +125,14 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
         ? {
             ...profile,
             avatar_url: getAvatarUrl(profile.avatar_url ?? ''),
+            displayAvatar: getAvatarUrl(profile.avatar_url ?? '') || '/assets/avatars/default.png',
+            displayUsername: profile.username || '--',
           }
         : null;
 
       this.setData({
         profile: normalizedProfile,
-        phoneMasked: account?.phone ?? '',
+        phoneMasked: account?.phone ?? '未绑定',
         genderText,
         'pageLayoutData.isLoading': false,
         'pageLayoutData.isEmpty': !normalizedProfile,

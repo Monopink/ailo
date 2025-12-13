@@ -1,3 +1,4 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
 .contact-requests {

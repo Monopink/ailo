@@ -4,6 +4,6 @@
   "backgroundColor": "#ffffff",
   "usingComponents": {
     "page-layout": "/components/page-layout/page-layout",
-    "ui-loading": "/components/ui/loading/loading"
+    "t-loading": "tdesign-miniprogram/loading/loading"
   }
 }

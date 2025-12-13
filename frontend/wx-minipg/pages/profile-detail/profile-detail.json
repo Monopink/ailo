@@ -2,11 +2,11 @@
   "navigationBarTitleText": "详细资料",
   "usingComponents": {
     "page-layout": "/components/page-layout/page-layout",
-    "ui-card": "/components/ui/card/card",
-    "ui-avatar": "/components/ui/avatar/avatar",
-    "ui-tag": "/components/ui/tag/tag",
-    "ui-cell": "/components/ui/cell/cell",
-    "ui-button": "/components/ui/button/button",
-    "ui-divider": "/components/ui/divider/divider"
+    "t-cell-group": "tdesign-miniprogram/cell-group/cell-group",
+    "t-avatar": "tdesign-miniprogram/avatar/avatar",
+    "t-tag": "tdesign-miniprogram/tag/tag",
+    "t-cell": "tdesign-miniprogram/cell/cell",
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-divider": "tdesign-miniprogram/divider/divider"
   }
 }

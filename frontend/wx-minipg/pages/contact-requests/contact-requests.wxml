@@ -8,29 +8,29 @@
   bind:retry="onRetry">
   <view slot="content">
     <view class="contact-requests" wx:if="{{requests.length}}">
-      <ui-cell
+      <t-cell
         wx:for="{{requests}}"
         wx:key="id"
         title="{{item.nickname}}"
-        label="{{item.message}}">
-        <ui-avatar slot="icon" src="{{item.avatar}}" size="large" />
-        <view slot="footer" class="contact-requests__actions">
-          <ui-button
-            type="secondary"
+        description="{{item.message}}">
+        <t-avatar slot="image" image="{{item.avatar}}" size="large" />
+        <view slot="note" class="contact-requests__actions">
+          <t-button
+            variant="outline"
             size="small"
             data-id="{{item.id}}"
             bindtap="handleReject">
             拒绝
-          </ui-button>
-          <ui-button
-            type="primary"
+          </t-button>
+          <t-button
+            theme="primary"
             size="small"
             data-id="{{item.id}}"
             bindtap="handleApprove">
             同意
-          </ui-button>
+          </t-button>
         </view>
-      </ui-cell>
+      </t-cell>
     </view>
   </view>
 </page-layout>

@@ -1,89 +1,74 @@
+type BubbleDirection = 'incoming' | 'outgoing';
 type MessageStatus = 'sending' | 'sent' | 'failed';
 
+const DIRECTIONS: BubbleDirection[] = ['incoming', 'outgoing'];
 const STATUS_LABELS: Record<MessageStatus, string> = {
-  sending: '发送中…',
+  sending: '发送中',
   sent: '已送达',
   failed: '发送失败',
-};
-
-const formatTimestamp = (value?: number): string => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '';
-  }
-  const date = new Date(value);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
 };
 
 Component({
   options: {
     addGlobalClass: true,
+    styleIsolation: 'apply-shared',
   },
-  data: {
-    formattedTime: '',
-    statusLabel: '',
-  },
+
   properties: {
-    messageId: {
-      type: String,
-      value: '',
-    },
-    content: {
-      type: String,
-      value: '',
-    },
-    timestamp: {
-      type: Number,
-      value: 0,
-    },
     direction: {
       type: String,
-      value: 'received',
+      value: 'incoming',
+    },
+    text: {
+      type: String,
+      value: '',
+    },
+    time: {
+      type: String,
+      value: '',
+    },
+    avatar: {
+      type: String,
+      value: '',
     },
     status: {
       type: String,
       value: '',
     },
-    showTime: {
-      type: Boolean,
-      value: false,
-    },
-    showAvatar: {
-      type: Boolean,
-      value: true,
-    },
-    avatarUrl: {
-      type: String,
-      value: '',
-    },
   },
-  lifetimes: {
-    attached() {
-      this.updateFormattedTime(this.data.timestamp);
-      this.updateStatusLabel(this.data.status);
-    },
+
+  data: {
+    normalizedDirection: 'incoming' as BubbleDirection,
+    statusLabel: '',
   },
+
   observers: {
-    timestamp(value: number) {
-      this.updateFormattedTime(value);
+    direction(value: string) {
+      this._normalizeDirection(value);
     },
     status(value: string) {
-      this.updateStatusLabel(value);
+      this._updateStatusLabel(value as MessageStatus);
     },
   },
-  methods: {
-    updateFormattedTime(value: number | undefined) {
-      const normalized = typeof value === 'number' ? value : undefined;
-      this.setData({
-        formattedTime: formatTimestamp(normalized),
-      });
+
+  lifetimes: {
+    attached() {
+      this._normalizeDirection(this.data.direction);
+      this._updateStatusLabel(this.data.status as MessageStatus);
     },
-    updateStatusLabel(value: string | undefined) {
-      const label = (value && STATUS_LABELS[value as MessageStatus]) || '';
-      this.setData({
-        statusLabel: label,
-      });
+  },
+
+  methods: {
+    _normalizeDirection(value: string) {
+      const direction = (
+        DIRECTIONS.includes(value as BubbleDirection) ? value : 'incoming'
+      ) as BubbleDirection;
+      this.setData({ normalizedDirection: direction });
+    },
+
+    _updateStatusLabel(value: MessageStatus) {
+      const label = value && STATUS_LABELS[value] ? STATUS_LABELS[value] : '';
+      this.setData({ statusLabel: label });
     },
   },
 });

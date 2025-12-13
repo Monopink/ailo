@@ -32,15 +32,15 @@
         bindtap="handleContactTap"
         data-id="{{item.qiao_id}}">
         <!-- Avatar -->
-        <ui-avatar
-          src="{{item.avatar_url}}"
-          size="large"
+        <t-avatar
+          image="{{item.avatar_url}}"
+          size="medium"
           class="square-item__avatar" />
 
         <!-- Info -->
         <view class="square-item__info">
           <view class="square-item__header">
-            <text class="square-item__name">{{item.nickname || '未命名'}}</text>
+            <text class="square-item__name">{{item.nickname}}</text>
             <gender-badge wx:if="{{item.gender}}" gender="{{item.gender}}" />
           </view>
           <text wx:if="{{item.bio}}" class="square-item__bio">{{item.bio}}</text>

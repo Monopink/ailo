@@ -1,36 +1,43 @@
-<view class="message-input">
-  <view wx:if="{{showEmoji}}" class="message-input__emoji" bindtap="handleEmojiTap">
-    <text>😊</text>
+<view class="ui-message-input-wrapper">
+  <view class="ui-message-input {{disabled ? 'ui-message-input--disabled' : ''}}">
+    <view class="ui-message-input__emoji" wx:if="{{showEmoji}}" bindtap="handleEmojiTap">
+      <text>😊</text>
+    </view>
+
+    <view class="ui-message-input__body">
+      <textarea
+        class="ui-message-input__field"
+        value="{{internalValue}}"
+        placeholder="{{placeholder}}"
+        maxlength="{{maxLength}}"
+        disabled="{{disabled}}"
+        auto-height="{{autoHeight}}"
+        cursor="{{cursor}}"
+        bindinput="handleInput"
+        bindconfirm="handleConfirm"
+        bindkeyboardheightchange="handleKeyboardHeightChange"
+      ></textarea>
+      <text class="ui-message-input__count" wx:if="{{showCharCount}}">
+        {{internalValue.length}}/{{maxLength}}
+      </text>
+    </view>
+
+    <view class="ui-message-input__send" wx:if="{{showSend}}" bindtap="handleSend">
+      <text>{{sendText}}</text>
+    </view>
   </view>
 
-  <textarea
-    class="message-input__textarea"
-    value="{{value}}"
-    placeholder="{{placeholder}}"
-    disabled="{{disabled || sending}}"
-    maxlength="{{maxLength}}"
-    auto-height="{{true}}"
-    auto-focus="{{autoFocus}}"
-    show-confirm-bar="{{false}}"
-    bindinput="handleInput"
-    bindfocus="handleFocus"
-    bindblur="handleBlur"
-    bindconfirm="handleConfirm" />
-
-  <ui-button
-    type="primary"
-    size="small"
-    loading="{{sending}}"
-    disabled="{{!value || disabled || sending}}"
-    bindtap="handleSend">
-    发送
-  </ui-button>
-
-  <view wx:if="{{showExtra}}" class="message-input__extra" bindtap="handleExtraTap">
-    <text>＋</text>
+  <!-- Emoji panel -->
+  <view wx:if="{{showEmojiPanel}}" class="ui-message-input__emoji-panel">
+    <scroll-view scroll-y class="ui-message-input__emoji-list">
+      <view
+        wx:for="{{EMOJI_LIST}}"
+        wx:key="index"
+        class="ui-message-input__emoji-item"
+        bindtap="handleEmojiSelect"
+        data-emoji="{{item}}">
+        {{item}}
+      </view>
+    </scroll-view>
   </view>
-</view>
-
-<view wx:if="{{maxLength}}" class="message-input__counter">
-  <text>{{(value || '').length}} / {{maxLength}}</text>
 </view>

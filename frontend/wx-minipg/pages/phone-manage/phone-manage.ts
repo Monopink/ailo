@@ -11,6 +11,12 @@ import { getLogger } from '../../utils/logger';
 const logger = getLogger('PhoneManage');
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
+type PhoneChangeEvent = WechatMiniprogram.CustomEvent<{
+  value: string;
+  countryCode: string;
+  fullPhone: string;
+  valid: boolean;
+}>;
 
 interface ApiError extends Error {
   statusCode?: number;
@@ -31,10 +37,13 @@ interface PhoneManagePageData extends Says.CaptchaPageData {
   pageLayoutData: PageLayoutData;
   currentPhone: string;
   newPhone: string;
+  fullNewPhone: string;
+  isPhoneValid: boolean;
   smsCode: string;
   cooldown: number;
   sending: boolean;
   saving: boolean;
+  submitButtonText: string;
   loadCaptcha: boolean;
   pluginProps: Record<string, unknown>;
   captchaSceneId: string;
@@ -47,7 +56,7 @@ type PhoneManagePageInstance = WechatMiniprogram.Page.Instance<
 
 interface PhoneManagePageCustom {
   loadAccountInfo(): Promise<void>;
-  onNewPhoneInput(event: InputEvent): void;
+  onNewPhoneChange(event: PhoneChangeEvent): void;
   onSmsCodeInput(event: InputEvent): void;
   sendSmsCode(): Promise<void>;
   onCaptchaSuccess(token: string): Promise<void>;
@@ -64,8 +73,6 @@ const showToast = (
 ): void => {
   void wx.showToast({ title, icon });
 };
-
-const isValidPhone = (value: string): boolean => /^1\d{10}$/.test(value);
 
 const maskPhone = (phone: string | undefined): string => {
   if (!phone) {
@@ -128,10 +135,13 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
     }),
     currentPhone: '',
     newPhone: '',
+    fullNewPhone: '',
+    isPhoneValid: false,
     smsCode: '',
     cooldown: 0,
     sending: false,
     saving: false,
+    submitButtonText: '确认修改',
     // Aliyun captcha
     loadCaptcha: false,
     pluginProps: {},
@@ -183,10 +193,12 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
   },
 
   /** Handle new phone input */
-  onNewPhoneInput(event: InputEvent) {
-    const value = event.detail.value || '';
+  onNewPhoneChange(event: PhoneChangeEvent) {
+    const { value, fullPhone, valid } = event.detail;
     this.setData({
-      newPhone: value.trim(),
+      newPhone: value,
+      fullNewPhone: fullPhone,
+      isPhoneValid: valid,
     });
   },
 
@@ -200,20 +212,14 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
 
   /** Send SMS code */
   async sendSmsCode() {
-    const nextPhone = (this.data.newPhone || '').trim();
-
-    if (!nextPhone) {
-      showToast('请输入手机号');
-      return;
-    }
-    if (!isValidPhone(nextPhone)) {
-      showToast('手机号格式不正确');
+    if (!this.data.isPhoneValid) {
+      showToast('请输入正确的手机号');
       return;
     }
 
     try {
       this.setData({ sending: true });
-      await post('/auth/send-sms', { phone: `+86${nextPhone}` }, { auth: true });
+      await post('/auth/send-sms', { phone: this.data.fullNewPhone }, { auth: true });
       showToast('验证码已发送', 'success');
       startCountdown(this as PhoneManagePageInstance, 60);
       this.setData({ sending: false });
@@ -256,11 +262,10 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
   async requestSmsWithCaptcha(token: string) {
     try {
       this.setData({ sending: true });
-      const nextPhone = (this.data.newPhone || '').trim();
       await post(
         '/auth/send-sms',
         {
-          phone: `+86${nextPhone}`,
+          phone: this.data.fullNewPhone,
           captcha_token: token,
         },
         { auth: true }
@@ -283,27 +288,22 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
 
   /** Handle change phone */
   async handleChangePhone() {
-    const nextPhone = (this.data.newPhone || '').trim();
+    if (!this.data.isPhoneValid) {
+      showToast('请输入正确的手机号');
+      return;
+    }
 
-    if (!nextPhone) {
-      showToast('请输入新手机号');
-      return;
-    }
-    if (!isValidPhone(nextPhone)) {
-      showToast('手机号格式不正确');
-      return;
-    }
     if (this.data.smsCode.length !== 6) {
       showToast('请输入6位验证码');
       return;
     }
 
     try {
-      this.setData({ saving: true });
+      this.setData({ saving: true, submitButtonText: '修改中...' });
       await put(
         '/user/phone',
         {
-          new_phone: `+86${nextPhone}`,
+          new_phone: this.data.fullNewPhone,
           sms_code: this.data.smsCode,
         },
         { auth: true }
@@ -317,7 +317,7 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
       logger.error('Change phone failed', { error });
       showToast(normalizeErrorMessage(error, '修改失败，请稍后再试'));
     } finally {
-      this.setData({ saving: false });
+      this.setData({ saving: false, submitButtonText: '确认修改' });
     }
   },
 

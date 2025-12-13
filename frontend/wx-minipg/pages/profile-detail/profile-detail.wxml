@@ -6,57 +6,66 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
-  <view slot="content" class="profile-detail">
-    <!-- Info groups - Using ui-card -->
-    <ui-card wx:if="{{profile}}" padding="none">
-      <ui-cell title="头像" link="{{true}}" bindtap="editAvatar">
-        <ui-avatar
-          slot="footer"
-          src="{{profile.avatar_url || '/assets/avatars/default.png'}}"
-          size="large"
+  <view slot="content" class="profile-detail card-container">
+    <!-- Info groups - Using t-cell-group with card theme -->
+    <view wx:if="{{profile}}" class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell title="头像" arrow hover bindtap="editAvatar">
+          <t-avatar
+            slot="note"
+            image="{{profile.displayAvatar}}"
+            size="large"
+          />
+        </t-cell>
+
+        <t-cell
+          title="昵称"
+          note="{{profile.nickname}}"
+          arrow
+          hover
+          bindtap="editNickname"
         />
-      </ui-cell>
 
-      <ui-cell
-        title="昵称"
-        value="{{profile.nickname || '未设置'}}"
-        link="{{true}}"
-        bindtap="editNickname"
-      />
+        <t-cell
+          title="敲敲号"
+          note="{{profile.displayUsername}}"
+          arrow
+          hover
+          bindtap="editUsername"
+        />
 
-      <ui-cell
-        title="敲敲号"
-        value="{{profile.username || '--'}}"
-        link="{{true}}"
-        bindtap="editUsername"
-      />
+        <t-cell
+          title="手机号"
+          note="{{phoneMasked}}"
+          arrow
+          hover
+          bindtap="editPhone"
+        />
+      </t-cell-group>
+    </view>
 
-      <ui-cell
-        title="手机号"
-        value="{{phoneMasked || '未绑定'}}"
-        link="{{true}}"
-        bindtap="editPhone"
-      />
-    </ui-card>
+    <view wx:if="{{profile}}" class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="性别"
+          note="{{genderText}}"
+          arrow
+          hover
+          bindtap="editGender"
+        />
 
-    <ui-card wx:if="{{profile}}" padding="none">
-      <ui-cell
-        title="性别"
-        value="{{genderText}}"
-        link="{{true}}"
-        bindtap="editGender"
-      />
+        <t-cell
+          title="地区"
+          note="{{profile.region}}"
+          arrow
+          hover
+          bindtap="editRegion"
+        />
 
-      <ui-cell
-        title="地区"
-        value="{{profile.region || '未设置'}}"
-        link="{{true}}"
-        bindtap="editRegion"
-      />
-
-      <ui-cell title="个性签名" link="{{true}}" bindtap="editBio">
-        <text slot="footer" style="max-width: 320rpx; font-size: var(--font-size-base); color: var(--color-text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{profile.bio || '未设置'}}</text>
-      </ui-cell>
-    </ui-card>
+        <t-cell title="个性签名" arrow hover bindtap="editBio">
+          <text slot="note" style="max-width: 320rpx; font-size: var(--font-size-base); color: var(--color-text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{profile.bio}}</text>
+        </t-cell>
+      </t-cell-group>
+    </view>
   </view>
 </page-layout>

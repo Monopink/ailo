@@ -1,0 +1,20 @@
+<view class="phone-input">
+  <!-- Country code display (left) - fixed at +86 -->
+  <view class="phone-input__country">
+    <text class="phone-input__country-code">{{countryCode}}</text>
+  </view>
+
+  <!-- Phone number input (right) -->
+  <view class="phone-input__field">
+    <t-input
+      placeholder="{{placeholder}}"
+      type="number"
+      value="{{value}}"
+      maxlength="{{phoneMaxLength}}"
+      disabled="{{disabled}}"
+      borderless
+      bindchange="handleInput"
+      bindfocus="handleFocus"
+      bindblur="handleBlur" />
+  </view>
+</view>

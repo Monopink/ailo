@@ -1,8 +1,7 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
 .square-page {
-  display: flex;
-  flex-direction: column;
   background-color: var(--color-bg-page);
 }
 

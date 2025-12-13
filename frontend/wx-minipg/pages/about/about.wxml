@@ -6,25 +6,32 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
-  <view slot="content" class="about">
-    <!-- App info -->
-    <view class="about__header">
-      <view class="about__logo">
-        <text class="about__logo-text">敲敲</text>
-      </view>
-      <text class="about__version">版本 {{version}}</text>
+  <view slot="content" class="about card-container">
+    <!-- App info card -->
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell title="敲敲" note="版本 {{version}}" align="middle">
+          <view slot="left-icon" class="about__logo">
+            <text class="about__logo-text">敲</text>
+          </view>
+        </t-cell>
+      </t-cell-group>
     </view>
 
-    <!-- Links group -->
-    <view class="about__group">
-      <ui-cell
-        title="用户协议"
-        link="{{true}}"
-        bindtap="navigateToUserAgreement" />
-      <ui-cell
-        title="隐私政策"
-        link="{{true}}"
-        bindtap="navigateToPrivacyPolicy" />
+    <!-- Links card -->
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="用户协议"
+          arrow
+          hover
+          bindtap="navigateToUserAgreement" />
+        <t-cell
+          title="隐私政策"
+          arrow
+          hover
+          bindtap="navigateToPrivacyPolicy" />
+      </t-cell-group>
     </view>
 
     <!-- Copyright -->

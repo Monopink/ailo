@@ -5,6 +5,6 @@
   "backgroundColor": "#f5f5f5",
   "usingComponents": {
     "page-layout": "/components/page-layout/page-layout",
-    "ui-button": "/components/ui/button/button"
+    "t-button": "tdesign-miniprogram/button/button"
   }
 }

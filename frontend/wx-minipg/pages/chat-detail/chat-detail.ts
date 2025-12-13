@@ -31,6 +31,7 @@ interface ContactView {
   genderLabel: string;
   genderType: 'success' | 'danger' | 'default';
   hasGender: boolean;
+  displayQiaoId: string;
 }
 
 interface ChatDetailPageData extends Record<string, unknown> {
@@ -60,6 +61,7 @@ const createEmptyContactView = (): ContactView => ({
   genderLabel: '',
   genderType: 'default',
   hasGender: false,
+  displayQiaoId: '--',
 });
 
 const buildContactView = (contact: StoredContact, profile?: ContactProfile): ContactView => {
@@ -87,6 +89,7 @@ const buildContactView = (contact: StoredContact, profile?: ContactProfile): Con
     genderLabel,
     genderType: genderValue === 1 ? 'success' : genderValue === 2 ? 'danger' : 'default',
     hasGender: Boolean(genderLabel),
+    displayQiaoId: contact.contact_qiao_id || '--',
   };
 };
 

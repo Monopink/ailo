@@ -1,6 +1,52 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
+/* Stranger Info Page */
 .stranger-info {
   background-color: var(--color-bg-page);
   padding-bottom: calc(88rpx + var(--space-md) * 2 + env(safe-area-inset-bottom));
+}
+
+/* Header Section - Avatar and Name */
+.stranger-info__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-xl) var(--space-md) var(--space-lg);
+}
+
+.stranger-info__avatar {
+  margin-bottom: var(--space-md);
+}
+
+.stranger-info__name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.stranger-info__name {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.stranger-info__category {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Cards Section */
+.stranger-info__cards {
+  margin-top: var(--space-md);
+}
+
+/* Login Tip */
+.stranger-info__tip {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  margin-top: var(--space-lg);
+  padding: 0 var(--padding-page);
 }

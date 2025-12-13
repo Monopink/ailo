@@ -2,8 +2,9 @@
   "navigationBarTitleText": "",
   "navigationStyle": "custom",
   "usingComponents": {
-    "page-layout": "/components/page-layout/page-layout",
-    "ui-avatar": "/components/ui/avatar/avatar",
-    "ui-navbar": "/components/ui/navbar/navbar"
+    "t-avatar": "tdesign-miniprogram/avatar/avatar",
+    "t-loading": "tdesign-miniprogram/loading/loading",
+    "t-empty": "tdesign-miniprogram/empty/empty",
+    "t-input": "tdesign-miniprogram/input/input"
   }
 }

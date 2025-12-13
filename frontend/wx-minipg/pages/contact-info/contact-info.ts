@@ -35,6 +35,7 @@ type ContactRecord = StoredContact & {
   avatar_url?: string | null;
   bio?: string | null;
   region?: string | null;
+  displayAvatar: string;
 };
 
 interface ContactInfoPageData extends Record<string, unknown> {
@@ -88,6 +89,10 @@ const normalizeContact = (contact: StoredContact): ContactRecord => {
     bio: resolvedBio ?? (typeof contact.bio === 'string' ? contact.bio : undefined) ?? null,
     region:
       resolvedRegion ?? (typeof contact.region === 'string' ? contact.region : undefined) ?? null,
+    displayAvatar:
+      (contact.custom_avatar_url
+        ? getAvatarUrl(contact.custom_avatar_url)
+        : getAvatarUrl(avatarUrl ?? '')) || '/assets/avatars/default.png',
   };
 };
 

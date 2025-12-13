@@ -65,7 +65,11 @@ interface ChatPageData {
   maxMessageLength: number;
   prevInputValue: string;
   isContactTyping: boolean;
-  navbarHeight: number;
+  statusBarHeight: number;
+  showEmojiPanel: boolean;
+  emojiList: string[];
+  sendIconInactive: string;
+  sendIconActive: string;
 }
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
@@ -91,7 +95,7 @@ interface ChatPageCustom {
   onCompositionStart(): void;
   onCompositionEnd(event: InputEvent): void;
   onSendMessage(): Promise<void>;
-  onNavbarReady(event: WechatMiniprogram.CustomEvent<{ totalHeight: number }>): void;
+  onNavbarBack(): void;
   onNavbarTitleClick(): void;
   onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
   onMessageReceived(message: Says.MessagePayload): Promise<void>;
@@ -99,6 +103,8 @@ interface ChatPageCustom {
   showTypingIndicator(): void;
   hideTypingIndicator(): void;
   updateMessageStatus(messageId: string, status: MessageStatus): void;
+  onEmojiButtonTap(): void;
+  onEmojiSelect(event: WechatMiniprogram.BaseEvent): void;
 }
 
 const normalizeError = (error: unknown): Error => {
@@ -160,7 +166,38 @@ Page<ChatPageData, ChatPageCustom>({
     maxMessageLength: MESSAGE_CONFIG.maxLength ?? 1000,
     prevInputValue: '',
     isContactTyping: false,
-    navbarHeight: 0,
+    statusBarHeight: 0,
+    showEmojiPanel: false,
+    emojiList: [
+      '😀',
+      '😃',
+      '😄',
+      '😁',
+      '😆',
+      '😅',
+      '🤣',
+      '😂',
+      '🙂',
+      '😊',
+      '😇',
+      '😍',
+      '🥰',
+      '😘',
+      '😗',
+      '😋',
+      '😛',
+      '😜',
+      '🤪',
+      '😝',
+      '🤗',
+      '🤔',
+      '🤐',
+      '😏',
+      '😒',
+    ],
+    // Send icon paths
+    sendIconInactive: '/assets/icons/send-inactive.svg',
+    sendIconActive: '/assets/icons/send-active.svg',
   },
 
   typingTimer: null,
@@ -204,13 +241,10 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   /**
-   * Handle navbar ready event - set navbar height for content padding
+   * Handle navbar back button click
    */
-  onNavbarReady(event: WechatMiniprogram.CustomEvent<{ totalHeight: number }>) {
-    const totalHeight = event.detail.totalHeight;
-    this.setData({
-      navbarHeight: totalHeight,
-    });
+  onNavbarBack() {
+    void wx.navigateBack();
   },
 
   /**
@@ -321,6 +355,12 @@ Page<ChatPageData, ChatPageCustom>({
       void wx.navigateBack();
       return;
     }
+
+    // Get status bar height for custom navbar
+    const systemInfo = wx.getSystemInfoSync();
+    this.setData({
+      statusBarHeight: systemInfo.statusBarHeight || 20,
+    });
 
     this.setData({ convId });
     this.unsubscribeConversationStore = conversationStore.subscribe((state) => {
@@ -554,6 +594,7 @@ Page<ChatPageData, ChatPageCustom>({
   onInputFocus() {
     this.setData({
       inputFocused: true,
+      showEmojiPanel: false, // Hide emoji panel when keyboard shows
     });
 
     // Notify typing manager
@@ -577,6 +618,34 @@ Page<ChatPageData, ChatPageCustom>({
   onCompositionEnd(event: InputEvent) {
     const value = event?.detail?.value ?? this.data.inputText;
     typingManager.onCompositionEnd(this.data.convId, value);
+  },
+
+  /**
+   * Toggle emoji panel visibility
+   */
+  onEmojiButtonTap() {
+    this.setData({
+      showEmojiPanel: !this.data.showEmojiPanel,
+      inputFocused: false, // Hide keyboard when emoji panel shows
+    });
+  },
+
+  /**
+   * Handle emoji selection
+   */
+  onEmojiSelect(event: WechatMiniprogram.BaseEvent) {
+    const emoji = getDatasetValue(event, 'emoji') as string;
+    if (!emoji) {
+      return;
+    }
+
+    const newValue = this.data.inputText + emoji;
+    this.setData({
+      inputText: newValue,
+    });
+
+    // Notify typing manager
+    typingManager.onInputChange(this.data.convId, newValue, this.data.inputText);
   },
 
   async onRetryMessage(event: WechatMiniprogram.BaseEvent) {
@@ -771,7 +840,6 @@ Page<ChatPageData, ChatPageCustom>({
 
     this.setData({
       isContactTyping: true,
-      navbarTitle: '对方正在输入...',
     });
 
     this.typingTimer = setTimeout(() => {
@@ -787,7 +855,6 @@ Page<ChatPageData, ChatPageCustom>({
 
     this.setData({
       isContactTyping: false,
-      navbarTitle: this.data.contactName,
     });
   },
 

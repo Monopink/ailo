@@ -1,3 +1,4 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
 /* ========================================
@@ -145,7 +146,7 @@
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
   letter-spacing: 6rpx;
-  text-shadow: 0 4rpx 16rpx rgba(7, 193, 96, 0.2);
+  text-shadow: 0 4rpx 16rpx rgb(7 193 96 / 20%);
   animation: title-shimmer 3s ease-in-out infinite;
 }
 
@@ -177,11 +178,11 @@
 @keyframes title-shimmer {
   0%,
   100% {
-    text-shadow: 0 4rpx 16rpx rgba(7, 193, 96, 0.2);
+    text-shadow: 0 4rpx 16rpx rgb(7 193 96 / 20%);
   }
 
   50% {
-    text-shadow: 0 4rpx 24rpx rgba(7, 193, 96, 0.4);
+    text-shadow: 0 4rpx 24rpx rgb(7 193 96 / 40%);
   }
 }
 
@@ -302,10 +303,10 @@
   gap: var(--space-xs);
   padding: var(--space-md);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.8);
+  background: rgb(255 255 255 / 80%);
   backdrop-filter: blur(10rpx);
-  border: 1rpx solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
+  border: 1rpx solid rgb(255 255 255 / 50%);
+  box-shadow: 0 8rpx 32rpx rgb(0 0 0 / 8%);
   animation: card-float 3s ease-in-out infinite;
 }
 
@@ -433,11 +434,11 @@
   }
 
   .login-hero__title {
-    text-shadow: 0 4rpx 16rpx rgba(11, 191, 104, 0.3);
+    text-shadow: 0 4rpx 16rpx rgb(11 191 104 / 30%);
   }
 
   .login-preview__item {
-    background: rgba(30, 30, 30, 0.8);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgb(30 30 30 / 80%);
+    border-color: rgb(255 255 255 / 10%);
   }
 }

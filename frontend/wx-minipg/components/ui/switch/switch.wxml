@@ -1,9 +1,0 @@
-<view
-  class="ui-switch {{checked ? 'ui-switch--checked' : ''}} {{disabled ? 'ui-switch--disabled' : ''}}"
-  bindtap="toggle"
-  role="switch"
-  aria-checked="{{checked}}"
-  aria-disabled="{{disabled}}">
-  <view class="ui-switch__track"></view>
-  <view class="ui-switch__thumb"></view>
-</view>

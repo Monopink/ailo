@@ -1,3 +1,4 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
 .about {
@@ -7,19 +8,11 @@
   background-color: var(--color-bg-page);
 }
 
-/* Header */
-.about__header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: var(--space-xxl) var(--padding-page);
-  gap: var(--space-md);
-}
-
+/* Logo icon for app info cell */
 .about__logo {
-  width: 160rpx;
-  height: 160rpx;
-  border-radius: var(--radius-lg);
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: var(--radius-md);
   background-color: var(--color-primary);
   display: flex;
   align-items: center;
@@ -27,21 +20,9 @@
 }
 
 .about__logo-text {
-  font-size: 64rpx;
+  font-size: 40rpx;
   font-weight: var(--font-weight-bold);
   color: var(--color-text-inverse);
-}
-
-.about__version {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-tertiary);
-}
-
-/* Group - iOS style */
-.about__group {
-  background-color: var(--color-bg-secondary);
-  margin-top: var(--space-md);
-  overflow: hidden;
 }
 
 /* Footer */

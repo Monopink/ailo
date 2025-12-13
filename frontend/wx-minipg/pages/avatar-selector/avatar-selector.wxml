@@ -6,33 +6,32 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="loadPresetAvatars">
-  <view slot="content">
-    <view class="avatar-selector" wx:if="{{presetAvatars.length}}">
-      <view class="avatar-selector__grid">
-        <view
-          wx:for="{{presetAvatars}}"
-          wx:key="id"
-          class="avatar-selector__item {{selectedAvatar === item.id ? 'avatar-selector__item--selected' : ''}}"
-          bindtap="selectAvatar"
-          data-id="{{item.id}}">
-          <image src="{{item.url}}" class="avatar-selector__image" mode="aspectFill" />
-          <view wx:if="{{currentAvatar === item.id}}" class="avatar-selector__badge">当前</view>
+  <view slot="content" class="avatar-selector">
+    <view wx:if="{{presetAvatars.length}}" class="avatar-selector__container card-container">
+      <view class="card-wrapper">
+        <view class="avatar-selector__card">
+          <view class="avatar-selector__grid">
+            <view
+              wx:for="{{presetAvatars}}"
+              wx:key="id"
+              class="avatar-selector__item {{selectedAvatar === item.id ? 'avatar-selector__item--selected' : ''}}"
+              bindtap="selectAvatar"
+              data-id="{{item.id}}">
+              <image src="{{item.url}}" class="avatar-selector__image" mode="aspectFill" />
+              <view wx:if="{{currentAvatar === item.id}}" class="avatar-selector__badge">当前</view>
+            </view>
+          </view>
         </view>
       </view>
     </view>
   </view>
 
-  <view slot="footer" class="avatar-selector__footer" wx:if="{{presetAvatars.length}}">
-    <ui-button type="secondary" block="{{true}}" bindtap="cancel">
+  <view slot="footer" class="page-footer" wx:if="{{presetAvatars.length}}">
+    <t-button theme="primary" block loading="{{isConfirming}}" disabled="{{!selectedAvatar || isConfirming}}" bindtap="confirmSelection">
+      确认更换
+    </t-button>
+    <t-button variant="outline" block bindtap="cancel">
       取消
-    </ui-button>
-    <ui-button
-      type="primary"
-      block="{{true}}"
-      loading="{{isConfirming}}"
-      disabled="{{!selectedAvatar || isConfirming}}"
-      bindtap="confirmSelection">
-      确认
-    </ui-button>
+    </t-button>
   </view>
 </page-layout>

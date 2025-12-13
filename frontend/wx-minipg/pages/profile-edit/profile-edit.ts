@@ -71,6 +71,7 @@ interface ProfileEditPageData extends Record<string, unknown> {
   maxLength: number;
   hint: string;
   saving: boolean;
+  submitButtonText: string;
   genderOptions: string[];
   genderIndex: number;
   regionValue: string[];
@@ -115,10 +116,11 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
     maxLength: 0,
     hint: '',
     saving: false,
+    submitButtonText: '保存',
     genderOptions: ['男', '女', '其他', '未知'],
     genderIndex: 0,
     regionValue: [],
-    regionDisplay: '',
+    regionDisplay: '请选择地区',
     valueLength: 0,
   },
 
@@ -159,11 +161,12 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
     }
 
     if (config.type === 'region') {
+      const decodedValue = decodeValue(options?.value);
       this.setData({
         field: rawField,
         fieldType: config.type,
         fieldLabel: config.label,
-        regionDisplay: decodeValue(options?.value),
+        regionDisplay: decodedValue || '请选择地区',
         regionValue: [],
         'pageLayoutData.isEmpty': false,
       });
@@ -253,7 +256,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
         }
       }
 
-      this.setData({ saving: true });
+      this.setData({ saving: true, submitButtonText: '保存中...' });
 
       const updateData: Record<string, unknown> = {};
       if (this.data.fieldType === 'text' && this.data.field) {
@@ -286,7 +289,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
 
       const message = error instanceof Error ? error.message : '保存失败,请稍后再试';
       showErrorToast(message);
-      this.setData({ saving: false });
+      this.setData({ saving: false, submitButtonText: '保存' });
     }
   },
 

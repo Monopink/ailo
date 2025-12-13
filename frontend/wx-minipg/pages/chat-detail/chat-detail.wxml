@@ -9,58 +9,58 @@
   <view slot="content" class="chat-detail">
     <!-- Hero section - horizontal layout -->
     <view wx:if="{{contact}}" class="chat-detail__hero">
-      <ui-avatar src="{{contactView.avatar}}" size="xlarge" />
+      <t-avatar image="{{contactView.avatar}}" size="large" />
       <view class="chat-detail__hero-info">
         <view class="chat-detail__hero-name">
           <text class="chat-detail__hero-text">{{contactView.name}}</text>
-          <ui-tag
+          <t-tag
             wx:if="{{contactView.hasGender}}"
             size="small"
             variant="outline"
-            type="{{contactView.genderType}}">
+            theme="{{contactView.genderType}}">
             {{contactView.genderLabel}}
-          </ui-tag>
+          </t-tag>
         </view>
-        <text class="chat-detail__hero-id">敲敲号：{{contact.contact_qiao_id || '--'}}</text>
+        <text class="chat-detail__hero-id">敲敲号：{{contactView.displayQiaoId}}</text>
       </view>
-      <ui-button
-        type="secondary"
+      <t-button
+        variant="outline"
         size="small"
         bindtap="viewProfile">
         查看资料
-      </ui-button>
+      </t-button>
     </view>
 
     <!-- Tags group -->
     <view wx:if="{{contact}}" class="chat-detail__group">
-      <ui-cell title="联系人标签" link="{{true}}" bindtap="manageTags">
-        <text slot="footer" class="chat-detail__link">管理</text>
-      </ui-cell>
+      <t-cell title="联系人标签" arrow hover bindtap="manageTags">
+        <text slot="note" class="chat-detail__link">管理</text>
+      </t-cell>
     </view>
 
     <!-- Settings group -->
     <view wx:if="{{contact}}" class="chat-detail__group">
-      <ui-cell title="置顶聊天">
-        <ui-switch slot="footer" checked="{{isPinned}}" bindchange="onPinnedChange" />
-      </ui-cell>
-      <ui-cell title="消息免打扰">
-        <ui-switch slot="footer" checked="{{isMuted}}" bindchange="onMutedChange" />
-      </ui-cell>
-      <ui-cell title="聊天背景" hover="{{false}}">
-        <text slot="footer" class="chat-detail__muted-text">暂未开放</text>
-      </ui-cell>
+      <t-cell title="置顶聊天">
+        <t-switch slot="note" value="{{isPinned}}" bindchange="onPinnedChange" />
+      </t-cell>
+      <t-cell title="消息免打扰">
+        <t-switch slot="note" value="{{isMuted}}" bindchange="onMutedChange" />
+      </t-cell>
+      <t-cell title="聊天背景">
+        <text slot="note" class="chat-detail__muted-text">暂未开放</text>
+      </t-cell>
     </view>
   </view>
 
   <view slot="footer" class="chat-detail__footer" wx:if="{{contact}}">
-    <ui-button type="primary" block="{{true}}" bindtap="goToChat">
+    <t-button theme="primary" block bindtap="goToChat">
       进入聊天
-    </ui-button>
-    <ui-button type="secondary" block="{{true}}" bindtap="clearChatHistory">
+    </t-button>
+    <t-button variant="outline" block bindtap="clearChatHistory">
       清空聊天记录
-    </ui-button>
-    <ui-button type="danger" block="{{true}}" bindtap="deleteContact">
+    </t-button>
+    <t-button theme="danger" block bindtap="deleteContact">
       删除联系人
-    </ui-button>
+    </t-button>
   </view>
 </page-layout>

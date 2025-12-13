@@ -1,31 +1,27 @@
 @import '/styles/design-tokens.wxss';
 
-.gender-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28rpx;
+.ui-gender-badge {
+  font-size: var(--font-size-lg);
   line-height: 1;
-  flex-shrink: 0;
+  vertical-align: middle;
 }
 
-/* Male - Light Blue */
-.gender-badge--1 {
-  color: var(--color-gender-male);
-}
-
-/* Female - Light Pink */
-.gender-badge--2 {
-  color: var(--color-gender-female);
-}
-
-/* Other - Light Purple */
-.gender-badge--3 {
-  color: var(--color-gender-other);
-}
-
-/* Unknown - Light Gray */
-.gender-badge--0,
-.gender-badge--4 {
+.ui-gender-badge--0 {
   color: var(--color-gender-unknown);
+  opacity: 0.6;
+}
+
+.ui-gender-badge--1 {
+  color: var(--color-gender-male);
+  opacity: 0.6;
+}
+
+.ui-gender-badge--2 {
+  color: var(--color-gender-female);
+  opacity: 0.6;
+}
+
+.ui-gender-badge--3 {
+  color: var(--color-gender-other);
+  opacity: 0.6;
 }

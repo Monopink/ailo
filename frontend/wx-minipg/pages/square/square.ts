@@ -170,6 +170,14 @@ Page<SquarePageData, SquarePageCustom>({
     this.loadContactsWithCache();
   },
 
+  onShow() {
+    // Update custom TabBar active state
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      this.getTabBar().init();
+    }
+  },
+
   getCacheKey() {
     const category = this.data.currentCategory;
     return `square_${category ?? 'all'}`;

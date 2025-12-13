@@ -1,54 +1,70 @@
-<page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
-  emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  contentScrollIntoView="{{pageLayoutData.contentScrollIntoView}}"
-  contentScrollWithAnimation="{{pageLayoutData.contentScrollWithAnimation}}"
-  bind:retry="onRetry">
-  <view slot="content" class="contact-page">
-    <!-- iOS style list - no card, direct list -->
-    <view class="contact-list" wx:if="{{contactList.length > 0}}">
-      <ui-cell
-        wx:for="{{contactList}}"
-        wx:key="conv_id"
+<view class="index-page">
+  <!-- Loading State -->
+  <view wx:if="{{pageLayoutData.isLoading}}" class="index-page__state">
+    <t-loading theme="circular" size="48rpx" text="加载中..." />
+  </view>
+
+  <!-- Error State -->
+  <view wx:elif="{{pageLayoutData.hasError}}" class="index-page__state">
+    <t-empty
+      icon="error-circle"
+      description="{{pageLayoutData.errorMessage}}"
+      action-text="重试"
+      bind:action="onRetry" />
+  </view>
+
+  <!-- Empty State -->
+  <view wx:elif="{{pageLayoutData.isEmpty}}" class="index-page__state">
+    <t-empty
+      icon="user-list"
+      description="{{pageLayoutData.emptyMessage}}" />
+  </view>
+
+  <!-- Content: Contact List with Swipe Actions -->
+  <t-cell-group wx:else>
+    <t-swipe-cell
+      wx:for="{{contactList}}"
+      wx:key="conv_id"
+      right="{{swipeCellActions}}"
+      data-id="{{item.conv_id}}"
+      data-index="{{index}}"
+      bind:click="onSwipeActionClick">
+      <t-cell
         title="{{item.displayName}}"
-        label="{{item.lastMessage}}"
-        link="{{true}}"
+        note="{{item.lastMessage}}"
+        hover
         bindtap="goToChat"
-        bindlongpress="onContactLongPress"
         data-id="{{item.conv_id}}"
-        data-index="{{index}}"
-        data-name="{{item.displayName}}">
-        <view slot="icon">
-          <ui-avatar src="{{item.avatarUrl}}" size="large" />
+        data-index="{{index}}">
+        <!-- Left: Avatar -->
+        <view slot="left-icon">
+          <t-avatar
+            image="{{item.avatarUrl}}"
+            size="medium"
+            shape="circle" />
         </view>
-        <view wx:if="{{item.tags && item.tags.length}}" class="contact-item__tags">
-          <ui-tag
+
+        <!-- Right: Time & Badge -->
+        <view slot="right" class="contact-item__meta">
+          <text class="contact-item__time">{{item.lastMessageTime}}</text>
+          <t-badge
+            wx:if="{{item.hasUnread}}"
+            count="{{item.unreadBadge}}"
+            max-count="99" />
+        </view>
+
+        <!-- Description: Tags -->
+        <view wx:if="{{item.tags && item.tags.length}}" slot="description" class="contact-item__tags">
+          <t-tag
             wx:for="{{item.tags}}"
             wx:for-item="tag"
             wx:key="*this"
             size="small"
             variant="outline">
             {{tag}}
-          </ui-tag>
+          </t-tag>
         </view>
-        <view slot="footer" class="contact-item__meta">
-          <text class="contact-item__time">{{item.lastMessageTime}}</text>
-          <ui-badge wx:if="{{item.hasUnread}}" count="{{item.unreadBadge}}" />
-        </view>
-      </ui-cell>
-    </view>
-  </view>
-</page-layout>
-
-<!-- Action Sheet for contact actions -->
-<ui-action-sheet
-  show="{{actionSheet.show}}"
-  title="{{actionSheet.displayName}}"
-  actions="{{actionSheetActions}}"
-  maskClosable="{{true}}"
-  bind:select="handleActionSelect"
-  bind:close="handleActionSheetClose" />
+      </t-cell>
+    </t-swipe-cell>
+  </t-cell-group>
+</view>

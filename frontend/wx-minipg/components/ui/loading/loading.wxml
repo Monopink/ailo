@@ -1,4 +1,0 @@
-<view class="ui-loading">
-  <view class="ui-loading__spinner"></view>
-  <text wx:if="{{text}}" class="ui-loading__text">{{text}}</text>
-</view>

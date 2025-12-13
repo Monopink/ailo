@@ -7,7 +7,8 @@
   "usingComponents": {
     "aliyun-captcha": "plugin://AliyunCaptcha/captcha",
     "page-layout": "/components/page-layout/page-layout",
-    "ui-button": "/components/ui/button/button",
-    "ui-input": "/components/ui/input/input"
+    "phone-input": "/components/ui/phone-input/phone-input",
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-input": "tdesign-miniprogram/input/input"
   }
 }

@@ -1,9 +1,110 @@
-const DEFAULT_MAX_LENGTH = 500;
+type MessageInputEventDetail = {
+  value: string;
+  cursor?: number;
+  keyCode?: number;
+};
+
+type KeyboardHeightChangeDetail = {
+  height: number;
+  duration: number;
+};
+
+type MessageInputConfirmDetail = {
+  value: string;
+  cursor?: number;
+  keyCode?: number;
+};
+
+// Emoji list for message input (80 emojis)
+const EMOJI_LIST = [
+  '😀',
+  '😃',
+  '😄',
+  '😁',
+  '😆',
+  '😅',
+  '🤣',
+  '😂',
+  '🙂',
+  '😊',
+  '😇',
+  '😍',
+  '🥰',
+  '😘',
+  '😗',
+  '😙',
+  '😋',
+  '😛',
+  '😜',
+  '🤪',
+  '😝',
+  '🤑',
+  '🤗',
+  '🤭',
+  '🤔',
+  '🤐',
+  '🤨',
+  '😐',
+  '😑',
+  '😶',
+  '😏',
+  '😒',
+  '🙄',
+  '😬',
+  '🤥',
+  '😌',
+  '😔',
+  '😪',
+  '🤤',
+  '😴',
+  '😷',
+  '🤒',
+  '🤕',
+  '🤢',
+  '🤮',
+  '🤧',
+  '🥵',
+  '🥶',
+  '😎',
+  '🤓',
+  '🧐',
+  '😕',
+  '😟',
+  '🙁',
+  '☹️',
+  '😮',
+  '😯',
+  '😲',
+  '😳',
+  '🥺',
+  '😦',
+  '😧',
+  '😨',
+  '😰',
+  '😥',
+  '😢',
+  '😭',
+  '😱',
+  '😖',
+  '😣',
+  '😞',
+  '😓',
+  '👍',
+  '👎',
+  '👌',
+  '✌️',
+  '🤞',
+  '🤝',
+  '🙏',
+  '❤️',
+];
 
 Component({
   options: {
     addGlobalClass: true,
+    styleIsolation: 'apply-shared',
   },
+
   properties: {
     value: {
       type: String,
@@ -11,13 +112,13 @@ Component({
     },
     placeholder: {
       type: String,
-      value: '输入消息...',
+      value: '请输入消息',
+    },
+    maxLength: {
+      type: Number,
+      value: 200,
     },
     disabled: {
-      type: Boolean,
-      value: false,
-    },
-    sending: {
       type: Boolean,
       value: false,
     },
@@ -25,51 +126,80 @@ Component({
       type: Boolean,
       value: true,
     },
-    showExtra: {
+    showSend: {
+      type: Boolean,
+      value: true,
+    },
+    sendText: {
+      type: String,
+      value: '发送',
+    },
+    showCharCount: {
       type: Boolean,
       value: false,
     },
-    maxLength: {
+    cursor: {
       type: Number,
-      value: DEFAULT_MAX_LENGTH,
+      value: 0,
     },
-    autoFocus: {
+    autoHeight: {
       type: Boolean,
-      value: false,
+      value: true,
     },
   },
+
+  data: {
+    internalValue: '',
+    showEmojiPanel: false,
+    EMOJI_LIST,
+  },
+
+  observers: {
+    value(value: string) {
+      this.setData({ internalValue: value ?? '' });
+    },
+  },
+
   methods: {
-    handleInput(event: WechatMiniprogram.Input) {
-      const value = event.detail?.value ?? '';
-      this.triggerEvent('input', { value }, { bubbles: true, composed: true });
+    handleInput(event: WechatMiniprogram.CustomEvent<MessageInputEventDetail>) {
+      const value = event.detail.value ?? '';
+      this.setData({ internalValue: value });
+      this.triggerEvent('input', event.detail);
     },
-    handleFocus() {
-      this.triggerEvent('focus');
-    },
-    handleBlur() {
-      this.triggerEvent('blur');
-    },
-    handleConfirm(event: WechatMiniprogram.Input) {
-      const value = event.detail?.value ?? '';
-      this.triggerEvent('confirm', { value });
-    },
-    handleSend() {
-      if (this.data.disabled || this.data.sending || !this.data.value) {
-        return;
-      }
-      this.triggerEvent('send', { value: this.data.value });
-    },
+
     handleEmojiTap() {
-      if (!this.data.showEmoji) {
+      if (this.data.disabled) {
         return;
       }
-      this.triggerEvent('emojiTap');
+      // Toggle emoji panel visibility
+      this.setData({ showEmojiPanel: !this.data.showEmojiPanel });
     },
-    handleExtraTap() {
-      if (!this.data.showExtra) {
+
+    handleEmojiSelect(event: WechatMiniprogram.TouchEvent) {
+      const emoji = event.currentTarget.dataset.emoji as string;
+      const newValue = this.data.internalValue + emoji;
+      this.setData({ internalValue: newValue });
+      // Emit input event to sync value with parent
+      this.triggerEvent('input', { value: newValue });
+    },
+
+    handleSend() {
+      if (this.data.disabled) {
         return;
       }
-      this.triggerEvent('extraTap');
+      this.triggerEvent('send', { value: this.data.internalValue });
+    },
+
+    handleKeyboardHeightChange(event: WechatMiniprogram.CustomEvent<KeyboardHeightChangeDetail>) {
+      // Hide emoji panel when keyboard shows
+      if (event.detail.height > 0) {
+        this.setData({ showEmojiPanel: false });
+      }
+      this.triggerEvent('keyboardheightchange', event.detail);
+    },
+
+    handleConfirm(event: WechatMiniprogram.CustomEvent<MessageInputConfirmDetail>) {
+      this.triggerEvent('confirm', event.detail);
     },
   },
 });

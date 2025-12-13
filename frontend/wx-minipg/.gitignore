@@ -28,3 +28,5 @@ libs/*
 **/*.js
 !miniprogram_npm/**/*.js
 !*.config.js
+!scripts/**/*.js
+!test/**/*.js

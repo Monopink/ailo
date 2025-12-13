@@ -1,4 +1,41 @@
+/* Import TDesign miniprogram styles */
+@import 'miniprogram_npm/tdesign-miniprogram/common/style/index.wxss';
+
+/* Import custom TDesign theme overrides */
+@import '/styles/tdesign-theme.wxss';
+
+/* Import legacy design tokens for custom components */
 @import '/styles/design-tokens.wxss';
+
+/* Override TDesign TabBar colors globally */
+page {
+  --td-brand-color: #07c160;
+  --td-primary-color: #07c160;
+  --td-primary-color-7: #07c160;
+}
+
+/* ========================================
+   TDesign Component Style Fixes
+   ======================================== */
+
+/* Fix: TDesign Input has no border-radius by default */
+/* Apply unified border-radius to match buttons and cards */
+.t-input {
+  border-radius: var(--td-radius-default) !important;
+}
+
+.t-input__wrap {
+  border-radius: var(--td-radius-default) !important;
+}
+
+/* Ensure textarea also has unified border-radius */
+.t-textarea {
+  border-radius: var(--td-radius-default) !important;
+}
+
+.t-textarea__wrapper {
+  border-radius: var(--td-radius-default) !important;
+}
 
 /**
  * Global utility styles.
@@ -185,7 +222,7 @@ page {
   min-height: var(--input-height-md);
   padding: 0 var(--space-md);
   border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-base);
   background-color: var(--color-bg-input);
   color: var(--color-text-primary);
@@ -325,6 +362,33 @@ page {
   background-color: var(--color-bg-secondary);
   margin-top: var(--space-md);
   overflow: hidden;
+}
+
+/**
+ * Card layout container
+ * Used for pages with card-style layout
+ * Provides consistent padding for card spacing
+ */
+.card-container {
+  padding: 0; /* No horizontal padding - cards span full width */
+}
+
+/**
+ * Card wrapper - Wraps each t-cell-group to provide spacing
+ * IMPORTANT: TDesign's t-cell-group does NOT support custom external-classes
+ * Must wrap with <view class="card-wrapper"> to control spacing
+ * Usage: <view class="card-wrapper"><t-cell-group theme="card">...</t-cell-group></view>
+ */
+.card-wrapper {
+  margin-top: var(--space-md); /* 24rpx */
+}
+
+.card-wrapper:first-child {
+  margin-top: var(--space-sm); /* 16rpx - less space at top */
+}
+
+.card-wrapper:last-child {
+  margin-bottom: var(--space-md); /* 24rpx - breathing room at bottom */
 }
 
 /**

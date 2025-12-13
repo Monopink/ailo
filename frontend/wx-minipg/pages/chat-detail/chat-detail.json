@@ -2,9 +2,10 @@
   "navigationBarTitleText": "聊天详情",
   "usingComponents": {
     "page-layout": "/components/page-layout/page-layout",
-    "ui-avatar": "/components/ui/avatar/avatar",
-    "ui-tag": "/components/ui/tag/tag",
-    "ui-cell": "/components/ui/cell/cell",
-    "ui-button": "/components/ui/button/button"
+    "t-avatar": "tdesign-miniprogram/avatar/avatar",
+    "t-tag": "tdesign-miniprogram/tag/tag",
+    "t-cell": "tdesign-miniprogram/cell/cell",
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-switch": "tdesign-miniprogram/switch/switch"
   }
 }

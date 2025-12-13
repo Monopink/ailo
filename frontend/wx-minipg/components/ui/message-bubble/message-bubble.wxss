@@ -1,64 +1,57 @@
 @import '/styles/design-tokens.wxss';
 
-.message-bubble {
+.ui-message-bubble {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: var(--space-sm);
-  width: 100%;
+  margin: var(--space-xs) 0;
 }
 
-.message-bubble--sent {
-  flex-direction: row-reverse;
+.ui-message-bubble--outgoing {
   justify-content: flex-end;
 }
 
-.message-bubble__avatar {
-  margin-top: var(--space-xs);
+.ui-message-bubble__avatar {
+  width: var(--avatar-sm);
+  height: var(--avatar-sm);
+  border-radius: var(--radius-full);
+  object-fit: cover;
 }
 
-.message-bubble__panel {
+.ui-message-bubble__wrapper {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  max-width: 520rpx;
+  max-width: var(--message-bubble-max-width);
 }
 
-.message-bubble__body {
-  padding: var(--space-sm) var(--space-md);
+.ui-message-bubble__bubble {
+  padding: var(--space-sm);
   border-radius: var(--radius-bubble);
-  box-shadow: var(--shadow-xs);
   background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);
-  word-break: break-word;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  box-shadow: var(--shadow-xs);
 }
 
-.message-bubble--sent .message-bubble__body {
-  background-color: var(--color-primary-light);
+.ui-message-bubble--outgoing .ui-message-bubble__bubble {
+  background-color: var(--color-primary);
   color: var(--color-text-inverse);
 }
 
-.message-bubble__text {
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
-}
-
-.message-bubble__meta {
+.ui-message-bubble__meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-xs);
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
 
-.message-bubble__time {
-  color: var(--color-text-quaternary);
+.ui-message-bubble__status {
+  font-size: var(--font-size-xs);
 }
 
-.message-bubble__status {
-  color: var(--color-text-tertiary);
-}
-
-.message-bubble__status--error {
+.ui-message-bubble__status--failed {
   color: var(--color-error);
 }

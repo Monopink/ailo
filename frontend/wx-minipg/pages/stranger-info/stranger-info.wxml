@@ -8,52 +8,52 @@
   bind:retry="onRetry">
   <view slot="content" class="stranger-info">
     <view wx:if="{{profile}}">
-      <!-- Hero section - Using ui-card + standard layout -->
-      <ui-card padding="medium" shadow="{{false}}">
-        <view class="info-hero">
-          <ui-avatar src="{{profile.avatarUrl}}" size="xlarge" />
-          <view class="info-hero__content">
-            <view class="info-hero__name">
-              <text>{{profile.displayName}}</text>
-              <gender-badge wx:if="{{profile.gender}}" gender="{{profile.gender}}" />
-            </view>
-            <ui-tag
-              wx:if="{{profile.categoryText}}"
-              size="small"
-              type="success"
-              variant="outline">
-              {{profile.categoryText}}
-            </ui-tag>
-          </view>
+      <!-- Header Section - Avatar and Name -->
+      <view class="stranger-info__header">
+        <t-avatar
+          image="{{profile.avatarUrl}}"
+          size="128rpx"
+          shape="circle"
+          class="stranger-info__avatar" />
+
+        <view class="stranger-info__name-row">
+          <text class="stranger-info__name">{{profile.displayName}}</text>
+          <gender-badge wx:if="{{profile.gender}}" gender="{{profile.gender}}" />
         </view>
-      </ui-card>
 
-      <!-- Bio section - Using ui-card -->
-      <ui-card wx:if="{{profile.bioText}}" padding="medium">
-        <view style="display: flex; flex-direction: column; gap: 8rpx;">
-          <text class="text-tertiary">个性签名</text>
-          <text class="text-secondary">{{profile.bioText}}</text>
-        </view>
-      </ui-card>
-
-      <!-- Info section - Using ui-card -->
-      <ui-card wx:if="{{profile.regionText}}" padding="none">
-        <ui-cell title="地区" value="{{profile.regionText}}" hover="{{false}}" />
-      </ui-card>
-
-      <!-- Tip message -->
-      <view wx:if="{{!isLoggedIn}}" style="font-size: var(--font-size-sm); color: var(--color-text-tertiary); text-align: center; margin-top: var(--space-lg); padding: 0 var(--padding-page);">
-        登录后才能发送联系人申请
+        <text wx:if="{{profile.categoryText}}" class="stranger-info__category">{{profile.categoryText}}</text>
       </view>
 
-      <!-- Actions - Fixed bottom using standard layout class -->
-      <view class="page-actions--fixed">
-        <ui-button
-          type="primary"
-          block="{{true}}"
-          bindtap="handleAddContact">
-          {{isLoggedIn ? '添加联系人' : '登录后添加'}}
-        </ui-button>
+      <!-- Cards Section -->
+      <view class="stranger-info__cards card-container">
+        <!-- Bio Card -->
+        <view wx:if="{{profile.bioText}}" class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="个性签名" note="{{profile.bioText}}" />
+          </t-cell-group>
+        </view>
+
+        <!-- Region Card -->
+        <view wx:if="{{profile.regionText}}" class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="地区" note="{{profile.regionText}}" />
+          </t-cell-group>
+        </view>
+
+        <!-- Login Tip -->
+        <view wx:if="{{!isLoggedIn}}" class="stranger-info__tip">
+          登录后才能发送联系人申请
+        </view>
+
+        <!-- Actions - Fixed bottom -->
+        <view class="page-actions--fixed">
+          <t-button
+            theme="primary"
+            block
+            bindtap="handleAddContact">
+            添加联系人
+          </t-button>
+        </view>
       </view>
     </view>
   </view>

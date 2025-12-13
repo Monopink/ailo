@@ -12,6 +12,6 @@
       <text class="boot-page__subtitle">AI 陪伴 · 实时共鸣</text>
       <text class="boot-page__status">正在为你准备聊天体验…</text>
     </view>
-    <ui-loading text="正在进入" />
+    <t-loading text="正在进入" />
   </view>
 </page-layout>

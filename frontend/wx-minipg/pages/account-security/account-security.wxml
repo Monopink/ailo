@@ -6,24 +6,30 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
-  <view slot="content" class="account-security">
+  <view slot="content" class="account-security card-container">
     <view wx:if="{{!pageLayoutData.isLoading}}">
-      <!-- Account info group - Using ui-card -->
-      <ui-card padding="none">
-        <ui-cell
-          title="手机号"
-          value="{{phoneMasked || '未绑定'}}"
-          link="{{true}}"
-          bindtap="navigateToPhoneManage" />
-      </ui-card>
+      <!-- Account info card -->
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
+          <t-cell
+            title="手机号"
+            note="{{phoneMasked}}"
+            arrow
+            hover
+            bindtap="navigateToPhoneManage" />
+        </t-cell-group>
+      </view>
 
-      <!-- Logout action - Using ui-card -->
-      <ui-card padding="none">
-        <ui-cell
-          title="退出登录"
-          link="{{true}}"
-          bindtap="handleLogout" />
-      </ui-card>
+      <!-- Logout action card -->
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
+          <t-cell
+            title="退出登录"
+            arrow
+            hover
+            bindtap="handleLogout" />
+        </t-cell-group>
+      </view>
     </view>
   </view>
 </page-layout>

@@ -1,25 +1,22 @@
-<view class="message-bubble message-bubble--{{direction}}">
-  <view wx:if="{{direction === 'received' && showAvatar}}" class="message-bubble__avatar">
-    <ui-avatar src="{{avatarUrl}}" size="medium" />
-  </view>
+<view class="ui-message-bubble ui-message-bubble--{{normalizedDirection}}">
+  <image
+    wx:if="{{avatar}}"
+    class="ui-message-bubble__avatar"
+    src="{{avatar}}"
+    mode="aspectFill"
+  />
 
-  <view class="message-bubble__panel">
-    <view class="message-bubble__body">
-      <text class="message-bubble__text">{{content}}</text>
+  <view class="ui-message-bubble__wrapper">
+    <view class="ui-message-bubble__bubble">
+      <slot>{{text}}</slot>
     </view>
-    <view class="message-bubble__meta">
-      <text wx:if="{{showTime && formattedTime}}" class="message-bubble__time">
-        {{formattedTime}}
-      </text>
+    <view class="ui-message-bubble__meta">
+      <text class="ui-message-bubble__time" wx:if="{{time}}">{{time}}</text>
       <text
-        wx:if="{{statusLabel && direction === 'sent'}}"
-        class="message-bubble__status {{status === 'failed' ? 'message-bubble__status--error' : ''}}">
+        class="ui-message-bubble__status ui-message-bubble__status--{{status}}"
+        wx:if="{{statusLabel}}">
         {{statusLabel}}
       </text>
     </view>
-  </view>
-
-  <view wx:if="{{direction === 'sent' && showAvatar}}" class="message-bubble__avatar">
-    <ui-avatar src="{{avatarUrl}}" size="medium" />
   </view>
 </view>

@@ -17,24 +17,24 @@ import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 
 const logger = getLogger('ContactList');
 
-type ContactAction = 'contact-info' | 'mark-unread';
-
-interface ActionSheetAction {
+// TDesign SwipeCell action format
+interface SwipeCellAction {
   text: string;
-  type?: 'default' | 'destructive';
-  disabled?: boolean;
-  action: ContactAction;
+  style?: string;
 }
 
-const ACTION_SHEET_ACTIONS: ReadonlyArray<ActionSheetAction> = [
-  { text: '联系人信息', type: 'default', action: 'contact-info' },
-  { text: '标为未读', type: 'default', action: 'mark-unread' },
+const SWIPE_CELL_ACTIONS: ReadonlyArray<SwipeCellAction> = [
+  {
+    text: '查看联系人',
+    style: 'background-color: #999999; color: #ffffff; height: 100%;',
+  },
+  {
+    text: '标为未读',
+    style: 'background-color: #07c160; color: #ffffff; height: 100%;',
+  },
 ];
 
-type ActionSelectEvent = WechatMiniprogram.CustomEvent<{
-  index: number;
-  action: ActionSheetAction;
-}>;
+type SwipeActionEvent = WechatMiniprogram.CustomEvent<SwipeCellAction>;
 
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
@@ -62,19 +62,11 @@ interface ContactListItem extends ContactWithPreview {
   unreadBadge: string;
 }
 
-interface ActionSheetState {
-  show: boolean;
-  targetIndex: number;
-  targetConvId: string;
-  displayName: string;
-}
-
 interface ContactListPageData {
   pageLayoutData: PageLayoutData;
   contactList: ContactListItem[];
   unreadTotal: number;
-  actionSheet: ActionSheetState;
-  actionSheetActions: ReadonlyArray<ActionSheetAction>;
+  swipeCellActions: ReadonlyArray<SwipeCellAction>;
 }
 
 interface ContactListPageCustom {
@@ -86,11 +78,7 @@ interface ContactListPageCustom {
   attachLatestMessages(contacts: StoredContacts): Promise<ContactWithPreview[]>;
   updateContactList(contacts: ContactWithPreview[]): void;
   goToChat(event: WechatMiniprogram.BaseEvent): void;
-  onContactLongPress(event: WechatMiniprogram.BaseEvent): void;
-  handleActionSheetClose(): void;
-  handleActionSelect(event: ActionSelectEvent): void;
-  handleContactAction(action?: ContactAction): void;
-  resetActionSheet(): void;
+  onSwipeActionClick(event: SwipeActionEvent): void;
   navigateToContactInfo(convId?: string): void;
   markContactAsUnreadByIndex(index: number): void;
   onMessageReceived(message: Says.MessagePayload): void;
@@ -154,13 +142,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     }),
     contactList: [],
     unreadTotal: 0,
-    actionSheet: {
-      show: false,
-      targetIndex: -1,
-      targetConvId: '',
-      displayName: '',
-    },
-    actionSheetActions: ACTION_SHEET_ACTIONS,
+    swipeCellActions: SWIPE_CELL_ACTIONS,
   },
 
   _loadPromise: null,
@@ -180,6 +162,12 @@ Page<ContactListPageData, ContactListPageCustom>({
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
       return;
+    }
+
+    // Update custom TabBar active state
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      this.getTabBar().init();
     }
 
     this.updateNavigationTitle();
@@ -318,63 +306,21 @@ Page<ContactListPageData, ContactListPageCustom>({
     void wx.navigateTo({ url: `/pages/chat/chat?id=${convId}` });
   },
 
-  onContactLongPress(event) {
-    const index = getDatasetNumber(event, 'index');
+  onSwipeActionClick(event: SwipeActionEvent) {
+    const action = event?.detail;
     const convId = getDatasetString(event, 'id');
-    if (typeof index !== 'number' || !convId) {
-      return;
-    }
-    const normalizedIndex = index;
-    const displayName =
-      getDatasetString(event, 'name') ?? this.data.contactList[normalizedIndex]?.displayName ?? '';
+    const contactIndex = getDatasetNumber(event, 'index');
 
-    this.setData({
-      actionSheet: {
-        show: true,
-        targetIndex: normalizedIndex,
-        targetConvId: convId,
-        displayName,
-      },
-    });
-  },
-
-  handleActionSheetClose() {
-    this.resetActionSheet();
-  },
-
-  handleActionSelect(event: ActionSelectEvent) {
-    const action = event?.detail?.action?.action;
-    this.handleContactAction(action);
-  },
-
-  handleContactAction(action?: ContactAction) {
-    if (!action) {
-      this.resetActionSheet();
+    if (!action || !convId || typeof contactIndex !== 'number') {
       return;
     }
 
-    switch (action) {
-      case 'contact-info':
-        this.navigateToContactInfo(this.data.actionSheet.targetConvId);
-        break;
-      case 'mark-unread':
-        this.markContactAsUnreadByIndex(this.data.actionSheet.targetIndex);
-        break;
-      default:
-        break;
+    // Determine action by text
+    if (action.text === '查看联系人') {
+      this.navigateToContactInfo(convId);
+    } else if (action.text === '标为未读') {
+      this.markContactAsUnreadByIndex(contactIndex);
     }
-    this.resetActionSheet();
-  },
-
-  resetActionSheet() {
-    this.setData({
-      actionSheet: {
-        show: false,
-        targetIndex: -1,
-        targetConvId: '',
-        displayName: '',
-      },
-    });
   },
 
   navigateToContactInfo(convId?: string) {

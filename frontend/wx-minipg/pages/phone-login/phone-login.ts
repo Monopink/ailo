@@ -13,6 +13,12 @@ import { createPageLayoutData, type PageLayoutData } from '../../templates/page-
 
 const logger = getLogger('PhoneLogin');
 
+type PhoneChangeEvent = WechatMiniprogram.CustomEvent<{
+  value: string;
+  countryCode: string;
+  fullPhone: string;
+  valid: boolean;
+}>;
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
 
 interface PhoneLoginResponse {
@@ -41,6 +47,7 @@ interface ApiError extends Error {
 interface PhoneLoginPageData extends Says.CaptchaPageData {
   pageLayoutData: PageLayoutData;
   phone: string;
+  fullPhone: string;
   smsCode: string;
   smsCountdown: number;
   canSendSms: boolean;
@@ -60,7 +67,7 @@ interface PhoneLoginPageCustom {
   _captchaReady?: boolean;
   onCaptchaSuccess(captchaToken: string): Promise<void>;
   onCaptchaFail(error: unknown): void;
-  handlePhoneInput(event: InputEvent): void;
+  handlePhoneChange(event: PhoneChangeEvent): void;
   handleSmsCodeInput(event: InputEvent): void;
   handleSendSms(): Promise<void>;
   requestSmsWithCaptcha(captchaToken: string): Promise<void>;
@@ -136,6 +143,7 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
       hasFooter: true,
     }),
     phone: '',
+    fullPhone: '',
     smsCode: '',
     smsCountdown: 0,
     canSendSms: false,
@@ -182,12 +190,13 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
     (this as PhoneLoginPageCustom)._captchaActive = false;
   },
 
-  handlePhoneInput(event) {
-    const phone = event.detail.value;
+  handlePhoneChange(event) {
+    const { value, fullPhone, valid } = event.detail;
     this.setData({
-      phone,
-      canSendSms: phone.length === 11,
-      canLogin: phone.length === 11 && this.data.smsCode.length === 6,
+      phone: value,
+      fullPhone,
+      canSendSms: valid,
+      canLogin: valid && this.data.smsCode.length === 6,
     });
   },
 
@@ -195,18 +204,18 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
     const smsCode = event.detail.value;
     this.setData({
       smsCode,
-      canLogin: this.data.phone.length === 11 && smsCode.length === 6,
+      canLogin: this.data.canSendSms && smsCode.length === 6,
     });
   },
 
   async handleSendSms() {
-    if (!this.data.phone || this.data.phone.length !== 11) {
+    if (!this.data.canSendSms) {
       showToast('请输入正确的手机号');
       return;
     }
 
     try {
-      await post('/auth/send-sms', { phone: `+86${this.data.phone}` }, { auth: false });
+      await post('/auth/send-sms', { phone: this.data.fullPhone }, { auth: false });
       startCountdown(this as PhoneLoginPageInstance);
       showToast('验证码已发送', 'success');
       return;
@@ -231,7 +240,7 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
       await post(
         '/auth/send-sms',
         {
-          phone: `+86${this.data.phone}`,
+          phone: this.data.fullPhone,
           captcha_token: captchaToken,
         },
         { auth: false }
@@ -246,7 +255,7 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
   },
 
   async handleLogin() {
-    if (!this.data.phone || this.data.phone.length !== 11) {
+    if (!this.data.canSendSms) {
       showToast('请输入正确的手机号');
       return;
     }
@@ -262,7 +271,7 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
       const result = await post<PhoneLoginResponse>(
         '/auth/phone',
         {
-          phone: `+86${this.data.phone}`,
+          phone: this.data.fullPhone,
           sms_code: this.data.smsCode,
         },
         { auth: false }

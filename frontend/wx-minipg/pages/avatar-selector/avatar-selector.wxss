@@ -1,29 +1,42 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
+/* Avatar Selector Page */
 .avatar-selector {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  padding: var(--padding-page);
   background-color: var(--color-bg-page);
+}
+
+.avatar-selector__container {
+  padding-bottom: var(--space-md);
+}
+
+.avatar-selector__card {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .avatar-selector__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-sm);
+  grid-template-columns: repeat(3, 33.333%);
+  gap: var(--space-md);
 }
 
 .avatar-selector__item {
   position: relative;
+  aspect-ratio: 1;
   border-radius: var(--radius-md);
   overflow: hidden;
-  border: var(--border-width-medium) solid transparent;
-  background-color: var(--color-bg-card);
+  border: 3rpx solid var(--color-border-base);
+  background-color: var(--color-bg-secondary);
+  transition: all 0.2s ease;
 }
 
 .avatar-selector__item--selected {
   border-color: var(--color-primary);
+  border-width: 4rpx;
+  box-shadow: 0 0 0 2rpx rgb(7 193 96 / 10%);
 }
 
 .avatar-selector__image {
@@ -35,18 +48,10 @@
   position: absolute;
   top: var(--space-xs);
   right: var(--space-xs);
-  padding: 0 var(--space-xs);
-  border-radius: var(--radius-full);
+  padding: 2rpx var(--space-xs);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   color: var(--color-text-inverse);
-  background-color: rgba(0, 0, 0, 0.4);
-}
-
-.avatar-selector__footer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg) calc(var(--space-md) + var(--safe-area-inset-bottom));
-  background-color: var(--color-bg-card);
-  border-top: 1rpx solid var(--color-border-base);
+  background-color: rgb(0 0 0 / 50%);
+  line-height: 1.4;
 }

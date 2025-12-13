@@ -2,6 +2,7 @@
   "navigationBarTitleText": "关于",
   "usingComponents": {
     "page-layout": "/components/page-layout/page-layout",
-    "ui-cell": "/components/ui/cell/cell"
+    "t-cell": "tdesign-miniprogram/cell/cell",
+    "t-cell-group": "tdesign-miniprogram/cell-group/cell-group"
   }
 }

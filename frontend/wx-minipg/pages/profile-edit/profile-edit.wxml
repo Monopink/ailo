@@ -19,13 +19,13 @@
           maxlength="{{maxLength}}"
           auto-height
         />
-        <ui-input
+        <t-input
           wx:else
           label="{{fieldLabel}}"
           value="{{value}}"
           placeholder="{{placeholder}}"
-          maxLength="{{maxLength}}"
-          bindinput="onInput" />
+          maxlength="{{maxLength}}"
+          bindchange="onInput" />
       </view>
       <view class="profile-edit__counter">{{valueLength}}/{{maxLength}}</view>
       <view class="profile-edit__hint" wx:if="{{hint}}">
@@ -52,7 +52,7 @@
         <view class="profile-edit__label">{{fieldLabel}}</view>
         <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
           <view class="profile-edit__picker-display">
-            <text>{{regionDisplay || '请选择地区'}}</text>
+            <text>{{regionDisplay}}</text>
             <text class="profile-edit__picker-arrow">›</text>
           </view>
         </picker>
@@ -61,14 +61,14 @@
 
     <!-- Save button -->
     <view class="profile-edit__actions">
-      <ui-button
-        type="primary"
-        block="{{true}}"
+      <t-button
+        theme="primary"
+        block
         loading="{{saving}}"
         disabled="{{saving || fieldType === ''}}"
         bindtap="handleSave">
-        {{saving ? '保存中...' : '保存'}}
-      </ui-button>
+        {{submitButtonText}}
+      </t-button>
     </view>
   </view>
 </page-layout>

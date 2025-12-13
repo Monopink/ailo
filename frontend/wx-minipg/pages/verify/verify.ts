@@ -158,8 +158,8 @@ Page<VerifyPageData, VerifyPageCustom>({
     try {
       const account = await get<AccountInfo>('/user/account');
       this.setData({
-        maskedPhone: account.phone,
-        maskedEmail: account.email ?? '',
+        maskedPhone: account.phone || '未绑定',
+        maskedEmail: account.email || '未绑定',
         hasEmail: Boolean(account.email),
         'pageLayoutData.isLoading': false,
       });

@@ -11,40 +11,36 @@
       <!-- Current phone info -->
       <view class="phone-manage__info">
         <text class="phone-manage__label">当前手机号</text>
-        <text class="phone-manage__value">{{currentPhone || '未绑定'}}</text>
+        <text class="phone-manage__value">{{currentPhone}}</text>
       </view>
 
       <!-- New phone form -->
       <view class="phone-manage__form">
         <view class="phone-manage__field">
-          <ui-input
-            label="新手机号"
-            type="number"
-            placeholder="请输入新手机号"
+          <phone-input
             value="{{newPhone}}"
-            maxLength="11"
-            bindinput="onNewPhoneInput" />
+            bindchange="onNewPhoneChange" />
         </view>
 
         <view class="phone-manage__field">
-          <ui-input
+          <t-input
             label="验证码"
             type="number"
             placeholder="请输入验证码"
             value="{{smsCode}}"
-            maxLength="6"
-            bindinput="onSmsCodeInput" />
+            maxlength="6"
+            bindchange="onSmsCodeInput" />
         </view>
 
         <view class="phone-manage__field">
-          <ui-button
-            type="secondary"
-            block="{{true}}"
+          <t-button
+            variant="outline"
+            block
             loading="{{sending}}"
             disabled="{{cooldown > 0 || sending}}"
             bindtap="sendSmsCode">
             {{cooldown > 0 ? cooldown + 's' : '发送验证码'}}
-          </ui-button>
+          </t-button>
         </view>
 
         <view class="phone-manage__hint">
@@ -54,14 +50,14 @@
 
       <!-- Submit button -->
       <view class="phone-manage__actions">
-        <ui-button
-          type="primary"
-          block="{{true}}"
+        <t-button
+          theme="primary"
+          block
           loading="{{saving}}"
           disabled="{{saving}}"
           bindtap="handleChangePhone">
-          {{saving ? '修改中...' : '确认修改'}}
-        </ui-button>
+          {{submitButtonText}}
+        </t-button>
       </view>
     </view>
   </view>

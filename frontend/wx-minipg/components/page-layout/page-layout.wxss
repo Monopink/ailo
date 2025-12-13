@@ -2,10 +2,8 @@
  * Page Layout Component Styles
  *
  * Standard styles for page-layout component.
- * Uses design tokens for all values.
+ * CSS variables are inherited from page-level styles.
  */
-
-@import '/styles/design-tokens.wxss';
 
 /* ========================================
    Page Layout Container

@@ -20,7 +20,7 @@
             class="setup-avatar__item {{selectedAvatar === item.id ? 'setup-avatar__item--selected' : ''}}"
             bindtap="selectAvatar"
             data-id="{{item.id}}">
-            <ui-avatar src="{{item.url}}" size="medium" />
+            <t-avatar image="{{item.url}}" size="medium" />
           </view>
         </view>
       </scroll-view>
@@ -28,19 +28,19 @@
 
     <!-- Basic info group -->
     <view class="setup-group">
-      <ui-cell title="昵称 (可选)">
+      <t-cell title="昵称 (可选)">
         <input
-          slot="footer"
+          slot="note"
           class="setup-input"
           placeholder="请输入昵称"
           bindinput="onNicknameInput"
           value="{{nickname}}"
           maxlength="{{maxNicknameLength}}" />
-      </ui-cell>
+      </t-cell>
 
-      <ui-cell title="性别 (必填)" link="{{true}}">
+      <t-cell title="性别 (必填)" arrow hover>
         <picker
-          slot="footer"
+          slot="note"
           mode="selector"
           range="{{genderOptions}}"
           range-key="label"
@@ -50,46 +50,46 @@
             {{genderIndex >= 0 ? genderOptions[genderIndex].label : '请选择性别'}}
           </view>
         </picker>
-      </ui-cell>
+      </t-cell>
     </view>
 
     <!-- Additional info group -->
     <view class="setup-group">
-      <ui-cell title="个人简介 (可选)">
+      <t-cell title="个人简介 (可选)">
         <textarea
-          slot="footer"
+          slot="note"
           class="setup-textarea"
           placeholder="请输入个人简介"
           bindinput="onBioInput"
           value="{{bio}}"
           maxlength="{{maxBioLength}}"
           auto-height />
-      </ui-cell>
+      </t-cell>
 
-      <ui-cell title="地区 (可选)" link="{{true}}">
+      <t-cell title="地区 (可选)" arrow hover>
         <picker
-          slot="footer"
+          slot="note"
           mode="region"
           value="{{regionValue}}"
           bindchange="onRegionChange">
           <view class="setup-picker">
-            {{regionDisplay || '请选择地区'}}
+            {{regionDisplay}}
           </view>
         </picker>
-      </ui-cell>
+      </t-cell>
     </view>
   </view>
 
   <view slot="footer" class="setup-footer">
-    <ui-button
-      type="primary"
-      block="{{true}}"
+    <t-button
+      theme="primary"
+      block
       loading="{{loading}}"
       bindtap="handleSubmit">
       完成
-    </ui-button>
-    <ui-button type="secondary" block="{{true}}" bindtap="handleCancel">
+    </t-button>
+    <t-button variant="outline" block bindtap="handleCancel">
       取消
-    </ui-button>
+    </t-button>
   </view>
 </page-layout>

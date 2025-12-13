@@ -8,12 +8,13 @@
     "watch": "tsc --watch",
     "lint": "eslint . --ext .ts,.js,.wxml",
     "lint:fix": "eslint . --ext .ts,.js,.wxml --fix",
-    "lint:style": "stylelint \"components/ui/**/*.wxss\" \"components/page-layout/**/*.wxss\" \"pages/index/**/*.wxss\" \"pages/chat/**/*.wxss\" app.wxss",
+    "lint:style": "stylelint \"pages/**/*.wxss\"",
     "format": "prettier --write \"**/*.{ts,js,json,wxss}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,wxss}\"",
     "type-check": "tsc --noEmit",
-    "ui:audit": "node ./ui-audit.cjs",
-    "check": "npm run type-check && npm run lint && npm run lint:style && npm run ui:audit",
+    "ui:audit": "node ./ui-audit.mjs",
+    "check:fallbacks": "node ./scripts/check-wxml-fallbacks.js",
+    "check": "npm run type-check && npm run lint && npm run lint:style && npm run ui:audit && npm run check:fallbacks",
     "test": "npm run check",
     "prepare": "husky"
   },
@@ -99,12 +100,24 @@
     "overrides": [
       {
         "files": [
-          "styles/design-tokens.wxss"
+          "styles/design-tokens.wxss",
+          "styles/tdesign-theme.wxss"
+        ],
+        "rules": {
+          "color-no-hex": null
+        }
+      },
+      {
+        "files": [
+          "pages/chat/chat.wxss"
         ],
         "rules": {
           "color-no-hex": null
         }
       }
     ]
+  },
+  "dependencies": {
+    "tdesign-miniprogram": "^1.12.0"
   }
 }

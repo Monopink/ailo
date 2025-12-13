@@ -1,1 +1,1 @@
-<text class="gender-badge gender-badge--{{gender}}">{{genderSymbol}}</text>
+<text wx:if="{{icon}}" class="ui-gender-badge ui-gender-badge--{{gender}}">{{icon}}</text>

@@ -14,9 +14,15 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
 
 interface UserProfile extends AnyObject {
   qiao_id?: string;
+  nickname?: string;
+  username?: string;
   avatar_url?: string | null;
   custom_avatar_url?: string | null;
   gender?: number | null;
+  bio?: string | null;
+  region?: string | null;
+  displayAvatar?: string;
+  displayUsername?: string;
 }
 
 interface ProfilePageData extends Record<string, unknown> {
@@ -27,6 +33,7 @@ interface ProfilePageData extends Record<string, unknown> {
 interface ProfilePageCustom {
   loadProfile(): Promise<void>;
   navigateToProfileDetail(): void;
+  navigateToAvatarSelector(): void;
   navigateToAccountSecurity(): void;
   navigateToAbout(): void;
   onRetry(): void;
@@ -71,6 +78,13 @@ Page<ProfilePageData, ProfilePageCustom>({
     if (!isAuth) {
       return;
     }
+
+    // Update custom TabBar active state
+    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      this.getTabBar().init();
+    }
+
     await this.loadProfile();
   },
 
@@ -88,6 +102,8 @@ Page<ProfilePageData, ProfilePageCustom>({
         ? {
             ...profile,
             avatar_url: getAvatarUrl(profile.avatar_url ?? ''),
+            displayAvatar: getAvatarUrl(profile.avatar_url ?? '') || '/assets/avatars/default.png',
+            displayUsername: profile.username || '--',
           }
         : null;
 
@@ -119,6 +135,12 @@ Page<ProfilePageData, ProfilePageCustom>({
   navigateToProfileDetail() {
     void wx.navigateTo({
       url: '/pages/profile-detail/profile-detail',
+    });
+  },
+
+  navigateToAvatarSelector() {
+    void wx.navigateTo({
+      url: '/pages/avatar-selector/avatar-selector',
     });
   },
 

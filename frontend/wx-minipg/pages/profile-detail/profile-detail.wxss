@@ -1,5 +1,7 @@
+@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
 
+/* Profile Detail Page */
 .profile-detail {
   background-color: var(--color-bg-page);
 }

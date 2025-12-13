@@ -127,18 +127,18 @@ page {
      ======================================== */
 
   /* Base radius scale */
-  --radius-xs: 6rpx; /* Extra small - subtle rounding (increased for softness) */
-  --radius-sm: 12rpx; /* Small - input fields, small buttons */
-  --radius-md: 16rpx; /* Medium - cards, buttons, message bubbles */
+  --radius-xs: 8rpx; /* Extra small - aligned with TDesign */
+  --radius-sm: 12rpx; /* Small - special use cases */
+  --radius-md: 24rpx; /* Medium - unified default (cards, buttons, inputs) */
   --radius-lg: 24rpx; /* Large - prominent cards, modals */
   --radius-xl: 32rpx; /* Extra large - special elements */
   --radius-full: 9999rpx; /* Full circle - avatars, badges */
 
-  /* Semantic radius - Component specific */
-  --radius-card: 16rpx; /* Card border radius */
-  --radius-button: 12rpx; /* Button border radius */
-  --radius-input: 12rpx; /* Input field border radius */
-  --radius-bubble: 20rpx; /* Message bubble border radius */
+  /* Semantic radius - Component specific (all unified to 24rpx) */
+  --radius-card: 24rpx; /* Card border radius - matches --td-radius-large */
+  --radius-button: 24rpx; /* Button border radius - unified */
+  --radius-input: 24rpx; /* Input field border radius - unified */
+  --radius-bubble: 20rpx; /* Message bubble border radius - special case */
   --radius-avatar: 12rpx; /* Avatar border radius (rounded square) */
 
   /* ========================================

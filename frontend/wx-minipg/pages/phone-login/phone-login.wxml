@@ -13,34 +13,31 @@
     </view>
 
     <view class="phone-login-form">
+      <!-- Phone input with country code selector -->
       <view class="phone-login-form__field">
-        <ui-input
-          label="手机号"
-          type="number"
-          placeholder="请输入手机号"
+        <phone-input
           value="{{phone}}"
-          maxLength="{{11}}"
-          bindinput="handlePhoneInput" />
+          bindchange="handlePhoneChange" />
       </view>
 
       <view class="phone-login-form__field">
-        <ui-input
+        <t-input
           label="验证码"
           type="number"
           placeholder="请输入验证码"
           value="{{smsCode}}"
-          maxLength="{{6}}"
-          bindinput="handleSmsCodeInput" />
+          maxlength="{{6}}"
+          bindchange="handleSmsCodeInput" />
       </view>
 
       <view class="phone-login-form__field">
-        <ui-button
-          type="secondary"
-          block="{{true}}"
+        <t-button
+          variant="outline"
+          block
           disabled="{{!canSendSms || smsCountdown > 0}}"
           bindtap="handleSendSms">
           {{smsCountdown > 0 ? smsCountdown + 's' : '获取验证码'}}
-        </ui-button>
+        </t-button>
       </view>
 
       <aliyun-captcha
@@ -52,14 +49,14 @@
 
       <!-- Submit button - Inline as part of form -->
       <view class="phone-login-form__submit">
-        <ui-button
-          type="primary"
-          block="{{true}}"
+        <t-button
+          theme="primary"
+          block
           disabled="{{!canLogin}}"
           loading="{{loginLoading}}"
           bindtap="handleLogin">
           登录
-        </ui-button>
+        </t-button>
       </view>
     </view>
   </view>

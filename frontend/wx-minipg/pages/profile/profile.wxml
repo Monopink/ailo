@@ -8,30 +8,47 @@
   bind:retry="onRetry">
   <view slot="content" class="profile">
     <view wx:if="{{profile}}">
-      <!-- Hero section - WeChat style -->
-      <view class="profile__hero" bindtap="navigateToProfileDetail">
-        <ui-avatar
-          src="{{profile.avatar_url || '/assets/avatars/default.png'}}"
-          size="xlarge" />
-        <view class="profile__hero-info">
-          <text class="profile__hero-name">{{profile.nickname || '未设置昵称'}}</text>
-          <view class="profile__hero-meta">
-            <text class="profile__hero-id">敲敲号：{{profile.username || '--'}}</text>
-          </view>
+      <!-- Header Section - Avatar and Name -->
+      <view class="profile__header">
+        <t-avatar
+          image="{{profile.displayAvatar}}"
+          size="128rpx"
+          shape="circle"
+          class="profile__avatar"
+          bindtap="navigateToAvatarSelector" />
+
+        <view class="profile__name-row">
+          <text class="profile__name">{{profile.nickname}}</text>
+          <gender-badge wx:if="{{profile.gender}}" gender="{{profile.gender}}" />
         </view>
-        <view class="profile__hero-arrow">
-          <text class="profile__hero-arrow-icon">›</text>
-        </view>
+
+        <text class="profile__qiao-id">敲敲号：{{profile.displayUsername}}</text>
       </view>
 
-      <!-- Settings group -->
-      <view class="profile__group">
-        <ui-cell title="账号与安全" link="{{true}}" bindtap="navigateToAccountSecurity" />
-      </view>
+      <!-- Cards Section -->
+      <view class="profile__cards card-container">
+        <!-- Bio Card -->
+        <view wx:if="{{profile.bio}}" class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="个性签名" note="{{profile.bio}}" />
+          </t-cell-group>
+        </view>
 
-      <!-- About group -->
-      <view class="profile__group">
-        <ui-cell title="关于" link="{{true}}" bindtap="navigateToAbout" />
+        <!-- Region Card -->
+        <view wx:if="{{profile.region}}" class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="地区" note="{{profile.region}}" />
+          </t-cell-group>
+        </view>
+
+        <!-- Settings Card -->
+        <view class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell title="我的资料" arrow hover bindtap="navigateToProfileDetail" />
+            <t-cell title="账号与安全" arrow hover bindtap="navigateToAccountSecurity" />
+            <t-cell title="关于" arrow hover bindtap="navigateToAbout" />
+          </t-cell-group>
+        </view>
       </view>
     </view>
   </view>

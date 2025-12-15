@@ -14,11 +14,9 @@ from .preset_asset import CRUDPresetAsset, preset_assets
 from .stats import (
     CRUDStatsAI,
     CRUDStatsMessage,
-    CRUDStatsRevenue,
     CRUDStatsUser,
     stats_ai_daily,
     stats_message_daily,
-    stats_revenue_daily,
     stats_user_daily,
 )
 
@@ -28,14 +26,12 @@ __all__ = [
     "CRUDSystemConfig",
     "CRUDPresetAsset",
     "CRUDStatsUser",
-    "CRUDStatsRevenue",
     "CRUDStatsMessage",
     "CRUDStatsAI",
     # Instances
     "system_configs",
     "preset_assets",
     "stats_user_daily",
-    "stats_revenue_daily",
     "stats_message_daily",
     "stats_ai_daily",
 ]

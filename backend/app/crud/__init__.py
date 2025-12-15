@@ -23,7 +23,6 @@ from .message import media_file, message, message_failure
 from .system import (
     stats_ai_daily,
     stats_message_daily,
-    stats_revenue_daily,
     stats_user_daily,
     system_configs,
 )
@@ -57,7 +56,6 @@ __all__ = [
     # System
     "system_configs",
     "stats_user_daily",
-    "stats_revenue_daily",
     "stats_message_daily",
     "stats_ai_daily",
     # LLM

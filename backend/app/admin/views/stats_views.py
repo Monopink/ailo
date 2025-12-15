@@ -17,9 +17,6 @@ from app.models.system.stats import (
     StatsMessageDaily,
     StatsMessageMonthly,
     StatsMessageWeekly,
-    StatsRevenueDaily,
-    StatsRevenueMonthly,
-    StatsRevenueWeekly,
     StatsUserDaily,
     StatsUserMonthly,
     StatsUserWeekly,
@@ -130,96 +127,6 @@ class StatsUserMonthlyView(ModelView):
             label="Canceled Subscriptions",
             help_text="Canceled subscriptions",
         ),
-        "created_at",
-    ]
-
-
-class StatsRevenueDailyView(ModelView):
-    """Revenue statistics - daily view."""
-
-    label = "Revenue Daily"
-    name = "Revenue Daily"
-
-    def can_create(self, request: Request) -> bool:
-        return False
-
-    def can_edit(self, request: Request) -> bool:
-        return False
-
-    def can_delete(self, request: Request) -> bool:
-        return False
-
-    fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "total_revenue", "orders_count"]
-
-    fields = [
-        StringField("id", label="ID", help_text="Unique ID"),
-        DateField("stat_date", label="Date", help_text="Statistics date"),
-        "total_revenue",
-        IntegerField("orders_count", label="Orders", help_text="Orders count"),
-        "avg_order_amount",
-        "refund_amount",
-        "created_at",
-    ]
-
-
-class StatsRevenueWeeklyView(ModelView):
-    """Revenue statistics - weekly view."""
-
-    label = "Revenue Weekly"
-    name = "Revenue Weekly"
-
-    def can_create(self, request: Request) -> bool:
-        return False
-
-    def can_edit(self, request: Request) -> bool:
-        return False
-
-    def can_delete(self, request: Request) -> bool:
-        return False
-
-    fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "total_revenue", "orders_count"]
-
-    fields = [
-        StringField("id", label="ID", help_text="Unique ID"),
-        DateField("stat_date", label="Week Start", help_text="Week start date"),
-        "total_revenue",
-        IntegerField("orders_count", label="Orders", help_text="Orders count"),
-        "avg_order_amount",
-        "refund_amount",
-        "created_at",
-    ]
-
-
-class StatsRevenueMonthlyView(ModelView):
-    """Revenue statistics - monthly view."""
-
-    label = "Revenue Monthly"
-    name = "Revenue Monthly"
-
-    def can_create(self, request: Request) -> bool:
-        return False
-
-    def can_edit(self, request: Request) -> bool:
-        return False
-
-    def can_delete(self, request: Request) -> bool:
-        return False
-
-    fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
-    sortable_fields = ["id", "stat_date", "total_revenue", "orders_count"]
-
-    fields = [
-        StringField("id", label="ID", help_text="Unique ID"),
-        DateField("stat_date", label="Month Start", help_text="Month start date"),
-        "total_revenue",
-        IntegerField("orders_count", label="Orders", help_text="Orders count"),
-        "avg_order_amount",
-        "refund_amount",
         "created_at",
     ]
 
@@ -466,25 +373,6 @@ stats_user_monthly_view = StatsUserMonthlyView(
     StatsUserMonthly, name="User Monthly", icon="fa fa-calendar-alt", identity="stats_user_monthly"
 )
 
-stats_revenue_daily_view = StatsRevenueDailyView(
-    StatsRevenueDaily,
-    name="Revenue Daily",
-    icon="fa fa-calendar-day",
-    identity="stats_revenue_daily",
-)
-stats_revenue_weekly_view = StatsRevenueWeeklyView(
-    StatsRevenueWeekly,
-    name="Revenue Weekly",
-    icon="fa fa-calendar-week",
-    identity="stats_revenue_weekly",
-)
-stats_revenue_monthly_view = StatsRevenueMonthlyView(
-    StatsRevenueMonthly,
-    name="Revenue Monthly",
-    icon="fa fa-calendar-alt",
-    identity="stats_revenue_monthly",
-)
-
 stats_message_daily_view = StatsMessageDailyView(
     StatsMessageDaily,
     name="Message Daily",
@@ -519,9 +407,6 @@ STATS_MODEL_VIEWS = [
     stats_user_daily_view,
     stats_user_weekly_view,
     stats_user_monthly_view,
-    stats_revenue_daily_view,
-    stats_revenue_weekly_view,
-    stats_revenue_monthly_view,
     stats_message_daily_view,
     stats_message_weekly_view,
     stats_message_monthly_view,

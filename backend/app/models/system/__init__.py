@@ -18,9 +18,6 @@ from .stats import (
     StatsMessageDaily,
     StatsMessageMonthly,
     StatsMessageWeekly,
-    StatsRevenueDaily,
-    StatsRevenueMonthly,
-    StatsRevenueWeekly,
     StatsUserDaily,
     StatsUserMonthly,
     StatsUserWeekly,
@@ -36,10 +33,6 @@ __all__ = [
     "StatsUserDaily",
     "StatsUserWeekly",
     "StatsUserMonthly",
-    # Revenue statistics
-    "StatsRevenueDaily",
-    "StatsRevenueWeekly",
-    "StatsRevenueMonthly",
     # Message statistics
     "StatsMessageDaily",
     "StatsMessageWeekly",

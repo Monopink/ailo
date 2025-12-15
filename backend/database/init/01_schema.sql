@@ -1083,37 +1083,6 @@ CREATE TABLE IF NOT EXISTS stats_user_monthly (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Revenue statistics tables (daily/weekly/monthly)
-CREATE TABLE IF NOT EXISTS stats_revenue_daily (
-    id SERIAL PRIMARY KEY,
-    stat_date DATE NOT NULL UNIQUE,
-    total_revenue DECIMAL(15,2) NOT NULL DEFAULT 0,
-    orders_count INTEGER NOT NULL DEFAULT 0,
-    avg_order_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-    refund_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS stats_revenue_weekly (
-    id SERIAL PRIMARY KEY,
-    stat_date DATE NOT NULL UNIQUE,
-    total_revenue DECIMAL(15,2) NOT NULL DEFAULT 0,
-    orders_count INTEGER NOT NULL DEFAULT 0,
-    avg_order_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-    refund_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS stats_revenue_monthly (
-    id SERIAL PRIMARY KEY,
-    stat_date DATE NOT NULL UNIQUE,
-    total_revenue DECIMAL(15,2) NOT NULL DEFAULT 0,
-    orders_count INTEGER NOT NULL DEFAULT 0,
-    avg_order_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-    refund_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
 -- Message statistics tables (daily/weekly/monthly)
 CREATE TABLE IF NOT EXISTS stats_message_daily (
     id SERIAL PRIMARY KEY,

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import POSITION_MAX_VALUE
 from app.core.database import get_db
 from app.crud.ai import ai_style as style_crud
 from app.models.ai.style import (
@@ -81,8 +82,8 @@ async def save_style_complete(
             AIStyleDimension.style_id == style_id,
             AIStyleDimension.dimension_id.in_(removed_association_dimension_ids),
         )
-        result = await db.execute(stmt)
-        deleted_associations = result.rowcount or 0
+        delete_result = await db.execute(stmt)
+        deleted_associations = delete_result.rowcount or 0
         logger.info(
             "style_dimension_associations_removed",
             style_id=style_id,
@@ -92,8 +93,10 @@ async def save_style_complete(
 
     # === Upsert dimensions & associations ===
     # Load existing associations for fast lookup
-    result = await db.execute(select(AIStyleDimension).where(AIStyleDimension.style_id == style_id))
-    existing_associations = {asd.dimension_id: asd for asd in result.scalars().all()}
+    assoc_result: Any = await db.execute(
+        select(AIStyleDimension).where(AIStyleDimension.style_id == style_id)
+    )
+    existing_associations = {asd.dimension_id: asd for asd in assoc_result.scalars().all()}
 
     updated_dims = 0
     created_dims = 0
@@ -108,9 +111,10 @@ async def save_style_complete(
                 status_code=400, detail="initial_position is required for each dimension"
             )
         init_pos = dim_data["initial_position"]
-        if not isinstance(init_pos, (int,)) or not (0 <= init_pos <= 1000):
+        if not isinstance(init_pos, int) or not (0 <= init_pos <= POSITION_MAX_VALUE):
             raise HTTPException(
-                status_code=400, detail="initial_position must be between 0 and 1000"
+                status_code=400,
+                detail=f"initial_position must be between 0 and {POSITION_MAX_VALUE}",
             )
 
         dimension_id = dim_data.get("dimension_id")
@@ -177,11 +181,11 @@ async def save_style_complete(
     # Delete mappings
     deleted_mappings = 0
     if deleted_mapping_ids:
-        stmt = delete(AIDimensionRelationshipMapping).where(
+        delete_stmt = delete(AIDimensionRelationshipMapping).where(
             AIDimensionRelationshipMapping.id.in_(deleted_mapping_ids)
         )
-        result = await db.execute(stmt)
-        deleted_mappings = result.rowcount or 0
+        mapping_delete_result = await db.execute(delete_stmt)
+        deleted_mappings = mapping_delete_result.rowcount or 0
         logger.info(
             "deleted_dimension_relationship_mappings",
             style_id=style_id,
@@ -205,14 +209,18 @@ async def save_style_complete(
                 raise HTTPException(status_code=400, detail=f"{key} is required for mapping")
         sp = mapping_data["start_position"]
         ep = mapping_data["end_position"]
-        if not isinstance(sp, int) or not isinstance(ep, int) or not (0 <= sp <= ep <= 1000):
+        if (
+            not isinstance(sp, int)
+            or not isinstance(ep, int)
+            or not (0 <= sp <= ep <= POSITION_MAX_VALUE)
+        ):
             raise HTTPException(status_code=400, detail="Invalid start/end position for mapping")
 
         mapping_id = mapping_data.get("id")
 
         if mapping_id:
             # Update existing mapping (global)
-            stmt = (
+            update_stmt = (
                 update(AIDimensionRelationshipMapping)
                 .where(AIDimensionRelationshipMapping.id == mapping_id)
                 .values(
@@ -224,8 +232,8 @@ async def save_style_complete(
                     limit_count=mapping_data.get("limit_count"),
                 )
             )
-            result = await db.execute(stmt)
-            if (result.rowcount or 0) > 0:
+            update_result = await db.execute(update_stmt)
+            if (update_result.rowcount or 0) > 0:
                 updated_mappings += 1
         else:
             # Create new mapping (global)
@@ -273,8 +281,8 @@ async def save_style_complete(
 
         # Safe to delete
         del_stmt = delete(AIDimension).where(AIDimension.id.in_(deleted_dimension_ids))
-        result = await db.execute(del_stmt)
-        deleted_dimensions = result.rowcount or 0
+        dim_delete_result = await db.execute(del_stmt)
+        deleted_dimensions = dim_delete_result.rowcount or 0
         await db.commit()
         logger.info(
             "deleted_dimensions",

@@ -7,6 +7,7 @@ supporting both standard CRUD operations and complex business queries.
 
 # AI Instance CRUD
 from .instance import ai_instance
+from .memory import ai_instance_memory, ai_template_memory
 
 # AI Personality CRUD
 from .personality import ai_personality, ai_personality_placeholder
@@ -21,18 +22,16 @@ from .style import ai_dimension_relationship_mapping, ai_relationship, ai_style,
 from .template import ai_persona, ai_template
 
 __all__ = [
-    # Instance management
+    "ai_dimension_relationship_mapping",
     "ai_instance",
-    # Personality and style
+    "ai_instance_memory",
+    "ai_persona",
     "ai_personality",
     "ai_personality_placeholder",
-    "ai_style",
     "ai_relationship",
-    "ai_dimension_relationship_mapping",
-    "ai_style_dimension",
-    # Template management
-    "ai_template",
-    "ai_persona",
-    # Logging
     "ai_request_log",
+    "ai_style",
+    "ai_style_dimension",
+    "ai_template",
+    "ai_template_memory",
 ]

@@ -84,8 +84,8 @@ def get_int_field(
 
     try:
         return int(text_value)
-    except ValueError:
-        raise FormFieldError(f"{field_name} must be a valid integer, got: {text_value}")
+    except ValueError as exc:
+        raise FormFieldError(f"{field_name} must be a valid integer, got: {text_value}") from exc
 
 
 def get_float_field(
@@ -118,5 +118,5 @@ def get_float_field(
 
     try:
         return float(text_value)
-    except ValueError:
-        raise FormFieldError(f"{field_name} must be a valid float, got: {text_value}")
+    except ValueError as exc:
+        raise FormFieldError(f"{field_name} must be a valid float, got: {text_value}") from exc

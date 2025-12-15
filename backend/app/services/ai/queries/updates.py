@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.type_aliases import JSONDict, JSONValue
 from app.enums.common import ConversationItemContextStatus
 from app.models.ai import AIConversationItem, AIDimension, AIInstance, AIInstanceDimension
 from app.utils.logging import get_logger
@@ -41,6 +42,21 @@ def _coerce_context_status(raw_status: Any) -> int:
         return int(ConversationItemContextStatus.EXCLUDED)
 
     return int(ConversationItemContextStatus.INCLUDED)
+
+
+def _coerce_relationship_count(value: JSONValue | None) -> int:
+    """Convert JSONValue payload into an integer count."""
+
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int | float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
 
 
 async def create_conversation_item(db: AsyncSession, item_data: dict[str, Any]) -> int | None:
@@ -107,11 +123,11 @@ async def create_conversation_item(db: AsyncSession, item_data: dict[str, Any]) 
             message_type=message_type,
         )
 
-        return item.id
-
     except Exception as exc:
         logger.error("conversation_item_save_failed", error=str(exc), item_data=item_data)
         return None
+    else:
+        return item.id
 
 
 async def update_instance_relationship_scores(
@@ -180,8 +196,6 @@ async def update_instance_relationship_scores(
                 existing_dimensions=list(existing_scores.keys()),
             )
 
-        return updated_count > 0
-
     except Exception as e:
         logger.error(
             "relationship_scores_update_failed",
@@ -190,6 +204,8 @@ async def update_instance_relationship_scores(
             new_scores=new_scores,
         )
         return False
+    else:
+        return updated_count > 0
 
 
 async def set_instance_current_relationship(
@@ -236,8 +252,6 @@ async def set_instance_current_relationship(
             relationship_id=relationship_id,
             relationship_display_name=relationship_display_name,
         )
-        return True
-
     except Exception as e:
         logger.error(
             "set_instance_current_relationship_failed",
@@ -246,6 +260,8 @@ async def set_instance_current_relationship(
             relationship_id=relationship_id,
         )
         return False
+    else:
+        return True
 
 
 async def increment_instance_relationship_count(
@@ -269,12 +285,10 @@ async def increment_instance_relationship_count(
             logger.warning("instance_not_found_for_count_increment", instance_id=instance_id)
             return False
 
-        counts = instance.relationship_counts or {}
+        counts: JSONDict = dict(instance.relationship_counts or {})
         key = str(int(relationship_id))
-        try:
-            counts[key] = int(counts.get(key, 0)) + 1
-        except Exception:
-            counts[key] = 1
+        current_count = _coerce_relationship_count(counts.get(key))
+        counts[key] = current_count + 1
         instance.relationship_counts = counts
         await db.flush()
 
@@ -284,8 +298,6 @@ async def increment_instance_relationship_count(
             relationship_id=relationship_id,
             new_count=counts.get(key, 0),
         )
-
-        return True
     except Exception as e:
         logger.error(
             "relationship_count_increment_failed",
@@ -294,6 +306,8 @@ async def increment_instance_relationship_count(
             relationship_id=relationship_id,
         )
         return False
+    else:
+        return True
 
 
 async def mark_conversation_item_as_excluded(db: AsyncSession, conversation_item_id: int) -> bool:
@@ -319,8 +333,6 @@ async def mark_conversation_item_as_excluded(db: AsyncSession, conversation_item
             user_qiao_id=item.user_qiao_id,
             instance_qiao_id=item.instance_qiao_id,
         )
-        return True
-
     except Exception as exc:
         logger.error(
             "conversation_item_exclude_failed",
@@ -328,50 +340,8 @@ async def mark_conversation_item_as_excluded(db: AsyncSession, conversation_item
             item_id=conversation_item_id,
         )
         return False
-
-
-async def update_instance_memory(db: AsyncSession, instance_qiao_id: str, new_memory: str) -> bool:
-    """
-    Update instance memory.
-
-    Args:
-        db: Database session
-        instance_qiao_id: Instance's qiao_id
-        new_memory: New memory content
-
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        result = await db.execute(select(AIInstance).where(AIInstance.qiao_id == instance_qiao_id))
-        instance = result.scalar_one_or_none()
-
-        if not instance:
-            logger.warning(
-                "instance_not_found_for_memory_update", instance_qiao_id=instance_qiao_id
-            )
-            return False
-
-        old_memory = instance.memory
-        instance.memory = new_memory
-        await db.flush()
-
-        logger.debug(
-            "instance_memory_updated",
-            instance_qiao_id=instance_qiao_id,
-            old_memory_length=len(old_memory) if old_memory else 0,
-            new_memory_length=len(new_memory),
-        )
-
+    else:
         return True
-
-    except Exception as e:
-        logger.error(
-            "instance_memory_update_failed",
-            error=str(e),
-            instance_qiao_id=instance_qiao_id,
-        )
-        return False
 
 
 async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status: int) -> bool:
@@ -406,9 +376,6 @@ async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status
             old_status=old_status,
             new_status=status,
         )
-
-        return True
-
     except Exception as e:
         logger.error(
             "instance_status_update_failed",
@@ -417,3 +384,5 @@ async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status
             status=status,
         )
         return False
+    else:
+        return True

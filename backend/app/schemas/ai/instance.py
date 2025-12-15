@@ -25,7 +25,6 @@ class AIInstanceBase(BaseSchema):
     status: int | None = Field(1, ge=1, le=3, description="Instance status")
     relationship_id: int | None = Field(None, description="Current relationship ID")
     relationship_counts: JSONDict | None = Field(None, description="Relationship usage counts")
-    memory: str | None = Field(None, description="Instance memory settings")
     prompt_variables: JSONDict | None = Field(
         None, description="Placeholder overrides used for this instance"
     )
@@ -54,7 +53,6 @@ class AIInstanceCreate(BaseModel):
         None,
         description="Snapshot of persona/template metadata captured at creation time",
     )
-    memory: str | None = Field(None, description="Instance memory settings")
     placeholder_overrides: JSONDict | None = Field(
         None,
         description="Prompt placeholder overrides used to populate prompt_variables",
@@ -98,7 +96,6 @@ class AIInstanceUpdate(BaseModel):
     status: int | None = Field(None, ge=1, le=3, description="Instance status")
     relationship_id: int | None = Field(None, description="Current relationship ID")
     relationship_counts: JSONDict | None = Field(None, description="Relationship usage counts")
-    memory: str | None = Field(None, description="Instance memory settings")
     prompt_variables: JSONDict | None = Field(None, description="Prompt placeholder overrides")
     request_params: JSONDict | None = Field(None, description="LLM request parameter overrides")
     llm_config_id: int | None = Field(None, description="LLM config ID")

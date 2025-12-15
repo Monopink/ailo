@@ -2,6 +2,8 @@
 Custom authentication provider for Starlette-Admin with security features.
 """
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.datastructures import FormData
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.templating import Jinja2Templates
@@ -11,6 +13,7 @@ from starlette_admin.auth import AdminConfig, AdminUser, AuthProvider
 from app.core.database import get_sessionmaker
 from app.core.security import verify_password
 from app.crud.admin import admin_user as admin_user_crud
+from app.models.admin import AdminUser as AdminUserModel
 from app.services.security.auth_tracker import (
     check_lockout,
     record_auth_failure,
@@ -25,7 +28,7 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Templates
-templates = Jinja2Templates(directory="admin/templates")
+templates = Jinja2Templates(directory="app/admin/templates")
 
 
 class CustomAuthProvider(AuthProvider):
@@ -37,209 +40,222 @@ class CustomAuthProvider(AuthProvider):
         """
         Handle both GET (display form) and POST (process login) for custom login page.
         """
+        if request.method == "GET":
+            return await self._render_login_form(request, admin)
+        if request.method == "POST":
+            return await self._process_login(request, admin)
+        return self._create_login_failure_response(request, admin)
+
+    async def _render_login_form(self, request: Request, admin: BaseAdmin) -> Response:
+        """Render the custom login template."""
         session_factory = get_sessionmaker()
         async with session_factory() as db:
-            # Get client IP
             client_ip = request.client.host if request.client else "unknown"
+            turnstile_site_key = await get_config(
+                db, key="admin_turnstile_site_key", required=False
+            )
+            show_captcha_raw = await should_require_captcha(client_ip, "admin_auth", db)
+            show_captcha = bool(turnstile_site_key) and show_captcha_raw
+            error = request.query_params.get("error")
+            return templates.TemplateResponse(
+                "login.html",
+                {
+                    "request": request,
+                    "admin": admin,
+                    "show_captcha": show_captcha,
+                    "turnstile_site_key": turnstile_site_key,
+                    "error": error,
+                },
+            )
 
-            # GET: Display login form
-            if request.method == "GET":
-                # Get Turnstile site key
-                turnstile_site_key = await get_config(
-                    db, key="admin_turnstile_site_key", required=False
-                )
+    async def _process_login(self, request: Request, admin: BaseAdmin) -> Response:
+        """Process POST login form submission."""
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
+            try:
+                client_ip = request.client.host if request.client else "unknown"
+                form_data = await request.form()
+                username = str(form_data.get("username", ""))
+                password = str(form_data.get("password", ""))
 
-                # Check if should show CAPTCHA (only if site key configured)
-                show_captcha_raw = await should_require_captcha(client_ip, "admin_auth", db)
-                show_captcha = bool(turnstile_site_key) and show_captcha_raw
+                # Chain validation steps - any failure returns error response
+                if error_response := await self._check_ip_lockout(
+                    client_ip, username, request, admin, db
+                ):
+                    return error_response
 
-                # Get error from query params (if redirected after failed login)
-                error = request.query_params.get("error")
+                if error_response := await self._check_captcha(
+                    client_ip, username, form_data, request, admin, db
+                ):
+                    return error_response
 
-                return templates.TemplateResponse(
-                    "login.html",
-                    {
-                        "request": request,
-                        "admin": admin,
-                        "show_captcha": show_captcha,
-                        "turnstile_site_key": turnstile_site_key,
-                        "error": error,
-                    },
-                )
+                if error_response := await self._verify_user_credentials(
+                    username, password, client_ip, request, admin, db
+                ):
+                    return error_response
 
-            # POST: Process login
-            if request.method == "POST":
-                try:
-                    # Get form data
-                    form_data = await request.form()
-                    username = str(form_data.get("username", ""))
-                    password = str(form_data.get("password", ""))
+                # All validations passed - complete login
+                return await self._complete_login(username, client_ip, request, admin, db)
 
-                    # Check if IP is locked
-                    is_locked, remaining_seconds = await check_lockout(client_ip, "admin_auth", db)
-                    if is_locked:
-                        await create_login_log(
-                            db=db,
-                            username=username,
-                            result=2,  # Failed
-                            fail_reason="ip_locked",  # Internal log: detailed reason
-                            request=request,
-                        )
-                        return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login"))
-                            + "?error=Login failed",
-                            status_code=303,
-                        )
+            except Exception as e:
+                logger.error("admin_login_unexpected_error", error=str(e), exc_info=True)
+                return self._create_login_failure_response(request, admin)
 
-                    # Check if CAPTCHA is required
-                    captcha_required = await should_require_captcha(client_ip, "admin_auth", db)
+    async def _check_ip_lockout(
+        self,
+        client_ip: str,
+        username: str,
+        request: Request,
+        admin: BaseAdmin,
+        db: AsyncSession,
+    ) -> Response | None:
+        """Check if IP is locked. Returns error response if locked, None otherwise."""
+        is_locked, _ = await check_lockout(client_ip, "admin_auth", db)
+        if is_locked:
+            await create_login_log(
+                db=db,
+                username=username,
+                result=2,
+                fail_reason="ip_locked",
+                request=request,
+            )
+            return self._create_login_failure_response(request, admin)
+        return None
 
-                    if captcha_required:
-                        # Get Turnstile token from form
-                        turnstile_token = str(form_data.get("cf_turnstile_response", ""))
+    async def _check_captcha(
+        self,
+        client_ip: str,
+        username: str,
+        form_data: FormData,
+        request: Request,
+        admin: BaseAdmin,
+        db: AsyncSession,
+    ) -> Response | None:
+        """Verify CAPTCHA if required. Returns error response if failed, None otherwise."""
+        captcha_required = await should_require_captcha(client_ip, "admin_auth", db)
+        if not captcha_required:
+            return None
 
-                        if not turnstile_token:
-                            await record_auth_failure(client_ip, "admin_auth", db)
-                            await create_login_log(
-                                db=db,
-                                username=username,
-                                result=2,  # Failed
-                                fail_reason="captcha_not_completed",  # Internal log
-                                request=request,
-                            )
-                            return RedirectResponse(
-                                url=str(request.url_for(admin.route_name + ":login"))
-                                + "?error=Login failed",
-                                status_code=303,
-                            )
+        turnstile_token = str(form_data.get("cf_turnstile_response", ""))
+        if not turnstile_token:
+            await record_auth_failure(client_ip, "admin_auth", db)
+            await create_login_log(
+                db=db,
+                username=username,
+                result=2,
+                fail_reason="captcha_not_completed",
+                request=request,
+            )
+            return self._create_login_failure_response(request, admin)
 
-                        # Verify Turnstile token
-                        provider = await create_captcha_provider("admin", db)
-                        turnstile_valid, turnstile_error = await provider.verify_token(
-                            turnstile_token, client_ip
-                        )
+        provider = await create_captcha_provider("admin", db)
+        turnstile_valid, turnstile_error = await provider.verify_token(turnstile_token, client_ip)
+        if not turnstile_valid:
+            await record_auth_failure(client_ip, "admin_auth", db)
+            await create_login_log(
+                db=db,
+                username=username,
+                result=2,
+                fail_reason=f"captcha_failed: {turnstile_error}",
+                request=request,
+            )
+            return self._create_login_failure_response(request, admin)
 
-                        if not turnstile_valid:
-                            await record_auth_failure(client_ip, "admin_auth", db)
-                            await create_login_log(
-                                db=db,
-                                username=username,
-                                result=2,  # Failed
-                                # Internal log: detailed reason
-                                fail_reason=f"captcha_failed: {turnstile_error}",
-                                request=request,
-                            )
-                            return RedirectResponse(
-                                url=str(request.url_for(admin.route_name + ":login"))
-                                + "?error=Login failed",
-                                status_code=303,
-                            )
+        return None
 
-                    # Find admin user
-                    admin_user = await admin_user_crud.get_by_username(db, username=username)
+    async def _verify_user_credentials(
+        self,
+        username: str,
+        password: str,
+        client_ip: str,
+        request: Request,
+        admin: BaseAdmin,
+        db: AsyncSession,
+    ) -> Response | None:
+        """Verify user exists, password is correct, and account is active."""
+        admin_user = await admin_user_crud.get_by_username(db, username=username)
+        if not admin_user:
+            await record_auth_failure(client_ip, "admin_auth", db)
+            await create_login_log(
+                db=db,
+                username=username,
+                result=2,
+                fail_reason="user_not_found",
+                request=request,
+            )
+            return self._create_login_failure_response(request, admin)
 
-                    if not admin_user:
-                        # Record failure and log
-                        await record_auth_failure(client_ip, "admin_auth", db)
-                        await create_login_log(
-                            db=db,
-                            username=username,
-                            result=2,  # Failed
-                            fail_reason="user_not_found",  # Internal log
-                            request=request,
-                        )
-                        return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login"))
-                            + "?error=Login failed",
-                            status_code=303,
-                        )
+        if not verify_password(password, admin_user.password_hash):
+            await record_auth_failure(client_ip, "admin_auth", db)
+            await create_login_log(
+                db=db,
+                username=username,
+                result=2,
+                admin_user_id=admin_user.id,
+                fail_reason="invalid_password",
+                request=request,
+            )
+            return self._create_login_failure_response(request, admin)
 
-                    # Verify password
-                    if not verify_password(password, admin_user.password_hash):
-                        # Record failure and log
-                        await record_auth_failure(client_ip, "admin_auth", db)
-                        await create_login_log(
-                            db=db,
-                            username=username,
-                            result=2,  # Failed
-                            admin_user_id=admin_user.id,
-                            fail_reason="invalid_password",  # Internal log
-                            request=request,
-                        )
-                        return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login"))
-                            + "?error=Login failed",
-                            status_code=303,
-                        )
+        if not await admin_user_crud.is_active(admin_user):
+            await create_login_log(
+                db=db,
+                username=username,
+                result=2,
+                admin_user_id=admin_user.id,
+                fail_reason="account_disabled",
+                request=request,
+            )
+            return self._create_login_failure_response(request, admin)
 
-                    # Check if user is active
-                    if not await admin_user_crud.is_active(admin_user):
-                        # Log failed login attempt
-                        await create_login_log(
-                            db=db,
-                            username=username,
-                            result=2,  # Failed
-                            admin_user_id=admin_user.id,
-                            fail_reason="account_disabled",  # Internal log
-                            request=request,
-                        )
-                        return RedirectResponse(
-                            url=str(request.url_for(admin.route_name + ":login"))
-                            + "?error=Login failed",
-                            status_code=303,
-                        )
+        return None
 
-                    # Login successful - set session
-                    request.session.update(
-                        {
-                            "admin_user": {
-                                "id": admin_user.id,
-                                "username": admin_user.username,
-                                "role": admin_user.role,
-                                "role_display": admin_user.role_display,
-                            }
-                        }
-                    )
+    async def _complete_login(
+        self,
+        username: str,
+        client_ip: str,
+        request: Request,
+        admin: BaseAdmin,
+        db: AsyncSession,
+    ) -> Response:
+        """Complete successful login by setting session and logging."""
+        admin_user: AdminUserModel = await admin_user_crud.get_by_username(db, username=username)  # type: ignore[assignment]
 
-                    # Reset authentication failures
-                    await reset_failures(client_ip, "admin_auth")
+        request.session.update(
+            {
+                "admin_user": {
+                    "id": admin_user.id,
+                    "username": admin_user.username,
+                    "role": admin_user.role,
+                    "role_display": admin_user.role_display,
+                }
+            }
+        )
 
-                    # Log successful login
-                    await create_login_log(
-                        db=db,
-                        username=username,
-                        result=1,  # Success
-                        admin_user_id=admin_user.id,
-                        request=request,
-                    )
+        await reset_failures(client_ip, "admin_auth")
 
-                    logger.info(
-                        "admin_login_success",
-                        username=username,
-                        admin_user_id=admin_user.id,
-                        ip=client_ip,
-                    )
+        await create_login_log(
+            db=db,
+            username=username,
+            result=1,
+            admin_user_id=admin_user.id,
+            request=request,
+        )
 
-                    # Redirect to next page or dashboard
-                    next_url = request.query_params.get(
-                        "next", request.url_for(admin.route_name + ":index")
-                    )
-                    return RedirectResponse(url=next_url, status_code=303)
+        logger.info(
+            "admin_login_success",
+            username=username,
+            admin_user_id=admin_user.id,
+            ip=client_ip,
+        )
 
-                except Exception as e:
-                    logger.error("admin_login_unexpected_error", error=str(e), exc_info=True)
-                    return RedirectResponse(
-                        url=str(request.url_for(admin.route_name + ":login"))
-                        + "?error=Login failed",
-                        status_code=303,
-                    )
+        next_url = request.query_params.get("next", request.url_for(admin.route_name + ":index"))
+        return RedirectResponse(url=next_url, status_code=303)
 
-            # Other methods: redirect to GET
-            else:
-                return RedirectResponse(
-                    url=request.url_for(admin.route_name + ":login"),
-                    status_code=303,
-                )
+    def _create_login_failure_response(self, request: Request, admin: BaseAdmin) -> Response:
+        """Generate a consistent failure redirect."""
+        login_url = str(request.url_for(admin.route_name + ":login")) + "?error=Login failed"
+        return RedirectResponse(url=login_url, status_code=303)
 
     async def is_authenticated(self, request: Request) -> bool:
         """

@@ -1,8 +1,12 @@
 """Main Starlette-Admin configuration."""
 
+from __future__ import annotations
+
 import json
+import logging
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, cast
 
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
@@ -80,11 +84,16 @@ from .views.ai_advanced_edit_views import (
 from .views.dashboard_view import DashboardView
 from .views.system_settings_view import SystemSettingsView
 
+logger = logging.getLogger(__name__)
 
-def _pretty_json(data):
+
+def _pretty_json(data: Any) -> str:
+    """Render JSON for admin templates without raising."""
+
     try:
         return json.dumps(data, default=str, ensure_ascii=False, indent=2)
-    except Exception:
+    except Exception as exc:
+        logger.error("admin_pretty_json_failed: %s", exc, exc_info=True)
         return str(data)
 
 
@@ -98,8 +107,8 @@ def _configure_template_env(admin_instance: Admin, settings: Settings) -> None:
         cache = getattr(admin_instance.templates.env, "cache", None)
         if isinstance(cache, dict):
             cache.clear()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.error("admin_template_env_config_failed: %s", exc, exc_info=True)
     admin_instance.templates.env.filters["prettyjson"] = _pretty_json
 
 
@@ -266,12 +275,15 @@ def _register_dropdowns(admin_instance: Admin) -> None:
 class ThemeSwitchView(CustomView):
     """Lightweight view to switch admin theme (SSR)."""
 
-    async def render(self, request: Request, templates):
+    async def render(self, request: Request, _templates: Any) -> RedirectResponse:
         mode = str(request.path_params.get("mode", "light")).lower()
         if mode not in ("light", "dark", "auto"):
             mode = "light"
+        admin_app = cast(Admin | None, getattr(self, "admin", None))
+        if admin_app is None:
+            raise RuntimeError("Admin application is not initialized")
         referer = request.headers.get("referer") or str(
-            request.url_for(self.admin.route_name + ":index")
+            request.url_for(admin_app.route_name + ":index")
         )
         response = RedirectResponse(url=referer, status_code=303)
         response.set_cookie(

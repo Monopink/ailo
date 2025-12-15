@@ -8,10 +8,60 @@ can share the same implementation without introducing circular imports.
 from typing import Any
 
 from app.exceptions import AIServiceError
-from app.services.ai.types import InstanceContext
+from app.services.ai.types import DimensionSpec, InstanceContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _build_memory_operations_schema() -> dict[str, Any]:
+    """Return the common schema definition for memory operations."""
+
+    return {
+        "type": "object",
+        "description": "Memory operations object processed in remove→update→refresh→add order",
+        "properties": {
+            "remove": {
+                "type": "array",
+                "description": "List of memory contents to delete (exact content match)",
+                "items": {"type": "string"},
+            },
+            "update": {
+                "type": "array",
+                "description": "Update memory entries with new content/importance",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "old_content": {"type": "string"},
+                        "new_content": {"type": "string"},
+                        "new_importance": {"type": "integer", "minimum": 1, "maximum": 10},
+                    },
+                    "required": ["old_content", "new_content"],
+                    "additionalProperties": False,
+                },
+            },
+            "refresh": {
+                "type": "array",
+                "description": "Memories that should be refreshed/extended",
+                "items": {"type": "string"},
+            },
+            "add": {
+                "type": "array",
+                "description": "New memories to insert",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "memory_type": {"type": "string", "enum": ["core", "recent"]},
+                        "content": {"type": "string"},
+                        "importance": {"type": "integer", "minimum": 1, "maximum": 10},
+                    },
+                    "required": ["memory_type", "content", "importance"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "additionalProperties": False,
+    }
 
 
 def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
@@ -24,7 +74,7 @@ def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Complete JSON Schema dict
     """
-    schema = {
+    schema: dict[str, Any] = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "AI Response Schema with Memory Operations",
         "type": "object",
@@ -38,9 +88,11 @@ def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
         "properties": {},
         "additionalProperties": True,
     }
+    properties: dict[str, Any] = schema["properties"]
+    required_fields: list[str] = schema["required"]
 
     # System fields (always included)
-    schema["properties"].update(
+    properties.update(
         {
             "should_block": {"type": "boolean", "description": "Whether to block the message"},
             "should_reply": {"type": "boolean", "description": "Whether AI should reply"},
@@ -50,48 +102,7 @@ def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
                 "description": "Follow-up messages",
                 "items": {"type": "string"},
             },
-            "memory_operations": {
-                "type": "array",
-                "description": "顺序执行的记忆操作列表，每条操作会在前一条操作修改后的记忆上执行",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "operation": {
-                            "type": "string",
-                            "enum": ["add", "replace", "delete"],
-                            "description": "操作类型：增加、替换或删除",
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "新增或替换的内容，仅在 add 和 replace 时必填",
-                        },
-                        "target_text": {
-                            "type": "string",
-                            "description": "要匹配的旧文本，仅在 replace 和 delete 时必填",
-                        },
-                        "insert_position": {
-                            "type": "string",
-                            "description": "新增内容的插入位置，仅在 add 时有效，可为 'start', 'end', 'after:<text>', 'before:<text>'",
-                        },
-                    },
-                    "required": ["operation"],
-                    "additionalProperties": False,
-                    "allOf": [
-                        {
-                            "if": {"properties": {"operation": {"const": "add"}}},
-                            "then": {"required": ["content", "insert_position"]},
-                        },
-                        {
-                            "if": {"properties": {"operation": {"const": "replace"}}},
-                            "then": {"required": ["target_text", "content"]},
-                        },
-                        {
-                            "if": {"properties": {"operation": {"const": "delete"}}},
-                            "then": {"required": ["target_text"]},
-                        },
-                    ],
-                },
-            },
+            "memory_operations": _build_memory_operations_schema(),
             "outgoing_messages": {
                 "type": "array",
                 "description": "Outgoing messages",
@@ -115,13 +126,13 @@ def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
             }
             score_required.append(dim["name"])
 
-        schema["properties"]["score"] = {
+        properties["score"] = {
             "type": "object",
             "required": score_required,
             "properties": score_properties,
             "additionalProperties": False,
         }
-        schema["required"].append("score")
+        required_fields.append("score")
 
     # Custom fields (including preset fields like internal_thoughts and current_state)
     custom_fields = schema_config.get("custom_fields", [])
@@ -130,13 +141,13 @@ def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
         if not field_name:
             continue
 
-        schema["properties"][field_name] = {"type": field.get("type", "string")}
+        properties[field_name] = {"type": field.get("type", "string")}
 
         if field.get("description"):
-            schema["properties"][field_name]["description"] = field["description"]
+            properties[field_name]["description"] = field["description"]
 
         if field.get("required"):
-            schema["required"].append(field_name)
+            required_fields.append(field_name)
 
     return schema
 
@@ -144,15 +155,15 @@ def generate_json_schema(schema_config: dict[str, Any]) -> dict[str, Any]:
 def build_response_schema(context: InstanceContext) -> dict[str, Any]:
     """Build JSON schema directly from instance context."""
 
-    try:
-        dimensions = context.get("dimensions", [])
-        if not dimensions:
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="dimensions_not_found",
-                message=f"Style {context['style']['id']} has no configured dimensions",
-            )
+    dimensions: list[DimensionSpec] = context.get("dimensions", [])
+    if not dimensions:
+        raise AIServiceError(
+            ai_service="schema_building",
+            reason="dimensions_not_found",
+            message=f"Style {context['style']['id']} has no configured dimensions",
+        )
 
+    try:
         schema = _build_dynamic_response_schema(context["style"], dimensions)
 
         logger.debug(
@@ -161,8 +172,6 @@ def build_response_schema(context: InstanceContext) -> dict[str, Any]:
             style_id=context["style"]["id"],
             dimensions_count=len(dimensions),
         )
-
-        return schema
 
     except AIServiceError:
         raise
@@ -177,60 +186,71 @@ def build_response_schema(context: InstanceContext) -> dict[str, Any]:
             reason="unexpected_error",
             message=f"Failed to build response schema: {exc!s}",
         ) from exc
+    else:
+        return schema
 
 
-def _build_dynamic_response_schema(style: Any, dimensions: list[dict[str, Any]]) -> dict[str, Any]:
+def _build_dynamic_response_schema(style: Any, dimensions: list[DimensionSpec]) -> dict[str, Any]:
     """
     Build dynamic JSON schema based on AI style and dimensions.
     """
+    style_id = style.get("id") if isinstance(style, dict) else getattr(style, "id", None)
+
     try:
-        style_id = style.get("id") if isinstance(style, dict) else getattr(style, "id", None)
-
-        if not dimensions:
-            raise AIServiceError(
-                ai_service="schema_building",
-                reason="empty_dimensions",
-                message=f"Style {style_id} has no active dimensions. "
-                f"This indicates a database configuration error.",
-            )
-
-        score_properties = {}
-        score_required = []
-
-        for dimension in dimensions:
-            dimension_name = dimension.get("name")
-            if not dimension_name or not isinstance(dimension_name, str):
-                raise AIServiceError(
-                    ai_service="schema_building",
-                    reason="invalid_dimension_name",
-                    message=f"Style {style_id} contains invalid dimension name: {dimension_name}. "
-                    f"All dimension names must be non-empty strings.",
-                )
-            score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
-            score_required.append(dimension_name)
-
-        logger.debug(
-            "dynamic_schema_built_successfully",
-            style_id=style_id,
-            score_names=list(score_properties.keys()),
-            score_count=len(score_properties),
-        )
-
-        return _get_base_response_schema(score_properties, score_required)
-
+        score_properties, score_required = _prepare_score_fields(style_id, dimensions)
     except AIServiceError:
         raise
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.error(
             "dynamic_schema_build_failed",
             error=str(exc),
-            style_id=style_id if "style_id" in locals() else getattr(style, "id", "unknown"),
+            style_id=style_id if style_id is not None else getattr(style, "id", "unknown"),
         )
         raise AIServiceError(
             ai_service="schema_building",
             reason="build_failed",
             message=f"Failed to build dynamic schema: {exc!s}",
+        ) from exc
+
+    logger.debug(
+        "dynamic_schema_built_successfully",
+        style_id=style_id,
+        score_names=list(score_properties.keys()),
+        score_count=len(score_properties),
+    )
+
+    return _get_base_response_schema(score_properties, score_required)
+
+
+def _prepare_score_fields(
+    style_id: Any, dimensions: list[DimensionSpec]
+) -> tuple[dict[str, Any], list[str]]:
+    """Validate dimensions and build score schema fragments."""
+
+    if not dimensions:
+        raise AIServiceError(
+            ai_service="schema_building",
+            reason="empty_dimensions",
+            message=f"Style {style_id} has no active dimensions. "
+            "This indicates a database configuration error.",
         )
+
+    score_properties: dict[str, Any] = {}
+    score_required: list[str] = []
+
+    for dimension in dimensions:
+        dimension_name = dimension.get("name")
+        if not dimension_name or not isinstance(dimension_name, str):
+            raise AIServiceError(
+                ai_service="schema_building",
+                reason="invalid_dimension_name",
+                message=f"Style {style_id} contains invalid dimension name: {dimension_name}. "
+                "All dimension names must be non-empty strings.",
+            )
+        score_properties[dimension_name] = {"type": "integer", "minimum": 0, "maximum": 1000}
+        score_required.append(dimension_name)
+
+    return score_properties, score_required
 
 
 def _get_base_response_schema(
@@ -244,17 +264,30 @@ def _get_base_response_schema(
         "properties": {
             "current_state": {
                 "type": "string",
-                "description": "根据当前时间等信息，推测补充你当前的所处的地点环境、正在做的事情、你的心情",
+                "description": (
+                    "Summarize your current environment, activity, and mood based on time/context."
+                ),
             },
             "internal_thoughts": {
                 "type": "string",
-                "description": "回复前的思考（整理你与{USER}的关系，{USER}的身份、意图，回复的原则）",
+                "description": (
+                    "Internal reasoning before replying: relationship with {USER}, user intent, and"
+                    " response principles."
+                ),
             },
             "should_block": {"type": "boolean"},
             "should_reply": {"type": "boolean"},
             "attack_detected": {"type": "boolean"},
+            "followup_messages": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "outgoing_messages": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
             "should_update_memory": {"type": "boolean"},
-            "memory_operations": {"type": "array"},
+            "memory_operations": _build_memory_operations_schema(),
             "score": {
                 "type": "object",
                 "required": score_required,

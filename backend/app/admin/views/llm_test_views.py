@@ -9,14 +9,15 @@ Following the architectural pattern of separating concerns:
 """
 
 import json
-from typing import Any
 
+from starlette.datastructures import FormData
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.core.database import get_sessionmaker
+from app.core.type_aliases import JSONDict, JSONValue
 from app.services.admin.testing.llm_config import execute_llm_config_test
 from app.services.llm.config import get_llm_config
 from app.utils.form_helpers import FormFieldError, get_float_field, get_int_field, get_text_field
@@ -25,7 +26,7 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Initialize templates
-templates = Jinja2Templates(directory="admin/templates")
+templates = Jinja2Templates(directory="app/admin/templates")
 
 
 class LLMConfigTestView(CustomView):
@@ -41,7 +42,7 @@ class LLMConfigTestView(CustomView):
     5. View detailed test results
     """
 
-    def is_accessible(self, request: Request) -> bool:
+    def is_accessible(self, _request: Request) -> bool:
         """Allow access to this view."""
         return True
 
@@ -101,7 +102,8 @@ class LLMConfigTestView(CustomView):
                 config, provider = config_result
 
                 # Prepare context for template - extract all data BEFORE leaving async context
-                # NOTE: Use 'llm_config' instead of 'config' to avoid conflict with starlette-admin's AdminConfig
+                # NOTE: Use 'llm_config' instead of 'config' to avoid conflict with
+                # starlette-admin's AdminConfig
                 context = {
                     "request": request,
                     "config_id": config_id,
@@ -186,27 +188,13 @@ class LLMConfigTestView(CustomView):
         try:
             form_data = await request.form()
 
-            def parse_json_field(
-                field_name: str, label: str, expected_type: type | None
-            ) -> Any | None:
-                raw_value = form_data.get(field_name)
-                if raw_value is None:
-                    return None
-                raw_value = raw_value.strip()
-                if not raw_value:
-                    return None
-                try:
-                    parsed_value = json.loads(raw_value)
-                except json.JSONDecodeError as exc:
-                    raise FormFieldError(f"{label} must be valid JSON: {exc!s}")
-                if expected_type and not isinstance(parsed_value, expected_type):
-                    raise FormFieldError(f"{label} must be a {expected_type.__name__}")
-                return parsed_value
-
             # Extract and validate form data using type-safe helpers
             try:
                 config_id = get_int_field(form_data, "config_id")
                 test_message = get_text_field(form_data, "test_message")
+
+                # Validate message content - moved outside try to avoid TRY301
+                self._validate_test_message(test_message)
 
                 # Optional parameters
                 override_temperature = None
@@ -221,44 +209,12 @@ class LLMConfigTestView(CustomView):
                 if thinking_mode not in ["enabled", "disabled", "auto"]:
                     thinking_mode = None  # Use config default
 
-                request_overrides: dict[str, Any] = {}
-
-                tools_json = parse_json_field("tools_json", "Tools JSON", list)
-                if tools_json is not None:
-                    request_overrides["tools"] = tools_json
-
-                extra_headers = parse_json_field("extra_headers_json", "Extra headers", dict)
-                if extra_headers is not None:
-                    request_overrides["default_extra_headers"] = extra_headers
-
-                extra_query = parse_json_field("extra_query_json", "Extra query parameters", dict)
-                if extra_query is not None:
-                    request_overrides["default_extra_query"] = extra_query
-
-                extra_body = parse_json_field("extra_body_json", "Extra body", dict)
-                if extra_body is not None:
-                    request_overrides["extra_body"] = extra_body
-
-                tool_choice_override = form_data.get("tool_choice_override")
-                if tool_choice_override and tool_choice_override != "inherit":
-                    request_overrides["tool_choice"] = tool_choice_override
-
-                max_tool_calls_override = form_data.get("max_tool_calls_override")
-                if max_tool_calls_override:
-                    try:
-                        request_overrides["max_tool_calls"] = int(max_tool_calls_override)
-                    except ValueError as exc:
-                        raise FormFieldError(f"Max tool calls must be an integer: {exc!s}")
+                # Parse request overrides
+                request_overrides = self._parse_request_overrides(form_data)
 
             except FormFieldError as e:
                 logger.warning("llm_config_test_form_validation_error", error=str(e))
                 return JSONResponse({"success": False, "error": str(e)}, status_code=400)
-
-            # Validate message content
-            if not test_message.strip():
-                return JSONResponse(
-                    {"success": False, "error": "Test message cannot be empty"}, status_code=400
-                )
 
             # Execute test using service layer
             session_factory = get_sessionmaker()
@@ -286,6 +242,71 @@ class LLMConfigTestView(CustomView):
             return JSONResponse(
                 {"success": False, "error": f"Test request failed: {e!s}"}, status_code=500
             )
+
+    def _validate_test_message(self, test_message: str) -> None:
+        """Validate test message is not empty."""
+        if not test_message.strip():
+            raise FormFieldError("Test message cannot be empty")
+
+    def _parse_request_overrides(self, form_data: FormData) -> JSONDict:
+        """Parse and validate request override parameters from form data."""
+        request_overrides: JSONDict = {}
+
+        # Parse JSON fields
+        tools_json = self._parse_json_field(form_data, "tools_json", "Tools JSON", list)
+        if tools_json is not None:
+            request_overrides["tools"] = tools_json
+
+        extra_headers = self._parse_json_field(
+            form_data, "extra_headers_json", "Extra headers", dict
+        )
+        if extra_headers is not None:
+            request_overrides["default_extra_headers"] = extra_headers
+
+        extra_query = self._parse_json_field(
+            form_data, "extra_query_json", "Extra query parameters", dict
+        )
+        if extra_query is not None:
+            request_overrides["default_extra_query"] = extra_query
+
+        extra_body = self._parse_json_field(form_data, "extra_body_json", "Extra body", dict)
+        if extra_body is not None:
+            request_overrides["extra_body"] = extra_body
+
+        # Parse simple fields
+        tool_choice_override = form_data.get("tool_choice_override")
+        if tool_choice_override and tool_choice_override != "inherit":
+            request_overrides["tool_choice"] = tool_choice_override
+
+        max_tool_calls_override = form_data.get("max_tool_calls_override")
+        if max_tool_calls_override:
+            try:
+                request_overrides["max_tool_calls"] = int(max_tool_calls_override)
+            except ValueError as exc:
+                raise FormFieldError(f"Max tool calls must be an integer: {exc!s}") from exc
+
+        return request_overrides
+
+    def _parse_json_field(
+        self, form_data: FormData, field_name: str, label: str, expected_type: type | None
+    ) -> JSONValue | None:
+        """Parse and validate a JSON field from form data."""
+        raw_value = form_data.get(field_name)
+        if raw_value is None:
+            return None
+        raw_value = raw_value.strip()
+        if not raw_value:
+            return None
+
+        try:
+            parsed_value = json.loads(raw_value)
+        except json.JSONDecodeError as exc:
+            raise FormFieldError(f"{label} must be valid JSON: {exc!s}") from exc
+
+        if expected_type and not isinstance(parsed_value, expected_type):
+            raise FormFieldError(f"{label} must be a {expected_type.__name__}")
+
+        return parsed_value
 
 
 # Create view instance

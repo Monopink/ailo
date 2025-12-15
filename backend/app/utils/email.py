@@ -45,13 +45,15 @@ def mask_email(email: str) -> str:
     if not email or "@" not in email:
         return email
 
+    result = email
+
     try:
         local, domain = email.split("@", 1)
         if len(local) > 0:
             # Keep first letter, mask the rest
             masked_local = local[0] + "***"
-            return f"{masked_local}@{domain}"
-        return email
-    except Exception as e:
-        logger.error(f"Failed to mask email: {e}")
-        return email
+            result = f"{masked_local}@{domain}"
+    except Exception as exc:
+        logger.error("failed_to_mask_email", error=str(exc))
+
+    return result

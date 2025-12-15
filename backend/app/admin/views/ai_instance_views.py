@@ -5,6 +5,7 @@ This module contains Starlette-Admin views for AI instance system.
 """
 
 from collections.abc import MutableMapping
+from enum import IntEnum
 from typing import Any, ClassVar, cast
 
 from sqlalchemy import select
@@ -19,6 +20,7 @@ from app.admin.views.base import IntegerEnumField
 from app.enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerType
 from app.models.ai import AIInstanceDimension
 from app.models.ai.instance import AIInstance
+from app.models.ai.memory import AIInstanceMemory
 from app.models.ai.style import AIStyleDimension
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
@@ -32,6 +34,13 @@ POSITION_MIN = 0
 POSITION_MAX = 1000
 SCORE_MIN = 0
 SCORE_MAX = 1000
+
+
+class MemoryStatus(IntEnum):
+    """Enum for AI instance memory status field."""
+
+    ACTIVE = 1
+    ARCHIVED = 2
 
 
 class _ProfileRelatedStringField(StringField):
@@ -410,11 +419,6 @@ class AIInstanceView(ModelView):
             required=True,
         ),
         _RelationshipDisplayNameField(),
-        TextAreaField(
-            "memory",
-            label="Memory",
-            help_text="Instance-specific memory and background information",
-        ),
         JSONField(
             "prompt_variables",
             label="Prompt Variables",
@@ -706,6 +710,126 @@ class AIInstanceDimensionView(ModelView):
         # Nothing to fill here beyond FKs
 
 
+class AIInstanceMemoryView(ModelView):
+    """Admin view for AI instance memories."""
+
+    label = "Instance Memories"
+    name = "Instance Memories"
+
+    exclude_fields_from_create: ClassVar[list[str]] = [
+        "id",
+        "user_qiao_id",
+        "instance_qiao_id",
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_edit: ClassVar[list[str]] = [
+        "id",
+        "user_qiao_id",
+        "instance_qiao_id",
+        "created_at",
+        "updated_at",
+    ]
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["content", "user_qiao_id", "instance_qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
+        "instance_id",
+        "user_id",
+        "memory_type",
+        "status",
+        "importance",
+        "created_at",
+    ]
+
+    fields: ClassVar[list[object]] = [
+        StringField("id", label="ID"),
+        HasOne(
+            "instance",
+            identity="ai_instance",
+            label="AI Instance",
+            help_text="Owning instance (auto-fills user信息)",
+            required=True,
+        ),
+        StringField("instance_qiao_id", label="Instance Qiao ID"),
+        StringField("user_qiao_id", label="User Qiao ID"),
+        StringField(
+            "memory_type",
+            label="Memory Type",
+            help_text="core 或 recent",
+            required=True,
+        ),
+        IntegerField(
+            "importance",
+            label="Importance",
+            help_text="1-10，控制寿命与排序",
+            required=True,
+        ),
+        IntegerEnumField(
+            "status",
+            enum=MemoryStatus,
+            label="Status",
+            help_text="1=active, 2=archived",
+            required=True,
+        ),
+        IntegerField(
+            "source_message_id",
+            label="Source Message ID",
+            help_text="可选：来源会话条目",
+            required=False,
+        ),
+        TextAreaField(
+            "content",
+            label="Content",
+            help_text="记忆内容",
+            required=True,
+        ),
+        LocalDateTimeField("refreshed_at", label="Refreshed At"),
+        LocalDateTimeField("expires_at", label="Expires At"),
+        LocalDateTimeField("created_at", label="Created At"),
+        LocalDateTimeField("updated_at", label="Updated At"),
+    ]
+
+    async def before_create(
+        self,
+        _request: Request,
+        _data: FormData,
+        obj: AIInstanceMemory,
+    ) -> None:
+        """Ensure foreign keys/user metadata stay in sync."""
+
+        errors = {}
+        if hasattr(obj, "instance") and obj.instance is not None:
+            obj.instance_id = obj.instance.id
+            obj.instance_qiao_id = getattr(obj.instance, "qiao_id", obj.instance_qiao_id)
+            obj.user_id = obj.instance.user_id
+            obj.user_qiao_id = obj.instance.user_qiao_id
+        if not getattr(obj, "instance_id", None):
+            errors["instance"] = "Instance is required"
+        if not getattr(obj, "user_id", None):
+            errors["instance"] = "Owning user missing on selected instance"
+        if not getattr(obj, "instance_qiao_id", None):
+            errors["instance_qiao_id"] = "Instance qiao_id is required"
+        if not getattr(obj, "user_qiao_id", None):
+            errors["user_id"] = "User qiao_id is required"
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(
+        self,
+        _request: Request,
+        _data: FormData,
+        obj: AIInstanceMemory,
+    ) -> None:
+        """Disallow editing ownership; keep derived fields synced."""
+
+        if hasattr(obj, "instance") and obj.instance is not None:
+            obj.instance_id = obj.instance.id
+            obj.instance_qiao_id = getattr(obj.instance, "qiao_id", obj.instance_qiao_id)
+            obj.user_id = obj.instance.user_id
+            obj.user_qiao_id = obj.instance.user_qiao_id
+
+
 # Create view instances
 ai_instance_view = AIInstanceView(
     AIInstance, name="AI Instances", label="Instances", icon="fa fa-robot", identity="ai_instance"
@@ -718,8 +842,16 @@ ai_instance_dimension_view = AIInstanceDimensionView(
     identity="ai_instance_dimension",
 )
 
+ai_instance_memory_view = AIInstanceMemoryView(
+    AIInstanceMemory,
+    name="Instance Memories",
+    icon="fa fa-book",
+    identity="ai_instance_memory",
+)
+
 # Export instance views
 AI_INSTANCE_VIEWS = [
     ai_instance_view,
     ai_instance_dimension_view,
+    ai_instance_memory_view,
 ]

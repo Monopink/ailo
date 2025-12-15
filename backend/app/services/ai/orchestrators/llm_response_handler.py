@@ -6,14 +6,14 @@ asynchronous message sending tasks.
 """
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.type_aliases import JSONDict, JSONValue
 from app.models.ai import AIInstance
-from app.services.ai.conversation_memory import process_memory_operations
+from app.services.ai.memory import process_memory_operations
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
 from app.services.ai.queries.relationship_queries import get_instance_relationship_scores
 from app.services.ai.queries.transactions import save_ai_request_log
@@ -71,8 +71,16 @@ async def process_llm_response(
                     )
 
         memory_ops_payload = _normalize_memory_operations(ai_response.get("memory_operations"))
-        if memory_ops_payload:
-            await process_memory_operations(db, instance_qiao_id, memory_ops_payload)
+        has_memory_ops = any(
+            memory_ops_payload[key] for key in ("remove", "update", "refresh", "add")
+        )
+        if ai_response.get("should_update_memory") and has_memory_ops:
+            await process_memory_operations(
+                db,
+                instance_context,
+                memory_ops_payload,
+                source_message_id=user_message_item_id,
+            )
 
         if ai_response.get("attack_detected") and user_message_item_id:
             await mark_conversation_item_as_excluded(db, user_message_item_id)
@@ -181,15 +189,62 @@ async def _resolve_followup_delay_seconds(db: AsyncSession, instance_qiao_id: st
     return followup_delay_ms / 1000.0
 
 
-def _normalize_memory_operations(value: Any) -> list[JSONDict]:
-    """Ensure ai_response memory operations are structured as JSON dictionaries."""
-    if not isinstance(value, list):
-        return []
-    operations: list[JSONDict] = []
-    for entry in value:
-        if isinstance(entry, dict):
-            operations.append(entry)
-    return operations
+def _normalize_memory_operations(value: Any) -> JSONDict:
+    """Normalize LLM-provided memory operations into canonical structure."""
+    normalized: JSONDict = {"remove": [], "update": [], "refresh": [], "add": []}
+    if not isinstance(value, dict):
+        return normalized
+
+    remove_items = value.get("remove")
+    if isinstance(remove_items, list):
+        normalized["remove"] = [item for item in remove_items if isinstance(item, str) and item]
+
+    update_items = value.get("update")
+    if isinstance(update_items, list):
+        updates: list[JSONDict] = []
+        for item in update_items:
+            if not isinstance(item, dict):
+                continue
+            old_content = item.get("old_content")
+            new_content = item.get("new_content")
+            if not isinstance(old_content, str) or not isinstance(new_content, str):
+                continue
+            entry: JSONDict = {"old_content": old_content, "new_content": new_content}
+            new_importance = item.get("new_importance")
+            if isinstance(new_importance, int | float):
+                entry["new_importance"] = int(new_importance)
+            updates.append(entry)
+        normalized["update"] = cast(list[JSONValue], updates)
+
+    refresh_items = value.get("refresh")
+    if isinstance(refresh_items, list):
+        normalized["refresh"] = [item for item in refresh_items if isinstance(item, str) and item]
+
+    add_items = value.get("add")
+    if isinstance(add_items, list):
+        additions: list[JSONDict] = []
+        for item in add_items:
+            if not isinstance(item, dict):
+                continue
+            memory_type = item.get("memory_type")
+            content = item.get("content")
+            importance = item.get("importance")
+            if memory_type not in {"core", "recent"}:
+                continue
+            if not isinstance(content, str) or not content:
+                continue
+            if not isinstance(importance, int | float):
+                continue
+            additions.append(
+                {
+                    "memory_type": memory_type,
+                    "content": content,
+                    "importance": int(importance),
+                }
+            )
+        normalized["add"] = cast(list[JSONValue], additions)
+
+    return normalized
 
 
 def _coerce_delay_value(value: JSONValue | None) -> float | None:

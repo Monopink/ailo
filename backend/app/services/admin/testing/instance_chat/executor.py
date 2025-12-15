@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.type_aliases import JSONDict
 from app.enums import MessageType
 from app.models.ai.instance import AIInstance
 from app.models.ai.log import AIRequestLog
@@ -32,7 +33,7 @@ logger = get_logger(__name__)
 class ExecutorError(Exception):
     """Exception raised when test execution fails"""
 
-    def __init__(self, message: str, error_code: str = "EXECUTOR_ERROR"):
+    def __init__(self, message: str, error_code: str = "EXECUTOR_ERROR") -> None:
         self.message = message
         self.error_code = error_code
         super().__init__(message)
@@ -75,32 +76,29 @@ class ExecutorService:
             ExecutorError: If test execution fails
         """
         log_id = None
+        log_entry: AIRequestLog | None = None
+
+        if persist and not contact_conv_id:
+            raise ExecutorError(
+                "Contact conversation_id is required when persist=True",
+                error_code="CONTACT_REQUIRED",
+            )
 
         try:
-            # Query instance and user IDs
-            instance_result = await db.execute(
-                select(AIInstance.id, AIInstance.style_id, AIInstance.personality_id).where(
-                    AIInstance.qiao_id == instance_qiao_id
-                )
+            instance, user_id = await self._load_instance_and_user(
+                db=db,
+                instance_qiao_id=instance_qiao_id,
+                user_qiao_id=user_qiao_id,
             )
-            instance = instance_result.one()
 
-            user_result = await db.execute(select(User.id).where(User.qiao_id == user_qiao_id))
-            user_id = user_result.scalar_one()
-
-            # Create test request log
-            log_entry = AIRequestLog(
-                instance_id=instance.id,
+            log_entry = await self._create_test_request_log(
+                db=db,
+                instance=instance,
                 user_id=user_id,
                 user_qiao_id=user_qiao_id,
-                style_id=instance.style_id,
-                personality_id=instance.personality_id,
-                request_type="test",
-                request={"message": test_message, "config_name": llm_config_name},
-                status=1,  # pending
+                test_message=test_message,
+                llm_config_name=llm_config_name,
             )
-            db.add(log_entry)
-            await db.flush()  # Get the ID
             log_id = log_entry.id
 
             logger.info(
@@ -113,11 +111,6 @@ class ExecutorService:
             locked_buffer_id: int | None = None
             user_message_item_id: int | None = None
             if persist:
-                if not contact_conv_id:
-                    raise ExecutorError(
-                        "Contact conversation_id is required when persist=True",
-                        error_code="CONTACT_REQUIRED",
-                    )
                 locked_buffer_id, user_message_item_id = await self._seed_test_user_context(
                     db=db,
                     user_qiao_id=user_qiao_id,
@@ -126,7 +119,7 @@ class ExecutorService:
                     test_message=test_message,
                 )
 
-            # Execute main conversation logic - 100% reuse，传入 locked_buffer_id 以复用完整业务路径
+            # Execute main conversation logic with locked_buffer_id to reuse full flow
             start_time = time.time()
 
             conversation_result = await process_conversation(
@@ -145,95 +138,33 @@ class ExecutorService:
             end_time = time.time()
             response_time_ms = int((end_time - start_time) * 1000)
 
-            # Update test request log with complete request payload
             request_payload = conversation_result.get("request_payload")
-            if request_payload:
-                # Store complete API request payload for debugging
-                log_entry.request = request_payload
-            else:
-                # Fallback to basic info if payload not available
-                log_entry.request = {
-                    "message": test_message,
-                    "config_name": llm_config_name,
-                    "error": "request_payload not available",
-                }
-
             history_messages, current_user_message = _extract_history_messages(
                 request_payload,
                 fallback_message=test_message,
             )
 
-            # Store response without request_payload to avoid data duplication
-            log_entry.response = {
-                "success": conversation_result.get("success"),
-                "buffer_id": conversation_result.get("buffer_id"),
-                "assistant_item_id": conversation_result.get("assistant_item_id"),
-                "response": conversation_result.get("response"),
-                "usage": conversation_result.get("usage"),
-                "model": conversation_result.get("model"),
-                "config_used": conversation_result.get("config_used"),
-            }
-            log_entry.status = 1  # success
-            log_entry.response_time = response_time_ms
-            log_entry.token_count = conversation_result.get("usage", {}).get("total_tokens", 0)
-            log_entry.provider_name = conversation_result.get("config_used", {}).get(
-                "provider_name"
+            self._update_log_entry(
+                log_entry=log_entry,
+                conversation_result=conversation_result,
+                test_message=test_message,
+                llm_config_name=llm_config_name,
+                response_time_ms=response_time_ms,
+                request_payload=request_payload,
             )
-            log_entry.model_name = conversation_result.get("config_used", {}).get("model")
-            log_entry.completed_at = datetime.now(UTC)
             await db.commit()
 
-            # Extract AI response from conversation result
-            ai_response = conversation_result.get("response", {})
-
-            # Test mode: Merge all messages with newlines between them
-            outgoing = ai_response.get("outgoing_messages", [])
-            followup = ai_response.get("followup_messages", [])
-            all_messages = outgoing + followup
-
-            # Format test result
-            result = {
-                "success": True,
-                "test_mode": "immediate",
-                "buffer_id": conversation_result.get("buffer_id"),
-                "assistant_item_id": conversation_result.get("assistant_item_id"),
-                "conversation": {
-                    "all_messages": all_messages,
-                    "outgoing_messages": ai_response.get("outgoing_messages", []),
-                    "followup_messages": ai_response.get("followup_messages", []),
-                    "should_reply": ai_response.get("should_reply", False),
-                    "attack_detected": ai_response.get("attack_detected", False),
-                    "internal_thoughts": ai_response.get("internal_thoughts", ""),
-                    "score_updates": ai_response.get("score", {}),
-                    "memory_operations": ai_response.get("memory_operations", []),
-                },
-                "performance": {
-                    "response_time_ms": response_time_ms,
-                    "llm_tokens": conversation_result.get("usage", {}).get("total_tokens", 0),
-                },
-                "request_payload": conversation_result.get("request_payload"),
-                "history_messages": history_messages,
-                "current_user_message": current_user_message,
-                "response_body": ai_response,
-                "log_id": log_id,
-            }
+            result, all_messages = self._build_test_result(
+                conversation_result=conversation_result,
+                response_time_ms=response_time_ms,
+                history_messages=history_messages,
+                current_user_message=current_user_message,
+                log_id=log_id,
+            )
 
             # Finalize user context window to COMPLETE when persist enabled
             if persist and locked_buffer_id:
-                try:
-                    updated = await finalize_buffer_if_locked(db, locked_buffer_id)
-                    await db.commit()
-                    logger.debug(
-                        "test_user_context_finalize",
-                        buffer_id=locked_buffer_id,
-                        updated=updated,
-                    )
-                except Exception as e:
-                    logger.error(
-                        "test_user_context_finalize_failed",
-                        error=str(e),
-                        buffer_id=locked_buffer_id,
-                    )
+                await self._finalize_persisted_context(db, locked_buffer_id)
 
             logger.info(
                 "ai_instance_test_completed",
@@ -241,8 +172,6 @@ class ExecutorService:
                 response_time_ms=response_time_ms,
                 messages_count=len(all_messages),
             )
-
-            return result
 
         except Exception as e:
             # Handle errors and update request log
@@ -252,8 +181,12 @@ class ExecutorService:
                     log_entry.status = 2  # failed
                     log_entry.completed_at = datetime.now(UTC)
                     await db.commit()
-                except Exception:
-                    pass  # Don't fail on logging error
+                except Exception as log_exc:
+                    logger.warning(
+                        "ai_instance_test_log_update_failed",
+                        error=str(log_exc),
+                        log_id=log_id,
+                    )
 
             logger.error(
                 "ai_instance_test_failed",
@@ -262,7 +195,156 @@ class ExecutorService:
                 exc_info=True,
             )
 
-            raise ExecutorError(f"Test execution failed: {e!s}", error_code="EXECUTION_FAILED")
+            raise ExecutorError(
+                f"Test execution failed: {e!s}", error_code="EXECUTION_FAILED"
+            ) from e
+        else:
+            return result
+
+    async def _load_instance_and_user(
+        self,
+        *,
+        db: AsyncSession,
+        instance_qiao_id: str,
+        user_qiao_id: str,
+    ) -> tuple[Any, int]:
+        """Fetch instance row (id/style/personality) and target user id."""
+
+        instance_result = await db.execute(
+            select(AIInstance.id, AIInstance.style_id, AIInstance.personality_id).where(
+                AIInstance.qiao_id == instance_qiao_id
+            )
+        )
+        instance = instance_result.one()
+
+        user_result = await db.execute(select(User.id).where(User.qiao_id == user_qiao_id))
+        user_id = user_result.scalar_one()
+        return instance, user_id
+
+    async def _create_test_request_log(
+        self,
+        *,
+        db: AsyncSession,
+        instance: Any,
+        user_id: int,
+        user_qiao_id: str,
+        test_message: str,
+        llm_config_name: str,
+    ) -> AIRequestLog:
+        """Persist a pending AIRequestLog row for the test run."""
+
+        log_entry = AIRequestLog(
+            instance_id=instance.id,
+            user_id=user_id,
+            user_qiao_id=user_qiao_id,
+            style_id=instance.style_id,
+            personality_id=instance.personality_id,
+            request_type="test",
+            request={"message": test_message, "config_name": llm_config_name},
+            status=1,  # pending
+        )
+        db.add(log_entry)
+        await db.flush()
+        return log_entry
+
+    def _update_log_entry(
+        self,
+        *,
+        log_entry: AIRequestLog,
+        conversation_result: JSONDict,
+        test_message: str,
+        llm_config_name: str,
+        response_time_ms: int,
+        request_payload: JSONDict | None,
+    ) -> None:
+        """Fill in request/response metadata for the AIRequestLog."""
+
+        if request_payload:
+            log_entry.request = request_payload
+        else:
+            log_entry.request = {
+                "message": test_message,
+                "config_name": llm_config_name,
+                "error": "request_payload not available",
+            }
+
+        log_entry.response = {
+            "success": conversation_result.get("success"),
+            "buffer_id": conversation_result.get("buffer_id"),
+            "assistant_item_id": conversation_result.get("assistant_item_id"),
+            "response": conversation_result.get("response"),
+            "usage": conversation_result.get("usage"),
+            "model": conversation_result.get("model"),
+            "config_used": conversation_result.get("config_used"),
+        }
+        log_entry.status = 1  # success
+        log_entry.response_time = response_time_ms
+        log_entry.token_count = conversation_result.get("usage", {}).get("total_tokens", 0)
+        log_entry.provider_name = conversation_result.get("config_used", {}).get("provider_name")
+        log_entry.model_name = conversation_result.get("config_used", {}).get("model")
+        log_entry.completed_at = datetime.now(UTC)
+
+    def _build_test_result(
+        self,
+        *,
+        conversation_result: JSONDict,
+        response_time_ms: int,
+        history_messages: list[dict[str, str]],
+        current_user_message: str,
+        log_id: int | None,
+    ) -> tuple[JSONDict, list[Any]]:
+        """Summarize conversation result for admin response."""
+
+        ai_response = conversation_result.get("response", {})
+        outgoing = ai_response.get("outgoing_messages", [])
+        followup = ai_response.get("followup_messages", [])
+        all_messages = [*outgoing, *followup]
+        result: JSONDict = {
+            "success": True,
+            "test_mode": "immediate",
+            "buffer_id": conversation_result.get("buffer_id"),
+            "assistant_item_id": conversation_result.get("assistant_item_id"),
+            "conversation": {
+                "all_messages": all_messages,
+                "outgoing_messages": outgoing,
+                "followup_messages": followup,
+                "should_reply": ai_response.get("should_reply", False),
+                "attack_detected": ai_response.get("attack_detected", False),
+                "internal_thoughts": ai_response.get("internal_thoughts", ""),
+                "score_updates": ai_response.get("score", {}),
+                "memory_operations": _normalize_memory_operations(
+                    ai_response.get("memory_operations")
+                ),
+            },
+            "performance": {
+                "response_time_ms": response_time_ms,
+                "llm_tokens": conversation_result.get("usage", {}).get("total_tokens", 0),
+            },
+            "request_payload": conversation_result.get("request_payload"),
+            "history_messages": history_messages,
+            "current_user_message": current_user_message,
+            "response_body": ai_response,
+            "log_id": log_id,
+        }
+        return result, all_messages
+
+    async def _finalize_persisted_context(self, db: AsyncSession, locked_buffer_id: int) -> None:
+        """Finalize persisted buffer and keep errors isolated."""
+
+        try:
+            updated = await finalize_buffer_if_locked(db, locked_buffer_id)
+            await db.commit()
+            logger.debug(
+                "test_user_context_finalize",
+                buffer_id=locked_buffer_id,
+                updated=updated,
+            )
+        except Exception as exc:
+            logger.error(
+                "test_user_context_finalize_failed",
+                error=str(exc),
+                buffer_id=locked_buffer_id,
+            )
 
     async def _seed_test_user_context(
         self,
@@ -383,3 +465,60 @@ def _flatten_message_content(content: Any) -> str:
         return ""
 
     return str(content)
+
+
+def _normalize_memory_operations(value: Any) -> JSONDict:
+    normalized: JSONDict = {"remove": [], "update": [], "refresh": [], "add": []}
+    if not isinstance(value, dict):
+        return normalized
+
+    remove_items = value.get("remove")
+    if isinstance(remove_items, list):
+        normalized["remove"] = [item for item in remove_items if isinstance(item, str) and item]
+
+    update_items = value.get("update")
+    if isinstance(update_items, list):
+        updates: list[JSONDict] = []
+        for item in update_items:
+            if not isinstance(item, dict):
+                continue
+            old_content = item.get("old_content")
+            new_content = item.get("new_content")
+            if not isinstance(old_content, str) or not isinstance(new_content, str):
+                continue
+            entry: JSONDict = {"old_content": old_content, "new_content": new_content}
+            new_importance = item.get("new_importance")
+            if isinstance(new_importance, int | float):
+                entry["new_importance"] = int(new_importance)
+            updates.append(entry)
+        normalized["update"] = updates
+
+    refresh_items = value.get("refresh")
+    if isinstance(refresh_items, list):
+        normalized["refresh"] = [item for item in refresh_items if isinstance(item, str) and item]
+
+    add_items = value.get("add")
+    if isinstance(add_items, list):
+        additions: list[JSONDict] = []
+        for item in add_items:
+            if not isinstance(item, dict):
+                continue
+            memory_type = item.get("memory_type")
+            content = item.get("content")
+            importance = item.get("importance")
+            if memory_type not in {"core", "recent"}:
+                continue
+            if not isinstance(content, str) or not content:
+                continue
+            if not isinstance(importance, int | float):
+                continue
+            additions.append(
+                {
+                    "memory_type": memory_type,
+                    "content": content,
+                    "importance": int(importance),
+                }
+            )
+        normalized["add"] = additions
+
+    return normalized

@@ -80,7 +80,6 @@ class InstanceContext(TypedDict):
     llm_config_id: int | None
 
     # Prompt + runtime configuration
-    memory: str | None
     prompt_variables: JSONDict
     request_params: JSONDict
     typing_speed_wpm: int

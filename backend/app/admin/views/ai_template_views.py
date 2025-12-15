@@ -19,6 +19,7 @@ from starlette_admin.fields import RelationField
 from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.enums import AIPersonaStatus, AITemplateStatus, Gender, ProfileOwnerType, ReusableStatus
+from app.models.ai.memory import AITemplateMemory
 from app.models.ai.template import AIPersona, AITemplate
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
@@ -180,11 +181,6 @@ class AITemplateView(ModelView):
             help_text=(
                 "LLM request parameters (temperature, max_tokens, etc.) - inherited by AI instances"
             ),
-        ),
-        TextAreaField(
-            "memory",
-            label="Memory Settings",
-            help_text="Default memory settings for AI instances using this template",
         ),
         "prompt_variables",
         StringField(
@@ -421,27 +417,103 @@ class AIPersonaView(ModelView):
 
     async def before_create(self, _request: Request, _data: FormData, obj: AIPersona) -> None:
         """Ensure ai_type is set before creating a persona."""
-        if hasattr(obj, "ai_type") and obj.ai_type is not None:
-            obj.type_id = obj.ai_type.id
-
+        self._sync_ai_type(obj)
         errors = {}
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
-
         if errors:
             raise FormValidationError(errors)
 
     async def before_edit(self, _request: Request, _data: FormData, obj: AIPersona) -> None:
-        """Ensure ai_type stays synchronized during edits."""
-        if hasattr(obj, "ai_type") and obj.ai_type is not None:
-            obj.type_id = obj.ai_type.id
-
+        """Keep ai_type synchronized when editing."""
+        self._sync_ai_type(obj)
         errors = {}
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
-
         if errors:
             raise FormValidationError(errors)
+
+
+class AITemplateMemoryView(ModelView):
+    """Admin view for managing template seed memories."""
+
+    label = "Template Memories"
+    name = "Template Memories"
+
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("display_order", True)]
+    searchable_fields: ClassVar[list[str]] = ["content"]
+    sortable_fields: ClassVar[list[str]] = ["template_id", "display_order", "importance"]
+
+    fields: ClassVar[list[object]] = [
+        StringField("id", label="ID"),
+        HasOne(
+            "template",
+            identity="ai_template",
+            label="Template",
+            help_text="Target template that will receive this memory",
+            required=True,
+        ),
+        IntegerField(
+            "template_id",
+            label="Template ID",
+            help_text="Populated automatically from the selected template",
+            required=True,
+        ),
+        StringField(
+            "memory_type",
+            label="Memory Type",
+            help_text="core 或 recent",
+            required=True,
+        ),
+        IntegerField(
+            "importance",
+            label="Importance",
+            help_text="1-10，控制寿命",
+            required=True,
+        ),
+        IntegerField(
+            "display_order",
+            label="Display Order",
+            help_text="复制顺序，越小越靠前",
+            required=True,
+        ),
+        TextAreaField(
+            "content",
+            label="Content",
+            help_text="记忆内容（建议一句话）",
+            required=True,
+        ),
+        LocalDateTimeField("created_at", label="Created At"),
+        LocalDateTimeField("updated_at", label="Updated At"),
+    ]
+
+    async def before_create(
+        self, _request: Request, _data: FormData, obj: AITemplateMemory
+    ) -> None:
+        """Ensure template_id is synced from relationship."""
+
+        if hasattr(obj, "template") and obj.template is not None:
+            obj.template_id = obj.template.id
+
+        errors = {}
+        if not getattr(obj, "template_id", None):
+            errors["template"] = "Template is required"
+        if errors:
+            raise FormValidationError(errors)
+
+    async def before_edit(
+        self,
+        _request: Request,
+        _data: FormData,
+        obj: AITemplateMemory,
+    ) -> None:
+        """Ensure template relationship stays synchronized."""
+
+        if hasattr(obj, "template") and obj.template is not None:
+            obj.template_id = obj.template.id
 
 
 # Create view instances
@@ -451,6 +523,14 @@ ai_template_view = AITemplateView(
     label="Templates",
     icon="fa fa-file-text",
     identity="ai_template",
+)
+
+ai_template_memory_view = AITemplateMemoryView(
+    AITemplateMemory,
+    name="Template Memories",
+    label="Template Memories",
+    icon="fa fa-bookmark",
+    identity="ai_template_memory",
 )
 
 ai_persona_view = AIPersonaView(
@@ -464,5 +544,6 @@ ai_persona_view = AIPersonaView(
 # Export template views
 AI_TEMPLATE_VIEWS = [
     ai_template_view,
+    ai_template_memory_view,
     ai_persona_view,
 ]

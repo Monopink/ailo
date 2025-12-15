@@ -11,6 +11,7 @@ from app.enums import AIInstanceCreator
 from app.models.ai import AIInstance
 from app.models.ai.template import AIPersona, AITemplate
 from app.schemas.ai import AIInstanceCreate
+from app.services.ai.memory import copy_template_memories_to_instance
 from app.services.ai.relationship_scoring import initialize_relationship_scores
 from app.utils.logging import get_logger
 
@@ -56,7 +57,6 @@ async def create_instance_from_persona(
         "template_type_name": _type_display_name(template),
         "template_style_id": template.style_id,
         "template_personality_id": template.personality_id,
-        "template_memory": template.memory,
         "template_prompt_variables": template.prompt_variables,
         "template_request_params": template.request_params,
         "template_timezone": getattr(template, "timezone", "Asia/Shanghai"),
@@ -73,7 +73,6 @@ async def create_instance_from_persona(
         creation_metadata=creation_metadata,
         style_id=template.style_id,
         personality_id=template.personality_id,
-        memory=template.memory,
         placeholder_overrides=template.prompt_variables,
         request_params=template.request_params,
         llm_config_id=template.llm_config_id,
@@ -103,6 +102,8 @@ async def create_instance_from_persona(
         template.style_id,
         template.position_mapping_config,
     )
+
+    await copy_template_memories_to_instance(db, template_id=template.id, instance=instance)
 
     await _mark_inventory_consumed(db, persona, template)
 

@@ -4,7 +4,7 @@ AI Personality admin views.
 This module contains Starlette-Admin views for AI personality system.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from starlette.requests import Request
 from starlette_admin import HasOne, StringField, TextAreaField
@@ -21,11 +21,11 @@ from app.models.ai.personality import AIPersonality, AIPersonalityPlaceholder
 class AIPersonalityView(ModelView):
     """Enhanced AI Personality view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
-    exclude_fields_from_list = []
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
-    row_actions = ["view", "edit", "advanced_edit"]
+    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit"]
 
     def is_active(self, request: Request) -> bool:
         """Check if current page is related to this model (including advanced-edit)."""
@@ -37,23 +37,29 @@ class AIPersonalityView(ModelView):
         path = request.scope["path"]
         return f"/{self.identity}/advanced-edit/" in path
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["display_name", "prompt"]
-    sortable_fields = ["id", "display_name", "status", "created_at", "updated_at"]
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["display_name", "prompt"]
+    sortable_fields: ClassVar[list[str]] = [
+        "id",
+        "display_name",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
 
     @link_row_action(
         name="advanced_edit",
         text="Advanced Edit",
         icon_class="fas fa-cogs",
     )
-    def advanced_edit_row_action(self, request: Request, pk: Any) -> str:
+    def advanced_edit_row_action(self, _request: Request, pk: Any) -> str:
         """Link to edit personality JSON schema and placeholders."""
         return f"/qiao-dash/ai_personality/advanced-edit/{pk}"
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal personality ID"),
         StringField(
             "display_name",
@@ -85,16 +91,19 @@ class AIPersonalityView(ModelView):
 class AIPersonalityPlaceholderView(ModelView):
     """Enhanced AI Personality Placeholder view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
-    exclude_fields_from_list = []
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("personality_id", False), ("placeholder_key", False)]
-    searchable_fields = ["placeholder_key", "display_name"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [
+        ("personality_id", False),
+        ("placeholder_key", False),
+    ]
+    searchable_fields: ClassVar[list[str]] = ["placeholder_key", "display_name"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "personality_id",
         "placeholder_key",
@@ -104,7 +113,7 @@ class AIPersonalityPlaceholderView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal placeholder ID"),
         HasOne(
             "personality",

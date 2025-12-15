@@ -128,8 +128,8 @@ pre {
           <h4 class="fw-bold mb-2 mt-3">Prompt Variables</h4>
           <pre class="border rounded p-2 text-body" id="aiPromptVars"></pre>
 
-          <h4 class="fw-bold mb-2">Memory</h4>
-          <pre class="border rounded p-2 text-body" id="aiMemory"></pre>
+          <h4 class="fw-bold mb-2">Memory Prompt</h4>
+          <pre class="border rounded p-2 text-body" id="aiMemoryPrompt"></pre>
         </div>
       </div>
 
@@ -726,7 +726,7 @@ pre {
         document.getElementById('aiStyleName').textContent = valueOrDash(data.style && data.style.display_name);
         document.getElementById('aiPersonalityName').textContent = valueOrDash(data.personality && data.personality.display_name);
         var settings = data.instance_settings || {};
-        document.getElementById('aiMemory').textContent = valueOrDash(settings.memory);
+        document.getElementById('aiMemoryPrompt').textContent = valueOrDash(settings.memory_prompt);
         try {
           var pv = settings.prompt_variables;
           var pvText = (typeof pv === 'string') ? pv : JSON.stringify(pv, null, 2);

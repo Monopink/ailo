@@ -8,6 +8,7 @@ coordinating all AI service components with clear error handling.
 import json
 from contextlib import suppress
 from datetime import datetime
+from typing import cast
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -21,8 +22,9 @@ from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInsta
 from app.exceptions.llm import ConfigNotVerifiedError, JSONSchemaNotSupportedError
 from app.models.ai.instance import AIInstance
 from app.models.contact import Contact
-from app.services.ai.conversation_memory import archive_old_contexts, process_memory_operations
+from app.services.ai.context_archiving import archive_old_contexts
 from app.services.ai.conversation_prompt import build_conversation_context, build_system_prompt
+from app.services.ai.memory import process_memory_operations
 from app.services.ai.orchestrators.llm_response_handler import process_llm_response
 from app.services.ai.queries import get_instance_context, get_instance_relationship_scores
 from app.services.ai.queries.updates import (
@@ -568,8 +570,16 @@ async def process_ai_response_updates(
 
         # Process memory operations
         memory_operations = _normalize_memory_operations(ai_response.get("memory_operations"))
-        if persist and ai_response.get("should_update_memory", False) and memory_operations:
-            await process_memory_operations(db, instance_qiao_id, memory_operations)
+        has_operations = any(
+            memory_operations[key] for key in ("remove", "update", "refresh", "add")
+        )
+        if persist and ai_response.get("should_update_memory", False) and has_operations:
+            await process_memory_operations(
+                db,
+                context,
+                memory_operations,
+                source_message_id=user_message_item_id,
+            )
 
         # Handle blocking
         if persist and ai_response.get("should_block", False):
@@ -715,13 +725,59 @@ def _coerce_score_value(value: JSONValue) -> int | None:
     return None
 
 
-def _normalize_memory_operations(value: JSONValue | None) -> list[JSONDict]:
-    """Ensure memory operations are represented as a list of JSON dictionaries."""
-    if not isinstance(value, list):
-        return []
+def _normalize_memory_operations(value: JSONValue | None) -> JSONDict:
+    """Normalize memory_operations payload to a predictable dict structure."""
+    normalized: JSONDict = {"remove": [], "update": [], "refresh": [], "add": []}
+    if not isinstance(value, dict):
+        return normalized
 
-    operations: list[JSONDict] = []
-    for entry in value:
-        if isinstance(entry, dict):
-            operations.append(entry)
-    return operations
+    remove_items = value.get("remove")
+    if isinstance(remove_items, list):
+        normalized["remove"] = [item for item in remove_items if isinstance(item, str) and item]
+
+    update_items = value.get("update")
+    if isinstance(update_items, list):
+        updates: list[JSONDict] = []
+        for item in update_items:
+            if not isinstance(item, dict):
+                continue
+            old_content = item.get("old_content")
+            new_content = item.get("new_content")
+            if not isinstance(old_content, str) or not isinstance(new_content, str):
+                continue
+            entry: JSONDict = {"old_content": old_content, "new_content": new_content}
+            new_importance = item.get("new_importance")
+            if isinstance(new_importance, int | float):
+                entry["new_importance"] = int(new_importance)
+            updates.append(entry)
+        normalized["update"] = cast(list[JSONValue], updates)
+
+    refresh_items = value.get("refresh")
+    if isinstance(refresh_items, list):
+        normalized["refresh"] = [item for item in refresh_items if isinstance(item, str) and item]
+
+    add_items = value.get("add")
+    if isinstance(add_items, list):
+        additions: list[JSONDict] = []
+        for item in add_items:
+            if not isinstance(item, dict):
+                continue
+            memory_type = item.get("memory_type")
+            content = item.get("content")
+            importance = item.get("importance")
+            if memory_type not in {"core", "recent"}:
+                continue
+            if not isinstance(content, str) or not content:
+                continue
+            if not isinstance(importance, int | float):
+                continue
+            additions.append(
+                {
+                    "memory_type": memory_type,
+                    "content": content,
+                    "importance": int(importance),
+                }
+            )
+        normalized["add"] = cast(list[JSONValue], additions)
+
+    return normalized

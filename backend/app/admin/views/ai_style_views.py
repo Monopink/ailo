@@ -4,7 +4,7 @@ AI Style and Relationship admin views.
 This module contains Starlette-Admin views for AI style and relationship system.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from starlette.requests import Request
 from starlette_admin import EnumField, FloatField, HasOne, IntegerField, StringField, TextAreaField
@@ -27,13 +27,13 @@ from app.models.ai.style import (
 class _DimensionDisplayNameField(StringField):
     """Computed field to display the dimension display_name."""
 
-    def __init__(self, name: str = "dimension_display_name", label: str = "Dimension Name"):
+    def __init__(self, name: str = "dimension_display_name", label: str = "Dimension Name") -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, _request: Request, obj: Any) -> str:
         try:
             if hasattr(obj, "dimension") and obj.dimension is not None:
                 return str(getattr(obj.dimension, "display_name", "") or "")
@@ -45,8 +45,8 @@ class _DimensionDisplayNameField(StringField):
 class AIStyleView(ModelView):
     """Enhanced AI Style view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
 
     def is_active(self, request: Request) -> bool:
         """Check if current page is related to this model (including advanced-edit and test)."""
@@ -58,14 +58,20 @@ class AIStyleView(ModelView):
         path = request.scope["path"]
         return f"/{self.identity}/advanced-edit/" in path or f"/{self.identity}/test/" in path
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["display_name"]
-    sortable_fields = ["id", "display_name", "status", "created_at", "updated_at"]
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["display_name"]
+    sortable_fields: ClassVar[list[str]] = [
+        "id",
+        "display_name",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal style ID"),
         StringField(
             "display_name",
@@ -84,14 +90,14 @@ class AIStyleView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions = ["view", "edit", "advanced_edit", "score_algorithm_test"]
+    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit", "score_algorithm_test"]
 
     @link_row_action(
         name="advanced_edit",
         text="Advanced Edit",
         icon_class="fas fa-cogs",
     )
-    def advanced_edit_row_action(self, request: Request, pk: Any) -> str:
+    def advanced_edit_row_action(self, _request: Request, pk: Any) -> str:
         """Link to style advanced edit (dimensions and mappings)."""
         return f"/qiao-dash/ai_style/advanced-edit/{pk}"
 
@@ -100,10 +106,16 @@ class AIStyleView(ModelView):
         text="Score Algorithm Test",
         icon_class="fas fa-flask",
     )
-    def score_algorithm_test_row_action(self, request: Request, pk: Any) -> str:
+    def score_algorithm_test_row_action(self, _request: Request, pk: Any) -> str:
         """Link to AI style score algorithm test page."""
         return f"/qiao-dash/ai_style/test/{pk}"
 
+
+MIN_WAKE_TIME_MS = 500
+MIN_POSITION = 0
+MAX_POSITION = 1000
+MIN_NO_REPLY_PROB = 0.0
+MAX_NO_REPLY_PROB = 1.0
 
 WAKE_BIAS_CHOICES = [
     ("balanced", "Balanced"),
@@ -120,117 +132,91 @@ WAKE_ADJUSTMENT_CHOICES = [
 ]
 
 
+def _validate_relationship_payload(obj: Any) -> dict[str, str]:
+    """Collect validation errors for relationship timing fields."""
+
+    errors: dict[str, str] = {}
+    wake_time_min = getattr(obj, "wake_time_min_ms", None)
+    if wake_time_min is not None and wake_time_min < MIN_WAKE_TIME_MS:
+        errors["wake_time_min_ms"] = f"Minimum wake time must be at least {MIN_WAKE_TIME_MS}ms"
+
+    wake_time_max = getattr(obj, "wake_time_max_ms", None)
+    if wake_time_min is not None and wake_time_max is not None and wake_time_max < wake_time_min:
+        errors["wake_time_max_ms"] = (
+            "Maximum wake time must be greater than or equal to minimum wake time"
+        )
+
+    wake_time_bias = getattr(obj, "wake_time_bias", None)
+    if wake_time_bias is not None and not str(wake_time_bias).strip():
+        errors["wake_time_bias"] = "Wake time bias cannot be empty"
+
+    wake_window = getattr(obj, "wake_window_ms", None)
+    if wake_window is not None and wake_window < MIN_POSITION:
+        errors["wake_window_ms"] = "Wake window must be non-negative"
+
+    wake_time_adjustment = getattr(obj, "wake_time_adjustment", None)
+    if wake_time_adjustment is not None and not str(wake_time_adjustment).strip():
+        errors["wake_time_adjustment"] = "Wake time adjustment cannot be empty"
+
+    no_reply_probability = getattr(obj, "no_reply_probability", None)
+    if no_reply_probability is not None and not (
+        MIN_NO_REPLY_PROB <= no_reply_probability <= MAX_NO_REPLY_PROB
+    ):
+        errors["no_reply_probability"] = "No reply probability must be between 0.0 and 1.0"
+
+    followup_delay = getattr(obj, "followup_delay_ms", None)
+    if followup_delay is not None and followup_delay < MIN_POSITION:
+        errors["followup_delay_ms"] = "Followup delay must be non-negative"
+
+    return errors
+
+
+def _validate_position_value(value: Any, field_name: str, errors: dict[str, str]) -> None:
+    """Ensure a position stays inside the valid range."""
+
+    if value is None:
+        return
+    if not (MIN_POSITION <= value <= MAX_POSITION):
+        errors[field_name] = (
+            f"{field_name.replace('_', ' ').title()} must be between "
+            f"{MIN_POSITION} and {MAX_POSITION} (permille)"
+        )
+
+
+def _validate_position_order(start_value: Any, end_value: Any, errors: dict[str, str]) -> None:
+    """Ensure start position is less than end position."""
+
+    if start_value is None or end_value is None:
+        return
+    if start_value >= end_value:
+        errors["end_position"] = "End position must be greater than start position"
+
+
 class AIRelationshipView(ModelView):
     """Enhanced AI Relationship view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
-    exclude_fields_from_list = []
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Validate constraints before creating relationship."""
-        errors = {}
-
-        # Validate wake_time_min_ms >= 500
-        if hasattr(obj, "wake_time_min_ms") and obj.wake_time_min_ms is not None:
-            if obj.wake_time_min_ms < 500:
-                errors["wake_time_min_ms"] = "Minimum wake time must be at least 500ms"
-
-        # Validate wake_time_max_ms >= wake_time_min_ms
-        if (
-            hasattr(obj, "wake_time_min_ms")
-            and obj.wake_time_min_ms is not None
-            and hasattr(obj, "wake_time_max_ms")
-            and obj.wake_time_max_ms is not None
-        ):
-            if obj.wake_time_max_ms < obj.wake_time_min_ms:
-                errors["wake_time_max_ms"] = (
-                    "Maximum wake time must be greater than or equal to minimum wake time"
-                )
-
-        # Validate wake_time_bias not empty (handled by EnumField, but double-check)
-        if hasattr(obj, "wake_time_bias") and obj.wake_time_bias is not None:
-            if not obj.wake_time_bias or obj.wake_time_bias.strip() == "":
-                errors["wake_time_bias"] = "Wake time bias cannot be empty"
-
-        # Validate wake_window_ms >= 0
-        if hasattr(obj, "wake_window_ms") and obj.wake_window_ms is not None:
-            if obj.wake_window_ms < 0:
-                errors["wake_window_ms"] = "Wake window must be non-negative"
-
-        # Validate wake_time_adjustment not empty (handled by EnumField, but double-check)
-        if hasattr(obj, "wake_time_adjustment") and obj.wake_time_adjustment is not None:
-            if not obj.wake_time_adjustment or obj.wake_time_adjustment.strip() == "":
-                errors["wake_time_adjustment"] = "Wake time adjustment cannot be empty"
-
-        # Validate no_reply_probability range (0.0-1.0)
-        if hasattr(obj, "no_reply_probability") and obj.no_reply_probability is not None:
-            if obj.no_reply_probability < 0 or obj.no_reply_probability > 1:
-                errors["no_reply_probability"] = "No reply probability must be between 0.0 and 1.0"
-
-        # Validate followup_delay_ms >= 0
-        if hasattr(obj, "followup_delay_ms") and obj.followup_delay_ms is not None:
-            if obj.followup_delay_ms < 0:
-                errors["followup_delay_ms"] = "Followup delay must be non-negative"
-
+        errors = _validate_relationship_payload(obj)
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Validate constraints before editing relationship."""
-        errors = {}
-
-        # Validate wake_time_min_ms >= 500
-        if hasattr(obj, "wake_time_min_ms") and obj.wake_time_min_ms is not None:
-            if obj.wake_time_min_ms < 500:
-                errors["wake_time_min_ms"] = "Minimum wake time must be at least 500ms"
-
-        # Validate wake_time_max_ms >= wake_time_min_ms
-        if (
-            hasattr(obj, "wake_time_min_ms")
-            and obj.wake_time_min_ms is not None
-            and hasattr(obj, "wake_time_max_ms")
-            and obj.wake_time_max_ms is not None
-        ):
-            if obj.wake_time_max_ms < obj.wake_time_min_ms:
-                errors["wake_time_max_ms"] = (
-                    "Maximum wake time must be greater than or equal to minimum wake time"
-                )
-
-        # Validate wake_time_bias not empty (handled by EnumField, but double-check)
-        if hasattr(obj, "wake_time_bias") and obj.wake_time_bias is not None:
-            if not obj.wake_time_bias or obj.wake_time_bias.strip() == "":
-                errors["wake_time_bias"] = "Wake time bias cannot be empty"
-
-        # Validate wake_window_ms >= 0
-        if hasattr(obj, "wake_window_ms") and obj.wake_window_ms is not None:
-            if obj.wake_window_ms < 0:
-                errors["wake_window_ms"] = "Wake window must be non-negative"
-
-        # Validate wake_time_adjustment not empty (handled by EnumField, but double-check)
-        if hasattr(obj, "wake_time_adjustment") and obj.wake_time_adjustment is not None:
-            if not obj.wake_time_adjustment or obj.wake_time_adjustment.strip() == "":
-                errors["wake_time_adjustment"] = "Wake time adjustment cannot be empty"
-
-        # Validate no_reply_probability range (0.0-1.0)
-        if hasattr(obj, "no_reply_probability") and obj.no_reply_probability is not None:
-            if obj.no_reply_probability < 0 or obj.no_reply_probability > 1:
-                errors["no_reply_probability"] = "No reply probability must be between 0.0 and 1.0"
-
-        # Validate followup_delay_ms >= 0
-        if hasattr(obj, "followup_delay_ms") and obj.followup_delay_ms is not None:
-            if obj.followup_delay_ms < 0:
-                errors["followup_delay_ms"] = "Followup delay must be non-negative"
-
+        errors = _validate_relationship_payload(obj)
         if errors:
             raise FormValidationError(errors)
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["display_name", "prompt_fragment"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["display_name", "prompt_fragment"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "display_name",
         "wake_time_min_ms",
@@ -242,20 +228,7 @@ class AIRelationshipView(ModelView):
         "updated_at",
     ]
 
-    fields = ["display_name", "prompt_fragment"]
-    sortable_fields = [
-        "id",
-        "display_name",
-        "wake_time_min_ms",
-        "wake_time_max_ms",
-        "wake_window_ms",
-        "no_reply_probability",
-        "status",
-        "created_at",
-        "updated_at",
-    ]
-
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal relationship ID"),
         StringField(
             "display_name",
@@ -298,7 +271,10 @@ class AIRelationshipView(ModelView):
             "wake_time_adjustment",
             choices=WAKE_ADJUSTMENT_CHOICES,
             label="Wake Adjustment",
-            help_text="Either keep the wait or apply the random-half algorithm (50% chance to shorten)",
+            help_text=(
+                "Either keep the wait or apply the random-half algorithm "
+                "(50% chance to shorten)."
+            ),
             required=True,
         ),
         FloatField(
@@ -328,13 +304,13 @@ class AIRelationshipView(ModelView):
 class AIStyleDimensionView(ModelView):
     """Enhanced AI Style Dimension view with proper field configuration."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before creating dimension."""
         # Auto-fill style_id from HasOne relationship
         if hasattr(obj, "style") and obj.style is not None:
@@ -345,38 +321,30 @@ class AIStyleDimensionView(ModelView):
             raise FormValidationError({"style": "AI Style is required"})
 
         # Validate initial_position range (0-1000 permille)
-        errors = {}
-        if hasattr(obj, "initial_position") and obj.initial_position is not None:
-            if obj.initial_position < 0 or obj.initial_position > 1000:
-                errors["initial_position"] = (
-                    "Initial position must be between 0 and 1000 (permille)"
-                )
+        errors: dict[str, str] = {}
+        _validate_position_value(getattr(obj, "initial_position", None), "initial_position", errors)
 
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing dimension."""
         # Auto-fill style_id from HasOne relationship
         if hasattr(obj, "style") and obj.style is not None:
             obj.style_id = obj.style.id
 
         # Validate initial_position range (0-1000 permille)
-        errors = {}
-        if hasattr(obj, "initial_position") and obj.initial_position is not None:
-            if obj.initial_position < 0 or obj.initial_position > 1000:
-                errors["initial_position"] = (
-                    "Initial position must be between 0 and 1000 (permille)"
-                )
+        errors: dict[str, str] = {}
+        _validate_position_value(getattr(obj, "initial_position", None), "initial_position", errors)
 
         if errors:
             raise FormValidationError(errors)
 
-    fields_default_sort = [("style_id", False)]
-    searchable_fields = []
-    sortable_fields = ["id", "style_id", "initial_position", "created_at"]
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("style_id", False)]
+    searchable_fields: ClassVar[list[str]] = []
+    sortable_fields: ClassVar[list[str]] = ["id", "style_id", "initial_position", "created_at"]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal dimension ID"),
         HasOne(
             "style",
@@ -405,14 +373,14 @@ class AIStyleDimensionView(ModelView):
 class AIDimensionView(ModelView):
     """AI Dimension view."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
 
-    fields_default_sort = [("name", False)]
-    searchable_fields = ["name", "display_name"]
-    sortable_fields = ["id", "name", "display_name", "created_at"]
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("name", False)]
+    searchable_fields: ClassVar[list[str]] = ["name", "display_name"]
+    sortable_fields: ClassVar[list[str]] = ["id", "name", "display_name", "created_at"]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal dimension ID"),
         StringField("name", label="Name", help_text="Unique dimension name", required=True),
         StringField("display_name", label="Display Name", help_text="Shown in UI"),
@@ -423,13 +391,18 @@ class AIDimensionView(ModelView):
 class AIDimensionRelationshipMappingView(ModelView):
     """AI Dimension Relationship Mapping view with position axis visualization."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "dimension_display_name", "created_at", "updated_at"]
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = [
+        "id",
+        "dimension_display_name",
+        "created_at",
+        "updated_at",
+    ]
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before creating mapping."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "dimension") and obj.dimension is not None:
@@ -439,35 +412,22 @@ class AIDimensionRelationshipMappingView(ModelView):
             obj.relationship_id = obj.relationship.id
 
         # Validate required foreign keys
-        errors = {}
+        errors: dict[str, str] = {}
         if not hasattr(obj, "dimension_id") or obj.dimension_id is None:
             errors["dimension"] = "Relationship Dimension is required"
         if not hasattr(obj, "relationship_id") or obj.relationship_id is None:
             errors["relationship"] = "Relationship Type is required"
 
-        # Validate position ranges (0-1000 permille)
-        if hasattr(obj, "start_position") and obj.start_position is not None:
-            if obj.start_position < 0 or obj.start_position > 1000:
-                errors["start_position"] = "Start position must be between 0 and 1000 (permille)"
-
-        if hasattr(obj, "end_position") and obj.end_position is not None:
-            if obj.end_position < 0 or obj.end_position > 1000:
-                errors["end_position"] = "End position must be between 0 and 1000 (permille)"
-
-        # Validate start_position < end_position
-        if (
-            hasattr(obj, "start_position")
-            and obj.start_position is not None
-            and hasattr(obj, "end_position")
-            and obj.end_position is not None
-        ):
-            if obj.start_position >= obj.end_position:
-                errors["end_position"] = "End position must be greater than start position"
+        start_position = getattr(obj, "start_position", None)
+        end_position = getattr(obj, "end_position", None)
+        _validate_position_value(start_position, "start_position", errors)
+        _validate_position_value(end_position, "end_position", errors)
+        _validate_position_order(start_position, end_position, errors)
 
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing mapping."""
         # Auto-fill foreign keys from HasOne relationships
         if hasattr(obj, "dimension") and obj.dimension is not None:
@@ -478,32 +438,19 @@ class AIDimensionRelationshipMappingView(ModelView):
         if hasattr(obj, "relationship") and obj.relationship is not None:
             obj.relationship_id = obj.relationship.id
 
-        # Validate position ranges (0-1000 permille)
-        errors = {}
-        if hasattr(obj, "start_position") and obj.start_position is not None:
-            if obj.start_position < 0 or obj.start_position > 1000:
-                errors["start_position"] = "Start position must be between 0 and 1000 (permille)"
-
-        if hasattr(obj, "end_position") and obj.end_position is not None:
-            if obj.end_position < 0 or obj.end_position > 1000:
-                errors["end_position"] = "End position must be between 0 and 1000 (permille)"
-
-        # Validate start_position < end_position
-        if (
-            hasattr(obj, "start_position")
-            and obj.start_position is not None
-            and hasattr(obj, "end_position")
-            and obj.end_position is not None
-        ):
-            if obj.start_position >= obj.end_position:
-                errors["end_position"] = "End position must be greater than start position"
+        errors: dict[str, str] = {}
+        start_position = getattr(obj, "start_position", None)
+        end_position = getattr(obj, "end_position", None)
+        _validate_position_value(start_position, "start_position", errors)
+        _validate_position_value(end_position, "end_position", errors)
+        _validate_position_order(start_position, end_position, errors)
 
         if errors:
             raise FormValidationError(errors)
 
-    fields_default_sort = [("start_position", False)]
-    searchable_fields = []
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("start_position", False)]
+    searchable_fields: ClassVar[list[str]] = []
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "start_position",
         "end_position",
@@ -513,7 +460,7 @@ class AIDimensionRelationshipMappingView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal mapping ID"),
         HasOne(
             "dimension",

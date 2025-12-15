@@ -6,6 +6,8 @@ combining validation, user matching, and execution services following
 the facade pattern for clean separation of concerns.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +16,9 @@ from app.crud.ai.instance_dimension import get_by_instance as _get_instance_dims
 from app.crud.contact import contact as contact_crud
 from app.enums import ContactType
 from app.models.base import generate_conv_id
+from app.models.contact import Contact
 from app.schemas.contact import ContactCreate
+from app.services.ai.memory import build_memory_prompt
 from app.services.ai.queries.transactions import archive_all_conversation_items
 from app.services.ai.relationship_scoring import determine_relationship_type as _determine
 from app.services.ai.relationship_scoring import get_relationship_scores
@@ -34,7 +38,7 @@ class AIInstanceChatTestError(Exception):
 
     def __init__(
         self, message: str, error_code: str = "CHAT_TEST_ERROR", suggestions: list | None = None
-    ):
+    ) -> None:
         self.message = message
         self.error_code = error_code
         self.suggestions = suggestions or []
@@ -79,6 +83,9 @@ class AIInstanceChatTestService:
             validation_result = await validation_service.validate_instance_test_prerequisites(
                 db=db, instance_id=instance_id
             )
+            validation_result["memory_prompt"] = await build_memory_prompt(
+                db, validation_result["instance"]
+            )
 
             # Step 2: Find and validate test user
             logger.info("ai_chat_test_user_matching_start", instance_id=instance_id)
@@ -86,20 +93,15 @@ class AIInstanceChatTestService:
                 db=db,
                 instance_context=validation_result["instance"],
             )
-            if not user_match_result["test_user"]:
-                raise AIInstanceChatTestError(
-                    "归属用户非测试类型",
-                    error_code="TEST_USER_REQUIRED",
-                    suggestions=["确认实例归属用户是 user_type=virtual"],
-                )
+            test_user = self._require_test_user(user_match_result)
 
             selection_locked = bool(user_match_result.get("test_user_selection_locked"))
             locked_user_qiao_id = user_match_result.get("locked_test_user_qiao_id")
 
             ensured_contact = await self._ensure_virtual_contact(
                 db=db,
-                user_id=user_match_result["test_user"]["id"],
-                user_qiao_id=user_match_result["test_user"]["qiao_id"],
+                user_id=test_user["id"],
+                user_qiao_id=test_user["qiao_id"],
                 instance_context=validation_result["instance"],
             )
             contact_for_response = self._serialize_contact(ensured_contact)
@@ -110,12 +112,12 @@ class AIInstanceChatTestService:
             logger.info(
                 "ai_chat_test_execution_start",
                 instance_id=instance_id,
-                test_user_qiao_id=user_match_result["test_user"]["qiao_id"],
+                test_user_qiao_id=test_user["qiao_id"],
             )
             execution_result = await executor_service.execute_instance_chat_test(
                 db=db,
                 instance_qiao_id=validation_result["instance"]["instance_qiao_id"],
-                user_qiao_id=user_match_result["test_user"]["qiao_id"],
+                user_qiao_id=test_user["qiao_id"],
                 llm_config_name=llm_config_name,
                 test_message=test_message,
                 request_overrides={"provider_overrides": mock_overrides}
@@ -162,6 +164,7 @@ class AIInstanceChatTestService:
                     "style": validation_result["style"],
                     "personality": validation_result["personality"],
                     "relationship_scores": validation_result["relationship_scores"],
+                    "memory_prompt": validation_result.get("memory_prompt"),
                 },
                 "test_user_info": {
                     "test_user": user_match_result["test_user"],
@@ -187,13 +190,11 @@ class AIInstanceChatTestService:
                 response_time_ms=execution_result["performance"]["response_time_ms"],
             )
 
-            return complete_result
-
         except ValidationError as e:
             logger.error("ai_chat_test_validation_failed", instance_id=instance_id, error=str(e))
             raise AIInstanceChatTestError(
                 f"测试校验失败：{e.message}", error_code=e.error_code, suggestions=e.suggestions
-            )
+            ) from e
 
         except UserMatcherError as e:
             logger.error("ai_chat_test_user_matching_failed", instance_id=instance_id, error=str(e))
@@ -201,14 +202,14 @@ class AIInstanceChatTestService:
                 f"测试用户匹配失败：{e.message}",
                 error_code=e.error_code,
                 suggestions=e.suggestions,
-            )
+            ) from e
 
         except ExecutorError as e:
             logger.error("ai_chat_test_execution_failed", instance_id=instance_id, error=str(e))
             raise AIInstanceChatTestError(
                 f"测试执行失败：{e.message}",
                 error_code=e.error_code,
-            )
+            ) from e
 
         except Exception as e:
             logger.error(
@@ -219,7 +220,9 @@ class AIInstanceChatTestService:
             )
             raise AIInstanceChatTestError(
                 f"测试过程中出现未知错误：{e!s}", error_code="UNEXPECTED_ERROR"
-            )
+            ) from e
+        else:
+            return complete_result
 
     async def validate_test_readiness(self, db: AsyncSession, instance_id: int) -> dict[str, Any]:
         """
@@ -239,6 +242,9 @@ class AIInstanceChatTestService:
             # Validate prerequisites
             validation_result = await validation_service.validate_instance_test_prerequisites(
                 db=db, instance_id=instance_id
+            )
+            validation_result["memory_prompt"] = await build_memory_prompt(
+                db, validation_result["instance"]
             )
 
             # Check test user availability
@@ -304,7 +310,7 @@ class AIInstanceChatTestService:
                 "current_relationship": validation_result.get("current_relationship"),
                 # Instance settings snapshot needed by UI
                 "instance_settings": {
-                    "memory": validation_result["instance"].get("memory"),
+                    "memory_prompt": validation_result.get("memory_prompt"),
                     "prompt_variables": validation_result["instance"].get("prompt_variables"),
                 },
                 "test_user_info": test_user_summary,
@@ -371,7 +377,11 @@ class AIInstanceChatTestService:
 
         except Exception as e:
             logger.error("archive_test_conversations_failed", instance_id=instance_id, error=str(e))
-            raise AIInstanceChatTestError(f"归档对话失败：{e!s}", error_code="ARCHIVE_FAILED")
+            raise AIInstanceChatTestError(
+                f"归档对话失败：{e!s}", error_code="ARCHIVE_FAILED"
+            ) from e
+        else:
+            return {"success": True, "archived_count": archived_count}
 
     async def _ensure_virtual_contact(
         self,
@@ -380,7 +390,7 @@ class AIInstanceChatTestService:
         user_id: int,
         user_qiao_id: str,
         instance_context: InstanceContext,
-    ):
+    ) -> Contact:
         """Create or restore contact relationship for virtual test user."""
         existing = await contact_crud.get_user_contact_including_deleted(
             db,
@@ -435,6 +445,19 @@ class AIInstanceChatTestService:
             conv_id=contact.conv_id,
         )
         return contact
+
+    @staticmethod
+    def _require_test_user(user_match_result: dict[str, Any]) -> dict[str, Any]:
+        """Ensure test user record exists, otherwise raise service error."""
+
+        test_user = user_match_result.get("test_user")
+        if not test_user:
+            raise AIInstanceChatTestError(
+                "归属用户非测试类型",
+                error_code="TEST_USER_REQUIRED",
+                suggestions=["确认实例归属用户是 user_type=virtual"],
+            )
+        return test_user
 
     @staticmethod
     def _serialize_contact(contact: Any | None) -> dict[str, Any] | None:

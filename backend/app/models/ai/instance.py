@@ -81,10 +81,6 @@ class AIInstance(SnowflakeQiaoModel):
         comment="Status: 1=active, 2=inactive, 3=blocked",
     )
 
-    memory: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="Instance-specific memory"
-    )
-
     prompt_variables: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,

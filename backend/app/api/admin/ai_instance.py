@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import POSITION_MAX_VALUE
 from app.core.database import get_db
 from app.crud.ai import ai_instance as ai_instance_crud
 from app.crud.ai.instance_dimension import update_dimension, update_dimensions_batch
@@ -23,7 +24,9 @@ ai_instance_router = APIRouter()
 
 @ai_instance_router.post("/ai_instance/{instance_id}/save")
 async def save_instance(
-    instance_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
+    instance_id: int,
+    data: dict[str, Any],  # Admin API: dynamic structure with runtime validation
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Save instance prompt_variables and dimensions."""
 
@@ -69,8 +72,10 @@ async def save_instance(
                 continue
 
             # Validate score
-            if not isinstance(score, (int, float)) or not (0 <= score <= 1000):
-                raise HTTPException(status_code=400, detail="score must be between 0 and 1000")
+            if not isinstance(score, int | float) or not (0 <= score <= POSITION_MAX_VALUE):
+                raise HTTPException(
+                    status_code=400, detail=f"score must be between 0 and {POSITION_MAX_VALUE}"
+                )
 
             # Validate algorithm
             if algorithm not in [1, 2]:
@@ -93,7 +98,7 @@ async def save_instance(
                         PositionMappingAlgorithm.V1, params
                     )
                 except ValueError as exc:
-                    raise HTTPException(status_code=400, detail=str(exc))
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
 
             cleaned_dimensions.append(cleaned)
 
@@ -111,14 +116,21 @@ async def save_instance(
             try:
                 dim_id = int(key)
                 pv = int(val)
-                if 0 <= pv <= 1000:
+                if 0 <= pv <= POSITION_MAX_VALUE:
                     await update_dimension(
                         db,
                         instance_id=instance_id,
                         dimension_id=dim_id,
                         update_data={"position": pv},
                     )
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    "position_update_failed",
+                    instance_id=instance_id,
+                    dimension_id=key,
+                    position=val,
+                    error=str(e),
+                )
                 continue
 
     # Update relationship_id if provided
@@ -134,7 +146,9 @@ async def save_instance(
         try:
             typing_speed = int(raw_value)
         except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="typing_speed_wpm must be an integer")
+            raise HTTPException(
+                status_code=400, detail="typing_speed_wpm must be an integer"
+            ) from None
         if typing_speed <= 0:
             raise HTTPException(status_code=400, detail="typing_speed_wpm must be greater than 0")
         update_data["typing_speed_wpm"] = typing_speed
@@ -179,12 +193,15 @@ async def generate_instance_relationship(
         )
         if not result.get("success"):
             raise HTTPException(status_code=400, detail=result.get("message", "Generate failed"))
-        return result
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error("instance_generate_relationship_failed", instance_id=instance_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to generate relationship")
+        raise HTTPException(status_code=500, detail="Failed to generate relationship") from e
+
+    else:
+        return result
 
 
 @ai_instance_router.put("/ai_instance/{instance_id}/dimension/{dimension_id}")
@@ -206,8 +223,10 @@ async def update_instance_dimension(
         raise HTTPException(status_code=400, detail="score is required")
 
     score = data["score"]
-    if not isinstance(score, (int, float)) or not (0 <= score <= 1000):
-        raise HTTPException(status_code=400, detail="score must be between 0 and 1000")
+    if not isinstance(score, int | float) or not (0 <= score <= POSITION_MAX_VALUE):
+        raise HTTPException(
+            status_code=400, detail=f"score must be between 0 and {POSITION_MAX_VALUE}"
+        )
 
     algorithm = data.get("position_mapping_algorithm", 1)
     if algorithm not in [1, 2]:
@@ -221,7 +240,7 @@ async def update_instance_dimension(
         try:
             params = parse_algorithm_params(PositionMappingAlgorithm.V1, params)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Update dimension - fix function call signature
     update_data = {

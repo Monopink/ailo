@@ -5,7 +5,7 @@ This module contains Starlette-Admin views for AI conversation management
 (message buffer, conversation items, and archives).
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from starlette.requests import Request
 from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
@@ -25,7 +25,7 @@ from app.models.ai.instance import (
 class AIMessageBufferView(ModelView):
     """AI Message Buffer view - message aggregation window management."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "aggregate_state",
         "micro_expires_at_ms",
@@ -40,12 +40,12 @@ class AIMessageBufferView(ModelView):
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_list = [
+    exclude_fields_from_list: ClassVar[list[str]] = [
         "micro_expires_at_ms",
         "macro_expires_at_ms",
         "buffer_expires_at_ms",
@@ -82,15 +82,15 @@ class AIMessageBufferView(ModelView):
 
         return await super().edit(request, pk, data)
 
-    def can_create(self, request: Request) -> bool:
+    def can_create(self, _request: Request) -> bool:
         return False
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["id", "user_qiao_id", "instance_qiao_id"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["id", "user_qiao_id", "instance_qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
@@ -100,7 +100,7 @@ class AIMessageBufferView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="Buffer ID", help_text="Internal buffer ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
         StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
@@ -159,11 +159,11 @@ class AIMessageBufferView(ModelView):
 class AIConversationItemView(ModelView):
     """AI Conversation Item view - conversation history stored in simple fields."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "created_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
@@ -171,7 +171,7 @@ class AIConversationItemView(ModelView):
         "buffer_id",
         "created_at",
     ]
-    exclude_fields_from_list = []
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
     async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize optional fields before persisting."""
@@ -181,18 +181,18 @@ class AIConversationItemView(ModelView):
             data["media_url"] = None
         return await super().edit(request, pk, data)
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
         "role",
         "text_content",
     ]
-    sortable_fields = [
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
@@ -202,7 +202,7 @@ class AIConversationItemView(ModelView):
         "created_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="Item ID", help_text="Internal conversation item ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
         StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
@@ -240,7 +240,7 @@ class AIConversationItemView(ModelView):
 class AIConversationItemArchiveView(ModelView):
     """AI Conversation Item Archive view - archived conversation history."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
@@ -255,7 +255,7 @@ class AIConversationItemArchiveView(ModelView):
         "created_at",
         "archived_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
@@ -277,26 +277,26 @@ class AIConversationItemArchiveView(ModelView):
             data["client_msg_ids"] = []
         return await super().edit(request, pk, data)
 
-    exclude_fields_from_list = []
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
-    def can_create(self, request: Request) -> bool:
+    def can_create(self, _request: Request) -> bool:
         return False
 
-    def can_edit(self, request: Request) -> bool:
+    def can_edit(self, _request: Request) -> bool:
         return False
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("archived_at", True)]
-    searchable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("archived_at", True)]
+    searchable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
         "role",
         "text_content",
     ]
-    sortable_fields = [
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
         "instance_qiao_id",
@@ -307,7 +307,7 @@ class AIConversationItemArchiveView(ModelView):
         "archived_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField("id", label="Item ID", help_text="Internal conversation item ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
         StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
@@ -346,17 +346,17 @@ class AIConversationItemArchiveView(ModelView):
 class AIConversationStateView(ModelView):
     """AI Conversation State view - manages pending messages and interruption state."""
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "user_qiao_id",
         "instance_qiao_id",
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_list = []
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
     async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize optional fields before persisting."""
@@ -370,15 +370,15 @@ class AIConversationStateView(ModelView):
 
         return await super().edit(request, pk, data)
 
-    def can_create(self, request: Request) -> bool:
+    def can_create(self, _request: Request) -> bool:
         return False
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("updated_at", True)]
-    searchable_fields = ["user_qiao_id", "instance_qiao_id"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("updated_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "instance_qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
         "user_qiao_id",
         "instance_qiao_id",
         "interrupted_at",
@@ -386,7 +386,7 @@ class AIConversationStateView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[object]] = [
         StringField(
             "user_qiao_id",
             label="User Qiao ID",
@@ -400,7 +400,10 @@ class AIConversationStateView(ModelView):
         JSONField(
             "pending_messages",
             label="Pending Messages",
-            help_text='Pending messages structure: {"outgoing": [...], "followup": [...], "total_pending": N}',
+            help_text=(
+                'Pending messages structure: {"outgoing": [...], '
+                '"followup": [...], "total_pending": N}'
+            ),
         ),
         LocalDateTimeField(
             "interrupted_at",

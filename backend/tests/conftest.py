@@ -3,8 +3,8 @@
 import asyncio
 import os
 import sys
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 import pytest
 from dotenv import load_dotenv
@@ -28,6 +28,18 @@ sys.path.insert(0, str(backend_app_path))
 from core.config import get_settings
 from core.database import get_db
 from main import create_app
+
+from app.utils.snowflake import init_snowflake
+
+
+@pytest.fixture(scope="session", autouse=True)
+def initialize_snowflake():
+    """
+    Initialize Snowflake generator for all tests.
+
+    This fixture automatically runs once per test session before any tests.
+    """
+    init_snowflake(datacenter_id=1, machine_id=1)
 
 
 @pytest.fixture(scope="session")
@@ -82,10 +94,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
-    ) as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
     app.dependency_overrides.clear()
@@ -96,6 +105,4 @@ def auth_headers() -> dict[str, str]:
     """Return authentication headers for testing protected endpoints."""
     # This is a placeholder - implement actual token generation
     # based on your authentication system
-    return {
-        "Authorization": "Bearer test_token"
-    }
+    return {"Authorization": "Bearer test_token"}

@@ -15,12 +15,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.ai import AIConversationItem, AIConversationItemArchive, AIInstance, AIRequestLog
 from app.models.contact import Contact
 from app.models.profile import Profile
+from app.services.ai.memory import copy_template_memories_to_instance
 from app.services.ai.types import InstanceContext
 from app.utils.logging import get_logger
 
 from .instance_queries import get_user_id_by_qiao_id
 
 logger = get_logger(__name__)
+
+
+def _coerce_template_id(value: object) -> int | None:
+    """Convert mixed template_id payloads into an integer."""
+
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
 
 
 async def create_instance_with_relations(
@@ -57,7 +71,6 @@ async def create_instance_with_relations(
             status=instance_data.get("status", 1),
             style_id=instance_data["style_id"],
             personality_id=instance_data["personality_id"],
-            memory=instance_data.get("memory"),
             prompt_variables=instance_data.get("prompt_variables", {}),
             request_params=instance_data.get("request_params"),
             llm_config_id=instance_data.get("llm_config_id"),
@@ -68,6 +81,15 @@ async def create_instance_with_relations(
 
         db.add(ai_instance)
         await db.flush()
+
+        template_id_candidate = instance_data.get("template_id")
+        if template_id_candidate is None and isinstance(creation_metadata, dict):
+            template_id_candidate = creation_metadata.get("template_id")
+        template_id_value = _coerce_template_id(template_id_candidate)
+        if template_id_value is not None:
+            await copy_template_memories_to_instance(
+                db, template_id=template_id_value, instance=ai_instance
+            )
 
         profile = Profile(
             owner_qiao_id=qiao_id,

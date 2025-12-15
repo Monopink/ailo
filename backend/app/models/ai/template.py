@@ -59,8 +59,6 @@ class AITemplate(AutoIncrementModel):
         Integer, nullable=False, comment="Personality ID, references ai_personalities.id"
     )
 
-    memory: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Memory settings")
-
     prompt_variables: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,

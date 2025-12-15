@@ -11,13 +11,16 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pendulum
+from pendulum import DateTime as PendulumDateTime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.type_aliases import JSONValue
 from app.enums.common import ConversationRole
 from app.exceptions import AIServiceError
 from app.models.ai import AIConversationState
-from app.services.ai.types import InstanceContext
+from app.services.ai.memory import build_memory_prompt
+from app.services.ai.types import InstanceContext, ProfileInfo
 from app.utils.logging import get_logger
 
 from .queries import get_conversation_contexts, get_personality_with_placeholders, get_user_profile
@@ -46,6 +49,31 @@ def _raise_personality_not_found(personality_id: int | str) -> None:
         reason="personality_not_found",
         message=f"Personality not found: {personality_id}",
     )
+
+
+def _coerce_str_list(value: JSONValue | None) -> list[str]:
+    """Convert JSON list payloads into a list of strings."""
+
+    if isinstance(value, list):
+        return [str(item) for item in value if item is not None]
+    return []
+
+
+def _coerce_non_negative_int(value: JSONValue | None, fallback: int) -> int:
+    """Convert JSON number payloads into a non-negative integer."""
+
+    parsed = fallback
+    if isinstance(value, bool | int | float):
+        parsed = int(value)
+    elif isinstance(value, str):
+        try:
+            parsed = int(value.strip())
+        except ValueError:
+            return fallback
+    else:
+        return fallback
+
+    return parsed if parsed >= 0 else fallback
 
 
 async def build_system_prompt(
@@ -81,7 +109,10 @@ async def build_system_prompt(
 
         # Type narrowing: personality_data is guaranteed to be dict here
         assert personality_data is not None
-        available_placeholders: list[Any] = personality_data["placeholders"]
+        raw_placeholders = personality_data.get("placeholders")
+        available_placeholders: list[Any] = (
+            list(raw_placeholders) if isinstance(raw_placeholders, list) else []
+        )
 
         # Build placeholder values
         placeholder_values = await _build_placeholder_values(
@@ -106,10 +137,12 @@ async def build_system_prompt(
     except AIServiceError:
         raise
     except Exception as e:
-        logger.exception(
+        logger.error(
             "system_prompt_build_failed",
+            error=str(e),
             instance_qiao_id=context.get("instance_qiao_id"),
             user_qiao_id=user_qiao_id,
+            exc_info=True,
         )
         raise AIServiceError(
             ai_service="prompt_building",
@@ -209,7 +242,7 @@ async def _build_placeholder_values(
     Returns:
         Dictionary of placeholder values
     """
-    placeholder_values = {}
+    placeholder_values: dict[str, Any] = {}
 
     # System placeholders (highest priority)
 
@@ -221,7 +254,10 @@ async def _build_placeholder_values(
         placeholder_values["relationship_prompt"] = ""
 
     # {{self_profile}} - instance profile description
-    instance_profile = context.get("profile")
+    profile_payload = context.get("profile")
+    instance_profile: ProfileInfo | None = (
+        profile_payload if isinstance(profile_payload, dict) else None
+    )
     if instance_profile:
         placeholder_values["self_profile"] = _format_profile(instance_profile)
     else:
@@ -237,8 +273,8 @@ async def _build_placeholder_values(
     # {{current_datetime}} - current date and time
     placeholder_values["current_datetime"] = _get_current_datetime(context)
 
-    # {{memory}} - instance memory
-    placeholder_values["memory"] = context.get("memory") or ""
+    # {{memory}} - instance memory summary
+    placeholder_values["memory"] = await build_memory_prompt(db, context)
 
     # {{score:dimension_name}} - dynamic score placeholders
     instance_qiao_id = context.get("instance_qiao_id")
@@ -324,16 +360,16 @@ async def _build_pending_messages_placeholder(
         )
     )
     pending_data = result.scalar_one_or_none()
-    if not pending_data:
+    if not isinstance(pending_data, dict):
         return ""
 
-    outgoing = pending_data.get("outgoing", []) or []
-    followup = pending_data.get("followup", []) or []
+    outgoing = _coerce_str_list(pending_data.get("outgoing"))
+    followup = _coerce_str_list(pending_data.get("followup"))
     all_pending = outgoing + followup
     if not all_pending:
         return ""
 
-    total = pending_data.get("total_pending", len(all_pending))
+    total = _coerce_non_negative_int(pending_data.get("total_pending"), len(all_pending))
     message_lines = "\n".join(f"- {msg}" for msg in all_pending)
     return (
         f"【系统提示】你有 {total} 条消息因被打断而未发送:\n"
@@ -385,8 +421,8 @@ def _format_profile(profile: dict[str, Any] | object) -> str:
 
         return "; ".join(parts) if parts else "暂无资料"
 
-    except Exception:
-        logger.exception("profile_formatting_failed")
+    except Exception as exc:
+        logger.error("profile_formatting_failed", error=str(exc), exc_info=True)
         return "资料格式化失败"
 
 
@@ -401,7 +437,7 @@ async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, An
     Returns:
         User profile or None
     """
-    return await get_user_profile(db, user_qiao_id)  # type: ignore[no-any-return]
+    return await get_user_profile(db, user_qiao_id)
 
 
 def _get_current_datetime(context: dict[str, Any] | InstanceContext) -> str:
@@ -421,8 +457,8 @@ def _get_current_datetime(context: dict[str, Any] | InstanceContext) -> str:
 
         return str(now.format("YYYY年MM月DD日 HH:mm", locale="zh"))
 
-    except Exception:
-        logger.exception("datetime_formatting_failed")
+    except Exception as exc:
+        logger.error("datetime_formatting_failed", error=str(exc), exc_info=True)
         return "时间获取失败"
 
 
@@ -474,35 +510,57 @@ def _get_base_response_schema(
             },
             "should_update_memory": {"type": "boolean", "description": "本轮是否对记忆进行修改"},
             "memory_operations": {
-                "type": "array",
-                "description": ("顺序执行的记忆操作列表, 每条操作会在前一条操作修改后的记忆上执行"),
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "operation": {
-                            "type": "string",
-                            "enum": ["add", "replace", "delete"],
-                            "description": "操作类型: 增加, 替换或删除",
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "新增或替换的内容, 仅在 add 和 replace 时必填",
-                        },
-                        "target_text": {
-                            "type": "string",
-                            "description": "要匹配的旧文本, 仅在 replace 和 delete 时必填",
-                        },
-                        "insert_position": {
-                            "type": "string",
-                            "description": (
-                                "新增内容的插入位置, 仅在 add 时有效, "
-                                "可为 'start', 'end', 'after:<text>', 'before:<text>'"
-                            ),
+                "type": "object",
+                "description": "记忆操作对象, 包含 remove/update/refresh/add 四种操作, 顺序执行",
+                "properties": {
+                    "remove": {
+                        "type": "array",
+                        "description": "删除指定内容的记忆（精确匹配 content）",
+                        "items": {"type": "string"},
+                    },
+                    "update": {
+                        "type": "array",
+                        "description": "更正已存在的记忆内容",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "old_content": {"type": "string"},
+                                "new_content": {"type": "string"},
+                                "new_importance": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10,
+                                },
+                            },
+                            "required": ["old_content", "new_content"],
+                            "additionalProperties": False,
                         },
                     },
-                    "required": ["operation"],
-                    "additionalProperties": False,
+                    "refresh": {
+                        "type": "array",
+                        "description": "续期指定内容的记忆",
+                        "items": {"type": "string"},
+                    },
+                    "add": {
+                        "type": "array",
+                        "description": "新增记忆记录",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "memory_type": {"type": "string", "enum": ["core", "recent"]},
+                                "content": {"type": "string"},
+                                "importance": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10,
+                                },
+                            },
+                            "required": ["memory_type", "content", "importance"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
+                "additionalProperties": False,
             },
         },
         "required": [
@@ -589,10 +647,12 @@ async def build_conversation_context(
         )
 
     except Exception as e:
-        logger.exception(
+        logger.error(
             "conversation_context_build_failed",
+            error=str(e),
             instance_qiao_id=instance_qiao_id,
             user_qiao_id=user_qiao_id,
+            exc_info=True,
         )
         raise AIServiceError(
             ai_service="context_building",
@@ -643,7 +703,7 @@ def _format_time_prefix(created_at: datetime | None, instance_timezone: str | No
 
         # Convert to Pendulum instance (handles naive datetime automatically)
         try:
-            pdt = pendulum.instance(created_at, tz="UTC")
+            pdt: PendulumDateTime = pendulum.instance(created_at, tz="UTC")
             local_dt = pdt.in_timezone(tz_name)
         except Exception:
             # Fallback to Asia/Shanghai if timezone is invalid
@@ -673,19 +733,18 @@ def _format_humanized_time(dt: datetime, tzinfo: ZoneInfo) -> str:
         Humanized time string like "今天17:19", "昨天17:19", "[11-18(五天前) 17:19]"
     """
     # Convert to Pendulum for easier manipulation
-    pdt = pendulum.instance(dt)
-    now = pendulum.now(str(tzinfo))
+    pdt: PendulumDateTime = pendulum.instance(dt)
+    now: PendulumDateTime = pendulum.now(str(tzinfo))
 
     # Get formatted components
     time_str = pdt.format("HH:mm")
     date_str = pdt.format("MM-DD")
 
-    # Today
-    if pdt.is_today():
+    pdt_date = pdt.date()
+    if pdt_date == now.date():
         return f"今天{time_str}"
 
-    # Yesterday
-    if pdt.is_yesterday():
+    if pdt_date == now.subtract(days=1).date():
         return f"昨天{time_str}"
 
     # Calculate days difference
@@ -779,9 +838,11 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
         )
 
     except Exception as e:
-        logger.exception(
+        logger.error(
             "score_placeholder_formatting_failed",
+            error=str(e),
             instance_qiao_id=instance_qiao_id,
+            exc_info=True,
         )
         raise AIServiceError(
             ai_service="placeholder_formatting",
@@ -862,7 +923,7 @@ def validate_prompt_completeness(
         )
 
     except Exception as e:
-        logger.exception("prompt_validation_failed")
+        logger.error("prompt_validation_failed", error=str(e), exc_info=True)
         return {
             "is_valid": False,
             "missing_placeholders": [],

@@ -44,7 +44,6 @@ class AITemplateBase(BaseModel):
     type_id: int = Field(..., description="AI type ID")
     style_id: int = Field(..., description="Style ID, references ai_styles.id")
     personality_id: int = Field(..., description="Personality ID, references ai_personalities.id")
-    memory: str | None = Field(None, description="Memory settings")
     prompt_variables: JSONDict | None = Field(
         None, description="Prompt variables/placeholder overrides"
     )
@@ -76,7 +75,6 @@ class AITemplateUpdate(BaseModel):
 
     style_id: int | None = Field(None, description="Style ID")
     personality_id: int | None = Field(None, description="Personality ID")
-    memory: str | None = Field(None, description="Memory settings")
     prompt_variables: JSONDict | None = Field(None, description="Prompt variables")
     position_mapping_config: JSONDict | None = Field(
         None, description="Per-dimension position mapping configuration"

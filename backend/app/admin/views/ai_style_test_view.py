@@ -5,15 +5,15 @@ This module provides admin interface for testing AI score algorithms
 and relationship selection logic.
 """
 
-from typing import Any
-
 from sqlalchemy import text
+from starlette.datastructures import FormData
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.core.database import get_sessionmaker
+from app.core.type_aliases import JSONDict
 from app.services.admin.data.style_dimensions import get_dimension_relationship_mappings
 from app.services.admin.testing.style_algorithm import run_style_score_test
 from app.services.ai.utils.position_mapping import get_algorithm_info, get_algorithm_param_specs
@@ -22,7 +22,7 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Initialize templates with relative path
-templates = Jinja2Templates(directory="admin/templates", auto_reload=True)
+templates = Jinja2Templates(directory="app/admin/templates", auto_reload=True)
 
 
 class AIStyleTestView(CustomView):
@@ -156,8 +156,10 @@ class AIStyleTestView(CustomView):
                             """
                             SELECT DISTINCT r.id, r.display_name
                             FROM ai_relationships r
-                            JOIN ai_dimension_relationship_mappings drm ON r.id = drm.relationship_id
-                            JOIN ai_style_dimensions asd ON asd.dimension_id = drm.dimension_id
+                            JOIN ai_dimension_relationship_mappings drm
+                                ON r.id = drm.relationship_id
+                            JOIN ai_style_dimensions asd
+                                ON asd.dimension_id = drm.dimension_id
                             WHERE asd.style_id = :style_id
                             ORDER BY r.display_name
                         """
@@ -213,7 +215,7 @@ class AIStyleTestView(CustomView):
                 },
             )
 
-    async def _handle_test_algorithm(self, form_data, style_id: int) -> dict[str, Any]:
+    async def _handle_test_algorithm(self, form_data: FormData, style_id: int) -> JSONDict:
         """Handle score algorithm testing via admin service layer."""
         try:
             session_factory = get_sessionmaker()

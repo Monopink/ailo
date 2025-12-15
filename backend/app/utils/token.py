@@ -68,14 +68,15 @@ def decode_jwt_token(token: str) -> dict[str, Any] | None:
         secret = settings.JWT_SECRET_KEY
         algorithm = settings.JWT_ALGORITHM
 
-        payload = jwt.decode(token, secret, algorithms=[algorithm])
-        return payload
+        decoded: dict[str, Any] = jwt.decode(token, secret, algorithms=[algorithm])
     except jwt.ExpiredSignatureError:
         # Token has expired
         return None
     except jwt.InvalidTokenError:
         # Token is invalid
         return None
+    else:
+        return decoded
 
 
 def calculate_token_expiry(expires_in_seconds: int) -> datetime:

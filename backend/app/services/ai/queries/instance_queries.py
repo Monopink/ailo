@@ -90,7 +90,6 @@ async def get_instance_context(
             "status": instance.status,
             "created_by": instance.created_by,
             "llm_config_id": instance.llm_config_id,
-            "memory": instance.memory,
             "prompt_variables": dict(instance.prompt_variables or {}),
             "request_params": dict(instance.request_params or {}),
             "typing_speed_wpm": instance.typing_speed_wpm,

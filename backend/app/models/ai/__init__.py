@@ -19,6 +19,9 @@ from .instance_dimension import AIInstanceDimension
 # Log models
 from .log import AIRequestLog
 
+# Memory models
+from .memory import AIInstanceMemory, AITemplateMemory
+
 # Personality models
 from .personality import AIPersonality, AIPersonalityPlaceholder
 
@@ -36,27 +39,23 @@ from .template import AIPersona, AITemplate, AIType
 
 # Export all AI models
 __all__ = [
-    # Instance and conversation
-    "AIInstance",
-    "AIMessageBuffer",
     "AIConversationItem",
     "AIConversationItemArchive",
     "AIConversationState",
-    # Templates
-    "AIType",
-    "AITemplate",
+    "AIDimension",
+    "AIDimensionRelationshipMapping",
+    "AIInstance",
+    "AIInstanceDimension",
+    "AIInstanceMemory",
+    "AIMessageBuffer",
     "AIPersona",
-    # Personality
     "AIPersonality",
     "AIPersonalityPlaceholder",
-    # Style and relationship
-    "AIStyle",
     "AIRelationship",
-    "AIDimension",
-    "AIStyleDimension",
-    "AIDimensionRelationshipMapping",
-    # Instance Dimension
-    "AIInstanceDimension",
-    # Log
     "AIRequestLog",
+    "AIStyle",
+    "AIStyleDimension",
+    "AITemplate",
+    "AITemplateMemory",
+    "AIType",
 ]

@@ -127,19 +127,49 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
     "should_block": {"type": "boolean", "description": "Whether to delete friend, if deleted, {USER} will not be able to send messages"},
     "should_update_memory": {"type": "boolean", "description": "Whether to modify memory in this round"},
     "memory_operations": {
-      "type": "array",
-      "description": "Sequential memory operation list, each operation executes on memory modified by previous operation",
-      "items": {
-        "type": "object",
-        "properties": {
-          "operation": {"type": "string", "enum": ["add", "replace", "delete"], "description": "Operation type: add, replace or delete"},
-          "content": {"type": "string", "description": "New or replacement content, required only for add and replace"},
-          "target_text": {"type": "string", "description": "Old text to match, required only for replace and delete"},
-          "insert_position": {"type": "string", "description": "Insert position for new content, valid only for add, can be start, end, after:<text>, before:<text>"}
+      "type": "object",
+      "description": "Structured memory operations container executed in remove→update→refresh→add order",
+      "properties": {
+        "remove": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Delete memories matching these contents"
         },
-        "required": ["operation"],
-        "additionalProperties": false
-      }
+        "update": {
+          "type": "array",
+          "description": "Correct existing memories",
+          "items": {
+            "type": "object",
+            "properties": {
+              "old_content": {"type": "string"},
+              "new_content": {"type": "string"},
+              "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}
+            },
+            "required": ["old_content", "new_content"],
+            "additionalProperties": false
+          }
+        },
+        "refresh": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Refresh memories matching these contents"
+        },
+        "add": {
+          "type": "array",
+          "description": "Create new memories",
+          "items": {
+            "type": "object",
+            "properties": {
+              "memory_type": {"type": "string", "enum": ["core", "recent"]},
+              "content": {"type": "string"},
+              "importance": {"type": "integer", "minimum": 1, "maximum": 10}
+            },
+            "required": ["memory_type", "content", "importance"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"],
@@ -168,7 +198,7 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
 浪漫度分数：{{score:romance}}
 
 请根据当前的关系状态和分数，以及对话历史，自然地回复用户的消息。',
-'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "romance": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "romance"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "array", "items": {"type": "object"}}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
+'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "romance": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "romance"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "object", "properties": {"remove": {"type": "array", "items": {"type": "string"}}, "update": {"type": "array", "items": {"type": "object", "properties": {"old_content": {"type": "string"}, "new_content": {"type": "string"}, "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["old_content", "new_content"], "additionalProperties": false}}, "refresh": {"type": "array", "items": {"type": "string"}}, "add": {"type": "array", "items": {"type": "object", "properties": {"memory_type": {"type": "string", "enum": ["core", "recent"]}, "content": {"type": "string"}, "importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["memory_type", "content", "importance"], "additionalProperties": false}}}, "additionalProperties": false}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
 1),
 
 ('友好伙伴',
@@ -191,7 +221,7 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
 信任度分数：{{score:trust}}
 
 请根据当前的关系状态和分数，以及对话历史，自然地回复用户的消息。',
-'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "trust": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "trust"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "array", "items": {"type": "object"}}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
+'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "trust": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "trust"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "object", "properties": {"remove": {"type": "array", "items": {"type": "string"}}, "update": {"type": "array", "items": {"type": "object", "properties": {"old_content": {"type": "string"}, "new_content": {"type": "string"}, "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["old_content", "new_content"], "additionalProperties": false}}, "refresh": {"type": "array", "items": {"type": "string"}}, "add": {"type": "array", "items": {"type": "object", "properties": {"memory_type": {"type": "string", "enum": ["core", "recent"]}, "content": {"type": "string"}, "importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["memory_type", "content", "importance"], "additionalProperties": false}}}, "additionalProperties": false}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
 1);
 
 -- ============================================================================
@@ -208,7 +238,6 @@ INSERT INTO ai_templates (
     type_id,
     style_id,
     personality_id,
-    memory,
     prompt_variables,
     request_params,
     llm_config_id,
@@ -223,7 +252,6 @@ INSERT INTO ai_templates (
     (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'),
     1,  -- romantic_companion style
     1,  -- Default Personality
-    '刚刚上大学',
     '{"instance_name": "小乔", "personality_traits": "友善、耐心"}'::jsonb,
     NULL,
     NULL,
@@ -238,7 +266,6 @@ INSERT INTO ai_templates (
     (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'),
     2,  -- friendly_companion style
     3,  -- friendly_buddy personality
-    '找到新的工作',
     '{"instance_name": "小甜", "hobbies": "音乐、电影"}'::jsonb,
     NULL,
     NULL,
@@ -250,6 +277,35 @@ INSERT INTO ai_templates (
     1
 )
 ON CONFLICT DO NOTHING;
+
+-- Insert template seed memories (copied to instances during instantiation)
+INSERT INTO ai_template_memories (
+    id,
+    template_id,
+    memory_type,
+    content,
+    importance,
+    display_order
+) VALUES
+-- Template 1 (Romantic Companion) memories
+(
+    223788765171154900,
+    (SELECT id FROM ai_templates WHERE display_name='Romantic Default Config'),
+    'recent',
+    '刚刚上大学',
+    5,
+    0
+),
+-- Template 2 (Friendly Companion) memories
+(
+    223788765171154901,
+    (SELECT id FROM ai_templates WHERE display_name='Friendly Default Config'),
+    'recent',
+    '找到新的工作',
+    5,
+    0
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert AI personas bound to template types
 INSERT INTO ai_personas (id, qiao_id, type_id, is_reusable, status) VALUES
@@ -311,7 +367,6 @@ INSERT INTO ai_instances (
     style_id,
     personality_id,
     status,
-    memory,
     prompt_variables,
     relationship_id,
     relationship_counts,
@@ -342,7 +397,6 @@ INSERT INTO ai_instances (
     1,  -- romantic_companion style
     1,  -- Default Personality
     1,
-    '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。我们刚刚认识，我对你还不太了解，但我很期待和你成为朋友。',
     '{"personality_traits": "温柔、善良、有耐心、喜欢音乐和电影、邻家女孩的感觉", "instance_name": "小乔"}'::jsonb,
     1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
@@ -373,7 +427,6 @@ INSERT INTO ai_instances (
     1,  -- romantic_companion style
     2,  -- sweet_girlfriend personality
     1,
-    '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。',
     '{"personality_traits": "活泼、可爱、爱撒娇、热爱美食和电影", "instance_name": "小甜"}'::jsonb,
     1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
@@ -404,7 +457,6 @@ INSERT INTO ai_instances (
     2,  -- friendly_companion style
     3,  -- friendly_buddy personality
     1,
-    '我是阿杰，一个开朗幽默的好伙伴，热爱运动和游戏。',
     '{"personality_traits": "开朗、幽默、可靠、热爱运动和游戏", "instance_name": "阿杰"}'::jsonb,
     1,  -- stranger relationship
     '{"stranger": 0}'::jsonb,
@@ -412,6 +464,67 @@ INSERT INTO ai_instances (
     NULL,
     45,
     'Asia/Shanghai',
+    1
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert instance memories for sample AI instances
+INSERT INTO ai_instance_memories (
+    id,
+    instance_id,
+    instance_qiao_id,
+    user_id,
+    user_qiao_id,
+    memory_type,
+    content,
+    importance,
+    status
+) VALUES
+-- Instance 1 (小乔) memories
+(
+    223788765171154950,
+    (SELECT id FROM ai_instances WHERE id=223788765171154944),
+    (SELECT qiao_id FROM ai_instances WHERE id=223788765171154944),
+    (SELECT user_id FROM ai_instances WHERE id=223788765171154944),
+    (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154944),
+    'core',
+    '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。',
+    9,
+    1
+),
+(
+    223788765171154951,
+    (SELECT id FROM ai_instances WHERE id=223788765171154944),
+    (SELECT qiao_id FROM ai_instances WHERE id=223788765171154944),
+    (SELECT user_id FROM ai_instances WHERE id=223788765171154944),
+    (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154944),
+    'recent',
+    '我们刚刚认识，我对用户还不太了解，但我很期待和用户成为朋友。',
+    3,
+    1
+),
+-- Instance 2 (小甜) memories
+(
+    223788765171154952,
+    (SELECT id FROM ai_instances WHERE id=223788765171154945),
+    (SELECT qiao_id FROM ai_instances WHERE id=223788765171154945),
+    (SELECT user_id FROM ai_instances WHERE id=223788765171154945),
+    (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154945),
+    'core',
+    '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。',
+    9,
+    1
+),
+-- Instance 3 (阿杰) memories
+(
+    223788765171154953,
+    (SELECT id FROM ai_instances WHERE id=223788765171154946),
+    (SELECT qiao_id FROM ai_instances WHERE id=223788765171154946),
+    (SELECT user_id FROM ai_instances WHERE id=223788765171154946),
+    (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154946),
+    'core',
+    '我是阿杰，一个开朗幽默的好伙伴，热爱运动和游戏。',
+    9,
     1
 )
 ON CONFLICT (id) DO NOTHING;

@@ -67,8 +67,12 @@ async def create_operation_log(
         )
         try:
             await db.rollback()
-        except Exception:
-            pass  # Ignore rollback errors for logging
+        except Exception as rollback_exc:
+            logger.error(
+                "operation_log_rollback_failed",
+                error=str(rollback_exc),
+                admin_user_id=admin_user_id,
+            )
 
 
 async def create_login_log(
@@ -116,5 +120,9 @@ async def create_login_log(
         logger.error("create_login_log_failed", error=str(e), username=username, exc_info=True)
         try:
             await db.rollback()
-        except Exception:
-            pass  # Ignore rollback errors for logging
+        except Exception as rollback_exc:
+            logger.error(
+                "login_log_rollback_failed",
+                error=str(rollback_exc),
+                username=username,
+            )

@@ -25,6 +25,19 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- Common Database Functions
+-- ============================================================================
+
+-- Function to automatically update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================================
 -- Core User Management Tables
 -- ============================================================================
 
@@ -560,7 +573,6 @@ CREATE TABLE IF NOT EXISTS ai_templates (
     type_id INTEGER NOT NULL,
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
-    memory TEXT,
     prompt_variables JSONB,
     request_params JSONB,
     llm_config_id INTEGER,
@@ -596,6 +608,46 @@ ALTER TABLE ai_templates ADD CONSTRAINT fk_ai_templates_style
     FOREIGN KEY (style_id) REFERENCES ai_styles(id) ON DELETE RESTRICT;
 ALTER TABLE ai_templates ADD CONSTRAINT fk_ai_templates_personality
     FOREIGN KEY (personality_id) REFERENCES ai_personalities(id) ON DELETE RESTRICT;
+
+
+-- AI template memories table - Seed memories for templates to be copied to instances
+CREATE TABLE IF NOT EXISTS ai_template_memories (
+    id BIGINT PRIMARY KEY,
+    template_id INTEGER NOT NULL,
+    memory_type VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    importance INTEGER NOT NULL DEFAULT 5,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT ck_template_memories_type
+        CHECK (memory_type IN ('core', 'recent')),
+    CONSTRAINT ck_template_memories_importance
+        CHECK (importance >= 1 AND importance <= 10)
+);
+
+COMMENT ON TABLE ai_template_memories IS 'Template seed memories - static memory definitions copied to instances during instantiation';
+COMMENT ON COLUMN ai_template_memories.template_id IS 'Reference to ai_templates.id';
+COMMENT ON COLUMN ai_template_memories.memory_type IS 'core=permanent, recent=will fade with time';
+COMMENT ON COLUMN ai_template_memories.content IS 'Memory content - concise description';
+COMMENT ON COLUMN ai_template_memories.importance IS 'Importance level 1-10, determines lifetime (importance × 10 = days)';
+COMMENT ON COLUMN ai_template_memories.display_order IS 'Display and copy order, lower value = higher priority';
+
+-- Create indexes for ai_template_memories table
+CREATE INDEX idx_template_memories_template
+    ON ai_template_memories(template_id, display_order);
+
+-- Add foreign key constraint for ai_template_memories
+ALTER TABLE ai_template_memories ADD CONSTRAINT fk_template_memories_template
+    FOREIGN KEY (template_id) REFERENCES ai_templates(id) ON DELETE CASCADE;
+
+-- Create trigger for ai_template_memories
+DROP TRIGGER IF EXISTS update_ai_template_memories_updated_at ON ai_template_memories;
+CREATE TRIGGER update_ai_template_memories_updated_at
+    BEFORE UPDATE ON ai_template_memories
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 
 -- AI persona table - Manages unique qiao_id for instances (replaces ai_profile_templates)
@@ -634,7 +686,6 @@ CREATE TABLE IF NOT EXISTS ai_instances (
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
-    memory TEXT,
     prompt_variables JSONB,
     relationship_id INTEGER,
     relationship_counts JSONB,
@@ -839,6 +890,85 @@ CREATE INDEX idx_ai_request_logs_response_id ON ai_request_logs(response_id);
 CREATE INDEX idx_ai_request_logs_user_qiao_id ON ai_request_logs(user_qiao_id);
 
 -- llm_session_cache removed in refactor (Responses API session cache conflicts with dynamic prompts)
+
+
+-- ============================================================================
+-- AI Memory System
+-- ============================================================================
+
+-- AI instance memories table - AI's memories about users with importance-based lifetime
+CREATE TABLE IF NOT EXISTS ai_instance_memories (
+    id BIGINT PRIMARY KEY,
+    instance_id BIGINT NOT NULL,
+    instance_qiao_id VARCHAR(32) NOT NULL,
+    user_id BIGINT NOT NULL,
+    user_qiao_id VARCHAR(32) NOT NULL,
+    memory_type VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    importance INTEGER NOT NULL DEFAULT 5,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    refreshed_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    source_message_id BIGINT,
+    status INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_ai_instance_memories_type CHECK (memory_type IN ('core', 'recent')),
+    CONSTRAINT ck_ai_instance_memories_importance CHECK (importance >= 1 AND importance <= 10),
+    CONSTRAINT ck_ai_instance_memories_status CHECK (status IN (1, 2))
+);
+
+-- Create indexes for ai_instance_memories table
+CREATE INDEX idx_ai_instance_memories_session ON ai_instance_memories(user_qiao_id, instance_qiao_id, status);
+CREATE INDEX idx_ai_instance_memories_instance_id ON ai_instance_memories(instance_id);
+CREATE UNIQUE INDEX uq_ai_instance_memories_content ON ai_instance_memories(instance_id, content);
+-- Performance optimization: use expires_at for fast filtering of unexpired recent memories
+CREATE INDEX idx_ai_instance_memories_expires ON ai_instance_memories(memory_type, status, expires_at) WHERE memory_type = 'recent' AND status = 1;
+-- Traceability: link to source message (optional)
+CREATE INDEX idx_ai_instance_memories_source ON ai_instance_memories(source_message_id) WHERE source_message_id IS NOT NULL;
+
+-- Add foreign key constraint for ai_instance_memories
+ALTER TABLE ai_instance_memories ADD CONSTRAINT fk_ai_instance_memories_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ai_instance_memories ADD CONSTRAINT fk_ai_instance_memories_instance
+    FOREIGN KEY (instance_id) REFERENCES ai_instances(id) ON DELETE CASCADE;
+
+-- Add comments for ai_instance_memories table
+COMMENT ON TABLE ai_instance_memories IS 'AI instance memories - manages AI memories about users with importance-based lifetime';
+COMMENT ON COLUMN ai_instance_memories.memory_type IS 'Memory type: core (permanent), recent (will fade)';
+COMMENT ON COLUMN ai_instance_memories.content IS 'Memory content - concise one-sentence description';
+COMMENT ON COLUMN ai_instance_memories.importance IS 'Importance level 1-10, determines lifetime (importance × 10 = days)';
+COMMENT ON COLUMN ai_instance_memories.refreshed_at IS 'AI refresh timestamp, resets lifetime if not NULL';
+COMMENT ON COLUMN ai_instance_memories.expires_at IS 'Pre-calculated expiration timestamp (auto-computed by trigger for recent memories)';
+COMMENT ON COLUMN ai_instance_memories.source_message_id IS 'Source message ID that triggered this memory creation (for traceability)';
+COMMENT ON COLUMN ai_instance_memories.status IS 'Status: 1=active, 2=archived (forgotten)';
+
+-- Trigger function for auto-calculating expires_at
+CREATE OR REPLACE FUNCTION calculate_memory_expires_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.memory_type = 'recent' THEN
+        NEW.expires_at := COALESCE(NEW.refreshed_at, NEW.created_at) +
+                         (NEW.importance * INTERVAL '10 days');
+    ELSE
+        NEW.expires_at := NULL;  -- core memories never expire
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers for ai_instance_memories
+DROP TRIGGER IF EXISTS update_ai_instance_memories_updated_at ON ai_instance_memories;
+CREATE TRIGGER update_ai_instance_memories_updated_at
+    BEFORE UPDATE ON ai_instance_memories
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS set_memory_expires_at ON ai_instance_memories;
+CREATE TRIGGER set_memory_expires_at
+    BEFORE INSERT OR UPDATE OF importance, refreshed_at, memory_type
+    ON ai_instance_memories
+    FOR EACH ROW
+    EXECUTE FUNCTION calculate_memory_expires_at();
 
 
 -- ============================================================================

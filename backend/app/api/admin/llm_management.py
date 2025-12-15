@@ -73,8 +73,20 @@ async def test_llm_configurations(
         if invalid_names:
             raise ValueError(f"Invalid configuration names: {', '.join(invalid_names)}")
 
+    except ValueError as e:
+        logger.warning("llm_test_validation_error", error=str(e))
+        return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": str(e)}}
+
+    except Exception as e:
+        logger.error("llm_test_error", error=str(e))
+        return {
+            "success": False,
+            "error": {"code": "LLM_TEST_ERROR", "message": "LLM配置测试失败"},
+        }
+
+    else:
         # Simple test result structure
-        results = {
+        results: dict[str, Any] = {
             "test_summary": {
                 "total_configs": len(request.config_names),
                 "total_test_cases": len(request.test_cases),
@@ -90,7 +102,7 @@ async def test_llm_configurations(
 
         # Mock results for each config
         for config_name in request.config_names:
-            config_result = {
+            config_result: dict[str, Any] = {
                 "name": config_name,
                 "status": "success",
                 "test_case_results": [],
@@ -99,7 +111,7 @@ async def test_llm_configurations(
             }
 
             for i, test_case in enumerate(request.test_cases):
-                case_result = {
+                case_result: dict[str, Any] = {
                     "test_case_name": test_case.name,
                     "status": "success",
                     "response_time_ms": 450 + (i * 20),
@@ -111,14 +123,6 @@ async def test_llm_configurations(
             results["config_results"].append(config_result)
 
         return {"success": True, "data": results, "message": "LLM配置测试完成"}
-
-    except ValueError as e:
-        logger.warning("llm_test_validation_error", error=str(e))
-        return {"success": False, "error": {"code": "VALIDATION_ERROR", "message": str(e)}}
-
-    except Exception as e:
-        logger.error("llm_test_error", error=str(e))
-        return {"success": False, "error": {"code": "LLM_TEST_ERROR", "message": "LLM配置测试失败"}}
 
 
 @llm_router.get("/configs")
@@ -136,6 +140,14 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         # Get actual configs from the service
         configs = await get_active_configs(db)
 
+    except Exception as e:
+        logger.error("llm_configs_error", error=str(e))
+        return {
+            "success": False,
+            "error": {"code": "LLM_CONFIGS_ERROR", "message": "LLM配置列表获取失败"},
+        }
+
+    else:
         config_list = [
             {
                 "name": config.name,
@@ -150,21 +162,11 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
 
         return {"success": True, "data": {"configs": config_list}, "message": "LLM配置列表获取成功"}
 
-    except Exception as e:
-        logger.error("llm_configs_error", error=str(e))
-        return {
-            "success": False,
-            "error": {"code": "LLM_CONFIGS_ERROR", "message": "LLM配置列表获取失败"},
-        }
-
 
 @llm_router.get("/health-check")
-async def health_check_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def health_check_llm_configs() -> dict[str, Any]:
     """
     Check health status of all LLM configurations.
-
-    Args:
-        db: Database session
 
     Returns:
         Health status of all LLM configurations
@@ -185,11 +187,12 @@ async def health_check_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[s
             },
         }
 
-        return {"success": True, "data": health_status, "message": "LLM配置健康检查完成"}
-
     except Exception as e:
         logger.error("llm_health_check_error", error=str(e))
         return {
             "success": False,
             "error": {"code": "LLM_HEALTH_CHECK_ERROR", "message": "LLM配置健康检查失败"},
         }
+
+    else:
+        return {"success": True, "data": health_status, "message": "LLM配置健康检查完成"}

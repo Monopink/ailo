@@ -11,6 +11,7 @@ from fastapi import status as http_status
 from sqlalchemy import BigInteger, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.type_aliases import JSONDict
 from app.crud.ai import ai_persona as ai_persona_crud
 from app.crud.contact import contact as contact_crud
 from app.crud.contact import contact_request as contact_request_crud
@@ -161,7 +162,7 @@ async def _process_ai_contact_request(
     contact_request: "ContactRequest",
     alias: str | None,
     tags: list[str] | None,
-) -> dict:
+) -> JSONDict:
     """
     Process AI contact request.
 
@@ -202,7 +203,7 @@ async def _process_ai_contact_request(
             request_id=contact_request.id,
             from_qiao_id=user_qiao_id,
             to_qiao_id=contact_request.to_qiao_id,
-            message=contact_request.message or "",
+            _message=contact_request.message or "",
         )
 
         if not decision.accepted or not decision.persona or not decision.template:
@@ -297,7 +298,7 @@ async def _process_ai_contact_request(
             exc_info=True,
         )
 
-        return {"message": "请求已发送"}
+    return {"message": "请求已发送"}
 
 
 def _handle_ai_decline(contact_request: ContactRequest, decision: ContactRequestDecision) -> None:
@@ -324,7 +325,7 @@ async def _process_user_contact_request(
     *,
     user_qiao_id: str,
     contact_request: "ContactRequest",
-) -> dict:
+) -> JSONDict:
     """
     Process user contact request.
 
@@ -385,7 +386,7 @@ async def _check_and_restore_contact(
     db: AsyncSession,
     user_qiao_id: str,
     request: ContactRequestCreate,
-) -> dict | None:
+) -> JSONDict | None:
     """
     Check if contact already exists and restore if soft-deleted.
 
@@ -431,7 +432,7 @@ async def _check_ai_persona_duplicate(
     db: AsyncSession,
     user_qiao_id: str,
     request: ContactRequestCreate,
-) -> dict | None:
+) -> JSONDict | None:
     """
     Check if the user already instantiated the requested persona.
 
@@ -504,7 +505,7 @@ async def _check_and_update_pending_request(
     db: AsyncSession,
     user_qiao_id: str,
     request: ContactRequestCreate,
-) -> dict | None:
+) -> JSONDict | None:
     """
     Check if pending/processing request exists and update it (idempotency).
 
@@ -672,7 +673,7 @@ async def create_contact_request_service(
     db: AsyncSession,
     user_qiao_id: str,
     request: ContactRequestCreate,
-) -> dict:
+) -> JSONDict:
     """
     Unified contact request handler.
 
@@ -732,7 +733,7 @@ async def retry_pending_contact_request(
     request_id: int,
     alias: str | None = None,
     tags: list[str] | None = None,
-) -> dict:
+) -> JSONDict:
     """
     Retry a pending AI contact request that previously failed due to missing templates.
     """
@@ -742,6 +743,7 @@ async def retry_pending_contact_request(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="请求不存在",
         )
+    assert contact_request is not None
     if contact_request.status != ContactRequestStatus.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -846,7 +848,6 @@ async def get_contact_requests_service(
             item = ContactRequestWithProfile(
                 id=req.id,
                 from_qiao_id=req.from_qiao_id,
-                from_type=ContactType(req.from_type),
                 message=req.message,
                 status=ContactRequestStatus(req.status),
                 created_at=req.created_at,
@@ -945,6 +946,7 @@ async def accept_contact_request_service(
         contact_request = await contact_request_crud.get(db, id=request_id)
         if not contact_request:
             _raise_request_not_found()
+        assert contact_request is not None
 
         # Verify request is for current user
         if contact_request.to_qiao_id != user_qiao_id:
@@ -965,6 +967,7 @@ async def accept_contact_request_service(
         user = await user_crud.get_by_qiao_id(db, qiao_id=user_qiao_id)
         if not user:
             _raise_user_not_found()
+        assert user is not None
 
         # Create contact
         conv_id = await _get_im_conv_id(db, ensure_valid=True)
@@ -1017,6 +1020,7 @@ async def accept_contact_request_service(
         )
         if not contact_response:
             _raise_sync_failed()
+        assert contact_response is not None
 
         logger.info(
             "accept_contact_request_success",
@@ -1047,7 +1051,7 @@ async def ignore_contact_request_service(
     db: AsyncSession,
     user_qiao_id: str,
     request_id: int,
-) -> dict:
+) -> JSONDict:
     """
     Ignore a contact request without notifying the applicant.
 
@@ -1086,6 +1090,7 @@ async def ignore_contact_request_service(
         contact_request = await contact_request_crud.get(db, id=request_id)
         if not contact_request:
             _raise_request_not_found()
+        assert contact_request is not None
 
         # Verify request is for current user
         if contact_request.to_qiao_id != user_qiao_id:

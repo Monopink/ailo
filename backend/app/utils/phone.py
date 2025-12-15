@@ -10,6 +10,12 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+CHINA_LOCAL_LENGTH = 11
+CHINA_E164_LENGTH = 14
+NORTH_AMERICA_E164_LENGTH = 12
+MIN_NUMBER_LENGTH_FOR_MASK = 5
+MASK_BODY = "******"
+
 
 def normalize_phone(phone: str) -> str:
     """
@@ -41,7 +47,7 @@ def normalize_phone(phone: str) -> str:
     if not phone.startswith("+"):
         if phone.startswith("86"):
             phone = "+" + phone
-        elif phone.startswith("1") and len(phone) == 11:
+        elif phone.startswith("1") and len(phone) == CHINA_LOCAL_LENGTH:
             # China mobile number without country code
             phone = "+86" + phone
         else:
@@ -85,20 +91,16 @@ def mask_phone(phone: str) -> str:
     if not phone or not phone.startswith("+"):
         return phone
 
-    # Extract country code and number
-    if phone.startswith("+86") and len(phone) == 14:
-        # China phone: +86 + 11 digits → +86 138******00
-        return f"+86 {phone[3:6]}******{phone[-2:]}"
-    if phone.startswith("+1") and len(phone) == 12:
-        # US/Canada phone: +1 + 10 digits → +1 201******99
-        return f"+1 {phone[2:5]}******{phone[-2:]}"
-    # Other countries: try to mask middle part
-    # Extract country code (1-3 digits after +)
+    if phone.startswith("+86") and len(phone) == CHINA_E164_LENGTH:
+        return f"+86 {phone[3:6]}{MASK_BODY}{phone[-2:]}"
+    if phone.startswith("+1") and len(phone) == NORTH_AMERICA_E164_LENGTH:
+        return f"+1 {phone[2:5]}{MASK_BODY}{phone[-2:]}"
+
     match = re.match(r"^(\+\d{1,3})(\d{3,})$", phone)
     if match:
         country_code = match.group(1)
         number = match.group(2)
-        if len(number) >= 5:
-            return f"{country_code} {number[:3]}******{number[-2:]}"
+        if len(number) >= MIN_NUMBER_LENGTH_FOR_MASK:
+            return f"{country_code} {number[:3]}{MASK_BODY}{number[-2:]}"
 
     return phone

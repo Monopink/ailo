@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -21,6 +22,61 @@ logger = get_logger(__name__)
 
 
 _converter = ResponsesFormatConverter()
+
+
+def _build_current_state(user_message: str) -> str:
+    snippet = user_message[:20] or "empty input"
+    return f'Currently chatting while processing "{snippet}".'
+
+
+def _build_internal_thoughts(_: str) -> str:
+    return "Plan a friendly reply that matches the relationship and policies."
+
+
+def _build_outgoing_messages(user_message: str) -> list[str]:
+    snippet = user_message[:30] or "no input"
+    return [f"Mock reply: {snippet}"]
+
+
+def _build_followups(user_message: str) -> list[str]:
+    base = user_message[:15] or "next topic"
+    return [f"Mock follow-up: {base}?", "Mock follow-up: anything else?"]
+
+
+def _build_memory_operations_entry(user_message: str) -> dict[str, Any]:
+    return {
+        "remove": [],
+        "update": [],
+        "refresh": [],
+        "add": [
+            {
+                "memory_type": "recent",
+                "content": f"User said: {user_message[:20]}",
+                "importance": 5,
+            }
+        ],
+    }
+
+
+def _build_score_field(_: str) -> dict[str, int]:
+    return {"friendship": 500, "romance": 500}
+
+
+_STATIC_FIELD_VALUES: dict[str, Any] = {
+    "attack_detected": False,
+    "should_reply": True,
+    "should_block": False,
+    "should_update_memory": True,
+}
+
+_FIELD_BUILDERS: dict[str, Callable[[str], Any]] = {
+    "current_state": _build_current_state,
+    "internal_thoughts": _build_internal_thoughts,
+    "outgoing_messages": _build_outgoing_messages,
+    "followup_messages": _build_followups,
+    "memory_operations": _build_memory_operations_entry,
+    "score": _build_score_field,
+}
 
 
 def _build_payload(
@@ -89,33 +145,16 @@ def _build_mock_content(
             field_schema = schema_props.get(field, {})
             field_type = field_schema.get("type")
 
-            if field == "current_state":
-                mock_body[field] = f"模拟状态：正在处理消息「{user_message[:20] or '空'}」"
-            elif field == "internal_thoughts":
-                mock_body[field] = "模拟思考过程"
-            elif field == "attack_detected":
-                mock_body[field] = False
-            elif field == "should_reply":
-                mock_body[field] = True
-            elif field == "outgoing_messages":
-                mock_body[field] = [f"模拟回复：{user_message[:30] or '（空输入）'}"]
-            elif field == "score":
-                mock_body[field] = {"friendship": 500, "romance": 500}
-            elif field == "followup_messages":
-                mock_body[field] = ["模拟追加消息1", "模拟追加消息2"]
-            elif field == "should_block":
-                mock_body[field] = False
-            elif field == "should_update_memory":
-                mock_body[field] = True
-            elif field == "memory_operations":
-                mock_body[field] = [
-                    {
-                        "operation": "add",
-                        "content": f"用户说：{user_message[:20]}",
-                        "insert_position": "end",
-                    }
-                ]
-            elif field_type == "string":
+            if field in _STATIC_FIELD_VALUES:
+                mock_body[field] = _STATIC_FIELD_VALUES[field]
+                continue
+
+            builder = _FIELD_BUILDERS.get(field)
+            if builder:
+                mock_body[field] = builder(user_message)
+                continue
+
+            if field_type == "string":
                 mock_body[field] = f"mock_{field}"
             elif field_type == "boolean":
                 mock_body[field] = False
@@ -135,7 +174,7 @@ def _build_mock_content(
 
         return json.dumps(mock_body, ensure_ascii=False)
 
-    return f"（模拟回复）{user_message or '无输入'} —— {timestamp}"
+    return f"(Mock reply) {user_message or 'no input'} — {timestamp}"
 
 
 async def send_request(
@@ -144,7 +183,7 @@ async def send_request(
     options: LLMRequestOptions,
     *,
     stream: bool = False,
-    preemption_checker=None,
+    preemption_checker: Callable[[], Awaitable[bool]] | None = None,
 ) -> LLMProviderResult:
     """
     Unified mock adapter.
@@ -157,6 +196,7 @@ async def send_request(
         preemption_checker: Optional async callable used to cancel streaming
     """
 
+    _ = stream  # maintained for API parity
     provider_messages = _converter.convert_to_provider_format(options.messages)
     payload = _build_payload(config, provider, options, provider_messages)
 
@@ -198,11 +238,13 @@ async def send_request(
 
     reasoning_content = None
     if (options.thinking_mode or config.thinking_mode) == "enabled":
-        reasoning_content = f"""[模拟思考过程]
-1. 分析用户消息：{last_user_message[:50] or '空输入'}
-2. 判断用户意图：正常对话
-3. 确定回复策略：友好回应
-4. 生成回复内容"""
+        reasoning_content = (
+            "[Mock reasoning]\n"
+            f"1. Analyze user message: {last_user_message[:50] or 'empty input'}\n"
+            "2. Determine intent: casual chat\n"
+            "3. Choose reply strategy: friendly tone\n"
+            "4. Produce final response"
+        )
 
     response_identifier = f"mock-{int(datetime.now(UTC).timestamp() * 1000)}"
 

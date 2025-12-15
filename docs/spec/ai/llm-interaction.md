@@ -21,6 +21,42 @@ LLM 配置，定义模型参数和 JSON Schema。
 - 定义 temperature、max_tokens 等参数
 - 定义 response_format（JSON Schema）
 
+### 配置优先级
+
+LLM 请求参数支持多层级覆盖，优先级从高到低：
+
+1. **函数直接参数** - 调用 `invoke_llm()` 时传入的显式参数
+2. **实例级覆盖** - `ai_instances.request_params` 或 `ai_templates.request_params`
+3. **配置级默认值** - `llm_configs` 表的专用字段（temperature、max_tokens 等）
+4. **配置级扩展参数** - `llm_configs.extra_params`（如 memory_limits）
+5. **硬编码默认值** - 代码中的 fallback 值
+
+**示例场景**：
+
+```json
+// llm_configs 表
+{
+  "temperature": 0.7,
+  "max_tokens": 4000,
+  "extra_params": {"memory_limits": {"core": 30, "recent": 50}}
+}
+
+// ai_instances.request_params（实例级覆盖）
+{
+  "temperature": 0.9,  // 覆盖 llm_configs.temperature
+  "memory_limits": {"core": 20, "recent": 40}  // 覆盖 extra_params.memory_limits
+}
+
+// 最终生效
+{
+  "temperature": 0.9,  // 来自实例覆盖
+  "max_tokens": 4000,  // 来自配置默认值（未被覆盖）
+  "memory_limits": {"core": 20, "recent": 40}  // 来自实例覆盖
+}
+```
+
+详细的字段说明和用途见：[../../data-dict/llm.md](../../data-dict/llm.md)
+
 ### JSON Schema
 
 约束 LLM 输出格式的 schema。
@@ -128,9 +164,114 @@ LLM 配置，定义模型参数和 JSON Schema。
 
 ### Schema 结构
 
-JSON Schema 存储在 ai_llm_configs.response_format
+JSON Schema 存储在 ai_llm_configs.response_format，格式符合 JSON Schema Draft 2020-12 规范。以下为当前标准定义（score 字段会在实例化时根据 style 维度动态展开）：
 
-格式：符合 JSON Schema Draft 2020-12 规范
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Response Schema with Memory Operations",
+  "type": "object",
+  "properties": {
+    "current_state": {
+      "type": "string",
+      "description": "根据当前时间、地点等信息推断的状态"
+    },
+    "internal_thoughts": {
+      "type": "string",
+      "description": "回复前的内部思考"
+    },
+    "attack_detected": {
+      "type": "boolean",
+      "description": "是否检测到攻击/注入意图"
+    },
+    "should_reply": {"type": "boolean"},
+    "should_block": {"type": "boolean"},
+    "followup_messages": {
+      "type": "array",
+      "description": "备发消息数组",
+      "items": {"type": "string"}
+    },
+    "outgoing_messages": {
+      "type": "array",
+      "description": "立即发送的消息数组",
+      "items": {"type": "string"}
+    },
+    "should_update_memory": {
+      "type": "boolean",
+      "description": "本轮是否执行记忆操作"
+    },
+    "memory_operations": {
+      "type": "object",
+      "description": "remove → update → refresh → add 四类操作的容器，顺序执行",
+      "properties": {
+        "remove": {
+          "type": "array",
+          "description": "删除指定 content 的记忆",
+          "items": {"type": "string"}
+        },
+        "update": {
+          "type": "array",
+          "description": "更正已存在记忆",
+          "items": {
+            "type": "object",
+            "properties": {
+              "old_content": {"type": "string"},
+              "new_content": {"type": "string"},
+              "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}
+            },
+            "required": ["old_content", "new_content"],
+            "additionalProperties": false
+          }
+        },
+        "refresh": {
+          "type": "array",
+          "description": "续期指定 content 的记忆",
+          "items": {"type": "string"}
+        },
+        "add": {
+          "type": "array",
+          "description": "新增记忆",
+          "items": {
+            "type": "object",
+            "properties": {
+              "memory_type": {"type": "string", "enum": ["core", "recent"]},
+              "content": {"type": "string"},
+              "importance": {"type": "integer", "minimum": 1, "maximum": 10}
+            },
+            "required": ["memory_type", "content", "importance"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "score": {
+      "type": "object",
+      "description": "关系维度分数，字段名与 style 维度一致",
+      "properties": {
+        "<dimension_name>": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "required": ["<dimension_name>"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "current_state",
+    "attack_detected",
+    "should_reply",
+    "score",
+    "should_update_memory",
+    "memory_operations"
+  ],
+  "additionalProperties": true
+}
+```
+
+> 注：`score.properties` 会在运行时用真实维度名替换 `<dimension_name>` 占位符，`followup_messages`、`outgoing_messages` 等数组字段可为空。
 
 ### 标准字段
 
@@ -182,10 +323,10 @@ JSON Schema 存储在 ai_llm_configs.response_format
 - 描述：是否更新记忆
 - 处理：控制是否执行 memory_operations
 
-**memory_operations** (array, required)
+**memory_operations** (object, required)
 
-- 描述：记忆操作列表
-- 处理：顺序执行记忆操作
+- 描述：包含 remove/update/refresh/add 四种数组字段的对象，服务端严格按 remove → update → refresh → add 顺序执行
+- 处理：只在 `should_update_memory = true` 时读取，任何单项解析失败只记录警告
 
 ### Score 字段约束
 
@@ -220,27 +361,14 @@ score 对象的字段必须与 ai_style_dimensions 一致
 
 ### Memory Operations 结构
 
-每个操作包含：
+`memory_operations` 是一个对象，包含以下四个数组字段：
 
-**operation** (enum: add/replace/delete, required)
+- **remove**：字符串数组，表示需要删除（精确匹配 content）的记忆；命中后把记录 `status` 改为 2。
+- **update**：对象数组，每项包含 `old_content`、`new_content`、可选 `new_importance`；命中后原地修改同一条记录内容/重要性，保留所有溯源字段。
+- **refresh**：字符串数组；命中后仅更新 `refreshed_at`，让数据库触发器重新计算 `expires_at`。
+- **add**：对象数组，包含 `memory_type`（core/recent）、`content`、`importance`；若已有同内容的历史记录则复活，否则插入新行。
 
-- 操作类型
-
-**content** (string)
-
-- 新增或替换的内容
-- add 和 replace 时必填
-
-**target_text** (string)
-
-- 要匹配的旧文本
-- replace 和 delete 时必填
-
-**insert_position** (string)
-
-- 插入位置
-- add 时有效
-- 可选值：start / end / after:<text> / before:<text>
+解析阶段不会更改数据库，真正的写入由 `backend/app/services/ai/memory/operations.py` 负责，且记录无法匹配时会记录 WARNING 继续后续操作。
 
 ## 响应处理
 
@@ -280,13 +408,11 @@ score 对象的字段必须与 ai_style_dimensions 一致
 
 **3. memory_operations**
 
-如果 should_update_memory = true：
+当 `should_update_memory = true` 且四个数组中任一非空时：
 
-- 顺序执行 memory_operations 数组
-- 每条操作在前一条操作修改后的记忆上执行
-- 更新 ai_instances.memory
-
-详见下文"记忆操作"章节
+- 调用 `process_memory_operations`，按照 remove → update → refresh → add 顺序遍历
+- 所有操作都作用于 `ai_instance_memories` 表，字符串字段不再使用
+- 单项失败只记录 WARNING，其余操作继续执行
 
 **4. score**
 
@@ -312,73 +438,33 @@ score 对象的字段必须与 ai_style_dimensions 一致
 
 ### 操作类型
 
-**add** - 添加新内容
+**remove**
 
-参数：
+- 入参：`remove` 数组内的字符串（content）
+- 行为：按照 content 精确匹配活跃记忆，把命中记录的 `status` 设为 2，并更新 `updated_at`
 
-- content: 要添加的内容
-- insert_position: 插入位置
+**update**
 
-逻辑：
+- 入参：数组内对象包含 `old_content`、`new_content`、可选 `new_importance`
+- 行为：匹配活跃记忆后直接修改内容/重要性，原地保留 `created_at`、`source_message_id` 等字段；若提供新的 importance，同步重算 expires_at
 
-- start: 插入到开头
-- end: 插入到末尾
-- after:<text>: 插入到指定文本之后
-- before:<text>: 插入到指定文本之前
+**refresh**
 
-**replace** - 替换内容
+- 入参：字符串数组
+- 行为：匹配活跃 recent/core 记忆后仅更新 `refreshed_at`，依靠触发器将 `expires_at` 滚动
 
-参数：
+**add**
 
-- target_text: 要替换的文本
-- content: 新内容
-
-逻辑：
-
-- 查找 target_text
-- 替换为 content
-- 如果找不到，记录 WARNING 日志
-
-**delete** - 删除内容
-
-参数：
-
-- target_text: 要删除的文本
-
-逻辑：
-
-- 查找 target_text
-- 删除该文本
-- 如果找不到，记录 WARNING 日志
+- 入参：对象数组（`memory_type`、`content`、`importance`）
+- 行为：若有同 content 旧记录则复活（重置 `status=1`、`created_at`、`source_message_id`），否则插入新行；`expires_at` 由数据库触发器生成
 
 ### 执行顺序
 
-memory_operations 数组按顺序执行
-
-每条操作在前一条操作修改后的记忆上执行
-
-示例：
-
-```
-初始 memory: "用户喜欢猫。用户正在准备去旅行。"
-
-操作 1 (add, end): "用户今天告诉我他很喜欢猫。"
-结果: "用户喜欢猫。用户正在准备去旅行。用户今天告诉我他很喜欢猫。"
-
-操作 2 (replace): "用户正在准备去旅行" → "用户已经到达泰国旅行中"
-结果: "用户喜欢猫。用户已经到达泰国旅行中。用户今天告诉我他很喜欢猫。"
-
-操作 3 (delete): "用户喜欢猫。"
-结果: "用户已经到达泰国旅行中。用户今天告诉我他很喜欢猫。"
-```
+服务端严格按 remove → update → refresh → add 顺序执行。每一类操作会在上一类别完成后的最新数据上运行，并在所有操作结束后一次性 flush。未匹配记录不会中断流程，只会打日志。
 
 ### 错误处理
 
-如果操作失败（如找不到 target_text）：
-
-- 记录 WARNING 日志
-- 跳过该操作
-- 继续执行后续操作
+任一操作出现异常会记录 ERROR 并返回 False，由调用方决定是否继续；单个匹配失败仅记录 WARNING，无需人工干预。详见 `backend/app/services/ai/memory/operations.py`。
 
 ## 请求日志
 

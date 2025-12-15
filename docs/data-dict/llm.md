@@ -49,10 +49,56 @@ default_extra_headers -- 默认额外请求头（JSONB），如{"ark-beta-web-se
 default_extra_query -- 默认额外查询参数（JSONB）
 status -- 状态：1=active, 2=inactive
 priority -- 优先级，数字越小优先级越高，用于故障转移
-extra_params -- 其他的参数
+extra_params -- 扩展参数（JSONB格式）
+  用于存储不在表结构中的扩展配置，如：
+  - memory_limits: AI记忆系统限制配置，如 {"core": 30, "recent": 50}
+  - 提供商特定参数：如 max_completion_tokens、service_tier 等
+  注意：此字段仅用于存储扩展参数，不应覆盖已有的表字段（如 temperature、max_tokens 等）
 created_at
 updated_at
 ```
+
+**配置优先级说明**：
+
+LLM 请求参数的配置优先级遵循以下规则（从高到低）：
+
+1. **函数直接参数** - 在调用 `invoke_llm()` 时直接传入的参数（如 temperature、max_tokens）
+2. **实例级覆盖** - `ai_instances.request_params` 或 `ai_templates.request_params`（JSONB字段，可覆盖任何参数）
+3. **配置级默认值** - `llm_configs` 表中的专用字段（temperature、max_tokens、top_p 等）
+4. **配置级扩展参数** - `llm_configs.extra_params`（仅用于不在表结构中的参数，如 memory_limits）
+5. **硬编码默认值** - 代码中定义的默认值
+
+**示例场景**：
+
+```python
+# llm_configs 表配置
+temperature = 0.7
+max_tokens = 4000
+extra_params = {"memory_limits": {"core": 30, "recent": 50}}
+
+# ai_instances 实例覆盖
+request_params = {
+    "temperature": 0.9,  # 覆盖 llm_configs.temperature (0.7 → 0.9)
+    "memory_limits": {"core": 20, "recent": 40}  # 覆盖 extra_params.memory_limits
+}
+
+# 最终生效的参数
+temperature = 0.9  # 来自 instance.request_params
+max_tokens = 4000  # 来自 llm_configs.max_tokens（未被覆盖）
+memory_limits = {"core": 20, "recent": 40}  # 来自 instance.request_params
+```
+
+**设计说明**：
+
+- **为什么允许实例级覆盖配置级参数？**
+  - 提供实例级个性化能力（如特定AI需要更高的 temperature）
+  - 支持 A/B 测试和临时调整
+  - 符合"配置继承与覆盖"的常见设计模式
+
+- **`extra_params` 的正确用途**：
+  - ✅ 存储扩展参数（memory_limits、provider 特定参数等）
+  - ✅ 避免频繁修改数据库 schema
+  - ❌ 不应用于覆盖已有字段（会造成混淆和冗余）
 
 ## llm_test_logs
 

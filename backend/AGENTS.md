@@ -17,6 +17,7 @@
 - [数据字典](../docs/data-dict/)
 - [迁移操作](../docs/tech/MIGRATION.md)
 - [Doubao文档](../references/doubao-docs/)
+- 特别提示：用户可以联系到Doubao文档专家，如果有不确定的问题请报告提问，请勿在一知半解状态实施
 - [Leancloud文档](../references/leancloud-docs/)
 
 ## 架构约束
@@ -109,6 +110,7 @@ models (数据模型)
 - 使用 `| None` 而非 `Optional[T]`
 - 使用 `dict[str, int]` 而非 `Dict[str, int]`
 - 即使代码能运行也要遵守类型检查器约束
+- json相关的类型在 [type_aliases.py](backend/app/core/type_aliases.py)
 
 **命名规范**:
 - 函数/变量: snake_case

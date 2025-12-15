@@ -77,7 +77,7 @@ LeanCloud Webhook 接收
 **逻辑**：
 
 - role = "user"
-- content = 消息内容（JSONB 格式）
+- message_type/text_content/media_url/media_metadata 等字段按 `ai_conversation_items` 结构写入（text 必填 text_content）
 - is_excluded_from_context = false
 - buffer_id = NULL（稍后关联）
 
@@ -160,9 +160,10 @@ LeanCloud Webhook 接收
 1. 获取 personality.prompt 模板
 2. 替换系统占位符
 3. 替换实例占位符
-4. 查询对话历史（ai_conversation_items）
-5. 构建 context
-6. 合并为完整 messages 数组
+4. 使用 `backend/app/services/ai/memory/retrieval.py` 生成 `{{memory}}` 文本（读取 `ai_instance_memories`，并应用限额/模糊标签）
+5. 查询对话历史（ai_conversation_items）
+6. 构建 context
+7. 合并为完整 messages 数组
 
 **输出**：完整的 LLM 请求 messages
 
@@ -197,7 +198,7 @@ LeanCloud Webhook 接收
 
 1. 处理 attack_detected（标记攻击消息）
 2. 处理 should_block（屏蔽用户）
-3. 处理 memory_operations（更新记忆）
+3. 处理 memory_operations（调用 `backend/app/services/ai/memory/operations.py`，更新 `ai_instance_memories`）
 4. 处理 score（更新关系分数）
 5. 标记 buffer 为 COMPLETE
 

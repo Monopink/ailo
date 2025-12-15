@@ -100,9 +100,9 @@
 
 **{{memory}}**
 
-- 来源：ai_instances.memory
-- 内容：实例的记忆内容
-- 如果为 NULL：空字符串
+- 来源：`ai_instance_memories`，通过 `backend/app/services/ai/memory/retrieval.py:build_memory_prompt` 查询
+- 逻辑：根据 `memory/config.py` 的回落顺序读取 core/recent 限额，过滤 `status=1`（recent 额外要求未过期），按重要性与创建时间排序
+- 输出：带 `[清晰]/[较模糊]/[很模糊]/[极模糊]` 标签的 Markdown 列表，无匹配记录则输出空字符串
 
 **{{pending_messages}}**
 
@@ -140,7 +140,7 @@
 
 ### 步骤 6：构建 context
 
-详见下文"Context 构建"章节
+详见下文"Context 构建"章节（此阶段已包含记忆占位符生成，context 仅指会话历史）
 
 ### 步骤 7：合并为完整请求
 
@@ -171,16 +171,16 @@ messages = [
 
 ### 消息格式
 
-ai_conversation_items.content 字段直接兼容 Doubao Responses API 格式
-
-格式：JSONB 数组
+ai_conversation_items 采用扁平字段存储（message_type / text_content / media_url / media_metadata），不再保存 provider 的原始 JSON block。构造 LLM 请求时，builder 会根据 message_type 重新拼装为 Doubao Responses API 兼容的数组：
 
 ```
 [
-  {type: "text", text: "消息内容"},
-  {type: "image_url", image_url: {url: "..."}}
+  {type: "text", text: "[今天17:19] 你好"},
+  {type: "image_url", image_url: {url: "...", detail: "high"}}
 ]
 ```
+
+目前仅支持 text / image / audio 三种类型；图片与音频的元数据存放在 media_metadata，转换时一并带入。
 
 ### 时间标记
 

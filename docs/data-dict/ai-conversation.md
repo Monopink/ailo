@@ -102,3 +102,68 @@ buffer_id -- 关联的 ai_message_buffer.id（assistant 消息）
 created_at -- 请求创建时间
 completed_at -- 请求完成时间
 ```
+
+## ai_instance_memories
+
+AI实例记忆表，管理AI对用户的记忆（基于重要性的寿命管理）。
+
+```txt
+id -- Snowflake ID
+instance_id -- 关联ai_instances.id
+instance_qiao_id -- AI external ID
+user_id -- 关联users.id
+user_qiao_id -- 用户 external ID
+memory_type -- 记忆类型：core（核心记忆，永久保留）、recent（近期记忆，会遗忘）
+content -- 记忆内容，简洁的一句话描述
+importance -- 重要性1-10，决定寿命（重要性×10=天数）
+created_at -- 记忆创建时间
+refreshed_at -- AI续期时间，如果有值则从这个时间开始计算寿命
+expires_at -- 预计算的过期时间（仅recent类型，通过触发器自动计算，性能优化）
+source_message_id -- 触发创建这条记忆的消息ID（溯源用）
+status -- 状态：1=active（活跃），2=archived（已归档/遗忘）
+updated_at
+```
+
+**设计说明**：
+
+- **记忆类型**：
+  - `memory_type='core'`：核心记忆永久保留，如"用户是程序员"、"我们是好朋友"
+  - `memory_type='recent'`：近期记忆会随时间模糊化，如"用户昨天说心情不好"
+
+- **寿命计算**：
+  - 公式：`寿命（天）= importance × 10`
+  - 示例：importance=1（10天）、importance=5（50天）、importance=10（100天）
+  - `expires_at` 字段由数据库触发器自动计算（`COALESCE(refreshed_at, created_at) + importance × 10 days`）
+
+- **模糊化表达**：
+  - 系统在prompt中标记模糊程度（不修改content内容）：
+    - 75%-100%：[清晰]
+    - 50%-75%：[较模糊]
+    - 25%-50%：[很模糊]
+    - 0%-25%：[极模糊]
+  - AI根据标记自然表达不确定性（如"我记得"、"好像"等）
+
+- **AI操作**：
+  - `add`：新增记忆
+  - `update`：更新记忆内容或重要性（保留创建时间）
+  - `refresh`：续期记忆（更新 refreshed_at，重置寿命）
+  - `remove`：删除记忆（更新 status = 2）
+
+- **数量限制**：
+  - 配置位置：`llm_configs.extra_params.memory_limits` 或 `ai_instances.request_params.memory_limits`
+  - 配置格式：`{"core": 30, "recent": 50}`（JSONB）
+  - 三级回落：实例层 → LLM配置层 → 代码默认值
+  - 执行策略：检索时limit、写入时归档超额、定时任务兜底清理
+
+- **性能优化**：
+  - 使用 `expires_at` 索引快速过滤过期记忆（`WHERE expires_at > NOW()`）
+  - 避免运行时计算寿命
+- **唯一约束**：
+  - `(instance_id, content)` 组合唯一，防止同一个实例出现完全重复的记忆内容，便于 update/remove 通过精确匹配定位记录
+
+- **溯源**：
+  - `source_message_id` 记录触发记忆创建的消息ID，用于调试和审计
+
+**相关文档**：
+- 规格说明：[../spec/ai/memory-system.md](../spec/ai/memory-system.md)
+- 设计文档：[../task/ai-memory-system-design.md](../task/ai-memory-system-design.md)

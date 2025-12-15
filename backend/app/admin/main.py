@@ -28,6 +28,7 @@ from .views import (
     ai_dimension_view,
     ai_instance_chat_test_view,
     ai_instance_dimension_view,
+    ai_instance_memory_view,
     ai_instance_view,
     ai_message_buffer_view,
     ai_persona_view,
@@ -38,6 +39,7 @@ from .views import (
     ai_style_dimension_view,
     ai_style_test_view,
     ai_style_view,
+    ai_template_memory_view,
     ai_template_view,
     ai_type_view,
     contact_request_view,
@@ -150,15 +152,14 @@ def _register_dropdowns(admin_instance: Admin) -> None:
     )
     admin_instance.add_view(discovery_group)
 
-    ai_group = DropDown(
-        "AI",
-        icon="fa fa-robot",
+    ai_config_group = DropDown(
+        "AI Configuration",
+        icon="fa fa-sliders",
         views=[
             ai_type_view,
             ai_persona_view,
             ai_template_view,
-            ai_instance_view,
-            ai_instance_dimension_view,
+            ai_template_memory_view,
             ai_style_view,
             ai_personality_view,
             ai_relationship_view,
@@ -166,6 +167,18 @@ def _register_dropdowns(admin_instance: Admin) -> None:
             ai_style_dimension_view,
             ai_personality_placeholder_view,
             ai_dimension_relationship_mapping_view,
+        ],
+        always_open=False,
+    )
+    admin_instance.add_view(ai_config_group)
+
+    ai_runtime_group = DropDown(
+        "AI Runtime",
+        icon="fa fa-robot",
+        views=[
+            ai_instance_view,
+            ai_instance_dimension_view,
+            ai_instance_memory_view,
             ai_message_buffer_view,
             ai_conversation_item_view,
             ai_conversation_item_archive_view,
@@ -174,7 +187,7 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         ],
         always_open=False,
     )
-    admin_instance.add_view(ai_group)
+    admin_instance.add_view(ai_runtime_group)
 
     admin_instance.add_view(ai_instance_chat_test_view)
     admin_instance.add_view(ai_style_test_view)

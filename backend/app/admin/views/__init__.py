@@ -37,7 +37,12 @@ from .ai_style_views import (
     ai_style_dimension_view,
     ai_style_view,
 )
-from .ai_template_views import AI_TEMPLATE_VIEWS, ai_persona_view, ai_template_view
+from .ai_template_views import (
+    AI_TEMPLATE_VIEWS,
+    ai_persona_view,
+    ai_template_memory_view,
+    ai_template_view,
+)
 from .ai_type_views import AI_TYPE_VIEWS, ai_type_view
 from .discovery_views import DISCOVERY_MODEL_VIEWS, square_type_entry_view
 from .llm_test_views import llm_config_test_view
@@ -148,6 +153,7 @@ __all__ = [
     "ai_style_dimension_view",
     "ai_style_test_view",
     "ai_style_view",
+    "ai_template_memory_view",
     "ai_template_view",
     "ai_type_view",
     "contact_request_retry_view",

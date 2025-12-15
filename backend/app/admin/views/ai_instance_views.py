@@ -845,6 +845,7 @@ ai_instance_dimension_view = AIInstanceDimensionView(
 ai_instance_memory_view = AIInstanceMemoryView(
     AIInstanceMemory,
     name="Instance Memories",
+    label="Instance Memories",
     icon="fa fa-book",
     identity="ai_instance_memory",
 )

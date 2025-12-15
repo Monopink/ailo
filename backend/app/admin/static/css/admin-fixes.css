@@ -883,3 +883,38 @@ html[data-bs-theme="dark"] div.DTS div.DTS_Loading {
   color: var(--tblr-body-color) !important;
   border-color: var(--tblr-border-color) !important;
 }
+
+/* ============================================================================
+   Badge Color Fixes in list-group-item
+   ============================================================================ */
+
+/* Fix badge text color visibility in list-group-item
+   Override Tabler's CSS variable inheritance chain
+   Use direct child selector to avoid affecting nested elements */
+.list-group-item > div .badge {
+  --tblr-badge-color: #ffffff !important;
+}
+
+/* Ensure light badges have dark text - only for the badge itself, not nested elements */
+.list-group-item > div .badge.bg-light {
+  --tblr-badge-color: #1e293b !important;
+}
+
+.list-group-item > div .badge.text-dark {
+  --tblr-badge-color: #1e293b !important;
+}
+
+/* Dark mode adjustments */
+html[data-bs-theme="dark"] .list-group-item > div .badge {
+  --tblr-badge-color: #ffffff !important;
+}
+
+html[data-bs-theme="dark"] .list-group-item > div .badge.bg-light {
+  background-color: var(--tblr-bg-surface-secondary) !important;
+  --tblr-badge-color: var(--tblr-body-color) !important;
+}
+
+/* Reset datetime-display inside badges to inherit normal text color */
+.badge .datetime-display {
+  color: inherit !important;
+}

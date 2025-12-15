@@ -21,6 +21,7 @@ from app.core.type_aliases import JSONDict
 from app.crud.ai import ai_personality_placeholder as personality_crud
 from app.crud.ai.instance_dimension import get_by_instance
 from app.models.ai.instance import AIInstance
+from app.models.ai.memory import AIInstanceMemory, AITemplateMemory
 from app.models.ai.personality import AIPersonality
 from app.models.ai.style import (
     AIDimension,
@@ -56,6 +57,29 @@ class InstanceAdvancedEditView(CustomView):
                 db, personality_id=instance.personality_id
             )
 
+            # Load instance memories
+            memories_stmt = (
+                select(AIInstanceMemory)
+                .where(AIInstanceMemory.instance_id == instance_id)
+                .order_by(AIInstanceMemory.importance.desc(), AIInstanceMemory.created_at.desc())
+            )
+            memories_result = await db.execute(memories_stmt)
+            memories = memories_result.scalars().all()
+            memories_data = [
+                {
+                    "id": m.id,
+                    "memory_type": m.memory_type,
+                    "content": m.content,
+                    "importance": m.importance,
+                    "status": m.status,
+                    "refreshed_at": m.refreshed_at.isoformat() if m.refreshed_at else None,
+                    "expires_at": m.expires_at.isoformat() if m.expires_at else None,
+                    "source_message_id": m.source_message_id,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                }
+                for m in memories
+            ]
+
             schema_dims = self._load_schema_dimensions(instance)
             style_dimensions = await get_style_dimensions(db, instance.style_id)
             dimension_view = self._build_dimension_view(
@@ -72,6 +96,7 @@ class InstanceAdvancedEditView(CustomView):
             "dimensions": dimension_view.dimensions,
             "warnings": dimension_view.warnings,
             "placeholders": placeholders,
+            "memories": memories_data,
             "schema_mismatch": dimension_view.schema_mismatch,
             "schema_status": dimension_view.schema_status,
             "schema_errors": dimension_view.schema_errors,
@@ -255,6 +280,26 @@ class TemplateAdvancedEditView(CustomView):
                 db, personality_id=template.personality_id
             )
 
+            # Load template memories
+            memories_stmt = (
+                select(AITemplateMemory)
+                .where(AITemplateMemory.template_id == template_id)
+                .order_by(AITemplateMemory.display_order, AITemplateMemory.created_at)
+            )
+            memories_result = await db.execute(memories_stmt)
+            memories = memories_result.scalars().all()
+            memories_data = [
+                {
+                    "id": m.id,
+                    "memory_type": m.memory_type,
+                    "content": m.content,
+                    "importance": m.importance,
+                    "display_order": m.display_order,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                }
+                for m in memories
+            ]
+
             style_dimensions = await get_style_dimensions(db, template.style_id)
             prompt_variables = self._coerce_json_dict(template.prompt_variables)
             position_mapping = self._coerce_json_dict(template.position_mapping_config)
@@ -266,6 +311,7 @@ class TemplateAdvancedEditView(CustomView):
             "template": template_data,
             "dimension_configs": dimension_configs,
             "placeholders": placeholders,
+            "memories": memories_data,
             "algorithm_param_specs": get_algorithm_param_specs(),
         }
 

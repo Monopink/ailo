@@ -5,10 +5,11 @@ Creates ModelView instances for user management and admin system models.
 
 import secrets
 import string
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from starlette_admin import CustomView, HasOne, IntegerField, JSONField, StringField, TextAreaField
@@ -855,6 +856,18 @@ class ContactRequestView(ModelView):
 class PendingContactRequestView(CustomView):
     """Custom dashboard for hanging contact requests."""
 
+    def is_active(self, request: Request) -> bool:
+        """Check if current page is pending contact requests page."""
+        path = request.scope["path"]
+        # Match the exact path for this custom view
+        try:
+            base_url = request.app.state.ADMIN.base_url
+            full_path = base_url + "/pending-contact-requests"
+            return path == full_path
+        except AttributeError:
+            # Fallback if base_url is not available
+            return "/pending-contact-requests" in path
+
     async def render(self, request: Request, templates):
         session = request.state.session
         stmt = (
@@ -868,9 +881,56 @@ class PendingContactRequestView(CustomView):
         result = await session.execute(stmt)
         pending_requests = result.scalars().all()
 
+        items: list[dict[str, Any]] = []
+        type_counter: Counter[str] = Counter()
+        for req in pending_requests:
+            detail = req.failure_detail or {}
+            ai_type_id = detail.get("ai_type_id") or detail.get("type_id")
+            if ai_type_id is not None:
+                type_counter[str(ai_type_id)] += 1
+            item = {
+                "id": req.id,
+                "from_qiao_id": req.from_qiao_id,
+                "to_qiao_id": req.to_qiao_id,
+                "ai_type_id": ai_type_id,
+                "failure_code": req.failure_code,
+                "retry_count": req.retry_count or 0,
+                "last_retry_at": req.last_retry_at.isoformat() if req.last_retry_at else None,
+                "updated_at": req.updated_at.isoformat() if req.updated_at else None,
+                "failure_detail": detail,
+            }
+            items.append(item)
+
+        top_types = [
+            {"ai_type_id": key, "count": count}
+            for key, count in type_counter.most_common(5)
+        ]
+
+        window_start = datetime.now(UTC) - timedelta(hours=24)
+        success_stmt = select(func.count(ContactRequest.id)).where(
+            ContactRequest.status == ContactRequestStatus.ACCEPTED,
+            ContactRequest.last_retry_at.is_not(None),
+            ContactRequest.last_retry_at >= window_start,
+        )
+        failure_stmt = select(func.count(ContactRequest.id)).where(
+            ContactRequest.status == ContactRequestStatus.PENDING,
+            ContactRequest.failure_code.is_not(None),
+            ContactRequest.last_retry_at.is_not(None),
+            ContactRequest.last_retry_at >= window_start,
+        )
+        success_result = await session.execute(success_stmt)
+        failure_result = await session.execute(failure_stmt)
+        overview = {
+            "pending_total": len(items),
+            "type_summary": top_types,
+            "last24h_success": success_result.scalar_one() or 0,
+            "last24h_failed": failure_result.scalar_one() or 0,
+        }
+
         context = {
             "request": request,
-            "items": pending_requests,
+            "items": items,
+            "overview": overview,
         }
         return templates.TemplateResponse("custom_views/contact_request_pending.html", context)
 
@@ -891,7 +951,11 @@ class ContactRequestRetryView(CustomView):
         except ValueError as exc:
             raise FormValidationError({"id": f"Invalid Request ID: {exc}"})
 
-        await retry_pending_contact_request(session, request_id=request_id)
+        admin_user = request.session.get("admin_user") or {}
+        operator = admin_user.get("username")
+        await retry_pending_contact_request(
+            session, request_id=request_id, operator=operator
+        )
 
         referer = request.headers.get("referer") or str(request.url_for("admin:index"))
         return RedirectResponse(url=referer, status_code=303)
@@ -910,7 +974,7 @@ contact_request_view = ContactRequestView(
 pending_contact_request_view = PendingContactRequestView(
     label="Pending AI Requests",
     name="contact_request_pending",
-    path="/contact-requests/pending",
+    path="/pending-contact-requests",
     icon="fa fa-hourglass-half",
 )
 contact_request_retry_view = ContactRequestRetryView(

@@ -3,12 +3,16 @@ Dashboard views for non-database functionality.
 All business logic is handled through internal API calls.
 """
 
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import func, select
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.crud.system import system_configs
+from app.models.contact import ContactRequest, ContactRequestStatus
 from app.services.config import config_service
 from app.services.message.monitoring.health import get_message_service_status
 from app.utils.logging import get_logger
@@ -52,6 +56,28 @@ class DashboardView(CustomView):
             # Check message service health
             health_status = await get_message_service_status(db)
 
+            # Get pending contact requests statistics
+            window_start = datetime.now(UTC) - timedelta(hours=24)
+            pending_total_stmt = select(func.count(ContactRequest.id)).where(
+                ContactRequest.status == ContactRequestStatus.PENDING,
+                ContactRequest.failure_code.is_not(None),
+            )
+            success_stmt = select(func.count(ContactRequest.id)).where(
+                ContactRequest.status == ContactRequestStatus.ACCEPTED,
+                ContactRequest.last_retry_at.is_not(None),
+                ContactRequest.last_retry_at >= window_start,
+            )
+            failure_stmt = select(func.count(ContactRequest.id)).where(
+                ContactRequest.status == ContactRequestStatus.PENDING,
+                ContactRequest.failure_code.is_not(None),
+                ContactRequest.last_retry_at.is_not(None),
+                ContactRequest.last_retry_at >= window_start,
+            )
+
+            pending_total = (await db.execute(pending_total_stmt)).scalar_one() or 0
+            last24h_success = (await db.execute(success_stmt)).scalar_one() or 0
+            last24h_failed = (await db.execute(failure_stmt)).scalar_one() or 0
+
             # Construct webhook URL
             webhook_url = None
             if webhook_token and api_base_url:
@@ -74,6 +100,11 @@ class DashboardView(CustomView):
                     "has_base_url": bool(leancloud_config.get("base_url")),
                 },
                 "message_service_health": health_status,
+                "pending_contact_requests": {
+                    "pending_total": pending_total,
+                    "last24h_success": last24h_success,
+                    "last24h_failed": last24h_failed,
+                },
             }
             return templates.TemplateResponse("custom_views/dashboard.html", context)
         except Exception as e:

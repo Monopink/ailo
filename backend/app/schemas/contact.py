@@ -156,6 +156,13 @@ class ContactRequestAccept(BaseModel):
     tags: list[str] | None = Field(None, description="Contact tags")
 
 
+class ContactRequestRetryPayload(BaseModel):
+    """Schema for admin-triggered contact request retry payload."""
+
+    alias: str | None = Field(None, max_length=100, description="Override alias when retry succeeds")
+    tags: list[str] | None = Field(None, description="Override tags when retry succeeds")
+
+
 # Contact Search Schemas
 
 

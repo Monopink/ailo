@@ -328,3 +328,28 @@ stateDiagram-v2
 - POST /api/v1/contact-requests - 发送联系人请求
 - POST /api/v1/contact-requests/{id}/accept - 接受请求
 - POST /api/v1/contact-requests/{id}/ignore - 忽略请求
+
+### 管理后台重试 API
+
+- 路径：`POST /api/v1/admin/contact-requests/{request_id}/retry`
+- 鉴权：复用 Starlette Admin 的 Session（依赖 `verify_admin_session`），仅登录的后台管理账号可调用
+- 行为：
+  1. `FOR UPDATE` 锁定目标请求，校验 `status=PENDING`
+  2. `retry_count += 1`，`last_retry_at = NOW()`，清空 `failure_*`
+  3. 调用 `_process_ai_contact_request`，成功则状态变为 `ACCEPTED` 并创建联系人；失败则重新写入新的 `failure_code/detail`
+- 日志：在挂起、清空、重试等动作上分别记录 `contact_request_pending`、`contact_request_retry` 等结构化日志字段（`request_id`、`ai_type_id`、`admin_user`、`retry_count` 等）
+
+### 管理后台挂起处理面板
+
+自定义视图 `custom_views/contact_request_pending.html`（Starlette Admin）提供流程化的操作面板：
+
+1. **概览区**：展示挂起请求总数、按 `ai_type_id` 的 Top N、24 小时内重试成功/失败数量，数据来自 `contact_requests` 聚合。
+2. **挂起列表**：
+   - 字段：`request_id`、`from_qiao_id`、`to_qiao_id`、`ai_type_id`（来源于 `failure_detail.ai_type_id`）、`failure_code`、`retry_count`、`last_retry_at`、`updated_at`
+   - 过滤器：支持按 `ai_type_id`、`failure_code`、更新时间筛选
+   - 操作列提供：
+     - “补模板”跳转：根据 `ai_type_id` 进入模板管理页面
+     - “立即重试”按钮：调用上述 Admin API，返回后刷新行状态
+3. **详情侧栏**：点击任一行展开，展示原始请求信息、`failure_detail` JSON、最近日志记录，并以“查看缺模板 → 补模板 → 重试”步骤条提示管理员完成流程。
+
+若重试失败，行会重新回到列表顶部并显示新的 `failure_code` 与时间戳；成功后记录从列表移除，由后台 Worker 继续后续流程。

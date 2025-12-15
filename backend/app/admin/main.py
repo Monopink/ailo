@@ -123,7 +123,6 @@ def _register_dropdowns(admin_instance: Admin) -> None:
             profile_view,
             contact_view,
             contact_request_view,
-            pending_contact_request_view,
             user_profile_log_view,
         ],
         always_open=False,
@@ -156,6 +155,7 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         "AI Configuration",
         icon="fa fa-sliders",
         views=[
+            pending_contact_request_view,
             ai_type_view,
             ai_persona_view,
             ai_template_view,

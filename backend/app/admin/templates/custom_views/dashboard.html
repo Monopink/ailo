@@ -142,8 +142,74 @@
       </div>
     </div>
 
+    <!-- Pending AI Contact Requests -->
+    <div class="row row-deck row-cards mb-4">
+      <div class="col-12">
+        <h3 class="mb-3">Pending AI Contact Requests</h3>
+      </div>
+
+      <div class="col-sm-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="subheader">Total Pending</div>
+              <a
+                href="/qiao-dash/pending-contact-requests"
+                class="btn btn-sm btn-icon"
+                title="View Details"
+              >
+                <i class="fa fa-external-link"></i>
+              </a>
+            </div>
+            <div class="h3 mb-2">
+              {{ pending_contact_requests.pending_total }}
+            </div>
+            <div class="text-muted small">
+              Requests waiting for retry
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="subheader">24h Retry Success</div>
+            </div>
+            <div class="h3 mb-2 text-success">
+              {{ pending_contact_requests.last24h_success }}
+            </div>
+            <div class="text-muted small">
+              Successfully retried in last 24h
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="subheader">24h Retry Failed</div>
+            </div>
+            <div class="h3 mb-2 text-warning">
+              {{ pending_contact_requests.last24h_failed }}
+            </div>
+            <div class="text-muted small">
+              Failed retry in last 24h
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Core Metrics Cards -->
     <div class="row row-deck row-cards" id="metrics-cards">
+      <div class="col-12">
+        <h3 class="mb-3">Core Metrics</h3>
+      </div>
+
       <div class="col-sm-6 col-lg-3">
         <div class="card">
           <div class="card-body">

@@ -28,6 +28,7 @@ from app.enums import (
 )
 from app.enums.templates import CHAT_INFO_TEMPLATES
 from app.models.ai.instance import AIInstance
+from app.models.ai.template import AIPersona
 from app.models.contact import Contact, ContactRequest
 from app.schemas.contact import (
     ContactCreate,
@@ -46,6 +47,44 @@ from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
+
+
+def _mark_pending_failure(contact_request: "ContactRequest", *, persona: AIPersona | None, reason: str) -> None:
+    """Record pending failure metadata and log event."""
+    existing_detail = contact_request.failure_detail or {}
+    ai_type_id = persona.type_id if persona else (existing_detail.get("ai_type_id") or existing_detail.get("type_id"))
+    qiao_id = persona.qiao_id if persona else existing_detail.get("qiao_id")
+    detail = {
+        "ai_type_id": ai_type_id,
+        "type_id": ai_type_id,
+        "qiao_id": qiao_id,
+        "request_id": contact_request.id,
+    }
+    contact_request.status = ContactRequestStatus.PENDING
+    contact_request.failure_code = reason
+    contact_request.failure_detail = detail
+    logger.info(
+        "contact_request_pending",
+        request_id=contact_request.id,
+        from_qiao_id=contact_request.from_qiao_id,
+        to_qiao_id=contact_request.to_qiao_id,
+        ai_type_id=ai_type_id,
+        failure_code=reason,
+    )
+
+
+
+def _clear_pending_failure(contact_request: "ContactRequest") -> None:
+    """Clear pending failure metadata and log event."""
+    contact_request.failure_code = None
+    contact_request.failure_detail = None
+    contact_request.last_retry_at = None
+    logger.info(
+        "contact_request_pending_cleared",
+        request_id=contact_request.id,
+        from_qiao_id=contact_request.from_qiao_id,
+        to_qiao_id=contact_request.to_qiao_id,
+    )
 
 
 async def _get_contact_expiration_days(db: AsyncSession) -> int:
@@ -244,9 +283,7 @@ async def _process_ai_contact_request(
 
         contact_request.status = ContactRequestStatus.ACCEPTED
         contact_request.to_id = ai_instance.id
-        contact_request.failure_code = None
-        contact_request.failure_detail = None
-        contact_request.last_retry_at = None
+        _clear_pending_failure(contact_request)
 
         ai_qiao_id = decision.persona.qiao_id
         contact_id = contact.id
@@ -307,13 +344,11 @@ def _handle_ai_decline(contact_request: ContactRequest, decision: ContactRequest
     """
 
     if decision.reason == "WAIT_TEMPLATE" and decision.persona:
-        contact_request.status = ContactRequestStatus.PENDING
-        contact_request.failure_code = ContactRequestFailureCode.NO_TEMPLATE_AVAILABLE.value
-        contact_request.failure_detail = {
-            "type_id": decision.persona.type_id,
-            "qiao_id": decision.persona.qiao_id,
-            "request_id": contact_request.id,
-        }
+        _mark_pending_failure(
+            contact_request,
+            persona=decision.persona,
+            reason=ContactRequestFailureCode.NO_TEMPLATE_AVAILABLE.value,
+        )
     else:
         contact_request.status = ContactRequestStatus.IGNORED
         contact_request.failure_code = None
@@ -733,6 +768,7 @@ async def retry_pending_contact_request(
     request_id: int,
     alias: str | None = None,
     tags: list[str] | None = None,
+    operator: str | None = None,
 ) -> JSONDict:
     """
     Retry a pending AI contact request that previously failed due to missing templates.
@@ -772,6 +808,7 @@ async def retry_pending_contact_request(
             from_qiao_id=contact_request.from_qiao_id,
             to_qiao_id=contact_request.to_qiao_id,
             retry_count=contact_request.retry_count,
+            operator=operator or "system",
         )
     except HTTPException:
         raise
@@ -780,6 +817,7 @@ async def retry_pending_contact_request(
             "contact_request_retry_failed",
             request_id=request_id,
             error=str(exc),
+            operator=operator or "system",
             exc_info=True,
         )
         raise HTTPException(

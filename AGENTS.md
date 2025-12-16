@@ -8,7 +8,7 @@
 
 - 现在项目在MVP开发阶段，我开发经验不足，主要依赖AI开发，并且整个项目只有我一个负责。
 - 代码实施应该始忠于文档, 但是如果发现文档出错或不合理应该提出而不是盲目遵守:
-   [功能设计目录](docs\spec\) [数据字典目录](docs\data-dict\) [API文档目录](docs\api\) [技术文档目录](docs\tech\)
+   [功能设计目录](docs\spec\) [数据字典目录](docs\data-dict\) [API文档目录](docs\api\)
 - 如果你发现设计存在问题或不详细的地方应该立即提出，而不是自行修改实现
 - 开发后端前务必了解 [后端规则](backend\AGENTS.md)
 - 开发小程序前务必了解 [小程序规则](frontend\wx-minipg\AGENTS.md)

@@ -16,9 +16,9 @@
 - [API文档](../docs/api/)
 - [数据字典](../docs/data-dict/)
 - [迁移操作](../docs/tech/MIGRATION.md)
-- [Doubao文档](../references/doubao-docs/)
-- 特别提示：用户可以联系到Doubao文档专家，如果有不确定的问题请报告提问，请勿在一知半解状态实施
+- [Doubao文档](../references/doubao-docs/) - 特别提示：用户可以联系到Doubao文档专家，如果有不确定的问题请报告提问，请勿在一知半解状态实施
 - [Leancloud文档](../references/leancloud-docs/)
+- [管理后台开发规范](app/admin/AGENTS.md) - 修改 `app/admin/` 模块前必读
 
 ## 架构约束
 
@@ -106,11 +106,20 @@ models (数据模型)
 
 **类型注解**:
 - 函数必须有完整类型注解 (参数和返回值)
-- 禁止使用 `Any` 类型
-- 使用 `| None` 而非 `Optional[T]`
-- 使用 `dict[str, int]` 而非 `Dict[str, int]`
-- 即使代码能运行也要遵守类型检查器约束
-- json相关的类型在 [type_aliases.py](backend/app/core/type_aliases.py)
+- 禁止使用 `dict[str, Any]` 作为函数参数或返回值
+- **严格禁止使用 `Any` 类型** - mypy 会报错 `[explicit-any]`
+- 如果确实需要 `Any` (框架限制/SDK 未定型等), 必须:
+  1. 立即向用户报告并说明原因，用户同意方案再实施下面步骤
+  2. 添加 `# type: ignore[misc]` 注释
+  3. 在同行或上一行注释说明原因
+- 使用项目定义的类型别名 (从 [type_defs](backend/app/type_defs/__init__.py) 导入):
+  - JSON 类型: `JSONDict`, `JSONValue`, `JSONArray`, `JSONPrimitive`
+  - 完整列表见 `backend/app/type_defs/__init__.py`
+- 泛型 ID: 考虑 `int | str` 或 `TypeVar`
+- 内部 ORM 数据: 使用 `TypedDict`，可选字段标记 `NotRequired[T | None]`
+- 外部输入数据: 使用 Pydantic `BaseModel`
+- 简单数据容器: 使用 `@dataclass(slots=True)`
+- TypedDict 必须在工厂函数中集中构造，用文档字符串说明数据来源
 
 **命名规范**:
 - 函数/变量: snake_case
@@ -149,24 +158,6 @@ models (数据模型)
 - 如果任何检查失败，必须立即修复，不得报告"已完成"
 - 如果无法修复或不确定如何修复，立即停止工作并向用户说明情况
 - 不得使用临时方案（如局部 import、type: ignore）绕过检查
-
-### 改进策略 (临时)
-
-**渐进式修复原则**:
-- 在修改代码时，顺便修复相关的 ruff 问题
-- 修改文件时，运行 `ruff check --fix <文件>` 自动修复
-- 手动修复无法自动处理的问题
-- 不使用 `# noqa` 或 `type: ignore` 绕过检查
-- 优先修复高优先级问题
-- 提交前确保修改的文件通过 ruff 检查
-- **永远不要做只是为了通过检查的改动**
-- **虽然修复范围只在改动的文件中，但是如果问题根源涉及其他文件，必须将问题相关文件一同修复，确保问题根源解决，而不是在改动的文件中打补丁**
-
-### mypy 临时策略
-
-- pre-commit 中的 mypy 目前只针对暂存文件执行，并附带 `--follow-imports=skip` 来避免历史报错阻塞提交
-- 每个迭代至少手动运行一次 `mypy --config-file=pyproject.toml backend`，记录全局错误并安排清理任务
-- 当 `backend` 目录下的类型错误清零后，需恢复全量检查（`pass_filenames: false` 且在 args 末尾追加 `backend`，同时移除 `--follow-imports=skip`）
 
 ### 快速检查（推荐）
 

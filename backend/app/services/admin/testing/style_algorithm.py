@@ -189,7 +189,7 @@ async def run_style_score_test(
                 "count": 0,
                 "max_priority": pr,
                 "dimension_display_names": (
-                    sorted(list(rel_to_dims.get(rid, set()))) if rel_to_dims.get(rid) else []
+                    sorted(rel_to_dims.get(rid, set())) if rel_to_dims.get(rid) else []
                 ),
             }
         unique[rid]["count"] += 1

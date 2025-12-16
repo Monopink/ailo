@@ -16,9 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import MissingConfigurationError
 from app.models.system import SystemConfig
+from app.type_defs import ConfigGroup
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
 
 # Configuration cache
 _config_cache: dict[str, Any] = {}
@@ -78,7 +80,7 @@ class SystemConfigService:
         return _config_cache.copy()
 
     @staticmethod
-    async def get_configs_by_group(db: AsyncSession) -> dict[str, dict[str, Any]]:
+    async def get_configs_by_group(db: AsyncSession) -> dict[str, ConfigGroup]:
         """
         Get configurations grouped by group_name (fully dynamic from database).
 
@@ -92,17 +94,17 @@ class SystemConfigService:
         all_configs = result.scalars().all()
 
         # Dynamically build groups from database
-        groups = {}
+        groups: dict[str, ConfigGroup] = {}
         for config in all_configs:
             group_name = config.group_name or "other"
 
             # Create group if not exists
             if group_name not in groups:
-                groups[group_name] = {
-                    "title": group_name,  # Will be formatted by frontend
-                    "description": "",
-                    "configs": {},
-                }
+                groups[group_name] = ConfigGroup(
+                    title=group_name,  # Will be formatted by frontend
+                    description="",
+                    configs={},
+                )
 
             # Add config to group
             groups[group_name]["configs"][config.config_key] = config
@@ -110,7 +112,7 @@ class SystemConfigService:
         return groups
 
     @staticmethod
-    async def check_missing_configs(db: AsyncSession, displayed_keys: set) -> list:
+    async def check_missing_configs(db: AsyncSession, displayed_keys: set[str]) -> list[str]:
         """
         Check if all configs in database are displayed in UI.
 
@@ -125,7 +127,7 @@ class SystemConfigService:
             result = await db.execute(select(SystemConfig.config_key))
             all_keys = {row[0] for row in result.fetchall()}
             missing_keys = all_keys - displayed_keys
-            return sorted(list(missing_keys))
+            return sorted(missing_keys)
         except Exception as e:
             logger.error("check_missing_configs_error", error=str(e), exc_info=True)
             return []
@@ -178,12 +180,12 @@ class SystemConfigService:
             return str(value).lower(), 3
         if isinstance(value, int):
             return str(value), 2
-        if isinstance(value, (list, dict)):
+        if isinstance(value, list | dict):
             return json.dumps(value), 4
         return str(value), 1
 
     @staticmethod
-    def _convert_from_db_format(value: str, config_type: int) -> Any:
+    def _convert_from_db_format(value: str | None, config_type: int) -> Any:
         """
         Convert database value to Python type.
 
@@ -228,6 +230,6 @@ async def get_all_configs(db: AsyncSession) -> dict[str, Any]:
     return await SystemConfigService.get_all_configs(db)
 
 
-async def get_configs_by_group(db: AsyncSession) -> dict[str, dict[str, Any]]:
+async def get_configs_by_group(db: AsyncSession) -> dict[str, ConfigGroup]:
     """Get configurations grouped by category."""
     return await SystemConfigService.get_configs_by_group(db)

@@ -10,8 +10,8 @@ from typing import Any
 import jsonschema
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.type_aliases import JSONDict
 from app.services.llm import LLMSessionContext, invoke_llm
+from app.type_defs import JSONDict, PreemptionChecker
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -86,7 +86,7 @@ async def invoke_llm_with_validation(
     db: AsyncSession,
     messages: list[JSONDict],
     json_schema: dict[str, Any] | None = None,
-    preemption_checker: Any | None = None,
+    preemption_checker: PreemptionChecker | None = None,
     session_context: LLMSessionContext | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:

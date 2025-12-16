@@ -5,21 +5,22 @@ This module provides CRUD operations for AI instance dimension scores.
 """
 
 from dataclasses import dataclass
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.type_aliases import JSONDict, JSONValue
 from app.models.ai.instance import AIInstance
 from app.models.ai.instance_dimension import AIInstanceDimension
 from app.models.ai.style import AIDimension, AIStyleDimension
 from app.services.ai.utils.position_mapping import map_score_to_position
+from app.type_defs import InstanceDimensionData, JSONDict, JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def get_by_instance(db: AsyncSession, instance_id: int) -> list[JSONDict]:
+async def get_by_instance(db: AsyncSession, instance_id: int) -> list[InstanceDimensionData]:
     """Get all dimensions for an instance with style dimension info."""
     try:
         stmt = (
@@ -42,7 +43,8 @@ async def get_by_instance(db: AsyncSession, instance_id: int) -> list[JSONDict]:
             .where(AIInstanceDimension.instance_id == instance_id)
         )
         result = await db.execute(stmt)
-        return [dict(row._mapping) for row in result]
+        # Cast to InstanceDimensionData for type safety
+        return cast(list[InstanceDimensionData], [dict(row._mapping) for row in result])
     except Exception as e:
         logger.error("get_by_instance_failed", instance_id=instance_id, error=str(e))
         return []
@@ -62,7 +64,9 @@ async def update_dimension(
 
         if not dimension:
             logger.warning(
-                "dimension_not_found", instance_id=instance_id, dimension_id=dimension_id
+                "dimension_not_found",
+                instance_id=instance_id,
+                dimension_id=dimension_id,
             )
             return False
         for key, value in update_data.items():
@@ -221,7 +225,10 @@ async def update_dimensions_batch(
 
     except Exception as e:
         logger.error(
-            "update_dimensions_batch_failed", instance_id=instance_id, error=str(e), exc_info=True
+            "update_dimensions_batch_failed",
+            instance_id=instance_id,
+            error=str(e),
+            exc_info=True,
         )
         await db.rollback()
         raise

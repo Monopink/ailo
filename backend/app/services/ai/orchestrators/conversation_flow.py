@@ -15,7 +15,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_sessionmaker
-from app.core.type_aliases import JSONDict, JSONValue
 from app.enums.common import ContactType
 from app.enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
@@ -39,15 +38,14 @@ from app.services.ai.relationship_scoring import (
     update_relationship_positions,
 )
 from app.services.ai.response_schema import build_response_schema
-from app.services.ai.types import InstanceContext
 from app.services.ai.utils.validator import invoke_llm_with_validation
 from app.services.llm.client import select_config_for_ai, validate_ai_response
 from app.services.llm.config import get_instance_llm_config
 from app.services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
-from app.services.llm.types import LLMSessionContext
 from app.services.message.outbound.helpers import send_chat_info
 from app.services.message.processing.buffer import is_buffer_cancelled
 from app.services.message.security.validation import message_validation_service
+from app.type_defs import InstanceContext, JSONDict, JSONValue, LLMSessionContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -135,6 +135,15 @@ warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
 
+# Pydantic plugin for better type inference
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+# Enable stricter checking for Pydantic models
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
 # Ignore missing imports for third-party libraries without stubs
 [[tool.mypy.overrides]]
 ignore_missing_imports = true

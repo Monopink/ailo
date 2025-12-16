@@ -93,11 +93,6 @@ def _raise_invalid_webhook_token() -> None:
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid webhook token")
 
 
-def _raise_missing_leancloud_headers() -> None:
-    """Raise HTTPException for missing LeanCloud headers."""
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing LeanCloud headers")
-
-
 def _raise_invalid_leancloud_app_id() -> None:
     """Raise HTTPException for invalid LeanCloud App ID."""
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid LeanCloud App ID")
@@ -163,8 +158,14 @@ async def leancloud_webhook(
         lc_id = request.headers.get("X-LC-Id")
         signature_header = request.headers.get("X-LC-Signature")
 
-        if not lc_id or not signature_header:
-            _raise_missing_leancloud_headers()
+        if not lc_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Missing X-LC-Id header"
+            )
+        if not signature_header:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Missing X-LC-Signature header"
+            )
 
         if lc_id != app_id:
             logger.warning("leancloud_app_id_mismatch", received=lc_id)

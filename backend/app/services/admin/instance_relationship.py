@@ -5,6 +5,7 @@ Provides functionality for generating and previewing instance relationships
 based on dimension scores and mapping algorithms.
 """
 
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import select
@@ -66,15 +67,11 @@ async def generate_relationship_for_instance(
         .order_by(AIDimension.name)
     )
     style_dims = [
-        type(
-            "_Tmp",
-            (),
-            {
-                "id": dim.id,
-                "name": dim.name,
-                "display_name": dim.display_name,
-                "initial_position": init_pos,
-            },
+        SimpleNamespace(
+            id=dim.id,
+            name=dim.name,
+            display_name=dim.display_name,
+            initial_position=init_pos,
         )
         for dim, init_pos in dims_result.all()
     ]

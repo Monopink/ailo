@@ -40,10 +40,22 @@ async def get_lc_im_config(
 
     state = await leancloud_service.get_conversation_registry_state(db)
 
+    # Type guard: validate im_conv_id from JSONDict
+    im_conv_id_raw = state.get("im_conv_id")
+    if not isinstance(im_conv_id_raw, str) or not im_conv_id_raw:
+        logger.error(
+            "invalid_im_conv_id_type", value=im_conv_id_raw, user_qiao_id=current_user.qiao_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid system configuration"
+        )
+
+    im_conv_id: str = im_conv_id_raw
+
     logger.info("lc_im_config_retrieved", user_qiao_id=current_user.qiao_id)
 
     return LeanCloudConfigResponse(
-        im_conv_id=state["im_conv_id"],
+        im_conv_id=im_conv_id,
         signature_algorithm=SIGNATURE_ALGORITHM,
         signature_version=SIGNATURE_VERSION,
         signature_ttl_ms=SIGNATURE_TTL_SECONDS * 1000,

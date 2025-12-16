@@ -17,7 +17,6 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.core.database import get_sessionmaker
-from app.core.type_aliases import JSONDict
 from app.crud.ai import ai_personality_placeholder as personality_crud
 from app.crud.ai.instance_dimension import get_by_instance
 from app.models.ai.instance import AIInstance
@@ -33,8 +32,8 @@ from app.models.ai.style import (
 from app.models.ai.template import AITemplate
 from app.models.llm import LLMConfig
 from app.services.ai.queries.instance_queries import get_style_dimensions
-from app.services.ai.types import DimensionSpec
 from app.services.ai.utils.position_mapping import get_algorithm_param_specs
+from app.type_defs import DimensionSpec, JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

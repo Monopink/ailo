@@ -28,7 +28,7 @@ def get_token() -> str | None:
     return _token
 
 
-def set_token(token: str, expires_in: int):
+def set_token(token: str, expires_in: int) -> None:
     """
     Set token in cache
 
@@ -42,7 +42,7 @@ def set_token(token: str, expires_in: int):
     logger.info(f"Access token cached, expires in {expires_in} seconds")
 
 
-def clear_token():
+def clear_token() -> None:
     """Clear cached token"""
     global _token, _expires_at
     _token = None

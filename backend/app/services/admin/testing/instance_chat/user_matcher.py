@@ -16,7 +16,7 @@ from app.models.contact import Contact
 from app.models.profile import Profile
 from app.models.user import User
 from app.schemas.profile import ProfileCreate
-from app.services.ai.types import InstanceContext
+from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -7,10 +7,12 @@ Uses memory cache for best performance.
 
 import time
 from collections import deque
+from collections.abc import Awaitable, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
+from starlette.types import ASGIApp
 
 from app.utils.logging import get_logger
 
@@ -30,7 +32,7 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
     - app.state.api_rate_limit_window_seconds: Time window in seconds (default: 60)
     """
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         """
         Initialize middleware.
 
@@ -38,11 +40,13 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
             app: FastAPI application
         """
         super().__init__(app)
-        self._cache: dict[str, deque] = {}
+        self._cache: dict[str, deque[float]] = {}
 
         logger.info("api_rate_limit_middleware_initialized")
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """
         Process request with rate limiting.
 
@@ -61,7 +65,11 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
         requests = getattr(request.app.state, "api_rate_limit_requests", 100)
         window_seconds = getattr(request.app.state, "api_rate_limit_window_seconds", 60)
 
-        ip = request.client.host
+        # Get client IP (default to unknown if client info not available)
+        if request.client is None:
+            ip = "unknown"
+        else:
+            ip = request.client.host
 
         # Check rate limit
         now = time.time()

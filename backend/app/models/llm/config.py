@@ -12,8 +12,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from starlette.requests import Request
 
-from app.core.type_aliases import JSONDict
 from app.models.base import AutoIncrementModel
+from app.type_defs import JSONDict
 
 if TYPE_CHECKING:
     from .provider import LLMProvider

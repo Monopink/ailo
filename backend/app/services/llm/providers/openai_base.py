@@ -16,7 +16,7 @@ from openai import AsyncOpenAI
 
 from app.exceptions.llm import LLMConfigurationError
 from app.models.llm import LLMConfig, LLMProvider
-from app.services.llm.types import LLMProviderResult, LLMRequestOptions
+from app.type_defs import LLMProviderResult, LLMRequestOptions, PreemptionChecker
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -54,14 +54,24 @@ class OpenAIBaseAdapter(ABC):
         options: LLMRequestOptions,
         *,
         stream: bool = False,
-        preemption_checker=None,
+        preemption_checker: PreemptionChecker | None = None,
     ) -> LLMProviderResult:
         """
         Template method that dispatches an LLM request.
         """
+        timeout_override = options.provider_overrides.get("timeout")
+        timeout_value: int | None = None
+        if isinstance(timeout_override, int | float):
+            timeout_value = int(timeout_override)
+        elif isinstance(timeout_override, str):
+            try:
+                timeout_value = int(timeout_override)
+            except ValueError:
+                timeout_value = None
+
         client = self.create_client(
             provider,
-            timeout=options.provider_overrides.get("timeout"),
+            timeout=timeout_value,
         )
 
         params = await self.build_request_params(options)
@@ -116,7 +126,7 @@ class OpenAIBaseAdapter(ABC):
         client: AsyncOpenAI,
         params: dict[str, Any],
         options: LLMRequestOptions,
-        preemption_checker,
+        preemption_checker: PreemptionChecker | None,
     ) -> LLMProviderResult:
         """Execute a streaming request and return the normalized result."""
 

@@ -152,7 +152,7 @@ async def execute_llm_config_test(
         )
 
         # Step 8: Return formatted result
-        result = {
+        return {
             "success": llm_result.get("success", False),
             "status": status,
             "error": error_message,  # Frontend expects 'error' field
@@ -171,8 +171,6 @@ async def execute_llm_config_test(
             "finish_reason": llm_result.get("finish_reason"),
             "request_payload": request_payload,
         }
-
-        return result
 
     except Exception as e:
         logger.error("llm_config_test_failed", error=str(e), config_id=config_id, exc_info=True)

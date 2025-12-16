@@ -7,6 +7,7 @@ refreshing LeanCloud system conversation and webhook management.
 
 import secrets
 from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -30,8 +31,8 @@ system_router = APIRouter()
 async def refresh_leancloud_conversation(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    admin_user: dict = Depends(verify_admin_session),
-):
+    admin_user: dict[str, Any] = Depends(verify_admin_session),
+) -> dict[str, Any]:
     """
     Refresh LeanCloud IM system conversation.
 
@@ -143,8 +144,8 @@ async def refresh_leancloud_conversation(
 @system_router.get("/leancloud-service-status")
 async def get_leancloud_service_status(
     db: AsyncSession = Depends(get_db),
-    admin_user: dict = Depends(verify_admin_session),
-):
+    admin_user: dict[str, Any] = Depends(verify_admin_session),
+) -> dict[str, Any]:
     """
     Get LeanCloud IM service status.
 
@@ -235,8 +236,8 @@ async def get_leancloud_service_status(
 async def regenerate_webhook_token(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    admin_user: dict = Depends(verify_admin_session),
-):
+    admin_user: dict[str, Any] = Depends(verify_admin_session),
+) -> dict[str, Any]:
     """
     Regenerate LeanCloud IM webhook security token.
 

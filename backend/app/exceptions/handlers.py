@@ -9,9 +9,9 @@ import traceback
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -27,7 +27,7 @@ def create_error_response(
     status_code: int,
     details: dict[str, Any] | None = None,
     path: str | None = None,
-) -> JSONResponse:
+) -> Response:
     """
     Create a standardized error response.
 
@@ -41,14 +41,15 @@ def create_error_response(
     Returns:
         JSONResponse: Standardized error response
     """
-    response_data = {
+    error_dict: dict[str, Any] = {"code": error_code, "message": message}
+    if details:
+        error_dict["details"] = details
+
+    response_data: dict[str, Any] = {
         "success": False,
-        "error": {"code": error_code, "message": message},
+        "error": error_dict,
         "timestamp": datetime.now(UTC).isoformat() + "Z",
     }
-
-    if details:
-        response_data["error"]["details"] = details
 
     if path:
         response_data["path"] = path
@@ -56,7 +57,7 @@ def create_error_response(
     return JSONResponse(status_code=status_code, content=response_data)
 
 
-async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
+async def base_app_exception_handler(request: Request, exc: BaseAppException) -> Response:
     """
     Handle custom application exceptions.
 
@@ -85,9 +86,7 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
     )
 
 
-async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> Response:
     """
     Handle FastAPI request validation errors.
 
@@ -123,7 +122,7 @@ async def validation_exception_handler(
 
 async def pydantic_validation_exception_handler(
     request: Request, exc: PydanticValidationError
-) -> JSONResponse:
+) -> Response:
     """
     Handle Pydantic validation errors.
 
@@ -157,7 +156,7 @@ async def pydantic_validation_exception_handler(
     )
 
 
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> Response:
     """
     Handle SQLAlchemy database errors.
 
@@ -179,7 +178,7 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -
     )
 
 
-async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def generic_exception_handler(request: Request, exc: Exception) -> Response:
     """
     Handle unexpected exceptions.
 
@@ -206,7 +205,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
-def register_exception_handlers(app) -> None:
+def register_exception_handlers(app: FastAPI) -> None:
     """
     Register all exception handlers with the FastAPI application.
 
@@ -214,14 +213,17 @@ def register_exception_handlers(app) -> None:
         app: FastAPI application instance
     """
     # Custom application exceptions
-    app.add_exception_handler(BaseAppException, base_app_exception_handler)
+    # Note: type: ignore required due to Starlette typing limitation (see issue #2417)
+    # The type system cannot fully validate exception_handlers mapping where
+    # each value type depends on each key type. Runtime behavior is correct.
+    app.add_exception_handler(BaseAppException, base_app_exception_handler)  # type: ignore[arg-type]
 
     # Validation exceptions
-    app.add_exception_handler(RequestValidationError, validation_exception_handler)
-    app.add_exception_handler(PydanticValidationError, pydantic_validation_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(PydanticValidationError, pydantic_validation_exception_handler)  # type: ignore[arg-type]
 
     # Database exceptions
-    app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+    app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)  # type: ignore[arg-type]
 
     # Generic exception handler (catch-all)
     app.add_exception_handler(Exception, generic_exception_handler)

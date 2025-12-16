@@ -69,6 +69,10 @@ from .style import (
     AIStyleDimensionUpdate,
     AIStyleResponse,
     AIStyleUpdate,
+    DimensionScoreRange,
+    RelationshipMappingDetail,
+    RelationshipMappingWithDimension,
+    StyleWithRelationships,
 )
 from .template import AIPersona as AIPersonaResponse
 from .template import (
@@ -147,4 +151,8 @@ __all__ = [
     "AITypeUpdate",
     "AIUserStats",
     "BatchAIInstanceDelete",
+    "DimensionScoreRange",
+    "RelationshipMappingDetail",
+    "RelationshipMappingWithDimension",
+    "StyleWithRelationships",
 ]

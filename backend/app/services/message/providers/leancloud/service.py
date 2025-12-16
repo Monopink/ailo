@@ -23,6 +23,7 @@ from app.services.message.providers.leancloud.client import (
     unsubscribe_user_from_conversation,
 )
 from app.services.message.providers.leancloud.health import check_leancloud_health
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
@@ -172,13 +173,22 @@ async def initialize_service(db: AsyncSession) -> bool:
 
         # Create system conversation
         logger.info("leancloud_creating_system_conversation")
-        success, conversation_id, error_msg = await create_system_conversation(
+        success, conversation_id_nullable, error_msg = await create_system_conversation(
             app_id=app_id, master_key=master_key, base_url=base_url, name="uni_conversation_id"
         )
 
-        if not success:
-            logger.error("leancloud_system_conversation_creation_failed", error=error_msg)
+        # Complete type guard: check both success flag and conversation_id
+        if not success or conversation_id_nullable is None:
+            logger.error(
+                "leancloud_system_conversation_creation_failed",
+                success=success,
+                has_conversation_id=conversation_id_nullable is not None,
+                error=error_msg,
+            )
             return False
+
+        # Type narrowing: conversation_id_nullable is now guaranteed to be str
+        conversation_id: str = conversation_id_nullable
 
         # Store conversation_id in system_configs
         updated_config = await system_configs.update_config_value(
@@ -259,13 +269,25 @@ async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, str | Non
 
         # Create new system conversation
         logger.info("leancloud_refreshing_system_conversation")
-        success, conversation_id, error_msg = await create_system_conversation(
+        success: bool
+        conversation_id_nullable: str | None
+        create_error_msg: str | None
+        success, conversation_id_nullable, create_error_msg = await create_system_conversation(
             app_id=app_id, master_key=master_key, base_url=base_url, name="uni_conversation_id"
         )
 
-        if not success:
-            logger.error("leancloud_refresh_conversation_creation_failed", error=error_msg)
-            return False, error_msg
+        # Complete type guard: check both success flag and conversation_id
+        if not success or conversation_id_nullable is None:
+            logger.error(
+                "leancloud_refresh_conversation_creation_failed",
+                success=success,
+                has_conversation_id=conversation_id_nullable is not None,
+                error=create_error_msg,
+            )
+            return False, create_error_msg
+
+        # Type narrowing: conversation_id_nullable is now guaranteed to be str
+        conversation_id: str = conversation_id_nullable
 
         # Update conversation_id in system_configs
         updated_config = await system_configs.update_config_value(
@@ -415,7 +437,7 @@ async def send_message(
     conv_id: str,
     content: str,
     message_type: int = 1,
-    extra_fields: dict | None = None,
+    extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
 ) -> MessageResult:
     """
@@ -493,8 +515,8 @@ async def send_message_as_system(
     conv_id: str,
     content: str,
     message_type: int = MessageType.CHAT_INFO,
-    action: dict | None = None,
-    extra_fields: dict | None = None,
+    action: JSONDict | None = None,
+    extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
 ) -> MessageResult:
     """
@@ -565,7 +587,7 @@ async def send_message_as_system(
         return MessageResult(success=False, error_code="EXCEPTION", error_message=str(e))
 
 
-async def get_conversation_registry_state(db: AsyncSession) -> dict:
+async def get_conversation_registry_state(db: AsyncSession) -> JSONDict:
     """
     Get the current LeanCloud conversation registry state.
 
@@ -652,7 +674,12 @@ async def check_health(db: AsyncSession) -> tuple[bool, str | None]:
             return False, error_msg
 
         # Perform health check
-        return await check_leancloud_health(app_id=app_id, master_key=master_key, base_url=base_url)
+        is_healthy, error_message = await check_leancloud_health(
+            app_id=app_id,
+            master_key=master_key,
+            base_url=base_url,
+        )
+        return is_healthy, error_message
 
     except Exception as e:
         error_msg = f"Health check failed: {e!s}"

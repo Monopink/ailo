@@ -6,6 +6,7 @@ This module contains CRUD operations for admin users and operation logs.
 
 from datetime import UTC, datetime, timedelta
 
+from pydantic import BaseModel
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,14 @@ from app.crud.base import CRUDBase, CRUDBaseWithStatus
 from app.enums import AdminRole, AdminStatus
 from app.models.admin import AdminLoginLog, AdminOperationLog, AdminUser
 from app.schemas.admin import AdminOperationLogCreate, AdminUserCreate, AdminUserUpdate
+
+
+class _AdminLogSchema(BaseModel):
+    """
+    Dummy schema for read-only admin log CRUD operations.
+
+    Admin login logs are read-only, so update operations are not used.
+    """
 
 
 class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpdate]):
@@ -73,7 +82,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
                 and_(self.model.role == role, self.model.status == 1)
             )
         )
-        return result.scalar()
+        return result.scalar() or 0
 
     async def update_last_login(self, db: AsyncSession, *, user_id: int) -> AdminUser | None:
         """Update admin user's last login time."""
@@ -111,7 +120,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
         return list(result.scalars().all())
 
 
-class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate, dict]):
+class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate, _AdminLogSchema]):
     """CRUD operations for AdminOperationLog model."""
 
     async def get_admin_operations(
@@ -201,10 +210,10 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
             conditions.append(self.model.created_at >= cutoff_time)
 
         result = await db.execute(select(func.count(self.model.id)).where(and_(*conditions)))
-        return result.scalar()
+        return result.scalar() or 0
 
 
-class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
+class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, _AdminLogSchema, _AdminLogSchema]):
     """CRUD operations for AdminLoginLog model."""
 
     async def get_admin_login_history(
@@ -265,7 +274,7 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, dict, dict]):
             conditions.append(self.model.result == result)
 
         db_result = await db.execute(select(func.count(self.model.id)).where(and_(*conditions)))
-        return db_result.scalar()
+        return db_result.scalar() or 0
 
 
 # Create CRUD instances

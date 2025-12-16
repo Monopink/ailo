@@ -69,7 +69,7 @@ class IDResponse(BaseModel):
     @classmethod
     def create(cls, id_field: str, id_value: str) -> "IDResponse":
         """Create an ID response."""
-        return cls(data={id_field: id_value})
+        return cls(success=True, data={id_field: id_value})
 
 
 class BaseSchema(BaseModel):

@@ -6,6 +6,7 @@ Tracks authentication failures for lockout and CAPTCHA triggering.
 
 import time
 from collections import deque
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +16,7 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Global cache for failure tracking
-_failure_cache: dict[str, dict] = {}
+_failure_cache: dict[str, dict[str, Any]] = {}
 
 MAX_FAILURE_KEYS: dict[str, str] = {
     "admin_auth": "admin_auth_max_failures",

@@ -17,9 +17,9 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.core.database import get_sessionmaker
-from app.core.type_aliases import JSONDict, JSONValue
 from app.services.admin.testing.llm_config import execute_llm_config_test
 from app.services.llm.config import get_llm_config
+from app.type_defs import JSONDict, JSONValue
 from app.utils.form_helpers import FormFieldError, get_float_field, get_int_field, get_text_field
 from app.utils.logging import get_logger
 

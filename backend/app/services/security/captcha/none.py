@@ -16,7 +16,7 @@ class NoneCaptchaProvider:
     Always returns True, effectively disabling CAPTCHA.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize none CAPTCHA provider"""
         logger.info("none_captcha_provider_initialized")
 

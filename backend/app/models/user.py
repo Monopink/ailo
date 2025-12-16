@@ -12,9 +12,9 @@ from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 from starlette.requests import Request
 
-from app.core.type_aliases import JSONDict
 from app.enums import UserType
 from app.models.base import Base, SnowflakeIDMixin, SnowflakeModel, SnowflakeQiaoModel, StatusMixin
+from app.type_defs import JSONDict
 
 
 class User(SnowflakeQiaoModel, StatusMixin):

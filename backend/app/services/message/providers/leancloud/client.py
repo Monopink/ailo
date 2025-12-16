@@ -337,11 +337,19 @@ async def send_service_message(
         return False, None, error_msg
 
 
-def _extract_msg_id(response_data: dict[str, Any]) -> str | None:
+def _extract_msg_id(response_data: Any) -> str | None:
     """
     LeanCloud responses sometimes wrap msg-id inside a result envelope.
     This helper normalizes the lookup so provider callers always get the ID.
+
+    Args:
+        response_data: Response data from LeanCloud API
+                      (may be any type if API returns unexpected format)
+
+    Returns:
+        Message ID if found, None otherwise
     """
+    # Type guard: validate response is a dict
     if not isinstance(response_data, dict):
         return None
 

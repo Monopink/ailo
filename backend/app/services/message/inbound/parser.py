@@ -31,23 +31,56 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
     """
     try:
         # Validate required fields
-        from_qiao_id = intermediate.get("from_qiao_id")
-        to_qiao_id = intermediate.get("to_qiao_id")
-        conv_id = intermediate.get("conv_id")
-        message_type = intermediate.get("message_type")
+        from_qiao_id_raw = intermediate.get("from_qiao_id")
+        to_qiao_id_raw = intermediate.get("to_qiao_id")
+        conv_id_raw = intermediate.get("conv_id")
+        message_type_raw = intermediate.get("message_type")
 
-        if not all([from_qiao_id, to_qiao_id, conv_id, message_type is not None]):
+        if not all([from_qiao_id_raw, to_qiao_id_raw, conv_id_raw, message_type_raw is not None]):
             logger.error(
                 "missing_required_fields",
-                has_from=bool(from_qiao_id),
-                has_to=bool(to_qiao_id),
-                has_conv_id=bool(conv_id),
-                has_message_type=message_type is not None,
+                has_from=bool(from_qiao_id_raw),
+                has_to=bool(to_qiao_id_raw),
+                has_conv_id=bool(conv_id_raw),
+                has_message_type=message_type_raw is not None,
             )
             return None
 
+        # Type guards: ensure all required fields are correct types
+        if not isinstance(from_qiao_id_raw, str) or not from_qiao_id_raw:
+            logger.error("invalid_from_qiao_id_type", value=from_qiao_id_raw)
+            return None
+
+        if not isinstance(to_qiao_id_raw, str) or not to_qiao_id_raw:
+            logger.error("invalid_to_qiao_id_type", value=to_qiao_id_raw)
+            return None
+
+        if not isinstance(conv_id_raw, str) or not conv_id_raw:
+            logger.error("invalid_conversation_id_type", value=conv_id_raw)
+            return None
+
+        if not isinstance(message_type_raw, int):
+            logger.error(
+                "invalid_message_type",
+                message_type=message_type_raw,
+                expected_type="int",
+            )
+            return None
+
+        # Type narrowing complete - assign to typed variables
+        from_qiao_id: str = from_qiao_id_raw
+        to_qiao_id: str = to_qiao_id_raw
+        conv_id: str = conv_id_raw
+
         # Decrypt content if encrypted
-        content = intermediate.get("content", "")
+        content_raw = intermediate.get("content", "")
+
+        # Validate content type
+        if not isinstance(content_raw, str):
+            logger.error("invalid_content_type", content_type=type(content_raw).__name__)
+            return None
+
+        content: str = content_raw
         encryption_algo = intermediate.get("encryption")
         encryption_version = intermediate.get("encryption_version")
 
@@ -80,16 +113,40 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
             raw_webhook=intermediate.get("raw_webhook"),
         )
 
+        # Validate timestamp_ms type
+        timestamp_ms_raw = intermediate.get("timestamp_ms")
+        if not isinstance(timestamp_ms_raw, int):
+            logger.error("invalid_timestamp_type", timestamp_type=type(timestamp_ms_raw).__name__)
+            return None
+
+        timestamp_ms: int = timestamp_ms_raw
+
+        # Validate msg_id_client type (required for InboundMessageEvent)
+        msg_id_client_raw = intermediate.get("msg_id_client")
+        if not isinstance(msg_id_client_raw, str) or not msg_id_client_raw:
+            logger.error("invalid_msg_id_client_type", value=msg_id_client_raw)
+            return None
+
+        msg_id_client: str = msg_id_client_raw
+
+        # Validate msg_id_provider type (required for InboundMessageEvent)
+        msg_id_provider_raw = intermediate.get("msg_id_provider")
+        if not isinstance(msg_id_provider_raw, str) or not msg_id_provider_raw:
+            logger.error("invalid_msg_id_provider_type", value=msg_id_provider_raw)
+            return None
+
+        msg_id_provider: str = msg_id_provider_raw
+
         # Build InboundMessageEvent
         return InboundMessageEvent(
-            message_type=MessageType(message_type),
+            message_type=MessageType(message_type_raw),
             conversation_id=conv_id,
             from_qiao_id=from_qiao_id,
             to_qiao_id=to_qiao_id,
             content=content,
-            sent_at_ms=intermediate.get("timestamp_ms"),
-            msg_id_client=intermediate.get("msg_id_client"),
-            msg_id_provider_inbound=intermediate.get("msg_id_provider"),
+            sent_at_ms=timestamp_ms,
+            msg_id_client=msg_id_client,
+            msg_id_provider_inbound=msg_id_provider,
             supports_typing=intermediate.get("supports_typing", False),
             client_sent_time=intermediate.get("sent_time"),
             metadata=event_metadata,

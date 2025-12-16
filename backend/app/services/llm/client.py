@@ -8,12 +8,10 @@ delegates transport details to provider adapters.
 from __future__ import annotations
 
 import json
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.type_aliases import JSONDict
 from app.exceptions.llm import (
     ConfigNotVerifiedError,
     JSONSchemaNotSupportedError,
@@ -24,12 +22,20 @@ from app.exceptions.llm import (
     LLMTimeoutError,
 )
 from app.models.llm import LLMConfig, LLMProvider
+from app.type_defs import (
+    JSONDict,
+    LLMCachingOptions,
+    LLMRequestOptions,
+    LLMSessionContext,
+    LLMStreamingDecision,
+    PreemptionChecker,
+    ProviderTool,
+)
 from app.utils.logging import get_logger
 
 from .config import get_active_configs, get_config_by_provider, get_llm_config, get_primary_config
 from .providers import factory
 from .streaming_policy import extract_stream_override, resolve_streaming_decision
-from .types import LLMCachingOptions, LLMRequestOptions, LLMSessionContext, LLMStreamingDecision
 from .utils import is_valid_json
 
 logger = get_logger(__name__)
@@ -44,7 +50,7 @@ async def invoke_llm(
     thinking_mode: str | None = None,
     name: str | None = None,
     instance_request_params: JSONDict | None = None,
-    preemption_checker: Callable[[], Awaitable[bool]] | None = None,
+    preemption_checker: PreemptionChecker | None = None,
     session_context: LLMSessionContext | None = None,
 ) -> JSONDict:
     """
@@ -279,7 +285,7 @@ async def _call_provider(
     max_tokens: int | None,
     thinking_mode: str | None,
     instance_request_params: JSONDict | None,
-    preemption_checker: Callable[[], Awaitable[bool]] | None,
+    preemption_checker: PreemptionChecker | None,
     session_context: LLMSessionContext | None,
 ) -> JSONDict:
     try:
@@ -346,7 +352,9 @@ async def _call_provider(
             "request_payload": provider_result.request_params,
             "response_id": provider_result.response_id,
             "cache_hit": provider_result.cache_hit,
-            "tool_calls": provider_result.tool_calls,
+            "tool_calls": [dict(tool_call) for tool_call in provider_result.tool_calls]
+            if provider_result.tool_calls
+            else None,
             "cache_strategy": options.caching.strategy,
             "reasoning_content": provider_result.reasoning_content,
             "streaming": _format_streaming_metadata(decision),
@@ -391,8 +399,15 @@ async def _build_request_options(
         if max_tokens is not None
         else _extract_int(overrides, "max_tokens", default=config.max_tokens or 4000)
     )
+    override_thinking = overrides.get("thinking_mode")
+    if thinking_mode is not None:
+        thinking_mode_input = thinking_mode
+    elif isinstance(override_thinking, str):
+        thinking_mode_input = override_thinking
+    else:
+        thinking_mode_input = config.thinking_mode
     resolved_thinking_mode = _normalize_thinking_mode(
-        thinking_mode or overrides.get("thinking_mode") or config.thinking_mode,
+        thinking_mode_input,
         config_name=config.name,
     )
     resolved_top_p = _extract_float(overrides, "top_p", default=_to_float(config.top_p, 0.7))
@@ -410,31 +425,44 @@ async def _build_request_options(
     elif config.stop_sequences:
         resolved_stop_sequences = list(config.stop_sequences)
 
-    tools = overrides.get("tools") if isinstance(overrides.get("tools"), list) else None
-    if tools is None:
-        tools = list(config.default_tools or [])
+    tools: list[ProviderTool] = []
+    tools_override = overrides.get("tools")
+    if isinstance(tools_override, list):
+        tools = [tool for tool in tools_override if isinstance(tool, dict)]
+    else:
+        config_tools = config.default_tools or []
+        tools = [tool for tool in config_tools if isinstance(tool, dict)]
 
-    tool_choice = overrides.get("tool_choice") or config.default_tool_choice or "auto"
-    parallel_tool_calls = (
-        overrides.get("parallel_tool_calls")
-        if isinstance(overrides.get("parallel_tool_calls"), bool)
-        else bool(config.parallel_tool_calls)
-    )
-    max_tool_calls_value = (
-        overrides.get("max_tool_calls")
-        if isinstance(overrides.get("max_tool_calls"), int)
-        else config.max_tool_calls
-    )
+    tool_choice_override = overrides.get("tool_choice")
+    tool_choice = (
+        tool_choice_override
+        if isinstance(tool_choice_override, str)
+        else config.default_tool_choice
+    ) or "auto"
 
-    extra_headers: JSONDict = dict(config.default_extra_headers or {})
+    parallel_tool_calls_override = overrides.get("parallel_tool_calls")
+    if isinstance(parallel_tool_calls_override, bool):
+        parallel_tool_calls = parallel_tool_calls_override
+    else:
+        parallel_tool_calls = bool(config.parallel_tool_calls)
+
+    max_tool_calls_override = overrides.get("max_tool_calls")
+    if isinstance(max_tool_calls_override, int):
+        max_tool_calls_value = max_tool_calls_override
+    elif isinstance(max_tool_calls_override, float):
+        max_tool_calls_value = int(max_tool_calls_override)
+    else:
+        max_tool_calls_value = config.max_tool_calls
+
+    extra_headers = _normalize_str_dict(config.default_extra_headers)
     override_headers = overrides.get("default_extra_headers")
     if isinstance(override_headers, dict):
-        extra_headers.update(override_headers)
+        extra_headers.update(_normalize_str_dict(override_headers))
 
-    extra_query: JSONDict = dict(config.default_extra_query or {})
+    extra_query = _normalize_str_dict(config.default_extra_query)
     override_query = overrides.get("default_extra_query")
     if isinstance(override_query, dict):
-        extra_query.update(override_query)
+        extra_query.update(_normalize_str_dict(override_query))
 
     extra_body: JSONDict = {}
     override_body = overrides.get("extra_body")
@@ -445,9 +473,13 @@ async def _build_request_options(
     if not isinstance(provider_overrides, dict):
         provider_overrides = {}
 
-    caching_options = _build_caching_options(config, overrides.get("caching"))
+    caching_override = overrides.get("caching")
+    caching_options = _build_caching_options(
+        config,
+        caching_override if isinstance(caching_override, dict) else None,
+    )
 
-    options = LLMRequestOptions(
+    return LLMRequestOptions(
         model=config.model_name or provider.default_model or "",
         messages=messages,
         json_schema=json_schema,
@@ -458,7 +490,7 @@ async def _build_request_options(
         frequency_penalty=resolved_frequency_penalty,
         presence_penalty=resolved_presence_penalty,
         stop_sequences=resolved_stop_sequences,
-        tools=tools or [],
+        tools=tools,
         tool_choice=tool_choice,
         parallel_tool_calls=parallel_tool_calls,
         max_tool_calls=max_tool_calls_value,
@@ -468,8 +500,6 @@ async def _build_request_options(
         caching=caching_options,
         provider_overrides=provider_overrides,
     )
-
-    return options
 
 
 def _build_caching_options(
@@ -484,17 +514,28 @@ def _build_caching_options(
     previous_response_id: str | None = None
 
     if isinstance(override, dict):
-        if "enabled" in override:
-            enabled = bool(override["enabled"])
-        if "strategy" in override:
-            strategy = str(override["strategy"] or "none")
-        if "ttl_seconds" in override:
+        enabled_value = override.get("enabled")
+        if isinstance(enabled_value, bool):
+            enabled = enabled_value
+        elif isinstance(enabled_value, int | float):
+            enabled = bool(enabled_value)
+
+        strategy_value = override.get("strategy")
+        if isinstance(strategy_value, str) and strategy_value:
+            strategy = strategy_value
+
+        ttl_value = override.get("ttl_seconds")
+        if isinstance(ttl_value, int | float):
+            ttl_seconds = int(ttl_value)
+        elif isinstance(ttl_value, str):
             try:
-                ttl_seconds = int(override["ttl_seconds"])
-            except (TypeError, ValueError):
+                ttl_seconds = int(ttl_value)
+            except ValueError:
                 ttl_seconds = None
-        if "previous_response_id" in override:
-            previous_response_id = str(override["previous_response_id"])
+
+        previous_response_id_value = override.get("previous_response_id")
+        if isinstance(previous_response_id_value, str):
+            previous_response_id = previous_response_id_value
 
     if not enabled:
         strategy = "none"
@@ -506,6 +547,17 @@ def _build_caching_options(
         ttl_seconds=ttl_seconds,
         previous_response_id=previous_response_id,
     )
+
+
+def _normalize_str_dict(payload: JSONDict | dict[str, object] | None) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    if not isinstance(payload, dict):
+        return normalized
+    for key, value in payload.items():
+        if key is None or value is None:
+            continue
+        normalized[str(key)] = str(value)
+    return normalized
 
 
 def _normalize_thinking_mode(value: str | None, *, config_name: str) -> str | None:

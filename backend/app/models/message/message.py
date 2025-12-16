@@ -10,8 +10,8 @@ from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstrain
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.type_aliases import JSONDict
 from app.models.base import ImmutableSnowflakeModel, SnowflakeModel
+from app.type_defs import JSONDict
 
 
 class MessageHistory(ImmutableSnowflakeModel):

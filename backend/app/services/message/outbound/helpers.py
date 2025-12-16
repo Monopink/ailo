@@ -14,7 +14,13 @@ from app.enums import (
     NotificationTarget,
     NotificationType,
 )
+from app.schemas.message import (
+    ContactRequestNotificationData,
+    NotificationAction,
+    NotificationActionData,
+)
 from app.services.message.outbound.sender import send_message, send_notification
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,7 +32,7 @@ async def send_chat_info(
     to_qiao_id: str,
     conv_id: str,
     content: str,
-    action: dict | None = None,
+    action: JSONDict | None = None,
 ) -> None:
     """
     Send CHAT_INFO message.
@@ -92,20 +98,20 @@ async def send_contact_request_notification(
             request_id=request_id,
         )
 
-    # Construct notification action data
-    action_data = {
-        "action": {
-            "type": NotificationActionType.NAVIGATE.value,
-            "target": NotificationTarget.CONTACT_REQUESTS.value,
-        },
-        "data": {
-            "request_id": request_id,
-            "from_qiao_id": from_qiao_id,
-            "from_nickname": from_nickname,
-            "from_avatar": from_avatar,
-            "message": message or "",
-        },
-    }
+    # Construct notification action data with type safety
+    action_data = NotificationActionData(
+        action=NotificationAction(
+            type=NotificationActionType.NAVIGATE.value,
+            target=NotificationTarget.CONTACT_REQUESTS.value,
+        ),
+        data=ContactRequestNotificationData(
+            request_id=request_id,
+            from_qiao_id=from_qiao_id,
+            from_nickname=from_nickname or "",
+            from_avatar=from_avatar or "",
+            message=message or "",
+        ),
+    )
 
     # Send notification
     await send_notification(

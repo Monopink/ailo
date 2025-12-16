@@ -8,7 +8,7 @@ can share the same implementation without introducing circular imports.
 from typing import Any
 
 from app.exceptions import AIServiceError
-from app.services.ai.types import DimensionSpec, InstanceContext
+from app.type_defs import DimensionSpec, InstanceContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -64,9 +64,7 @@ def generate_signature(
     ).digest()
 
     # Convert to hex string
-    signature_hex = signature_bytes.hex()
-
-    return signature_hex
+    return signature_bytes.hex()
 
 
 async def create_login_signature(app_id: str, client_id: str) -> dict[str, Any]:

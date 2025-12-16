@@ -10,8 +10,8 @@ from sqlalchemy import DECIMAL, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.type_aliases import JSONDict
 from app.models.base import ImmutableSnowflakeModel
+from app.type_defs import JSONDict
 
 
 class LLMTestLog(ImmutableSnowflakeModel):

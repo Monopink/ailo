@@ -902,8 +902,7 @@ class PendingContactRequestView(CustomView):
             items.append(item)
 
         top_types = [
-            {"ai_type_id": key, "count": count}
-            for key, count in type_counter.most_common(5)
+            {"ai_type_id": key, "count": count} for key, count in type_counter.most_common(5)
         ]
 
         window_start = datetime.now(UTC) - timedelta(hours=24)
@@ -953,9 +952,7 @@ class ContactRequestRetryView(CustomView):
 
         admin_user = request.session.get("admin_user") or {}
         operator = admin_user.get("username")
-        await retry_pending_contact_request(
-            session, request_id=request_id, operator=operator
-        )
+        await retry_pending_contact_request(session, request_id=request_id, operator=operator)
 
         referer = request.headers.get("referer") or str(request.url_for("admin:index"))
         return RedirectResponse(url=referer, status_code=303)
@@ -972,7 +969,7 @@ contact_request_view = ContactRequestView(
     ContactRequest, name="Contact Requests", icon="fa fa-user-plus", identity="contact_request"
 )
 pending_contact_request_view = PendingContactRequestView(
-    label="Pending AI Requests",
+    label="Pending Requests",
     name="contact_request_pending",
     path="/pending-contact-requests",
     icon="fa fa-hourglass-half",

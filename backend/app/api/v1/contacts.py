@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.schemas.contact import (
     ContactDetailResponse,
+    ContactListPagination,
     ContactListResult,
     ContactUpdate,
     ConversationInfoResponse,
@@ -60,7 +61,7 @@ async def get_contacts(
     limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ContactListResult:
     """
     Get user's contact list.
 
@@ -98,7 +99,7 @@ async def get_contacts(
 
         return ContactListResult(
             items=contacts,
-            pagination={"cursor": next_cursor, "has_more": has_more},
+            pagination=ContactListPagination(cursor=next_cursor, has_more=has_more),
         )
 
     except ValueError as e:
@@ -130,7 +131,7 @@ async def get_contact(
     conv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ContactDetailResponse:
     """
     Get specific contact details.
 
@@ -200,7 +201,7 @@ async def get_contact_conversation(
     conv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ConversationInfoResponse:
     """
     Get conversation information.
 
@@ -272,7 +273,7 @@ async def update_contact_info(
     update_data: ContactUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ContactDetailResponse:
     """
     Update contact information.
 
@@ -351,7 +352,7 @@ async def block_contact_endpoint(
     conv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ContactDetailResponse:
     """
     Block a contact.
 
@@ -427,7 +428,7 @@ async def unblock_contact_endpoint(
     conv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ContactDetailResponse:
     """
     Unblock a contact.
 
@@ -503,7 +504,7 @@ async def delete_contact_endpoint(
     conv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> None:
     """
     Delete a contact.
 

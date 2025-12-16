@@ -1,13 +1,14 @@
 """FastAPI application factory and bootstrap configuration."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import uvicorn
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -26,6 +27,9 @@ from app.services.system_config import get_config
 from app.utils.logging import configure_logging, get_logger
 from app.utils.snowflake import init_snowflake
 
+if TYPE_CHECKING:
+    from contextlib import AbstractAsyncContextManager
+
 logger = get_logger(__name__)
 
 api_router = APIRouter()
@@ -34,7 +38,9 @@ api_router = APIRouter()
 class ProxyHeadersMiddleware(BaseHTTPMiddleware):
     """Trust proxy-provided scheme information."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         forwarded_proto = request.headers.get("X-Forwarded-Proto")
         if forwarded_proto:
             request.scope["scheme"] = forwarded_proto
@@ -110,7 +116,10 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
-def _create_lifespan(settings: Settings):
+def _create_lifespan(
+    settings: Settings,
+) -> "Callable[[FastAPI], AbstractAsyncContextManager[None]]":
+    """Create lifespan context manager for FastAPI application."""
     session_factory = get_sessionmaker()
 
     @asynccontextmanager
@@ -198,7 +207,9 @@ def _configure_middlewares(app: FastAPI, settings: Settings) -> None:
 
 def _register_debug_middleware(app: FastAPI) -> None:
     @app.middleware("http")
-    async def debug_api_requests(request: Request, call_next):  # type: ignore[unused-ignore]
+    async def debug_api_requests(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         if "/api/" in str(request.url):
             logger.info(
                 "api_request_debug",

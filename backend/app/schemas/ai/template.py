@@ -6,7 +6,7 @@ This module contains Pydantic schemas for AI template-related operations.
 
 from pydantic import BaseModel, Field
 
-from app.core.type_aliases import JSONDict
+from app.type_defs import JSONDict
 
 
 class AITypeBase(BaseModel):

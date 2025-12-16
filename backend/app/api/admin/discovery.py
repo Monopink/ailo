@@ -24,7 +24,7 @@ async def list_square_entries(
     page: int = 1,
     page_size: int = 20,
     db: AsyncSession = Depends(get_db),
-):
+) -> SquareEntryListResponse:
     """List square exposure entries with pagination."""
     page = max(page, 1)
     page_size = max(1, min(page_size, 100))
@@ -42,7 +42,9 @@ async def list_square_entries(
 
 
 @router.post("/entries", response_model=SquareEntry)
-async def create_square_entry(entry: SquareEntryCreate, db: AsyncSession = Depends(get_db)):
+async def create_square_entry(
+    entry: SquareEntryCreate, db: AsyncSession = Depends(get_db)
+) -> SquareEntry:
     """Create a new discovery entry."""
     await ensure_ai_type_has_active_persona(db, entry.type_id)
     db_obj = await square_entry.create(db, obj_in=entry)
@@ -54,7 +56,7 @@ async def update_square_entry(
     entry_id: int,
     updates: SquareEntryUpdate,
     db: AsyncSession = Depends(get_db),
-):
+) -> SquareEntry:
     """Update an existing discovery entry."""
     db_obj = await square_entry.get(db, id=entry_id)
     if not db_obj:

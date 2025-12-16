@@ -10,9 +10,9 @@ from sqlalchemy import BigInteger, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.type_aliases import JSONDict
 from app.enums import AutoAction, ManualReviewStatus, RiskLevel
 from app.models.base import SnowflakeModel
+from app.type_defs import JSONDict
 
 
 class UserViolationLog(SnowflakeModel):

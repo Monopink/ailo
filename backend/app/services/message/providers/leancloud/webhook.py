@@ -64,7 +64,7 @@ async def parse_leancloud_webhook(
         to_qiao_id = intermediate.get("to_qiao_id")
         conv_id = intermediate.get("conv_id")
         content = intermediate.get("content") or ""
-        message_type = intermediate.get("message_type")
+        message_type_raw = intermediate.get("message_type")
         supports_typing = intermediate.get("supports_typing", False)
         sent_time = intermediate.get("sent_time")
         action = intermediate.get("action")
@@ -73,14 +73,34 @@ async def parse_leancloud_webhook(
         encryption_algo = intermediate.get("encryption")
         encryption_version = intermediate.get("encryption_version")
 
-        if not all([from_qiao_id, to_qiao_id, conv_id, message_type is not None]):
+        if not all([from_qiao_id, to_qiao_id, conv_id, message_type_raw is not None]):
             logger.error(
                 "missing_inner_message_fields",
                 has_from=bool(from_qiao_id),
                 has_to=bool(to_qiao_id),
                 has_conv_id=bool(conv_id),
-                has_message_type=message_type is not None,
+                has_message_type=message_type_raw is not None,
                 intermediate=intermediate,
+            )
+            return None
+
+        # Type narrowing - ensure required string fields are strings
+        if not isinstance(from_qiao_id, str):
+            logger.error("invalid_from_qiao_id_type", type=type(from_qiao_id).__name__)
+            return None
+        if not isinstance(to_qiao_id, str):
+            logger.error("invalid_to_qiao_id_type", type=type(to_qiao_id).__name__)
+            return None
+        if not isinstance(conv_id, str):
+            logger.error("invalid_conv_id_type", type=type(conv_id).__name__)
+            return None
+
+        # Type narrowing - validate message_type is int
+        if not isinstance(message_type_raw, int):
+            logger.error(
+                "invalid_message_type",
+                message_type=message_type_raw,
+                expected_type="int",
             )
             return None
 
@@ -125,16 +145,27 @@ async def parse_leancloud_webhook(
             notification_data=notification_data,
         )
 
+        # Extract and validate required message IDs
+        msg_id_client = intermediate.get("msg_id_client")
+        msg_id_provider = intermediate.get("msg_id_provider")
+
+        if not isinstance(msg_id_client, str):
+            logger.error("invalid_msg_id_client_type", type=type(msg_id_client).__name__)
+            return None
+        if not isinstance(msg_id_provider, str):
+            logger.error("invalid_msg_id_provider_type", type=type(msg_id_provider).__name__)
+            return None
+
         # 9. Return InboundMessageEvent (msg_id_server to be filled downstream)
         return InboundMessageEvent(
-            message_type=MessageType(message_type),
+            message_type=MessageType(message_type_raw),
             conversation_id=conv_id,
             from_qiao_id=from_qiao_id,
             to_qiao_id=to_qiao_id,
             content=content or "",
             sent_at_ms=timestamp,
-            msg_id_client=intermediate.get("msg_id_client"),
-            msg_id_provider_inbound=intermediate.get("msg_id_provider"),
+            msg_id_client=msg_id_client,
+            msg_id_provider_inbound=msg_id_provider,
             supports_typing=supports_typing,
             client_sent_time=sent_time,
             metadata=event_metadata,

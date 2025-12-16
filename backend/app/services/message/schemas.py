@@ -60,6 +60,10 @@ class ProviderMetadata(BaseModel):
         default=None,
         description="Raw webhook payload for auditing",
     )
+    notification_data: dict[str, Any] | None = Field(
+        default=None,
+        description="LeanCloud notification payload data",
+    )
 
 
 class BaseMessageEvent(BaseModel):

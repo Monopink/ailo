@@ -7,19 +7,11 @@ Generates 64-bit unique IDs with timestamp, machine ID, and sequence components.
 
 import threading
 import time
-from typing import TypedDict
 
+from app.type_defs import SnowflakeComponents
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-class SnowflakeComponents(TypedDict):
-    timestamp: int
-    datetime: str
-    datacenter_id: int
-    machine_id: int
-    sequence: int
 
 
 class SnowflakeGenerator:

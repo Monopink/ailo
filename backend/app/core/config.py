@@ -79,9 +79,13 @@ class Settings(BaseSettings):
 
 
 @lru_cache
-def get_settings() -> "Settings":
-    """Return cached Settings instance."""
+def get_settings() -> Settings:
+    """
+    Return cached Settings instance.
 
+    Pydantic BaseSettings automatically loads values from environment variables
+    and .env file as configured in model_config.
+    """
     return Settings()
 
 

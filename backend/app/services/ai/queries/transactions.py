@@ -16,7 +16,7 @@ from app.models.ai import AIConversationItem, AIConversationItemArchive, AIInsta
 from app.models.contact import Contact
 from app.models.profile import Profile
 from app.services.ai.memory import copy_template_memories_to_instance
-from app.services.ai.types import InstanceContext
+from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 from .instance_queries import get_user_id_by_qiao_id

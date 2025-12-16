@@ -5,7 +5,9 @@ This module contains CRUD operations for message history and conversations.
 """
 
 from datetime import datetime
+from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +16,16 @@ from app.enums import MessageStatus, MessageType
 from app.models.message import MessageHistory
 
 
-class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
+class _MessageSchema(BaseModel):
+    """
+    Dummy schema for read-only message CRUD operations.
+
+    MessageHistory is read-only from CRUD perspective (created via IM SDK events),
+    so create/update operations are not used.
+    """
+
+
+class CRUDMessage(CRUDBase[MessageHistory, _MessageSchema, _MessageSchema]):
     """CRUD operations for MessageHistory model."""
 
     async def get_by_server_id(
@@ -77,7 +88,7 @@ class CRUDMessage(CRUDBase[MessageHistory, dict, dict]):
 
     async def get_user_conversations(
         self, db: AsyncSession, *, user_qiao_id: str, limit: int = 50
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get user's conversation list with last message."""
         # This would typically involve a complex query with subqueries
         # For now, return a simplified version

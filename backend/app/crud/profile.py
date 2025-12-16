@@ -244,7 +244,10 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
                 self.model.gender
             )
             gender_result = await db.execute(gender_stmt)
-            gender_distribution = dict(gender_result.all())
+            # Convert Row objects to dict: gender (int | None) -> count (int)
+            gender_distribution: dict[int | None, int] = {
+                row[0]: row[1] for row in gender_result.all()
+            }
         except Exception as e:
             logger.error("get_profile_stats_error", error=str(e))
             raise

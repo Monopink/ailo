@@ -160,7 +160,7 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfil
             except ValueError:
                 category_api = None
 
-        profile = StrangerProfileResponse(
+        response = StrangerProfileResponse(
             qiao_id=profile.owner_qiao_id,
             nickname=profile.nickname,
             gender=profile.gender,
@@ -171,7 +171,7 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfil
         )
 
         logger.info("stranger_profile_retrieved", qiao_id=qiao_id)
-        return profile
+        return response
 
     except Exception as e:
         logger.error("stranger_profile_service_error", qiao_id=qiao_id, error=str(e))

@@ -23,7 +23,7 @@ from app.services.ai.queries.transactions import archive_all_conversation_items
 from app.services.ai.relationship_scoring import determine_relationship_type as _determine
 from app.services.ai.relationship_scoring import get_relationship_scores
 from app.services.ai.response_schema import build_response_schema
-from app.services.ai.types import InstanceContext
+from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 from .executor import ExecutorError, executor_service

@@ -20,7 +20,7 @@ class MockSMSProvider:
     Logs SMS messages to application logs instead of sending real SMS.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize mock SMS provider"""
         logger.info("mock_sms_provider_initialized")
 

@@ -10,9 +10,9 @@ from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.type_aliases import JSONDict
 from app.enums import NotificationStatus
 from app.models.base import SnowflakeModel
+from app.type_defs import JSONDict
 
 
 class NotificationPushHistory(SnowflakeModel):

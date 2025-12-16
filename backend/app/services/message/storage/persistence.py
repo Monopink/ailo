@@ -42,6 +42,7 @@ async def store_message(
         ValueError: If participant not found
     """
     # Determine direction and provider ID based on event type
+    msg_id_provider: str | None
     if isinstance(event, InboundMessageEvent):
         direction = MessageDirection.INBOUND
         msg_id_provider = event.msg_id_provider_inbound
@@ -179,7 +180,7 @@ def _normalize_client_sent_time(
     if isinstance(client_sent_time, datetime):
         return client_sent_time if client_sent_time.tzinfo else client_sent_time.replace(tzinfo=UTC)
 
-    if isinstance(client_sent_time, (int, float)):
+    if isinstance(client_sent_time, int | float):
         # Treat large values as milliseconds, otherwise assume seconds.
         seconds = client_sent_time / 1000 if client_sent_time > 1e11 else client_sent_time
         return datetime.fromtimestamp(seconds, tz=UTC)
@@ -195,7 +196,8 @@ def _normalize_client_sent_time(
             )
             return None
 
-    logger.warning(
+    # Fallback for unsupported types (defensive programming)
+    logger.warning(  # type: ignore[unreachable]
         "unsupported_client_sent_time_type",
         provided_type=type(client_sent_time).__name__,
     )

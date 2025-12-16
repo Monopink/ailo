@@ -4,6 +4,8 @@ Contact request API endpoints.
 This module provides endpoints for managing contact requests.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +30,7 @@ async def create_contact_request(
     request: ContactRequestCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """
     Send contact request.
 
@@ -76,7 +78,7 @@ async def accept_contact_request(
     accept_data: ContactRequestAccept,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ContactDetailResponse:
     """
     Accept a contact request.
 
@@ -132,7 +134,7 @@ async def ignore_contact_request(
     request_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """
     Ignore a contact request.
 

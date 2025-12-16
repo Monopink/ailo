@@ -2,6 +2,8 @@
 Notification push history CRUD operations.
 """
 
+from typing import Any
+
 from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +22,7 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
         *,
         to_qiao_id: str,
         notification_type: int,
-        action_data: dict,
+        action_data: dict[str, Any],
     ) -> NotificationPushHistory:
         """
         Create notification record.

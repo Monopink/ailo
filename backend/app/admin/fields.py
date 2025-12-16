@@ -19,7 +19,10 @@ class LocalDateTimeField(DateTimeField):
     EDIT views use default behavior.
     """
 
-    async def serialize_value(self, request: Request, value: Any, action: RequestAction) -> str:
+    # Starlette Admin required signature
+    async def serialize_value(  # type: ignore[explicit-any]
+        self, request: Request, value: Any, action: RequestAction
+    ) -> str:
         """Convert UTC datetime to user's timezone for display."""
         if value is None or not isinstance(value, datetime):
             return await super().serialize_value(request, value, action)
@@ -35,6 +38,7 @@ class LocalDateTimeField(DateTimeField):
         try:
             user_tz = ZoneInfo(user_tz_str)
             local_dt = value.astimezone(user_tz)
-            return local_dt.strftime(self.output_format or "%Y-%m-%d %H:%M:%S")
+            formatted: str = local_dt.strftime(self.output_format or "%Y-%m-%d %H:%M:%S")
+            return formatted
         except Exception:
             return await super().serialize_value(request, value, action)

@@ -24,7 +24,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm import relationship as orm_relationship
 from starlette.requests import Request
 
-from app.core.type_aliases import JSONDict
 from app.enums.common import ConversationItemContextStatus
 from app.models.base import (
     Base,
@@ -33,6 +32,7 @@ from app.models.base import (
     SnowflakeQiaoModel,
     TimestampMixin,
 )
+from app.type_defs import JSONDict
 
 if TYPE_CHECKING:
     from app.models.ai.instance_dimension import AIInstanceDimension

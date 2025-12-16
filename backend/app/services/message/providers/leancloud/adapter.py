@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.system import system_configs
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -67,9 +68,17 @@ async def parse_webhook_to_dict(
             return None
 
         # Parse inner message JSON (TypedMessage format or flattened JSON)
-        if isinstance(data_str, (dict, list)):
+        if isinstance(data_str, dict | list):
             inner_message = data_str
         else:
+            # Type guard: validate data_str before json.loads
+            if data_str is None or not isinstance(data_str, str | bytes):
+                logger.error(
+                    "invalid_data_str_type",
+                    data_str_type=type(data_str).__name__ if data_str is not None else "None",
+                )
+                return None
+
             try:
                 inner_message = json.loads(data_str)
             except json.JSONDecodeError as e:
@@ -104,9 +113,8 @@ async def parse_webhook_to_dict(
         }
 
         def _extract(field: str, *sources: dict[str, Any], default: Any = None) -> Any:
+            """Extract field from first source dict that contains it."""
             for source in sources:
-                if not isinstance(source, dict):
-                    continue
                 if field in source and source[field] is not None:
                     return source[field]
             return default
@@ -170,8 +178,8 @@ def build_outbound_typed_message(
     message_type: int,
     msg_id: str,
     supports_typing: bool = True,
-    action: dict | None = None,
-    extra_fields: dict | None = None,
+    action: JSONDict | None = None,
+    extra_fields: JSONDict | None = None,
 ) -> str:
     """
     Build LeanCloud message payload from business layer data.

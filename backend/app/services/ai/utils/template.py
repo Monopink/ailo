@@ -152,7 +152,7 @@ def _process_conditional_placeholders(template: str, variables: dict[str, Any]) 
         # Pattern for conditional blocks: {{if:variable}}content{{/if}}
         conditional_pattern = r"\{\{if:([^}]+)\}\}(.*?)\{\{/if\}\}"
 
-        def replace_conditional(match):
+        def replace_conditional(match: re.Match[str]) -> str:
             condition_var = match.group(1).strip()
             content = match.group(2)
 
@@ -204,7 +204,7 @@ def _process_nested_placeholders(
         # Find nested placeholders pattern: {{outer:{{inner}}}}
         nested_pattern = r"\{\{([^:{}]+):\{\{([^}]+)\}\}\}\}"
 
-        def replace_nested(match):
+        def replace_nested(match: re.Match[str]) -> str:
             outer_key = match.group(1).strip()
             inner_key = match.group(2).strip()
 
@@ -245,7 +245,7 @@ def _process_default_placeholders(template: str, variables: dict[str, Any]) -> s
         # Pattern for default values: {{variable|default_value}}
         default_pattern = r"\{\{([^|}]+)\|([^}]*)\}\}"
 
-        def replace_default(match):
+        def replace_default(match: re.Match[str]) -> str:
             var_name = match.group(1).strip()
             default_value = match.group(2).strip()
 
@@ -258,9 +258,7 @@ def _process_default_placeholders(template: str, variables: dict[str, Any]) -> s
         result = re.sub(default_pattern, replace_default, template)
 
         # Process remaining simple placeholders
-        result = interpolate_prompt_template(result, variables)
-
-        return result
+        return interpolate_prompt_template(result, variables)
 
     except Exception as e:
         logger.error("default_placeholder_processing_failed", error=str(e))

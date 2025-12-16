@@ -10,8 +10,8 @@ from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.type_aliases import JSONDict
 from app.models.base import ImmutableSnowflakeModel
+from app.type_defs import JSONDict
 
 
 class AIRequestLog(ImmutableSnowflakeModel):

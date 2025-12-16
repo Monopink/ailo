@@ -5,6 +5,7 @@ This module contains CRUD operations for user accounts, tokens, and authenticati
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -283,7 +284,7 @@ class CRUDUserAuth(CRUDBase[UserAuth, UserAuthCreate, UserAuthUpdate]):
         provider_uid: str,
         unionid: str | None = None,
         app_id: str | None = None,
-        extra_data: dict | None = None,
+        extra_data: dict[str, Any] | None = None,
     ) -> UserAuth:
         binding = self.model(
             id=generate_snowflake_id(),

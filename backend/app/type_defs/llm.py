@@ -8,8 +8,14 @@ and make it easier to extend request capabilities (tools, caching, etc.).
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+
+from app.type_defs.common import JSONDict, JSONValue
+
+type ProviderMessage = dict[str, JSONValue]
+type ProviderTool = dict[str, JSONValue]
+type PreemptionChecker = Callable[[], Awaitable[bool]]
 
 
 @dataclass
@@ -45,8 +51,8 @@ class LLMRequestOptions:
     """Normalized request parameters passed to provider adapters."""
 
     model: str
-    messages: list[dict[str, Any]]
-    json_schema: dict[str, Any] | None = None
+    messages: list[ProviderMessage]
+    json_schema: JSONDict | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     top_p: float | None = None
@@ -54,29 +60,41 @@ class LLMRequestOptions:
     presence_penalty: float | None = None
     stop_sequences: list[str] | None = None
     thinking_mode: str | None = None
-    tools: list[dict[str, Any]] = field(default_factory=list)
+    tools: list[ProviderTool] = field(default_factory=list)
     tool_choice: str | None = None
     parallel_tool_calls: bool | None = None
     max_tool_calls: int | None = None
-    extra_headers: dict[str, Any] = field(default_factory=dict)
-    extra_query: dict[str, Any] = field(default_factory=dict)
-    extra_body: dict[str, Any] = field(default_factory=dict)
+    extra_headers: dict[str, str] = field(default_factory=dict)
+    extra_query: dict[str, str] = field(default_factory=dict)
+    extra_body: JSONDict = field(default_factory=dict)
     caching: LLMCachingOptions = field(default_factory=LLMCachingOptions)
-    provider_overrides: dict[str, Any] = field(default_factory=dict)
+    provider_overrides: JSONDict = field(default_factory=dict)
 
 
 @dataclass
 class LLMProviderResult:
     """Normalized provider response."""
 
-    content: Any | None
+    content: JSONValue | None
     model: str | None
-    usage: dict[str, Any] | None
+    usage: JSONDict | None
     finish_reason: str | None
-    raw_response: dict[str, Any] | None = None
-    request_params: dict[str, Any] | None = None
+    raw_response: JSONDict | None = None
+    request_params: JSONDict | None = None
     response_id: str | None = None
     cache_hit: bool = False
-    tool_calls: list[dict[str, Any]] | None = None
+    tool_calls: list[ProviderTool] | None = None
     reasoning_content: str | None = None
     preempted: bool = False
+
+
+__all__ = [
+    "LLMCachingOptions",
+    "LLMProviderResult",
+    "LLMRequestOptions",
+    "LLMSessionContext",
+    "LLMStreamingDecision",
+    "PreemptionChecker",
+    "ProviderMessage",
+    "ProviderTool",
+]

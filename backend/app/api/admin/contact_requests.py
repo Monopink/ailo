@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_admin_user_and_db
-from app.core.type_aliases import JSONDict
 from app.schemas.contact import ContactRequestRetryPayload
 from app.services.contact.request_service import retry_pending_contact_request
+from app.type_defs import JSONDict
 
 contact_requests_router = APIRouter(tags=["Admin Contact Requests"])
 

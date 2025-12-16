@@ -12,6 +12,7 @@ the request path for stability.
 import asyncio
 from datetime import UTC, datetime
 
+from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -165,7 +166,7 @@ async def contact_request_worker_loop(poll_interval: float = 2.0, batch_size: in
         logger.critical("contact_request_worker_crashed", error=str(e), exc_info=True)
 
 
-def start_contact_request_worker(app) -> None:
+def start_contact_request_worker(app: FastAPI) -> None:
     """
     Spawn the background worker task and keep a reference on app.state.
     """

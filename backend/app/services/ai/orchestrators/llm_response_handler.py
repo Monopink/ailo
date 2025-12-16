@@ -11,7 +11,6 @@ from typing import Any, cast
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.type_aliases import JSONDict, JSONValue
 from app.models.ai import AIInstance
 from app.services.ai.memory import process_memory_operations
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
@@ -24,9 +23,9 @@ from app.services.ai.queries.updates import (
     update_instance_status,
 )
 from app.services.ai.relationship_scoring import determine_relationship_type
-from app.services.ai.types import InstanceContext
 from app.services.message.processing.buffer import finalize_buffer_if_locked
 from app.services.message.processing.sender import send_ai_messages_with_typing
+from app.type_defs import InstanceContext, JSONDict, JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

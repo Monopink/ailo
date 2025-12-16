@@ -81,9 +81,10 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         # Enum validation (config_type=5)
         if validate_enum and config.config_type == ConfigType.ENUM:
             if config.allowed_values and config_value not in config.allowed_values:
+                allowed_str = [str(v) for v in config.allowed_values]
                 raise ValueError(
                     f"Invalid value '{config_value}' for {config_key}. "
-                    f"Allowed values: {', '.join(config.allowed_values)}"
+                    f"Allowed values: {', '.join(allowed_str)}"
                 )
 
         config.config_value = config_value
@@ -98,7 +99,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         return config
 
     async def batch_update_configs(
-        self, db: AsyncSession, *, configs: dict, updated_by: int | None = None
+        self, db: AsyncSession, *, configs: dict[str, Any], updated_by: int | None = None
     ) -> int:
         """Batch update multiple configurations."""
         count = 0

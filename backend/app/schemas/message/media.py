@@ -85,7 +85,7 @@ class MediaFileStats(BaseSchema):
 
     total_files: int = Field(..., description="Total file count")
     total_size: int = Field(..., description="Total file size in bytes")
-    files_by_type: dict = Field(..., description="File count by type")
-    files_by_status: dict = Field(..., description="File count by status")
+    files_by_type: dict[str, int] = Field(..., description="File count by type")
+    files_by_status: dict[str, int] = Field(..., description="File count by status")
     avg_file_size: float = Field(..., description="Average file size in bytes")
     storage_usage: str = Field(..., description="Human readable storage usage")

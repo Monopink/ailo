@@ -11,10 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.type_aliases import JSONDict
 from app.models.ai.instance import AIInstance
 from app.models.ai.memory import AIInstanceMemory, AITemplateMemory
 from app.models.ai.template import AITemplate
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

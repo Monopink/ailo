@@ -44,7 +44,8 @@ class ResponsesFormatConverter(MessageConverter):
             return [{"type": "input_image", "image_url": {"url": media_url}}]
 
         if message_type == "audio":
-            metadata: dict[str, Any] | None = message.get("media_metadata") or {}
+            metadata_raw = message.get("media_metadata")
+            metadata: dict[str, Any] = metadata_raw if isinstance(metadata_raw, dict) else {}
             transcript = metadata.get("transcript") or "[Audio message]"
             return [{"type": "input_text", "text": f"[语音消息: {transcript}]"}]
 

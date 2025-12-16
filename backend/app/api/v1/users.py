@@ -33,7 +33,7 @@ router = APIRouter(prefix="/user", tags=["User Profile"])
 @router.get("/profile", response_model=UserProfileResponse)
 async def get_user_profile(
     current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
-):
+) -> UserProfileResponse:
     """
     Get current user's profile.
 
@@ -78,7 +78,7 @@ async def get_user_profile(
 @router.get("/account", response_model=UserAccountResponse)
 async def get_user_account(
     current_user: User = Depends(get_current_user),
-):
+) -> UserAccountResponse:
     """
     Get current user's account information.
 
@@ -129,7 +129,7 @@ async def update_user_profile(
     body: UserProfileUpdateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> UserProfileResponse:
     """
     Update current user's profile.
 

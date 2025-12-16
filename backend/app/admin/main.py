@@ -86,7 +86,8 @@ from .views.system_settings_view import SystemSettingsView
 logger = logging.getLogger(__name__)
 
 
-def _pretty_json(data: Any) -> str:
+# Jinja2 filter helper for JSON rendering
+def _pretty_json(data: Any) -> str:  # type: ignore[explicit-any]
     """Render JSON for admin templates without raising."""
 
     try:
@@ -282,7 +283,10 @@ def _register_dropdowns(admin_instance: Admin) -> None:
 class ThemeSwitchView(CustomView):
     """Lightweight view to switch admin theme (SSR)."""
 
-    async def render(self, request: Request, _templates: Any) -> RedirectResponse:
+    # Starlette Admin CustomView signature
+    async def render(  # type: ignore[explicit-any]
+        self, request: Request, _templates: Any
+    ) -> RedirectResponse:
         mode = str(request.path_params.get("mode", "light")).lower()
         if mode not in ("light", "dark", "auto"):
             mode = "light"

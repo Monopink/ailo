@@ -13,10 +13,10 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.core.database import get_sessionmaker
-from app.core.type_aliases import JSONDict
 from app.services.admin.data.style_dimensions import get_dimension_relationship_mappings
 from app.services.admin.testing.style_algorithm import run_style_score_test
 from app.services.ai.utils.position_mapping import get_algorithm_info, get_algorithm_param_specs
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

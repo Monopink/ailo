@@ -7,6 +7,7 @@ This module contains Pydantic schemas for AI styles and relationships.
 from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
+from pydantic_core.core_schema import ValidationInfo
 
 from app.schemas.common import BaseSchema
 
@@ -35,7 +36,7 @@ class AIStyleUpdate(BaseModel):
 class AIStyleResponse(AIStyleBase):
     """Schema for AI style response data."""
 
-    initial_relationship_id: int | None = Field(None, description="Initial relationship type ID")
+    id: int = Field(..., description="Style ID")
     status: int = Field(..., description="Status")
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
@@ -167,7 +168,7 @@ class AIDimensionRelationshipMappingCreate(BaseModel):
 
     @field_validator("end_position")
     @classmethod
-    def validate_position_range(cls, v, info):
+    def validate_position_range(cls, v: int, info: ValidationInfo) -> int:
         """Validate end_position is greater than start_position."""
         if info.data and "start_position" in info.data:
             start_position = info.data["start_position"]
@@ -194,7 +195,7 @@ class AIDimensionRelationshipMappingUpdate(BaseModel):
 
     @field_validator("end_position")
     @classmethod
-    def validate_score_range(cls, v, info):
+    def validate_score_range(cls, v: int | None, info: ValidationInfo) -> int | None:
         """Validate end_position is greater than start_position."""
         if v is not None and info.data and "start_position" in info.data:
             start_position = info.data["start_position"]
@@ -208,3 +209,61 @@ class AIDimensionRelationshipMappingResponse(AIDimensionRelationshipMappingBase)
 
     created_at: datetime = Field(..., description="Creation time")
     updated_at: datetime = Field(..., description="Last update time")
+
+
+class RelationshipMappingDetail(BaseModel):
+    """
+    Detailed relationship mapping with dimension and relationship info.
+
+    Used by CRUD layer when returning joined query results.
+    """
+
+    mapping_id: int = Field(..., description="Mapping ID")
+    dimension_id: int = Field(..., description="Dimension ID")
+    dimension_name: str = Field(..., description="Dimension name")
+    start_position: int = Field(..., ge=0, le=1000, description="Start position")
+    end_position: int = Field(..., ge=0, le=1000, description="End position")
+    priority: int = Field(..., description="Priority")
+    limit_count: int | None = Field(None, description="Maximum occurrence count")
+    relationship_id: int = Field(..., description="Relationship ID")
+    relationship_display_name: str = Field(..., description="Relationship display name")
+    relationship_prompt: str = Field(..., description="Relationship prompt fragment")
+
+
+class RelationshipMappingWithDimension(BaseModel):
+    """
+    Relationship mapping with full dimension and relationship objects.
+
+    Used for detailed style relationship queries.
+    """
+
+    dimension_id: int = Field(..., description="Dimension ID")
+    dimension_name: str = Field(..., description="Dimension name")
+    start_position: int = Field(..., ge=0, le=1000, description="Start position")
+    end_position: int = Field(..., ge=0, le=1000, description="End position")
+    priority: int = Field(..., description="Priority")
+    limit_count: int | None = Field(None, description="Maximum occurrence count")
+    relationship: AIRelationshipResponse = Field(..., description="Relationship details")
+
+
+class StyleWithRelationships(BaseModel):
+    """
+    Style with its relationship mappings.
+
+    Used by CRUD layer when returning style with joined relationship data.
+    """
+
+    style: AIStyleResponse = Field(..., description="AI style")
+    relationship_mappings: list[RelationshipMappingWithDimension] = Field(
+        ..., description="Relationship mappings for this style"
+    )
+
+
+class DimensionScoreRange(BaseModel):
+    """Score range configuration for a dimension."""
+
+    name: str = Field(..., description="Dimension name")
+    display_name: str | None = Field(None, description="Display name")
+    initial_position: int = Field(..., ge=0, le=1000, description="Initial position")
+    start: int = Field(..., ge=0, le=1000, description="Range start (per mille)")
+    end: int = Field(..., ge=0, le=1000, description="Range end (per mille)")

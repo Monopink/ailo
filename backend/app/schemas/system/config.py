@@ -6,8 +6,10 @@ This module contains Pydantic schemas for system configuration management.
 
 import json
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
+from pydantic_core.core_schema import ValidationInfo
 
 from app.enums import ConfigType
 from app.schemas.common import BaseSchema
@@ -33,7 +35,8 @@ class SystemConfigCreate(BaseModel):
     description: str | None = Field(None, max_length=500, description="Configuration description")
 
     @field_validator("config_value", mode="after")
-    def validate_config_value_by_type(cls, value: str, info):
+    @classmethod
+    def validate_config_value_by_type(cls, value: str, info: ValidationInfo) -> str:
         """Validate config_value based on config_type."""
         config_type = info.data.get("config_type")
         if config_type == ConfigType.NUMBER:
@@ -60,7 +63,8 @@ class SystemConfigUpdate(BaseModel):
     description: str | None = Field(None, max_length=500, description="Configuration description")
 
     @field_validator("config_value", mode="after")
-    def validate_config_value_by_type(cls, value: str | None, info):
+    @classmethod
+    def validate_config_value_by_type(cls, value: str | None, info: ValidationInfo) -> str | None:
         """Validate config_value based on config_type."""
         if value is None:
             return value
@@ -107,7 +111,9 @@ class ConfigValueResponse(BaseSchema):
     """Schema for configuration value response."""
 
     config_key: str = Field(..., description="Configuration key")
-    value: str | int | float | bool | dict = Field(..., description="Parsed configuration value")
+    value: str | int | float | bool | dict[str, Any] = Field(
+        ..., description="Parsed configuration value"
+    )
     config_type: ConfigType = Field(..., description="Value type")
 
 
@@ -117,10 +123,11 @@ class ConfigValueResponse(BaseSchema):
 class BatchConfigUpdate(BaseModel):
     """Schema for batch updating configurations."""
 
-    configs: dict = Field(..., description="Configuration key-value pairs")
+    configs: dict[str, Any] = Field(..., description="Configuration key-value pairs")
 
     @field_validator("configs")
-    def validate_configs(cls, value: dict):
+    @classmethod
+    def validate_configs(cls, value: dict[str, Any]) -> dict[str, Any]:
         """Validate configuration dictionary."""
         if not value:
             raise ValueError("configs cannot be empty")
@@ -132,6 +139,6 @@ class BatchConfigUpdate(BaseModel):
 class BatchConfigDelete(BaseModel):
     """Schema for batch deleting configurations."""
 
-    config_keys: list = Field(
+    config_keys: list[str] = Field(
         ..., min_length=1, max_length=50, description="Configuration keys to delete"
     )

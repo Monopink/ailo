@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import AIInstanceInactiveError, AIInstanceNotFoundError
-from app.services.ai.types import InstanceContext
+from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 from .queries import get_instance_context

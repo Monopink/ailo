@@ -5,7 +5,7 @@ This module handles relationship score management and relationship type determin
 based on AI style configurations and score positions.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,12 @@ from app.models.ai import AIInstance
 from app.models.ai.instance_dimension import AIInstanceDimension
 from app.models.ai.style import AIStyleDimension
 from app.services.ai.response_schema import build_response_schema
-from app.services.ai.types import InstanceContext
+from app.type_defs import (
+    InstanceContext,
+    RelationshipCounts,
+    RelationshipMapping,
+    RelationshipScoreEntry,
+)
 from app.utils.logging import get_logger
 
 from .queries import (
@@ -34,13 +39,15 @@ from .utils.score_mapping import map_to_permille
 
 logger = get_logger(__name__)
 
+ScorePositions = dict[str, int]
+
 
 # Exception classes moved to exceptions/business.py for consistency
 
 
 async def get_relationship_scores(
     db: AsyncSession, instance_qiao_id: str, auto_initialize: bool = True
-) -> list[dict[str, Any]] | None:
+) -> list[RelationshipScoreEntry] | None:
     """
     Get relationship scores for an instance.
     Auto-initialize scores based on initial_position if missing.
@@ -59,7 +66,9 @@ async def get_relationship_scores(
             logger.warning("instance_not_found_for_scores", instance_qiao_id=instance_qiao_id)
             return None
 
-        scores = await get_instance_relationship_scores(db, instance_id)
+        scores: list[RelationshipScoreEntry] = await get_instance_relationship_scores(
+            db, instance_id
+        )
 
         if not scores and auto_initialize:
             style_id = await _get_instance_style_id(db, instance_id)
@@ -119,7 +128,8 @@ async def _get_instance_style_id(db: AsyncSession, instance_id: int) -> int | No
     """
     try:
         result = await db.execute(select(AIInstance.style_id).where(AIInstance.id == instance_id))
-        return result.scalar_one_or_none()
+        style_id = result.scalar_one_or_none()
+        return int(style_id) if style_id is not None else None
     except Exception as e:
         logger.error(
             "instance_style_lookup_failed",
@@ -212,7 +222,9 @@ async def initialize_relationship_scores(
 
 
 async def determine_relationship_type(
-    db: AsyncSession, context: InstanceContext, scores: list[dict[str, Any]] | None
+    db: AsyncSession,
+    context: InstanceContext,
+    scores: list[RelationshipScoreEntry] | None,
 ) -> dict[str, Any] | None:
     """
     Determine relationship type based on instance style and scores.
@@ -241,7 +253,10 @@ async def determine_relationship_type(
             return None
 
         # Unified key name for relationships collection
-        relationships = style_data["relationships"]
+        # Type safety: relationships structure validated by Admin UI before storage
+        relationships: list[RelationshipMapping] = cast(
+            list[RelationshipMapping], style_data.get("relationships", [])
+        )
 
         if not scores:
             # No scores available => per spec return empty relationship and log error
@@ -256,7 +271,7 @@ async def determine_relationship_type(
 
         # Get current relationship ID from scores (if any)
         current_relationship_id = context.get("relationship_id")
-        relationship_counts = context.get("relationship_counts") or {}
+        relationship_counts: RelationshipCounts = context.get("relationship_counts") or {}
 
         matching_relationship = _find_matching_relationship(
             score_positions, relationships, current_relationship_id, relationship_counts
@@ -299,7 +314,7 @@ async def determine_relationship_type(
 
 
 async def update_instance_relationship_scores(
-    db: AsyncSession, instance_id: int, new_scores: dict[int, int]
+    db: AsyncSession, instance_id: int, new_scores: dict[str, int]
 ) -> bool:
     """
     Update relationship scores for an instance.
@@ -307,7 +322,7 @@ async def update_instance_relationship_scores(
     Args:
         db: Database session
         instance_id: Instance ID
-        new_scores: Dictionary of score_order -> score_value
+        new_scores: Dictionary of dimension_name -> score_value
 
     Returns:
         True if successful, False otherwise
@@ -328,7 +343,7 @@ async def update_instance_relationship_scores(
                 scores=new_scores,
             )
 
-        return success
+        return bool(success)
 
     except Exception as e:
         logger.error(
@@ -345,7 +360,10 @@ async def update_instance_relationship_scores(
 
 
 async def update_instance_current_relationship(
-    db: AsyncSession, instance_id: int, relationship_id: int, relationship_display_name: str
+    db: AsyncSession,
+    instance_id: int,
+    relationship_id: int,
+    relationship_display_name: str,
 ) -> bool:
     """Persist the selected current relationship across all score rows for an instance."""
     try:
@@ -370,7 +388,7 @@ async def update_instance_current_relationship(
                 relationship_id=relationship_id,
             )
 
-        return success
+        return bool(success)
 
     except Exception as e:
         logger.error(
@@ -386,7 +404,7 @@ async def update_instance_current_relationship(
         )
 
 
-def _calculate_score_positions(scores: list[dict[str, Any]]) -> dict[int, int]:
+def _calculate_score_positions(scores: list[RelationshipScoreEntry]) -> ScorePositions:
     """
     Calculate score positions as percentiles (0-1000).
 
@@ -398,7 +416,7 @@ def _calculate_score_positions(scores: list[dict[str, Any]]) -> dict[int, int]:
         Dictionary mapping dimension_name to position
     """
     try:
-        positions = {}
+        positions: ScorePositions = {}
 
         for score in scores:
             dimension_name = score["dimension_name"]
@@ -415,11 +433,11 @@ def _calculate_score_positions(scores: list[dict[str, Any]]) -> dict[int, int]:
 
 
 def _find_matching_relationship(
-    score_positions: dict[int, int],
-    relationship_mappings: list[dict[str, Any]],
+    score_positions: ScorePositions,
+    relationship_mappings: list[RelationshipMapping],
     current_relationship_id: int | None = None,
-    relationship_counts: dict[str, Any] | None = None,
-) -> dict[str, Any] | None:
+    relationship_counts: RelationshipCounts | None = None,
+) -> RelationshipMapping | None:
     """
     Find relationship mapping that matches the score positions.
 
@@ -437,7 +455,7 @@ def _find_matching_relationship(
     """
     try:
         # Group matching mappings by dimension
-        dimension_matches: dict[str, list[dict[str, Any]]] = {}
+        dimension_matches: dict[str, list[RelationshipMapping]] = {}
 
         for mapping in relationship_mappings:
             dimension_name = mapping["dimension_name"]
@@ -466,7 +484,7 @@ def _find_matching_relationship(
             return None
 
         # Per-dimension current relationship filtering
-        matching_mappings: list[dict[str, Any]] = []
+        matching_mappings: list[RelationshipMapping] = []
         for dimension_name, dim_candidates in dimension_matches.items():
             if current_relationship_id is not None:
                 current_in_dim = any(
@@ -487,19 +505,19 @@ def _find_matching_relationship(
             return None
 
         # Build unique candidate set aggregated by relationship_id with max priority
-        unique: dict[int, dict[str, Any]] = {}
+        unique: dict[int, RelationshipMapping] = {}
         for m in matching_mappings:
             rid = int(m["relationship"].id)
-            pr = int(m.get("priority", 0))
+            pr = int(m["priority"])
             if rid not in unique:
-                unique[rid] = {
-                    "relationship": m["relationship"],
-                    "dimension_name": m["dimension_name"],
-                    "start_position": m["start_position"],
-                    "end_position": m["end_position"],
-                    "priority": pr,
-                    "limit_count": m.get("limit_count"),
-                }
+                unique[rid] = RelationshipMapping(
+                    relationship=m["relationship"],
+                    dimension_name=m["dimension_name"],
+                    start_position=m["start_position"],
+                    end_position=m["end_position"],
+                    priority=pr,
+                    limit_count=m["limit_count"],
+                )
             elif pr > unique[rid]["priority"]:
                 unique[rid]["priority"] = pr
 
@@ -509,15 +527,13 @@ def _find_matching_relationship(
 
         # Enforce limit_count using relationship_counts
         if relationship_counts:
-            filtered: dict[int, dict[str, Any]] = {}
+            filtered: dict[int, RelationshipMapping] = {}
             for rid, data in unique.items():
                 limit = int(data.get("limit_count") or 0)
                 if limit <= 0:
                     filtered[rid] = data
                     continue
-                cnt = relationship_counts.get(str(rid))
-                if cnt is None:
-                    cnt = relationship_counts.get(rid, 0)
+                cnt = relationship_counts.get(str(rid), 0)
                 try:
                     cnt_int = int(cnt or 0)
                 except Exception:
@@ -545,7 +561,9 @@ def _find_matching_relationship(
 
         if len(top_relations) > 1:
             logger.error(
-                "priority_tie_detected", top_priority=top_priority, candidates=len(top_relations)
+                "priority_tie_detected",
+                top_priority=top_priority,
+                candidates=len(top_relations),
             )
             return None
 
@@ -573,8 +591,8 @@ def _find_matching_relationship(
 
 
 def _get_default_relationship_mapping(
-    relationship_mappings: list[dict[str, Any]],
-) -> dict[str, Any] | None:
+    relationship_mappings: list[RelationshipMapping],
+) -> RelationshipMapping | None:
     """
     Get default relationship mapping (first one with lowest priority).
 
@@ -589,13 +607,13 @@ def _get_default_relationship_mapping(
             return None
 
         # Sort by priority and return first one
-        sorted_mappings = sorted(relationship_mappings, key=lambda x: x.get("priority", 999))
+        sorted_mappings = sorted(relationship_mappings, key=lambda x: x["priority"])
         default_mapping = sorted_mappings[0]
 
         logger.debug(
             "default_relationship_mapping_selected",
             relationship_id=default_mapping["relationship"].id,
-            priority=default_mapping.get("priority", 999),
+            priority=default_mapping["priority"],
         )
 
         return default_mapping
@@ -657,7 +675,7 @@ async def calculate_new_scores(
                 message="JSON Schema for score mapping is invalid",
             )
 
-        new_scores = {}
+        new_scores: dict[str, int] = {}
         for score_data in current_scores:
             dimension_name = score_data["dimension_name"]
             current_score = score_data["score"]
@@ -669,9 +687,9 @@ async def calculate_new_scores(
                 new_scores[dimension_name] = current_score
                 continue
 
-            # Get dimension-specific offset config
-            algorithm = score_data.get("position_mapping_algorithm", 1)
-            params = score_data.get("position_mapping_params", {})
+            # Get dimension-specific offset config (already typed correctly from InstanceDimensionData)
+            algorithm = score_data["position_mapping_algorithm"]
+            params = score_data["position_mapping_params"]
 
             # Map raw score to 0-1000 using JSON Schema min/max
             dim_schema = score_schema_props.get(dimension_name)
@@ -683,6 +701,12 @@ async def calculate_new_scores(
                 )
             min_v = dim_schema.get("minimum")
             max_v = dim_schema.get("maximum")
+            if not isinstance(min_v, int | float) or not isinstance(max_v, int | float):
+                raise AIRelationshipError(
+                    operation="calculate_new_scores",
+                    reason="schema_missing_bounds",
+                    message=f"Min/max not defined for dimension {dimension_name}",
+                )
             try:
                 mapped = map_to_permille(float(llm_score), float(min_v), float(max_v))
             except Exception as e:
@@ -696,8 +720,8 @@ async def calculate_new_scores(
             new_pos = map_score_to_position(
                 algorithm=algorithm,
                 score=float(mapped),
-                initial_position=initial_position,
-                params=params or {},
+                initial_position=float(initial_position),
+                params=params,
             )
             # Final integer output for both score and position semantics (half-up rounding)
             try:
@@ -769,7 +793,7 @@ async def update_relationship_positions(
                 scores_count=len(new_scores),
             )
 
-        return success
+        return bool(success)
 
     except Exception as e:
         logger.error(

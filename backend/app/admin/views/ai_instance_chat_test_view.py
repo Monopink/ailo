@@ -13,13 +13,12 @@ from starlette.responses import JSONResponse, Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
-from app.admin.types import AIInstanceTestContext, AIInstanceTestResponse
 from app.core.database import get_sessionmaker
-from app.core.type_aliases import JSONDict
 from app.services.admin.testing.instance_chat import (
     AIInstanceChatTestError,
     ai_instance_chat_test_service,
 )
+from app.type_defs import AIInstanceTestContext, AIInstanceTestResponse, JSONDict
 from app.utils.form_helpers import FormFieldError, get_int_field, get_text_field
 from app.utils.logging import get_logger
 

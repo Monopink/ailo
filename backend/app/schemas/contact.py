@@ -5,6 +5,7 @@ This module contains Pydantic schemas for contact relationships and requests.
 """
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -140,7 +141,7 @@ class ContactRequestListResponse(BaseSchema):
     """Schema for contact request list response."""
 
     items: list[ContactRequestWithProfile] = Field(..., description="Request list")
-    pagination: dict = Field(..., description="Pagination info")
+    pagination: dict[str, Any] = Field(..., description="Pagination info")
 
 
 class ContactRequestUpdate(BaseModel):
@@ -159,7 +160,9 @@ class ContactRequestAccept(BaseModel):
 class ContactRequestRetryPayload(BaseModel):
     """Schema for admin-triggered contact request retry payload."""
 
-    alias: str | None = Field(None, max_length=100, description="Override alias when retry succeeds")
+    alias: str | None = Field(
+        None, max_length=100, description="Override alias when retry succeeds"
+    )
     tags: list[str] | None = Field(None, description="Override tags when retry succeeds")
 
 

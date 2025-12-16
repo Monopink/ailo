@@ -67,7 +67,7 @@ def verify_code(code: str) -> str | None:
     return openid
 
 
-def _cleanup_codes():
+def _cleanup_codes() -> None:
     """Clean up expired codes"""
     now = time.time()
     expired_codes = [code for code, (_, expires_at) in _codes.items() if now >= expires_at]

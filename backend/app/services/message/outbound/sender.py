@@ -6,16 +6,18 @@ Provider layer handles protocol-specific fields like from_client.
 """
 
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.message import notification_push_history as notification_crud
 from app.enums import MessageType
+from app.schemas.message import NotificationActionData
 from app.services.message.providers.factory import get_default_provider
 from app.services.message.schemas import EventMetadata, OutboundMessageEvent, ProviderMetadata
 from app.services.message.security.encryption import encrypt_for_transport
 from app.services.message.storage.persistence import store_message as store_message_to_db
+from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
@@ -33,10 +35,10 @@ async def _send_message_internal(
     conv_id: str,
     content: str,
     message_type: int,
-    action: dict | None = None,
-    extra_fields: dict | None = None,
+    action: JSONDict | None = None,
+    extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
-) -> tuple["MessageResult", dict[str, Any]]:
+) -> tuple["MessageResult", JSONDict]:
     """
     Internal message sending function.
 
@@ -92,8 +94,8 @@ async def send_message(
     conv_id: str,
     content: str,
     message_type: int = MessageType.TEXT,
-    action: dict | None = None,
-    extra_fields: dict | None = None,
+    action: JSONDict | None = None,
+    extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
 ) -> None:
     """
@@ -138,11 +140,27 @@ async def send_message(
         raise ValueError(f"Failed to send message: {result.error_message}")
 
     # Store to message_history
+    # Extract metadata with type safety
+    notification_type_value: int | None = None
+    if extra_fields and "notification_type" in extra_fields:
+        nt = extra_fields["notification_type"]
+        notification_type_value = nt if isinstance(nt, int) else None
+
+    encryption_value: str | None = None
+    if "encryption" in encryption_meta:
+        enc = encryption_meta["encryption"]
+        encryption_value = enc if isinstance(enc, str) else None
+
+    enc_version_value: str | None = None
+    if "enc_version" in encryption_meta:
+        ver = encryption_meta["enc_version"]
+        enc_version_value = ver if isinstance(ver, str) else None
+
     metadata = EventMetadata(
         action=action,
-        notification_type=(extra_fields or {}).get("notification_type") if extra_fields else None,
-        encryption=encryption_meta.get("encryption"),
-        encryption_version=encryption_meta.get("enc_version"),
+        notification_type=notification_type_value,
+        encryption=encryption_value,
+        encryption_version=enc_version_value,
     )
     provider_metadata = ProviderMetadata()
 
@@ -178,7 +196,7 @@ async def send_notification(
     *,
     to_qiao_id: str,
     notification_type: int,
-    action_data: dict,
+    action_data: NotificationActionData,
 ) -> None:
     """
     Send notification (stored in notification_push_history).
@@ -187,16 +205,14 @@ async def send_notification(
         db: Database session
         to_qiao_id: Receiver's qiao_id
         notification_type: Notification type (from NotificationType enum)
-        action_data: Notification action data containing:
-            - action: {type, target}
-            - data: notification-specific data
+        action_data: Validated notification action data with type safety
     """
     # Create notification record
     notification = await notification_crud.create_notification(
         db,
         to_qiao_id=to_qiao_id,
         notification_type=notification_type,
-        action_data=action_data,
+        action_data=action_data.model_dump(mode="json"),
     )
 
     logger.info(
@@ -207,11 +223,11 @@ async def send_notification(
     )
 
     # Build payload metadata for transport
-    notification_payload = {
+    notification_payload: dict[str, JSONValue] = {
         "notification_type": notification_type,
-        "data": action_data.get("data", {}),
+        "data": action_data.data.model_dump(mode="json"),
     }
-    fallback_content = action_data.get("data", {}).get("message", "")
+    fallback_content = action_data.data.message
 
     # Send through internal function
     result, encryption_meta = await _send_message_internal(
@@ -221,7 +237,7 @@ async def send_notification(
         conv_id="",  # Notification messages don't have conv_id
         content=fallback_content,
         message_type=MessageType.NOTIFICATION,
-        action=action_data.get("action"),
+        action=action_data.action.model_dump(mode="json"),
         extra_fields=notification_payload,
     )
 

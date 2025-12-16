@@ -18,14 +18,16 @@ from app.models.ai import (
     AIRelationship,
     AIStyleDimension,
 )
+from app.type_defs import RelationshipScoreEntry
 from app.utils.logging import get_logger
+from app.utils.validation import validate_typed_dict
 
 logger = get_logger(__name__)
 
 
 async def get_instance_relationship_scores(
     db: AsyncSession, instance_id: int
-) -> list[dict[str, Any]]:
+) -> list[RelationshipScoreEntry]:
     """
     Get relationship scores for an instance.
 
@@ -61,22 +63,22 @@ async def get_instance_relationship_scores(
         score_data = result.all()
 
         # Convert to dictionaries
-        score_list = []
+        score_list: list[RelationshipScoreEntry] = []
         for score, initial_position, dimension_name, dimension_display_name in score_data:
-            score_list.append(
-                {
-                    "id": score.id,
-                    "instance_id": score.instance_id,
-                    "dimension_id": score.dimension_id,
-                    "dimension_name": dimension_name,
-                    "dimension_display_name": dimension_display_name,
-                    "score": score.score,
-                    "position": score.position,
-                    "initial_position": initial_position,  # Add initial_position from dimension
-                    "created_at": score.created_at,
-                    "updated_at": score.updated_at,
-                }
-            )
+            score_entry: RelationshipScoreEntry = {
+                "id": score.id,
+                "instance_id": score.instance_id,
+                "dimension_id": score.dimension_id,
+                "dimension_name": dimension_name,
+                "dimension_display_name": dimension_display_name,
+                "score": score.score,
+                "position": score.position,
+                "initial_position": initial_position,
+                "created_at": score.created_at,
+                "updated_at": score.updated_at,
+            }
+            validate_typed_dict(score_entry, RelationshipScoreEntry, name="RelationshipScoreEntry")
+            score_list.append(score_entry)
 
         logger.debug(
             "instance_relationship_scores_retrieved",

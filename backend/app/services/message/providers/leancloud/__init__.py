@@ -4,6 +4,8 @@ LeanCloud message provider implementation.
 This module implements the MessageProvider protocol for LeanCloud messaging service.
 """
 
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.message.schemas import InboundMessageEvent
@@ -41,7 +43,7 @@ class LeanCloudProvider:
         conv_id: str,
         content: str,
         message_type: int = 1,
-        extra_fields: dict | None = None,
+        extra_fields: dict[str, Any] | None = None,
         msg_id: str | None = None,
     ) -> MessageResult:
         """Send message through LeanCloud."""
@@ -62,8 +64,8 @@ class LeanCloudProvider:
         conv_id: str,
         content: str,
         message_type: int = 4,
-        action: dict | None = None,
-        extra_fields: dict | None = None,
+        action: dict[str, Any] | None = None,
+        extra_fields: dict[str, Any] | None = None,
         msg_id: str | None = None,
     ) -> MessageResult:
         """Send message as system through LeanCloud."""

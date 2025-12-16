@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from app.models.llm import LLMConfig, LLMProvider
 from app.services.llm.providers.base import ProviderCapabilities
-from app.services.llm.types import LLMProviderResult, LLMRequestOptions
+from app.type_defs import LLMProviderResult, LLMRequestOptions, PreemptionChecker
 
 CAPABILITIES = ProviderCapabilities(
     supports_streaming=True,
@@ -28,7 +28,7 @@ async def send_request(
     options: LLMRequestOptions,
     *,
     stream: bool = False,
-    preemption_checker=None,
+    preemption_checker: PreemptionChecker | None = None,
 ) -> LLMProviderResult:  # pragma: no cover - placeholder
     raise NotImplementedError(
         "OpenAI Chat Completions adapter not implemented. Use doubao_responses."

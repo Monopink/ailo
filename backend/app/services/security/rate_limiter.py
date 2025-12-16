@@ -16,7 +16,7 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Global cache for rate limiting
-_rate_limit_cache: dict[str, deque] = {}
+_rate_limit_cache: dict[str, deque[float]] = {}
 
 RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
     "admin_auth": "admin_auth_rate_limit_requests",

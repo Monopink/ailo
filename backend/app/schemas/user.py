@@ -76,7 +76,7 @@ class TokenCreate(BaseModel):
 
     device_type: DeviceType = Field(..., description="Device type")
     device_id: str | None = Field(None, max_length=128, description="Device identifier")
-    platform_info: dict | None = Field(None, description="Platform information")
+    platform_info: dict[str, Any] | None = Field(None, description="Platform information")
     ip_address: str | None = Field(None, max_length=45, description="IP address")
     user_agent: str | None = Field(None, description="User agent string")
 

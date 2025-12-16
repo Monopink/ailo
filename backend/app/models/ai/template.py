@@ -13,8 +13,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm import relationship as orm_relationship
 from starlette.requests import Request
 
-from app.core.type_aliases import JSONDict
 from app.models.base import AutoIncrementModel, SnowflakeQiaoModel
+from app.type_defs import JSONDict
 
 if TYPE_CHECKING:
     from app.models.ai.personality import AIPersonality

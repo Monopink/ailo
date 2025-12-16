@@ -25,7 +25,7 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
         index=True,
         comment="Admin user ID who performed the operation",
     )
-    operation_type = Column(
+    operation_type: Column[str] = Column(
         Enum("CREATE", "UPDATE", "DELETE", "ENABLE", "DISABLE"),
         nullable=False,
         index=True,
@@ -61,7 +61,7 @@ class AdminLoginLog(ImmutableAutoIncrementModel):
     username = Column(
         String(50), nullable=False, index=True, comment="Username used for login attempt"
     )
-    login_result = Column(
+    login_result: Column[str] = Column(
         Enum("SUCCESS", "FAILED"), nullable=False, index=True, comment="Result of login attempt"
     )
     ip_address = Column(INET, comment="IP address of login attempt")

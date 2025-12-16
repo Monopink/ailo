@@ -8,9 +8,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.core.type_aliases import JSONDict
 from app.enums import AIInstanceCreator
 from app.schemas.common import BaseSchema
+from app.type_defs import JSONDict
 
 
 class AIInstanceBase(BaseSchema):

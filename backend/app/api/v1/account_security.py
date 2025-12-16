@@ -38,7 +38,7 @@ router = APIRouter(prefix="/user", tags=["Account Security"])
 async def send_email_code(
     body: EmailSendCodeRequest,
     current_user: User = Depends(get_current_user),
-):
+) -> EmailSendCodeResponse:
     """
     Send verification code to email.
 
@@ -75,7 +75,7 @@ async def bind_email(
     body: BindEmailRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> BindEmailResponse:
     """
     Bind email to user account.
 
@@ -127,7 +127,7 @@ async def change_email(
     body: ChangeEmailRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeEmailResponse:
     """
     Change user email.
 
@@ -182,7 +182,7 @@ async def unbind_email(
     body: UnbindEmailRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> None:
     """
     Unbind email from user account.
 
@@ -224,7 +224,7 @@ async def change_phone(
     body: ChangePhoneRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangePhoneResponse:
     """
     Change user phone number.
 

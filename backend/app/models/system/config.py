@@ -8,8 +8,8 @@ from sqlalchemy import Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.type_aliases import JSONArray
 from app.models.base import AutoIncrementModel
+from app.type_defs import JSONArray
 
 
 class SystemConfig(AutoIncrementModel):

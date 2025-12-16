@@ -27,6 +27,7 @@ from app.services.ai.queries.updates import create_conversation_item
 from app.services.config import config_service
 from app.services.message.processing.sender import interrupt_sending_task
 from app.services.message.schemas import InboundMessageEvent
+from app.type_defs import RelationshipTiming
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -445,12 +446,12 @@ async def _check_needs_wake(
     db: AsyncSession,
     user_qiao_id: str,
     instance_qiao_id: str,
-    relationship_config: dict[str, Any],
+    relationship_config: RelationshipTiming,
     current_time: int,
 ) -> bool:
     """Decide if a wake wait is required based on recent conversation activity."""
 
-    wake_window_ms = int(relationship_config.get("wake_window_ms", 0))
+    wake_window_ms = relationship_config["wake_window_ms"]
     if wake_window_ms <= 0:
         return False
 
@@ -471,8 +472,11 @@ async def _check_needs_wake(
     last_timestamp = last_buffer.last_msg_time_ms
     if last_timestamp is None and last_buffer.created_at is not None:
         last_timestamp = int(last_buffer.created_at.timestamp() * 1000)
+
+    # Defensive check: if both last_msg_time_ms and created_at are None,
+    # we cannot calculate elapsed time, so assume wake is not needed
     if last_timestamp is None:
-        return False
+        return False  # type: ignore[unreachable]
 
     elapsed = max(current_time - last_timestamp, 0)
     return elapsed > wake_window_ms
@@ -486,14 +490,14 @@ async def _create_wake_buffer(
     event: InboundMessageEvent,
     category: BufferMessageCategory,
     config: BufferTimerConfig,
-    relationship_config: dict[str, Any],
+    relationship_config: RelationshipTiming,
     current_time: int,
 ) -> None:
     """Create a WAITING_WAKEUP buffer that delays aggregation until wake timer expires."""
 
-    wake_min = int(relationship_config.get("wake_time_min_ms", 3000))
-    wake_max = int(relationship_config.get("wake_time_max_ms", 3000))
-    wake_bias = relationship_config.get("wake_time_bias", "balanced")
+    wake_min = relationship_config["wake_time_min_ms"]
+    wake_max = relationship_config["wake_time_max_ms"]
+    wake_bias = relationship_config["wake_time_bias"]
 
     sampled_delay = sample_wake_time(wake_min, wake_max, wake_bias)
     wake_expires_at_ms = current_time + sampled_delay
@@ -694,7 +698,7 @@ def adjust_wake_time(current_remaining_ms: int, adjustment_mode: str, wake_time_
     return max(adjusted, minimum_ms)
 
 
-def _default_relationship_timing() -> dict[str, Any]:
+def _default_relationship_timing() -> RelationshipTiming:
     """Provide a sane default configuration if relationship timing is missing."""
 
     return {
@@ -704,6 +708,7 @@ def _default_relationship_timing() -> dict[str, Any]:
         "wake_window_ms": 60000,
         "wake_time_adjustment": "random_half",
         "no_reply_probability": 0.0,
+        "followup_delay_ms": 5000,  # Default value consistent with database schema
     }
 
 
@@ -995,7 +1000,8 @@ def _compute_buffer_expiration(
     return min(candidates) if candidates else None
 
 
-def _buffer_expired_clause(now_ms: int):
+def _buffer_expired_clause(now_ms: int) -> Any:
+    """Generate SQLAlchemy clause for expired buffers."""
     return or_(
         and_(
             AIMessageBuffer.micro_expires_at_ms.is_not(None),

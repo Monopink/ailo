@@ -5,6 +5,8 @@ This module handles discovery page queries that rely on square exposure entries
 and the corresponding AI persona profiles.
 """
 
+from typing import Any
+
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,7 +119,7 @@ async def get_persona_profile_by_qiao_id(
     db: AsyncSession,
     *,
     qiao_id: str,
-) -> tuple[Profile | None, str | None]:
+) -> tuple[Profile | None, int | None]:
     """
     Load the AI persona profile along with its latest square category.
     """
@@ -163,7 +165,7 @@ async def _pick_persona_for_ai_type(
     db: AsyncSession,
     *,
     type_id: int,
-    excluded_qiao_ids,
+    excluded_qiao_ids: Any,
 ) -> tuple[AIPersona, Profile] | None:
     """
     Pick an active persona + profile pair for the given AI type that is not already in the user's contacts.

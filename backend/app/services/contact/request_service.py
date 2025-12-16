@@ -11,7 +11,6 @@ from fastapi import status as http_status
 from sqlalchemy import BigInteger, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.type_aliases import JSONDict
 from app.crud.ai import ai_persona as ai_persona_crud
 from app.crud.contact import contact as contact_crud
 from app.crud.contact import contact_request as contact_request_crud
@@ -43,16 +42,23 @@ from app.services.ai.contact_handler import ContactRequestDecision, handle_ai_co
 from app.services.ai.instance_creation import create_instance_from_persona
 from app.services.contact.service import _get_im_conv_id, get_contact_with_profile
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 
 
-def _mark_pending_failure(contact_request: "ContactRequest", *, persona: AIPersona | None, reason: str) -> None:
+def _mark_pending_failure(
+    contact_request: "ContactRequest", *, persona: AIPersona | None, reason: str
+) -> None:
     """Record pending failure metadata and log event."""
     existing_detail = contact_request.failure_detail or {}
-    ai_type_id = persona.type_id if persona else (existing_detail.get("ai_type_id") or existing_detail.get("type_id"))
+    ai_type_id = (
+        persona.type_id
+        if persona
+        else (existing_detail.get("ai_type_id") or existing_detail.get("type_id"))
+    )
     qiao_id = persona.qiao_id if persona else existing_detail.get("qiao_id")
     detail = {
         "ai_type_id": ai_type_id,
@@ -71,7 +77,6 @@ def _mark_pending_failure(contact_request: "ContactRequest", *, persona: AIPerso
         ai_type_id=ai_type_id,
         failure_code=reason,
     )
-
 
 
 def _clear_pending_failure(contact_request: "ContactRequest") -> None:

@@ -26,8 +26,6 @@ class _StatsSchema(BaseModel):
     so create/update operations are not used.
     """
 
-    pass
-
 
 class CRUDStatsUser(CRUDBase[StatsUserDaily, _StatsSchema, _StatsSchema]):
     """CRUD operations for user statistics."""

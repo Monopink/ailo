@@ -4,6 +4,8 @@ Contact management CRUD operations.
 This module contains CRUD operations for contact relationships and requests.
 """
 
+from typing import Any
+
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -212,7 +214,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         *,
         contact: Contact,
         alias: str | None = None,
-        tags: dict | None = None,
+        tags: dict[str, Any] | None = None,
     ) -> Contact:
         """
         Restore a soft-deleted contact with new settings.
@@ -241,7 +243,12 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         return contact
 
     async def batch_update_contacts(
-        self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_ids: list[str], update_data: dict
+        self,
+        db: AsyncSession,
+        *,
+        user_qiao_id: str,
+        contact_qiao_ids: list[str],
+        update_data: dict[str, Any],
     ) -> int:
         """Batch update contacts."""
         result = await db.execute(

@@ -10,7 +10,7 @@ from typing import TypedDict
 
 from starlette.requests import Request
 
-from app.core.type_aliases import JSONDict
+from app.type_defs.common import JSONDict
 
 
 class AIInstanceTestContext(TypedDict, total=False):

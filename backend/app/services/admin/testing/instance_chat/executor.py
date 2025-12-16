@@ -13,7 +13,6 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.type_aliases import JSONDict
 from app.enums import MessageType
 from app.models.ai.instance import AIInstance
 from app.models.ai.log import AIRequestLog
@@ -25,6 +24,7 @@ from app.services.message.processing.buffer import (
     force_lock_latest_window,
 )
 from app.services.message.schemas import InboundMessageEvent
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

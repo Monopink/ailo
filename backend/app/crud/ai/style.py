@@ -5,8 +5,7 @@ This module provides both standard CRUD operations and complex queries
 for AI style and relationship mapping management.
 """
 
-from typing import Any
-
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,14 +18,30 @@ from app.models.ai import (
     AIStyleDimension,
 )
 from app.schemas.ai import (
+    AIRelationshipResponse,
     AIStyleCreate,
     AIStyleDimensionCreate,
     AIStyleDimensionUpdate,
+    AIStyleResponse,
     AIStyleUpdate,
+    DimensionScoreRange,
+    RelationshipMappingDetail,
+    RelationshipMappingWithDimension,
+    StyleWithRelationships,
 )
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+# Dummy schemas for read-only CRUD operations
+class _ReadOnlySchema(BaseModel):
+    """
+    Dummy schema for read-only CRUD operations.
+
+    AIRelationship and AIDimensionRelationshipMapping tables are managed
+    through admin interface, so create/update operations are not used in code.
+    """
 
 
 class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
@@ -34,7 +49,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
     async def get_with_relationships(
         self, db: AsyncSession, *, style_id: int
-    ) -> dict[str, Any] | None:
+    ) -> StyleWithRelationships | None:
         """
         Get style with its relationship mappings.
 
@@ -43,7 +58,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             style_id: Style ID
 
         Returns:
-            Dictionary containing style and relationship mappings, or None if not found
+            StyleWithRelationships object or None if not found
         """
         try:
             # Get style
@@ -70,26 +85,38 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
                 .order_by(AIDimension.name, AIDimensionRelationshipMapping.priority)
             )
 
-            mappings = mappings_result.all()
+            rows = mappings_result.all()
 
-            relationship_mappings = []
-            for mapping, relationship, dimension in mappings:
+            relationship_mappings: list[RelationshipMappingWithDimension] = []
+            for mapping, relationship, dimension in rows:
                 relationship_mappings.append(
-                    {
-                        "dimension_id": mapping.dimension_id,
-                        "dimension_name": dimension.name,
-                        "start_position": mapping.start_position,
-                        "end_position": mapping.end_position,
-                        "relationship": relationship,
-                        "priority": mapping.priority,
-                        "limit_count": mapping.limit_count,
-                    }
+                    RelationshipMappingWithDimension(
+                        dimension_id=mapping.dimension_id,
+                        dimension_name=dimension.name,
+                        start_position=mapping.start_position,
+                        end_position=mapping.end_position,
+                        priority=mapping.priority,
+                        limit_count=mapping.limit_count,
+                        relationship=AIRelationshipResponse(
+                            display_name=relationship.display_name,
+                            prompt_fragment=relationship.prompt_fragment,
+                            status=relationship.status,
+                            created_at=relationship.created_at,
+                            updated_at=relationship.updated_at,
+                        ),
+                    )
                 )
 
-            return {
-                "style": style,
-                "relationship_mappings": relationship_mappings,
-            }
+            return StyleWithRelationships(
+                style=AIStyleResponse(
+                    id=style.id,
+                    display_name=style.display_name,
+                    status=style.status,
+                    created_at=style.created_at,
+                    updated_at=style.updated_at,
+                ),
+                relationship_mappings=relationship_mappings,
+            )
 
         except Exception as e:
             logger.error("style_with_relationships_query_failed", error=str(e), style_id=style_id)
@@ -97,7 +124,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
     async def get_relationship_mappings(
         self, db: AsyncSession, *, style_id: int
-    ) -> list[dict[str, Any]]:
+    ) -> list[RelationshipMappingDetail]:
         """
         Get relationship mappings for a style.
 
@@ -106,7 +133,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             style_id: Style ID
 
         Returns:
-            List of relationship mapping dictionaries
+            List of relationship mapping details
         """
         try:
             result = await db.execute(
@@ -124,23 +151,23 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
                 .order_by(AIDimension.name, AIDimensionRelationshipMapping.priority)
             )
 
-            mappings = result.all()
+            rows = result.all()
 
-            mappings = []
-            for mapping, relationship, dimension in mappings:
+            mappings: list[RelationshipMappingDetail] = []
+            for mapping, relationship, dimension in rows:
                 mappings.append(
-                    {
-                        "mapping_id": mapping.id,
-                        "dimension_id": mapping.dimension_id,
-                        "dimension_name": dimension.name,
-                        "start_position": mapping.start_position,
-                        "end_position": mapping.end_position,
-                        "priority": mapping.priority,
-                        "limit_count": mapping.limit_count,
-                        "relationship_id": relationship.id,
-                        "relationship_display_name": relationship.display_name,
-                        "relationship_prompt": relationship.prompt_fragment,
-                    }
+                    RelationshipMappingDetail(
+                        mapping_id=mapping.id,
+                        dimension_id=mapping.dimension_id,
+                        dimension_name=dimension.name,
+                        start_position=mapping.start_position,
+                        end_position=mapping.end_position,
+                        priority=mapping.priority,
+                        limit_count=mapping.limit_count,
+                        relationship_id=relationship.id,
+                        relationship_display_name=relationship.display_name,
+                        relationship_prompt=relationship.prompt_fragment,
+                    )
                 )
 
             logger.debug("relationship_mappings_retrieved", style_id=style_id, count=len(mappings))
@@ -188,7 +215,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
     async def get_score_ranges(
         self, db: AsyncSession, *, style_id: int
-    ) -> dict[int, dict[str, Any]]:
+    ) -> dict[str, DimensionScoreRange]:
         """
         Get score ranges for a style.
 
@@ -214,15 +241,15 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             )
             dimensions = dimensions_result.all()
 
-            ranges = {}
+            ranges: dict[str, DimensionScoreRange] = {}
             for style_dimension, dimension in dimensions:
-                ranges[dimension.name] = {
-                    "name": dimension.name,
-                    "display_name": dimension.display_name,
-                    "initial_position": style_dimension.initial_position,
-                    "start": 0,  # Full range
-                    "end": 1000,
-                }
+                ranges[dimension.name] = DimensionScoreRange(
+                    name=dimension.name,
+                    display_name=dimension.display_name,
+                    initial_position=style_dimension.initial_position,
+                    start=0,  # Full range
+                    end=1000,
+                )
 
             logger.debug("score_ranges_retrieved", style_id=style_id, ranges_count=len(ranges))
 
@@ -233,7 +260,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
             return {}
 
 
-class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
+class CRUDAIRelationship(CRUDBase[AIRelationship, _ReadOnlySchema, _ReadOnlySchema]):
     """AI Relationship CRUD operations."""
 
     async def get_available_relationships(
@@ -270,7 +297,9 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, Any, Any]):
             return []
 
 
-class CRUDAIDimensionRelationshipMapping(CRUDBase[AIDimensionRelationshipMapping, Any, Any]):
+class CRUDAIDimensionRelationshipMapping(
+    CRUDBase[AIDimensionRelationshipMapping, _ReadOnlySchema, _ReadOnlySchema]
+):
     """AI Dimension Relationship Mapping CRUD operations (normalized)."""
 
     async def get_by_style(

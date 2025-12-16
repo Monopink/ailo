@@ -15,12 +15,11 @@ from pendulum import DateTime as PendulumDateTime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.type_aliases import JSONValue
 from app.enums.common import ConversationRole
 from app.exceptions import AIServiceError
 from app.models.ai import AIConversationState
 from app.services.ai.memory import build_memory_prompt
-from app.services.ai.types import InstanceContext, ProfileInfo
+from app.type_defs import InstanceContext, JSONValue, ProfileInfo
 from app.utils.logging import get_logger
 
 from .queries import get_conversation_contexts, get_personality_with_placeholders, get_user_profile

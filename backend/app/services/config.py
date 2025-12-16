@@ -21,7 +21,7 @@ from app.services.system_config import SystemConfigService
 class ConfigService:
     """Unified configuration service."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: dict[str, Any] = {}
         self._cache_enabled = True
 
@@ -59,13 +59,12 @@ class ConfigService:
         Returns configuration values as-is (may contain None for missing configs).
         Callers are responsible for validating completeness based on their needs.
         """
-        config = {
+        return {
             "app_id": await self.get_config(db, "leancloud_im_app_id", required=False),
             "app_key": await self.get_config(db, "leancloud_im_app_key", required=False),
             "master_key": get_settings().LEANCLOUD_MASTER_KEY,  # Always from env
             "base_url": await self.get_config(db, "leancloud_im_server_url", required=False),
         }
-        return config
 
     async def get_int(self, db: AsyncSession, key: str, *, required: bool = True) -> int:
         """Get configuration as integer with strict coercion."""
@@ -93,12 +92,12 @@ class ConfigService:
         else:
             self._cache.clear()
 
-    def disable_cache(self):
+    def disable_cache(self) -> None:
         """Disable configuration caching."""
         self._cache_enabled = False
         self._cache.clear()
 
-    def enable_cache(self):
+    def enable_cache(self) -> None:
         """Enable configuration caching."""
         self._cache_enabled = True
 

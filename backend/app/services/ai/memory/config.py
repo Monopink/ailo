@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.llm import LLMConfig
-from app.services.ai.types import InstanceContext
+from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -310,7 +310,7 @@ async def update_contact(
         return None
 
     # Prepare update dict (only include non-None values)
-    update_dict = {}
+    update_dict: dict[str, Any] = {}
     if update_data.alias is not None:
         update_dict["alias"] = update_data.alias
     if update_data.tags is not None:

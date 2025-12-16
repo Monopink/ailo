@@ -31,10 +31,10 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Scanner state
-_scanner_task: asyncio.Task | None = None
+_scanner_task: asyncio.Task[None] | None = None
 _scanner_running: bool = False
 _scan_interval: float = 0.1  # 100ms
-_processing_tasks: set[asyncio.Task] = set()
+_processing_tasks: set[asyncio.Task[None]] = set()
 _max_concurrent_processing = 10
 _processing_semaphore = asyncio.Semaphore(_max_concurrent_processing)
 
@@ -227,7 +227,21 @@ async def _process_conversation_async(
                 return
 
             relationship_config = await get_instance_relationship_config(db, instance_qiao_id)
-            no_reply_prob = float((relationship_config or {}).get("no_reply_probability", 0.0))
+
+            # Extract no_reply_probability with type safety
+            if relationship_config is not None:
+                no_reply_prob_value = relationship_config.get("no_reply_probability", 0.0)
+                # Validate type to ensure it's numeric (defensive programming)
+                # While TypedDict declares float, database values might be corrupted
+                if isinstance(no_reply_prob_value, int | float):
+                    no_reply_prob = float(no_reply_prob_value)
+                else:
+                    # Defensive fallback for invalid database values
+                    no_reply_prob = 0.0  # type: ignore[unreachable]
+                    logger.warning("invalid_no_reply_probability_type", value=no_reply_prob_value)
+            else:
+                # Use default when relationship_config is None (database default is 0.0)
+                no_reply_prob = 0.0
             should_reply = random.random() >= no_reply_prob
 
             if not should_reply:
@@ -294,7 +308,7 @@ def _schedule_processing_task(user_qiao_id: str, instance_qiao_id: str) -> None:
     task = asyncio.create_task(_runner())
     _processing_tasks.add(task)
 
-    def _cleanup(finished: asyncio.Task) -> None:
+    def _cleanup(finished: asyncio.Task[None]) -> None:
         _processing_tasks.discard(finished)
         try:
             exc = finished.exception()

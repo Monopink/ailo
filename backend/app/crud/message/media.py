@@ -4,6 +4,7 @@ Media file CRUD operations.
 This module contains CRUD operations for media file management.
 """
 
+from pydantic import BaseModel
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +14,16 @@ from app.models.message import MediaFile
 from app.schemas.message import MediaFileUpload
 
 
-class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, dict]):
+class _MediaFileUpdateSchema(BaseModel):
+    """
+    Dummy schema for MediaFile update operations.
+
+    MediaFile updates are rare (mostly status changes handled separately),
+    so a full update schema is not needed.
+    """
+
+
+class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, _MediaFileUpdateSchema]):
     """CRUD operations for MediaFile model."""
 
     async def get_by_file_id(self, db: AsyncSession, *, file_id: str) -> MediaFile | None:

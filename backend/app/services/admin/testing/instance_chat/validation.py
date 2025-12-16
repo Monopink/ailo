@@ -20,8 +20,8 @@ from app.models.user import User
 from app.schemas.profile import ProfileCreate
 from app.services.ai.queries import get_instance_context
 from app.services.ai.relationship_scoring import get_relationship_scores
-from app.services.ai.types import InstanceContext
 from app.services.llm.config import get_active_configs
+from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -180,7 +180,7 @@ class ValidationService:
 
     def _extract_instance_profile(self, context: InstanceContext) -> dict[str, Any]:
         """Extract profile data from context and ensure it exists."""
-        profile = context.get("profile") or {}
+        profile: dict[str, Any] = context.get("profile") or {}
 
         return {
             "nickname": profile.get("nickname"),

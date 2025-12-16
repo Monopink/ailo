@@ -8,7 +8,6 @@ separation of concerns and pure function design.
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.type_aliases import JSONDict
 from app.enums import ContactType
 from app.exceptions import AIDataAccessError
 from app.models.ai import (
@@ -24,17 +23,21 @@ from app.models.ai import (
 from app.models.contact import Contact
 from app.models.profile import Profile
 from app.models.user import User
-from app.services.ai.types import (
+from app.type_defs import (
     AITypeInfo,
     CurrentRelationship,
     DimensionSpec,
     InstanceContext,
+    JSONDict,
     PersonalityInfo,
     ProfileInfo,
     RelationshipCounts,
+    RelationshipMapping,
+    RelationshipTiming,
     StyleInfo,
 )
 from app.utils.logging import get_logger
+from app.utils.validation import validate_typed_dict
 
 logger = get_logger(__name__)
 
@@ -103,6 +106,8 @@ async def get_instance_context(
             "current_relationship": _build_current_relationship(relationship),
             "dimensions": dimensions,
         }
+
+        validate_typed_dict(context, InstanceContext)
 
         logger.debug(
             "instance_context_loaded",
@@ -328,18 +333,17 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> dict[
             .order_by(AIDimensionRelationshipMapping.start_position)
         )
 
-        relationships = []
+        relationships: list[RelationshipMapping] = []
         for mapping, relationship, dimension in mappings_result:
             relationships.append(
-                {
-                    "mapping": mapping,
-                    "relationship": relationship,
-                    "dimension_id": mapping.dimension_id,
-                    "dimension_name": dimension.name,
-                    "start_position": mapping.start_position,
-                    "end_position": mapping.end_position,
-                    "priority": mapping.priority,
-                }
+                RelationshipMapping(
+                    relationship=relationship,
+                    dimension_name=dimension.name,
+                    start_position=mapping.start_position,
+                    end_position=mapping.end_position,
+                    priority=mapping.priority,
+                    limit_count=mapping.limit_count,
+                )
             )
 
         logger.debug(
@@ -363,7 +367,7 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> dict[
 async def get_instance_relationship_config(
     db: AsyncSession,
     instance_qiao_id: str,
-) -> JSONDict | None:
+) -> RelationshipTiming | None:
     """
     Fetch wake timing configuration for the instance's current relationship.
 
@@ -397,6 +401,7 @@ async def get_instance_relationship_config(
         if relationship_id is None:
             return None  # First conversation: skip wake logic
 
+        timing: RelationshipTiming
         if not relationship:
             logger.warning(
                 "relationship_config_missing",
@@ -423,6 +428,7 @@ async def get_instance_relationship_config(
         )
         return _default_relationship_timing()
     else:
+        validate_typed_dict(timing, RelationshipTiming, name="RelationshipTiming")
         return timing
 
 
@@ -535,7 +541,7 @@ async def get_all_instances(db: AsyncSession) -> list[JSONDict]:
         return instances
 
 
-def _default_relationship_timing() -> JSONDict:
+def _default_relationship_timing() -> RelationshipTiming:
     """Provide sane defaults when relationship timing data is unavailable."""
 
     return {
@@ -555,8 +561,9 @@ def _resolve_profile_nickname(profile: Profile) -> str:
 
     Falls back to owner qiao_id when nickname is not populated.
     """
-    if profile.nickname:
-        return profile.nickname
+    nickname = getattr(profile, "nickname", None)
+    if isinstance(nickname, str) and nickname:
+        return nickname
     fallback = getattr(profile, "owner_qiao_id", None)
     if isinstance(fallback, str) and fallback:
         return fallback

@@ -7,40 +7,17 @@ All algorithms are stateless and maintain initial position as origin.
 """
 
 import math
-from typing import Any, Literal, TypedDict, Union, cast
+from typing import Any, cast
 
 from app.enums.common import PositionMappingAlgorithm
+from app.type_defs import AlgorithmParameterSpec, V1Params
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 EPSILON = 1e-10  # Numerical stability threshold for floating-point comparisons
 
-Numeric = Union[int, float]
-
-
-class AlgorithmParameterSpec(TypedDict):
-    """UI/validation metadata for algorithm parameters."""
-
-    name: str
-    label: str
-    description: str
-    input_type: Literal["integer", "float"]
-    min: float | None
-    max: float | None
-    step: float | None
-    required: bool
-
-
-class V1Params(TypedDict):
-    """Typed representation for V1 algorithm parameters."""
-
-    left_sensitivity: float
-    right_sensitivity: float
-    left_positive_gain: float
-    left_negative_gain: float
-    right_positive_gain: float
-    right_negative_gain: float
+Numeric = int | float
 
 
 ALGORITHM_PARAM_SPECS: dict[PositionMappingAlgorithm, list[AlgorithmParameterSpec]] = {
@@ -414,35 +391,28 @@ def get_algorithm_info(algorithm: int) -> dict[str, Any]:
             "parameters": [],
             "formula": "position = score",
         }
-    if algorithm_enum == PositionMappingAlgorithm.V1:
-        specs = ALGORITHM_PARAM_SPECS.get(algorithm_enum, [])
-        return {
-            "name": "V1",
-            "version": "6.0",
-            "descr_initial_positiontion": "Nonlinear position mapping with sensitivity-controlled logarithmic offset.",
-            "parameters": [
-                {
-                    "name": spec["name"],
-                    "type": spec["input_type"],
-                    "label": spec["label"],
-                    "required": spec["required"],
-                    "range": (
-                        [spec["min"], spec["max"]]
-                        if spec["min"] is not None or spec["max"] is not None
-                        else None
-                    ),
-                    "descr_initial_positiontion": spec["description"],
-                }
-                for spec in specs
-            ],
-            "formula": "offset_ratio = -gain * ln(1 - ratio) / 100; position = initial ± distance * offset_ratio, using independent left/right sensitivities and gains.",
-        }
+    # V1 algorithm
+    specs = ALGORITHM_PARAM_SPECS.get(algorithm_enum, [])
     return {
-        "name": "Unknown",
-        "version": "0.0",
-        "descr_initial_positiontion": "Unknown algorithm",
-        "parameters": [],
-        "formula": "N/A",
+        "name": "V1",
+        "version": "6.0",
+        "descr_initial_positiontion": "Nonlinear position mapping with sensitivity-controlled logarithmic offset.",
+        "parameters": [
+            {
+                "name": spec["name"],
+                "type": spec["input_type"],
+                "label": spec["label"],
+                "required": spec["required"],
+                "range": (
+                    [spec["min"], spec["max"]]
+                    if spec["min"] is not None or spec["max"] is not None
+                    else None
+                ),
+                "descr_initial_positiontion": spec["description"],
+            }
+            for spec in specs
+        ],
+        "formula": "offset_ratio = -gain * ln(1 - ratio) / 100; position = initial ± distance * offset_ratio, using independent left/right sensitivities and gains.",
     }
 
 

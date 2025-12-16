@@ -2,6 +2,8 @@
 Public system endpoints (no auth) for client bootstrapping configs.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +14,9 @@ router = APIRouter(prefix="/system", tags=["System Public"])
 
 
 @router.get("/captcha-config")
-async def get_captcha_config(request: Request, db: AsyncSession = Depends(get_db)):
+async def get_captcha_config(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """Return public captcha configuration for clients.
 
     Only non-sensitive values are returned.

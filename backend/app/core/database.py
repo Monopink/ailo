@@ -73,7 +73,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def init_database():
+async def init_database() -> None:
     """Initialize database connection with retry mechanism."""
 
     max_retries = 10
@@ -111,7 +111,7 @@ async def init_database():
             raise Exception(error_msg) from e
 
 
-async def close_database():
+async def close_database() -> None:
     """Close database connections."""
 
     try:

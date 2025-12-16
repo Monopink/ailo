@@ -26,8 +26,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         Dashboard statistics including metrics, charts, and system status
     """
     try:
-        stats = await get_dashboard_stats(db)
-        return stats
+        return await get_dashboard_stats(db)
     except Exception as e:
         logger.error("dashboard_stats_error", error=str(e), exc_info=True)
         # Return empty data structure on error

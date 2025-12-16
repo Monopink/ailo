@@ -14,17 +14,16 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.type_defs import RelationshipCandidate, RelationshipCounts
 from app.utils.logging import get_logger
+from app.utils.validation import validate_typed_dict
 
 logger = get_logger(__name__)
 
 
-Candidate = dict[str, Any]
-
-
 async def collect_candidates(
     db: AsyncSession, *, style_id: int, dimension_id: int, position: int
-) -> list[Candidate]:
+) -> list[RelationshipCandidate]:
     """
     Collect relationship candidates for one dimension given final position.
 
@@ -55,25 +54,25 @@ async def collect_candidates(
         {"style_id": int(style_id), "dimension_id": int(dimension_id), "position": int(position)},
     )
     rows = result.fetchall()
-    candidates: list[Candidate] = []
+    candidates: list[RelationshipCandidate] = []
     for r in rows:
-        candidates.append(
-            {
-                "relationship_id": r.relationship_id,
-                "relationship_display_name": r.relationship_display_name,
-                "prompt_fragment": r.prompt_fragment,
-                "priority": r.priority,
-                "start_position": r.start_position,
-                "end_position": r.end_position,
-                "limit_count": r.limit_count,
-            }
-        )
+        candidate: RelationshipCandidate = {
+            "relationship_id": int(r.relationship_id),
+            "relationship_display_name": r.relationship_display_name,
+            "prompt_fragment": r.prompt_fragment,
+            "priority": int(r.priority),
+            "start_position": int(r.start_position),
+            "end_position": int(r.end_position),
+            "limit_count": int(r.limit_count or 0),
+        }
+        validate_typed_dict(candidate, RelationshipCandidate, name="RelationshipCandidate")
+        candidates.append(candidate)
     return candidates
 
 
 def enforce_limit_count(
-    candidates: list[Candidate], relationship_counts: dict[str, Any] | None
-) -> list[Candidate]:
+    candidates: list[RelationshipCandidate], relationship_counts: RelationshipCounts | None
+) -> list[RelationshipCandidate]:
     """
     Filter candidates using limit_count and instance-level counts.
 
@@ -85,20 +84,14 @@ def enforce_limit_count(
         # No counts available (e.g., style test) => treat as 0
         return candidates
 
-    filtered: list[Candidate] = []
+    filtered: list[RelationshipCandidate] = []
     for c in candidates:
-        rel_id = c.get("relationship_id")
-        try:
-            limit = int(c.get("limit_count") or 0)
-        except Exception:
-            limit = 0
+        rel_id = c["relationship_id"]
+        limit = int(c["limit_count"])
         if limit <= 0:
             filtered.append(c)
             continue
-        # counts may be stored with string keys in JSONB
-        cnt = relationship_counts.get(str(rel_id))
-        if cnt is None:
-            cnt = relationship_counts.get(str(rel_id) if rel_id is not None else "", 0)
+        cnt = relationship_counts.get(str(rel_id), 0)
         try:
             cnt_int = int(cnt or 0)
         except Exception:
@@ -123,7 +116,7 @@ def enforce_limit_count(
 
 
 def select_final_relationship(
-    candidates_across_dimensions: list[Candidate],
+    candidates_across_dimensions: list[RelationshipCandidate],
     *,
     higher_is_better: bool = True,
 ) -> dict[str, Any]:
@@ -144,17 +137,8 @@ def select_final_relationship(
     # Aggregate by relationship_id to compute max priority across dims
     agg: dict[int, dict[str, Any]] = {}
     for c in candidates_across_dimensions:
-        rid_raw = c.get("relationship_id")
-        pr_raw = c.get("priority")
-        try:
-            rid = int(rid_raw)
-        except Exception:
-            logger.error("candidate_missing_relationship_id", candidate=c)
-            continue
-        try:
-            pr = int(pr_raw or 0)
-        except Exception:
-            pr = 0
+        rid = c["relationship_id"]
+        pr = int(c["priority"])
         if rid not in agg:
             agg[rid] = {
                 "relationship_id": rid,

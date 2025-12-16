@@ -8,7 +8,6 @@ This module provides authentication-related endpoints including:
 - Message client signature generation for LeanCloud IM authentication
 """
 
-import random
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -297,7 +296,9 @@ class SendSMSResponse(BaseModel):
 
 
 @router.post("/send-sms", response_model=SendSMSResponse)
-async def send_sms_code(request: Request, body: SendSMSRequest, db: AsyncSession = Depends(get_db)):
+async def send_sms_code(
+    request: Request, body: SendSMSRequest, db: AsyncSession = Depends(get_db)
+) -> SendSMSResponse:
     """
     Send SMS verification code.
 
@@ -369,7 +370,7 @@ async def send_sms_code(request: Request, body: SendSMSRequest, db: AsyncSession
         )
 
     # 3. Generate 6-digit verification code
-    code = "".join([str(random.randint(0, 9)) for _ in range(6)])
+    code = "".join([str(secrets.randbelow(10)) for _ in range(6)])
 
     # 4. Store code in memory with expiration (for MVP)
     # In production, use Redis with TTL instead
@@ -378,8 +379,8 @@ async def send_sms_code(request: Request, body: SendSMSRequest, db: AsyncSession
     _cleanup_expired_codes()  # Clean up expired codes
 
     # 5. Send SMS
-    provider = await create_sms_provider(db)
-    result = await provider.send_verification_code(normalized_phone, code)
+    sms_provider = await create_sms_provider(db)
+    result = await sms_provider.send_verification_code(normalized_phone, code)
 
     if not result.success:
         logger.error(
@@ -398,7 +399,7 @@ async def send_sms_code(request: Request, body: SendSMSRequest, db: AsyncSession
 @router.post("/wechat/login", response_model=WeChatLoginResponse)
 async def wechat_login(
     request: Request, body: WeChatLoginRequest, db: AsyncSession = Depends(get_db)
-):
+) -> WeChatLoginResponse:
     """
     WeChat Mini Program login
 
@@ -661,7 +662,9 @@ async def wechat_login(
 
 
 @router.post("/bind-phone", response_model=BindPhoneResponse)
-async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession = Depends(get_db)):
+async def bind_phone(
+    request: Request, body: BindPhoneRequest, db: AsyncSession = Depends(get_db)
+) -> BindPhoneResponse:
     """
     Bind phone number via SMS verification
     This endpoint is used when WeChat returns international phone or invalid phone format.
@@ -877,7 +880,7 @@ async def bind_phone(request: Request, body: BindPhoneRequest, db: AsyncSession 
 
 
 @router.post("/logout")
-async def logout(request: Request, db: AsyncSession = Depends(get_db)):
+async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     """
     User logout endpoint.
 
@@ -900,6 +903,8 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)):
 
     # 2. Get token from Authorization header
     auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=401, detail="登录失效")
     token = auth_header[7:]  # Remove "Bearer " prefix
 
     # 3. Revoke token
@@ -926,7 +931,7 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/phone", response_model=VerifyPhoneResponse)
 async def verify_phone(
     request: Request, body: VerifyPhoneRequest, db: AsyncSession = Depends(get_db)
-):
+) -> VerifyPhoneResponse:
     """
     Unified phone verification endpoint (login/registration entry).
     This endpoint handles both login and registration scenarios:
@@ -1139,7 +1144,7 @@ async def verify_phone(
 @router.post("/complete-registration", response_model=CompleteRegistrationResponse)
 async def complete_registration(
     request: Request, body: CompleteRegistrationRequest, db: AsyncSession = Depends(get_db)
-):
+) -> CompleteRegistrationResponse:
     """
     Complete user registration with profile information.
     This endpoint is called after phone verification for new users.
@@ -1336,10 +1341,10 @@ async def complete_registration(
 @router.post("/user/verify/send-code", response_model=VerifySendCodeResponse)
 async def send_verification_code(
     body: VerifySendCodeRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    request: Request = None,
-):
+) -> VerifySendCodeResponse:
     """
     Send verification code for unified verification mechanism.
 
@@ -1361,7 +1366,7 @@ async def send_verification_code(
         # Determine target
         if body.verify_type == "phone":
             # On-demand CAPTCHA for each phone verification code send
-            client_ip = None
+            client_ip = _get_client_ip(request)
             try:
                 provider = await create_captcha_provider_for_request("user", db, request)
                 if not isinstance(provider, NoneCaptchaProvider):
@@ -1408,7 +1413,7 @@ async def send_verification_code(
                 )
 
             # Generate verification code
-            code = f"{random.randint(100000, 999999)}"
+            code = f"{secrets.randbelow(900000) + 100000}"
 
             # Store code
             expires_at = datetime.now(UTC) + timedelta(minutes=5)
@@ -1416,8 +1421,8 @@ async def send_verification_code(
             _cleanup_expired_codes()
 
             # Send SMS via configured provider
-            provider = await create_sms_provider(db)
-            result = await provider.send_verification_code(normalized_phone, code)
+            sms_provider = await create_sms_provider(db)
+            result = await sms_provider.send_verification_code(normalized_phone, code)
 
             if not result.success:
                 logger.error(
@@ -1463,7 +1468,7 @@ async def send_verification_code(
 async def confirm_verification_code(
     body: VerifyConfirmRequest,
     current_user: User = Depends(get_current_user),
-):
+) -> OperationTokenResponse:
     """
     Confirm verification code and get operation token.
 

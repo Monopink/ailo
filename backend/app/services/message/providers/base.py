@@ -70,7 +70,7 @@ class MessageProvider(Protocol):
         conv_id: str,
         content: str,
         message_type: int = 1,
-        extra_fields: dict | None = None,
+        extra_fields: dict[str, Any] | None = None,
         msg_id: str | None = None,
     ) -> MessageResult:
         """
@@ -96,8 +96,8 @@ class MessageProvider(Protocol):
         conv_id: str,
         content: str,
         message_type: int = 4,
-        action: dict | None = None,
-        extra_fields: dict | None = None,
+        action: dict[str, Any] | None = None,
+        extra_fields: dict[str, Any] | None = None,
         msg_id: str | None = None,
     ) -> MessageResult:
         """
@@ -207,7 +207,7 @@ async def send_message_via_provider(
     to_qiao_id: str,
     content: str,
     message_type: int = 1,
-    extra_fields: dict | None = None,
+    extra_fields: dict[str, Any] | None = None,
     msg_id: str | None = None,
 ) -> MessageResult:
     """Send single message using specified provider."""

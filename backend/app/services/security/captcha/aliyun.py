@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from typing import Any
 
 from app.core.config import get_settings
 from app.utils.logging import get_logger
@@ -103,7 +104,7 @@ class AliyunCaptchaProvider:
                 )
 
                 # SDK is sync; run in thread
-                def _call():
+                def _call() -> Any:
                     return client.verify_intelligent_captcha(req)
 
                 resp = await asyncio.get_event_loop().run_in_executor(None, _call)

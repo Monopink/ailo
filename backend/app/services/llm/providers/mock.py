@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
 from app.models.llm import LLMConfig, LLMProvider
 from app.services.llm.converters import ResponsesFormatConverter
-from app.services.llm.types import LLMProviderResult, LLMRequestOptions
+from app.type_defs import JSONDict, LLMProviderResult, LLMRequestOptions, PreemptionChecker
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -85,7 +85,15 @@ def _build_payload(
     options: LLMRequestOptions,
     provider_messages: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Create a payload snapshot to simplify debugging."""
+    """Create a payload snapshot to simplify debugging.
+
+    Note: Returns dict[str, Any] instead of JSONDict because the payload
+    contains nested structures (ProviderMessage, ProviderTool, etc.) that don't
+    fit JSONValue's recursive definition. This is acceptable because:
+    1. Mock provider is for testing only
+    2. Payload is only used for logging, not JSON serialization
+    3. Type safety is maintained through LLMRequestOptions parameter
+    """
 
     payload: dict[str, Any] = {
         "model": options.model or config.model_name or provider.default_model or "mock-model-v1",
@@ -183,7 +191,7 @@ async def send_request(
     options: LLMRequestOptions,
     *,
     stream: bool = False,
-    preemption_checker: Callable[[], Awaitable[bool]] | None = None,
+    preemption_checker: PreemptionChecker | None = None,
 ) -> LLMProviderResult:
     """
     Unified mock adapter.
@@ -205,12 +213,13 @@ async def send_request(
 
     if preemption_checker and await preemption_checker():
         logger.info("mock_llm_request_preempted", config_name=config.name)
+        preempted_raw_response: dict[str, Any] = {"mock": True, "payload": payload}
         return LLMProviderResult(
             content=None,
             model=config.model_name or provider.default_model or "mock-model-v1",
             usage=None,
             finish_reason="preempted",
-            raw_response={"mock": True, "payload": payload},
+            raw_response=preempted_raw_response,
             request_params=payload,
             preempted=True,
         )
@@ -222,7 +231,7 @@ async def send_request(
 
     prompt_tokens = _estimate_tokens(provider_messages)
     completion_tokens = len(content) // 4 + 1
-    usage = {
+    usage: JSONDict = {
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "total_tokens": prompt_tokens + completion_tokens,
@@ -253,7 +262,7 @@ async def send_request(
     if reasoning_content:
         content_blocks.insert(0, {"type": "thinking", "thinking": reasoning_content})
 
-    raw_response = {
+    raw_response: dict[str, Any] = {
         "id": response_identifier,
         "model": config.model_name or provider.default_model or "mock-model-v1",
         "output": [{"type": "message", "role": "assistant", "content": content_blocks}],

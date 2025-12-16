@@ -16,7 +16,7 @@ from app.models.llm import LLMConfig, LLMProvider
 from app.services.llm.converters import ResponsesFormatConverter
 from app.services.llm.providers.base import ProviderCapabilities
 from app.services.llm.providers.openai_base import OpenAIBaseAdapter
-from app.services.llm.types import LLMProviderResult, LLMRequestOptions
+from app.type_defs import LLMProviderResult, LLMRequestOptions, PreemptionChecker
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -99,7 +99,7 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
         client: AsyncOpenAI,
         params: dict[str, Any],
         options: LLMRequestOptions,
-        preemption_checker,
+        preemption_checker: PreemptionChecker | None,
     ) -> LLMProviderResult:
         call_params = params["call_params"]
         request_kwargs = dict(params["request_kwargs"])
@@ -187,7 +187,7 @@ async def send_request(
     options: LLMRequestOptions,
     *,
     stream: bool = False,
-    preemption_checker=None,
+    preemption_checker: PreemptionChecker | None = None,
 ) -> LLMProviderResult:
     """Factory-facing entry point."""
     adapter = DoubaoResponsesAdapter()
@@ -243,7 +243,7 @@ def _build_request_kwargs(options: LLMRequestOptions) -> dict[str, Any]:
     """
     Build kwargs (extra headers/body/query) for Responses API invocation.
     """
-    extra_body = dict(options.extra_body or {})
+    extra_body: dict[str, Any] = dict(options.extra_body or {})
 
     if options.temperature is not None:
         extra_body["temperature"] = options.temperature
@@ -410,9 +410,12 @@ def _extract_finish_reason(response: Any) -> str | None:
             for choice in choices:
                 if getattr(choice, "type", None) == "message":
                     metadata = getattr(choice, "metadata", None)
-                    if metadata and "finish_reason" in metadata:
-                        return metadata["finish_reason"]
-        return getattr(response, "status", None)
+                    if isinstance(metadata, dict):
+                        finish_reason = metadata.get("finish_reason")
+                        if isinstance(finish_reason, str):
+                            return finish_reason
+        status_value = getattr(response, "status", None)
+        return status_value if isinstance(status_value, str) else None
     except Exception:  # pragma: no cover - defensive
         return None
 
@@ -421,7 +424,8 @@ def _usage_to_dict(usage: Any) -> dict[str, Any] | None:
     if usage is None:
         return None
     try:
-        return usage.to_dict()
+        usage_dict = usage.to_dict()
+        return usage_dict if isinstance(usage_dict, dict) else None
     except AttributeError:
         return usage if isinstance(usage, dict) else None
 

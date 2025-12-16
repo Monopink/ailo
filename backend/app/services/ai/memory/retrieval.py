@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai.memory import AIInstanceMemory
 from app.services.ai.memory.config import get_memory_limits
-from app.services.ai.types import InstanceContext
+from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

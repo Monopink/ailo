@@ -22,6 +22,14 @@ from .media import (
     MediaFileUpload,
 )
 
+# Notification schemas
+from .notification import (
+    ContactRequestNotificationData,
+    NotificationAction,
+    NotificationActionData,
+    NotificationData,
+)
+
 # Emoticon schemas removed - emoticons table renamed to preset_assets
 
 # Export all message schemas
@@ -38,4 +46,9 @@ __all__ = [
     "MediaFileUpdate",
     "MediaFileQuery",
     "MediaFileStats",
+    # Notification
+    "NotificationAction",
+    "NotificationData",
+    "NotificationActionData",
+    "ContactRequestNotificationData",
 ]

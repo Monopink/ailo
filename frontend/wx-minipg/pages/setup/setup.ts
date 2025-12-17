@@ -1,6 +1,5 @@
-import { get, post } from '../../utils/api';
+import { post } from '../../utils/api';
 import authService from '../../utils/auth-service';
-import { getAvatarUrl } from '../../utils/avatar';
 import { APP_CONFIG } from '../../utils/config';
 import logger from '../../utils/logger';
 import { formatRegion } from '../../utils/format';
@@ -26,11 +25,6 @@ type SelectedGenderValue = Exclude<GenderValue, 0>;
 type RegionValue = [] | [string] | [string, string];
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
-type AvatarTapEvent = WechatMiniprogram.TouchEvent<
-  WechatMiniprogram.IAnyObject,
-  WechatMiniprogram.IAnyObject,
-  { id?: string | number }
->;
 type RegionPickerDetail = {
   value: [string, string, string];
   code: [string, string, string];
@@ -38,24 +32,8 @@ type RegionPickerDetail = {
 };
 type RegionPickerChangeEvent = WechatMiniprogram.CustomEvent<RegionPickerDetail>;
 
-interface PresetAssetResponse {
-  id: string | number;
-  url?: string;
-}
-
-interface PresetAssetsResponse {
-  assets: PresetAssetResponse[];
-}
-
-interface PresetAvatar {
-  id: string;
-  url: string;
-}
-
 interface SetupPageData {
   pageLayoutData: PageLayoutData;
-  presetAvatars: PresetAvatar[];
-  selectedAvatar: string;
   nickname: string;
   gender: GenderValue;
   genderOptions: readonly GenderOption[];
@@ -75,7 +53,7 @@ interface CompleteRegistrationPayload {
   nickname: string;
   gender?: SelectedGenderValue;
   bio?: string;
-  avatar_url?: string;
+  avatar_file_id?: string;
   region?: string;
 }
 
@@ -85,8 +63,6 @@ interface CompleteRegistrationResponse {
 }
 
 interface SetupPageCustom {
-  loadPresetAvatars(): Promise<void>;
-  selectAvatar(event: AvatarTapEvent): void;
   onNicknameInput(event: InputEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onBioInput(event: InputEvent): void;
@@ -140,10 +116,6 @@ const buildRegistrationPayload = (
     payload.bio = trimmedBio;
   }
 
-  if (data.selectedAvatar) {
-    payload.avatar_url = `assets://${data.selectedAvatar}`;
-  }
-
   if (data.regionDisplay) {
     payload.region = data.regionDisplay;
   }
@@ -167,8 +139,6 @@ Page<SetupPageData, SetupPageCustom>({
     pageLayoutData: createPageLayoutData({
       hasFooter: true,
     }),
-    presetAvatars: [],
-    selectedAvatar: '',
     nickname: '',
     gender: 0,
     genderOptions: GENDER_OPTIONS,
@@ -214,54 +184,18 @@ Page<SetupPageData, SetupPageCustom>({
       phone: maskPhoneNumber(phone),
     });
 
-    await this.loadPresetAvatars();
-    this.setData({ 'pageLayoutData.isLoading': false });
+    this.setData({
+      'pageLayoutData.isLoading': false,
+      'pageLayoutData.hasError': false,
+      'pageLayoutData.isEmpty': false,
+    });
   },
 
   onRetry() {
     this.setData({
       'pageLayoutData.hasError': false,
     });
-    void this.loadPresetAvatars();
-  },
-
-  async loadPresetAvatars() {
-    // Default avatar fallback - always available even if API fails
-    const defaultAvatar: PresetAvatar = {
-      id: 'default',
-      url: getAvatarUrl('assets://default'),
-    };
-
-    try {
-      const result = await get<PresetAssetsResponse>('/system/preset-assets', { asset_type: 1 });
-      const avatars: PresetAvatar[] = (result.assets || []).map((asset) => ({
-        id: String(asset.id),
-        url: getAvatarUrl(asset.url),
-      }));
-      this.setData({
-        presetAvatars: avatars.length > 0 ? avatars : [defaultAvatar],
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': false,
-      });
-    } catch (error) {
-      logger.warn('Failed to load preset avatars, using default avatar only', {
-        error,
-      });
-      // Always show at least the default avatar, never show empty list
-      this.setData({
-        presetAvatars: [defaultAvatar],
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': false,
-      });
-    }
-  },
-
-  selectAvatar(event) {
-    const avatarId = event.currentTarget.dataset.id;
-    if (!avatarId) {
-      return;
-    }
-    this.setData({ selectedAvatar: String(avatarId) });
+    void this.onLoad();
   },
 
   onNicknameInput(event) {
@@ -332,7 +266,7 @@ Page<SetupPageData, SetupPageCustom>({
 
       void wx.switchTab({ url: '/pages/index/index' });
 
-      const app = getApp<SaysAppInstance>();
+      const app = getApp<AppInstance>();
       app.initMessageService().catch((error: unknown) => {
         logger.warn('Message service initialization failed, will retry later', { error });
       });

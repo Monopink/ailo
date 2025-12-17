@@ -16,15 +16,6 @@ from .config import (
     SystemConfigUpdate,
 )
 
-# Preset asset schemas
-from .preset_asset import (
-    PresetAssetBase,
-    PresetAssetCreate,
-    PresetAssetListResponse,
-    PresetAssetResponse,
-    PresetAssetUpdate,
-)
-
 # Statistics schemas
 from .stats import (
     AIStatsBase,
@@ -61,12 +52,6 @@ __all__ = [
     "ConfigValueResponse",
     "BatchConfigUpdate",
     "BatchConfigDelete",
-    # Preset Assets
-    "PresetAssetBase",
-    "PresetAssetCreate",
-    "PresetAssetUpdate",
-    "PresetAssetResponse",
-    "PresetAssetListResponse",
     # Statistics
     "BaseStatsSchema",
     "UserStatsBase",

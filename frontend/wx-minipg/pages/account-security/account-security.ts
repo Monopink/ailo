@@ -1,8 +1,8 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { get } from '../../utils/api';
 import { requireAuth } from '../../utils/auth-guard';
 import authService from '../../utils/auth-service';
 import { getLogger } from '../../utils/logger';
+import { fetchAccountInfo } from '../../utils/profile';
 
 const logger = getLogger('AccountSecurity');
 
@@ -10,10 +10,6 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
   Record<string, unknown>
 >;
-
-interface AccountInfo {
-  phone?: string;
-}
 
 interface AccountSecurityPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
@@ -83,7 +79,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
       });
 
       logger.info('Loading account info');
-      const account = await get<AccountInfo>('/user/account');
+      const account = await fetchAccountInfo();
 
       this.setData({
         phoneMasked: account?.phone ?? '未绑定',
@@ -142,7 +138,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
 
       await authService.logout();
 
-      const app = getApp<SaysAppInstance>();
+      const app = getApp<AppInstance>();
       const messageService = app.getMessageService();
       if (messageService) {
         await messageService.disconnect();

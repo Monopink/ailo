@@ -316,6 +316,22 @@ export async function post<
   });
 }
 
+export async function patch<
+  T extends WxResponseData = WechatMiniprogram.IAnyObject,
+  D extends WxRequestData | undefined = WechatMiniprogram.IAnyObject,
+>(
+  url: string,
+  data: D = {} as D,
+  options: Omit<RequestOptions, 'url' | 'method' | 'data'> = {}
+): Promise<T> {
+  return await request<T, D>({
+    url,
+    method: 'PATCH',
+    data,
+    ...options,
+  });
+}
+
 export async function put<
   T extends WxResponseData = WechatMiniprogram.IAnyObject,
   D extends WxRequestData | undefined = WechatMiniprogram.IAnyObject,
@@ -416,6 +432,7 @@ export default {
   request,
   get,
   post,
+  patch,
   put,
   del,
   uploadFile,

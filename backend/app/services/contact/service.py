@@ -22,6 +22,7 @@ from app.schemas.contact import (
     ConversationInfoResponse,
 )
 from app.services.message.providers.leancloud.service import ensure_system_conversation
+from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -68,12 +69,14 @@ async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Profil
     return await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=contact_qiao_id)
 
 
-def _build_profile_summary(profile: Profile | None) -> ContactProfileSummary:
+def _build_profile_summary(
+    profile: Profile | None, *, avatar_url: str | None = None
+) -> ContactProfileSummary:
     """Convert Profile ORM object to API summary payload."""
 
     return ContactProfileSummary(
         nickname=profile.nickname if profile else None,
-        avatar_url=profile.avatar_url if profile else None,
+        avatar_url=avatar_url,
         gender=profile.gender if profile else None,
         bio=profile.bio if profile else None,
         region=profile.region if profile else None,
@@ -104,7 +107,9 @@ def _serialize_tags(tags: list[str] | None) -> dict[str, Any] | None:
     return {"tags": tags}
 
 
-def _build_contact_list_item(contact: Contact, profile: Profile | None) -> ContactListItem:
+def _build_contact_list_item(
+    contact: Contact, profile: Profile | None, *, avatar_url: str | None = None
+) -> ContactListItem:
     """Construct a ContactListItem from ORM entities."""
 
     return ContactListItem(
@@ -115,14 +120,16 @@ def _build_contact_list_item(contact: Contact, profile: Profile | None) -> Conta
         is_pinned=bool(contact.is_pinned),
         is_muted=bool(contact.is_muted),
         is_blocked=bool(contact.is_blocked),
-        profile=_build_profile_summary(profile),
+        profile=_build_profile_summary(profile, avatar_url=avatar_url),
     )
 
 
-def _build_contact_detail(contact: Contact, profile: Profile | None) -> ContactDetailResponse:
+def _build_contact_detail(
+    contact: Contact, profile: Profile | None, *, avatar_url: str | None = None
+) -> ContactDetailResponse:
     """Construct a ContactDetailResponse."""
 
-    list_item = _build_contact_list_item(contact, profile)
+    list_item = _build_contact_list_item(contact, profile, avatar_url=avatar_url)
     return ContactDetailResponse(**list_item.model_dump(), remark=contact.remark)
 
 
@@ -159,14 +166,23 @@ async def get_user_contacts_with_profiles(
     has_more = len(contacts) > limit
     contacts = contacts[:limit]
 
+    # Load profiles and batch-generate avatar URLs
+    profile_cache: dict[int, Profile | None] = {}
+    profiles_with_avatars: list[Profile] = []
+    for contact in contacts:
+        profile = await _get_contact_profile(db, contact.contact_qiao_id)
+        profile_cache[contact.id] = profile
+        if profile:
+            profiles_with_avatars.append(profile)
+
+    avatar_urls = await get_avatar_urls_batch(db, profiles_with_avatars)
+
     # Build response list
     result = []
     for contact in contacts:
-        # Get profile for additional info (optional, for future use)
-        profile = await _get_contact_profile(db, contact.contact_qiao_id)
-
-        # Build response
-        contact_response = _build_contact_list_item(contact, profile)
+        profile = profile_cache.get(contact.id)
+        avatar_url = avatar_urls.get(profile.id) if profile else None
+        contact_response = _build_contact_list_item(contact, profile, avatar_url=avatar_url)
         result.append(contact_response)
 
     logger.info(
@@ -213,8 +229,10 @@ async def get_contact_with_profile(
     # Get profile
     profile = await _get_contact_profile(db, contact.contact_qiao_id)
 
+    avatar_url = await get_avatar_url(db, profile)
+
     # Build response
-    contact_response = _build_contact_detail(contact, profile)
+    contact_response = _build_contact_detail(contact, profile, avatar_url=avatar_url)
 
     logger.info("contact_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
 
@@ -258,8 +276,10 @@ async def get_conversation_info(
     # Get profile
     profile = await _get_contact_profile(db, contact.contact_qiao_id)
 
+    avatar_url = await get_avatar_url(db, profile)
+
     # Build contact info
-    contact_info = _build_profile_summary(profile)
+    contact_info = _build_profile_summary(profile, avatar_url=avatar_url)
 
     # Build response
     response = ConversationInfoResponse(
@@ -328,8 +348,10 @@ async def update_contact(
     # Get profile
     profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
+    avatar_url = await get_avatar_url(db, profile)
+
     # Build response
-    contact_response = _build_contact_detail(updated_contact, profile)
+    contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)
 
     logger.info(
         "contact_updated",
@@ -378,8 +400,10 @@ async def block_contact(
     # Get profile
     profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
+    avatar_url = await get_avatar_url(db, profile)
+
     # Build response
-    contact_response = _build_contact_detail(updated_contact, profile)
+    contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)
 
     logger.info("contact_blocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
 
@@ -423,8 +447,10 @@ async def unblock_contact(
     # Get profile
     profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
+    avatar_url = await get_avatar_url(db, profile)
+
     # Build response
-    contact_response = _build_contact_detail(updated_contact, profile)
+    contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)
 
     logger.info("contact_unblocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
 

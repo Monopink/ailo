@@ -1,7 +1,11 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { get } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
+import {
+  fetchAccountInfo,
+  fetchCurrentUserProfile,
+  type UserProfileResponse,
+} from '../../utils/profile';
 
 const logger = getLogger('ProfileDetail');
 
@@ -14,25 +18,16 @@ const GENDER_TEXT_MAP = {
 
 type GenderCode = keyof typeof GENDER_TEXT_MAP;
 
-interface UserProfile {
-  qiao_id: string;
-  nickname?: string;
-  avatar_url?: string;
-  username?: string;
-  gender?: number;
-  region?: string;
-  bio?: string;
-  displayAvatar?: string;
-  displayUsername?: string;
-}
-
-interface AccountInfo {
-  phone?: string;
-}
+type NormalizedProfile =
+  | (UserProfileResponse & {
+      displayAvatar: string;
+      displayUsername: string;
+    })
+  | null;
 
 interface ProfileDetailPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
-  profile: UserProfile | null;
+  profile: NormalizedProfile;
   phoneMasked: string;
   genderText: string;
 }
@@ -40,7 +35,6 @@ interface ProfileDetailPageData extends Record<string, unknown> {
 interface ProfileDetailPageCustom {
   loadProfile(): Promise<void>;
   editPhone(): void;
-  editAvatar(): void;
   editNickname(): void;
   editUsername(): void;
   editGender(): void;
@@ -50,31 +44,11 @@ interface ProfileDetailPageCustom {
   onRetry(): void;
 }
 
-const normalizeGenderText = (gender?: number): string => {
+const normalizeGenderText = (gender?: number | null): string => {
   if (typeof gender === 'number' && GENDER_TEXT_MAP[gender as GenderCode]) {
     return GENDER_TEXT_MAP[gender as GenderCode];
   }
   return '未设置';
-};
-
-const buildAvatarParam = (avatarUrl: string | undefined): string => {
-  if (!avatarUrl) {
-    return '';
-  }
-  if (avatarUrl.startsWith('/assets/avatars/')) {
-    const filename = avatarUrl
-      .replace('/assets/avatars/', '')
-      .replace('.jpg', '')
-      .replace('.png', '');
-    if (filename && filename !== 'default') {
-      return `assets://${filename}`;
-    }
-    return '';
-  }
-  if (avatarUrl.startsWith('http')) {
-    return avatarUrl;
-  }
-  return '';
 };
 
 const encodeValue = (value: string | undefined | null): string => encodeURIComponent(value ?? '');
@@ -110,8 +84,8 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       });
 
       logger.info('Loading user profile');
-      const profilePromise = get<UserProfile>('/user/profile');
-      const accountPromise = get<AccountInfo>('/user/account').catch((error: unknown) => {
+      const profilePromise = fetchCurrentUserProfile();
+      const accountPromise = fetchAccountInfo().catch((error: unknown) => {
         logger.error('Load account info failed', {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -119,12 +93,12 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       });
 
       const [profile, account] = await Promise.all([profilePromise, accountPromise]);
-      const genderText = normalizeGenderText(profile.gender);
+      const genderText = normalizeGenderText(profile.gender ?? undefined);
 
       const normalizedProfile = profile
         ? {
             ...profile,
-            avatar_url: getAvatarUrl(profile.avatar_url ?? ''),
+            avatar_url: profile.avatar_url ?? '',
             displayAvatar: getAvatarUrl(profile.avatar_url ?? '') || '/assets/avatars/default.png',
             displayUsername: profile.username || '--',
           }
@@ -165,13 +139,6 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
   editPhone() {
     void wx.navigateTo({
       url: '/pages/phone-manage/phone-manage',
-    });
-  },
-
-  editAvatar() {
-    const avatarParam = buildAvatarParam(this.data.profile?.avatar_url);
-    void wx.navigateTo({
-      url: `/pages/avatar-selector/avatar-selector?avatar=${encodeURIComponent(avatarParam)}`,
     });
   },
 

@@ -260,6 +260,22 @@ pre {
       var genderMap = { 0: '-', 1: 'Male', 2: 'Female', 3: 'Other' };
       return genderMap[g] !== undefined ? genderMap[g] : String(g);
     }
+    function resolveAvatarUrl(profile, fallback) {
+      var candidate = null;
+      if (profile && typeof profile.avatar_url === 'string') {
+        var trimmed = profile.avatar_url.trim();
+        if (trimmed) {
+          candidate = trimmed;
+        }
+      }
+      if (!candidate && typeof fallback === 'string') {
+        var fb = fallback.trim();
+        if (fb) {
+          candidate = fb;
+        }
+      }
+      return candidate;
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
       loadReadinessInfo();
@@ -403,7 +419,8 @@ pre {
       document.getElementById('userGender').textContent = formatGenderValue(profile.gender || info.gender);
       document.getElementById('userRegion').textContent = valueOrDash(profile.region || info.region);
       document.getElementById('userBio').textContent = valueOrDash(profile.bio);
-      document.getElementById('userAvatarUrl').textContent = valueOrDash(profile.avatar_url);
+      var resolvedAvatar = resolveAvatarUrl(profile, info.avatar_url);
+      document.getElementById('userAvatarUrl').textContent = valueOrDash(resolvedAvatar);
       document.getElementById('userAvatarPrompt').textContent = valueOrDash(profile.avatar_prompt);
       document.getElementById('userUsername').textContent = valueOrDash(info.username);
     }
@@ -717,7 +734,8 @@ pre {
         document.getElementById('aiGender').textContent = formatGenderValue(cp.gender);
         document.getElementById('aiRegion').textContent = valueOrDash(cp.region);
         document.getElementById('aiBio').textContent = valueOrDash(cp.bio);
-        document.getElementById('aiAvatarUrl').textContent = valueOrDash(cp.avatar_url);
+        var aiAvatarResolved = resolveAvatarUrl(cp);
+        document.getElementById('aiAvatarUrl').textContent = valueOrDash(aiAvatarResolved);
         document.getElementById('aiAvatarPrompt').textContent = valueOrDash(cp.avatar_prompt);
         document.getElementById('instanceCategory').textContent = valueOrDash(
           (data.instance_info || {}).ai_type_display
@@ -741,6 +759,8 @@ pre {
           testUserInfo = data.test_user_info.test_user;
           testUserProfile = data.test_user_info.test_user_profile || null;
         } else if (data.test_user_info) {
+          var fallbackProfile = data.test_user_info.test_user_profile || null;
+          var fallbackAvatar = resolveAvatarUrl(fallbackProfile, data.test_user_info.avatar_url);
           testUserInfo = {
             qiao_id: data.test_user_info.qiao_id,
             user_qiao_id: data.test_user_info.qiao_id,
@@ -749,12 +769,14 @@ pre {
             gender: data.test_user_info.gender,
             region: data.test_user_info.region,
             bio: data.test_user_info.bio,
-            avatar_url: data.test_user_info.avatar_url,
+            avatar_url: fallbackAvatar,
             avatar_prompt: data.test_user_info.avatar_prompt,
           };
-          testUserProfile = data.test_user_profile || null;
+          testUserProfile = fallbackProfile;
         } else if (Array.isArray(data.available_test_users) && data.available_test_users.length > 0) {
           var fallback = data.available_test_users[0];
+          var fallbackProfileInfo = fallback.profile || null;
+          var fallbackProfileAvatar = resolveAvatarUrl(fallbackProfileInfo, fallback.avatar_url);
           testUserInfo = {
             qiao_id: fallback.user_qiao_id,
             user_qiao_id: fallback.user_qiao_id,
@@ -763,10 +785,10 @@ pre {
             gender: fallback.gender,
             region: fallback.region,
             bio: fallback.bio,
-            avatar_url: fallback.avatar_url,
+            avatar_url: fallbackProfileAvatar,
             avatar_prompt: fallback.avatar_prompt,
           };
-          testUserProfile = fallback.profile || null;
+          testUserProfile = fallbackProfileInfo;
         }
         updateTestUserSummaryFromData(testUserInfo, testUserProfile);
 

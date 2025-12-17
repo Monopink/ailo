@@ -20,6 +20,7 @@ from app.schemas.message import (
     NotificationActionData,
 )
 from app.services.message.outbound.sender import send_message, send_notification
+from app.services.profile.avatar import get_avatar_url
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
@@ -90,7 +91,7 @@ async def send_contact_request_notification(
 
     if sender_profile:
         from_nickname = sender_profile.nickname
-        from_avatar = sender_profile.avatar_url
+        from_avatar = await get_avatar_url(db, sender_profile)
     else:
         logger.error(
             "sender_profile_not_found",

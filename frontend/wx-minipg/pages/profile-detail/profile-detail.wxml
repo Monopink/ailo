@@ -10,7 +10,7 @@
     <!-- Info groups - Using t-cell-group with card theme -->
     <view wx:if="{{profile}}" class="card-wrapper">
       <t-cell-group theme="card">
-        <t-cell title="头像" arrow hover bindtap="editAvatar">
+        <t-cell title="头像">
           <t-avatar
             slot="note"
             image="{{profile.displayAvatar}}"

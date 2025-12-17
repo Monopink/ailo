@@ -15,6 +15,7 @@ from app.schemas.discovery import (
     StrangerProfileResponse,
 )
 from app.services.discovery import data as discovery_data
+from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
 from app.services.security.rate_limiter import check_rate_limit
 from app.utils.logging import get_logger
 
@@ -80,6 +81,9 @@ async def get_square_contacts(
         )
 
         # Transform to response format
+        profiles = [profile for _, _, profile in entries if profile]
+        avatar_urls = await get_avatar_urls_batch(db, profiles)
+
         items = []
         for entry, persona, profile in entries:
             category_api = None
@@ -89,6 +93,8 @@ async def get_square_contacts(
                 except ValueError:
                     category_api = None
 
+            avatar_url = avatar_urls.get(profile.id) if profile else None
+
             items.append(
                 SquareContactResponse(
                     qiao_id=persona.qiao_id,
@@ -96,7 +102,7 @@ async def get_square_contacts(
                     category=category_api,
                     nickname=getattr(profile, "nickname", None),
                     gender=getattr(profile, "gender", None),
-                    avatar_url=getattr(profile, "avatar_url", None),
+                    avatar_url=avatar_url,
                     bio=getattr(profile, "bio", None),
                     region=getattr(profile, "region", None),
                 )
@@ -160,11 +166,13 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfil
             except ValueError:
                 category_api = None
 
+        avatar_url = await get_avatar_url(db, profile)
+
         response = StrangerProfileResponse(
             qiao_id=profile.owner_qiao_id,
             nickname=profile.nickname,
             gender=profile.gender,
-            avatar_url=profile.avatar_url,
+            avatar_url=avatar_url,
             bio=profile.bio,
             region=profile.region,
             category=category_api,

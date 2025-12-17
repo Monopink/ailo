@@ -91,7 +91,6 @@ export interface StoredContact extends JsonRecord {
   is_muted?: boolean;
   is_blocked?: boolean;
   profile?: ContactProfile;
-  custom_avatar_url?: string;
   // Legacy fields for backward compatibility
   qiao_id?: string;
   nickname?: string;
@@ -166,11 +165,9 @@ function normalizeContact(contact: unknown): StoredContact {
   const nickname = typeof normalized.nickname === 'string' ? normalized.nickname : '';
   normalized.nickname = nickname || profileNickname || alias || contactId || '';
 
+  const profileAvatar = typeof profile.avatar_url === 'string' ? profile.avatar_url : '';
   const resolvedAvatar =
-    (typeof normalized.custom_avatar_url === 'string' ? normalized.custom_avatar_url : '') ||
-    (typeof normalized.avatar_url === 'string' ? normalized.avatar_url : '') ||
-    (profile.avatar_url as string) ||
-    '';
+    (typeof normalized.avatar_url === 'string' ? normalized.avatar_url : '') || profileAvatar || '';
   normalized.avatar_url = resolvedAvatar;
 
   if (normalized.gender === undefined || normalized.gender === null) {

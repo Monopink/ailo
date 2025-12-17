@@ -31,7 +31,6 @@ interface ConversationResponse {
 type ContactRecord = StoredContact & {
   is_pinned?: boolean;
   is_muted?: boolean;
-  custom_avatar_url?: string | null;
   avatar_url?: string | null;
   bio?: string | null;
   region?: string | null;
@@ -79,20 +78,15 @@ const normalizeContact = (contact: StoredContact): ContactRecord => {
       ? profile.region
       : undefined;
 
+  const normalizedAvatar = getAvatarUrl(avatarUrl ?? '');
   return {
     ...contact,
-    avatar_url: getAvatarUrl(avatarUrl ?? ''),
-    custom_avatar_url: contact.custom_avatar_url
-      ? getAvatarUrl(contact.custom_avatar_url)
-      : undefined,
+    avatar_url: normalizedAvatar,
     gender: resolvedGender,
     bio: resolvedBio ?? (typeof contact.bio === 'string' ? contact.bio : undefined) ?? null,
     region:
       resolvedRegion ?? (typeof contact.region === 'string' ? contact.region : undefined) ?? null,
-    displayAvatar:
-      (contact.custom_avatar_url
-        ? getAvatarUrl(contact.custom_avatar_url)
-        : getAvatarUrl(avatarUrl ?? '')) || '/assets/avatars/default.png',
+    displayAvatar: normalizedAvatar || '/assets/avatars/default.png',
   };
 };
 

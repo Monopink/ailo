@@ -1,7 +1,7 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { put } from '../../utils/api';
 import { formatRegion } from '../../utils/format';
 import { getLogger } from '../../utils/logger';
+import { updateCurrentUserProfile } from '../../utils/profile';
 
 const logger = getLogger('ProfileEdit');
 
@@ -269,7 +269,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
 
       logger.info('Updating profile', { field: this.data.field, data: updateData });
 
-      await put('/user/profile', updateData);
+      await updateCurrentUserProfile(updateData);
 
       void wx.showToast({
         title: '保存成功',

@@ -1,39 +1,23 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { get } from '../../utils/api';
 import { requireAuth } from '../../utils/auth-guard';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
+import { fetchCurrentUserProfile, type UserProfileResponse } from '../../utils/profile';
 
 const logger = getLogger('Profile');
-
-type AnyObject = WechatMiniprogram.IAnyObject;
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
   Record<string, unknown>
 >;
 
-interface UserProfile extends AnyObject {
-  qiao_id?: string;
-  nickname?: string;
-  username?: string;
-  avatar_url?: string | null;
-  custom_avatar_url?: string | null;
-  gender?: number | null;
-  bio?: string | null;
-  region?: string | null;
-  displayAvatar?: string;
-  displayUsername?: string;
-}
-
 interface ProfilePageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
-  profile: UserProfile | null;
+  profile: (UserProfileResponse & { displayAvatar: string; displayUsername: string }) | null;
 }
 
 interface ProfilePageCustom {
   loadProfile(): Promise<void>;
   navigateToProfileDetail(): void;
-  navigateToAvatarSelector(): void;
   navigateToAccountSecurity(): void;
   navigateToAbout(): void;
   onRetry(): void;
@@ -97,12 +81,12 @@ Page<ProfilePageData, ProfilePageCustom>({
       });
 
       logger.info('Loading user profile');
-      const profile = await get<UserProfile>('/user/profile');
+      const profile = await fetchCurrentUserProfile();
+      const resolvedAvatar = getAvatarUrl(profile.avatar_url ?? '');
       const normalizedProfile = profile
         ? {
             ...profile,
-            avatar_url: getAvatarUrl(profile.avatar_url ?? ''),
-            displayAvatar: getAvatarUrl(profile.avatar_url ?? '') || '/assets/avatars/default.png',
+            displayAvatar: resolvedAvatar || '/assets/avatars/default.png',
             displayUsername: profile.username || '--',
           }
         : null;
@@ -135,12 +119,6 @@ Page<ProfilePageData, ProfilePageCustom>({
   navigateToProfileDetail() {
     void wx.navigateTo({
       url: '/pages/profile-detail/profile-detail',
-    });
-  },
-
-  navigateToAvatarSelector() {
-    void wx.navigateTo({
-      url: '/pages/avatar-selector/avatar-selector',
     });
   },
 

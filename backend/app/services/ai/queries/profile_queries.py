@@ -10,7 +10,9 @@ from typing import Any
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums import ProfileOwnerType
 from app.models.profile import Profile
+from app.services.profile.avatar import get_avatar_url
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,7 +32,10 @@ async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, Any
     try:
         result = await db.execute(
             select(Profile).where(
-                and_(Profile.owner_qiao_id == user_qiao_id, Profile.owner_type == 1)  # User type
+                and_(
+                    Profile.owner_qiao_id == user_qiao_id,
+                    Profile.owner_type == ProfileOwnerType.USER,
+                )
             )
         )
 
@@ -39,11 +44,13 @@ async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, Any
             logger.warning("user_profile_not_found", user_qiao_id=user_qiao_id)
             return None
 
+        avatar_url = await get_avatar_url(db, profile)
+
         return {
             "profile": profile,
             "nickname": profile.nickname,
             "bio": profile.bio,
-            "avatar_url": profile.avatar_url,
+            "avatar_url": avatar_url,
             "gender": getattr(profile, "gender", None),
             "age": getattr(profile, "age", None),
             "location": getattr(profile, "location", None),
@@ -68,7 +75,10 @@ async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> dict[
     try:
         result = await db.execute(
             select(Profile).where(
-                and_(Profile.owner_qiao_id == instance_qiao_id, Profile.owner_type == 2)  # AI type
+                and_(
+                    Profile.owner_qiao_id == instance_qiao_id,
+                    Profile.owner_type == ProfileOwnerType.AI_PERSONA,
+                )
             )
         )
 
@@ -77,11 +87,13 @@ async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> dict[
             logger.warning("instance_profile_not_found", instance_qiao_id=instance_qiao_id)
             return None
 
+        avatar_url = await get_avatar_url(db, profile)
+
         return {
             "profile": profile,
             "nickname": profile.nickname,
             "bio": profile.bio,
-            "avatar_url": profile.avatar_url,
+            "avatar_url": avatar_url,
             "gender": getattr(profile, "gender", None),
             "age": getattr(profile, "age", None),
             "location": getattr(profile, "location", None),
@@ -95,7 +107,7 @@ async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> dict[
 
 
 async def get_profile_by_owner(
-    db: AsyncSession, owner_qiao_id: str, owner_type: int
+    db: AsyncSession, owner_qiao_id: str, owner_type: ProfileOwnerType
 ) -> Profile | None:
     """
     Get profile by owner qiao_id and type.
@@ -103,7 +115,7 @@ async def get_profile_by_owner(
     Args:
         db: Database session
         owner_qiao_id: Owner's qiao_id
-        owner_type: Owner type (1=user, 2=AI)
+        owner_type: Owner type (ProfileOwnerType enum)
 
     Returns:
         Profile object or None if not found

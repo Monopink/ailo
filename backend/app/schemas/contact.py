@@ -19,7 +19,7 @@ class ContactProfileSummary(BaseSchema):
     """Lightweight profile fields exposed via contact APIs."""
 
     nickname: str | None = Field(None, description="Contact nickname")
-    avatar_url: str | None = Field(None, description="Contact avatar URL")
+    avatar_url: str | None = Field(None, description="Dynamically generated contact avatar CDN URL")
     gender: int | None = Field(None, description="Gender enum value")
     bio: str | None = Field(None, description="Contact bio")
     region: str | None = Field(None, description="Region information")
@@ -66,7 +66,9 @@ class ContactCreate(BaseModel):
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
     alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
-    custom_avatar_url: str | None = Field(None, max_length=500, description="Custom avatar URL")
+    custom_avatar_file_id: int | None = Field(
+        None, description="Custom avatar file ID (media_files.id)"
+    )
     tags: list[str] | None = Field(None, description="Contact tags")
     remark: str | None = Field(None, max_length=500, description="Contact remark/notes")
     source: str | None = Field(
@@ -181,7 +183,9 @@ class ContactSearchResult(BaseSchema):
 
     qiao_id: str = Field(..., description="External ID")
     nickname: str | None = Field(None, description="Display name")
-    avatar_url: str | None = Field(None, description="Avatar URL")
+    avatar_url: str | None = Field(
+        None, description="Dynamically generated avatar CDN URL (not stored in database)"
+    )
     bio: str | None = Field(None, description="Bio description")
     is_contact: bool = Field(..., description="Whether already a contact")
 

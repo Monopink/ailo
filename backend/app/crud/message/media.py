@@ -4,12 +4,14 @@ Media file CRUD operations.
 This module contains CRUD operations for media file management.
 """
 
+from datetime import UTC, datetime
+
 from pydantic import BaseModel
-from sqlalchemy import and_, desc, select
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
-from app.enums import FileStatus
+from app.enums import FileStatus, FileType
 from app.models.message import MediaFile
 from app.schemas.message import MediaFileUpload
 
@@ -65,6 +67,59 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, _MediaFileUpdateSchema]
             await db.commit()
             await db.refresh(file)
         return file
+
+    async def find_active_duplicate(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: int,
+        file_type: FileType,
+        file_hash: str,
+        exclude_file_id: int | None = None,
+    ) -> MediaFile | None:
+        """Find active file with same hash for user."""
+        query = (
+            select(self.model)
+            .where(
+                self.model.upload_by_id == user_id,
+                self.model.file_type == int(file_type),
+                self.model.file_hash == file_hash,
+                self.model.status == int(FileStatus.ACTIVE),
+            )
+            .order_by(self.model.created_at.desc())
+        )
+
+        if exclude_file_id:
+            query = query.where(self.model.id != exclude_file_id)
+
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_daily_usage(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: int,
+        file_type: FileType,
+        day_start: datetime | None = None,
+    ) -> tuple[int, int]:
+        """Return (count, total_bytes) for uploads since day_start."""
+        if day_start is None:
+            day_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        result = await db.execute(
+            select(
+                func.count(self.model.id),
+                func.coalesce(func.sum(self.model.file_size), 0),
+            ).where(
+                self.model.upload_by_id == user_id,
+                self.model.file_type == int(file_type),
+                self.model.created_at >= day_start,
+                self.model.status != int(FileStatus.DELETED),
+            )
+        )
+        count, total_size = result.one()
+        return int(count), int(total_size or 0)
 
 
 # Create instance

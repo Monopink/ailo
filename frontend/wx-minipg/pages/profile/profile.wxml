@@ -14,8 +14,7 @@
           image="{{profile.displayAvatar}}"
           size="128rpx"
           shape="circle"
-          class="profile__avatar"
-          bindtap="navigateToAvatarSelector" />
+          class="profile__avatar" />
 
         <view class="profile__name-row">
           <text class="profile__name">{{profile.nickname}}</text>

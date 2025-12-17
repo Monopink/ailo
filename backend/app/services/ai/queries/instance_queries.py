@@ -23,6 +23,7 @@ from app.models.ai import (
 from app.models.contact import Contact
 from app.models.profile import Profile
 from app.models.user import User
+from app.services.profile.avatar import get_avatar_url
 from app.type_defs import (
     AITypeInfo,
     CurrentRelationship,
@@ -84,6 +85,8 @@ async def get_instance_context(
 
         dimensions = await get_style_dimensions(db, style.id)
 
+        avatar_url = await get_avatar_url(db, profile)
+
         context: InstanceContext = {
             "instance_id": instance.id,
             "instance_qiao_id": instance.qiao_id,
@@ -102,7 +105,7 @@ async def get_instance_context(
             "relationship_counts": _normalize_relationship_counts(instance.relationship_counts),
             "style": _build_style(style),
             "personality": _build_personality(personality),
-            "profile": _build_profile(profile),
+            "profile": _build_profile(profile, avatar_url),
             "current_relationship": _build_current_relationship(relationship),
             "dimensions": dimensions,
         }
@@ -245,12 +248,12 @@ def _build_personality(personality: AIPersonality) -> PersonalityInfo:
     )
 
 
-def _build_profile(profile: Profile) -> ProfileInfo:
+def _build_profile(profile: Profile, avatar_url: str | None) -> ProfileInfo:
     return ProfileInfo(
         nickname=_resolve_profile_nickname(profile),
         bio=profile.bio,
         gender=profile.gender,
-        avatar_url=profile.avatar_url,
+        avatar_url=avatar_url,
         avatar_prompt=getattr(profile, "avatar_prompt", None),
         region=getattr(profile, "region", None),
     )

@@ -1,6 +1,8 @@
-import { get, post } from './api';
+import { post } from './api';
 import { STORAGE_KEYS } from './config';
+import { getAvatarUrl } from './avatar';
 import { getLogger } from './logger';
+import { fetchCurrentUserProfile, type UserProfileResponse } from './profile';
 import { saveUserInfo, StoredAuthUser } from './storage';
 
 const logger = getLogger('AuthService');
@@ -8,6 +10,12 @@ const logger = getLogger('AuthService');
 interface RefreshTokenResponse {
   access_token: string;
 }
+
+const mapProfileToStoredUser = (profile: UserProfileResponse): StoredAuthUser => ({
+  qiao_id: profile.qiao_id,
+  nickname: profile.nickname ?? '',
+  avatar: getAvatarUrl(profile.avatar_url ?? ''),
+});
 
 class AuthService {
   private _isAuthenticated = false;
@@ -48,10 +56,12 @@ class AuthService {
         tokenPrefix: `${token.substring(0, 10)}...`,
       });
 
+      const profile = await fetchCurrentUserProfile();
+      const storedUser = mapProfileToStoredUser(profile);
+
       try {
-        const userInfo = await get<StoredAuthUser>('/user/profile');
-        await saveUserInfo(userInfo);
-        this._setAuthState(true, token, userInfo);
+        await saveUserInfo(storedUser);
+        this._setAuthState(true, token, storedUser);
         this._initialized = true;
         logger.info('=== AuthService Initialization Complete (Authenticated) ===');
         return true;

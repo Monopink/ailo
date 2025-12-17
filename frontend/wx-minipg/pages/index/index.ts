@@ -81,7 +81,7 @@ interface ContactListPageCustom {
   onSwipeActionClick(event: SwipeActionEvent): void;
   navigateToContactInfo(convId?: string): void;
   markContactAsUnreadByIndex(index: number): void;
-  onMessageReceived(message: Says.MessagePayload): void;
+  onMessageReceived(message: Ailo.MessagePayload): void;
 }
 
 const normalizeError = (error: unknown): Error => {
@@ -276,7 +276,7 @@ Page<ContactListPageData, ContactListPageCustom>({
 
       return {
         ...contact,
-        avatarUrl: getAvatarUrl(contact.custom_avatar_url ?? contact.avatar_url ?? ''),
+        avatarUrl: getAvatarUrl(contact.avatar_url ?? ''),
         displayName: contact.alias || contact.nickname || contact.contact_qiao_id || '',
         lastMessageTime: formatMessageTime(lastMessageTimeRaw),
         lastMessage: lastMessageContent,

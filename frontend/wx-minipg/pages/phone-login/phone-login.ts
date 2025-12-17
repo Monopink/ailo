@@ -57,7 +57,7 @@ interface ApiError extends Error {
   };
 }
 
-interface PhoneLoginPageData extends Says.CaptchaPageData {
+interface PhoneLoginPageData extends Ailo.CaptchaPageData {
   pageLayoutData: PageLayoutData;
   loginCode: string;
   phone: string;
@@ -148,7 +148,7 @@ const loadContacts = async (): Promise<void> => {
 };
 
 const initMessaging = async (): Promise<void> => {
-  const app = getApp<SaysAppInstance>();
+  const app = getApp<AppInstance>();
   await app.initMessageService();
 };
 
@@ -200,7 +200,7 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
     try {
       const cached = getCachedCaptchaConfig();
       const config = cached ?? (await ensureCaptchaConfig());
-      initCaptcha(this as unknown as Says.CaptchaPageInstance, config, {
+      initCaptcha(this as unknown as Ailo.CaptchaPageInstance, config, {
         success: (token: string) => {
           void this.onCaptchaSuccess(token);
         },
@@ -329,7 +329,7 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
     }
 
     (this as PhoneLoginPageCustom)._captchaActive = true;
-    void showCaptcha(this as unknown as Says.CaptchaPageInstance);
+    void showCaptcha(this as unknown as Ailo.CaptchaPageInstance);
   },
 
   async requestSmsWithCaptcha(captchaToken) {

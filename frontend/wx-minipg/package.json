@@ -1,7 +1,7 @@
 {
-  "name": "says-miniprogram",
+  "name": "ailo-miniprogram",
   "version": "1.0.0",
-  "description": "Says AI Chat MiniProgram",
+  "description": "",
   "scripts": {
     "build:ts": "tsc",
     "build": "npm run build:ts",

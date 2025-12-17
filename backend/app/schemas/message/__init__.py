@@ -30,8 +30,6 @@ from .notification import (
     NotificationData,
 )
 
-# Emoticon schemas removed - emoticons table renamed to preset_assets
-
 # Export all message schemas
 __all__ = [
     # LeanCloud

@@ -141,7 +141,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             "contact_id": 0,  # Will be set after querying contact
             "contact_qiao_id": obj_in.contact_qiao_id,
             "alias": obj_in.alias,
-            "custom_avatar_url": obj_in.custom_avatar_url,
+            "custom_avatar_file_id": obj_in.custom_avatar_file_id,
             "tags": tags_payload,
             "remark": obj_in.remark,
             "source": (obj_in.source or "unknown"),
@@ -297,7 +297,10 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
     async def get_pending_request(
         self, db: AsyncSession, *, from_qiao_id: str, to_qiao_id: str
     ) -> ContactRequest | None:
-        """Get pending or processing contact request between two users. Returns the most recent one if multiple exist."""
+        """Get pending or processing contact request between two users.
+
+        Returns the most recent one if multiple exist.
+        """
         result = await db.execute(
             select(self.model)
             .where(

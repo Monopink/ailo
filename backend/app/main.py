@@ -20,6 +20,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import close_database, get_sessionmaker, init_database
 from app.middleware.rate_limit import APIRateLimitMiddleware
 from app.services.contact.request_worker import start_contact_request_worker
+from app.services.media.cleanup import start_media_cleanup_worker, stop_media_cleanup_worker
 from app.services.message.processing import reset_open_conversation_windows
 from app.services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
 from app.services.message.providers.leancloud import create_leancloud_provider
@@ -48,28 +49,18 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
 
 
 @api_router.get("/health", tags=["Health"])
-async def health_check() -> JSONResponse:
-    """Health check endpoint that validates DB connectivity."""
+async def health_check() -> Response:
+    """Liveness probe for container orchestration."""
 
-    settings = get_settings()
     session_factory = get_sessionmaker()
     try:
         async with session_factory() as db:
             await db.execute(text("SELECT 1"))
-        database_status = "connected"
+        logger.debug("health_check_success")
+        return Response(status_code=200)
     except Exception as exc:  # pragma: no cover - health probe logging only
-        logger.error("health_check_database_error", error=str(exc))
-        database_status = "error"
-
-    payload = {
-        "status": "healthy" if database_status == "connected" else "unhealthy",
-        "app": settings.PROJECT_NAME,
-        "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT,
-        "database": database_status,
-    }
-    logger.debug("health_check", **payload)
-    return JSONResponse(payload)
+        logger.error("health_check_failed", error=str(exc), exc_info=True)
+        return Response(status_code=503)
 
 
 @api_router.get("/")
@@ -124,9 +115,7 @@ def _create_lifespan(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        logger.info(
-            "starting_application", app_name=settings.PROJECT_NAME, version=settings.VERSION
-        )
+        logger.info("starting_application", app_name=settings.APP_NAME, version=settings.VERSION)
         try:
             logger.info("initializing_snowflake_generator")
             init_snowflake(settings.SNOWFLAKE_DATACENTER_ID, settings.SNOWFLAKE_MACHINE_ID)
@@ -169,6 +158,7 @@ def _create_lifespan(
                 logger.error("contact_request_worker_start_failed", error=str(exc), exc_info=True)
 
             await start_buffer_scanner()
+            start_media_cleanup_worker(app)
 
             logger.info("application_startup_complete")
             yield
@@ -180,6 +170,7 @@ def _create_lifespan(
             logger.info("shutting_down_application")
             try:
                 await stop_buffer_scanner()
+                await stop_media_cleanup_worker(app)
                 worker = getattr(app.state, "contact_request_worker", None)
                 if worker:
                     worker.cancel()
@@ -249,12 +240,13 @@ def create_app() -> FastAPI:
         service_name="backend",
     )
     app = FastAPI(
-        title=settings.PROJECT_NAME,
+        title=settings.APP_NAME,
         description="Hello World",
         version=settings.VERSION,
         lifespan=_create_lifespan(settings),
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
+        openapi_url="/openapi.json" if settings.DEBUG else None,
         redirect_slashes=False,
     )
     app.state.settings = settings
@@ -273,7 +265,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:create_app",
         factory=True,
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104 - dev server binding is intentional
         port=8000,
         reload=get_settings().DEBUG,
         log_level=get_settings().LOG_LEVEL.lower(),

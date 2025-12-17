@@ -208,7 +208,7 @@ export class MessageService {
       const storedMessage: StoredMessage = { ...message };
       await addMessage(message.conv_id, storedMessage);
 
-      const app = getApp<SaysAppInstance>();
+      const app = getApp<AppInstance>();
       if (typeof app.onMessageReceived === 'function') {
         app.onMessageReceived(message);
       }
@@ -232,7 +232,7 @@ export class MessageService {
     try {
       logger.debug('Typing indicator received', { typing });
 
-      const app = getApp<SaysAppInstance>();
+      const app = getApp<AppInstance>();
       if (typeof app.onTypingReceived === 'function') {
         app.onTypingReceived({
           conv_id: typing.conv_id,
@@ -251,7 +251,7 @@ export class MessageService {
   handleError(error: Error): void {
     logger.error('Message service error', { error });
 
-    const app = getApp<SaysAppInstance>();
+    const app = getApp<AppInstance>();
     if (typeof app.onMessageError === 'function') {
       app.onMessageError(error);
     }

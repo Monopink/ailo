@@ -13,9 +13,9 @@ import { getLogger } from './logger';
 
 const logger = getLogger('CaptchaUtil');
 
-type CaptchaConfig = Says.CaptchaConfig;
-type CaptchaHandlers = Says.CaptchaHandlers;
-type CaptchaPageInstance = Says.CaptchaPageInstance;
+type CaptchaConfig = Ailo.CaptchaConfig;
+type CaptchaHandlers = Ailo.CaptchaHandlers;
+type CaptchaPageInstance = Ailo.CaptchaPageInstance;
 
 interface CaptchaConfigResponse {
   provider?: string;
@@ -54,7 +54,7 @@ export async function fetchCaptchaConfig(): Promise<CaptchaConfig> {
 export function setCachedCaptchaConfig(cfg: CaptchaConfig): void {
   cachedConfig = cfg;
   try {
-    const app = getApp<SaysAppInstance>();
+    const app = getApp<AppInstance>();
     if (app && app.globalData) {
       app.globalData.captchaConfig = cfg;
     }
@@ -68,7 +68,7 @@ export function getCachedCaptchaConfig(): CaptchaConfig | null {
     return cachedConfig;
   }
   try {
-    const app = getApp<SaysAppInstance>();
+    const app = getApp<AppInstance>();
     const config = app?.globalData?.captchaConfig;
     if (config) {
       cachedConfig = config;

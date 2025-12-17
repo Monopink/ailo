@@ -49,15 +49,13 @@ class Profile(SnowflakeModel):
     )
 
     avatar_file_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True, comment="Avatar file ID, references media_files.id"
-    )
-
-    avatar_url: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="Avatar URL (redundant for query optimization)"
+        BigInteger,
+        nullable=True,
+        comment="Foreign key to media_files.id (both preset and custom avatars)",
     )
 
     avatar_prompt: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="Avatar description for AI-generated avatars"
+        Text, nullable=True, comment="Avatar description for LLM prompt replacement"
     )
 
     bio: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Personal bio/description")

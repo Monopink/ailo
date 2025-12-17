@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.crud.message import media_file as media_file_crud
 from app.crud.profile import profile as profile_crud
 from app.crud.user import user as user_crud
-from app.enums import ProfileOwnerType
+from app.enums import FileStatus, ProfileOwnerType
 from app.models.user import User
 from app.schemas.profile import ProfileCreate, ProfileUpdate
 from app.schemas.user_profile import (
@@ -21,6 +22,7 @@ from app.schemas.user_profile import (
     UserProfileResponse,
     UserProfileUpdateRequest,
 )
+from app.services.media.url import build_public_url
 from app.utils.email import mask_email
 from app.utils.logging import get_logger
 from app.utils.phone import mask_phone
@@ -39,13 +41,14 @@ async def get_user_profile(
 
     Returns only profile data (from profiles table).
     Does not include account security information (phone, email, etc).
+    avatar_url is dynamically generated from avatar_file_id.
 
     Args:
         current_user: Current authenticated user
         db: Database session
 
     Returns:
-        UserProfileResponse: User profile data
+        UserProfileResponse: User profile data with dynamically generated avatar_url
     """
     try:
         # Get user profile
@@ -53,13 +56,20 @@ async def get_user_profile(
             db, owner_id=current_user.id, owner_type=ProfileOwnerType.USER
         )
 
+        # Generate avatar URL dynamically
+        avatar_url = None
+        if user_profile and user_profile.avatar_file_id:
+            media_file = await media_file_crud.get(db, id=user_profile.avatar_file_id)
+            if media_file and media_file.status == int(FileStatus.ACTIVE):
+                avatar_url = build_public_url(media_file)
+
         # Build response
         response = UserProfileResponse(
             qiao_id=current_user.qiao_id,
             username=current_user.username,
             nickname=user_profile.nickname if user_profile else None,
             gender=user_profile.gender if user_profile else None,
-            avatar_url=user_profile.avatar_url if user_profile else None,
+            avatar_url=avatar_url,
             bio=user_profile.bio if user_profile else None,
             region=user_profile.region if user_profile else None,
         )
@@ -134,15 +144,15 @@ async def update_user_profile(
     Update current user's profile.
 
     All fields are optional. Only provided fields will be updated.
-    If avatar_url starts with "assets://", avatar_prompt will be automatically set.
+    avatar_file_id must reference an existing media_files record owned by the current user.
 
     Args:
-        body: Profile update data
+        body: Profile update data (avatar_file_id in file_xxx format)
         current_user: Current authenticated user
         db: Database session
 
     Returns:
-        UserProfileResponse: Updated user profile data
+        UserProfileResponse: Updated user profile data with dynamically generated avatar_url
     """
     try:
         # Update username if provided (user table field)
@@ -156,6 +166,24 @@ async def update_user_profile(
             await user_crud.update(db, db_obj=current_user, obj_in={"username": body.username})
             current_user.username = body.username  # Update local object
 
+        # Validate avatar_file_id if provided
+        avatar_file_id_int = None
+        if body.avatar_file_id is not None:
+            # Get media file by file_id (file_xxx format)
+            media_file = await media_file_crud.get_by_file_id(db, file_id=body.avatar_file_id)
+            if not media_file:
+                raise HTTPException(status_code=404, detail="头像文件不存在")
+
+            # Verify ownership
+            if media_file.upload_by_id != current_user.id:
+                raise HTTPException(status_code=403, detail="无权操作")
+
+            # Verify file status
+            if media_file.status != int(FileStatus.ACTIVE):
+                raise HTTPException(status_code=400, detail="头像文件未激活")
+
+            avatar_file_id_int = media_file.id
+
         # Check if profile exists
         user_profile = await profile_crud.get_by_owner(
             db, owner_id=current_user.id, owner_type=ProfileOwnerType.USER
@@ -163,11 +191,12 @@ async def update_user_profile(
 
         # Prepare update data (exclude username as it's not a profile field)
         profile_data = body.model_dump(exclude_unset=True, exclude={"username"})
-        update_data = ProfileUpdate(**profile_data)
 
-        # Handle avatar_prompt for assets:// URLs
-        if body.avatar_url and body.avatar_url.startswith("assets://"):
-            update_data.avatar_prompt = body.avatar_url
+        # Convert avatar_file_id from file_xxx to integer ID
+        if "avatar_file_id" in profile_data:
+            profile_data["avatar_file_id"] = avatar_file_id_int
+
+        update_data = ProfileUpdate(**profile_data)
 
         if user_profile:
             # Update existing profile
@@ -179,9 +208,6 @@ async def update_user_profile(
         else:
             # Create new profile
             create_data = ProfileCreate(**profile_data)
-            if body.avatar_url and body.avatar_url.startswith("assets://"):
-                create_data.avatar_prompt = body.avatar_url
-
             updated_profile = await profile_crud.create_with_owner(
                 db,
                 obj_in=create_data,
@@ -190,13 +216,20 @@ async def update_user_profile(
                 owner_type=ProfileOwnerType.USER,
             )
 
+        # Generate avatar URL dynamically
+        avatar_url = None
+        if updated_profile.avatar_file_id:
+            media_file = await media_file_crud.get(db, id=updated_profile.avatar_file_id)
+            if media_file and media_file.status == int(FileStatus.ACTIVE):
+                avatar_url = build_public_url(media_file)
+
         # Build response
         response = UserProfileResponse(
             qiao_id=current_user.qiao_id,
             username=current_user.username,
             nickname=updated_profile.nickname,
             gender=updated_profile.gender,
-            avatar_url=updated_profile.avatar_url,
+            avatar_url=avatar_url,
             bio=updated_profile.bio,
             region=updated_profile.region,
         )

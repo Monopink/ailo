@@ -116,7 +116,7 @@ const loadContacts = async (): Promise<void> => {
 };
 
 const initMessaging = async (): Promise<void> => {
-  const app = getApp<SaysAppInstance>();
+  const app = getApp<AppInstance>();
   await app.initMessageService();
 };
 

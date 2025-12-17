@@ -1,4 +1,4 @@
-import { get, post } from '../../utils/api';
+import { post } from '../../utils/api';
 import {
   ensureCaptchaConfig,
   getCachedCaptchaConfig,
@@ -7,6 +7,7 @@ import {
 } from '../../utils/captcha';
 import { getLogger } from '../../utils/logger';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { fetchAccountInfo } from '../../utils/profile';
 
 const logger = getLogger('Verify');
 
@@ -23,11 +24,6 @@ interface ApiError extends Error {
   };
 }
 
-interface AccountInfo {
-  phone: string;
-  email?: string | null;
-}
-
 interface SendCodeResponse {
   cooldown?: number;
 }
@@ -36,7 +32,7 @@ interface VerifyConfirmResponse {
   operation_token: string;
 }
 
-interface VerifyPageData extends Says.CaptchaPageData {
+interface VerifyPageData extends Ailo.CaptchaPageData {
   pageLayoutData: PageLayoutData;
   verifyType: 'phone' | 'email';
   maskedPhone: string;
@@ -138,7 +134,7 @@ Page<VerifyPageData, VerifyPageCustom>({
 
     try {
       const config = getCachedCaptchaConfig() ?? (await ensureCaptchaConfig());
-      initCaptcha(this as unknown as Says.CaptchaPageInstance, config, {
+      initCaptcha(this as unknown as Ailo.CaptchaPageInstance, config, {
         success: (token: string) => {
           void this.onCaptchaSuccess(token);
         },
@@ -158,7 +154,7 @@ Page<VerifyPageData, VerifyPageCustom>({
       'pageLayoutData.errorMessage': '',
     });
     try {
-      const account = await get<AccountInfo>('/user/account');
+      const account = await fetchAccountInfo();
       this.setData({
         maskedPhone: account.phone || '未绑定',
         maskedEmail: account.email || '未绑定',
@@ -236,13 +232,13 @@ Page<VerifyPageData, VerifyPageCustom>({
       }
     }
 
-    const captchaPage = this as unknown as Says.CaptchaPageInstance;
+    const captchaPage = this as unknown as Ailo.CaptchaPageInstance;
     captchaPage._captchaActive = true;
     void showCaptcha(captchaPage);
   },
 
   async onCaptchaSuccess(captchaToken) {
-    (this as unknown as Says.CaptchaPageInstance)._captchaActive = false;
+    (this as unknown as Ailo.CaptchaPageInstance)._captchaActive = false;
     await this.requestSendWithCaptcha(captchaToken);
     this.setData({ sending: false });
   },
@@ -250,10 +246,10 @@ Page<VerifyPageData, VerifyPageCustom>({
   onCaptchaFail(error) {
     logger.error('Aliyun captcha failed', { error });
     this.setData({ sending: false });
-    if ((this as unknown as Says.CaptchaPageInstance)._captchaActive) {
+    if ((this as unknown as Ailo.CaptchaPageInstance)._captchaActive) {
       showToast('验证服务错误，请稍后再试');
     }
-    (this as unknown as Says.CaptchaPageInstance)._captchaActive = false;
+    (this as unknown as Ailo.CaptchaPageInstance)._captchaActive = false;
   },
 
   async requestSendWithCaptcha(captchaToken) {

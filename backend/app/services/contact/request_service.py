@@ -42,6 +42,7 @@ from app.services.ai.contact_handler import ContactRequestDecision, handle_ai_co
 from app.services.ai.instance_creation import create_instance_from_persona
 from app.services.contact.service import _get_im_conv_id, get_contact_with_profile
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
+from app.services.profile.avatar import get_avatar_url
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
@@ -176,7 +177,7 @@ async def _create_contact_record(
         contact_type=contact_type,
         contact_qiao_id=contact_qiao_id,
         alias=alias,
-        custom_avatar_url=None,
+        custom_avatar_file_id=None,
         tags=tags,
         remark=None,
         source=source or "unknown",
@@ -879,9 +880,11 @@ async def get_contact_requests_service(
             profile = await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=req.from_qiao_id)
 
             # Build profile info
+            avatar_url = await get_avatar_url(db, profile)
+
             from_profile = ContactProfileSummary(
                 nickname=profile.nickname if profile else None,
-                avatar_url=profile.avatar_url if profile else None,
+                avatar_url=avatar_url,
                 gender=profile.gender if profile else None,
                 bio=profile.bio if profile else None,
                 region=profile.region if profile else None,
@@ -1019,7 +1022,7 @@ async def accept_contact_request_service(
             contact_type=ContactType(contact_request.from_type),
             contact_qiao_id=contact_request.from_qiao_id,
             alias=accept_data.alias,
-            custom_avatar_url=None,
+            custom_avatar_file_id=None,
             tags=accept_data.tags,
             remark=None,
             source="contact_request",

@@ -54,9 +54,9 @@ export async function getCaptcha(): Promise<CaptchaResponse> {
   }
 }
 
-export async function getMessageClientSignature(clientId: string): Promise<Says.MessageSignature> {
+export async function getMessageClientSignature(clientId: string): Promise<Ailo.MessageSignature> {
   try {
-    const data = await post<Says.MessageSignature>('/lc-im/signature', { client_id: clientId });
+    const data = await post<Ailo.MessageSignature>('/lc-im/signature', { client_id: clientId });
     logger.info('Message client signature obtained');
     return data;
   } catch (error) {

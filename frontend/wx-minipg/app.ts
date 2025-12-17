@@ -11,8 +11,8 @@ import { initMessageService } from './utils/message/service';
 import type { MessageService } from './utils/message/service';
 import conversationStore from './utils/message/conversation-store';
 
-type MessagePayload = Says.MessagePayload;
-type TypingEvent = Says.TypingEvent;
+type MessagePayload = Ailo.MessagePayload;
+type TypingEvent = Ailo.TypingEvent;
 type LaunchOptions = WechatMiniprogram.App.LaunchShowOption;
 type ShowOptions = WechatMiniprogram.App.LaunchShowOption;
 type PageNotFoundOption = WechatMiniprogram.App.PageNotFoundOption;
@@ -49,13 +49,13 @@ const getActivePage = (): AnyPageInstance | undefined => {
   return pages[pages.length - 1] as AnyPageInstance | undefined;
 };
 
-const appOptions: WechatMiniprogram.App.Options<SaysAppInstance> = {
+const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
   globalData: {
     messageService: null,
     systemInfo: null,
     captchaConfig: null,
     conversationStore,
-  } satisfies Says.GlobalData,
+  } satisfies Ailo.GlobalData,
 
   onLaunch(options: LaunchOptions) {
     logger.info('App launched', { options });

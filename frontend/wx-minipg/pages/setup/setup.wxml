@@ -7,25 +7,6 @@
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
   <view slot="content" class="setup-page">
-    <!-- Avatar selection group -->
-    <view class="setup-group">
-      <view class="setup-group__header">
-        <text class="setup-group__title">头像 (可选)</text>
-      </view>
-      <scroll-view scroll-x class="setup-avatar__list" show-scrollbar="{{false}}">
-        <view class="setup-avatar__items">
-          <view
-            wx:for="{{presetAvatars}}"
-            wx:key="id"
-            class="setup-avatar__item {{selectedAvatar === item.id ? 'setup-avatar__item--selected' : ''}}"
-            bindtap="selectAvatar"
-            data-id="{{item.id}}">
-            <t-avatar image="{{item.url}}" size="medium" />
-          </view>
-        </view>
-      </scroll-view>
-    </view>
-
     <!-- Basic info group -->
     <view class="setup-group">
       <t-cell title="昵称 (可选)">

@@ -71,7 +71,9 @@ class CompleteRegistrationRequest(BaseModel):
     )
     gender: int | None = Field(None, description="Gender: 0=unknown, 1=male, 2=female")
     bio: str | None = Field(None, max_length=200, description="User bio (max 200 characters)")
-    avatar_url: str | None = Field(None, description="Avatar URL")
+    avatar_file_id: str | None = Field(
+        None, description="Avatar file ID (file_xxx) from media_files table"
+    )
 
 
 class CompleteRegistrationResponse(BaseModel):

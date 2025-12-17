@@ -18,11 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.crud.message import media_file as media_file_crud
 from app.crud.system import system_configs
 from app.crud.user import user as user_crud
 from app.crud.user import user_auth as user_auth_crud
 from app.crud.user import user_token as token_crud
-from app.enums import AuthType, DeviceType, ProfileOwnerType
+from app.enums import AuthType, DeviceType, FileStatus, ProfileOwnerType
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
 from app.models.user import User, UserToken
@@ -42,6 +43,7 @@ from app.schemas.verify import (
     VerifySendCodeRequest,
     VerifySendCodeResponse,
 )
+from app.services.profile.avatar import get_avatar_url
 from app.services.security.captcha.factory import create_captcha_provider_for_request
 from app.services.security.captcha.none import NoneCaptchaProvider
 from app.services.security.rate_limiter import check_rate_limit
@@ -443,19 +445,37 @@ async def wechat_login(
             ip=client_ip,
         )
 
-        # 4. Check country code
-        if country_code != 86:
-            # International phone, need SMS binding
+        # 4. Check if China phone by constructing E.164 format
+        try:
+            phone_e164 = f"+{country_code}{pure_phone}"
+            if not is_china_phone(phone_e164):
+                # International phone, need SMS binding
+                logger.warning(
+                    "wechat_international_phone",
+                    openid=openid[:8] + "...",
+                    country_code=country_code,
+                    ip=client_ip,
+                )
+
+                # Generate temporary code for phone binding
+                wechat_code = code_manager.generate_code(openid)
+
+                return WeChatLoginResponse(
+                    success=False,
+                    needs_phone_binding=True,
+                    wechat_code=wechat_code,
+                    user=None,
+                    message="请绑定中国大陆手机号",
+                )
+        except Exception:
+            # If phone format check fails, treat as non-China phone
             logger.warning(
-                "wechat_international_phone",
+                "wechat_phone_check_failed",
                 openid=openid[:8] + "...",
                 country_code=country_code,
                 ip=client_ip,
             )
-
-            # Generate temporary code for phone binding
             wechat_code = code_manager.generate_code(openid)
-
             return WeChatLoginResponse(
                 success=False,
                 needs_phone_binding=True,
@@ -627,6 +647,7 @@ async def wechat_login(
             )
         )
         profile = profile_result.scalar_one_or_none()
+        avatar_url = await get_avatar_url(db, profile)
 
         # 10. Return response
         return WeChatLoginResponse(
@@ -637,7 +658,7 @@ async def wechat_login(
                 "phone": user.phone,
                 "nickname": profile.nickname if profile else None,
                 "gender": profile.gender if profile else 0,
-                "avatar_url": profile.avatar_url if profile else None,
+                "avatar_url": avatar_url,
                 "bio": profile.bio if profile else None,
                 "token": jwt_token,
             },
@@ -786,14 +807,8 @@ async def bind_phone(
 
             # Ensure binding exists
             if not existing_binding:
-                wechat_client = WeChatClient()
-                # Best-effort to get unionid (optional)
+                # Cannot get unionid here without login_code; leave unionid None
                 unionid = None
-                try:
-                    # Cannot call code2session here without login_code; leave unionid None
-                    unionid = None
-                except Exception:
-                    unionid = None
 
                 await user_auth_crud.create_binding(
                     db,
@@ -1101,6 +1116,8 @@ async def verify_phone(
             )
             profile = profile_result.scalar_one_or_none()
 
+            avatar_url = await get_avatar_url(db, profile)
+
             # Return login response
             return VerifyPhoneResponse(
                 is_new_user=False,
@@ -1110,7 +1127,7 @@ async def verify_phone(
                     "phone": user.phone,
                     "nickname": profile.nickname if profile else None,
                     "gender": profile.gender if profile else 0,
-                    "avatar_url": profile.avatar_url if profile else None,
+                    "avatar_url": avatar_url,
                     "bio": profile.bio if profile else None,
                 },
             )
@@ -1177,6 +1194,16 @@ async def complete_registration(
         phone, wechat_openid = token_data
         logger.info("complete_registration_token_verified", phone=phone, ip=client_ip)
 
+        # Validate avatar file (optional)
+        avatar_file_id_int = None
+        if body.avatar_file_id:
+            media_file = await media_file_crud.get_by_file_id(db, file_id=body.avatar_file_id)
+            if not media_file:
+                raise HTTPException(status_code=404, detail="头像文件不存在")
+            if media_file.status != int(FileStatus.ACTIVE):
+                raise HTTPException(status_code=400, detail="头像文件未激活")
+            avatar_file_id_int = media_file.id
+
         # 2. Check if user already exists (防止重复创建)
         existing_user = await user_crud.get_by_phone(db, phone=phone)
         if existing_user:
@@ -1215,13 +1242,15 @@ async def complete_registration(
                 nickname=body.nickname,
                 gender=body.gender if body.gender is not None else 0,  # Default to unknown
                 bio=body.bio,
-                avatar_url=body.avatar_url,
+                avatar_file_id=avatar_file_id_int,
             )
 
             db.add(profile)
             await db.commit()
             await db.refresh(user)
             await db.refresh(profile)
+
+            avatar_url = await get_avatar_url(db, profile)
 
             logger.info(
                 "complete_registration_user_created",
@@ -1325,7 +1354,7 @@ async def complete_registration(
                 "phone": user.phone,
                 "nickname": profile.nickname,
                 "gender": profile.gender,
-                "avatar_url": profile.avatar_url,
+                "avatar_url": avatar_url,
                 "bio": profile.bio,
             },
         )

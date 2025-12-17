@@ -65,11 +65,7 @@ const createEmptyContactView = (): ContactView => ({
 });
 
 const buildContactView = (contact: StoredContact, profile?: ContactProfile): ContactView => {
-  const avatarSource =
-    profile?.avatar_url ??
-    contact.avatar_url ??
-    contact.custom_avatar_url ??
-    '/assets/avatars/default.png';
+  const avatarSource = profile?.avatar_url ?? contact.avatar_url ?? '/assets/avatars/default.png';
   const avatar = getAvatarUrl(avatarSource);
   const alias = contact.alias ?? '';
   const nickname = contact.nickname ?? profile?.nickname ?? '';

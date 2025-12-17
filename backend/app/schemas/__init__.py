@@ -78,6 +78,13 @@ from .contact import (
 )
 
 # Message schemas
+from .media import (
+    MediaAccessResponse,
+    UploadConfirmRequest,
+    UploadConfirmResponse,
+    UploadTokenRequest,
+    UploadTokenResponse,
+)
 from .message import MediaFileBase, MediaFileResponse, MediaFileUpload
 
 # System schemas
@@ -149,8 +156,6 @@ __all__ = [
     "ContactRequestUpdate",
     "ContactRequestListResponse",
     "ContactRequestAccept",
-    "ContactRequestListResponse",
-    "ContactRequestAccept",
     "ContactSearchRequest",
     "ContactSearchResult",
     "BatchContactUpdate",
@@ -159,6 +164,12 @@ __all__ = [
     "MediaFileBase",
     "MediaFileUpload",
     "MediaFileResponse",
+    # Media (Object Storage)
+    "MediaAccessResponse",
+    "UploadTokenRequest",
+    "UploadTokenResponse",
+    "UploadConfirmRequest",
+    "UploadConfirmResponse",
     # AI
     "AIInstanceBase",
     "AIInstanceCreate",

@@ -39,23 +39,30 @@ from .template import AIPersona, AITemplate, AIType
 
 # Export all AI models
 __all__ = [
+    # Instance and conversation
+    "AIInstance",
+    "AIMessageBuffer",
     "AIConversationItem",
     "AIConversationItemArchive",
     "AIConversationState",
-    "AIDimension",
-    "AIDimensionRelationshipMapping",
-    "AIInstance",
-    "AIInstanceDimension",
+    # Memory
     "AIInstanceMemory",
-    "AIMessageBuffer",
+    "AITemplateMemory",
+    # Templates
+    "AIType",
+    "AITemplate",
     "AIPersona",
+    # Personality
     "AIPersonality",
     "AIPersonalityPlaceholder",
-    "AIRelationship",
-    "AIRequestLog",
+    # Style and relationship
     "AIStyle",
+    "AIRelationship",
+    "AIDimension",
     "AIStyleDimension",
-    "AITemplate",
-    "AITemplateMemory",
-    "AIType",
+    "AIDimensionRelationshipMapping",
+    # Instance Dimension
+    "AIInstanceDimension",
+    # Log
+    "AIRequestLog",
 ]

@@ -20,6 +20,11 @@ from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 
+# Constants for timestamp conversion
+# Threshold to distinguish between seconds and milliseconds timestamps
+# Any timestamp > 1e11 (Nov 1973 in seconds, ~1970 in milliseconds) is treated as milliseconds
+TIMESTAMP_MILLISECOND_THRESHOLD = 1e11
+
 
 async def store_message(
     db: AsyncSession,
@@ -50,7 +55,7 @@ async def store_message(
         direction = MessageDirection.OUTBOUND
         msg_id_provider = event.msg_id_provider_outbound
     else:
-        raise ValueError(f"Unsupported event type: {type(event)}")
+        raise TypeError(f"Unsupported event type: {type(event)}")
 
     # Extract metadata dict from EventMetadata model
     metadata_dict = event.metadata.model_dump(exclude_none=True) if event.metadata else {}
@@ -104,8 +109,10 @@ async def _store_message_internal(
         direction: Message direction (1=INBOUND, 2=OUTBOUND)
         msg_id_provider: Provider message ID (optional)
         msg_id_client: Client message ID (optional, for user messages)
-        client_sent_time: Client sent timestamp in ms epoch or datetime (optional, for user messages)
-        sent_at: Server-side event timestamp (ms epoch/datetime). Defaults to client_sent_time or now.
+        client_sent_time: Client sent timestamp in ms epoch or datetime
+            (optional, for user messages)
+        sent_at: Server-side event timestamp (ms epoch/datetime).
+            Defaults to client_sent_time or now.
         msg_id_server: Optional pre-generated msg_id_server (otherwise auto-generated)
         metadata: Message metadata (optional)
 
@@ -132,8 +139,12 @@ async def _store_message_internal(
     # Create message record
     message_data = {
         "id": generate_snowflake_id(),
-        "msg_id_provider_inbound": msg_id_provider if direction == 1 else None,
-        "msg_id_provider_outbound": msg_id_provider if direction == 2 else None,
+        "msg_id_provider_inbound": msg_id_provider
+        if direction == MessageDirection.INBOUND
+        else None,
+        "msg_id_provider_outbound": msg_id_provider
+        if direction == MessageDirection.OUTBOUND
+        else None,
         "msg_id_client": msg_id_client,
         "msg_id_server": msg_id_server_value,
         "conversation_id": conv_id,
@@ -182,7 +193,11 @@ def _normalize_client_sent_time(
 
     if isinstance(client_sent_time, int | float):
         # Treat large values as milliseconds, otherwise assume seconds.
-        seconds = client_sent_time / 1000 if client_sent_time > 1e11 else client_sent_time
+        seconds = (
+            client_sent_time / 1000
+            if client_sent_time > TIMESTAMP_MILLISECOND_THRESHOLD
+            else client_sent_time
+        )
         return datetime.fromtimestamp(seconds, tz=UTC)
 
     if isinstance(client_sent_time, str):

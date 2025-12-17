@@ -25,6 +25,7 @@ RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
     "message_short": "message_rate_limit_short_requests",
     "message_long": "message_rate_limit_long_requests",
     "square": "square_rate_limit_requests",
+    "media_upload": "media_upload_rate_limit_requests",
 }
 
 RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
@@ -34,6 +35,7 @@ RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
     "message_short": ("message_rate_limit_short_window_seconds", 1),
     "message_long": ("message_rate_limit_long_window_seconds", 1),
     "square": ("square_rate_limit_window_seconds", 1),
+    "media_upload": ("media_upload_rate_limit_window_seconds", 1),
 }
 
 RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
@@ -43,6 +45,7 @@ RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
     "message_short": None,
     "message_long": None,
     "square": None,
+    "media_upload": None,
 }
 
 
@@ -145,12 +148,12 @@ async def check_message_rate_limit(
         (is_allowed, error_code, retry_after_seconds)
     """
     # Check short-term limit (5 messages / 10 seconds)
-    allowed, error, retry = await check_rate_limit(identifier, "message_short", db)
+    allowed, _error, retry = await check_rate_limit(identifier, "message_short", db)
     if not allowed:
         return False, "MESSAGE_RATE_LIMIT_SHORT", retry
 
     # Check long-term limit (20 messages / 60 seconds)
-    allowed, error, retry = await check_rate_limit(identifier, "message_long", db)
+    allowed, _error, retry = await check_rate_limit(identifier, "message_long", db)
     if not allowed:
         return False, "MESSAGE_RATE_LIMIT_LONG", retry
 
@@ -164,8 +167,6 @@ def cleanup_rate_limit_cache() -> None:
     Removes entries with no recent requests.
     Should be called periodically.
     """
-    global _rate_limit_cache
-
     now = time.time()
     keys_to_remove = []
 

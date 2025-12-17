@@ -1,7 +1,7 @@
 """
 Media file related schemas.
 
-This module contains Pydantic schemas for media file management.
+Defines Pydantic representations aligned with the new object storage model.
 """
 
 from datetime import datetime
@@ -11,38 +11,42 @@ from pydantic import BaseModel, Field
 from app.enums import FileStatus, FileType, UploaderType
 from app.schemas.common import BaseSchema
 
-# Media File Schemas
-
 
 class MediaFileBase(BaseSchema):
     """Base media file schema."""
 
     file_type: FileType = Field(..., description="File type")
-    original_name: str | None = Field(None, max_length=255, description="Original filename")
     mime_type: str = Field(..., max_length=100, description="MIME type")
+    file_size: int = Field(..., ge=0, description="File size in bytes")
+    is_public: bool = Field(..., description="Whether file is publicly accessible")
 
 
 class MediaFileUpload(BaseModel):
     """Schema for media file upload."""
 
     file_type: FileType = Field(..., description="File type")
-    original_name: str | None = Field(None, max_length=255, description="Original filename")
     mime_type: str = Field(..., max_length=100, description="MIME type")
     file_size: int = Field(..., gt=0, description="File size in bytes")
+    original_name: str = Field(..., max_length=255, description="Original filename")
 
 
 class MediaFileResponse(MediaFileBase):
     """Schema for media file response data."""
 
     file_id: str = Field(..., description="External file ID")
-    file_path: str = Field(..., description="File storage path")
-    file_url: str = Field(..., description="File access URL")
-    file_size: int = Field(..., description="File size in bytes")
+    storage_provider: str = Field(..., description="Storage provider identifier")
+    bucket_name: str | None = Field(None, description="Bucket name if applicable")
+    object_key: str = Field(..., description="Object key within storage backend")
+    cdn_domain: str | None = Field(None, description="CDN domain override")
+    original_name: str = Field(..., description="Original filename when uploaded")
+    file_hash: str | None = Field(None, description="SHA-256 hash for deduplication")
     upload_by_type: UploaderType = Field(..., description="Uploader type")
-    upload_by_id: int = Field(..., description="Uploader internal ID")
-    upload_by_qiao_id: str = Field(..., description="Uploader external ID")
+    upload_by_id: int | None = Field(None, description="Uploader internal ID")
+    upload_by_qiao_id: str | None = Field(None, description="Uploader external ID")
+    etag: str | None = Field(None, description="Storage provider ETag")
+    confirmed_at: datetime | None = Field(None, description="Confirmation timestamp")
     status: FileStatus = Field(..., description="File status")
-    created_at: datetime = Field(..., description="Upload time")
+    created_at: datetime = Field(..., description="Record creation time")
     updated_at: datetime = Field(..., description="Last update time")
 
 
@@ -51,8 +55,8 @@ class MediaFileListResponse(BaseSchema):
 
     file_id: str = Field(..., description="External file ID")
     file_type: FileType = Field(..., description="File type")
-    original_name: str | None = Field(None, description="Original filename")
-    file_url: str = Field(..., description="File access URL")
+    original_name: str = Field(..., description="Original filename")
+    object_key: str = Field(..., description="Object key")
     file_size: int = Field(..., description="File size in bytes")
     status: FileStatus = Field(..., description="File status")
     created_at: datetime = Field(..., description="Upload time")
@@ -64,9 +68,6 @@ class MediaFileUpdate(BaseModel):
     status: FileStatus = Field(..., description="New file status")
 
 
-# Media File Query Schemas
-
-
 class MediaFileQuery(BaseModel):
     """Schema for querying media files."""
 
@@ -75,9 +76,6 @@ class MediaFileQuery(BaseModel):
     status: FileStatus | None = Field(None, description="Filter by status")
     skip: int = Field(0, ge=0, description="Number of records to skip")
     limit: int = Field(20, ge=1, le=100, description="Maximum number of records")
-
-
-# Media File Statistics
 
 
 class MediaFileStats(BaseSchema):

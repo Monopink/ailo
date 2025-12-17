@@ -3,7 +3,7 @@ import type conversationStore from '../utils/message/conversation-store';
 import type { MessageService as MessageServiceClass } from '../utils/message/service';
 
 declare global {
-  namespace Says {
+  namespace Ailo {
     type QiaoID = string;
 
     interface CaptchaConfig {
@@ -122,26 +122,26 @@ declare global {
     }
   }
 
-  interface SaysAppInstance extends WechatMiniprogram.App.Instance<WechatMiniprogram.IAnyObject> {
-    globalData: Says.GlobalData;
+  interface AppInstance extends WechatMiniprogram.App.Instance<WechatMiniprogram.IAnyObject> {
+    globalData: Ailo.GlobalData;
     preloadCaptchaConfig(): Promise<void>;
     initializeAuth(): Promise<void>;
     refreshTokenIfNeeded(): Promise<void>;
     initMessageService(): Promise<void>;
-    getMessageService(): Says.MessageService | null;
-    getConversationStore(): Says.ConversationStoreInstance;
+    getMessageService(): Ailo.MessageService | null;
+    getConversationStore(): Ailo.ConversationStoreInstance;
     getAuthService(): unknown;
     setUserInfo(userInfo: unknown): void;
     getUserInfo(): unknown;
     setToken(token: unknown): void;
     getToken(): unknown;
     clearAuth(): void;
-    onMessageReceived?(message: Says.MessagePayload): void;
-    onTypingReceived?(payload: Says.TypingEvent): void;
+    onMessageReceived?(message: Ailo.MessagePayload): void;
+    onTypingReceived?(payload: Ailo.TypingEvent): void;
     onMessageError?(error: unknown): void;
   }
 
-  function getApp(): SaysAppInstance;
+  function getApp(): AppInstance;
 }
 
 export {};

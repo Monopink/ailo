@@ -12,7 +12,7 @@ class UserProfileResponse(BaseModel):
     username: str = Field(..., description="User-customizable ID")
     nickname: str | None = Field(None, description="Display nickname")
     gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
-    avatar_url: str | None = Field(None, description="Avatar URL")
+    avatar_url: str | None = Field(None, description="Dynamically generated avatar CDN URL")
     bio: str | None = Field(None, description="Personal bio/description")
     region: str | None = Field(None, description="Location/region")
 
@@ -39,6 +39,8 @@ class UserProfileUpdateRequest(BaseModel):
     gender: int | None = Field(
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
-    avatar_url: str | None = Field(None, max_length=500, description="Avatar URL")
+    avatar_file_id: str | None = Field(
+        None, description="File ID (file_xxx format) from media_files table"
+    )
     bio: str | None = Field(None, max_length=70, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")

@@ -14,9 +14,9 @@ class ProfileBase(BaseModel):
     gender: int | None = Field(
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
-    avatar_url: str | None = Field(None, max_length=500, description="Avatar URL")
+    avatar_file_id: int | None = Field(None, description="Foreign key to media_files.id")
     avatar_prompt: str | None = Field(
-        None, description="Avatar description for AI-generated avatars"
+        None, description="Avatar description for LLM prompt replacement"
     )
     bio: str | None = Field(None, max_length=70, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")
@@ -37,7 +37,6 @@ class ProfileInDBBase(ProfileBase):
     owner_id: int
     owner_qiao_id: str
     owner_type: int
-    avatar_file_id: int | None = None
     created_at: datetime
     updated_at: datetime
 

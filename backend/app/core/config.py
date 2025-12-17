@@ -1,27 +1,53 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _find_env_file() -> Path | None:
+    """
+    Find .env file in deployment directory.
+
+    Searches from current file location upward to find project root,
+    then looks for deployment/.env file.
+
+    Returns:
+        Path to .env file if found, None otherwise
+    """
+    current = Path(__file__).resolve()
+
+    # Traverse up to find project root (contains deployment/)
+    for parent in [current.parent.parent.parent, *current.parents]:
+        env_file = parent / "deployment" / ".env"
+        if env_file.exists():
+            return env_file
+
+    return None
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=_find_env_file(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # Application settings
-    PROJECT_NAME: str
+    APP_NAME: str
     VERSION: str
-    DEBUG: bool
+    DEBUG: bool = False
     ENVIRONMENT: str
 
     # Database settings
-    POSTGRES_HOST: str
-    POSTGRES_PORT: int
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DATABASE: str
-    POSTGRES_ECHO: bool
+    DB_HOST: str
+    DB_PORT: int = 5432
+    DB_USER: str
+    DB_PASSWORD: str
+    DB_NAME: str
+    POSTGRES_ECHO: bool = False
 
-    # Redis settings
-    REDIS_URL: str
+    # Redis settings (optional - not currently used)
+    REDIS_URL: str | None = None
     REDIS_PASSWORD: str | None = None
 
     # Logging settings
@@ -57,14 +83,29 @@ class Settings(BaseSettings):
     ALIYUN_CAPTCHA_ACCESS_KEY_ID: str | None = None
     ALIYUN_CAPTCHA_ACCESS_KEY_SECRET: str | None = None
 
+    # Storage settings
+    STORAGE_PROVIDER: str = "local"
+
+    # Tencent Cloud COS (Object Storage)
+    TENCENT_COS_SECRET_ID: str = ""
+    TENCENT_COS_SECRET_KEY: str = ""
+    TENCENT_COS_REGION: str = "ap-beijing"
+    TENCENT_COS_BUCKET: str = ""
+    TENCENT_COS_ENDPOINT: str = "https://cos.ap-beijing.myqcloud.com"
+    TENCENT_COS_CDN_DOMAIN: str = ""
+
+    # Local Storage (Development)
+    STORAGE_LOCAL_PATH: str = "/app/media"
+    STORAGE_LOCAL_URL: str = "http://localhost:8000/media"
+
     @property
     def database_url(self) -> str:
         """Constructs the PostgreSQL database URL from settings."""
         return (
             "postgresql+asyncpg://"
-            f"{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
-            f"{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/"
-            f"{self.POSTGRES_DATABASE}"
+            f"{self.DB_USER}:{self.DB_PASSWORD}@"
+            f"{self.DB_HOST}:{self.DB_PORT}/"
+            f"{self.DB_NAME}"
         )
 
     @property
@@ -76,6 +117,11 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production environment"""
         return self.ENVIRONMENT.lower() in ("production", "prod")
+
+    @property
+    def is_staging(self) -> bool:
+        """Check if running in staging environment"""
+        return self.ENVIRONMENT.lower() in ("staging", "test")
 
 
 @lru_cache

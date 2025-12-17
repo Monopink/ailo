@@ -16,7 +16,7 @@
     "pages/contact-info/contact-info",
     "pages/contact-requests/contact-requests",
     "pages/stranger-info/stranger-info",
-    "pages/avatar-selector/avatar-selector",
+    "pages/avatar-cropper/avatar-cropper",
     "pages/about/about"
   ],
   "window": {

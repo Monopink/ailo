@@ -54,7 +54,6 @@ from .views import (
     message_history_view,
     notification_push_history_view,
     pending_contact_request_view,
-    preset_asset_view,
     profile_view,
     square_type_entry_view,
     stats_ai_daily_view,
@@ -87,7 +86,7 @@ logger = logging.getLogger(__name__)
 
 
 # Jinja2 filter helper for JSON rendering
-def _pretty_json(data: Any) -> str:  # type: ignore[explicit-any]
+def _pretty_json(data: Any) -> str:
     """Render JSON for admin templates without raising."""
 
     try:
@@ -230,7 +229,6 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         "Media",
         icon="fa fa-file-image",
         views=[
-            preset_asset_view,
             media_file_view,
         ],
         always_open=False,
@@ -284,9 +282,7 @@ class ThemeSwitchView(CustomView):
     """Lightweight view to switch admin theme (SSR)."""
 
     # Starlette Admin CustomView signature
-    async def render(  # type: ignore[explicit-any]
-        self, request: Request, _templates: Any
-    ) -> RedirectResponse:
+    async def render(self, request: Request, _templates: Any) -> RedirectResponse:
         mode = str(request.path_params.get("mode", "light")).lower()
         if mode not in ("light", "dark", "auto"):
             mode = "light"

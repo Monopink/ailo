@@ -20,7 +20,7 @@ interface TypingState {
 }
 
 interface MessageService {
-  sendMessage(payload: Partial<Says.MessagePayload>): Promise<void>;
+  sendMessage(payload: Partial<Ailo.MessagePayload>): Promise<void>;
 }
 
 class TypingManager {
@@ -131,7 +131,7 @@ class TypingManager {
     const state = this.getState(convId);
 
     try {
-      const app = getApp<SaysAppInstance>();
+      const app = getApp<AppInstance>();
       const messageService = app.getMessageService() as MessageService | null;
 
       if (!messageService) {
@@ -190,7 +190,7 @@ class TypingManager {
     }
 
     try {
-      const app = getApp<SaysAppInstance>();
+      const app = getApp<AppInstance>();
       const messageService = app.getMessageService() as MessageService | null;
 
       if (!messageService) {

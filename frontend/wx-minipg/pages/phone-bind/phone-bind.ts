@@ -57,7 +57,7 @@ interface ApiError extends Error {
   };
 }
 
-interface PhoneBindPageData extends Says.CaptchaPageData {
+interface PhoneBindPageData extends Ailo.CaptchaPageData {
   pageLayoutData: PageLayoutData;
   wechatCode: string;
   loginCode: string;
@@ -140,7 +140,7 @@ const loadContacts = async (): Promise<void> => {
 };
 
 const initMessaging = async (): Promise<void> => {
-  const app = getApp<SaysAppInstance>();
+  const app = getApp<AppInstance>();
   await app.initMessageService();
 };
 
@@ -202,7 +202,7 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
     try {
       const cached = getCachedCaptchaConfig();
       const config = cached ?? (await ensureCaptchaConfig());
-      initCaptcha(this as unknown as Says.CaptchaPageInstance, config, {
+      initCaptcha(this as unknown as Ailo.CaptchaPageInstance, config, {
         success: (token: string) => {
           void this.onCaptchaSuccess(token);
         },
@@ -331,7 +331,7 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
     }
 
     (this as PhoneBindPageCustom)._captchaActive = true;
-    void showCaptcha(this as unknown as Says.CaptchaPageInstance);
+    void showCaptcha(this as unknown as Ailo.CaptchaPageInstance);
   },
 
   async requestSmsWithCaptcha(captchaToken) {

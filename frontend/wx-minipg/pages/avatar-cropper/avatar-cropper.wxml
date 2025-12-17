@@ -1,0 +1,54 @@
+<view class="avatar-cropper">
+  <view wx:if="{{isReady}}" class="avatar-cropper__panel">
+    <movable-area
+      class="avatar-cropper__area"
+      style="width: {{containerSize}}px; height: {{containerSize}}px"
+    >
+      <movable-view
+        class="avatar-cropper__movable"
+        direction="all"
+        x="{{x}}"
+        y="{{y}}"
+        scale="true"
+        scale-min="{{minScale}}"
+        scale-max="{{maxScale}}"
+        scale-value="{{scale}}"
+        out-of-bounds="false"
+        bindchange="handleChange"
+        bindscale="handleScale"
+      >
+        <image
+          src="{{imagePath}}"
+          class="avatar-cropper__image"
+          style="width: {{displayWidth}}px; height: {{displayHeight}}px"
+          mode="aspectFit"
+        />
+      </movable-view>
+      <view class="avatar-cropper__mask" />
+      <view class="avatar-cropper__frame" />
+    </movable-area>
+
+    <view class="avatar-cropper__hint">拖动图片或使用双指缩放，调节头像位置</view>
+  </view>
+
+  <view wx:if="{{!isReady}}" class="avatar-cropper__loading">
+    正在加载图片...
+  </view>
+
+  <view class="avatar-cropper__actions">
+    <t-button block variant="outline" bindtap="handleCancel" disabled="{{isSaving}}">
+      取消
+    </t-button>
+    <t-button
+      block
+      theme="primary"
+      loading="{{isSaving}}"
+      disabled="{{!isReady || isSaving}}"
+      bindtap="handleConfirm"
+    >
+      完成裁剪
+    </t-button>
+  </view>
+
+  <canvas canvas-id="cropCanvas" class="avatar-cropper__canvas"></canvas>
+</view>

@@ -22,16 +22,20 @@ from .style import ai_dimension_relationship_mapping, ai_relationship, ai_style,
 from .template import ai_persona, ai_template
 
 __all__ = [
-    "ai_dimension_relationship_mapping",
+    # Instance management
     "ai_instance",
     "ai_instance_memory",
-    "ai_persona",
+    # Personality and style
     "ai_personality",
     "ai_personality_placeholder",
-    "ai_relationship",
-    "ai_request_log",
     "ai_style",
+    "ai_relationship",
+    "ai_dimension_relationship_mapping",
     "ai_style_dimension",
+    # Template management
     "ai_template",
     "ai_template_memory",
+    "ai_persona",
+    # Logging
+    "ai_request_log",
 ]

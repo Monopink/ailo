@@ -6,16 +6,19 @@ Creates ModelView instances for user management and admin system models.
 import secrets
 import string
 from collections import Counter
+from collections.abc import MutableMapping
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import ClassVar, cast
 
 from sqlalchemy import desc, func, select
 from starlette.requests import Request
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, Response
+from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView, HasOne, IntegerField, JSONField, StringField, TextAreaField
 from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
+from starlette_admin.fields import BaseField
 
 from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField, convert_empty_strings_to_none
@@ -37,17 +40,22 @@ from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
 from app.services.contact.request_service import retry_pending_contact_request
 from app.services.system_config import get_config
+from app.type_defs import JSONDict
 
 from .base import BaseRoleAwareModelView
+
+FormData = MutableMapping[str, object | None]
+
+PASSWORD_MIN_LENGTH = 8
 
 
 class UserView(BaseRoleAwareModelView):
     """Enhanced User view with proper field configuration."""
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "qiao_id",
         "password_hash",
@@ -55,7 +63,7 @@ class UserView(BaseRoleAwareModelView):
         "updated_at",
         "last_login",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "qiao_id",
         "password_hash",
@@ -63,12 +71,12 @@ class UserView(BaseRoleAwareModelView):
         "updated_at",
         "last_login",
     ]
-    exclude_fields_from_list = ["password_hash", "password"]
-    exclude_fields_from_detail = ["password_hash", "password"]
+    exclude_fields_from_list: ClassVar[list[str]] = ["password_hash", "password"]
+    exclude_fields_from_detail: ClassVar[list[str]] = ["password_hash", "password"]
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["username", "phone", "email", "qiao_id"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["username", "phone", "email", "qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "username",
         "qiao_id",
@@ -79,7 +87,7 @@ class UserView(BaseRoleAwareModelView):
         "last_login",
     ]
 
-    fields = [
+    fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal user ID"),
         StringField("qiao_id", label="Qiao ID", help_text="External user identifier"),
         StringField("username", label="Username", help_text="Display name for the user"),
@@ -88,7 +96,10 @@ class UserView(BaseRoleAwareModelView):
         StringField(
             "password",
             label="Password",
-            help_text="⚠️ Leave blank to keep current password unchanged. Enter new password (min 8 characters) to change.",
+            help_text=(
+                "Warning: Leave blank to keep current password unchanged. "
+                f"Enter new password (min {PASSWORD_MIN_LENGTH} characters) to change."
+            ),
             required=False,
         ),
         IntegerEnumField(
@@ -128,37 +139,43 @@ class UserView(BaseRoleAwareModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: FormData) -> None:
         """Validate user data."""
-        password = data.get("password")
+        password_value = data.get("password")
 
         # For create operation, password is required
         if request.url.path.endswith("/create"):
-            if not password:
+            if not password_value:
                 raise FormValidationError({"password": "Password is required when creating user"})
 
         # Validate password length if provided
-        if password and len(password) < 8:
-            raise FormValidationError({"password": "Password must be at least 8 characters long"})
+        if isinstance(password_value, str) and password_value:
+            if len(password_value) < PASSWORD_MIN_LENGTH:
+                raise FormValidationError(
+                    {"password": f"Password must be at least {PASSWORD_MIN_LENGTH} characters long"}
+                )
 
         await super().validate(request, data)
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, _request: Request, data: FormData, obj: User) -> None:
         """Hash password before creating user. Convert empty unique fields to NULL."""
         password = data.pop("password", None)
 
-        if password:
+        if isinstance(password, str) and password:
             obj.password_hash = get_password_hash(password)
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
         convert_empty_strings_to_none(obj, ["phone", "email"])
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
-        """Hash password before updating user if password is changed. Convert empty unique fields to NULL."""
+    async def before_edit(self, _request: Request, data: FormData, obj: User) -> None:
+        """Hash password before updating user if password is changed.
+
+        Convert empty unique fields to NULL.
+        """
         password = data.pop("password", None)
 
         # Only update password if a new one is provided
-        if password:
+        if isinstance(password, str) and password:
             obj.password_hash = get_password_hash(password)
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
@@ -169,7 +186,7 @@ class ProfileView(BaseRoleAwareModelView):
     """Enhanced Profile view with proper field configuration."""
 
     # Exclude auto-filled fields from create/edit
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "owner_id",  # Auto-filled
         "owner_qiao_id",  # Auto-filled
@@ -177,7 +194,7 @@ class ProfileView(BaseRoleAwareModelView):
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "owner_id",  # Auto-filled
         "owner_qiao_id",  # Auto-filled
@@ -186,14 +203,21 @@ class ProfileView(BaseRoleAwareModelView):
         "updated_at",
     ]
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["nickname", "owner_qiao_id"]
-    sortable_fields = ["id", "owner_type", "nickname", "gender", "created_at", "updated_at"]
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["nickname", "owner_qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
+        "id",
+        "owner_type",
+        "nickname",
+        "gender",
+        "created_at",
+        "updated_at",
+    ]
 
-    fields = [
+    fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal profile ID"),
         # Polymorphic owner fields - select one, owner_type is auto-inferred
         HasOne(
@@ -225,7 +249,6 @@ class ProfileView(BaseRoleAwareModelView):
         StringField(
             "avatar_file_id", label="Avatar File ID", help_text="Avatar file ID from media library"
         ),
-        StringField("avatar_url", label="Avatar URL", help_text="Profile avatar image URL"),
         TextAreaField(
             "avatar_prompt", label="Avatar Prompt", help_text="Description for AI-generated avatars"
         ),
@@ -235,7 +258,7 @@ class ProfileView(BaseRoleAwareModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, request: Request, data: dict[str, Any]) -> None:
+    async def validate(self, _request: Request, data: FormData) -> None:
         """Custom validation for polymorphic owner fields."""
         owner_user = data.get("_owner_user")
         owner_persona = data.get("_owner_persona")
@@ -250,10 +273,11 @@ class ProfileView(BaseRoleAwareModelView):
         if selected_count > 1:
             raise FormValidationError({"_owner_user": "Please select only one owner"})
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: FormData, obj: Profile) -> None:
         """Set auto-filled fields before database commit."""
         # Convert empty string to None for integer fields FIRST (before any database operations)
-        if obj.avatar_file_id == "":
+        # Admin form may submit empty fields as empty string, convert to None
+        if hasattr(obj, "avatar_file_id") and obj.avatar_file_id == "":  # type: ignore[comparison-overlap]
             obj.avatar_file_id = None
 
         # Auto-infer owner_type and fill owner_id, owner_qiao_id
@@ -291,14 +315,17 @@ class ProfileView(BaseRoleAwareModelView):
                     field_name = "_owner_instance"
                 raise FormValidationError(
                     {
-                        field_name: f"Profile already exists for this owner (ID: {existing_profile.id})"
+                        field_name: (
+                            f"Profile already exists for this owner (ID: {existing_profile.id})"
+                        )
                     }
                 )
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, data: FormData, obj: Profile) -> None:
         """Set auto-filled fields before database commit."""
         # Convert empty string to None for integer fields
-        if obj.avatar_file_id == "":
+        # Admin form may submit empty fields as empty string, convert to None
+        if hasattr(obj, "avatar_file_id") and obj.avatar_file_id == "":  # type: ignore[comparison-overlap]
             obj.avatar_file_id = None
 
         # Auto-infer owner_type and fill owner_id, owner_qiao_id
@@ -327,16 +354,16 @@ class UserProfileLogView(ModelView):
     name = "Profile Logs"
 
     # Read-only view
-    def can_create(self, request):
+    def can_create(self, _request: Request) -> bool:
         return False
 
-    def can_edit(self, request):
+    def can_edit(self, _request: Request) -> bool:
         return False
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "owner_id",
         "owner_qiao_id",
@@ -348,7 +375,7 @@ class UserProfileLogView(ModelView):
         "change_reason",
         "created_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "owner_id",
         "owner_qiao_id",
@@ -361,9 +388,9 @@ class UserProfileLogView(ModelView):
         "created_at",
     ]
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["owner_qiao_id", "field_name"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["owner_qiao_id", "field_name"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "owner_qiao_id",
         "owner_type",
@@ -372,7 +399,7 @@ class UserProfileLogView(ModelView):
         "created_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal log ID"),
         StringField("owner_id", label="Owner ID", help_text="Owner internal ID"),
         StringField("owner_qiao_id", label="Owner Qiao ID", help_text="Owner external ID"),
@@ -392,7 +419,7 @@ class UserProfileLogView(ModelView):
         TextAreaField("old_value", label="Old Value", help_text="Old value"),
         TextAreaField("new_value", label="New Value", help_text="New value"),
         StringField("change_reason", label="Change Reason", help_text="Reason for change"),
-        "created_at",
+        LocalDateTimeField("created_at", label="Created At", help_text="Log creation time"),
     ]
 
 
@@ -400,7 +427,7 @@ class ContactView(BaseRoleAwareModelView):
     """Enhanced Contact view with proper field configuration."""
 
     # Exclude auto-filled fields from create/edit
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "conv_id",  # Auto-generated
         "user_id",  # Auto-filled
@@ -412,7 +439,7 @@ class ContactView(BaseRoleAwareModelView):
         "updated_at",
         "deleted_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "conv_id",  # Auto-generated
         "user_id",  # Auto-filled
@@ -424,14 +451,14 @@ class ContactView(BaseRoleAwareModelView):
         "updated_at",
         "deleted_at",
     ]
-    exclude_fields_from_list = []
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
-    def can_delete(self, request):
+    def can_delete(self, _request: Request) -> bool:
         return False
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["conv_id", "user_qiao_id", "contact_qiao_id", "alias"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["conv_id", "user_qiao_id", "contact_qiao_id", "alias"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "contact_type",
         "alias",
@@ -443,7 +470,7 @@ class ContactView(BaseRoleAwareModelView):
         "deleted_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal contact ID"),
         StringField("conv_id", label="Conversation ID", help_text="Unique conversation identifier"),
         HasOne(
@@ -471,8 +498,12 @@ class ContactView(BaseRoleAwareModelView):
         ),
         StringField("contact_qiao_id", label="Contact Qiao ID", help_text="Contact external ID"),
         StringField("alias", label="Alias", help_text="Custom name for this contact"),
-        StringField("custom_avatar_url", label="Custom Avatar", help_text="Custom avatar URL"),
-        "tags",
+        StringField(
+            "custom_avatar_file_id",
+            label="Custom Avatar File ID",
+            help_text="Media file ID overriding contact avatar (optional)",
+        ),
+        JSONField("tags", label="Tags", help_text="Structured tag metadata (JSON)"),
         TextAreaField("remark", label="Remark", help_text="Additional notes about this contact"),
         IntegerEnumField(
             "is_pinned",
@@ -507,7 +538,7 @@ class ContactView(BaseRoleAwareModelView):
         LocalDateTimeField("deleted_at", label="Deleted At", help_text="Soft delete time"),
     ]
 
-    async def validate(self, request: Request, data: dict[str, Any]) -> None:
+    async def validate(self, _request: Request, data: FormData) -> None:
         """Custom validation for polymorphic contact fields."""
         contact_user = data.get("_contact_user")
         contact_instance = data.get("_contact_instance")
@@ -520,7 +551,7 @@ class ContactView(BaseRoleAwareModelView):
         if contact_user and contact_instance:
             raise FormValidationError({"_contact_user": "Please select only one contact"})
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: FormData, obj: Contact) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
@@ -543,7 +574,7 @@ class ContactView(BaseRoleAwareModelView):
 
         # Validate and handle conv_id generation with reverse contact checking
         session = request.state.session
-        errors = {}
+        errors: dict[str, str] = {}
 
         if obj.user_id and obj.contact_id and obj.contact_type:
             with session.no_autoflush:
@@ -595,7 +626,7 @@ class ContactView(BaseRoleAwareModelView):
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, data: FormData, obj: Contact) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
@@ -623,7 +654,7 @@ class ContactRequestView(ModelView):
     label = "Contact Requests"
     name = "Contact Requests"
 
-    exclude_fields_from_create = [
+    exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "from_qiao_id",  # Auto-filled
         "from_type",  # Auto-inferred from selected from entity
@@ -637,7 +668,7 @@ class ContactRequestView(ModelView):
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_edit = [
+    exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
         "from_qiao_id",  # Auto-filled
         "from_type",  # Auto-inferred from selected from entity
@@ -650,11 +681,11 @@ class ContactRequestView(ModelView):
         "created_at",
         "updated_at",
     ]
-    exclude_fields_from_list = []
+    exclude_fields_from_list: ClassVar[list[str]] = []
 
-    fields_default_sort = [("created_at", True)]
-    searchable_fields = ["from_qiao_id", "to_qiao_id"]
-    sortable_fields = [
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["from_qiao_id", "to_qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
         "id",
         "from_qiao_id",
         "to_qiao_id",
@@ -665,7 +696,7 @@ class ContactRequestView(ModelView):
         "updated_at",
     ]
 
-    fields = [
+    fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal contact request ID"),
         # Polymorphic from fields - select one, from_type is auto-inferred
         HasOne(
@@ -739,18 +770,18 @@ class ContactRequestView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions = ["view", "retry_request"]
+    row_actions: ClassVar[list[str]] = ["view", "retry_request"]
 
     @link_row_action(
         name="retry_request",
         text="Retry",
         icon_class="fa fa-undo",
     )
-    def retry_request_action(self, request: Request, pk: Any) -> str:
+    def retry_request_action(self, _request: Request, pk: int | str) -> str:
         """Trigger retry for hanging requests."""
         return f"/qiao-dash/contact-requests/{pk}/retry"
 
-    async def validate(self, request: Request, data: dict[str, Any]) -> None:
+    async def validate(self, request: Request, data: FormData) -> None:
         """Custom validation for contact requests."""
         from_user = data.get("_from_user")
         from_instance = data.get("_from_instance")
@@ -774,29 +805,29 @@ class ContactRequestView(ModelView):
             raise FormValidationError({"_to_user": "Please select only one to entity"})
 
         # Validate status changes
-        if "status" in data:
-            status = data["status"]
-            valid_statuses = [status.value for status in ContactRequestStatus]
-            if status not in valid_statuses:
+        status_raw = data.get("status")
+        if status_raw is not None:
+            valid_statuses = {status.value for status in ContactRequestStatus}
+            if not isinstance(status_raw, int) or status_raw not in valid_statuses:
                 raise FormValidationError({"status": "Invalid request status"})
 
         return await super().validate(request, data)
 
-    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_create(self, request: Request, data: FormData, obj: ContactRequest) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-fill source as ADMIN for admin panel creations
-        obj.source = ContactRequestSource.ADMIN
+        obj.source = ContactRequestSource.ADMIN.value
 
         # Auto-infer from_type and fill from_id, from_qiao_id
         from_user = data.get("_from_user")
         from_instance = data.get("_from_instance")
 
         if from_user and isinstance(from_user, User):
-            obj.from_type = 1  # USER
+            obj.from_type = ContactType.USER.value
             obj.from_id = from_user.id
             obj.from_qiao_id = from_user.qiao_id
         elif from_instance and isinstance(from_instance, AIInstance):
-            obj.from_type = 2  # AI
+            obj.from_type = ContactType.AI.value
             obj.from_id = from_instance.id
             obj.from_qiao_id = from_instance.qiao_id
 
@@ -805,33 +836,33 @@ class ContactRequestView(ModelView):
         to_instance = data.get("_to_instance")
 
         if to_user and isinstance(to_user, User):
-            obj.to_type = 1  # USER
+            obj.to_type = ContactType.USER.value
             obj.to_id = to_user.id
             obj.to_qiao_id = to_user.qiao_id
         elif to_instance and isinstance(to_instance, AIInstance):
-            obj.to_type = 2  # AI
+            obj.to_type = ContactType.AI.value
             obj.to_id = to_instance.id
             obj.to_qiao_id = to_instance.qiao_id
 
         # Auto-set status to PENDING
-        obj.status = ContactRequestStatus.PENDING
+        obj.status = ContactRequestStatus.PENDING.value
 
         # Get expiration time from config (stored in days)
         expiration_days = await get_config(request.state.session, "contact_request_expiration_days")
         obj.expires_at = datetime.now(UTC) + timedelta(days=int(expiration_days))
 
-    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
+    async def before_edit(self, _request: Request, data: FormData, obj: ContactRequest) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-infer from_type and fill from_id, from_qiao_id
         from_user = data.get("_from_user")
         from_instance = data.get("_from_instance")
 
         if from_user and isinstance(from_user, User):
-            obj.from_type = 1  # USER
+            obj.from_type = ContactType.USER.value
             obj.from_id = from_user.id
             obj.from_qiao_id = from_user.qiao_id
         elif from_instance and isinstance(from_instance, AIInstance):
-            obj.from_type = 2  # AI
+            obj.from_type = ContactType.AI.value
             obj.from_id = from_instance.id
             obj.from_qiao_id = from_instance.qiao_id
 
@@ -840,15 +871,15 @@ class ContactRequestView(ModelView):
         to_instance = data.get("_to_instance")
 
         if to_user and isinstance(to_user, User):
-            obj.to_type = 1  # USER
+            obj.to_type = ContactType.USER.value
             obj.to_id = to_user.id
             obj.to_qiao_id = to_user.qiao_id
         elif to_instance and isinstance(to_instance, AIInstance):
-            obj.to_type = 2  # AI
+            obj.to_type = ContactType.AI.value
             obj.to_id = to_instance.id
             obj.to_qiao_id = to_instance.qiao_id
 
-    def can_delete(self, request: Request) -> bool:
+    def can_delete(self, _request: Request) -> bool:
         """Contact requests should not be deleted for audit purposes."""
         return False
 
@@ -859,16 +890,13 @@ class PendingContactRequestView(CustomView):
     def is_active(self, request: Request) -> bool:
         """Check if current page is pending contact requests page."""
         path = request.scope["path"]
-        # Match the exact path for this custom view
-        try:
-            base_url = request.app.state.ADMIN.base_url
-            full_path = base_url + "/pending-contact-requests"
-            return path == full_path
-        except AttributeError:
-            # Fallback if base_url is not available
-            return "/pending-contact-requests" in path
+        admin_state = getattr(request.app.state, "ADMIN", None)
+        if admin_state and hasattr(admin_state, "base_url"):
+            base_url = cast(str, admin_state.base_url)
+            return path == f"{base_url}/pending-contact-requests"
+        return "/pending-contact-requests" in path
 
-    async def render(self, request: Request, templates):
+    async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         session = request.state.session
         stmt = (
             select(ContactRequest)
@@ -881,14 +909,14 @@ class PendingContactRequestView(CustomView):
         result = await session.execute(stmt)
         pending_requests = result.scalars().all()
 
-        items: list[dict[str, Any]] = []
+        items: list[JSONDict] = []
         type_counter: Counter[str] = Counter()
         for req in pending_requests:
-            detail = req.failure_detail or {}
+            detail = cast(JSONDict, req.failure_detail or {})
             ai_type_id = detail.get("ai_type_id") or detail.get("type_id")
             if ai_type_id is not None:
                 type_counter[str(ai_type_id)] += 1
-            item = {
+            item: JSONDict = {
                 "id": req.id,
                 "from_qiao_id": req.from_qiao_id,
                 "to_qiao_id": req.to_qiao_id,
@@ -901,7 +929,7 @@ class PendingContactRequestView(CustomView):
             }
             items.append(item)
 
-        top_types = [
+        top_types: list[JSONDict] = [
             {"ai_type_id": key, "count": count} for key, count in type_counter.most_common(5)
         ]
 
@@ -919,14 +947,14 @@ class PendingContactRequestView(CustomView):
         )
         success_result = await session.execute(success_stmt)
         failure_result = await session.execute(failure_stmt)
-        overview = {
+        overview: JSONDict = {
             "pending_total": len(items),
             "type_summary": top_types,
             "last24h_success": success_result.scalar_one() or 0,
             "last24h_failed": failure_result.scalar_one() or 0,
         }
 
-        context = {
+        context: dict[str, object] = {
             "request": request,
             "items": items,
             "overview": overview,
@@ -939,7 +967,7 @@ class ContactRequestRetryView(CustomView):
 
     add_to_menu = False
 
-    async def render(self, request: Request, templates):
+    async def render(self, request: Request, _templates: Jinja2Templates) -> Response:
         session = request.state.session
         request_id = request.path_params.get("id")
         if not request_id:
@@ -948,7 +976,7 @@ class ContactRequestRetryView(CustomView):
         try:
             request_id = int(request_id)
         except ValueError as exc:
-            raise FormValidationError({"id": f"Invalid Request ID: {exc}"})
+            raise FormValidationError({"id": f"Invalid Request ID: {exc}"}) from exc
 
         admin_user = request.session.get("admin_user") or {}
         operator = admin_user.get("username")

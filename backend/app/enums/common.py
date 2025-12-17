@@ -89,7 +89,7 @@ class ContactRequestStatus(IntEnum):
     ACCEPTED = 2
     IGNORED = 3  # Ignored (AI decided not to accept, or user actively ignored)
     PROCESSING = 8  # Processing by worker (prevents duplicate processing)
-    FAILED = 9  # Processing failed due to system error  # Processing by worker (prevents duplicate processing)  # Rejected (future: explicit rejection with notification)
+    FAILED = 9  # Processing failed due to system error (future explicit rejection support)
 
 
 class ContactRequestFailureCode(str, Enum):
@@ -216,7 +216,7 @@ class FileStatus(IntEnum):
     """Media file status (media_files.status)"""
 
     ACTIVE = 1
-    INACTIVE = 2
+    PENDING = 2
     DELETED = 3
 
 
@@ -257,9 +257,6 @@ class ProfileModifierType(IntEnum):
     USER = 1
     ADMIN = 2
     SYSTEM = 3
-
-
-# Emoticons Related Enums - Removed (emoticons table renamed to preset_assets)
 
 
 # AI System Related Enums
@@ -353,7 +350,7 @@ class ConversationRole(str, Enum):
 
 
 class ConversationItemContextStatus(IntEnum):
-    """Conversation item context inclusion status (ai_conversation_items.is_excluded_from_context)"""
+    """Context inclusion status (ai_conversation_items.is_excluded_from_context)."""
 
     INCLUDED = 0  # Included in LLM context
     EXCLUDED = 1  # Excluded from LLM context (prompt injection, etc.)

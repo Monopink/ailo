@@ -1,5 +1,5 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { get, post, put } from '../../utils/api';
+import { post, put } from '../../utils/api';
 import {
   ensureCaptchaConfig,
   getCachedCaptchaConfig,
@@ -7,6 +7,7 @@ import {
   showCaptcha,
 } from '../../utils/captcha';
 import { getLogger } from '../../utils/logger';
+import { fetchAccountInfo } from '../../utils/profile';
 
 const logger = getLogger('PhoneManage');
 
@@ -29,11 +30,7 @@ interface ApiError extends Error {
   };
 }
 
-interface AccountInfo {
-  phone: string;
-}
-
-interface PhoneManagePageData extends Says.CaptchaPageData {
+interface PhoneManagePageData extends Ailo.CaptchaPageData {
   pageLayoutData: PageLayoutData;
   currentPhone: string;
   newPhone: string;
@@ -123,8 +120,8 @@ const startCountdown = (page: PhoneManagePageInstance, seconds: number): void =>
   }, 1000);
 };
 
-const asCaptchaPage = (page: PhoneManagePageInstance): Says.CaptchaPageInstance =>
-  page as unknown as Says.CaptchaPageInstance;
+const asCaptchaPage = (page: PhoneManagePageInstance): Ailo.CaptchaPageInstance =>
+  page as unknown as Ailo.CaptchaPageInstance;
 
 Page<PhoneManagePageData, PhoneManagePageCustom>({
   data: {
@@ -173,7 +170,7 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
    */
   async loadAccountInfo() {
     try {
-      const account = await get<AccountInfo>('/user/account');
+      const account = await fetchAccountInfo();
 
       this.setData({
         currentPhone: maskPhone(account.phone),

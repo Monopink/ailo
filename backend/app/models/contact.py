@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -60,8 +60,11 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         String(100), nullable=True, comment="Contact alias/remark name"
     )
 
-    custom_avatar_url: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="Custom avatar URL for this contact"
+    custom_avatar_file_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("media_files.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Custom avatar file ID overriding contact profile avatar",
     )
 
     tags: Mapped[JSONDict | None] = mapped_column(

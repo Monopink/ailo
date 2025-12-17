@@ -98,8 +98,8 @@ interface ChatPageCustom {
   onNavbarBack(): void;
   onNavbarTitleClick(): void;
   onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
-  onMessageReceived(message: Says.MessagePayload): Promise<void>;
-  onTypingReceived(payload: Says.TypingEvent): void;
+  onMessageReceived(message: Ailo.MessagePayload): Promise<void>;
+  onTypingReceived(payload: Ailo.TypingEvent): void;
   showTypingIndicator(): void;
   hideTypingIndicator(): void;
   updateMessageStatus(messageId: string, status: MessageStatus): void;
@@ -136,8 +136,8 @@ const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unkno
   return dataset?.[key];
 };
 
-const ensureMessageService = (): Says.MessageService => {
-  const app = getApp<SaysAppInstance>();
+const ensureMessageService = (): Ailo.MessageService => {
+  const app = getApp<AppInstance>();
   const messageService = app.getMessageService();
   if (!messageService) {
     throw new Error('MESSAGE_SERVICE_DISCONNECTED');
@@ -780,7 +780,7 @@ Page<ChatPageData, ChatPageCustom>({
     }
   },
 
-  async onMessageReceived(message: Says.MessagePayload) {
+  async onMessageReceived(message: Ailo.MessagePayload) {
     try {
       if (message.conv_id !== this.data.convId) {
         return;
@@ -813,7 +813,7 @@ Page<ChatPageData, ChatPageCustom>({
     }
   },
 
-  onTypingReceived(typing: Says.TypingEvent) {
+  onTypingReceived(typing: Ailo.TypingEvent) {
     try {
       if (typing.conv_id !== this.data.convId) {
         return;

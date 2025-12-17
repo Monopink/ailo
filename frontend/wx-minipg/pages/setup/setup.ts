@@ -226,24 +226,32 @@ Page<SetupPageData, SetupPageCustom>({
   },
 
   async loadPresetAvatars() {
+    // Default avatar fallback - always available even if API fails
+    const defaultAvatar: PresetAvatar = {
+      id: 'default',
+      url: getAvatarUrl('assets://default'),
+    };
+
     try {
-      const result = await get<PresetAssetsResponse>('/preset-assets', { asset_type: 1 });
+      const result = await get<PresetAssetsResponse>('/system/preset-assets', { asset_type: 1 });
       const avatars: PresetAvatar[] = (result.assets || []).map((asset) => ({
         id: String(asset.id),
         url: getAvatarUrl(asset.url),
       }));
       this.setData({
-        presetAvatars: avatars,
+        presetAvatars: avatars.length > 0 ? avatars : [defaultAvatar],
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': false,
       });
     } catch (error) {
-      logger.warn('Failed to load preset avatars, using default avatar', { error });
+      logger.warn('Failed to load preset avatars, using default avatar only', {
+        error,
+      });
+      // Always show at least the default avatar, never show empty list
       this.setData({
-        presetAvatars: [],
+        presetAvatars: [defaultAvatar],
         'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '头像加载失败，稍后再试',
+        'pageLayoutData.hasError': false,
       });
     }
   },

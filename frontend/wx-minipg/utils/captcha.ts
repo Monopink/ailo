@@ -1,3 +1,13 @@
+/**
+ * Aliyun Captcha Integration Utility
+ *
+ * CRITICAL PATTERN (do not modify during refactoring):
+ * 1. WXML: Component MUST use `wx:if="{{loadCaptcha}}"`, NO event bindings
+ * 2. Data: Include all CaptchaPageData fields (captchaProvider, captchaSceneId, loadCaptcha, pluginProps)
+ * 3. Display: Call `requirePlugin('AliyunCaptcha').show()`, NOT component methods
+ * 4. Callbacks: Pass via pluginProps in initCaptcha(), NOT WXML bindings
+ */
+
 import { get } from './api';
 import { getLogger } from './logger';
 
@@ -108,6 +118,7 @@ export function initCaptcha(
             success(token);
           },
           fail: (err: unknown) => {
+            // Robust fail handling: retry show once if active
             if (!page._captchaActive) {
               page._captchaRetryCount = 0;
               return;
@@ -175,6 +186,7 @@ export async function showCaptcha(page: CaptchaPageInstance): Promise<void> {
     // ignore
   }
 
+  // If plugin not mounted/ready or missing SceneId, (re)init with cached config then show when ready
   if (!page.data.loadCaptcha || !sceneId || !page._captchaReady) {
     try {
       const cfg = getCachedCaptchaConfig() || (await ensureCaptchaConfig());
@@ -196,6 +208,7 @@ export async function showCaptcha(page: CaptchaPageInstance): Promise<void> {
         },
         fail: () => undefined,
         onReady: () => {
+          // After mounted, show popup
           page._captchaActive = true;
           page._captchaRetryCount = 0;
           try {
@@ -212,13 +225,14 @@ export async function showCaptcha(page: CaptchaPageInstance): Promise<void> {
           }
         },
       });
-      return;
+      return; // Avoid calling show twice
     } catch (error) {
       logger.error('showCaptcha init failed', { error });
       return;
     }
   }
 
+  // Already mounted and ready
   page._captchaActive = true;
   page._captchaRetryCount = 0;
   try {

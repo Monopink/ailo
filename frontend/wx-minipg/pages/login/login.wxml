@@ -81,13 +81,17 @@
 
     <!-- Actions section - Login buttons -->
     <view class="login-actions">
+      <!-- WeChat login with auto-fallback to phone login -->
+      <!-- Note: Requires enterprise certification, will fallback if not available -->
       <t-button
         theme="primary"
         block
+        open-type="getPhoneNumber"
         loading="{{wechatLoading}}"
-        bindtap="handleWeChatLogin">
+        bindgetphonenumber="handleWeChatLogin">
         微信授权登录
       </t-button>
+
       <t-button
         variant="outline"
         block

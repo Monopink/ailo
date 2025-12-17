@@ -20,6 +20,19 @@ type PhoneChangeEvent = WechatMiniprogram.CustomEvent<{
   valid: boolean;
 }>;
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
+type PhoneNumberEvent = WechatMiniprogram.ButtonGetPhoneNumber;
+
+interface AuthUserResponse extends StoredAuthUser {
+  token: string;
+}
+
+interface WechatLoginResponse {
+  success: boolean;
+  needs_phone_binding?: boolean;
+  wechat_code?: string;
+  message?: string;
+  user: AuthUserResponse;
+}
 
 interface PhoneLoginResponse {
   is_new_user: boolean;
@@ -46,12 +59,14 @@ interface ApiError extends Error {
 
 interface PhoneLoginPageData extends Says.CaptchaPageData {
   pageLayoutData: PageLayoutData;
+  loginCode: string;
   phone: string;
   fullPhone: string;
   smsCode: string;
   smsCountdown: number;
   canSendSms: boolean;
   canLogin: boolean;
+  phoneButtonLoading: boolean;
   loginLoading: boolean;
   showCaptcha: boolean;
   captchaScene: string;
@@ -65,15 +80,15 @@ type PhoneLoginPageInstance = WechatMiniprogram.Page.Instance<
 interface PhoneLoginPageCustom {
   _captchaActive?: boolean;
   _captchaReady?: boolean;
+  _captchaRetryCount?: number;
   onCaptchaSuccess(captchaToken: string): Promise<void>;
   onCaptchaFail(error: unknown): void;
+  handleGetPhoneNumber(event: PhoneNumberEvent): Promise<void>;
   handlePhoneChange(event: PhoneChangeEvent): void;
   handleSmsCodeInput(event: InputEvent): void;
   handleSendSms(): Promise<void>;
   requestSmsWithCaptcha(captchaToken: string): Promise<void>;
   handleLogin(): Promise<void>;
-  handleCaptchaVerify(event: WechatMiniprogram.CustomEvent): void;
-  handleCaptchaClose(): void;
   onRetry(): void;
 }
 
@@ -142,15 +157,22 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
     pageLayoutData: createPageLayoutData({
       hasFooter: true,
     }),
+    loginCode: '',
     phone: '',
     fullPhone: '',
     smsCode: '',
     smsCountdown: 0,
     canSendSms: false,
     canLogin: false,
+    phoneButtonLoading: false,
     loginLoading: false,
     showCaptcha: false,
     captchaScene: '',
+    // CaptchaPageData fields - required for Aliyun captcha plugin
+    captchaProvider: undefined,
+    captchaSceneId: undefined,
+    loadCaptcha: false,
+    pluginProps: undefined,
   },
 
   onRetry() {
@@ -161,6 +183,20 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
 
   async onLoad() {
     logger.info('Phone login page loaded');
+
+    // Silently obtain login_code for WeChat one-click login (valid for 5 minutes)
+    try {
+      const { code } = await wx.login();
+      if (code) {
+        this.setData({ loginCode: code });
+        logger.info('Login code obtained for phone-login page', { code });
+      } else {
+        logger.warn('Failed to obtain login code on phone-login page load');
+      }
+    } catch (error) {
+      logger.error('Failed to obtain login code', { error });
+    }
+
     try {
       const cached = getCachedCaptchaConfig();
       const config = cached ?? (await ensureCaptchaConfig());
@@ -188,6 +224,67 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
       showToast('验证服务错误，请稍后再试');
     }
     (this as PhoneLoginPageCustom)._captchaActive = false;
+  },
+
+  async handleGetPhoneNumber(event) {
+    if (event.detail.errMsg !== 'getPhoneNumber:ok') {
+      logger.warn('User denied phone authorization');
+      showToast('需要手机号授权才能继续');
+      return;
+    }
+
+    const phoneCode = event.detail.code;
+    logger.info('Got phone code for one-click login', { phoneCode });
+
+    try {
+      this.setData({ phoneButtonLoading: true });
+
+      // Use pre-fetched login_code
+      const loginCode = this.data.loginCode;
+      if (!loginCode) {
+        throw new Error('Login code not available, please try again');
+      }
+
+      logger.info('Using pre-fetched login code for one-click login', { loginCode });
+
+      const result = await post<WechatLoginResponse>(
+        '/auth/wechat/login',
+        {
+          login_code: loginCode,
+          phone_code: phoneCode,
+        },
+        { auth: false }
+      );
+
+      // Check if phone binding is needed (international phone)
+      if (!result.success && result.needs_phone_binding) {
+        logger.info('International phone detected, switch to manual input');
+        this.setData({ phoneButtonLoading: false });
+        showToast(result.message || '请使用手机号和验证码登录');
+        return;
+      }
+
+      // Login successful
+      await authService.login(result.user.token, result.user);
+      logger.info('WeChat one-click login success', { user: result.user });
+
+      this.setData({ phoneButtonLoading: false });
+
+      // Check if user needs to complete profile setup
+      if (!result.user.nickname) {
+        void wx.redirectTo({ url: '/pages/setup/setup' });
+        return;
+      }
+
+      // Load contacts and init messaging
+      await loadContacts();
+      await initMessaging();
+      void wx.switchTab({ url: '/pages/index/index' });
+    } catch (error) {
+      logger.error('Phone authorization failed', { error });
+      this.setData({ phoneButtonLoading: false });
+      showToast('操作失败，请重试');
+    }
   },
 
   handlePhoneChange(event) {
@@ -301,17 +398,5 @@ Page<PhoneLoginPageData, PhoneLoginPageCustom>({
       this.setData({ loginLoading: false });
       showToast(normalizeErrorMessage(error, '登录失败'));
     }
-  },
-
-  handleCaptchaVerify(event) {
-    const token = event.detail?.token as string | undefined;
-    if (token) {
-      void this.onCaptchaSuccess(token);
-    }
-  },
-
-  handleCaptchaClose() {
-    (this as PhoneLoginPageCustom)._captchaActive = false;
-    this.setData({ showCaptcha: false });
   },
 });

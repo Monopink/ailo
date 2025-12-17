@@ -37,6 +37,24 @@
   flex-direction: column;
 }
 
+.phone-login-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin: var(--space-sm) 0;
+}
+
+.phone-login-divider__line {
+  flex: 1;
+  height: var(--border-width-thin);
+  background-color: var(--color-border-light);
+}
+
+.phone-login-divider__text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
 /* Phone input group with country code selector */
 .phone-input-group {
   display: flex;

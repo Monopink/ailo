@@ -142,10 +142,11 @@ Page<PhoneManagePageData, PhoneManagePageCustom>({
     sending: false,
     saving: false,
     submitButtonText: '确认修改',
-    // Aliyun captcha
+    // CaptchaPageData fields - required for Aliyun captcha plugin
+    captchaProvider: undefined,
+    captchaSceneId: '',
     loadCaptcha: false,
     pluginProps: {},
-    captchaSceneId: '',
   },
 
   async onLoad() {

@@ -134,7 +134,7 @@ function handleCancelRedirect(redirectUrl?: string | null): void {
   if (pages.length > 1) {
     void wx.navigateBack();
   } else {
-    void wx.reLaunch({ url: '/pages/welcome/welcome' });
+    void wx.reLaunch({ url: '/pages/login/login' });
   }
 }
 

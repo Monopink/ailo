@@ -13,6 +13,8 @@
     </view>
 
     <view class="phone-bind-options">
+      <!-- WeChat phone retry button -->
+      <!-- Note: Requires enterprise certification, will fail if not available -->
       <t-button
         theme="primary"
         block
@@ -55,12 +57,10 @@
           </t-button>
         </view>
 
-        <aliyun-captcha
-          wx:if="{{showCaptcha}}"
-          class="phone-bind-captcha"
-          scene="{{captchaScene}}"
-          bind:onVerify="handleCaptchaVerify"
-          bind:onClose="handleCaptchaClose" />
+        <!-- Aliyun Captcha Plugin (mounted only when needed) -->
+        <view wx:if="{{loadCaptcha}}">
+          <aliyun-captcha id="aliyun-captcha" props="{{pluginProps}}" />
+        </view>
       </view>
 
       <!-- Submit button - Inline as part of form -->

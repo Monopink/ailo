@@ -60,6 +60,7 @@ interface ApiError extends Error {
 interface PhoneBindPageData extends Says.CaptchaPageData {
   pageLayoutData: PageLayoutData;
   wechatCode: string;
+  loginCode: string;
   headerSubtitle: string;
   phone: string;
   fullPhone: string;
@@ -81,6 +82,7 @@ type PhoneBindPageInstance = WechatMiniprogram.Page.Instance<
 interface PhoneBindPageCustom {
   _captchaActive?: boolean;
   _captchaReady?: boolean;
+  _captchaRetryCount?: number;
   onCaptchaSuccess(captchaToken: string): Promise<void>;
   onCaptchaFail(error: unknown): void;
   handleGetPhoneNumber(event: PhoneNumberEvent): Promise<void>;
@@ -89,8 +91,6 @@ interface PhoneBindPageCustom {
   handleSendSms(): Promise<void>;
   requestSmsWithCaptcha(captchaToken: string): Promise<void>;
   handleBind(): Promise<void>;
-  handleCaptchaVerify(event: WechatMiniprogram.CustomEvent): void;
-  handleCaptchaClose(): void;
   onRetry(): void;
 }
 
@@ -129,16 +129,6 @@ const hasCaptchaRequirement = (error: ApiError): boolean => {
   return code === 'CAPTCHA_REQUIRED';
 };
 
-const normalizeErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  return fallback;
-};
-
 const loadContacts = async (): Promise<void> => {
   try {
     const remoteContacts = await fetchAllContactsFromApi();
@@ -160,6 +150,7 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
       hasFooter: true,
     }),
     wechatCode: '',
+    loginCode: '',
     headerSubtitle: '绑定手机号以完成登录',
     phone: '',
     fullPhone: '',
@@ -171,6 +162,11 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
     bindLoading: false,
     showCaptcha: false,
     captchaScene: '',
+    // CaptchaPageData fields - required for Aliyun captcha plugin
+    captchaProvider: undefined,
+    captchaSceneId: undefined,
+    loadCaptcha: false,
+    pluginProps: undefined,
   },
 
   onRetry() {
@@ -189,6 +185,19 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
       wechatCode,
       headerSubtitle: subtitle,
     });
+
+    // Silently obtain login_code for WeChat retry (valid for 5 minutes)
+    try {
+      const { code } = await wx.login();
+      if (code) {
+        this.setData({ loginCode: code });
+        logger.info('Login code obtained for phone-bind page', { code });
+      } else {
+        logger.warn('Failed to obtain login code on phone-bind page load');
+      }
+    } catch (error) {
+      logger.error('Failed to obtain login code', { error });
+    }
 
     try {
       const cached = getCachedCaptchaConfig();
@@ -227,29 +236,41 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
     }
 
     const phoneCode = event.detail.code;
-    logger.info('Got phone code', { phoneCode });
+    logger.info('Got phone code for retry', { phoneCode });
 
     try {
       this.setData({ phoneButtonLoading: true });
 
+      // Use pre-fetched login_code
+      const loginCode = this.data.loginCode;
+      if (!loginCode) {
+        throw new Error('Login code not available, please try again');
+      }
+
+      logger.info('Using pre-fetched login code for retry', { loginCode });
+
       const result = await post<WechatLoginResponse>(
         '/auth/wechat/login',
         {
-          login_code: this.data.wechatCode,
+          login_code: loginCode,
           phone_code: phoneCode,
         },
         { auth: false }
       );
 
       if (!result.success && result.needs_phone_binding) {
-        this.setData({ phoneButtonLoading: false });
-        showToast(result.message || '请使用手机号验证码绑定');
-        logger.info('Phone binding still required');
+        // Update wechat_code with new one from backend
+        this.setData({
+          phoneButtonLoading: false,
+          wechatCode: result.wechat_code || this.data.wechatCode,
+        });
+        showToast(result.message || '仍然是国际手机号，请使用短信验证');
+        logger.info('Phone binding still required after retry');
         return;
       }
 
       await authService.login(result.user.token, result.user);
-      logger.info('Login success', { user: result.user });
+      logger.info('WeChat login success after retry', { user: result.user });
 
       this.setData({ phoneButtonLoading: false });
 
@@ -264,7 +285,7 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
     } catch (error) {
       logger.error('Phone authorization failed', { error });
       this.setData({ phoneButtonLoading: false });
-      showToast(normalizeErrorMessage(error, '授权失败'));
+      showToast('操作失败，请重试');
     }
   },
 
@@ -301,9 +322,9 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
       const apiError = error as ApiError;
       if (!hasCaptchaRequirement(apiError)) {
         if (apiError.statusCode === 429) {
-          showToast(normalizeErrorMessage(apiError, '发送过于频繁，请稍后再试'));
+          showToast('发送过于频繁，请稍后再试');
         } else {
-          showToast(normalizeErrorMessage(apiError, '发送失败'));
+          showToast('发送失败，请重试');
         }
         return;
       }
@@ -328,7 +349,7 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
       showToast('验证码已发送', 'success');
     } catch (error) {
       logger.error('Send SMS failed', { error });
-      showToast(normalizeErrorMessage(error, '发送失败'));
+      showToast('发送失败，请重试');
     }
   },
 
@@ -378,19 +399,7 @@ Page<PhoneBindPageData, PhoneBindPageCustom>({
     } catch (error) {
       logger.error('Phone bind failed', { error });
       this.setData({ bindLoading: false });
-      showToast(normalizeErrorMessage(error, '绑定失败'));
+      showToast('绑定失败，请重试');
     }
-  },
-
-  handleCaptchaVerify(event) {
-    const token = event.detail?.token as string | undefined;
-    if (token) {
-      void this.onCaptchaSuccess(token);
-    }
-  },
-
-  handleCaptchaClose() {
-    (this as PhoneBindPageCustom)._captchaActive = false;
-    this.setData({ showCaptcha: false });
   },
 });

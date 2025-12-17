@@ -136,9 +136,9 @@ const appOptions: WechatMiniprogram.App.Options<SaysAppInstance> = {
 
       const currentPage = getActivePage();
 
-      if (currentPage?.route !== 'pages/welcome/welcome') {
-        logger.info('User not on welcome page, redirecting');
-        void wx.reLaunch({ url: '/pages/welcome/welcome' });
+      if (currentPage?.route !== 'pages/login/login') {
+        logger.info('User not on login page, redirecting');
+        void wx.reLaunch({ url: '/pages/login/login' });
       }
     } catch (error) {
       const err = normalizeError(error);

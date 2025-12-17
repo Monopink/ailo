@@ -13,6 +13,25 @@
     </view>
 
     <view class="phone-login-form">
+      <!-- WeChat one-click phone login button -->
+      <!-- Note: Requires enterprise certification, will fail if not available -->
+      <view class="phone-login-form__field">
+        <t-button
+          theme="primary"
+          block
+          open-type="getPhoneNumber"
+          loading="{{phoneButtonLoading}}"
+          bindgetphonenumber="handleGetPhoneNumber">
+          一键获取手机号
+        </t-button>
+      </view>
+
+      <view class="phone-login-divider">
+        <view class="phone-login-divider__line"></view>
+        <text class="phone-login-divider__text">或</text>
+        <view class="phone-login-divider__line"></view>
+      </view>
+
       <!-- Phone input with country code selector -->
       <view class="phone-login-form__field">
         <phone-input
@@ -40,12 +59,10 @@
         </t-button>
       </view>
 
-      <aliyun-captcha
-        wx:if="{{showCaptcha}}"
-        class="phone-login-captcha"
-        scene="{{captchaScene}}"
-        bind:onVerify="handleCaptchaVerify"
-        bind:onClose="handleCaptchaClose" />
+      <!-- Aliyun Captcha Plugin (mounted only when needed) -->
+      <view wx:if="{{loadCaptcha}}">
+        <aliyun-captcha id="aliyun-captcha" props="{{pluginProps}}" />
+      </view>
 
       <!-- Submit button - Inline as part of form -->
       <view class="phone-login-form__submit">

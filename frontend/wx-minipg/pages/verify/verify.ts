@@ -116,11 +116,13 @@ Page<VerifyPageData, VerifyPageCustom>({
     cooldown: 0,
     sending: false,
     verifying: false,
-    loadCaptcha: false,
-    pluginProps: {},
-    captchaSceneId: '',
     callbackPage: '',
     callbackParams: {},
+    // CaptchaPageData fields - required for Aliyun captcha plugin
+    captchaProvider: undefined,
+    captchaSceneId: '',
+    loadCaptcha: false,
+    pluginProps: {},
   },
 
   async onLoad(options: Record<string, string | undefined>) {

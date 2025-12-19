@@ -34,7 +34,7 @@
       "category": "1",
       "nickname": "小萌",
       "gender": 2,
-      "avatar_url": "assets://8923",
+      "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
       "bio": "喜欢音乐和电影",
       "tags": ["音乐", "电影"],
       "region": "上海"
@@ -51,7 +51,7 @@
   - `category` (string) - 分类
   - `nickname` (string) - 昵称
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-  - `avatar_url` (string) - 头像URL
+  - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `bio` (string) - 个人简介
   - `tags` (array) - 标签列表
   - `region` (string) - 地区
@@ -109,7 +109,7 @@
   "qiao_id": "qiao_abc123",
   "nickname": "小乔",
   "gender": 2,
-  "avatar_url": "assets://1234",
+  "avatar_url": "https://cdn.example.com/personas/qiao_abc123.webp",
   "bio": "喜欢和大家聊天",
   "region": "北京",
   "category": "1"
@@ -121,7 +121,7 @@
 - `qiao_id` (string) - 联系人的qiao_id
 - `nickname` (string) - 昵称
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-- `avatar_url` (string) - 头像URL
+- `avatar_url` (string) - 动态生成的头像 CDN URL
 - `bio` (string) - 个人简介
 - `region` (string) - 地区
 - `category` (string) - 分类

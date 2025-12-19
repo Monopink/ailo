@@ -16,7 +16,7 @@
 - [API文档](../docs/api/)
 - [数据字典](../docs/data-dict/)
 - [迁移操作](../docs/tech/MIGRATION.md)
-- [Doubao文档](../references/doubao-docs/) - 特别提示：用户可以联系到Doubao文档专家，如果有不确定的问题请报告提问，请勿在一知半解状态实施
+- [Doubao文档](../references/doubao-docs/) - 特别提示：用户可以联系到Doubao文档专员，如果有不确定的问题请报告提问，请勿在一知半解状态实施
 - [Leancloud文档](../references/leancloud-docs/)
 - [管理后台开发规范](app/admin/AGENTS.md) - 修改 `app/admin/` 模块前必读
 
@@ -96,8 +96,8 @@ models (数据模型)
 ## Docker 环境
 
 **容器信息** (开发环境):
-- 数据库容器: postgres_db_container (数据库名: says, 用户名: says_user, 端口: 5432)
-- 后端容器: backend_container (端口: 8000, 代码热更新: 已启用)
+- 数据库容器: postgres (数据库名: ailo, 用户名: ailo_user, 端口: 5432)
+- 后端容器: backend (端口: 8000, 代码热更新: 已启用)
 - 工作目录: `deployment/`
 - 配置文件: `docker-compose.yml`
 - 环境变量: `.env` (项目根目录)
@@ -108,10 +108,8 @@ models (数据模型)
 - 函数必须有完整类型注解 (参数和返回值)
 - 禁止使用 `dict[str, Any]` 作为函数参数或返回值
 - **严格禁止使用 `Any` 类型** - mypy 会报错 `[explicit-any]`
-- 如果确实需要 `Any` (框架限制/SDK 未定型等), 必须:
-  1. 立即向用户报告并说明原因，用户同意方案再实施下面步骤
-  2. 添加 `# type: ignore[misc]` 注释
-  3. 在同行或上一行注释说明原因
+- 如果确实需要 `Any` (框架限制/SDK 未定型等), 必须立即向用户报告并说明原因，用户同意方案再增加忽略和注释说明
+- 如果要忽略检查，在 pyproject.toml 中增加规则，非特殊情况不进行级忽略
 - 使用项目定义的类型别名 (从 [type_defs](backend/app/type_defs/__init__.py) 导入):
   - JSON 类型: `JSONDict`, `JSONValue`, `JSONArray`, `JSONPrimitive`
   - 完整列表见 `backend/app/type_defs/__init__.py`
@@ -168,6 +166,24 @@ models (数据模型)
 # 完整系统验证（提交前运行）
 ./scripts/full_check.sh
 ```
+
+### 改进策略 (临时)
+
+**渐进式修复原则**:
+- 在修改代码时，顺便修复相关的 ruff 问题
+- 修改文件时，运行 `ruff check --fix <文件>` 自动修复
+- 手动修复无法自动处理的问题
+- 不使用 `# noqa` 或 `type: ignore` 绕过检查
+- 优先修复高优先级问题
+- 提交前确保修改的文件通过 ruff 检查
+- **永远不要做只是为了通过检查的改动**
+- **虽然修复范围只在改动的文件中，但是如果问题根源涉及其他文件，必须将问题相关文件一同修复，确保问题根源解决，而不是在改动的文件中打补丁**
+
+### mypy 临时策略
+
+- pre-commit 中的 mypy 目前只针对暂存文件执行，并附带 `--follow-imports=skip` 来避免历史报错阻塞提交
+- 每个迭代至少手动运行一次 `mypy --config-file=pyproject.toml backend`，记录全局错误并安排清理任务
+- 当 `backend` 目录下的类型错误清零后，需恢复全量检查（`pass_filenames: false` 且在 args 末尾追加 `backend`，同时移除 `--follow-imports=skip`）
 
 ### 单独工具
 

@@ -1,1 +1,1 @@
-"""Test suite for the Says backend application."""
+"""Test suite for the backend application."""

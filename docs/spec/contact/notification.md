@@ -132,7 +132,7 @@
       "request_id": "req_123",
       "from_qiao_id": "qiao_user001",
       "from_nickname": "小明",
-      "from_avatar": "assets://1234",
+      "from_avatar": "https://cdn.example.com/avatars/from.webp",
       "message": "你好，我想加你为好友"
     }
   }

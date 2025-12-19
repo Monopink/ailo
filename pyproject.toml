@@ -116,15 +116,37 @@ ignore = [
 "backend/app/services/contact/service.py" = [
   "ANN401", # Allow Any for dynamic tag structures
 ]
-# Admin views - allow FastAPI patterns and higher complexity
+# Admin fields - Starlette Admin framework signature requirements
+"backend/app/admin/fields.py" = [
+  "ANN401", # Starlette Admin requires Any in field signatures (framework limitation)
+]
+# Admin base views - Starlette Admin framework signature requirements
+"backend/app/admin/views/base.py" = [
+  "ANN401", # Starlette Admin requires Any in field/view signatures (framework limitation)
+  "ARG002", # Framework requires request parameter in permission methods
+]
+# Admin views - Starlette Admin framework requirements and config attributes
 "backend/app/admin/views/**/*.py" = [
   "B008", # Allow Depends() in function defaults (FastAPI pattern)
   "PLR0912", # Allow higher branch complexity for admin views
   "PLR0915", # Allow higher statement count for admin views
+  "ANN401", # Starlette Admin requires Any in view method signatures (framework limitation)
+  "ARG002", # Framework requires unused parameters in hooks/permissions
+  "RUF012", # Starlette Admin config lists are class-level, not ClassVar
+  "E501", # Allow long lines in help_text for better readability
+]
+# LeanCloud service - utility function validates config dict values of unknown type
+"backend/app/services/message/providers/leancloud/service.py" = [
+  "ANN401", # _get_non_empty_str validates config dict values (can be any type)
 ]
 # Message processing - allow random for non-security timing/probability logic
 "backend/app/services/message/processing/*.py" = [
   "S311", # Allow random module for message timing simulation and reply probability
+]
+# Admin data queries - safe parameterized SQL with fixed string fragments
+"backend/app/services/admin/data/style_dimensions.py" = [
+  "S608", # Allow f-string SQL with parameterized values (reviewed for safety)
+  "E501", # Allow long SQL lines for readability
 ]
 
 [tool.ruff.lint.pylint]

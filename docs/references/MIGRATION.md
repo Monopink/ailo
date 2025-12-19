@@ -53,7 +53,7 @@ backend/
 # PostgreSQL 连接设置
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_DATABASE=says_db
+POSTGRES_DATABASE=ailo_db
 POSTGRES_USER=user
 POSTGRES_PASSWORD=password
 ```

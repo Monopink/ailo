@@ -2,16 +2,20 @@
 
 ## 接口列表
 
-- [发送短信验证码](#发送短信验证码) - `POST /api/v1/auth/send-sms`
-- [手机号验证](#手机号验证) - `POST /api/v1/auth/phone`
-- [完成注册](#完成注册) - `POST /api/v1/auth/complete-registration`
+- [发送短信验证码（暂不开放）](#发送短信验证码暂不开放) - `POST /api/v1/auth/send-sms`
+- [手机号登录（暂不开放）](#手机号登录暂不开放) - `POST /api/v1/auth/phone`
 - [微信登录](#微信登录) - `POST /api/v1/auth/wechat/login`
+- [微信手机号更新](#微信手机号更新) - `POST /api/v1/auth/wechat/refresh-phone`
 - [账号密码登录](#账号密码登录) - `POST /api/v1/auth/login`
 - [退出登录](#退出登录) - `POST /api/v1/auth/logout`
 
+> **MVP 说明**：小程序只开放“微信授权登录 + 获取手机号”链路；短信验证码与纯手机号登录接口暂不对外，仅保留以便未来 App/H5 直接复用。
+
 ---
 
-## 发送短信验证码
+## 发送短信验证码（暂不开放）
+
+> 仅保留给未来多端使用；当前小程序不会发起短信验证码请求，也不会展示相关 UI。
 
 ### 基本信息
 
@@ -77,21 +81,22 @@
 
 ---
 
-## 手机号验证
+## 手机号登录（暂不开放）
+
+> 统一手机号登录/注册入口目前仅为 App/H5 预留。小程序不会调用该接口，也不会通过短信验证码兜底。
 
 ### 基本信息
 
 - **路径**: `POST /api/v1/auth/phone`
 - **认证**: 无需认证
-- **说明**: 统一登录注册入口，用户无需区分登录和注册
+- **说明**: 统一登录注册入口，所有用户都会在此接口完成账号创建与登录
 
 ### 请求参数
 
 ```json
 {
   "phone": "+8613800138000",
-  "sms_code": "123456",
-  "wechat_code": "wx_code_for_binding"
+  "sms_code": "123456"
 }
 ```
 
@@ -105,43 +110,29 @@
 - `sms_code` (string, 必填)
   - 6位短信验证码
 
-- `wechat_code` (string, 可选)
-  - 微信绑定场景需要
-  - 从微信登录接口获取的临时code
-
-### 成功响应 - 已注册用户 (200)
+### 成功响应 (200)
 
 ```json
 {
-  "is_new_user": false,
   "token": "jwt_token_here",
+  "needs_profile_setup": true,
   "user": {
     "qiao_id": "qiao_abc123",
     "phone": "138******00",
     "nickname": "小雨",
     "gender": 2,
-    "avatar_url": "assets://1234",
+    "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp",
     "bio": "个人简介"
   }
 }
 ```
 
-### 成功响应 - 未注册用户 (200)
-
-```json
-{
-  "is_new_user": true,
-  "verified_phone_token": "temp_token_xxx",
-  "phone": "+8613800138000"
-}
-```
-
 **字段说明**:
 
-- `is_new_user` (boolean) - 是否为新用户
-- `token` (string) - JWT token（已注册用户）
-- `verified_phone_token` (string) - 临时凭证（未注册用户），有效期5分钟
-- `user` (object) - 用户信息（已注册用户）
+- `token` (string) - JWT token，用于后续所有需要认证的接口
+- `needs_profile_setup` (boolean) - 是否需要跳转到 Setup 页面完善资料；新创建的账号默认为 true
+- `user` (object) - 当前用户资料
+  - `avatar_url` 由服务器基于 `avatar_file_id` 动态生成（CDN URL），不会在数据库中以明文字段保存
 
 ### 错误响应
 
@@ -156,98 +147,13 @@
 
 ### 业务说明
 
-**统一登录注册入口**:
+- **登录注册合一**：手机号首次登录会自动创建 `users` 与 `profiles` stub，并立即返回 JWT；之后再次登录将复用同一个账号。
+- **资料补全标记**：`needs_profile_setup=true` 时客户端需要强制跳转到 Setup 页面，通过 `PUT /api/v1/user/profile` 填写昵称、头像等信息，完成后该标记会被清零。
+- **客户端约束**：MVP 阶段仅保留该接口，不提供短信登录 UI，也不允许从微信授权链路跳转至此接口兜底。
 
-- 用户无需区分登录和注册，系统自动判断
-- 已注册用户：直接返回token和用户信息，前端保存token后跳转到聊天列表
-- 未注册用户：返回临时凭证，前端跳转到资料填写页
+## 完成注册（410 Gone）
 
-**微信绑定场景**:
-
-- 当微信登录返回国际手机号时，需要绑定+86手机号
-- 此时传入 `wechat_code` 参数
-- 用户创建时会自动绑定微信openid
-
----
-
-## 完成注册
-
-### 基本信息
-
-- **路径**: `POST /api/v1/auth/complete-registration`
-- **认证**: 需要 verified_phone_token
-- **说明**: 填写资料完成注册，注册和填写资料是整体事务
-
-### 请求参数
-
-```json
-{
-  "verified_phone_token": "temp_token_xxx",
-  "nickname": "小雨",
-  "gender": 2,
-  "bio": "个人简介",
-  "avatar_url": "assets://1234"
-}
-```
-
-**字段说明**:
-
-- `verified_phone_token` (string, 必填)
-  - 从手机号验证接口获取的临时凭证
-  - 有效期5分钟
-
-- `nickname` (string, 必填)
-  - 昵称
-  - 2-20字符，支持中英文、数字、下划线
-
-- `gender` (integer, 可选)
-  - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-
-- `bio` (string, 可选)
-  - 个人简介
-  - 最多200字符
-
-- `avatar_url` (string, 可选)
-  - 头像URL
-  - 使用默认头像资源标识符（如 `assets://1234`）
-
-### 成功响应 (200)
-
-```json
-{
-  "token": "jwt_token_here",
-  "user": {
-    "qiao_id": "qiao_abc123",
-    "phone": "138******00",
-    "nickname": "小雨",
-    "gender": 2,
-    "avatar_url": "assets://1234",
-    "bio": "个人简介"
-  }
-}
-```
-
-### 错误响应
-
-**400 Bad Request**:
-
-- `"临时凭证无效"` - verified_phone_token 无效或已过期
-- `"昵称格式错误"` - 昵称不符合要求
-
-**500 Internal Server Error**:
-
-- `"系统错误"` - 服务器内部错误
-
-### 业务说明
-
-**注册流程**:
-
-1. 只有完成资料填写才会创建用户
-2. 如果用户在资料填写页取消，临时凭证会自动过期，不会创建用户
-3. 注册成功后自动登录，返回JWT token
-4. 如果手机号验证时传入了 `wechat_code`，会自动绑定微信openid
-
----
+> 旧版 `POST /api/v1/auth/complete-registration` 依赖 `verified_phone_token` 的流程已废弃。调用该接口将返回 **410 Gone**，客户端必须改为在 `PUT /api/v1/user/profile` 中补全资料。
 
 ## 微信登录
 
@@ -276,65 +182,116 @@
   - 小程序 `getPhoneNumber` 返回的code
   - 用于获取手机号
 
-### 成功响应 - +86手机号 (200)
+### 成功响应 (200)
 
 ```json
 {
   "success": true,
+  "token": "jwt_token_here",
+  "needs_profile_setup": false,
   "user": {
     "qiao_id": "qiao_abc123",
     "phone": "138******00",
     "nickname": "小雨",
     "gender": 2,
-    "avatar_url": "assets://1234",
-    "token": "jwt_token_here"
+    "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp"
   }
-}
-```
-
-### 成功响应 - 国际手机号 (200)
-
-```json
-{
-  "success": false,
-  "needs_phone_binding": true,
-  "wechat_code": "wx_code_for_binding",
-  "message": "手机号格式无效，请绑定手机号"
 }
 ```
 
 **字段说明**:
 
-- `success` (boolean) - 是否登录成功
-- `needs_phone_binding` (boolean) - 是否需要绑定手机号
-- `wechat_code` (string) - 用于后续绑定手机号的临时code，有效期5分钟
+- `success` (boolean) - 登录是否成功
+- `token` (string) - JWT token
+- `needs_profile_setup` (boolean) - 是否需要跳转到资料设置页
+- `user` (object) - 当前用户信息
+- `message` (string, 可选) - 失败或提示信息（成功时通常为空）
 
 ### 错误响应
 
 **400 Bad Request**:
 
-- `"微信授权失败"` - 微信接口调用失败
+- "微信授权失败" - 微信接口调用失败
+- "暂不支持国际手机号" - 微信返回的手机号不是中国大陆号码
+- "需要授权手机号才能登录" - 用户拒绝 `getPhoneNumber`
+- "手机号格式无效" - 微信返回的手机号格式异常
+- "该微信已绑定其它账号" - openid 已绑定其他用户
+
+**409 Conflict**:
+
+- "该微信已绑定其它账号" - openid 与已有账号冲突
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- "微信服务异常,请稍后再试" - 微信 API 异常
+- "系统错误" - 服务器内部错误
 
 ### 业务说明
 
-**后端流程**:
+- 该接口一次按钮点击内同时完成 `wx.login()`（获取 `login_code`）和 `getPhoneNumber`（获取 `phone_code`），任何一步失败都会导致整体失败。
+- 服务端会校验 `phone_code` 返回的手机号，并只接受中国大陆（+86）号码；国际手机号直接返回 400。
+- 成功登录后会自动创建/更新 `users` 与 `profiles`，并返回 `token` 与 `needs_profile_setup` 标记；标记为 `true` 时客户端必须跳转资料设置页并调用 `PUT /api/v1/user/profile` 完成补充。
+- 登录路径只允许微信授权链路，用户拒绝授权时在登录页提示“需要授权手机号才能使用本应用”。
+- 开发/测试可以在 `system_configs` 中设置 `wechat_phone_mock_enabled=true` 与 `wechat_phone_mock_number`（仅填写数字，例如 `13812341234`），当使用微信提供的虚拟手机号（12066600001-12066600004）调试时，后端会自动替换；生产环境内该配置不会生效。参考：[虚拟账号手机号 Mock 方案](https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/phone_mock.html)。
 
-1. 使用 `login_code` 调用微信 code2session 接口获取openid
-2. 使用 `phone_code` 调用微信 getPhoneNumber 接口获取手机号
-3. 检查手机号国家代码:
-   - 如果是+86手机号：查找或创建用户，返回用户信息和JWT token
-   - 如果是国际手机号：返回 `needs_phone_binding=true`，前端引导用户使用手机号验证接口
+## 微信手机号更新
 
-**与手机号验证接口的关系**:
+> 已登录用户通过微信授权重新绑定手机号。
 
-- 当返回 `needs_phone_binding=true` 时，前端应该调用 `POST /api/v1/auth/phone` 接口
-- 并传入 `wechat_code` 参数进行绑定
+### 基本信息
 
----
+- **路径**: `POST /api/v1/auth/wechat/refresh-phone`
+- **认证**: Bearer Token（必需）
+
+### 请求参数
+
+```json
+{
+  "login_code": "wx_login_code",
+  "phone_code": "wx_phone_code"
+}
+```
+
+### 成功响应 (200)
+
+```json
+{
+  "phone": "138******00",
+  "user": {
+    "qiao_id": "qiao_abc123",
+    "phone": "138******00",
+    "nickname": "小雨",
+    "gender": 2,
+    "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp"
+  }
+}
+```
+
+### 错误响应
+
+**400 Bad Request**:
+
+- "微信授权失败" - 微信接口调用失败
+- "暂不支持国际手机号" - 微信返回的手机号不是中国大陆号码
+- "手机号格式无效" - 微信返回的手机号格式异常
+
+**409 Conflict**:
+
+- "该手机号已被使用" - 新手机号已被其他账号占用
+- "该微信已绑定其它账号" - code2session 返回的 openid 与当前账号不匹配
+
+**500 Internal Server Error**:
+
+- "系统错误" - 服务器内部错误
+
+### 业务说明
+
+- 客户端需重新调用 `wx.login()` 与 `getPhoneNumber` 获取 `login_code`、`phone_code`；
+- 接口会验证 openid 与当前账号的绑定关系，不允许交叉绑定；
+- 与登录接口相同，`login_code` 与 `phone_code` 必须同时有效；用户拒绝授权时直接在前端提示“需要授权手机号才能更新”。
+- 更新成功后返回脱敏手机号及最新的用户信息，等同于重新登录后的 `user` 结构；
+- 该接口是 MVP 阶段唯一的手机号更新方式，不需要短信验证码。
+- 如果在开发者工具中使用虚拟账号，可复用 `system_configs` 的 `wechat_phone_mock_enabled` 与 `wechat_phone_mock_number`（仅填写数字）配置，让 1206660000x 号码自动替换为指定的中国大陆手机号以便调试。
 
 ## 账号密码登录（规划中）
 

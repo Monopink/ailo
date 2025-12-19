@@ -161,26 +161,20 @@ class BaseRoleAwareModelView(ModelView):
     - VIEWER: read-only (no create/edit/delete)
     """
 
-    def can_create(self, request: Request) -> bool:  # type: ignore[override]
+    def can_create(self, request: Request) -> bool:
         role = _get_admin_role(request)
         if role is None:
             return False
-        if role == AdminRole.VIEWER:
-            return False
-        return True
+        return role != AdminRole.VIEWER
 
-    def can_edit(self, request: Request) -> bool:  # type: ignore[override]
+    def can_edit(self, request: Request) -> bool:
         role = _get_admin_role(request)
         if role is None:
             return False
-        if role == AdminRole.VIEWER:
-            return False
-        return True
+        return role != AdminRole.VIEWER
 
-    def can_delete(self, request: Request) -> bool:  # type: ignore[override]
+    def can_delete(self, request: Request) -> bool:
         role = _get_admin_role(request)
         if role is None:
             return False
-        if role == AdminRole.VIEWER:
-            return False
-        return True
+        return role != AdminRole.VIEWER

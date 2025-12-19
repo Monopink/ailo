@@ -16,6 +16,7 @@ from app.models.contact import Contact
 from app.models.profile import Profile
 from app.models.user import User
 from app.schemas.profile import ProfileCreate
+from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
 from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
@@ -26,8 +27,11 @@ class UserMatcherError(Exception):
     """Exception raised when test user matching fails"""
 
     def __init__(
-        self, message: str, error_code: str = "USER_MATCHER_ERROR", suggestions: list | None = None
-    ):
+        self,
+        message: str,
+        error_code: str = "USER_MATCHER_ERROR",
+        suggestions: list[str] | None = None,
+    ) -> None:
         self.message = message
         self.error_code = error_code
         self.suggestions = suggestions or []
@@ -65,13 +69,17 @@ class UserMatcherService:
             )
 
         user, profile = row
+        profile_dict = None
+        if profile:
+            profile_dict = profile.to_dict()
+            profile_dict["avatar_url"] = await get_avatar_url(db, profile)
 
         return {
             "user_id": user.id,
             "user_qiao_id": user.qiao_id,
             "username": user.username,
             "user_type": user.user_type,
-            "profile": profile.to_dict() if profile else None,
+            "profile": profile_dict,
         }
 
     async def find_test_user_for_instance(
@@ -114,12 +122,28 @@ class UserMatcherService:
         test_user_profile = await self._ensure_test_user_profile(
             db, test_user_info, existing_profile=owner.get("profile")
         )
+        profile_snapshot = test_user_profile or {}
+        test_user_info.update(
+            {
+                "nickname": profile_snapshot.get("nickname") or test_user_info.get("nickname"),
+                "gender": profile_snapshot.get("gender"),
+                "region": profile_snapshot.get("region"),
+                "bio": profile_snapshot.get("bio"),
+                "avatar_url": profile_snapshot.get("avatar_url"),
+                "avatar_prompt": profile_snapshot.get("avatar_prompt"),
+            }
+        )
 
         available_test_users = [
             {
                 "user_qiao_id": owner["user_qiao_id"],
                 "username": owner["username"],
-                "nickname": (test_user_profile or {}).get("nickname"),
+                "nickname": profile_snapshot.get("nickname"),
+                "gender": profile_snapshot.get("gender"),
+                "region": profile_snapshot.get("region"),
+                "bio": profile_snapshot.get("bio"),
+                "avatar_url": profile_snapshot.get("avatar_url"),
+                "avatar_prompt": profile_snapshot.get("avatar_prompt"),
                 "has_contact": selected_contact is not None,
                 "conv_id": selected_contact["conv_id"] if selected_contact else None,
                 "profile": test_user_profile,
@@ -164,7 +188,9 @@ class UserMatcherService:
         profile = result.scalar_one_or_none()
 
         if profile:
-            return profile.to_dict()
+            profile_dict = profile.to_dict()
+            profile_dict["avatar_url"] = await get_avatar_url(db, profile)
+            return profile_dict
 
         created = await profile_crud.create_with_owner(
             db,
@@ -175,11 +201,14 @@ class UserMatcherService:
             commit=False,
         )
         await db.flush()
+        await db.refresh(created)
         logger.info(
             "virtual_test_user_profile_auto_created",
             test_user_qiao_id=test_user_info["qiao_id"],
         )
-        return created.to_dict()
+        created_dict = created.to_dict()
+        created_dict["avatar_url"] = await get_avatar_url(db, created)
+        return created_dict
 
     async def _fetch_instance_contacts(
         self, db: AsyncSession, instance_qiao_id: str
@@ -207,8 +236,12 @@ class UserMatcherService:
         )
 
         rows = await db.execute(stmt)
+        row_data = rows.all()
+        profiles = [profile for _, _, profile in row_data if profile]
+        avatar_urls = await get_avatar_urls_batch(db, profiles)
         contacts: list[dict[str, Any]] = []
-        for contact, user, profile in rows.all():
+        for contact, user, profile in row_data:
+            avatar_url = avatar_urls.get(profile.id) if profile else None
             contacts.append(
                 {
                     "contact_id": contact.id,
@@ -221,7 +254,7 @@ class UserMatcherService:
                     "gender": profile.gender if profile else None,
                     "region": profile.region if profile else None,
                     "bio": profile.bio if profile else None,
-                    "avatar_url": profile.avatar_url if profile else None,
+                    "avatar_url": avatar_url,
                     "avatar_prompt": profile.avatar_prompt if profile else None,
                 }
             )

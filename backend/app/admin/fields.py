@@ -20,9 +20,7 @@ class LocalDateTimeField(DateTimeField):
     """
 
     # Starlette Admin required signature
-    async def serialize_value(  # type: ignore[explicit-any]
-        self, request: Request, value: Any, action: RequestAction
-    ) -> str:
+    async def serialize_value(self, request: Request, value: Any, action: RequestAction) -> str:
         """Convert UTC datetime to user's timezone for display."""
         if value is None or not isinstance(value, datetime):
             return await super().serialize_value(request, value, action)

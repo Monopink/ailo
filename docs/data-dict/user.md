@@ -18,6 +18,7 @@ verified_at -- 实名认证通过时间
 verify_source -- 实名验证来源（如公安三要素、支付宝、微信、腾讯云等）
 verification_info -- 实名验证详细信息JSON存储
 status -- 账户状态：1=active, 2=inactive, 3=suspended
+needs_profile_setup -- 是否需要补全资料：1=true, 0=false；新创建用户默认为1，成功调用 `PUT /api/v1/user/profile` 后置为0
 user_type -- 用户类型：1=normal, 2=official, 3=virtual
 last_login -- 最后登录时间
 created_at

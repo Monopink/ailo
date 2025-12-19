@@ -29,7 +29,7 @@
   "username": "my_custom_id",
   "nickname": "小雨",
   "gender": 2,
-  "avatar_url": "assets://1234",
+  "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp",
   "bio": "喜欢看书和旅行",
   "region": "北京"
 }
@@ -41,7 +41,7 @@
 - `username` (string) - 用户可自定义，注册时默认复制qiao_id，可修改
 - `nickname` (string) - 昵称
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-- `avatar_url` (string) - 头像URL
+- `avatar_url` (string) - 动态生成的头像 CDN URL，基于后台存储的 `avatar_file_id`
 - `bio` (string) - 个人简介
 - `region` (string) - 地区
 
@@ -72,7 +72,7 @@
   "username": "new_custom_id",
   "nickname": "新昵称",
   "gender": 2,
-  "avatar_url": "assets://2345",
+  "avatar_file_id": "file_custom_avatar_123",
   "bio": "新的个人简介",
   "region": "上海"
 }
@@ -92,9 +92,10 @@
 - `gender` (integer, 可选)
   - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 
-- `avatar_url` (string, 可选)
-  - 头像URL
-  - 格式: `assets://xxxx`
+- `avatar_file_id` (string, 可选)
+  - 头像文件ID（例如 `file_custom_avatar_123`）
+  - 通过头像上传接口获取，未提供时后端使用系统默认头像
+  - 服务器会在响应中根据该ID动态生成 `avatar_url`
 
 - `bio` (string, 可选)
   - 个人简介
@@ -112,7 +113,7 @@
   "username": "new_custom_id",
   "nickname": "新昵称",
   "gender": 2,
-  "avatar_url": "assets://2345",
+  "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp",
   "bio": "新的个人简介",
   "region": "上海"
 }
@@ -132,9 +133,10 @@
 
 ### 业务说明
 
-- 所有字段可选，支持部分更新
-- username需要检查唯一性
-- avatar_url以 `assets://` 开头时，自动设置avatar_prompt
+- **Setup 场景**：首次登录创建的账号会带有 `needs_profile_setup=true`，客户端必须在此接口提交昵称、头像、gender 等信息；当后端成功写入时会原子性地清除该标记。
+- 所有字段可选，支持部分更新，前端只需传递发生变化的字段即可。
+- username需要检查唯一性，不满足规则会返回 400。
+- avatar_url 在响应中始终由后端根据 `avatar_file_id` 生成，客户端只需要维护 `avatar_file_id` 并在上传成功后重新调用本接口即可获取最终展示 URL。
 
 ---
 

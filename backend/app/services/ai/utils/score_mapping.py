@@ -32,7 +32,7 @@ def map_to_permille(value: float, min_value: float, max_value: float) -> float:
         if min_value is None or max_value is None:
             raise ValueError("range_min_or_max_missing")
         if not isinstance(min_value, int | float) or not isinstance(max_value, int | float):
-            raise ValueError("range_min_or_max_invalid_type")
+            raise TypeError("range_min_or_max_invalid_type")
         if min_value == max_value:
             raise ValueError("range_min_equals_max")
         if min_value > max_value:

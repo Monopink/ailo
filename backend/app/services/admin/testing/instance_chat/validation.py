@@ -5,7 +5,6 @@ Handles prerequisite validation for AI instance testing, ensuring all required
 configurations and relationships are properly established before test execution.
 """
 
-import json
 from typing import Any
 
 from sqlalchemy import and_, select
@@ -34,7 +33,7 @@ class ValidationError(Exception):
         self,
         message: str,
         error_code: str = "VALIDATION_ERROR",
-        suggestions: list | None = None,
+        suggestions: list[str] | None = None,
     ) -> None:
         self.message = message
         self.error_code = error_code
@@ -100,17 +99,17 @@ class ValidationService:
                 error_code="SYSTEM_ERROR",
                 suggestions=["查看系统日志确认具体原因", "修复错误后重试"],
             ) from e
-        else:
-            return {
-                "valid": True,
-                "instance": instance_context,
-                "instance_profile": instance_profile,
-                "style": style_info,
-                "personality": personality_info,
-                "current_relationship": current_relationship,
-                "relationship_scores": relationship_scores,
-                "llm_configs": llm_configs,
-            }
+
+        return {
+            "valid": True,
+            "instance": instance_context,
+            "instance_profile": instance_profile,
+            "style": style_info,
+            "personality": personality_info,
+            "current_relationship": current_relationship,
+            "relationship_scores": relationship_scores,
+            "llm_configs": llm_configs,
+        }
 
     async def _validate_instance(self, db: AsyncSession, instance_id: int) -> InstanceContext:
         """Validate AI instance exists and is active, returning context."""
@@ -180,7 +179,7 @@ class ValidationService:
 
     def _extract_instance_profile(self, context: InstanceContext) -> dict[str, Any]:
         """Extract profile data from context and ensure it exists."""
-        profile: dict[str, Any] = context.get("profile") or {}
+        profile = context["profile"]
 
         return {
             "nickname": profile.get("nickname"),
@@ -297,7 +296,7 @@ class ValidationService:
         prompt_variables = instance_context.get("prompt_variables")
 
         # If no variables configured, that's fine - system will handle empty placeholders
-        if not prompt_variables or prompt_variables == "{}":
+        if not prompt_variables:
             logger.debug(
                 "prompt_variables_empty",
                 instance_qiao_id=instance_context["instance_qiao_id"],
@@ -308,19 +307,8 @@ class ValidationService:
             )
             return
 
-        # Only validate JSON format if variables are provided
-        try:
-            if isinstance(prompt_variables, str):
-                json.loads(prompt_variables)
-        except (json.JSONDecodeError, TypeError) as e:
-            raise ValidationError(
-                f"prompt_variables 字段不是合法的 JSON: {e!s}",
-                error_code="PROMPT_VARIABLES_INVALID_JSON",
-                suggestions=[
-                    "请修复 prompt_variables 字段中的 JSON 字符串",
-                    '示例格式: {"key": "value"}',
-                ],
-            ) from e
+        # prompt_variables is already a JSONDict (parsed dict from database)
+        # No additional validation needed as it's already type-checked
 
     async def _ensure_instance_profile_exists(self, db: AsyncSession, instance: AIInstance) -> None:
         """Ensure AI instance has a profile record (create empty profile if needed)."""

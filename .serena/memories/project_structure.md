@@ -1,5 +1,0 @@
-- Root dirs: `backend` (FastAPI service + DB scripts + tests), `frontend` (currently WeChat mini program scaffold), `docs` (prototype + development specs), `deployment` (multi-env docker-compose files), `nginx`, `ngrok`, `static`, `.augment/.codex` configs.
-- Backend layout: `backend/app/main.py` FastAPI entrypoint; subpackages `api`, `admin`, `core`, `crud`, `middleware`, `models`, `schemas`, `services`, `utils`. Requirements pinned in `backend/app/requirements.txt`; Dockerfiles for dev/prod/test in same folder.
-- Database resources: initial SQL under `backend/database/init`; Alembic migrations via `backend/alembic` with settings in `backend/alembic.ini` and `backend/migrate.py` helper.
-- Frontend: `frontend/wx-minipg` for mini program, Flutter iOS planned but not present yet.
-- Documentation: prototypes in `docs/prototype`, technical flows & design decisions in `docs/development` (message pipeline, AI timing, encryption, events schema, etc.).

@@ -269,7 +269,7 @@ content 字段直接存储最终显示文本。
     "request_id": "req_123",
     "from_qiao_id": "qiao_user_a",
     "from_nickname": "用户A",
-    "from_avatar": "avatar_url",
+    "from_avatar": "https://cdn.example.com/users/qiao_user_a.webp",
     "message": "你好，我想添加你为联系人"
   },
   "sent_time": 1710001114000

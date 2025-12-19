@@ -40,6 +40,8 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('jwt_algorithm', 'HS256', 'HS256', 1, 'JWT signing algorithm', 'auth', NULL),
 ('token_max_active_per_device', '1', '1', 2, 'Maximum active tokens per device type', 'auth', NULL),
 ('token_cleanup_after_days', '30', '30', 2, 'Clean up revoked tokens older than N days', 'auth', NULL),
+('wechat_phone_mock_enabled', 'false', 'false', 3, 'Enable WeChat phone mock (non-production environments only)', 'auth', NULL),
+('wechat_phone_mock_number', '', '', 1, 'Mock phone number for WeChat virtual accounts (E.164 format)', 'auth', NULL),
 
 -- LeanCloud IM configurations (must be configured via admin dashboard)
 ('leancloud_im_app_id', '', '', 1, 'LeanCloud IM App ID', 'leancloud', NULL),
@@ -97,11 +99,9 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('admin_turnstile_secret_key', '', '1x0000000000000000000000000000000AA', 1, 'Admin Turnstile secret key', 'captcha', NULL),
 
 -- User CAPTCHA configuration (must be configured via admin dashboard)
-('wxminipg_captcha_provider', 'aliyun', 'none', 5, 'User captcha provider', 'captcha', '["none","turnstile","aliyun"]'::jsonb),
 ('captcha_threshold_failures', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
 ('turnstile_site_key', '', '1x00000000000000000000AA', 1, 'User Turnstile site key', 'captcha', NULL),
 ('turnstile_secret_key', '', '1x0000000000000000000000000000000AA', 1, 'User Turnstile secret key', 'captcha', NULL),
-('wxminipg_aliyun_captcha_scene_id', '', '', 1, 'Aliyun Captcha SceneId for user verification', 'captcha', NULL),
 
 -- Message rate limit configuration
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
@@ -111,7 +111,23 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- Square rate limit configuration
 ('square_rate_limit_requests', '1', '1', 2, 'Square refresh requests per window', 'rate_limit', NULL),
-('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'rate_limit', NULL)
+('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'rate_limit', NULL),
+
+-- Media upload configuration
+('avatar_max_size_mb', '2', '2', 2, 'Maximum avatar file size in MB', 'media', NULL),
+('avatar_allowed_formats', 'image/jpeg,image/png,image/webp', 'image/jpeg,image/png,image/webp', 1, 'Allowed avatar MIME types (comma-separated)', 'media', NULL),
+('image_max_size_mb', '10', '10', 2, 'Maximum image file size in MB', 'media', NULL),
+('image_allowed_formats', 'image/jpeg,image/png,image/webp,image/gif', 'image/jpeg,image/png,image/webp,image/gif', 1, 'Allowed image MIME types (comma-separated)', 'media', NULL),
+
+-- Media upload quota configuration (✅ MVP P0)
+('avatar_upload_daily_quota', '5', '5', 2, 'Maximum avatar uploads per user per day', 'media', NULL),
+('avatar_upload_daily_size_quota_mb', '10', '10', 2, 'Maximum total avatar upload size per user per day (MB)', 'media', NULL),
+('image_upload_daily_quota', '20', '20', 2, 'Maximum image uploads per user per day', 'media', NULL),
+('image_upload_daily_size_quota_mb', '50', '50', 2, 'Maximum total image upload size per user per day (MB)', 'media', NULL),
+
+-- Media upload rate limit configuration
+('media_upload_rate_limit_requests', '10', '10', 2, 'Media upload requests per window', 'rate_limit', NULL),
+('media_upload_rate_limit_window_seconds', '60', '60', 2, 'Media upload window in seconds', 'rate_limit', NULL)
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     default_value = EXCLUDED.default_value,

@@ -42,7 +42,7 @@
       "is_blocked": false,
       "profile": {
         "nickname": "小萌",
-        "avatar_url": "assets://8923",
+        "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
         "gender": 2,
         "bio": "喜欢音乐和电影",
         "region": "上海"
@@ -67,7 +67,7 @@
 - `is_blocked` (boolean) - 是否已屏蔽
 - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
-  - `avatar_url` (string) - 头像URL
+  - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
   - `bio` (string) - 个人简介（可选）
   - `region` (string) - 地区（可选）
@@ -110,7 +110,7 @@
   "profile": {
     "nickname": "小萌",
     "gender": 2,
-    "avatar_url": "assets://8923",
+    "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
     "bio": "喜欢音乐和电影",
     "region": "上海"
   }
@@ -130,7 +130,7 @@
 - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-  - `avatar_url` (string) - 头像URL
+  - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `bio` (string) - 个人简介
   - `region` (string) - 地区
 
@@ -204,7 +204,7 @@
   "profile": {
     "nickname": "小萌",
     "gender": 2,
-    "avatar_url": "assets://8923",
+    "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
     "bio": "喜欢音乐和电影",
     "region": "上海"
   }
@@ -355,7 +355,7 @@
   "contact_qiao_id": "qiao_xm001",
   "contact_info": {
     "nickname": "小萌",
-    "avatar_url": "assets://8923",
+    "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
     "gender": 2
   }
 }
@@ -368,7 +368,7 @@
 - `contact_qiao_id` (string) - 联系人的qiao_id
 - `contact_info` (object) - 联系人信息
   - `nickname` (string) - 昵称
-  - `avatar_url` (string) - 头像URL
+  - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 
 ### 错误响应

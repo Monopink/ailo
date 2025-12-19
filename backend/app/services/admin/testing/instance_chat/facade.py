@@ -37,7 +37,10 @@ class AIInstanceChatTestError(Exception):
     """Main exception for AI instance chat test service"""
 
     def __init__(
-        self, message: str, error_code: str = "CHAT_TEST_ERROR", suggestions: list | None = None
+        self,
+        message: str,
+        error_code: str = "CHAT_TEST_ERROR",
+        suggestions: list[str] | None = None,
     ) -> None:
         self.message = message
         self.error_code = error_code
@@ -221,8 +224,8 @@ class AIInstanceChatTestService:
             raise AIInstanceChatTestError(
                 f"测试过程中出现未知错误：{e!s}", error_code="UNEXPECTED_ERROR"
             ) from e
-        else:
-            return complete_result
+
+        return complete_result
 
     async def validate_test_readiness(self, db: AsyncSession, instance_id: int) -> dict[str, Any]:
         """
@@ -277,11 +280,17 @@ class AIInstanceChatTestService:
                 instance_dimensions = []
 
             test_user_summary = None
+            profile_snapshot = user_match_result.get("test_user_profile") or {}
             if selected_user:
                 test_user_summary = {
                     "qiao_id": selected_user["qiao_id"],
                     "username": selected_user["username"],
-                    "nickname": (user_match_result["test_user_profile"] or {}).get("nickname"),
+                    "nickname": profile_snapshot.get("nickname") or selected_user.get("nickname"),
+                    "gender": profile_snapshot.get("gender"),
+                    "region": profile_snapshot.get("region"),
+                    "bio": profile_snapshot.get("bio"),
+                    "avatar_url": profile_snapshot.get("avatar_url"),
+                    "avatar_prompt": profile_snapshot.get("avatar_prompt"),
                 }
 
             instance_ai_type = validation_result["instance"].get("ai_type")
@@ -373,15 +382,13 @@ class AIInstanceChatTestService:
                 instance_qiao_id=validation_result["instance"]["instance_qiao_id"],
             )
 
-            return {"success": True, "archived_count": archived_count}
-
         except Exception as e:
             logger.error("archive_test_conversations_failed", instance_id=instance_id, error=str(e))
             raise AIInstanceChatTestError(
                 f"归档对话失败：{e!s}", error_code="ARCHIVE_FAILED"
             ) from e
-        else:
-            return {"success": True, "archived_count": archived_count}
+
+        return {"success": True, "archived_count": archived_count}
 
     async def _ensure_virtual_contact(
         self,
@@ -419,7 +426,7 @@ class AIInstanceChatTestService:
             contact_type=ContactType.AI,
             contact_qiao_id=instance_context["instance_qiao_id"],
             alias=None,
-            custom_avatar_url=None,
+            custom_avatar_file_id=None,
             tags=None,
             remark=None,
             source="admin_test",

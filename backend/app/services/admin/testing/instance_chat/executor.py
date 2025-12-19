@@ -49,7 +49,7 @@ class ExecutorService:
         user_qiao_id: str,
         llm_config_name: str,
         test_message: str,
-        request_overrides: dict | None = None,
+        request_overrides: dict[str, Any] | None = None,
         persist: bool = False,
         contact_conv_id: str | None = None,
     ) -> dict[str, Any]:
@@ -111,6 +111,8 @@ class ExecutorService:
             locked_buffer_id: int | None = None
             user_message_item_id: int | None = None
             if persist:
+                # contact_conv_id is guaranteed to be str here due to earlier validation
+                assert contact_conv_id is not None
                 locked_buffer_id, user_message_item_id = await self._seed_test_user_context(
                     db=db,
                     user_qiao_id=user_qiao_id,
@@ -139,8 +141,12 @@ class ExecutorService:
             response_time_ms = int((end_time - start_time) * 1000)
 
             request_payload = conversation_result.get("request_payload")
+            # Type narrowing: request_payload can be JSONValue, narrow to dict or None
+            request_payload_dict: dict[str, Any] | None = (
+                request_payload if isinstance(request_payload, dict) else None
+            )
             history_messages, current_user_message = _extract_history_messages(
-                request_payload,
+                request_payload_dict,
                 fallback_message=test_message,
             )
 
@@ -150,7 +156,7 @@ class ExecutorService:
                 test_message=test_message,
                 llm_config_name=llm_config_name,
                 response_time_ms=response_time_ms,
-                request_payload=request_payload,
+                request_payload=request_payload_dict,
             )
             await db.commit()
 
@@ -279,9 +285,24 @@ class ExecutorService:
         }
         log_entry.status = 1  # success
         log_entry.response_time = response_time_ms
-        log_entry.token_count = conversation_result.get("usage", {}).get("total_tokens", 0)
-        log_entry.provider_name = conversation_result.get("config_used", {}).get("provider_name")
-        log_entry.model_name = conversation_result.get("config_used", {}).get("model")
+        usage_dict = conversation_result.get("usage", {})
+        config_used_dict = conversation_result.get("config_used", {})
+
+        # Extract and convert values with proper type handling
+        total_tokens_val = usage_dict.get("total_tokens", 0) if isinstance(usage_dict, dict) else 0
+        log_entry.token_count = (
+            int(total_tokens_val) if isinstance(total_tokens_val, int | float) else 0
+        )
+
+        provider_name_val = (
+            config_used_dict.get("provider_name") if isinstance(config_used_dict, dict) else None
+        )
+        log_entry.provider_name = str(provider_name_val) if provider_name_val is not None else None
+
+        model_name_val = (
+            config_used_dict.get("model") if isinstance(config_used_dict, dict) else None
+        )
+        log_entry.model_name = str(model_name_val) if model_name_val is not None else None
         log_entry.completed_at = datetime.now(UTC)
 
     def _build_test_result(
@@ -296,9 +317,17 @@ class ExecutorService:
         """Summarize conversation result for admin response."""
 
         ai_response = conversation_result.get("response", {})
-        outgoing = ai_response.get("outgoing_messages", [])
-        followup = ai_response.get("followup_messages", [])
-        all_messages = [*outgoing, *followup]
+        outgoing_val = (
+            ai_response.get("outgoing_messages", []) if isinstance(ai_response, dict) else []
+        )
+        followup_val = (
+            ai_response.get("followup_messages", []) if isinstance(ai_response, dict) else []
+        )
+
+        # Ensure they are lists for unpacking
+        outgoing: list[Any] = outgoing_val if isinstance(outgoing_val, list) else []
+        followup: list[Any] = followup_val if isinstance(followup_val, list) else []
+        all_messages: list[Any] = [*outgoing, *followup]
         result: JSONDict = {
             "success": True,
             "test_mode": "immediate",
@@ -491,7 +520,7 @@ def _normalize_memory_operations(value: Any) -> JSONDict:
             if isinstance(new_importance, int | float):
                 entry["new_importance"] = int(new_importance)
             updates.append(entry)
-        normalized["update"] = updates
+        normalized["update"] = updates  # type: ignore[assignment]
 
     refresh_items = value.get("refresh")
     if isinstance(refresh_items, list):
@@ -519,6 +548,6 @@ def _normalize_memory_operations(value: Any) -> JSONDict:
                     "importance": int(importance),
                 }
             )
-        normalized["add"] = additions
+        normalized["add"] = additions  # type: ignore[assignment]
 
     return normalized

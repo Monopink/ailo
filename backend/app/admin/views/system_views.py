@@ -24,13 +24,13 @@ from .base import BaseRoleAwareModelView
 class _AdminUsernameField(StringField):
     """Computed field to display admin username by admin_user_id."""
 
-    def __init__(self, name: str = "admin_username", label: str = "Admin Username"):
+    def __init__(self, name: str = "admin_username", label: str = "Admin Username") -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, request: Request, obj: Any) -> str:
         try:
             admin_user_id = getattr(obj, "admin_user_id", None)
             if not admin_user_id:
@@ -51,7 +51,7 @@ class SystemConfigView(ModelView):
     exclude_fields_from_create = ["id", "created_at", "updated_at", "updated_by"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at", "updated_by"]
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
         return False
 
     fields_default_sort = [("config_key", False)]
@@ -91,10 +91,10 @@ class SystemConfigView(ModelView):
 class AdminUserView(BaseRoleAwareModelView):
     """Enhanced AdminUser view with proper field configuration."""
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
         return False
 
-    def can_create(self, request):  # type: ignore[override]
+    def can_create(self, request: Request) -> bool:
         admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
         role = admin_user.get("role") if admin_user else None
         try:
@@ -103,7 +103,7 @@ class AdminUserView(BaseRoleAwareModelView):
             role_val = None
         return role_val == AdminRole.SUPER_ADMIN
 
-    def can_edit(self, request):  # type: ignore[override]
+    def can_edit(self, request: Request) -> bool:
         admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
         role = admin_user.get("role") if admin_user else None
         try:
@@ -179,7 +179,8 @@ class AdminUserView(BaseRoleAwareModelView):
                 )
 
         # Validate password length if provided
-        if password and len(password) < 8:
+        min_password_length = 8
+        if password and len(password) < min_password_length:
             raise FormValidationError({"password": "Password must be at least 8 characters long"})
 
         await super().validate(request, data)
@@ -203,13 +204,13 @@ class AdminUserView(BaseRoleAwareModelView):
 class AdminOperationLogView(ModelView):
     """Enhanced Admin Operation Log view - read-only for monitoring."""
 
-    def can_create(self, request):
+    def can_create(self, request: Request) -> bool:
         return False
 
-    def can_edit(self, request):
+    def can_edit(self, request: Request) -> bool:
         return False
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
         return False
 
     fields_default_sort = [("created_at", True)]
@@ -237,13 +238,13 @@ class AdminOperationLogView(ModelView):
 class AdminLoginLogView(ModelView):
     """Enhanced Admin Login Log view - read-only for monitoring."""
 
-    def can_create(self, request):
+    def can_create(self, request: Request) -> bool:
         return False
 
-    def can_edit(self, request):
+    def can_edit(self, request: Request) -> bool:
         return False
 
-    def can_delete(self, request):
+    def can_delete(self, request: Request) -> bool:
         return False
 
     fields_default_sort = [("created_at", True)]

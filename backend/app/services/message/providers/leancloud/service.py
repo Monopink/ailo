@@ -628,7 +628,7 @@ async def fetch_messages_by_time_range(
 
 async def check_users_online(qiao_ids: list[str]) -> dict[str, bool]:
     """Check users online status in LeanCloud (to be implemented)."""
-    return {qiao_id: False for qiao_id in qiao_ids}
+    return dict.fromkeys(qiao_ids, False)
 
 
 async def check_health(db: AsyncSession) -> tuple[bool, str | None]:

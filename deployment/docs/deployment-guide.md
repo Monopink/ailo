@@ -1,8 +1,8 @@
-# Test Environment Deployment Guide
+# Staging Environment Deployment Guide
 
 ## Overview
 
-This guide covers the deployment of the Says application to the test environment on Tencent Cloud.
+This guide covers the deployment of the Ailo application to the staging environment on Tencent Cloud.
 
 **Environment Details:**
 
@@ -36,14 +36,14 @@ This guide covers the deployment of the Says application to the test environment
 
 ```bash
 cd deployment
-cp .env.test.example .env.test
+cp .env.staging.example .env.staging
 ```
 
-2. Edit `.env.test` with actual values:
+2. Edit `.env.staging` with actual values:
 
 ```bash
 # Database password
-POSTGRES_PASSWORD=SaysTest2025!Pg#Secure$789
+POSTGRES_PASSWORD=AiloTest2025!Pg#Secure$789
 
 # JWT secret
 JWT_SECRET_KEY=a7f3e9d2c8b4f1a6e5d9c3b7f2a8e4d1c9b5f3a7e2d8c4b1f6a9e5d2c8b4f1a6
@@ -73,7 +73,7 @@ cd deployment/scripts
 chmod +x pack-and-upload.sh
 ./pack-and-upload.sh --pack-only
 
-# Upload says-test-deploy.tar.gz using xftp to /home/ubuntu/
+# Upload ailo-staging-deploy.tar.gz using xftp to /home/ubuntu/
 ```
 
 ### Step 3: Server Setup (First Time Only)
@@ -85,10 +85,10 @@ ssh ubuntu@YOUR_SERVER_IP
 
 # Extract package
 cd ~
-tar -xzf says-test-deploy.tar.gz
+tar -xzf ailo-staging-deploy.tar.gz
 
 # Run setup script
-cd says/deployment/scripts
+cd ailo/deployment/scripts
 chmod +x setup.sh
 ./setup.sh
 
@@ -101,17 +101,23 @@ ssh ubuntu@YOUR_SERVER_IP
 
 ```bash
 # Move project to /opt
-sudo mkdir -p /opt/says-test
-sudo chown -R ubuntu:ubuntu /opt/says-test
-mv ~/says /opt/says-test/
+sudo mkdir -p /opt/ailo-staging
+sudo chown -R ubuntu:ubuntu /opt/ailo-staging
+mv ~/ailo /opt/ailo-staging/
 
-# Copy .env.test to server
+# Copy .env.staging to server
 # (Upload via xftp or create manually)
 
-# Deploy
-cd /opt/says-test/says/deployment/scripts
+# Deploy (scripts now auto-detect staging environment)
+cd /opt/ailo-staging/ailo/deployment/scripts
 chmod +x *.sh
+
+# Option 1: Auto-detect (recommended for staging)
+# Scripts automatically detect staging environment from directory path
 ./deploy.sh start
+
+# Option 2: Explicit environment (for production or custom setups)
+# DEPLOY_ENV=staging ./deploy.sh start
 ```
 
 ### Step 5: Setup SSL Certificate
@@ -163,7 +169,7 @@ This is the recommended way to deploy new code changes:
 # In PowerShell
 cd deployment\scripts
 .\pack-for-windows.ps1
-# Output: says-test-deploy-YYYYMMDD-HHMMSS.tar.gz
+# Output: ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
 ```
 
 **Step 2: Upload to Server**
@@ -174,8 +180,8 @@ cd deployment\scripts
 
 ```bash
 ssh ubuntu@YOUR_SERVER_IP
-cd /opt/says-test/says/deployment/scripts
-sudo ./deploy.sh deploy --package /home/ubuntu/says-test-deploy-YYYYMMDD-HHMMSS.tar.gz
+cd /opt/ailo-staging/ailo/deployment/scripts
+sudo ./deploy.sh deploy --package /home/ubuntu/ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
 ```
 
 The deploy command will automatically:
@@ -183,8 +189,8 @@ The deploy command will automatically:
 - Backup current code and database
 - Stop services
 - Extract and copy new files
-- Preserve .env.test configuration
-- Check and fix .env.test completeness (e.g., add REDIS_URL if missing)
+- Preserve .env.staging configuration
+- Check and fix .env.staging completeness (e.g., add REDIS_URL if missing)
 - Remove conflicting files (e.g., default.conf)
 - Rebuild Docker images
 - Start services
@@ -197,7 +203,7 @@ If you only changed code without modifying Dockerfile or dependencies:
 
 ```bash
 # On server
-cd /opt/says-test/says/deployment/scripts
+cd /opt/ailo-staging/ailo/deployment/scripts
 sudo ./deploy.sh update
 ```
 
@@ -205,7 +211,7 @@ sudo ./deploy.sh update
 
 ```bash
 # On server
-cd /opt/says-test/says/deployment/scripts
+cd /opt/ailo-staging/ailo/deployment/scripts
 sudo ./deploy.sh update --rebuild
 ```
 
@@ -213,7 +219,7 @@ sudo ./deploy.sh update --rebuild
 
 ```bash
 # On server
-cd /opt/says-test/says/deployment/scripts
+cd /opt/ailo-staging/ailo/deployment/scripts
 sudo ./deploy.sh update --rebuild --no-migrate
 ```
 
@@ -225,7 +231,7 @@ sudo ./deploy.sh update --rebuild --no-migrate
 
 ```bash
 # On server
-cd /opt/says-test/says/deployment/scripts
+cd /opt/ailo-staging/ailo/deployment/scripts
 ./deploy.sh update  # Migrations run automatically
 ```
 
@@ -259,7 +265,7 @@ docker exec backend_test_container alembic downgrade -1
 ### Manual Backup
 
 ```bash
-cd /opt/says-test/says/deployment/scripts
+cd /opt/ailo-staging/ailo/deployment/scripts
 ./backup.sh all
 ```
 
@@ -271,7 +277,7 @@ Add to crontab:
 crontab -e
 
 # Add this line for daily backup at 2 AM
-0 2 * * * /opt/says-test/says/deployment/scripts/backup.sh all
+0 2 * * * /opt/ailo-staging/ailo/deployment/scripts/backup.sh all
 ```
 
 ### Restore from Backup
@@ -386,7 +392,7 @@ docker logs postgres_test_container
 2. Test connection:
 
 ```bash
-docker exec postgres_test_container psql -U says_admin -d says_test -c "SELECT 1"
+docker exec postgres_test_container psql -U ailo_admin -d ailo_test -c "SELECT 1"
 ```
 
 ### Backend Not Responding
@@ -415,7 +421,7 @@ docker restart backend_test_container
 
 ### Update Environment Variables
 
-1. Edit `.env.test` on server
+1. Edit `.env.staging` on server
 2. Restart services:
 
 ```bash
@@ -467,7 +473,7 @@ docker exec backend_container python migrate.py upgrade
 
 ```bash
 # Remove conflicting config
-sudo rm /opt/says-test/says/nginx/conf.d/default.conf
+sudo rm /opt/ailo-staging/ailo/nginx/conf.d/default.conf
 sudo docker restart nginx_test_container
 ```
 
@@ -475,17 +481,17 @@ sudo docker restart nginx_test_container
 
 **Problem:** Backend fails to start with missing configuration errors
 
-**Cause:** `.env.test` file is incomplete
+**Cause:** `.env.staging` file is incomplete
 
 **Solution:**
 
 ```bash
 # Check for missing variables
-cd /opt/says-test/says/deployment
-diff .env.test.example .env.test
+cd /opt/ailo-staging/ailo/deployment
+diff .env.staging.example .env.staging
 
 # Add missing variables (e.g., REDIS_URL)
-echo "REDIS_URL=redis://localhost:6379/0" >> .env.test
+echo "REDIS_URL=redis://localhost:6379/0" >> .env.staging
 
 # Recreate containers to apply changes
 cd scripts
@@ -536,7 +542,7 @@ sudo ./deploy.sh update --rebuild
 
 ## Security Notes
 
-1. **Never commit `.env.test` to git**
+1. **Never commit `.env.staging` to git**
 2. **Keep backups secure**
 3. **Regularly update Docker images**
 4. **Monitor logs for suspicious activity**

@@ -197,7 +197,7 @@ class AITypeView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
-    def can_delete(self, request: Request) -> bool:  # type: ignore[override]
+    def can_delete(self, request: Request) -> bool:
         return False
 
 

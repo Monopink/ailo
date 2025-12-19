@@ -22,7 +22,6 @@ def generate_nonce() -> str:
         Random base64-encoded string (16 bytes)
     """
     # Generate 16 random bytes and encode as base64
-    random_bytes = secrets.token_bytes(16)
     return secrets.token_urlsafe(16)
 
 

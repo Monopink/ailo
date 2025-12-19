@@ -19,6 +19,9 @@ logger = get_logger(__name__)
 DEFAULT_ENCRYPTION = EncryptionType.BASE64
 DEFAULT_VERSION = EncryptionVersion.V1
 
+# AES-256 requires 256-bit (32-byte) keys
+AES_256_KEY_LENGTH = 32
+
 
 def encrypt(
     content: str, algorithm: EncryptionType, key: bytes | None = None
@@ -41,7 +44,7 @@ def encrypt(
         raise ValueError("Content must be a non-empty string")
 
     if not isinstance(algorithm, EncryptionType):
-        raise ValueError("Algorithm must be an EncryptionType enum")
+        raise TypeError("Algorithm must be an EncryptionType enum")
 
     try:
         if algorithm == EncryptionType.BASE64:
@@ -74,7 +77,7 @@ def decrypt(encrypted_content: str, metadata: dict[str, Any], key: bytes | None 
         raise ValueError("Encrypted content must be a non-empty string")
 
     if not isinstance(metadata, dict):
-        raise ValueError("Metadata must be a dictionary")
+        raise TypeError("Metadata must be a dictionary")
 
     try:
         # Extract algorithm from metadata
@@ -159,8 +162,8 @@ def _encrypt_aes_256_gcm(content: str, key: bytes | None) -> tuple[str, dict[str
     Returns:
         Tuple of (encrypted_content, metadata)
     """
-    if not isinstance(key, bytes) or len(key) != 32:
-        raise ValueError("AES-256 key must be 32 bytes")
+    if not isinstance(key, bytes) or len(key) != AES_256_KEY_LENGTH:
+        raise ValueError(f"AES-256 key must be {AES_256_KEY_LENGTH} bytes")
 
     # Generate random IV (12 bytes for GCM)
     iv = secrets.token_bytes(12)
@@ -205,8 +208,8 @@ def _decrypt_aes_256_gcm(
     Returns:
         str: Decrypted plain text content
     """
-    if not isinstance(key, bytes) or len(key) != 32:
-        raise ValueError("AES-256 key must be 32 bytes")
+    if not isinstance(key, bytes) or len(key) != AES_256_KEY_LENGTH:
+        raise ValueError(f"AES-256 key must be {AES_256_KEY_LENGTH} bytes")
 
     # Extract IV from metadata
     iv_b64 = metadata.get("iv")

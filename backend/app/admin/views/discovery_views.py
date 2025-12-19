@@ -21,13 +21,13 @@ from app.models.discovery import SquareTypeEntry
 class _AITypeDisplayNameField(StringField):
     """Computed field to show ai_type display_name for SquareTypeEntry."""
 
-    def __init__(self, name: str = "ai_type_display_name", label: str = "AI Type Name"):
+    def __init__(self, name: str = "ai_type_display_name", label: str = "AI Type Name") -> None:
         super().__init__(name=name, label=label)
         self.read_only = True
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, request, obj):  # type: ignore[override]
+    async def parse_obj(self, request: Request, obj: Any) -> str:
         try:
             if hasattr(obj, "ai_type") and obj.ai_type is not None:
                 return str(getattr(obj.ai_type, "display_name", "") or "")
@@ -89,10 +89,10 @@ class SquareTypeEntryView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
-    async def before_create(self, request: Request, data, obj):
+    async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         self._sync_ai_type(obj)
 
-    async def before_edit(self, request: Request, data, obj):
+    async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
         self._sync_ai_type(obj)
 
     def _sync_ai_type(self, obj: Any) -> None:
@@ -144,7 +144,7 @@ class SquareTypeEntryView(ModelView):
             # Re-raise other integrity errors
             raise
 
-    def can_delete(self, request: Request) -> bool:  # type: ignore[override]
+    def can_delete(self, request: Request) -> bool:
         return False
 
 

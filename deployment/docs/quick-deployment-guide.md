@@ -9,21 +9,21 @@
 powershell.exe -ExecutionPolicy Bypass -File "deployment\scripts\pack-for-windows.ps1"
 ```
 
-输出文件：`says-test-deploy-YYYYMMDD-HHMMSS.tar.gz`
+输出文件：`ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz`
 
 ### 2. 上传文件
 
 使用 xftp 上传到服务器：
 
-- 本地：`D:\Polychrome\Code\Github\says\says-test-deploy-*.tar.gz`
+- 本地：`D:\Polychrome\Code\Github\ailo\ailo-staging-deploy-*.tar.gz`
 - 服务器：`/home/ubuntu/`
 
 ### 3. 部署
 
 ```bash
 ssh ubuntu@ark3.qiaoqiaoai.cn
-cd /opt/says-test/says/deployment/scripts
-sudo bash deploy.sh deploy --package /home/ubuntu/says-test-deploy-YYYYMMDD-HHMMSS.tar.gz
+cd /opt/ailo-staging/ailo/deployment/scripts
+sudo bash deploy.sh deploy --package /home/ubuntu/ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
 ```
 
 部署过程：
@@ -37,9 +37,9 @@ sudo bash deploy.sh deploy --package /home/ubuntu/says-test-deploy-YYYYMMDD-HHMM
 
 耗时：2-3 分钟（首次 5-10 分钟）
 
-### 3.1 环境变量必填项（.env.test）
+### 3.1 环境变量必填项（.env.staging）
 
-以下键必须在 `deployment/.env.test` 中配置，否则后端将无法启动：
+以下键必须在 `deployment/.env.staging` 中配置，否则后端将无法启动：
 
 - `WECHAT_APP_ID`
 - `WECHAT_APP_SECRET`
@@ -110,14 +110,14 @@ docker restart nginx_test_container
 
 ```bash
 # 查看备份
-ls -lht /opt/says-test/backups/code/ | head -5
+ls -lht /opt/ailo-staging/backups/code/ | head -5
 
 # 回滚代码
-cd /opt/says-test/says/deployment/scripts
-sudo bash deploy.sh rollback --backup /opt/says-test/backups/code/backup-YYYYMMDD-HHMMSS.tar.gz
+cd /opt/ailo-staging/ailo/deployment/scripts
+sudo bash deploy.sh rollback --backup /opt/ailo-staging/backups/code/backup-YYYYMMDD-HHMMSS.tar.gz
 
 # 回滚数据库（如需要）
-sudo bash deploy.sh restore-db --backup /opt/says-test/backups/database/db-YYYYMMDD-HHMMSS.sql.gz
+sudo bash deploy.sh restore-db --backup /opt/ailo-staging/backups/database/db-YYYYMMDD-HHMMSS.sql.gz
 ```
 
 ---
@@ -125,7 +125,7 @@ sudo bash deploy.sh restore-db --backup /opt/says-test/backups/database/db-YYYYM
 ## 维护命令
 
 ```bash
-cd /opt/says-test/says/deployment/scripts
+cd /opt/ailo-staging/ailo/deployment/scripts
 
 # 查看状态
 sudo bash deploy.sh status
@@ -152,10 +152,10 @@ sudo bash deploy.sh start
 ### 路径
 
 ```
-项目根目录:    /opt/says-test/says/
-备份目录:      /opt/says-test/backups/
-脚本目录:      /opt/says-test/says/deployment/scripts/
-环境配置:      /opt/says-test/says/deployment/.env.test
+项目根目录:    /opt/ailo-staging/ailo/
+备份目录:      /opt/ailo-staging/backups/
+脚本目录:      /opt/ailo-staging/ailo/deployment/scripts/
+环境配置:      /opt/ailo-staging/ailo/deployment/.env.staging
 ```
 
 ### URL
@@ -177,5 +177,5 @@ nginx_test_container
 
 ```
 管理员:        admin / admin123
-数据库:        postgres / says_test
+数据库:        postgres / ailo_test
 ```

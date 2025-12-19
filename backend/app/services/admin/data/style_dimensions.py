@@ -51,6 +51,7 @@ async def get_dimension_relationship_mappings(
         where_extra = " AND d.id = :dimension_id"
         params["dimension_id"] = int(dimension_id)
 
+    # Safe: where_extra is a fixed string, all values are parameterized
     base_sql = f"""
         SELECT DISTINCT
             drm.relationship_id,

@@ -5,8 +5,9 @@
     // Use project virtual environment
     "python.defaultInterpreterPath": "./venv/Scripts/python.exe",
     "python.terminal.activateEnvironment": true,
-    // Python analysis settings
-    "python.analysis.typeCheckingMode": "basic",
+    // Python analysis settings - Pylance for navigation/completion, Mypy for type checking
+    "python.analysis.typeCheckingMode": "off",  // Disable Pylance type checking
+    "python.languageServer": "Pylance",  // Use Pylance for IntelliSense only
     "python.analysis.autoImportCompletions": true,
     "python.analysis.autoSearchPaths": true,
     // Add backend/app to Python path for proper imports
@@ -22,10 +23,13 @@
         ".git",
         "./venv"
     ],
-    // Downgrade missing imports to warnings instead of errors
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportMissingImports": "warning"
-    },
+    // Mypy Type Checker configuration
+    "mypy-type-checker.args": [
+        "--config-file=pyproject.toml"  // Use project's strict mypy configuration
+    ],
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    "mypy-type-checker.reportingScope": "workspace",
+    "mypy-type-checker.preferDaemon": true,  // Use mypy daemon for faster checking
     // Python testing with pytest
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [

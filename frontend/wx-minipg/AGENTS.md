@@ -17,7 +17,7 @@
 - [数据字典](../../docs/data-dict/)
 - [Leancloud IM 文档](../../docs/references/leancloud-docs/)
 - [微信小程序官方文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
-- 特别提示：用户可以联系到微信文档专家，如果有不确定的问题请报告提问，请勿在一知半解状态实施
+- 特别提示：用户可以联系到微信文档专员，如果有不确定的问题请报告提问，请勿在一知半解状态实施
 
 ## 架构约束
 

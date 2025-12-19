@@ -5,7 +5,7 @@
 services:
   # ngrok for exposing webhook to LeanCloud
   ngrok:
-    container_name: ngrok_container
+    container_name: ngrok
     build:
       context: ../ngrok
       dockerfile: Dockerfile
@@ -14,13 +14,13 @@ services:
     ports:
       - "4040:4040"
     networks:
-      - says-network
+      - default
     # Note: ngrok will wait for backend to be ready internally
     restart: always
 
   # Dozzle for log viewing
   dozzle:
-    container_name: dozzle_container
+    container_name: dozzle
     image: amir20/dozzle:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -28,7 +28,7 @@ services:
       - "9999:8080"
     restart: always
     networks:
-      - says-network
+      - default
   #
   # # Development-only web frontend (commented out by default)
   # web_dev:
@@ -39,9 +39,9 @@ services:
   #   ports:
   #     - "8080:80"
   #   networks:
-  #     - says-network
+  #     - default
   #   restart: always
 
 networks:
-  says-network:
+  default:
     driver: bridge

@@ -121,7 +121,7 @@ check_postgres_health() {
         print_success "PostgreSQL health check passed"
     elif [ "$health_status" = "none" ]; then
         # No healthcheck defined, try direct connection
-        if docker exec "$POSTGRES_CONTAINER" pg_isready -U says_user -d says > /dev/null 2>&1; then
+        if docker exec "$POSTGRES_CONTAINER" pg_isready -U ailo_user -d ailo > /dev/null 2>&1; then
             print_success "PostgreSQL is accepting connections"
         else
             print_error "PostgreSQL is not ready"

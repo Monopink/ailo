@@ -341,7 +341,7 @@ class LLMConfigView(ModelView):
         text="Test Config",
         icon_class="fas fa-flask",
     )
-    def test_config_row_action(self, request, pk):
+    def test_config_row_action(self, request: Request, pk: Any) -> str:
         """Custom row action to test this LLM configuration."""
         # Redirect to test interface with RESTful path
         return f"/qiao-dash/llm_config/test/{pk}"

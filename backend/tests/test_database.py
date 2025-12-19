@@ -28,7 +28,7 @@ async def test_database_current_database(db_session: AsyncSession):
     result = await db_session.execute(text("SELECT current_database()"))
     db_name = result.scalar()
 
-    assert db_name == "says"
+    assert db_name == "ailo"
 
 
 @pytest.mark.asyncio

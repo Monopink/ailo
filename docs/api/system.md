@@ -20,24 +20,24 @@
 
 ```json
 {
-  "provider": "aliyun",
-  "scene_id": "nc_login_h5",
-  "region": "cn",
-  "mode": "popup",
+  "provider": "none",
+  "scene_id": "",
+  "region": "",
+  "mode": "disabled",
   "language": "cn"
 }
 ```
 
 **字段说明**:
 
-- `provider` (string) - 验证码服务提供方标识，统一转为小写，目前支持 `aliyun`/`turnstile`/`none`
-- `scene_id` (string) - 验证场景 ID（不同客户端可配置不同值），后端会根据 `X-Client` 头查找 `{client}_aliyun_captcha_scene_id`
+- `provider` (string) - 验证码服务提供方标识，统一转为小写，目前支持 `turnstile`/`none`
+- `scene_id` (string) - 验证场景 ID（不同客户端可配置不同值），后端会根据 `X-Client` 头查找 `{client}_captcha_scene_id`
 - `region` (string) - 运行地域，目前固定 `cn`
 - `mode` (string) - 交互模式，默认为 `popup`
 - `language` (string) - 语言标识，默认为 `cn`
 
 ### 业务说明
 
-- 所有值来自 `system_configs`，优先读取客户端前缀配置，找不到再回退到全局配置（`captcha_provider`、`aliyun_captcha_scene_id` 等）。
-- 当前 MVP 阶段所有客户端都使用阿里云验证码 (`provider=aliyun`)，如需切换其他方案，只需更新配置表即可，无需发版。
-- 前端应在应用启动或登录前调用一次，并将结果缓存到内存，后续验证码组件直接读取；若配置可能动态调整，可在应用恢复前台时重新拉取。*** End Patch
+- 所有值来自 `system_configs`，优先读取客户端前缀配置，找不到再回退到全局配置（`captcha_provider`、`captcha_scene_id` 等）。
+- 当前微信小程序配置为 `provider=none`，如需为其它客户端启用验证码，只需在配置表中为对应 `X-Client` 设置 `turnstile` 即可，无需发版。
+- 前端应在应用启动或登录前调用一次，并将结果缓存到内存，后续验证码组件直接读取；若配置可能动态调整，可在应用恢复前台时重新拉取。

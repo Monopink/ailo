@@ -20,6 +20,10 @@
 
 - [发现页面](discovery.md) - 广场推荐、陌生人详情
 
+### 媒体相关
+
+- [媒体文件](media.md) - 文件上传、头像管理
+
 ### 系统相关
 
 - [系统配置](system.md) - 系统级配置接口
@@ -68,7 +72,7 @@ Authorization: Bearer <token>
 {
   "qiao_id": "qiao_abc123",
   "nickname": "小明",
-  "avatar_url": "assets://1234"
+  "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp"
 }
 ```
 

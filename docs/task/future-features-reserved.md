@@ -4,7 +4,7 @@
 
 ---
 
-## 1. AI 联系人请求验证消息决策
+## AI 联系人请求验证消息决策
 
 **预留位置**: `backend/app/services/ai/contact_handler.py`
 
@@ -25,21 +25,86 @@ async def handle_ai_contact_request(
 
 **当前状态**:
 
-- ✅ 参数已定义并传递
-- ✅ 数据已存储到 `contact_requests.message` 字段
+- 参数已定义并传递
+- 数据已存储到 `contact_requests.message` 字段
 - ❌ 函数内部未使用该参数
-
-**设计意图**:
-
-- AI 可以根据用户发送的验证消息内容决定是首次聊天消息内容
 
 **相关文档**:
 
 - [联系人请求流程](contact-request-flow.md#L51)
 - [API 设计文档](../prototype/api-spec.md#L1045)
 
-**记录时间**: 2025-11-28
+**Data Flow**: `message` → `contact_requests.message` (persisted but not yet consumed)
+
+---
+
+## Extended Media File Types
+
+**Reserved**: `file_type` enum values 2/3/4 in database schema
+
+**Purpose**:
+- **Type 2 (emoji)**: Custom emoji/sticker support
+- **Type 3 (image)**: Chat image sharing
+- **Type 4 (document)**: File attachments
+
+**Architecture**: Unified `media_files` table + quota system + CDN delivery
+
+---
+
+## Storage Cleanup Strategies
+
+**Reserved**: Active unreferenced file cleanup job
+
+**Purpose**: Remove activated media files that are no longer referenced by any entity (profiles, messages, etc.) after a grace period.
+
+**Rationale**: Prevent storage abuse patterns - token申请不确认, image hosting misuse, quota bypass attacks.
+
+---
+
+## File Security Enhancements
+
+### Magic Bytes Verification
+
+**Purpose**: Verify uploaded file's actual type matches declared MIME type using file signature detection.
+
+**Threat Model**: Prevents executable masquerading (exe→jpg) and XSS vectors (html→img).
+
+### Content Moderation
+
+**Purpose**: Integrate third-party content moderation API (Tencent Cloud Tianyu) for NSFW/illegal content detection.
+
+**Integration Point**: Right after `/api/v1/media/upload` stores the file (before returning URL).
+
+---
+
+## Private File Access
+
+**Reserved**: `GET` method in `StorageBackend.get_presigned_url()`
+
+**Purpose**: Generate time-limited download URLs for private files (documents, sensitive media).
+
+**Use Cases**: Personal document sharing, temporary access grants, privacy-sensitive content.
+
+---
+
+## Emoji System Architecture
+
+**Design Principles**:
+- **No proprietary protocols**: Reject `assets://` scheme, use standard CDN URLs only
+- **Placeholder system**: Messages store text markers `[emoji_key]`, clients render to images
+- **Hybrid distribution**: Basic packs cached on client, extended packs cloud-delivered
+- **Content flexibility**: Support seasonal/themed/AI-generated emoji packs
+
+**Data Model**: New metadata structure (separate from `preset_assets` legacy approach)
+
+**Client Flow**: Fetch pack manifest → cache CDN URLs → render placeholders
+
+---
 
 ## 时间格式不统一问题
 
 文档示例中的时间戳为毫秒整数，返回体实际是 ISO8601 datetime，因为 Schema 直接暴露 datetime（backend/app/schemas/contact.py:128-141）。
+
+**Issue**: Timestamp representation inconsistency (docs show integers, actual responses use ISO8601 strings)
+
+**Resolution Direction**: Define project-wide datetime serialization standard (integer ms vs ISO8601 strings)

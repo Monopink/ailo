@@ -11,6 +11,7 @@ repos:
         name: Check YAML syntax
       - id: check-json
         name: Check JSON syntax
+        exclude: ^\.vscode/settings\.json$
       - id: check-toml
         name: Check TOML syntax
       - id: check-added-large-files

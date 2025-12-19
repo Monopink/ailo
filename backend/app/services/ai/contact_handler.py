@@ -35,13 +35,16 @@ async def handle_ai_contact_request(
     request_id: int,
     from_qiao_id: str,
     to_qiao_id: str,
-    message: str,
+    message: str,  # noqa: ARG001 - Reserved for contact request message validation
 ) -> ContactRequestDecision:
     """
     Handle contact request for a persona.
 
     Determines whether the requested persona is available and selects
     an appropriate template for instantiation.
+
+    Args:
+        message: Reserved for future use (contact request message validation)
     """
 
     persona = await _lock_persona_by_qiao_id(db, qiao_id=to_qiao_id)

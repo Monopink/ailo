@@ -23,6 +23,7 @@
 - 优先使用工具解决问题
 - **你需要保证你说的内容和写的代码的正确性、真实性，对于没有把握、不知道的事情直接说出情况，不要猜测。你需要忠于事实**
 - 使用英文注释，使用中文回复用户和交流
+- 禁止为不存在的内容添加注释，例如已经移除的模块、已更改的设计等
 - 简单至上 (KISS): 追求代码和设计的极致简洁与直观，避免不必要的复杂性。
 - 精益求精 (YAGNI): 仅实现当前明确所需的功能，抵制过度设计和不必要的未来特性预留。
 - 坚实基础 (SOLID):
@@ -83,36 +84,79 @@
 
 ### Serena（本地代码分析优先）
 
-**工具能力**：find_symbol, find_referencing_symbols, get_symbols_overview, search_for_pattern, read_file, replace_symbol_body, create_text_file, execute_shell_command
 **触发场景**：代码检索、架构分析、跨文件引用、项目理解
-**调用策略**：
 
-- 先用 get_symbols_overview 快速了解文件结构
-- find_symbol 精确定位（支持 name_path 模式匹配）
-- search_for_pattern 用于复杂正则搜索
-- 限制 relative_path 到相关目录，避免全项目扫描
+**Memories 使用**（关键！）：
+- **会话开始必须读取** `current_tasks.md` 检查未完成任务
+- **遇到错误立即读取** `known_issues.md` 避免重复踩坑
+- **架构决策前读取** `decisions.md` 避免违反既定设计
+- **执行操作时读取** `quick_ref.md` 获取准确命令/配置
+- **任务暂停主动询问**是否记录到 `current_tasks.md`
+- **发现新坑立即记录**到 `known_issues.md`，不要等会话结束
+- 详细规范见 `_index` memory
 
-### Code Index (代码索引)
+### Code Index（快速代码搜索）
 
-**触发场景**：需要理解项目、代码审查、快速查找函数定义、分析代码依赖关系等场景
+**关键用途**：
+- **优先于 grep/find**：查找函数调用、文件搜索
+- 自动处理 .gitignore，支持正则和模糊匹配
+- 文件变更后记得 `refresh_index`
 
-### Sequential Thinking（复杂规划）
+### Sequential Thinking（系统性思考）
 
-**触发场景**：多步骤任务分解、架构设计、问题诊断流程
-**输出要求**：6-10 步可执行计划，不暴露推理过程
-**参数控制**：total_thoughts≤10, 每步一句话描述
+**何时使用**：
+- 不确定如何开始、需要权衡多个方案、分析复杂问题
+- 架构决策、5+ 步骤任务分解
+- 思考过程用户不可见，只输出结论
 
-### DuckDuckGo（外部信息）
+### DuckDuckGo（搜索引擎）
 
-**触发场景**：最新信息、官方公告、breaking changes
-**查询优化**：≤12 关键词 + 限定词（site:, after:, filetype:）
-**结果控制**：≤35 条，优先官方域名，过滤内容农场
+**用途**：最新信息、breaking changes、错误信息查询
+**不要用于**：第三方库文档（应使用 Context7）
+**注意**：过滤 CSDN、w3schools 等低质量来源
 
-### Chrome devtools（浏览器自动化）
+### Chrome DevTools（浏览器调试）
 
-**触发场景**：网页截图、表单测试、SPA 交互验证
-**安全限制**：仅开发测试用途
+**用途**：前端问题调试、自动化测试、性能分析
+**关键**：优先用 `take_snapshot`（a11y tree）而不是截图
+
+---
+
+### Context7（第三方库文档）
+
+**用途**：查询第三方库 API 文档和示例（FastAPI、SQLAlchemy、Pydantic 等）
+**步骤**：
+1. `resolve-library-id` 将库名解析为 ID
+2. `get-library-docs` 获取文档（`mode='code'` 或 `'info'`）
+**优先级**：库文档查询始终先用 Context7，失败后才用搜索引擎
+
+---
+
+### Shrimp Task Manager（大型任务管理）
+
+**何时使用**：3+ 天功能开发、5+ 文件重构、跨会话任务追踪
+**流程**：plan → analyze → reflect → split → execute → verify
+**关键约束**：
+- `execute_task` 只返回指导，需你实际执行
+- 子任务应功能独立，1-2 天完成，不跨技术域
+**与 current_tasks.md 区别**：Shrimp 用于项目级（周/月），current_tasks 用于任务级（天）
+
+---
+
+### DeepWiki（文档聚合）
+
+**用途**：查询开源项目完整文档（GitHub repo、README、Wiki）
+**参数**：支持 URL、`owner/repo`、关键词；`maxDepth=0/1` 控制深度
+
+---
+
+### SSH MCP（远程服务器）
+
+**用途**：远程部署、调试、sudo 命令执行
+**注意**：命令在远程执行，路径和环境与本地不同
+
+---
 
 ### 其他 MCP
 
-除了上述MCP以外可能还有其他的MCP可供使用, 可根据情况进行使用
+除了上述 MCP 以外可能还有其他的 MCP 可供使用，可根据情况进行使用

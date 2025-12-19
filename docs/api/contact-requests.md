@@ -30,7 +30,7 @@
     "message": "你好，我想加你为好友",
     "from_profile": {
       "nickname": "小明",
-      "avatar_url": "assets://1234",
+      "avatar_url": "https://cdn.example.com/users/qiao_user001.webp",
       "gender": 1,
       "bio": "喜欢音乐"
     }
@@ -191,7 +191,7 @@
   "is_blocked": false,
   "profile": {
     "nickname": "小明",
-    "avatar_url": "assets://1234",
+    "avatar_url": "https://cdn.example.com/users/qiao_user001.webp",
     "gender": 1,
     "bio": "喜欢音乐"
   }
@@ -210,7 +210,7 @@
 - `is_blocked` (boolean) - 是否屏蔽
 - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
-  - `avatar_url` (string) - 头像URL
+  - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
   - `bio` (string) - 个人简介
 

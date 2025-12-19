@@ -55,7 +55,7 @@ Square（发现页）负责向用户展示可添加的 AI 联系人，采用随�
 
 - `qiao_id` - 来自 `ai_personas.qiao_id`
 - `nickname` - 来自 `profiles.nickname`
-- `avatar_url` - 来自 `profiles.avatar_url`
+- `avatar_url` - 由 `profiles.avatar_file_id` -> `media_files` -> CDN 动态生成
 - `gender` - 来自 `profiles.gender`
 - `bio` - 来自 `profiles.bio`
 - `region` - 来自 `profiles.region`

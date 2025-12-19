@@ -1,7 +1,0 @@
-- Follow AGENTS.md: UX must feel like chatting in WeChat with real people; avoid "AI/robot" terms in user-facing copy.
-- Engineering priorities stay KISS, YAGNI, SOLID, and first-principles thinking; no backward-compat constraints during MVP.
-- Specs live in `docs/design`, `docs/data-dict`, `docs/api`, and `docs/tech`; raise discrepancies or prototype gaps immediately instead of guessing.
-- User is non-technical: question unclear or conflicting requests and stick to documented truth.
-- Surface errors clearly rather than hiding them with silent fallbacks; keep user-facing messages concise but accurate.
-- Python rules: fully typed async code, prefer stateless functional style, justify classes, keep English comments minimal and only for non-obvious logic.
-- Messaging & config: environment variables for immutable secrets, adjustable settings via `system_configs`; LeanCloud is transport-only and Doubao is the OpenAI-compatible LLM provider.

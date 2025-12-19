@@ -319,18 +319,19 @@ ON CONFLICT (qiao_id) DO UPDATE SET
     updated_at = NOW();
 
 -- Insert profiles for AI personas
-INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
-(223788765171154955, 223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, 'assets://1574'),
-(223788765171154956, 223788765171155010, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, 'assets://2454'),
-(223788765171154957, 223788765171155011, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, 'assets://3758')
+-- Note: avatar_file_id is NULL for sample data (system default avatar will be used until users upload one)
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_file_id) VALUES
+(223788765171154955, 223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, NULL),
+(223788765171154956, 223788765171155010, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, NULL),
+(223788765171154957, 223788765171155011, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, NULL)
 ON CONFLICT (owner_qiao_id) DO UPDATE SET
     nickname = EXCLUDED.nickname,
     bio = EXCLUDED.bio,
-    avatar_url = EXCLUDED.avatar_url,
+    avatar_file_id = EXCLUDED.avatar_file_id,
     updated_at = NOW();
 
 -- Insert profiles for test users
-INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_url) VALUES
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_file_id) VALUES
 (223788765171154950, 223788765171154945, 'qqid_test_user_001', 1, '小雨', '喜欢看书和旅行的文艺青年，最近在学习摄影', 2, NULL),
 (223788765171154951, 223788765171154946, 'qqid_test_user_002', 1, '阿杰', '热爱运动的阳光男孩，篮球和游泳都很在行', 1, NULL),
 (223788765171154952, 223788765171154947, 'qqid_test_user_003', 1, '晓晓', '甜品师，喜欢烘焙和美食，梦想开一家自己的咖啡店', 2, NULL),
@@ -620,9 +621,17 @@ INSERT INTO message_delivery_failures (id, msg_id_server, from_type, from_id, fr
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample media files (Snowflake ID)
-INSERT INTO media_files (id, file_id, file_path, file_url, file_type, original_name, file_size, mime_type, upload_by_type, upload_by_id, upload_by_qiao_id) VALUES
-(223788765171155003, 'media_001', '/uploads/avatars/avatar_001.jpg', 'https://example.com/uploads/avatars/avatar_001.jpg', 1, 'avatar.jpg', 102400, 'image/jpeg', 1, 223788765171154945, 'qqid_test_user_001'),
-(223788765171155004, 'media_002', '/uploads/backgrounds/bg_001.png', 'https://example.com/uploads/backgrounds/bg_001.png', 1, 'background.png', 256000, 'image/png', 1, 223788765171154946, 'qqid_test_user_002')
+-- NOTE: Sample media files use minimal required fields for testing
+-- In production, these would be properly uploaded through the media API
+INSERT INTO media_files (
+    id, file_id, file_type,
+    storage_provider, object_key,
+    original_name, file_size, mime_type,
+    upload_by_type, upload_by_id, upload_by_qiao_id,
+    status, created_at, updated_at
+) VALUES
+(223788765171155003, 'media_001', 1, 'local', 'test/avatar_001.jpg', 'avatar.jpg', 102400, 'image/jpeg', 1, 223788765171154945, 'qqid_test_user_001', 1, NOW(), NOW()),
+(223788765171155004, 'media_002', 1, 'local', 'test/bg_001.png', 'background.png', 256000, 'image/png', 1, 223788765171154946, 'qqid_test_user_002', 1, NOW(), NOW())
 ON CONFLICT (file_id) DO NOTHING;
 
 -- Insert sample user violation logs
@@ -680,14 +689,6 @@ INSERT INTO ai_personality_placeholders (personality_id, placeholder_key, displa
 (2, 'background', '背景设定', '背景故事', '活泼可爱的甜美女孩', 0),
 (2, 'age', '年龄', '年龄', '20', 0),
 (2, 'occupation', '职业', '职业', '艺术学院学生', 0);
-
--- Insert preset avatars (auto-increment ID)
-INSERT INTO preset_assets (asset_type, name, category, is_client_preset, url, prompt, description, sort_order) VALUES
--- Cute avatars
-(1, '1574', 1, 1, 'assets://1574', 'a cute cartoon cat with big eyes', '可爱的猫咪头像', 1),
-(1, '2454', 1, 1, 'assets://2454', 'a friendly cartoon dog with a smile', '友好的狗狗头像', 2),
-(1, '3758', 1, 1, 'assets://3758', 'a lovely cartoon rabbit with long ears', '可爱的兔子头像', 3)
-ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
 -- Finalization

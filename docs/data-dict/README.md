@@ -33,7 +33,6 @@
 
 ### 系统模块
 
-- [media-preset.md](media-preset.md) - 媒体与预设资源（media_files, preset_assets）
 - [system-config.md](system-config.md) - 系统配置（system_configs）
 - [system-stats.md](system-stats.md) - 统计报表（stats_*系列表）
 - [admin.md](admin.md) - 管理后台（admin_users, admin_operation_logs, admin_login_logs）

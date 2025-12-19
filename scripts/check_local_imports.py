@@ -5,9 +5,8 @@ from __future__ import annotations
 
 import argparse
 import ast
-import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Sequence, Tuple
 
 DEFAULT_SCAN_PATHS: tuple[Path, ...] = (
     Path("backend/app/admin/views"),
@@ -21,8 +20,8 @@ class LocalImportVisitor(ast.NodeVisitor):
     """Track import nodes that do not live at the module scope."""
 
     def __init__(self) -> None:
-        self.stack: List[ast.AST] = []
-        self.issues: List[int] = []
+        self.stack: list[ast.AST] = []
+        self.issues: list[int] = []
 
     def visit(self, node: ast.AST) -> None:
         self.stack.append(node)
@@ -92,7 +91,7 @@ def collect_target_files(paths: Sequence[str]) -> list[Path]:
     return resolved
 
 
-def analyze_file(path: Path) -> List[Tuple[int, str]]:
+def analyze_file(path: Path) -> list[tuple[int, str]]:
     """Return the line numbers and snippets of nested imports in `path`."""
     try:
         source = path.read_text(encoding="utf-8-sig")
@@ -110,7 +109,9 @@ def analyze_file(path: Path) -> List[Tuple[int, str]]:
         return []
     lines = source.splitlines()
     return [
-        (lineno, lines[lineno - 1].strip()) for lineno in visitor.issues if 0 <= lineno - 1 < len(lines)
+        (lineno, lines[lineno - 1].strip())
+        for lineno in visitor.issues
+        if 0 <= lineno - 1 < len(lines)
     ]
 
 
@@ -130,7 +131,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not files:
         return 0
 
-    findings: list[Tuple[Path, List[Tuple[int, str]]]] = []
+    findings: list[tuple[Path, list[tuple[int, str]]]] = []
     for file_path in files:
         issues = analyze_file(file_path)
         if issues:
@@ -144,7 +145,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         for line_no, snippet in issues:
             print(f"  {line_no}: {snippet}")
 
-    print("\nFound nested imports in the files above. Move them to the module scope or guard them with TYPE_CHECKING.")
+    print(
+        "\nFound nested imports in the files above. Move them to the module scope or guard them with TYPE_CHECKING."
+    )
     return 1
 
 

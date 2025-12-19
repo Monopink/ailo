@@ -41,6 +41,8 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('jwt_algorithm', 'HS256', 'HS256', 1, 'JWT signing algorithm', 'auth', NULL),
 ('token_max_active_per_device', '5', '1', 2, 'Maximum active tokens per device type', 'auth', NULL),
 ('token_cleanup_after_days', '30', '30', 2, 'Clean up revoked tokens older than N days', 'auth', NULL),
+('wechat_phone_mock_enabled', 'false', 'false', 3, 'Enable WeChat phone mock (non-production environments only)', 'auth', NULL),
+('wechat_phone_mock_number', '', '', 1, 'Mock phone number for WeChat virtual accounts (E.164 format)', 'auth', NULL),
 
 -- LeanCloud IM configurations
 ('leancloud_im_app_id', 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz', '', 1, 'LeanCloud IM App ID', 'leancloud', NULL),
@@ -98,11 +100,9 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('admin_turnstile_secret_key', '0x4AAAAAAB4mlLtoJ7O9ObSXGAadbdhA3bA', '1x0000000000000000000000000000000AA', 1, 'Admin Turnstile secret key', 'captcha', NULL),
 
 -- User CAPTCHA configuration
-('wxminipg_captcha_provider', 'aliyun', 'none', 5, 'User captcha provider', 'captcha', '["none","turnstile","aliyun"]'::jsonb),
 ('captcha_threshold_failures', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
 ('turnstile_site_key', '', '1x00000000000000000000AA', 1, 'User Turnstile site key', 'captcha', NULL),
 ('turnstile_secret_key', '', '1x0000000000000000000000000000000AA', 1, 'User Turnstile secret key', 'captcha', NULL),
-('wxminipg_aliyun_captcha_scene_id', '', '', 1, 'Aliyun Captcha SceneId for user verification', 'captcha', NULL),
 
 -- Message rate limit configuration
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
@@ -112,7 +112,23 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- Square rate limit configuration
 ('square_rate_limit_requests', '1', '1', 2, 'Square refresh requests per window', 'rate_limit', NULL),
-('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'rate_limit', NULL)
+('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'rate_limit', NULL),
+
+-- Media upload configuration
+('avatar_max_size_mb', '2', '2', 2, 'Maximum avatar file size in MB', 'media', NULL),
+('avatar_allowed_formats', 'image/jpeg,image/png,image/webp', 'image/jpeg,image/png,image/webp', 1, 'Allowed avatar MIME types (comma-separated)', 'media', NULL),
+('image_max_size_mb', '10', '10', 2, 'Maximum image file size in MB', 'media', NULL),
+('image_allowed_formats', 'image/jpeg,image/png,image/webp,image/gif', 'image/jpeg,image/png,image/webp,image/gif', 1, 'Allowed image MIME types (comma-separated)', 'media', NULL),
+
+-- Media upload quota configuration (✅ MVP P0)
+('avatar_upload_daily_quota', '5', '5', 2, 'Maximum avatar uploads per user per day', 'media', NULL),
+('avatar_upload_daily_size_quota_mb', '10', '10', 2, 'Maximum total avatar upload size per user per day (MB)', 'media', NULL),
+('image_upload_daily_quota', '20', '20', 2, 'Maximum image uploads per user per day', 'media', NULL),
+('image_upload_daily_size_quota_mb', '50', '50', 2, 'Maximum total image upload size per user per day (MB)', 'media', NULL),
+
+-- Media upload rate limit configuration
+('media_upload_rate_limit_requests', '10', '10', 2, 'Media upload requests per window', 'rate_limit', NULL),
+('media_upload_rate_limit_window_seconds', '60', '60', 2, 'Media upload window in seconds', 'rate_limit', NULL)
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     default_value = EXCLUDED.default_value,
@@ -120,6 +136,62 @@ ON CONFLICT (config_key) DO UPDATE SET
     description = EXCLUDED.description,
     group_name = EXCLUDED.group_name,
     allowed_values = EXCLUDED.allowed_values;
+
+-- ============================================================================
+-- Login Page UI Content (replace avatar_file_id before执行)
+-- ============================================================================
+
+-- 使用对象存储上传完成后返回的 file_id 替换占位符
+-- 示例联系人
+INSERT INTO app_ui_contents (page_key, section_key, item_order, content_data, locale, status) VALUES
+('login', 'sample_contacts', 1, jsonb_build_object(
+    'qiao_id', 'sample_showcase_1',
+    'nickname', '小敲',
+    'avatar_file_id', 'file_login_sample_1', -- TODO: 替换为实际 file_id
+    'bio', '温暖的AI伙伴,喜欢倾听你的故事'
+), 'zh_CN', 1),
+('login', 'sample_contacts', 2, jsonb_build_object(
+    'qiao_id', 'sample_showcase_2',
+    'nickname', '阿暖',
+    'avatar_file_id', 'file_login_sample_2', -- TODO: 替换为实际 file_id
+    'bio', '想和你一起分享生活的点滴'
+), 'zh_CN', 1),
+('login', 'sample_contacts', 3, jsonb_build_object(
+    'qiao_id', 'sample_showcase_3',
+    'nickname', '倾听者',
+    'avatar_file_id', 'file_login_sample_3', -- TODO: 替换为实际 file_id
+    'bio', '无论什么烦恼,我都愿意倾听'
+), 'zh_CN', 1),
+('login', 'sample_contacts', 4, jsonb_build_object(
+    'qiao_id', 'sample_showcase_4',
+    'nickname', '小闺蜜',
+    'avatar_file_id', 'file_login_sample_4', -- TODO: 替换为实际 file_id
+    'bio', '一起逛街、聊八卦、分享秘密'
+), 'zh_CN', 1),
+('login', 'sample_contacts', 5, jsonb_build_object(
+    'qiao_id', 'sample_showcase_5',
+    'nickname', '游戏达人',
+    'avatar_file_id', 'file_login_sample_5', -- TODO: 替换为实际 file_id
+    'bio', '一起开黑吗?我可是王者段位'
+), 'zh_CN', 1);
+
+-- 功能列表
+INSERT INTO app_ui_contents (page_key, section_key, item_order, content_data, locale, status) VALUES
+('login', 'features', 1, jsonb_build_object(
+    'id', 'chat',
+    'title', '智能对话',
+    'description', '保持真人聊天的语气与节奏,随时陪伴'
+), 'zh_CN', 1),
+('login', 'features', 2, jsonb_build_object(
+    'id', 'emotion',
+    'title', '情感共鸣',
+    'description', '更懂情绪的 AI 伙伴,持续回应你的感受'
+), 'zh_CN', 1),
+('login', 'features', 3, jsonb_build_object(
+    'id', 'roles',
+    'title', '多元角色',
+    'description', '学生、同事、恋人…快速切换最契合的角色'
+), 'zh_CN', 1);
 
 -- ============================================================================
 -- LLM Providers and Configurations

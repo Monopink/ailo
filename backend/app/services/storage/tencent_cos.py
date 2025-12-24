@@ -21,6 +21,10 @@ from app.services.storage.base import (
 class TencentCOSBackend(StorageBackend):
     """Tencent COS implementation based on fsspec+s3fs."""
 
+    @property
+    def provider_name(self) -> str:
+        return "tencent_cos"
+
     def __init__(
         self,
         *,

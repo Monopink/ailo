@@ -26,11 +26,13 @@ interface AvatarCropperPageData {
 
 interface AvatarCropperPageCustom {
   _imageInfo?: CropperInternalState;
+  _hasCompleted?: boolean;
   initializeCropper(filePath: string): Promise<void>;
   handleChange(event: WechatMiniprogram.CustomEvent<{ x: number; y: number }>): void;
   handleScale(event: WechatMiniprogram.CustomEvent<{ scale: number; x: number; y: number }>): void;
   handleConfirm(): Promise<void>;
   handleCancel(): void;
+  notifyOpener(eventName: string, payload?: Record<string, unknown>): void;
 }
 
 Page<AvatarCropperPageData, AvatarCropperPageCustom>({
@@ -52,6 +54,7 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
     const systemInfo = wx.getSystemInfoSync();
     const containerSize = Math.min(systemInfo.windowWidth - 64, 320);
     this.setData({ containerSize });
+    this._hasCompleted = false;
 
     const eventChannel = this.getOpenerEventChannel?.();
     eventChannel?.on('init', (payload: { filePath?: string }) => {
@@ -59,6 +62,12 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
         void this.initializeCropper(payload.filePath);
       }
     });
+  },
+
+  onUnload() {
+    if (!this._hasCompleted) {
+      this.notifyOpener('cropCancel');
+    }
   },
 
   async initializeCropper(filePath: string) {
@@ -136,9 +145,8 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
         scale: this.data.scale,
       });
 
-      const eventChannel = this.getOpenerEventChannel?.();
-      eventChannel?.emit('cropComplete', { tempFilePath: croppedPath });
-
+      this._hasCompleted = true;
+      this.notifyOpener('cropComplete', { tempFilePath: croppedPath });
       void wx.navigateBack();
     } catch (error) {
       logger.error('Crop failed', {
@@ -153,7 +161,14 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
   },
 
   handleCancel() {
+    this._hasCompleted = true;
+    this.notifyOpener('cropCancel');
     void wx.navigateBack();
+  },
+
+  notifyOpener(eventName, payload = {}) {
+    const eventChannel = this.getOpenerEventChannel?.();
+    eventChannel?.emit(eventName, payload);
   },
 });
 

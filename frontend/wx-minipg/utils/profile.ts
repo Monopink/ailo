@@ -1,4 +1,4 @@
-import { get, patch } from './api';
+import { get, put } from './api';
 
 export interface UserProfileResponse {
   qiao_id: string;
@@ -15,8 +15,8 @@ export interface AccountInfoResponse {
   email?: string | null;
 }
 
-const PROFILE_ENDPOINT = '/users/me';
-const ACCOUNT_ENDPOINT = '/users/account';
+const PROFILE_ENDPOINT = '/user/profile';
+const ACCOUNT_ENDPOINT = '/user/account';
 
 export async function fetchCurrentUserProfile(): Promise<UserProfileResponse> {
   return await get<UserProfileResponse>(PROFILE_ENDPOINT);
@@ -29,5 +29,9 @@ export async function fetchAccountInfo(): Promise<AccountInfoResponse> {
 export async function updateCurrentUserProfile(
   payload: Record<string, unknown>
 ): Promise<UserProfileResponse> {
-  return await patch<UserProfileResponse, typeof payload>(PROFILE_ENDPOINT, payload);
+  return await put<UserProfileResponse, typeof payload>(PROFILE_ENDPOINT, payload);
+}
+
+export async function updateUserAvatar(fileId: string): Promise<UserProfileResponse> {
+  return await updateCurrentUserProfile({ avatar_file_id: fileId });
 }

@@ -78,7 +78,7 @@ const normalizeContact = (contact: StoredContact): ContactRecord => {
       ? profile.region
       : undefined;
 
-  const normalizedAvatar = getAvatarUrl(avatarUrl ?? '');
+  const normalizedAvatar = getAvatarUrl(avatarUrl ?? null);
   return {
     ...contact,
     avatar_url: normalizedAvatar,
@@ -86,7 +86,7 @@ const normalizeContact = (contact: StoredContact): ContactRecord => {
     bio: resolvedBio ?? (typeof contact.bio === 'string' ? contact.bio : undefined) ?? null,
     region:
       resolvedRegion ?? (typeof contact.region === 'string' ? contact.region : undefined) ?? null,
-    displayAvatar: normalizedAvatar || '/assets/avatars/default.png',
+    displayAvatar: normalizedAvatar,
   };
 };
 

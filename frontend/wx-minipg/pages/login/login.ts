@@ -21,16 +21,18 @@ interface LoginFeature {
   description: string;
 }
 
-interface AuthUserResponse extends StoredAuthUser {
-  token: string;
-}
-
 interface WechatLoginResponse {
   success: boolean;
-  needs_phone_binding?: boolean;
-  wechat_code?: string;
   message?: string;
-  user: AuthUserResponse;
+  token: string;
+  needs_profile_setup: boolean;
+  user: AuthUserPayload;
+}
+
+interface AuthUserPayload {
+  qiao_id: string;
+  nickname?: string | null;
+  avatar_url?: string | null;
 }
 
 interface LoginPageData {
@@ -43,7 +45,6 @@ interface LoginPageData {
 
 interface LoginPageCustom {
   handleWeChatLogin(event: WechatMiniprogram.ButtonGetPhoneNumber): Promise<void>;
-  handlePhoneLogin(): void;
   onRetry(): void;
 }
 
@@ -69,31 +70,31 @@ const SAMPLE_CONTACTS: SampleContact[] = [
   {
     qiao_id: 'sample_1',
     nickname: '小敲',
-    avatar: getAvatarUrl('avatar_1.png'),
+    avatar: '',
     bio: '温暖的AI伙伴,喜欢倾听你的故事',
   },
   {
     qiao_id: 'sample_2',
     nickname: '阿暖',
-    avatar: getAvatarUrl('avatar_2.png'),
+    avatar: '',
     bio: '想和你一起分享生活的点滴',
   },
   {
     qiao_id: 'sample_3',
     nickname: '倾听者',
-    avatar: getAvatarUrl('avatar_3.png'),
+    avatar: '',
     bio: '无论什么烦恼,我都愿意倾听',
   },
   {
     qiao_id: 'sample_4',
     nickname: '小闺蜜',
-    avatar: getAvatarUrl('avatar_4.png'),
+    avatar: '',
     bio: '一起逛街、聊八卦、分享秘密',
   },
   {
     qiao_id: 'sample_5',
     nickname: '游戏达人',
-    avatar: getAvatarUrl('avatar_5.png'),
+    avatar: '',
     bio: '一起开黑吗?我可是王者段位',
   },
 ];
@@ -119,6 +120,12 @@ const initMessaging = async (): Promise<void> => {
   const app = getApp<AppInstance>();
   await app.initMessageService();
 };
+
+const normalizeAuthUser = (payload: AuthUserPayload): StoredAuthUser => ({
+  qiao_id: payload.qiao_id,
+  nickname: payload.nickname ?? '',
+  avatar: getAvatarUrl(payload.avatar_url ?? ''),
+});
 
 Page<LoginPageData, LoginPageCustom>({
   data: {
@@ -162,22 +169,11 @@ Page<LoginPageData, LoginPageCustom>({
   },
 
   async handleWeChatLogin(event) {
-    // Check if user authorized phone number
     if (event.detail.errMsg !== 'getPhoneNumber:ok') {
-      logger.warn('WeChat phone authorization failed, fallback to phone binding', {
+      logger.warn('WeChat phone authorization rejected', {
         errMsg: event.detail.errMsg,
       });
-
-      // Fallback to phone binding without wechat_code
-      // User will need to use SMS verification to complete login
-      void wx.navigateTo({
-        url: '/pages/phone-bind/phone-bind',
-      });
-
-      // Show toast after navigation starts (brief, user-friendly message)
-      setTimeout(() => {
-        showToast('请使用手机号完成登录', 'none');
-      }, 100);
+      showToast('需要授权手机号才能使用本应用');
       return;
     }
 
@@ -187,8 +183,18 @@ Page<LoginPageData, LoginPageCustom>({
     try {
       this.setData({ wechatLoading: true });
 
-      // Use pre-fetched login_code
-      const loginCode = this.data.loginCode;
+      let loginCode = this.data.loginCode;
+      try {
+        const { code: refreshedCode } = await wx.login();
+        if (refreshedCode) {
+          loginCode = refreshedCode;
+          this.setData({ loginCode: refreshedCode });
+          logger.info('Login code refreshed on demand', { refreshedCode });
+        }
+      } catch (refreshError) {
+        logger.warn('Failed to refresh login code', { error: refreshError });
+      }
+
       if (!loginCode) {
         throw new Error('Login code not available, please try again');
       }
@@ -205,47 +211,33 @@ Page<LoginPageData, LoginPageCustom>({
         { auth: false }
       );
 
-      // Check if phone binding is needed (international phone)
-      if (!result.success && result.needs_phone_binding) {
-        logger.info('International phone detected, navigate to phone-bind', {
-          wechat_code: result.wechat_code,
-        });
-        this.setData({ wechatLoading: false });
-        void wx.navigateTo({
-          url: `/pages/phone-bind/phone-bind?wechat_code=${result.wechat_code}`,
-        });
-        return;
-      }
-
-      // Login successful
-      await authService.login(result.user.token, result.user);
-      logger.info('WeChat login success', { user: result.user });
+      const normalizedUser = normalizeAuthUser(result.user);
+      await authService.login(result.token, normalizedUser, {
+        needsProfileSetup: Boolean(result.needs_profile_setup),
+      });
+      logger.info('WeChat login success', { qiao_id: normalizedUser.qiao_id });
 
       this.setData({ wechatLoading: false });
 
-      // Check if user needs to complete profile setup
-      if (!result.user.nickname) {
+      if (result.needs_profile_setup) {
         void wx.redirectTo({ url: '/pages/setup/setup' });
         return;
       }
 
-      // Load contacts and init messaging
       await loadContacts();
       await initMessaging();
       void wx.switchTab({ url: '/pages/index/index' });
     } catch (error) {
-      logger.error('WeChat login failed', { error });
+      const errorMessage =
+        error instanceof Error && error.message ? error.message : '登录失败，请重试';
+      logger.error('WeChat login failed', {
+        error: errorMessage,
+        rawError: error,
+      });
       this.setData({ wechatLoading: false });
 
       // Show user-friendly error message (no technical details)
-      showToast('登录失败，请重试', 'none');
+      showToast(errorMessage, 'none');
     }
-  },
-
-  handlePhoneLogin() {
-    logger.info('User clicked phone login button');
-    void wx.navigateTo({
-      url: '/pages/phone-login/phone-login',
-    });
   },
 });

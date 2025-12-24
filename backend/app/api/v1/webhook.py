@@ -107,7 +107,7 @@ def _raise_invalid_payload_format() -> None:
 async def leancloud_webhook(
     webhook_token: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
     """
     Receive messages from LeanCloud webhook.

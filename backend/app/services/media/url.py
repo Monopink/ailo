@@ -6,20 +6,14 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from app.core.config import get_settings
 from app.models.message import MediaFile
 from app.services.storage.factory import get_storage_backend
 
 
 def build_public_url(media_file: MediaFile) -> str:
     """Return permanent URL for a media file."""
-    settings = get_settings()
     if media_file.cdn_domain:
         base = media_file.cdn_domain.rstrip("/")
-        return f"{base}/{media_file.object_key}"
-
-    if media_file.storage_provider == "local":
-        base = settings.STORAGE_LOCAL_URL.rstrip("/")
         return f"{base}/{media_file.object_key}"
 
     backend = get_storage_backend()

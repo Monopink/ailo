@@ -1,9 +1,11 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { getAvatarUrl } from '../../utils/avatar';
+import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import { getLogger } from '../../utils/logger';
 import {
   fetchAccountInfo,
   fetchCurrentUserProfile,
+  updateUserAvatar,
   type UserProfileResponse,
 } from '../../utils/profile';
 
@@ -30,6 +32,7 @@ interface ProfileDetailPageData extends Record<string, unknown> {
   profile: NormalizedProfile;
   phoneMasked: string;
   genderText: string;
+  avatarUploading: boolean;
 }
 
 interface ProfileDetailPageCustom {
@@ -42,6 +45,7 @@ interface ProfileDetailPageCustom {
   editBio(): void;
   handleFooterAction(): void;
   onRetry(): void;
+  editAvatar(): Promise<void>;
 }
 
 const normalizeGenderText = (gender?: number | null): string => {
@@ -63,6 +67,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     profile: null,
     phoneMasked: '',
     genderText: '未设置',
+    avatarUploading: false,
   },
 
   onLoad() {
@@ -99,7 +104,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
         ? {
             ...profile,
             avatar_url: profile.avatar_url ?? '',
-            displayAvatar: getAvatarUrl(profile.avatar_url ?? '') || '/assets/avatars/default.png',
+            displayAvatar: getAvatarUrl(profile.avatar_url ?? null),
             displayUsername: profile.username || '--',
           }
         : null;
@@ -138,7 +143,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
 
   editPhone() {
     void wx.navigateTo({
-      url: '/pages/phone-manage/phone-manage',
+      url: '/pages/account-security/account-security',
     });
   },
 
@@ -179,5 +184,37 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
 
   onRetry() {
     void this.loadProfile();
+  },
+
+  async editAvatar() {
+    if (this.data.avatarUploading) {
+      return;
+    }
+
+    this.setData({ avatarUploading: true });
+    void wx.showLoading({ title: '上传中', mask: true });
+    try {
+      const result = await completeAvatarUpload({ page: 'profile-detail' });
+      if (!result) {
+        return;
+      }
+      await updateUserAvatar(result.fileId);
+      void wx.showToast({
+        title: '头像已更新',
+        icon: 'success',
+      });
+      await this.loadProfile();
+    } catch (error) {
+      logger.error('Update avatar failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void wx.showToast({
+        title: error instanceof Error && error.message ? error.message : '更新头像失败，请重试',
+        icon: 'none',
+      });
+    } finally {
+      void wx.hideLoading();
+      this.setData({ avatarUploading: false });
+    }
   },
 });

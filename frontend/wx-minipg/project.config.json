@@ -39,7 +39,7 @@
       "outputPath": ""
     },
     "condition": false,
-    "compileWorklet": true,
+    "compileWorklet": false,
     "localPlugins": false,
     "disableUseStrict": false,
     "useCompilerPlugins": false,

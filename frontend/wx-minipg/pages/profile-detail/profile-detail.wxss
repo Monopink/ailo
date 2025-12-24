@@ -5,3 +5,14 @@
 .profile-detail {
   background-color: var(--color-bg-page);
 }
+
+.profile-detail__avatar-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.profile-detail__avatar-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}

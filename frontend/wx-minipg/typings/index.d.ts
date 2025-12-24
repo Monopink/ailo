@@ -6,27 +6,6 @@ declare global {
   namespace Ailo {
     type QiaoID = string;
 
-    interface CaptchaConfig {
-      provider: string;
-      sceneId: string;
-      region: string;
-      mode: string;
-      language: string;
-    }
-
-    interface CaptchaHandlers {
-      success?(token: string): void;
-      fail?(error: unknown): void;
-      onReady?(): void;
-    }
-
-    interface CaptchaPageData extends Record<string, unknown> {
-      captchaProvider?: string;
-      captchaSceneId?: string;
-      loadCaptcha?: boolean;
-      pluginProps?: Record<string, unknown>;
-    }
-
     interface AuthTokens {
       accessToken: string;
       refreshToken: string;
@@ -106,25 +85,12 @@ declare global {
     interface GlobalData {
       messageService: MessageService | null;
       systemInfo: WechatMiniprogram.SystemInfo | null;
-      captchaConfig: CaptchaConfig | null;
       conversationStore: ConversationStoreInstance;
-    }
-
-    interface CaptchaPageInstance extends WechatMiniprogram.Page.Instance<
-      Record<string, unknown>,
-      CaptchaPageData
-    > {
-      data: CaptchaPageData;
-      _captchaActive?: boolean;
-      _captchaReady?: boolean;
-      _captchaRetryCount?: number;
-      onCaptchaSuccess?(token: string): void;
     }
   }
 
   interface AppInstance extends WechatMiniprogram.App.Instance<WechatMiniprogram.IAnyObject> {
     globalData: Ailo.GlobalData;
-    preloadCaptchaConfig(): Promise<void>;
     initializeAuth(): Promise<void>;
     refreshTokenIfNeeded(): Promise<void>;
     initMessageService(): Promise<void>;

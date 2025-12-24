@@ -4,70 +4,55 @@ Media upload and asset endpoints.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.crud.message import media_file as media_file_crud
-from app.enums import FileStatus
+from app.enums import FileStatus, FileType
 from app.models.user import User
-from app.schemas.media import (
-    MediaAccessResponse,
-    UploadConfirmRequest,
-    UploadConfirmResponse,
-    UploadTokenRequest,
-    UploadTokenResponse,
-)
-from app.services.media.uploader import confirm_upload, request_upload_token
+from app.schemas.media import MediaAccessResponse, MediaUploadResponse
+from app.services.media.uploader import upload_via_proxy
 from app.services.media.url import build_private_url, build_public_url
 
 router = APIRouter(prefix="/media", tags=["Media"])
 
 
-@router.post("/upload-token", response_model=UploadTokenResponse)
-async def generate_upload_token(
-    payload: UploadTokenRequest,
+@router.post("/upload", response_model=MediaUploadResponse)
+async def upload_media_via_proxy(
+    file: UploadFile = File(...),
+    file_type: int = Form(...),
+    mime_type: str = Form(...),
+    file_size: int = Form(...),
+    original_name: str | None = Form(None),
+    file_hash: str | None = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> UploadTokenResponse:
-    """Issue presigned upload URL or short-circuit via deduplication."""
-    result = await request_upload_token(
+) -> MediaUploadResponse:
+    """Upload media via backend proxy (mini program/admin)."""
+    try:
+        file_type_enum = FileType(file_type)
+    except ValueError as exc:  # pragma: no cover - FastAPI validation should guard
+        raise HTTPException(status_code=400, detail="当前仅支持头像上传") from exc
+
+    file_bytes = await file.read()
+    await file.close()
+    resolved_original_name = original_name or file.filename
+
+    confirmed_file, deduplicated = await upload_via_proxy(
         db,
         user=current_user,
-        file_type=payload.file_type,
-        mime_type=payload.mime_type,
-        file_size=payload.file_size,
-        original_name=payload.original_name,
-        file_hash=payload.file_hash,
-    )
-    return UploadTokenResponse(
-        file_id=result.file_id,
-        upload_url=result.upload_url,
-        object_key=result.object_key,
-        expires_in=result.expires_in,
-        url=result.url,
-        duplicate=result.duplicate,
-    )
-
-
-@router.post("/upload-confirm", response_model=UploadConfirmResponse)
-async def finalize_upload(
-    payload: UploadConfirmRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> UploadConfirmResponse:
-    """Confirm object upload, verify metadata, and activate record."""
-    media = await media_file_crud.get_by_file_id(db, file_id=payload.file_id)
-    if not media:
-        raise HTTPException(status_code=404, detail="文件不存在")
-
-    confirmed_file, deduplicated = await confirm_upload(
-        db, user=current_user, media=media, etag=payload.etag
+        file_bytes=file_bytes,
+        file_type=file_type_enum,
+        mime_type=mime_type,
+        file_size=file_size,
+        original_name=resolved_original_name,
+        file_hash=file_hash,
     )
 
     url = build_public_url(confirmed_file)
-    return UploadConfirmResponse(file_id=confirmed_file.file_id, url=url, duplicate=deduplicated)
+    return MediaUploadResponse(file_id=confirmed_file.file_id, url=url, duplicate=deduplicated)
 
 
 @router.get("/{file_id}", response_model=MediaAccessResponse)

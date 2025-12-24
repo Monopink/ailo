@@ -1,8 +1,0 @@
-{
-  "navigationBarTitleText": "身份验证",
-  "usingComponents": {
-    "page-layout": "/components/page-layout/page-layout",
-    "t-button": "tdesign-miniprogram/button/button",
-    "aliyun-captcha": "plugin://AliyunCaptcha/captcha"
-  }
-}

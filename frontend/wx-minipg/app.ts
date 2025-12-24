@@ -2,8 +2,8 @@
  * MiniProgram App Entry
  */
 
+import './utils/polyfills';
 import authService from './utils/auth-service';
-import { fetchCaptchaConfig } from './utils/captcha';
 import { checkGlobalData, checkStorage } from './utils/debug';
 import { ENABLE_DEBUG_TOOLS } from './utils/env';
 import { getLogger } from './utils/logger';
@@ -49,11 +49,22 @@ const getActivePage = (): AnyPageInstance | undefined => {
   return pages[pages.length - 1] as AnyPageInstance | undefined;
 };
 
+const redirectToSetupIfNeeded = (): boolean => {
+  if (!authService.needsProfileSetup()) {
+    return false;
+  }
+  const currentPage = getActivePage();
+  if (currentPage?.route === 'pages/setup/setup') {
+    return true;
+  }
+  void wx.redirectTo({ url: '/pages/setup/setup' });
+  return true;
+};
+
 const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
   globalData: {
     messageService: null,
     systemInfo: null,
-    captchaConfig: null,
     conversationStore,
   } satisfies Ailo.GlobalData,
 
@@ -63,8 +74,6 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
     const systemInfo = wx.getSystemInfoSync();
     this.globalData.systemInfo = systemInfo;
     logger.info('System info', { systemInfo });
-
-    void this.preloadCaptchaConfig();
 
     if (ENABLE_DEBUG_TOOLS) {
       logger.info('=== App Launch Debug ===');
@@ -102,17 +111,6 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
     logger.info('Theme changed', { theme: event?.theme });
   },
 
-  async preloadCaptchaConfig() {
-    try {
-      const cfg = await fetchCaptchaConfig();
-      this.globalData.captchaConfig = cfg;
-      logger.info('Captcha config preloaded');
-    } catch (error) {
-      const err = normalizeError(error);
-      logger.error('Fetch captcha config failed', { error: err.message });
-    }
-  },
-
   async initializeAuth() {
     try {
       logger.info('=== Initializing Authentication ===');
@@ -123,6 +121,10 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
       if (isAuthenticated) {
         await conversationStore.init();
         await this.initMessageService();
+
+        if (redirectToSetupIfNeeded()) {
+          return;
+        }
 
         const currentPage = getActivePage();
         if (currentPage?.route === 'pages/welcome/welcome') {
@@ -143,6 +145,10 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
     } catch (error) {
       const err = normalizeError(error);
       logger.error('Initialize auth failed', { error: err.message });
+    } finally {
+      if (authService.isAuthenticated()) {
+        redirectToSetupIfNeeded();
+      }
     }
   },
 

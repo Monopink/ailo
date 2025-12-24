@@ -17,29 +17,27 @@ class WeChatLoginRequest(BaseModel):
 class WeChatLoginResponse(BaseModel):
     """WeChat login response"""
 
-    success: bool = Field(..., description="Login success")
-    needs_phone_binding: bool = Field(
-        default=False, description="Whether user needs to bind phone via SMS"
+    success: bool = Field(True, description="Login success")
+    token: str = Field(..., description="JWT token when login succeeds")
+    needs_profile_setup: bool = Field(
+        ..., description="Whether the logged-in user must complete profile setup"
     )
-    wechat_code: str | None = Field(None, description="Temporary code for phone binding")
-    user: dict[str, Any] | None = Field(None, description="User info if login successful")
+    user: dict[str, Any] = Field(..., description="User info if login successful")
     message: str | None = Field(None, description="Error or info message")
 
 
-class BindPhoneRequest(BaseModel):
-    """Bind phone request"""
+class WeChatRefreshPhoneRequest(BaseModel):
+    """WeChat phone refresh request"""
 
-    wechat_code: str = Field(..., description="Temporary code from WeChat login")
-    phone: str = Field(..., description="Phone number in E.164 format")
-    sms_code: str = Field(..., description="SMS verification code")
+    login_code: str = Field(..., description="Login code from wx.login()")
+    phone_code: str = Field(..., description="Phone code from getPhoneNumber button")
 
 
-class BindPhoneResponse(BaseModel):
-    """Bind phone response"""
+class WeChatRefreshPhoneResponse(BaseModel):
+    """WeChat phone refresh response"""
 
-    success: bool = Field(..., description="Bind success")
-    user: dict[str, Any] | None = Field(None, description="User info if bind successful")
-    message: str | None = Field(None, description="Error or info message")
+    phone: str = Field(..., description="Masked phone number")
+    user: dict[str, Any] = Field(..., description="Updated user info payload")
 
 
 class VerifyPhoneRequest(BaseModel):
@@ -47,37 +45,11 @@ class VerifyPhoneRequest(BaseModel):
 
     phone: str = Field(..., description="Phone number in E.164 format")
     sms_code: str = Field(..., description="SMS verification code")
-    wechat_code: str | None = Field(None, description="Optional WeChat code for binding")
 
 
 class VerifyPhoneResponse(BaseModel):
     """Phone verification response"""
 
-    is_new_user: bool = Field(..., description="Whether user is new (needs profile setup)")
-    token: str | None = Field(None, description="JWT token if user exists")
-    user: dict[str, Any] | None = Field(None, description="User info if user exists")
-    verified_phone_token: str | None = Field(
-        None, description="Temporary token for new user registration"
-    )
-    phone: str | None = Field(None, description="Phone number for new user")
-
-
-class CompleteRegistrationRequest(BaseModel):
-    """Complete registration request"""
-
-    verified_phone_token: str = Field(..., description="Temporary token from phone verification")
-    nickname: str = Field(
-        ..., min_length=2, max_length=20, description="User nickname (2-20 characters)"
-    )
-    gender: int | None = Field(None, description="Gender: 0=unknown, 1=male, 2=female")
-    bio: str | None = Field(None, max_length=200, description="User bio (max 200 characters)")
-    avatar_file_id: str | None = Field(
-        None, description="Avatar file ID (file_xxx) from media_files table"
-    )
-
-
-class CompleteRegistrationResponse(BaseModel):
-    """Complete registration response"""
-
-    token: str = Field(..., description="JWT token")
-    user: dict[str, Any] = Field(..., description="User info")
+    token: str = Field(..., description="JWT token for authenticated user")
+    needs_profile_setup: bool = Field(..., description="Whether profile setup is required")
+    user: dict[str, Any] = Field(..., description="User info for the authenticated session")

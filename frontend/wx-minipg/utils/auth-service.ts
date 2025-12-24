@@ -28,6 +28,8 @@ class AuthService {
 
   private _initPromise: Promise<boolean> | null = null;
 
+  private _needsProfileSetup = false;
+
   async initialize(): Promise<boolean> {
     if (this._initPromise) {
       logger.info('Initialization already in progress, waiting...');
@@ -43,6 +45,9 @@ class AuthService {
       logger.info('=== AuthService Initialization Start ===');
 
       const token = wx.getStorageSync<string>(STORAGE_KEYS.AUTH_TOKEN) ?? null;
+      const storedProfileSetupFlag =
+        wx.getStorageSync<boolean>(STORAGE_KEYS.PROFILE_SETUP_REQUIRED) ?? false;
+      this._needsProfileSetup = Boolean(storedProfileSetupFlag);
 
       if (!token) {
         logger.info('No token found, user not authenticated');
@@ -115,11 +120,29 @@ class AuthService {
     return this._userInfo;
   }
 
-  async login(token: string, userInfo: StoredAuthUser): Promise<void> {
+  needsProfileSetup(): boolean {
+    return this._needsProfileSetup;
+  }
+
+  setNeedsProfileSetup(flag: boolean): void {
+    this._needsProfileSetup = flag;
+    if (flag) {
+      wx.setStorageSync(STORAGE_KEYS.PROFILE_SETUP_REQUIRED, true);
+    } else {
+      wx.removeStorageSync(STORAGE_KEYS.PROFILE_SETUP_REQUIRED);
+    }
+  }
+
+  async login(
+    token: string,
+    userInfo: StoredAuthUser,
+    options?: { needsProfileSetup?: boolean }
+  ): Promise<void> {
     logger.info('Login called', { qiao_id: userInfo.qiao_id });
     wx.setStorageSync(STORAGE_KEYS.AUTH_TOKEN, token);
     await saveUserInfo(userInfo);
     this._setAuthState(true, token, userInfo);
+    this.setNeedsProfileSetup(Boolean(options?.needsProfileSetup));
     logger.info('Login successful', { qiao_id: userInfo.qiao_id });
   }
 
@@ -144,6 +167,7 @@ class AuthService {
 
     wx.removeStorageSync(STORAGE_KEYS.AUTH_TOKEN);
     wx.removeStorageSync(STORAGE_KEYS.USER_INFO);
+    wx.removeStorageSync(STORAGE_KEYS.PROFILE_SETUP_REQUIRED);
     this._setAuthState(false, null, null);
     logger.info('Logout complete');
   }
@@ -172,6 +196,9 @@ class AuthService {
     this._isAuthenticated = isAuthenticated;
     this._token = token;
     this._userInfo = userInfo;
+    if (!isAuthenticated) {
+      this.setNeedsProfileSetup(false);
+    }
 
     logger.debug('Auth state updated', {
       isAuthenticated,

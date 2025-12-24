@@ -22,7 +22,7 @@ from app.schemas.user_profile import (
     UserProfileResponse,
     UserProfileUpdateRequest,
 )
-from app.services.media.url import build_public_url
+from app.services.profile.avatar import get_avatar_url
 from app.utils.email import mask_email
 from app.utils.logging import get_logger
 from app.utils.phone import mask_phone
@@ -57,11 +57,7 @@ async def get_user_profile(
         )
 
         # Generate avatar URL dynamically
-        avatar_url = None
-        if user_profile and user_profile.avatar_file_id:
-            media_file = await media_file_crud.get(db, id=user_profile.avatar_file_id)
-            if media_file and media_file.status == int(FileStatus.ACTIVE):
-                avatar_url = build_public_url(media_file)
+        avatar_url = await get_avatar_url(db, user_profile)
 
         # Build response
         response = UserProfileResponse(
@@ -217,11 +213,13 @@ async def update_user_profile(
             )
 
         # Generate avatar URL dynamically
-        avatar_url = None
-        if updated_profile.avatar_file_id:
-            media_file = await media_file_crud.get(db, id=updated_profile.avatar_file_id)
-            if media_file and media_file.status == int(FileStatus.ACTIVE):
-                avatar_url = build_public_url(media_file)
+        avatar_url = await get_avatar_url(db, updated_profile)
+
+        if current_user.needs_profile_setup:
+            current_user = await user_crud.update(
+                db, db_obj=current_user, obj_in={"needs_profile_setup": False}
+            )
+            logger.info("needs_profile_setup_cleared", qiao_id=current_user.qiao_id)
 
         # Build response
         response = UserProfileResponse(

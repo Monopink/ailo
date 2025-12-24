@@ -8,21 +8,22 @@ with support for both single and batch queries to avoid N+1 query problems.
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.crud.message import media_file as media_file_crud
 from app.enums import FileStatus
 from app.models.message.media import MediaFile
 from app.models.profile import Profile
 from app.services.media.url import build_public_url
 
-DEFAULT_AVATAR_FILE_ID = "file_preset_default"
+DEFAULT_AVATAR_OBJECT_KEY = "avatar/default.webp"
 
 
-async def _get_default_avatar_url(db: AsyncSession) -> str:
-    """Resolve the system default avatar URL or raise if misconfigured."""
-    default_media = await media_file_crud.get_by_file_id(db, file_id=DEFAULT_AVATAR_FILE_ID)
-    if not default_media or default_media.status != int(FileStatus.ACTIVE):
-        raise ValueError(f"System default avatar not found or inactive: {DEFAULT_AVATAR_FILE_ID}")
-    return build_public_url(default_media)
+async def _get_default_avatar_url() -> str:
+    """Resolve the default avatar URL using COS endpoint."""
+    settings = get_settings()
+    base = settings.STORAGE_PUBLIC_DOMAIN or settings.TENCENT_COS_ENDPOINT
+    base = base.rstrip("/")
+    return f"{base}/{DEFAULT_AVATAR_OBJECT_KEY}"
 
 
 async def get_avatar_url(db: AsyncSession, profile: Profile | None) -> str:
@@ -34,8 +35,8 @@ async def get_avatar_url(db: AsyncSession, profile: Profile | None) -> str:
         profile: Profile object (may be None)
 
     Returns:
-        Avatar CDN URL (never None). Falls back to DEFAULT_AVATAR_FILE_ID when
-        user profile has no avatar or the custom avatar is inactive.
+        Avatar CDN URL (never None). Falls back to the predefined default avatar
+        when user profile has no avatar or the custom avatar is inactive.
 
     Example:
         >>> profile = await profile_crud.get_by_owner(
@@ -48,7 +49,7 @@ async def get_avatar_url(db: AsyncSession, profile: Profile | None) -> str:
         if media_file and media_file.status == int(FileStatus.ACTIVE):
             return build_public_url(media_file)
 
-    return await _get_default_avatar_url(db)
+    return await _get_default_avatar_url()
 
 
 async def get_avatar_urls_batch(db: AsyncSession, profiles: list[Profile]) -> dict[int, str]:
@@ -97,7 +98,7 @@ async def get_avatar_urls_batch(db: AsyncSession, profiles: list[Profile]) -> di
         # Build mapping: file_id -> CDN URL
         file_id_to_url = {mf.id: build_public_url(mf) for mf in media_files}
 
-    default_url = await _get_default_avatar_url(db)
+    default_url = await _get_default_avatar_url()
 
     # Build result: profile_id -> avatar_url
     result_map: dict[int, str] = {}

@@ -7,7 +7,7 @@ This module contains SQLAlchemy models for user accounts, tokens, and login reco
 from datetime import datetime
 
 from markupsafe import escape
-from sqlalchemy import BigInteger, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import BigInteger, Boolean, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 from starlette.requests import Request
@@ -70,6 +70,14 @@ class User(SnowflakeQiaoModel, StatusMixin):
         default=UserType.NORMAL,
         server_default=text("1"),
         comment="User type: 1=normal, 2=official, 3=virtual",
+    )
+
+    needs_profile_setup: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("TRUE"),
+        comment="Whether the user must complete profile setup before entering the main app",
     )
 
     last_login: Mapped[datetime | None] = mapped_column(

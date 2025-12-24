@@ -77,6 +77,9 @@ export const STORAGE_KEYS = {
   // User info
   USER_INFO: 'user_info',
 
+  // Whether the current user still needs to complete profile setup
+  PROFILE_SETUP_REQUIRED: 'profile_setup_required',
+
   // Contacts list
   CONTACTS: 'contact_list',
 
@@ -93,6 +96,9 @@ export interface AppConfig {
   brandName: string;
   maxNicknameLength: number;
   maxBioLength: number;
+  defaultAvatarUrl?: string;
+  clientId: string;
+  appVersion: string;
 }
 
 export const APP_CONFIG: AppConfig = {
@@ -104,6 +110,13 @@ export const APP_CONFIG: AppConfig = {
 
   // Max bio length
   maxBioLength: 70,
+
+  // Default avatar CDN URL (override per environment if backend provides specific asset)
+  defaultAvatarUrl: '',
+
+  // Client identification for backend headers
+  clientId: 'wxminipg',
+  appVersion: '1.0.0',
 };
 
 export interface AvatarSize {
@@ -182,13 +195,6 @@ export const VALIDATION_RULES: ValidationRules = {
   verifyMessageMaxLength: 100,
 };
 
-// Captcha (Human Verification)
-// Hardcode provider/region/scene for MVP; fill SceneId with your Aliyun value.
-export const CAPTCHA_PROVIDER = 'aliyun';
-export const CAPTCHA_REGION = 'cn';
-// TODO: Replace with your Aliyun Captcha SceneId
-export const CAPTCHA_SCENE_ID = '1qtkm8nb';
-
 const config = {
   APP_CONFIG,
   API_CONFIG,
@@ -197,9 +203,6 @@ const config = {
   STORAGE_KEYS,
   UI_CONFIG,
   VALIDATION_RULES,
-  CAPTCHA_PROVIDER,
-  CAPTCHA_REGION,
-  CAPTCHA_SCENE_ID,
 };
 
 export default config;

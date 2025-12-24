@@ -7,9 +7,20 @@
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
   <view slot="content" class="setup-page">
+    <view class="setup-avatar" bindtap="handleChooseAvatar" hover-class="setup-avatar--active">
+      <t-avatar
+        image="{{avatarUrl}}"
+        size="112rpx"
+        shape="circle"
+      />
+      <text class="setup-avatar__hint">
+        {{uploadingAvatar ? '上传中…' : avatarFileId ? '点击更换头像' : '点击上传头像'}}
+      </text>
+    </view>
+
     <!-- Basic info group -->
     <view class="setup-group">
-      <t-cell title="昵称 (可选)">
+      <t-cell title="昵称">
         <input
           slot="note"
           class="setup-input"

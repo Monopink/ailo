@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -80,23 +81,16 @@ class Settings(BaseSettings):
     ADMIN_SECRET_KEY: str  # For session middleware
 
     # Aliyun Captcha credentials (server-side verification)
-    ALIYUN_CAPTCHA_ACCESS_KEY_ID: str | None = None
-    ALIYUN_CAPTCHA_ACCESS_KEY_SECRET: str | None = None
+
+    CAPTCHA_CLIENT_WHITELIST: list[str] = Field(default_factory=lambda: ["wxminipg"])
 
     # Storage settings
-    STORAGE_PROVIDER: str = "local"
-
-    # Tencent Cloud COS (Object Storage)
+    STORAGE_PUBLIC_DOMAIN: str = ""
     TENCENT_COS_SECRET_ID: str = ""
     TENCENT_COS_SECRET_KEY: str = ""
     TENCENT_COS_REGION: str = "ap-beijing"
     TENCENT_COS_BUCKET: str = ""
     TENCENT_COS_ENDPOINT: str = "https://cos.ap-beijing.myqcloud.com"
-    TENCENT_COS_CDN_DOMAIN: str = ""
-
-    # Local Storage (Development)
-    STORAGE_LOCAL_PATH: str = "/app/media"
-    STORAGE_LOCAL_URL: str = "http://localhost:8000/media"
 
     @property
     def database_url(self) -> str:
@@ -122,6 +116,14 @@ class Settings(BaseSettings):
     def is_staging(self) -> bool:
         """Check if running in staging environment"""
         return self.ENVIRONMENT.lower() in ("staging", "test")
+
+    @field_validator("CAPTCHA_CLIENT_WHITELIST", mode="before")
+    @classmethod
+    def _split_client_whitelist(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, str):
+            parts = [item.strip() for item in value.split(",")]
+            return [item for item in parts if item]
+        return value
 
 
 @lru_cache

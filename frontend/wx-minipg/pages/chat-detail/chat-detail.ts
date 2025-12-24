@@ -55,8 +55,10 @@ interface ChatDetailPageCustom {
   onRetry(): void;
 }
 
+const DEFAULT_CONTACT_AVATAR = getAvatarUrl(null);
+
 const createEmptyContactView = (): ContactView => ({
-  avatar: '/assets/avatars/default.png',
+  avatar: DEFAULT_CONTACT_AVATAR,
   name: '',
   genderLabel: '',
   genderType: 'default',
@@ -65,7 +67,7 @@ const createEmptyContactView = (): ContactView => ({
 });
 
 const buildContactView = (contact: StoredContact, profile?: ContactProfile): ContactView => {
-  const avatarSource = profile?.avatar_url ?? contact.avatar_url ?? '/assets/avatars/default.png';
+  const avatarSource = profile?.avatar_url ?? contact.avatar_url ?? null;
   const avatar = getAvatarUrl(avatarSource);
   const alias = contact.alias ?? '';
   const nickname = contact.nickname ?? profile?.nickname ?? '';
@@ -80,7 +82,7 @@ const buildContactView = (contact: StoredContact, profile?: ContactProfile): Con
     genderValue === 1 ? '男' : genderValue === 2 ? '女' : genderValue === 3 ? '其他' : '';
 
   return {
-    avatar,
+    avatar: avatar || DEFAULT_CONTACT_AVATAR,
     name: displayName,
     genderLabel,
     genderType: genderValue === 1 ? 'success' : genderValue === 2 ? 'danger' : 'default',

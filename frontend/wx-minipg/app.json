@@ -3,8 +3,6 @@
     "pages/boot/boot",
     "pages/square/square",
     "pages/login/login",
-    "pages/phone-login/phone-login",
-    "pages/phone-bind/phone-bind",
     "pages/setup/setup",
     "pages/index/index",
     "pages/chat/chat",
@@ -12,7 +10,6 @@
     "pages/profile-detail/profile-detail",
     "pages/profile-edit/profile-edit",
     "pages/account-security/account-security",
-    "pages/phone-manage/phone-manage",
     "pages/contact-info/contact-info",
     "pages/contact-requests/contact-requests",
     "pages/stranger-info/stranger-info",
@@ -27,12 +24,6 @@
     "backgroundColor": "#f5f5f5"
   },
   "entryPagePath": "pages/boot/boot",
-  "plugins": {
-    "AliyunCaptcha": {
-      "version": "3.0.0",
-      "provider": "wxbe275ff84246f1a4"
-    }
-  },
   "tabBar": {
     "custom": true,
     "color": "#999999",

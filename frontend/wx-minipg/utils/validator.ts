@@ -136,23 +136,6 @@ export function validateGender(gender: number | null | undefined): ValidationRes
   return { valid: true };
 }
 
-/**
- * Validate CAPTCHA code
- * @param {string} code - CAPTCHA code
- * @returns {Object} Validation result
- */
-export function validateCaptcha(code: string | null | undefined): ValidationResult {
-  if (!code) {
-    return { valid: false, message: '请输入图形验证码' };
-  }
-
-  if (code.length !== 4) {
-    return { valid: false, message: '请输入4位图形验证码' };
-  }
-
-  return { valid: true };
-}
-
 export default {
   validatePhone,
   validateSmsCode,
@@ -161,5 +144,4 @@ export default {
   validateMessage,
   validateVerifyMessage,
   validateGender,
-  validateCaptcha,
 };

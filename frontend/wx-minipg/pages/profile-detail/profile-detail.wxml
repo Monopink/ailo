@@ -10,12 +10,20 @@
     <!-- Info groups - Using t-cell-group with card theme -->
     <view wx:if="{{profile}}" class="card-wrapper">
       <t-cell-group theme="card">
-        <t-cell title="头像">
-          <t-avatar
-            slot="note"
-            image="{{profile.displayAvatar}}"
-            size="large"
-          />
+        <t-cell
+          title="头像"
+          arrow
+          hover
+          bindtap="editAvatar">
+          <view slot="note" class="profile-detail__avatar-slot">
+            <t-avatar
+              image="{{profile.displayAvatar}}"
+              size="large"
+            />
+            <text class="profile-detail__avatar-hint">
+              {{avatarUploading ? '更新中…' : '点击更换'}}
+            </text>
+          </view>
         </t-cell>
 
         <t-cell

@@ -24,6 +24,11 @@ class StorageUploadError(StorageError):
 class StorageBackend(ABC):
     """Abstract interface for storage backends."""
 
+    @property
+    @abstractmethod
+    def provider_name(self) -> str:
+        """Identifier for the storage backend."""
+
     @abstractmethod
     def upload(
         self,

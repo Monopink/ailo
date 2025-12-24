@@ -45,6 +45,16 @@ from .ai import (
     BatchAIInstanceDelete,
 )
 
+# Auth schemas
+from .auth import (
+    VerifyPhoneRequest,
+    VerifyPhoneResponse,
+    WeChatLoginRequest,
+    WeChatLoginResponse,
+    WeChatRefreshPhoneRequest,
+    WeChatRefreshPhoneResponse,
+)
+
 # Common schemas
 from .common import (
     BaseResponse,
@@ -78,13 +88,7 @@ from .contact import (
 )
 
 # Message schemas
-from .media import (
-    MediaAccessResponse,
-    UploadConfirmRequest,
-    UploadConfirmResponse,
-    UploadTokenRequest,
-    UploadTokenResponse,
-)
+from .media import MediaAccessResponse, MediaUploadResponse
 from .message import MediaFileBase, MediaFileResponse, MediaFileUpload
 
 # System schemas
@@ -166,10 +170,7 @@ __all__ = [
     "MediaFileResponse",
     # Media (Object Storage)
     "MediaAccessResponse",
-    "UploadTokenRequest",
-    "UploadTokenResponse",
-    "UploadConfirmRequest",
-    "UploadConfirmResponse",
+    "MediaUploadResponse",
     # AI
     "AIInstanceBase",
     "AIInstanceCreate",
@@ -188,6 +189,13 @@ __all__ = [
     "AIChatRequest",
     "AIChatResponse",
     "BatchAIInstanceDelete",
+    # Auth
+    "WeChatLoginRequest",
+    "WeChatLoginResponse",
+    "WeChatRefreshPhoneRequest",
+    "WeChatRefreshPhoneResponse",
+    "VerifyPhoneRequest",
+    "VerifyPhoneResponse",
     # Admin
     "AdminUserBase",
     "AdminUserCreate",

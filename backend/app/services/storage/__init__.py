@@ -1,10 +1,3 @@
-"""
-Storage service package.
-
-Provides provider-agnostic abstractions to manage media files in different
-backends (local filesystem, Tencent COS, etc.).
-"""
-
 from .base import (
     StorageBackend,
     StorageError,

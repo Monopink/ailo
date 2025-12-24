@@ -3,7 +3,6 @@
   "backgroundColor": "#f5f7fa",
   "enablePullDownRefresh": false,
   "usingComponents": {
-    "aliyun-captcha": "plugin://AliyunCaptcha/captcha",
     "page-layout": "/components/page-layout/page-layout",
     "t-button": "tdesign-miniprogram/button/button",
     "t-avatar": "tdesign-miniprogram/avatar/avatar"

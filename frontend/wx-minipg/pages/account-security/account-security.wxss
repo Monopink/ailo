@@ -4,3 +4,7 @@
 .account-security {
   background-color: var(--color-bg-page);
 }
+
+.account-security__cta {
+  margin-top: 24rpx;
+}

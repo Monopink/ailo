@@ -1,4 +1,5 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { post } from '../../utils/api';
 import { requireAuth } from '../../utils/auth-guard';
 import authService from '../../utils/auth-service';
 import { getLogger } from '../../utils/logger';
@@ -15,11 +16,12 @@ interface AccountSecurityPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
   phoneMasked: string;
   isLogoutProcessing: boolean;
+  phoneReauthLoading: boolean;
 }
 
 interface AccountSecurityPageCustom {
   loadAccountInfo(): Promise<void>;
-  navigateToPhoneManage(): void;
+  handlePhoneReauthorize(event: WechatMiniprogram.ButtonGetPhoneNumber): Promise<void>;
   handleLogout(): Promise<void>;
   onRetry(): void;
 }
@@ -58,6 +60,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
     }),
     phoneMasked: '',
     isLogoutProcessing: false,
+    phoneReauthLoading: false,
   },
 
   async onLoad() {
@@ -106,10 +109,54 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
     }
   },
 
-  navigateToPhoneManage() {
-    void wx.navigateTo({
-      url: '/pages/phone-manage/phone-manage',
-    });
+  async handlePhoneReauthorize(event: WechatMiniprogram.ButtonGetPhoneNumber) {
+    if (this.data.phoneReauthLoading) {
+      return;
+    }
+
+    if (event.detail.errMsg !== 'getPhoneNumber:ok') {
+      logger.warn('Phone reauthorization rejected', { errMsg: event.detail.errMsg });
+      void wx.showToast({
+        title: '需要授权手机号才能更新',
+        icon: 'none',
+      });
+      return;
+    }
+
+    const phoneCode = event.detail.code;
+    this.setData({ phoneReauthLoading: true });
+
+    try {
+      const { code: loginCode } = await wx.login();
+      if (!loginCode) {
+        throw new Error('无法获取登录凭证');
+      }
+
+      const response = await post<{ phone: string }>(
+        '/auth/wechat/refresh-phone',
+        {
+          login_code: loginCode,
+          phone_code: phoneCode,
+        },
+        { auth: true }
+      );
+
+      void wx.showToast({
+        title: '手机号已更新',
+        icon: 'success',
+      });
+
+      this.setData({ phoneMasked: response.phone || this.data.phoneMasked });
+    } catch (error) {
+      const err = toError(error);
+      logger.error('Phone reauthorization failed', { error: err.message });
+      void wx.showToast({
+        title: err.message || '更新失败，请稍后再试',
+        icon: 'none',
+      });
+    } finally {
+      this.setData({ phoneReauthLoading: false });
+    }
   },
 
   async handleLogout() {

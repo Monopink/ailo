@@ -1,13 +1,13 @@
-import { post } from '../../utils/api';
 import authService from '../../utils/auth-service';
 import { APP_CONFIG } from '../../utils/config';
+import { getAvatarUrl } from '../../utils/avatar';
+import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import logger from '../../utils/logger';
 import { formatRegion } from '../../utils/format';
-import { getStorage, removeStorage, type StoredAuthUser } from '../../utils/storage';
+import { fetchCurrentUserProfile, updateCurrentUserProfile } from '../../utils/profile';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import type { StoredAuthUser } from '../../utils/storage';
 
-const VERIFIED_PHONE_TOKEN_KEY = 'verified_phone_token';
-const VERIFIED_PHONE_KEY = 'verified_phone';
 const MIN_NICKNAME_LENGTH = 2;
 const PROVINCE_ADMIN_DIVISIONS = new Set(['省直辖县级行政区划', '自治区直辖县级行政区划']);
 const MUNICIPALITY_COUNTY_LABEL = '县';
@@ -21,7 +21,6 @@ const GENDER_OPTIONS = [
 
 type GenderOption = (typeof GENDER_OPTIONS)[number];
 type GenderValue = 0 | GenderOption['value'];
-type SelectedGenderValue = Exclude<GenderValue, 0>;
 type RegionValue = [] | [string] | [string, string];
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
@@ -35,12 +34,13 @@ type RegionPickerChangeEvent = WechatMiniprogram.CustomEvent<RegionPickerDetail>
 interface SetupPageData {
   pageLayoutData: PageLayoutData;
   nickname: string;
+  avatarUrl: string;
+  avatarFileId: string;
+  uploadingAvatar: boolean;
   gender: GenderValue;
   genderOptions: readonly GenderOption[];
   genderIndex: number;
   bio: string;
-  phone: string;
-  verifiedPhoneToken: string;
   regionValue: RegionValue;
   regionDisplay: string;
   maxNicknameLength: number;
@@ -48,36 +48,22 @@ interface SetupPageData {
   loading: boolean;
 }
 
-interface CompleteRegistrationPayload {
-  verified_phone_token: string;
-  nickname: string;
-  gender?: SelectedGenderValue;
-  bio?: string;
-  avatar_file_id?: string;
-  region?: string;
-}
-
-interface CompleteRegistrationResponse {
-  token: string;
-  user: StoredAuthUser;
-}
-
 interface SetupPageCustom {
+  loadProfile(): Promise<void>;
+  ensureProfileRequired(): boolean;
   onNicknameInput(event: InputEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onBioInput(event: InputEvent): void;
   onRegionChange(event: RegionPickerChangeEvent): void;
+  handleChooseAvatar(): Promise<void>;
   handleSubmit(): Promise<void>;
   handleCancel(): void;
   onRetry(): void;
 }
 
-interface NormalizedRegion {
-  regionValue: RegionValue;
-  regionDisplay: string;
-}
-
-const normalizeRegionSelection = (regionArray: [string, string, string]): NormalizedRegion => {
+const normalizeRegionSelection = (
+  regionArray: [string, string, string]
+): { regionValue: RegionValue; regionDisplay: string } => {
   const [province, city, district] = regionArray;
   let resolvedCity: string | null = city;
 
@@ -95,20 +81,13 @@ const normalizeRegionSelection = (regionArray: [string, string, string]): Normal
   return { regionValue, regionDisplay };
 };
 
-const maskPhoneNumber = (phone: string): string =>
-  phone.replace(/(\+86)?(\d{3})\d{4}(\d{2})/, '$1$2******$3');
-
-const buildRegistrationPayload = (
-  data: SetupPageData,
-  nickname: string
-): CompleteRegistrationPayload => {
-  const payload: CompleteRegistrationPayload = {
-    verified_phone_token: data.verifiedPhoneToken,
+const buildProfilePayload = (data: SetupPageData, nickname: string): Record<string, unknown> => {
+  const payload: Record<string, unknown> = {
     nickname,
   };
 
   if (data.gender !== 0) {
-    payload.gender = data.gender as SelectedGenderValue;
+    payload.gender = data.gender;
   }
 
   const trimmedBio = data.bio.trim();
@@ -120,19 +99,25 @@ const buildRegistrationPayload = (
     payload.region = data.regionDisplay;
   }
 
+  if (data.avatarFileId) {
+    payload.avatar_file_id = data.avatarFileId;
+  }
+
   return payload;
 };
 
-const clearVerifiedPhone = async (): Promise<void> => {
-  await Promise.all([
-    removeStorage(VERIFIED_PHONE_TOKEN_KEY).catch((error: unknown) => {
-      logger.warn('Failed to remove verified phone token', { error });
-    }),
-    removeStorage(VERIFIED_PHONE_KEY).catch((error: unknown) => {
-      logger.warn('Failed to remove verified phone number', { error });
-    }),
-  ]);
-};
+const mapProfileToStoredUser = (profile: {
+  qiao_id: string;
+  nickname?: string | null;
+  avatar_url?: string | null;
+}): StoredAuthUser => ({
+  qiao_id: profile.qiao_id,
+  nickname: profile.nickname ?? '',
+  avatar: getAvatarUrl(profile.avatar_url ?? ''),
+});
+
+const resolveGenderIndex = (value: GenderValue): number =>
+  GENDER_OPTIONS.findIndex((option) => option.value === value);
 
 Page<SetupPageData, SetupPageCustom>({
   data: {
@@ -140,12 +125,13 @@ Page<SetupPageData, SetupPageCustom>({
       hasFooter: true,
     }),
     nickname: '',
+    avatarUrl: '',
+    avatarFileId: '',
+    uploadingAvatar: false,
     gender: 0,
     genderOptions: GENDER_OPTIONS,
     genderIndex: -1,
     bio: '',
-    phone: '',
-    verifiedPhoneToken: '',
     regionValue: [],
     regionDisplay: '',
     maxNicknameLength: APP_CONFIG.maxNicknameLength || 20,
@@ -154,48 +140,69 @@ Page<SetupPageData, SetupPageCustom>({
   },
 
   async onLoad() {
-    logger.info('Registration profile setup page loaded');
-    this.setData({ 'pageLayoutData.isLoading': true });
-
-    let verifiedPhoneToken: string | null = null;
-    let phone: string | null = null;
-
-    try {
-      [verifiedPhoneToken, phone] = await Promise.all([
-        getStorage<string | null>(VERIFIED_PHONE_TOKEN_KEY, null),
-        getStorage<string | null>(VERIFIED_PHONE_KEY, null),
-      ]);
-    } catch (error) {
-      logger.error('Failed to load verified phone info from storage', { error });
+    logger.info('Profile setup page loaded');
+    if (!this.ensureProfileRequired()) {
+      return;
     }
+    await this.loadProfile();
+  },
 
-    if (!verifiedPhoneToken || !phone) {
-      logger.error('No verified phone token found, redirect to login');
-      this.setData({
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '请先验证手机号',
-      });
-      void wx.redirectTo({ url: '/pages/login/login' });
+  onShow() {
+    void this.ensureProfileRequired();
+  },
+
+  ensureProfileRequired() {
+    if (!authService.needsProfileSetup()) {
+      logger.info('Profile setup already completed, redirecting to home');
+      void wx.switchTab({ url: '/pages/index/index' });
+      return false;
+    }
+    return true;
+  },
+
+  async loadProfile() {
+    if (!authService.isAuthenticated()) {
+      void wx.reLaunch({ url: '/pages/login/login' });
       return;
     }
 
-    this.setData({
-      verifiedPhoneToken,
-      phone: maskPhoneNumber(phone),
-    });
+    if (!this.ensureProfileRequired()) {
+      return;
+    }
 
-    this.setData({
-      'pageLayoutData.isLoading': false,
-      'pageLayoutData.hasError': false,
-      'pageLayoutData.isEmpty': false,
-    });
+    this.setData({ 'pageLayoutData.isLoading': true, 'pageLayoutData.hasError': false });
+
+    try {
+      const profile = await fetchCurrentUserProfile();
+
+      const gender = typeof profile.gender === 'number' ? (profile.gender as GenderValue) : 0;
+      const avatarUrl = getAvatarUrl(profile.avatar_url ?? '');
+      const genderIndex = resolveGenderIndex(gender);
+
+      this.setData({
+        nickname: profile.nickname ?? '',
+        avatarUrl,
+        gender,
+        genderIndex,
+        bio: profile.bio ?? '',
+        regionDisplay: profile.region ?? '',
+        regionValue: [],
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': false,
+        'pageLayoutData.isEmpty': false,
+      });
+    } catch (error) {
+      logger.error('Load profile for setup failed', { error });
+      this.setData({
+        'pageLayoutData.isLoading': false,
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
+      });
+    }
   },
 
   onRetry() {
-    this.setData({
-      'pageLayoutData.hasError': false,
-    });
-    void this.onLoad();
+    void this.loadProfile();
   },
 
   onNicknameInput(event) {
@@ -232,6 +239,38 @@ Page<SetupPageData, SetupPageCustom>({
     });
   },
 
+  async handleChooseAvatar() {
+    if (this.data.uploadingAvatar) {
+      return;
+    }
+
+    this.setData({ uploadingAvatar: true });
+    try {
+      const result = await completeAvatarUpload({ page: 'setup' });
+      if (!result) {
+        return;
+      }
+
+      const resolvedUrl = getAvatarUrl(result.url);
+      this.setData({
+        avatarFileId: result.fileId,
+        avatarUrl: resolvedUrl || result.url,
+      });
+      void wx.showToast({
+        title: '头像已更新',
+        icon: 'success',
+      });
+    } catch (error) {
+      logger.error('Avatar upload failed during setup', { error });
+      void wx.showToast({
+        title: '头像更新失败，请重试',
+        icon: 'none',
+      });
+    } finally {
+      this.setData({ uploadingAvatar: false });
+    }
+  },
+
   async handleSubmit() {
     const trimmedNickname = this.data.nickname.trim();
 
@@ -251,45 +290,57 @@ Page<SetupPageData, SetupPageCustom>({
       return;
     }
 
+    if (this.data.gender === 0) {
+      this.setData({
+        'pageLayoutData.hasError': true,
+        'pageLayoutData.errorMessage': '请选择性别',
+      });
+      return;
+    }
+
     try {
-      this.setData({ loading: true });
-      const payload = buildRegistrationPayload(this.data, trimmedNickname);
-      const result = await post<CompleteRegistrationResponse>(
-        '/auth/complete-registration',
-        payload,
-        { auth: false }
-      );
-      await authService.login(result.token, result.user);
-      await clearVerifiedPhone();
+      this.setData({ loading: true, 'pageLayoutData.hasError': false });
+      const payload = buildProfilePayload(this.data, trimmedNickname);
+      const updatedProfile = await updateCurrentUserProfile(payload);
+      const storedUser = mapProfileToStoredUser(updatedProfile);
+      await authService.updateUserInfo(storedUser);
+      authService.setNeedsProfileSetup(false);
 
-      logger.info('Registration complete', { qiao_id: result.user.qiao_id });
-
-      void wx.switchTab({ url: '/pages/index/index' });
+      void wx.showToast({
+        title: '资料已更新',
+        icon: 'success',
+      });
 
       const app = getApp<AppInstance>();
-      app.initMessageService().catch((error: unknown) => {
-        logger.warn('Message service initialization failed, will retry later', { error });
-      });
+      app
+        .initMessageService()
+        .catch((error: unknown) =>
+          logger.warn('Init message service after setup failed', { error })
+        );
+
+      void wx.switchTab({ url: '/pages/index/index' });
     } catch (error) {
-      logger.error('Registration failed', { error });
+      logger.error('Update profile failed', { error });
       this.setData({
-        loading: false,
         'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': (error as Error).message || '注册失败',
+        'pageLayoutData.errorMessage': (error as Error).message || '提交失败，请稍后再试',
       });
+    } finally {
+      this.setData({ loading: false });
     }
   },
 
   handleCancel() {
     wx.showModal({
-      title: '取消注册',
-      content: '确定要取消注册吗？',
-      success: (res) => {
-        if (res.confirm) {
-          void clearVerifiedPhone();
-          logger.info('Registration cancelled');
-          void wx.redirectTo({ url: '/pages/login/login' });
+      title: '退出登录',
+      content: '确定要退出并返回登录页吗？',
+      success: async (res) => {
+        if (!res.confirm) {
+          return;
         }
+        await authService.logout();
+        logger.info('User exited setup and logged out');
+        void wx.reLaunch({ url: '/pages/login/login' });
       },
     });
   },

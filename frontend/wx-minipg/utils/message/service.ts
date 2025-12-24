@@ -3,7 +3,7 @@
  * High-level message service that manages message adapter interactions.
  */
 
-import { getMessageClientSignature } from '../auth';
+import { getMessageClientSignature } from '../message-signature';
 import { getLogger } from '../logger';
 import { addMessage, getUserInfo } from '../storage';
 import type { StoredMessage } from '../storage';

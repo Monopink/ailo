@@ -14,10 +14,20 @@
           <t-cell
             title="手机号"
             note="{{phoneMasked}}"
-            arrow
-            hover
-            bindtap="navigateToPhoneManage" />
+            hover="{{false}}"
+          />
         </t-cell-group>
+        <view class="account-security__cta">
+          <t-button
+            size="small"
+            variant="outline"
+            block
+            open-type="getPhoneNumber"
+            loading="{{phoneReauthLoading}}"
+            bindgetphonenumber="handlePhoneReauthorize">
+            重新授权手机号
+          </t-button>
+        </view>
       </view>
 
       <!-- Logout action card -->

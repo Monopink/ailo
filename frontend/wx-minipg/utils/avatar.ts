@@ -1,26 +1,49 @@
-const DEFAULT_AVATAR = '/assets/avatars/default.png';
+import { API_CONFIG } from './config';
+
+const MEDIA_ENDPOINT_PREFIX = `${API_CONFIG.baseUrl}/api/${API_CONFIG.version}/media/`;
+
+const isHttpUrl = (value: string): boolean =>
+  value.startsWith('http://') || value.startsWith('https://');
+
+const isDataUrl = (value: string): boolean => value.startsWith('data:');
+
+const buildRelativeUrl = (value: string): string => {
+  if (!value.startsWith('/')) {
+    return `${API_CONFIG.baseUrl}/${value}`;
+  }
+  return `${API_CONFIG.baseUrl}${value}`;
+};
 
 /**
- * Normalize avatar URL returned by the API.
- * Only supports CDN URLs or packaged static assets.
+ * Normalize avatar source returned by the API.
+ * Supports CDN URLs, relative paths, and backend file IDs (file_*).
  */
-export function getAvatarUrl(avatarUrl?: string | null): string {
-  if (!avatarUrl) {
-    return DEFAULT_AVATAR;
+export function getAvatarUrl(source?: string | null): string {
+  if (!source) {
+    return '';
   }
 
-  const normalized = avatarUrl.trim();
+  const normalized = source.trim();
+
   if (!normalized) {
-    return DEFAULT_AVATAR;
+    return '';
   }
 
-  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+  if (isHttpUrl(normalized) || isDataUrl(normalized)) {
     return normalized;
   }
 
-  if (normalized.startsWith('/assets/avatars/')) {
-    return normalized;
+  if (normalized.startsWith('file_')) {
+    return `${MEDIA_ENDPOINT_PREFIX}${encodeURIComponent(normalized)}`;
   }
 
-  return DEFAULT_AVATAR;
+  if (normalized.startsWith('/')) {
+    return buildRelativeUrl(normalized);
+  }
+
+  if (normalized.includes('/')) {
+    return buildRelativeUrl(normalized);
+  }
+
+  return '';
 }

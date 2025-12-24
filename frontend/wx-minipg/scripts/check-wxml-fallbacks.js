@@ -180,12 +180,13 @@ function generateFixSuggestion(code, variableName, violationType) {
 
     'default-image': `Move to TS layer or use wx:if:
       // Option 1: In TS file
-      data: {
-        display${capitalize(variableName)}: this.data.${variableName} || '/assets/avatars/default.png'
-      }
-      // Option 2: In WXML (recommended for images)
-      <image wx:if="{{${variableName}}}" src="{{${variableName}}}" />
-      <image wx:else src="/assets/avatars/default.png" />`,
+      const resolvedAvatar = getAvatarUrl(this.data.${variableName});
+      this.setData({
+        display${capitalize(variableName)}: resolvedAvatar
+      });
+      // Option 2: In WXML (recommended)
+      <image wx:if="{{display${capitalize(variableName)}}}" src="{{display${capitalize(variableName)}}}" />
+      <view wx:else class="avatar-placeholder"></view>`,
 
     'button-text': `Move to TS layer:
       // In TS file

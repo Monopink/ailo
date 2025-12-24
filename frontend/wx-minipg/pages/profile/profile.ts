@@ -82,11 +82,11 @@ Page<ProfilePageData, ProfilePageCustom>({
 
       logger.info('Loading user profile');
       const profile = await fetchCurrentUserProfile();
-      const resolvedAvatar = getAvatarUrl(profile.avatar_url ?? '');
+      const resolvedAvatar = getAvatarUrl(profile.avatar_url ?? null);
       const normalizedProfile = profile
         ? {
             ...profile,
-            displayAvatar: resolvedAvatar || '/assets/avatars/default.png',
+            displayAvatar: resolvedAvatar,
             displayUsername: profile.username || '--',
           }
         : null;

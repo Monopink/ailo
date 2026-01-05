@@ -27,22 +27,26 @@ updated_at
 
 ## user_tokens
 
-用户令牌表（Hybrid 架构）：管理 JWT 登录令牌、设备限制与吊销。
+用户令牌表（双Token 架构）：管理 Access Token 和 Refresh Token、设备限制与吊销。
 
 ```txt
 id -- Snowflake ID
 user_id -- 关联users.id
 user_qiao_id -- 关联users.qiao_id，冗余字段便于查询
-token -- JWT令牌（唯一）
+access_token -- Access JWT令牌（唯一）
 device_type -- 设备类型：1=ios, 2=android, 3=web, 4=mini_program
 device_id -- 设备唯一标识
 platform_info -- 平台信息（JSONB，可选）
 ip_address -- 登录IP地址
 user_agent -- UA信息
-expires_at -- 过期时间
+access_expires_at -- Access Token过期时间
 status -- 令牌状态：1=active, 2=revoked
 last_activity_at -- 最后活动时间
-revoked_at -- 吊销时间
+access_revoked_at -- Access Token吊销时间
+refresh_token_hash -- Refresh Token 哈希值（SHA-256）
+refresh_expires_at -- Refresh Token 过期时间
+refresh_revoked_at -- Refresh Token 吊销时间
+token_metadata -- 附加元数据（JSONB）：刷新计数、设备信息等
 created_at
 updated_at
 ```

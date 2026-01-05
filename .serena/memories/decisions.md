@@ -46,19 +46,26 @@
 
 ---
 
-## Object Storage: Self-Hosted MinIO
-**When**: Jan 2025, object storage migration
-**Context**: Avatar/media files need independent storage
-**Decision**: MinIO (S3-compatible) + backend proxy upload
+## Object Storage: Tencent COS + Dynamic URL Generation
+**When**: Jan 2025, object storage implementation
+**Context**: Avatar/media files need cloud storage with CDN
+**Decision**: Tencent COS (S3-compatible) + backend proxy upload + dynamic URL generation
 **Rationale**:
 - Avoid WeChat mini-program CORS issues
-- Pre-signed URLs unstable in WeChat env
-- Seamless future switch to AWS S3/Aliyun OSS
+- Pre-signed URLs for uploads, CDN URLs for public access
+- Never store complete URLs, always generate dynamically
+
+**CDN Configuration** (Updated 2026-01):
+- **Primary source**: `system_configs.media_public_base_url` (runtime modifiable via admin)
+- **Fallback**: `MEDIA_PUBLIC_BASE_URL` env var (bootstrap/emergency only)
+- **Storage backend cached**: `@lru_cache` on startup, call `reload_storage_backend()` to refresh
+- **Removed**: per-file `cdn_domain` field (was over-engineered)
 
 **Implementation**:
-- Upload via /api/v1/media/upload unified
-- Frontend never accesses MinIO directly
-- URL format: /api/v1/media/{object_key}
+- Upload via `/api/v1/media/upload` unified endpoint
+- Frontend never accesses COS directly
+- Public URL format: `{cdn_domain}/{object_key}`
+- Private URL: Pre-signed with 5-min expiry
 
 ---
 
@@ -86,3 +93,49 @@
 ```
 new_score = old_score + delta * (1 + sensitivity/100)
 ```
+
+---
+
+## Frontend Code Quality: Strict Rules + Visible Technical Debt
+**When**: Dec 2025, code quality improvement initiative
+**Context**: AI-driven development, need to prevent common mistakes
+**Decision**: Strict ESLint rules + accept visible errors as technical debt
+**Rationale**:
+- Strict rules prevent AI from writing unsafe code
+- Visible errors (not hidden) create continuous improvement pressure
+- Gradual fix approach avoids blocking development
+
+**Implementation**:
+- TypeScript strict mode enabled
+- ESLint rules: no-floating-promises, strict-boolean-expressions, complexity limits
+- ~400 existing errors visible but not blocking
+- New code must pass all checks
+- Fix errors incrementally when modifying related code
+
+**Key Rules**:
+- Promise handling: Must await or .catch()
+- Type safety: Explicit null checks, use ?? not ||
+- Complexity: max 15 cyclomatic, max 100 lines/function
+
+---
+
+## Runtime Validation: Zod for API Responses
+**When**: Dec 2025, code quality improvement initiative
+**Context**: TypeScript only validates at compile time, need runtime safety
+**Decision**: Zod for runtime validation + gradual adoption
+**Rationale**:
+- Prevent API data mismatch bugs
+- TypeScript types erased at runtime
+- AI often assumes API returns correct data
+
+**Implementation**:
+- New code must use Zod for critical APIs (auth, user data, messages)
+- Optional for simple config APIs
+- Gradual adoption: add validation when modifying code
+- Schema definitions in utils/schemas.ts
+- Validated API calls via utils/api-validated.ts
+
+**Adoption Strategy**:
+- Not enforced by tooling (too complex)
+- Enforced by documentation + code review
+- Multi-layer reminders: CLAUDE.md checklist + AGENTS.md examples + code comments

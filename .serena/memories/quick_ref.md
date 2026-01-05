@@ -162,7 +162,21 @@ AppID: See project.config.json
 ```bash
 cd frontend/wx-minipg
 npm install              # Install dependencies
-npm run compile          # Compile TypeScript
+npm run type-check       # TypeScript type check
+npm run lint             # ESLint check (expect ~400 errors)
+npm run lint:fix         # Auto-fix ESLint errors
+npm run lint:style       # Stylelint check
+npm run format           # Format code with Prettier
+npm run ui:audit         # UI compliance check
+npm run check            # Run all checks (type + lint + style + ui)
+```
+
+### Code Quality Status (Dec 2025)
+```
+TypeScript: ✅ Pass
+ESLint:     ⚠️  ~400 errors (technical debt, gradual fix)
+Stylelint:  ✅ Pass
+UI Audit:   ✅ Pass
 ```
 
 ### Legal Domain Config

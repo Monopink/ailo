@@ -81,8 +81,13 @@
 - 微信授权失败或被拒绝时保持在登录页提示重试；
 - 后端仍保留短信及 `/auth/phone` 等接口，供未来 App/H5 使用，小程序前端不得调用。
 - 登录按钮一次触发 `wx.login()` 与 `getPhoneNumber`，任一环节失败都会中止登录且不会进入其他登录链路。
-- 微信开发者工具的虚拟账号可配合 `system_configs` 的 `wechat_phone_mock_enabled` 与 `wechat_phone_mock_number`（仅输入数字）配置进行调试：当 WeChat 返回 1206660000x 测试号时，后端会自动替换为配置的中国大陆手机号（生产环境默认关闭，官方指南见 [虚拟账号手机号 Mock 方案](https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/phone_mock.html)）。
+  - 微信开发者工具的虚拟账号可配合 `system_configs` 的 `wechat_phone_mock_enabled` 与 `wechat_phone_mock_number`（仅输入数字）配置进行调试：当 WeChat 返回 1206660000x 测试号时，后端会自动替换为配置的中国大陆手机号（生产环境默认关闭，官方指南见 [虚拟账号手机号 Mock 方案](https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/phone_mock.html)）。
 
+### 登录页内容数据
+
+- 登录页“发现有趣的 AI 伙伴”示例卡片与功能列表由 `frontend/wx-minipg/constants/login-content.ts` 中的 `SAMPLE_CONTACTS` 与 `FEATURES` 常量定义，并保持在 `/assets/samples/avatar*.webp` 之中。
+- 预览区块直接引用这两个常量，**不再**发起任何 `/api/v1/app/pages/login` 请求，避免接口故障影响展示。
+- 所有静态内容由客户端维护，加载过程中不展示空白状态或错误提示，保持 MVP 阶段精简、稳定的体验。
 **资料设置页面**:
 
 - 当用户nickname为NULL时强制显示,不能跳过

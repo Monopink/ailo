@@ -20,6 +20,7 @@
 - [notification.md](notification.md) - 通知（notification_push_history）
 - [discovery.md](discovery.md) - 发现页（square_type_entries）
 - [security.md](security.md) - 安全（user_violation_logs, user_risk_stats）
+- [storage.md](storage.md) - 存储系统（media_files）
 
 ### AI模块
 

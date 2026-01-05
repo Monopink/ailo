@@ -1,6 +1,7 @@
 *.log
 *.pyc
 nul
+venv/
 __pycache__/
 node_modules/
 /logs/

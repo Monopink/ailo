@@ -13,11 +13,12 @@
 ## 参考资料
 
 - [UI 开发规范](../../docs/spec/mini-program/UI-GUIDELINES.md)
+- [头像上传规范](../../docs/spec/mini-program/avatar-upload.md)
 - [API文档](../../docs/api/)
 - [数据字典](../../docs/data-dict/)
 - [Leancloud IM 文档](../../docs/references/leancloud-docs/)
 - [微信小程序官方文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
-- 特别提示：用户可以联系到微信文档专员，如果有不确定的问题请报告提问，请勿在一知半解状态实施
+- 特别提示：用户可以联系到微信文档客服，如果有不确定的问题请报告提问，请勿在一知半解状态实施
 
 ## 架构约束
 
@@ -127,48 +128,6 @@ frontend/wx-minipg/
      wx.showToast({ title: '数据加载失败', icon: 'error' });
    }
    ```
-
-### 数据结构规范
-
-**联系人数据必须使用嵌套 `profile` 结构**（与后端 API 一致）:
-
-```typescript
-// ✅ 正确 - StoredContact (存储层)
-{
-  conv_id: string;
-  alias: string | null;
-  profile: {  // ← 嵌套对象
-    nickname: string | null;
-    avatar_url: string | null;
-    gender: number | null;
-  };
-}
-
-// ✅ 正确 - ContactListItem (视图层)
-{
-  ...StoredContact,  // 继承所有字段
-  avatarUrl: string;  // 从 profile.avatar_url 计算
-  displayName: string;  // 从 alias || profile.nickname 计算
-}
-
-// ❌ 错误 - 不要在 StoredContact 顶层访问
-contact.nickname  // ❌ 不存在
-contact.avatar_url  // ❌ 不存在
-// ✅ 正确访问
-contact.profile?.nickname
-contact.profile?.avatar_url
-```
-
-**三层数据流**:
-```
-API Response → StoredContact → ContactListItem
-(嵌套)       → (嵌套存储)     → (视图转换)
-```
-
-规则:
-- `utils/storage.ts`: 直接存储 API 返回的嵌套结构
-- `pages/*/index.ts`: 在业务逻辑层转换为视图模型
-- WXML: 绑定视图模型的扁平字段 (`displayName`, `avatarUrl`)
 
 ### 状态管理
 

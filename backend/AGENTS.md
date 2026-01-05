@@ -16,7 +16,7 @@
 - [API文档](../docs/api/)
 - [数据字典](../docs/data-dict/)
 - [迁移操作](../docs/tech/MIGRATION.md)
-- [Doubao文档](../references/doubao-docs/) - 特别提示：用户可以联系到Doubao文档专员，如果有不确定的问题请报告提问，请勿在一知半解状态实施
+- [Doubao文档](../references/doubao-docs/) - 特别提示：用户可以联系到Doubao文档客服，如果有不确定的问题请报告提问，请勿在一知半解状态实施
 - [Leancloud文档](../references/leancloud-docs/)
 - [管理后台开发规范](app/admin/AGENTS.md) - 修改 `app/admin/` 模块前必读
 
@@ -89,9 +89,26 @@ models (数据模型)
 - 管理后台: http://localhost:8000/qiao-dash/
 - 默认账号: admin / admin123
 
-**人机验证**:
-- 使用阿里云 Captcha
-- 应用场景: 短信发送等敏感操作
+**CAPTCHA 系统**:
+
+当前状态:
+- **管理后台**: 已启用 Cloudflare Turnstile
+- **用户端/小程序**: 已禁用人机验证 (MVP阶段,小规模上线,欺诈风险低)
+
+架构设计:
+- 抽象接口: `CaptchaProvider` (factory.py)
+- 支持 provider: `none` (禁用) | `turnstile` (Cloudflare Turnstile)
+- 客户端特定配置: 通过 `X-Client` header 匹配 `{client}_captcha_provider` 配置
+
+开发约束:
+- **禁止**为用户端 API 添加验证逻辑 (除非明确需求变更)
+- **禁止**假设系统支持未实现的 provider (如 aliyun)
+- 扩展方式: 实现 `CaptchaProvider` 接口,在 factory.py 注册新 provider
+
+配置说明:
+- `admin_captcha_provider`: 管理后台 provider 选择
+- `{client}_captcha_provider`: 未来预留客户端特定配置 (如 App)
+- provider='none' 时,`require_human_verification=False`,跳过验证逻辑
 
 ## Docker 环境
 

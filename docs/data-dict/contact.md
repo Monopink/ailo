@@ -15,7 +15,8 @@ contact_type -- 联系人类型：1=user, 2=ai, 3=official
 contact_id -- 联系人内部ID
 contact_qiao_id -- 联系人外部ID
 alias -- 备注名称
-custom_avatar_file_id -- 自定义头像文件ID，外键关联 media_files.id（如存在则覆盖 profile 头像，API 响应中的 avatar_url 仍为动态生成的 CDN URL）
+custom_avatar_key -- 自定义头像对象键（例如 avatars/2025/12/xxx.webp），覆盖联系人真实头像，NULL 表示使用联系人真实头像
+custom_avatar_media_id -- 自定义头像媒资记录ID，外键关联 media_files.id（审计追踪，NULL 表示使用联系人真实头像）
 tags -- 标签JSON数组：["tag1","tag2"]
 remark -- 备注描述
 source -- 添加来源：discovery=发现页, search=搜索, recommend=推荐等

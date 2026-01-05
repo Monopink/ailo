@@ -18,7 +18,6 @@
 fsspec 抽象层
     ↓
 存储后端:
-├── LocalStorageBackend (开发/测试)
 └── TencentCOSBackend (生产环境)
 ```
 
@@ -34,22 +33,6 @@ fsspec 抽象层
 
 ## 存储后端
 
-### 本地存储 (开发环境)
-
-**用途**: 开发、测试、CI/CD
-
-**配置**:
-```bash
-STORAGE_PROVIDER=local
-STORAGE_LOCAL_PATH=/app/media
-STORAGE_LOCAL_URL=http://localhost:8000/media
-```
-
-**特点**:
-- 文件存储在容器文件系统
-- 无成本，配置简单
-- 不适用于生产（无冗余、扩展性有限）
-
 ### 腾讯云 COS (生产环境)
 
 **用途**: 生产部署
@@ -61,8 +44,15 @@ TENCENT_COS_SECRET_ID=your-secret-id
 TENCENT_COS_SECRET_KEY=your-secret-key
 TENCENT_COS_REGION=ap-beijing
 TENCENT_COS_BUCKET=media-prod
-TENCENT_COS_CDN_DOMAIN=https://cdn.example.com
+MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 ```
+
+### 公共 CDN 域名配置
+
+- **Runtime source**: system_configs.media_public_base_url (modifiable via admin)
+- **Bootstrap fallback**: MEDIA_PUBLIC_BASE_URL environment variable (used only when the database value is empty)
+- **Purpose**: Provide {base_url}/{object_key} URLs for all public resources (avatars, showcases, etc.)
+- **Rollout**: After updating the config, reload the storage backend so every instance picks up the new domain
 
 ---
 
@@ -86,7 +76,7 @@ images/2025/12/1285612345678901236.webp
 ### 公开 URL (可缓存内容)
 
 **用途**:
-- 系统默认头像（COS avatar/default.webp，永不变更，由 `TENCENT_COS_CDN_DOMAIN` 或 `TENCENT_COS_ENDPOINT` 动态拼接）
+- 系统默认头像（avatars/default.webp，由 `system_configs.media_public_base_url` 或 `MEDIA_PUBLIC_BASE_URL` 拼接）
 - 用户头像（确认上传后）
 
 **特点**:
@@ -97,10 +87,9 @@ images/2025/12/1285612345678901236.webp
 
 **生成规则**:
 ```
-{cdn_domain}/{object_key}
-或
-{bucket_url}/{object_key}
+system_configs.media_public_base_url (or env fallback) + object_key
 ```
+> URL 始终通过配置拼接，`media_files` 不再存储 CDN 域名
 
 ### 预签名 URL (私有内容)
 
@@ -167,9 +156,8 @@ VALIDATION_RULES = {
 
 ### 写入后校验
 
-- 本地/代理写入后即刻记录 `media_files`（status=ACTIVE）
+- 代理写入后即刻记录 `media_files`（status=ACTIVE）
 - 若写入失败则直接返回 503，并不会生成记录
-- 本地存储会记录 `.meta` 文件，包含 size/content_type/etag，便于排查
 - 对于客户端提供的 `file_hash`，在写入前直接去重；若未提供，后端以文件内容计算 hash 并写入
 
 **错误处理**:
@@ -247,7 +235,7 @@ WHERE status = 2  -- pending
 ```sql
 SELECT mf.id, mf.object_key
 FROM media_files mf
-LEFT JOIN profiles p ON p.avatar_file_id = mf.id
+LEFT JOIN profiles p ON p.avatar_media_id = mf.id
 WHERE mf.status = 1  -- active
   AND mf.file_type = 1  -- avatar
   AND mf.confirmed_at < NOW() - INTERVAL '24 hours'

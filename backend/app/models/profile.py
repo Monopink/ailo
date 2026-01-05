@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Index, Integer, String, Text
+from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,6 +18,7 @@ from app.models.base import ImmutableSnowflakeModel, SnowflakeModel
 if TYPE_CHECKING:
     from app.models.ai.instance import AIInstance
     from app.models.ai.template import AIPersona
+    from app.models.message import MediaFile
     from app.models.user import User
 
 
@@ -48,10 +49,20 @@ class Profile(SnowflakeModel):
         Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
 
-    avatar_file_id: Mapped[int | None] = mapped_column(
-        BigInteger,
+    avatar_key: Mapped[str | None] = mapped_column(
+        String(255),
         nullable=True,
-        comment="Foreign key to media_files.id (both preset and custom avatars)",
+        comment=(
+            "Object key for fast URL generation "
+            "(e.g. avatars/2025/12/xxx.webp). NULL uses the default avatar."
+        ),
+    )
+
+    avatar_media_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("media_files.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="FK to media_files.id for audit trail. NULL for default avatar",
     )
 
     avatar_prompt: Mapped[str | None] = mapped_column(
@@ -88,6 +99,15 @@ class Profile(SnowflakeModel):
         "AIInstance",
         primaryjoin="and_(Profile.owner_id == AIInstance.id, Profile.owner_type == 3)",
         foreign_keys=[owner_id],
+        lazy="select",
+        viewonly=True,
+    )
+
+    # Avatar media file relationship
+    avatar_media: Mapped[MediaFile | None] = relationship(
+        "MediaFile",
+        primaryjoin="Profile.avatar_media_id == MediaFile.id",
+        foreign_keys=[avatar_media_id],
         lazy="select",
         viewonly=True,
     )

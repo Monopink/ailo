@@ -89,21 +89,26 @@ class TokenUpdate(BaseModel):
     platform_info: dict[str, Any] | None = Field(None, description="Platform information")
     ip_address: str | None = Field(None, max_length=45, description="IP address")
     user_agent: str | None = Field(None, description="User agent string")
-    expires_at: datetime | None = Field(None, description="Token expiration time")
+    access_expires_at: datetime | None = Field(None, description="Access token expiration time")
     status: int | None = Field(None, description="Token status: 1=active, 2=revoked")
     last_activity_at: datetime | None = Field(None, description="Last activity time")
-    revoked_at: datetime | None = Field(None, description="Token revocation time")
+    access_revoked_at: datetime | None = Field(None, description="Access token revocation time")
+    refresh_expires_at: datetime | None = Field(None, description="Refresh token expiration time")
+    refresh_revoked_at: datetime | None = Field(None, description="Refresh token revocation time")
 
 
 class TokenResponse(BaseSchema):
     """Schema for token response data."""
 
-    token: str = Field(..., description="JWT token")
+    access_token: str = Field(..., description="Access token (JWT)")
     device_type: DeviceType = Field(..., description="Device type")
     device_id: str | None = Field(None, description="Device identifier")
-    expires_at: datetime = Field(..., description="Token expiration time")
+    access_expires_at: datetime = Field(..., description="Access token expiration time")
     status: int = Field(..., description="Token status: 1=active, 2=revoked")
     last_activity_at: datetime = Field(..., description="Last activity time")
+    access_revoked_at: datetime | None = Field(None, description="Access token revocation time")
+    refresh_expires_at: datetime | None = Field(None, description="Refresh token expiration time")
+    refresh_revoked_at: datetime | None = Field(None, description="Refresh token revocation time")
     created_at: datetime = Field(..., description="Token creation time")
 
 
@@ -137,8 +142,9 @@ class LoginResponse(BaseSchema):
     """Schema for login response."""
 
     user: UserResponse = Field(..., description="User information")
-    token: str = Field(..., description="JWT token")
-    expires_at: datetime = Field(..., description="Token expiration time")
+    access_token: str = Field(..., description="Access token")
+    refresh_token: str = Field(..., description="Refresh token")
+    expires_in: int = Field(..., description="Access token lifetime in seconds")
 
 
 class LogoutRequest(BaseModel):

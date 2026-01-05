@@ -18,7 +18,9 @@ class WeChatLoginResponse(BaseModel):
     """WeChat login response"""
 
     success: bool = Field(True, description="Login success")
-    token: str = Field(..., description="JWT token when login succeeds")
+    access_token: str = Field(..., description="Access token when login succeeds")
+    refresh_token: str = Field(..., description="Refresh token for renewing the session")
+    expires_in: int = Field(..., description="Access token lifetime in seconds")
     needs_profile_setup: bool = Field(
         ..., description="Whether the logged-in user must complete profile setup"
     )
@@ -50,6 +52,21 @@ class VerifyPhoneRequest(BaseModel):
 class VerifyPhoneResponse(BaseModel):
     """Phone verification response"""
 
-    token: str = Field(..., description="JWT token for authenticated user")
+    access_token: str = Field(..., description="Access token for authenticated user")
+    refresh_token: str = Field(..., description="Refresh token for authenticated user")
+    expires_in: int = Field(..., description="Access token lifetime in seconds")
     needs_profile_setup: bool = Field(..., description="Whether profile setup is required")
     user: dict[str, Any] = Field(..., description="User info for the authenticated session")
+
+
+class RefreshTokenRequest(BaseModel):
+    """Access token refresh request"""
+
+    refresh_token: str = Field(..., description="Refresh token issued during login")
+
+
+class RefreshTokenResponse(BaseModel):
+    """Access token refresh response"""
+
+    access_token: str = Field(..., description="New access token")
+    expires_in: int = Field(..., description="Access token lifetime in seconds")

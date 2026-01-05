@@ -387,8 +387,7 @@ class AIConversationState(Base, TimestampMixin):
         JSONB,
         nullable=True,
         comment=(
-            'Pending messages structure: {"outgoing": [...], '
-            '"followup": [...], "total_pending": N}'
+            'Pending messages structure: {"outgoing": [...], "followup": [...], "total_pending": N}'
         ),
     )
     interrupted_at: Mapped[datetime | None] = mapped_column(

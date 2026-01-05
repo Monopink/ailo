@@ -66,12 +66,7 @@ async def save_style_complete(
 
     # Normalize input payload
     dimensions_data = data.get("dimensions", []) or []
-    # Backward compatibility: deleted_dimension_ids were previously used for association removal
-    deleted_dimension_ids = data.get("deleted_dimension_ids", []) or []
-    removed_association_dimension_ids = (
-        data.get("removed_association_dimension_ids", []) or deleted_dimension_ids
-    )
-    deleted_dimension_ids = data.get("deleted_dimension_ids", []) or []
+    removed_association_dimension_ids = data.get("removed_association_dimension_ids", []) or []
     mappings_data = data.get("mappings", []) or []
     deleted_mapping_ids = data.get("deleted_mapping_ids", []) or []
 
@@ -253,43 +248,6 @@ async def save_style_complete(
 
     # === Optionally delete dimensions (only if truly unused) ===
     deleted_dimensions = 0
-    if deleted_dimension_ids:
-        # Verify none are used by any style and have no mappings
-        # Check associations
-        assoc_result = await db.execute(
-            select(AIStyleDimension.dimension_id).where(
-                AIStyleDimension.dimension_id.in_(deleted_dimension_ids)
-            )
-        )
-        in_use_ids = {row[0] for row in assoc_result.fetchall()}
-        if in_use_ids:
-            raise HTTPException(
-                status_code=400, detail=f"Dimensions still in use: {sorted(in_use_ids)}"
-            )
-
-        # Check mappings
-        map_result = await db.execute(
-            select(AIDimensionRelationshipMapping.dimension_id).where(
-                AIDimensionRelationshipMapping.dimension_id.in_(deleted_dimension_ids)
-            )
-        )
-        has_mapped = {row[0] for row in map_result.fetchall()}
-        if has_mapped:
-            raise HTTPException(
-                status_code=400, detail=f"Dimensions still have mappings: {sorted(has_mapped)}"
-            )
-
-        # Safe to delete
-        del_stmt = delete(AIDimension).where(AIDimension.id.in_(deleted_dimension_ids))
-        dim_delete_result = await db.execute(del_stmt)
-        deleted_dimensions = dim_delete_result.rowcount or 0
-        await db.commit()
-        logger.info(
-            "deleted_dimensions",
-            style_id=style_id,
-            deleted_count=deleted_dimensions,
-            deleted_ids=deleted_dimension_ids,
-        )
 
     logger.info(
         "saved_style_complete",

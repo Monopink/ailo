@@ -85,7 +85,7 @@ async def get_instance_context(
 
         dimensions = await get_style_dimensions(db, style.id)
 
-        avatar_url = await get_avatar_url(db, profile)
+        avatar_url = await get_avatar_url(profile)
 
         context: InstanceContext = {
             "instance_id": instance.id,

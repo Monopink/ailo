@@ -380,7 +380,6 @@
   // Track deleted IDs
   let deletedMappingIds = [];
   let removedAssociationDimensionIds = [];
-  let deletedDimensionIds = [];
   let nextTempDimensionId = -1; // For new dimensions
 
   // UI modals state
@@ -607,11 +606,8 @@
       cancelText: '取消'
     });
     if (!ok) return;
-    if (dimensionId > 0) {
-      deletedDimensionIds.push(dimensionId);
-      if (!removedAssociationDimensionIds.includes(dimensionId)) {
-        removedAssociationDimensionIds.push(dimensionId);
-      }
+    if (dimensionId > 0 && !removedAssociationDimensionIds.includes(dimensionId)) {
+      removedAssociationDimensionIds.push(dimensionId);
     }
     const index = dimensions.findIndex(d => d.id === dimensionId);
     if (index !== -1) {
@@ -1491,7 +1487,6 @@
       const requestData = {
         dimensions: allDimensions,
         removed_association_dimension_ids: removedAssociationDimensionIds,
-        deleted_dimension_ids: deletedDimensionIds,
         mappings: allMappings,
         deleted_mapping_ids: deletedMappingIds
       };
@@ -1509,8 +1504,7 @@
         message += 'Dimensions:\n';
         message += '  更新: ' + result.updated_dimensions + '个\n';
         message += '  创建: ' + result.created_dimensions + '个\n';
-        message += '  解除关联: ' + result.deleted_dimensions + '个\n';
-        message += '  全局删除: ' + result.deleted_dimensions + '个\n\n';
+        message += '  解除关联: ' + result.deleted_associations + '个\n\n';
         message += 'Mappings:\n';
         message += '  更新: ' + result.updated_mappings + '个\n';
         message += '  创建: ' + result.created_mappings + '个\n';

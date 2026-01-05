@@ -66,8 +66,13 @@ class ContactCreate(BaseModel):
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
     alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
-    custom_avatar_file_id: int | None = Field(
-        None, description="Custom avatar file ID (media_files.id)"
+    custom_avatar_key: str | None = Field(
+        None,
+        max_length=255,
+        description="Custom avatar object key (overrides contact's real avatar)",
+    )
+    custom_avatar_media_id: int | None = Field(
+        None, description="FK to media_files.id for audit trail"
     )
     tags: list[str] | None = Field(None, description="Contact tags")
     remark: str | None = Field(None, max_length=500, description="Contact remark/notes")
@@ -92,7 +97,7 @@ class ConversationInfoResponse(BaseSchema):
     conv_id: str = Field(..., description="Conversation identifier")
     im_conv_id: str = Field(..., description="IM provider conversation ID")
     contact_qiao_id: str = Field(..., description="Contact external ID")
-    contact_profile: ContactProfileSummary = Field(..., description="Contact basic info")
+    profile: ContactProfileSummary = Field(..., description="Contact basic info")
 
 
 # Contact Request Schemas

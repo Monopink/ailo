@@ -14,7 +14,10 @@ class ProfileBase(BaseModel):
     gender: int | None = Field(
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
-    avatar_file_id: int | None = Field(None, description="Foreign key to media_files.id")
+    avatar_key: str | None = Field(
+        None, max_length=255, description="Object key for avatar (e.g. avatars/2025/12/xxx.webp)"
+    )
+    avatar_media_id: int | None = Field(None, description="FK to media_files.id for audit trail")
     avatar_prompt: str | None = Field(
         None, description="Avatar description for LLM prompt replacement"
     )

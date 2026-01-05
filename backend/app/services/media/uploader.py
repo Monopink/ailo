@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings
 from app.crud.message import media_file as media_file_crud
 from app.enums import FileStatus, FileType, UploaderType
 from app.models.message import MediaFile
@@ -46,7 +46,18 @@ async def upload_via_proxy(
         raise HTTPException(status_code=400, detail="当前仅支持头像上传")
 
     actual_size = len(file_bytes)
-    if actual_size != file_size:
+
+    # Allow file_size=0 as signal from DevTools where FileSystemManager APIs
+    # don't support http://tmp/... protocol. Use actual size for validation.
+    if file_size == 0:
+        file_size = actual_size
+        logger.info(
+            "file_size_auto_detected",
+            user_id=user.id,
+            actual_size=actual_size,
+            file_type=file_type.name,
+        )
+    elif actual_size != file_size:
         raise HTTPException(status_code=400, detail="文件大小不匹配，请重新选择图片")
 
     await enforce_daily_quota(db, user_id=user.id, file_type=file_type, file_size=actual_size)
@@ -95,7 +106,14 @@ async def upload_via_proxy(
 
     metadata = {"content_type": mime_type, "uploaded_via": "proxy"}
     try:
-        storage.upload(object_key, file_bytes, mime_type, metadata=metadata)
+        # Call storage.upload() directly - boto3 is thread-safe in uvicorn worker
+        storage.upload(
+            object_key,
+            file_bytes,
+            mime_type,
+            metadata=metadata,
+            is_public=rule.is_public,
+        )
     except StorageError as exc:
         logger.error("media_proxy_upload_failed", error=str(exc))
         raise HTTPException(status_code=503, detail="上传失败，请稍后再试") from exc
@@ -112,7 +130,6 @@ async def upload_via_proxy(
         mime_type=mime_type,
         file_hash=effective_hash,
         is_public=rule.is_public,
-        cdn_domain=_determine_cdn_domain(settings),
         upload_by_type=int(UploaderType.USER),
         upload_by_id=user.id,
         upload_by_qiao_id=user.qiao_id,
@@ -137,7 +154,3 @@ async def _get_allowed_mimes(db: AsyncSession, config_key: str) -> list[str]:
 async def _get_max_size_bytes(db: AsyncSession, config_key: str) -> int:
     size_mb = int(await get_config(db, config_key))
     return size_mb * 1024 * 1024
-
-
-def _determine_cdn_domain(settings: Settings) -> str | None:
-    return settings.STORAGE_PUBLIC_DOMAIN or None

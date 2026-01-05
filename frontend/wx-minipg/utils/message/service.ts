@@ -19,10 +19,28 @@ import type {
   MessageSignature,
 } from './adapter-types';
 import { getMessageAdapter } from './provider';
+import messageEventBus from './event-bus';
 
 const logger = getLogger('MessageService');
 
 type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
+
+const createBusinessMessage = (
+  base: MessageData,
+  msgId: string,
+  status: MessageStatus
+): BusinessMessage => ({
+  msg_id: msgId,
+  from: base.from,
+  to: base.to,
+  conv_id: base.conv_id,
+  content: base.content,
+  message_type: base.message_type ?? MESSAGE_TYPE.TEXT,
+  supports_typing:
+    base.supports_typing !== undefined ? base.supports_typing : true,
+  sent_time: Date.now(),
+  status,
+});
 
 interface MessageData {
   from: string;
@@ -112,18 +130,7 @@ export class MessageService {
 
     const msgId = messageData.client_msg_id || generateClientMessageId();
 
-    const message: BusinessMessage = {
-      msg_id: msgId,
-      from: messageData.from,
-      to: messageData.to,
-      conv_id: messageData.conv_id,
-      content: messageData.content,
-      message_type: messageData.message_type ?? MESSAGE_TYPE.TEXT,
-      supports_typing:
-        messageData.supports_typing !== undefined ? messageData.supports_typing : true,
-      sent_time: Date.now(),
-      status: MESSAGE_STATUS.SENDING,
-    };
+    const message = createBusinessMessage(messageData, msgId, MESSAGE_STATUS.SENDING);
 
     await this.persistMessage(messageData.conv_id, message);
 
@@ -139,6 +146,7 @@ export class MessageService {
       };
 
       await this.persistMessage(messageData.conv_id, sentPayload);
+      messageEventBus.emitMessage(sentPayload);
       logger.info('Message sent successfully', {
         msg_id: msgId,
         conv_id: messageData.conv_id,
@@ -156,6 +164,7 @@ export class MessageService {
       };
 
       await this.persistMessage(messageData.conv_id, failedPayload);
+      messageEventBus.emitMessage(failedPayload);
 
       logger.error('Send message via adapter failed', {
         msg_id: msgId,
@@ -207,6 +216,7 @@ export class MessageService {
 
       const storedMessage: StoredMessage = { ...message };
       await addMessage(message.conv_id, storedMessage);
+      messageEventBus.emitMessage(storedMessage);
 
       const app = getApp<AppInstance>();
       if (typeof app.onMessageReceived === 'function') {
@@ -232,6 +242,12 @@ export class MessageService {
     try {
       logger.debug('Typing indicator received', { typing });
 
+      const signal = {
+        conv_id: typing.conv_id,
+        from: typing.from,
+        typing: typing.isTyping,
+      };
+
       const app = getApp<AppInstance>();
       if (typeof app.onTypingReceived === 'function') {
         app.onTypingReceived({
@@ -242,6 +258,7 @@ export class MessageService {
           timestamp: Date.now(),
         });
       }
+      messageEventBus.emitTyping(signal);
     } catch (error) {
       const err = normalizeError(error);
       logger.error('Handle typing error', { error: err.message });
@@ -255,6 +272,7 @@ export class MessageService {
     if (typeof app.onMessageError === 'function') {
       app.onMessageError(error);
     }
+    messageEventBus.emitError(error);
   }
 
   async disconnect(): Promise<void> {
@@ -285,7 +303,7 @@ export async function initMessageService(): Promise<MessageService> {
 
   const userInfo = await getUserInfo();
 
-  if (!userInfo || !userInfo.qiao_id) {
+  if (!userInfo?.qiao_id) {
     const error = new Error('User info not found or invalid');
     logger.error('Cannot initialize message service', {
       hasUserInfo: Boolean(userInfo),

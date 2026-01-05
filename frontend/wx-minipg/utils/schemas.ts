@@ -1,0 +1,190 @@
+/**
+ * Runtime validation schemas using Zod
+ *
+ * These schemas provide both TypeScript types and runtime validation.
+ * Use them to validate API responses and external data.
+ */
+
+import { z } from 'zod';
+import { MESSAGE_STATUS, MESSAGE_TYPE } from './message/constants';
+
+// ============================================================================
+// User Schemas
+// ============================================================================
+
+export const UserInfoSchema = z.object({
+  id: z.number(),
+  nickname: z.string(),
+  avatar: z.string().url().nullable(),
+  gender: z.enum(['male', 'female', 'other']),
+  bio: z.string().nullable(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+
+export type UserInfo = z.infer<typeof UserInfoSchema>;
+
+export const MessageStatusSchema = z.nativeEnum(MESSAGE_STATUS);
+export type MessageStatus = z.infer<typeof MessageStatusSchema>;
+
+export const MessageTypeSchema = z.nativeEnum(MESSAGE_TYPE);
+export type MessageType = z.infer<typeof MessageTypeSchema>;
+
+export const ContactProfileSchema = z.object({
+  nickname: z.string().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+  gender: z.number().optional().nullable(),
+  bio: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+});
+export type ContactProfile = z.infer<typeof ContactProfileSchema>;
+
+export const ConversationResponseSchema = z.object({
+  profile: ContactProfileSchema.optional(),
+});
+export type ConversationResponse = z.infer<typeof ConversationResponseSchema>;
+
+export const UserProfileSchema = z.object({
+  qiao_id: z.string(),
+  username: z.string().optional().nullable(),
+  nickname: z.string().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+  gender: z.number().optional().nullable(),
+  bio: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+});
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+
+export const AccountInfoSchema = z.object({
+  phone: z.string().optional(),
+  email: z.string().optional().nullable(),
+});
+export type AccountInfo = z.infer<typeof AccountInfoSchema>;
+
+export const StoredContactSchema = z.object({
+  conv_id: z.string().optional(),
+  contact_qiao_id: z.string().optional(),
+  alias: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  is_pinned: z.boolean().optional(),
+  is_muted: z.boolean().optional(),
+  is_blocked: z.boolean().optional(),
+  profile: ContactProfileSchema.optional(),
+});
+export type StoredContact = z.infer<typeof StoredContactSchema>;
+
+export const StoredContactsSchema = z.array(StoredContactSchema);
+export type StoredContacts = z.infer<typeof StoredContactsSchema>;
+
+export const StoredMessageSchema = z.object({
+  msg_id: z.string(),
+  conv_id: z.string(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  content: z.string().optional().nullable(),
+  message_type: MessageTypeSchema.optional(),
+  supports_typing: z.boolean().optional(),
+  sent_time: z.number().optional(),
+  status: MessageStatusSchema.optional(),
+  action: z.string().optional().nullable(),
+  notification_type: z.string().optional().nullable(),
+  data: z.record(z.string(), z.unknown()).optional().nullable(),
+  id: z.string().optional(),
+  text: z.string().optional(),
+  created_at: z.number().optional(),
+  timestamp: z.number().optional(),
+});
+export type StoredMessage = z.infer<typeof StoredMessageSchema>;
+
+export const StoredMessagesSchema = z.array(StoredMessageSchema);
+export type StoredMessages = z.infer<typeof StoredMessagesSchema>;
+
+export const ConversationConfigSchema = z.object({
+  im_conv_id: z.string(),
+  signature_algorithm: z.string(),
+  signature_version: z.string(),
+  signature_ttl_ms: z.number().int().nonnegative(),
+});
+export type ConversationConfig = z.infer<typeof ConversationConfigSchema>;
+
+// ============================================================================
+// API Response Schemas
+// ============================================================================
+
+export const ApiResponseSchema = <T extends z.ZodTypeAny>(
+  dataSchema: T
+): z.ZodObject<{
+  code: z.ZodNumber;
+  message: z.ZodString;
+  data: T;
+}> =>
+  z.object({
+    code: z.number(),
+    message: z.string(),
+    data: dataSchema,
+  });
+
+export type ApiResponse<T> = {
+  code: number;
+  message: string;
+  data: T;
+};
+
+// ============================================================================
+// Pagination Schema
+// ============================================================================
+
+export const PaginationSchema = z.object({
+  page: z.number().int().positive(),
+  page_size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  total_pages: z.number().int().nonnegative(),
+});
+
+export type Pagination = z.infer<typeof PaginationSchema>;
+
+export const SquareContactSchema = z.object({
+  qiao_id: z.string(),
+  nickname: z.string().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+  gender: z.number().optional().nullable(),
+  bio: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+  category: z.number().optional().nullable(),
+});
+export type SquareContact = z.infer<typeof SquareContactSchema>;
+
+export const SquareApiResponseSchema = z.object({
+  items: z.array(SquareContactSchema),
+  refresh_available_at: z.string().optional().nullable(),
+});
+export type SquareApiResponse = z.infer<typeof SquareApiResponseSchema>;
+
+export const PhoneRefreshResponseSchema = z.object({
+  phone: z.string(),
+});
+export type PhoneRefreshResponse = z.infer<typeof PhoneRefreshResponseSchema>;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Safely parse data with a schema
+ * Returns parsed data or null if validation fails
+ */
+export function safeParse<T>(schema: z.ZodSchema<T>, data: unknown): T | null {
+  const result = schema.safeParse(data);
+  if (result.success) {
+    return result.data;
+  }
+  console.error('Schema validation failed:', result.error);
+  return null;
+}
+
+/**
+ * Parse data with a schema, throw error if validation fails
+ */
+export function parse<T>(schema: z.ZodSchema<T>, data: unknown): T {
+  return schema.parse(data);
+}

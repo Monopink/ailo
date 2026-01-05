@@ -1,35 +1,34 @@
-import { get, put } from './api';
+import { requestValidated } from './api';
+import { AccountInfo, AccountInfoSchema, UserProfile, UserProfileSchema } from './schemas';
 
-export interface UserProfileResponse {
-  qiao_id: string;
-  username?: string | null;
-  nickname?: string | null;
-  avatar_url?: string | null;
-  gender?: number | null;
-  bio?: string | null;
-  region?: string | null;
-}
-
-export interface AccountInfoResponse {
-  phone?: string;
-  email?: string | null;
-}
+export type UserProfileResponse = UserProfile;
+export type AccountInfoResponse = AccountInfo;
 
 const PROFILE_ENDPOINT = '/user/profile';
 const ACCOUNT_ENDPOINT = '/user/account';
 
 export async function fetchCurrentUserProfile(): Promise<UserProfileResponse> {
-  return await get<UserProfileResponse>(PROFILE_ENDPOINT);
+  return await requestValidated(UserProfileSchema, {
+    url: PROFILE_ENDPOINT,
+    method: 'GET',
+  });
 }
 
 export async function fetchAccountInfo(): Promise<AccountInfoResponse> {
-  return await get<AccountInfoResponse>(ACCOUNT_ENDPOINT);
+  return await requestValidated(AccountInfoSchema, {
+    url: ACCOUNT_ENDPOINT,
+    method: 'GET',
+  });
 }
 
 export async function updateCurrentUserProfile(
   payload: Record<string, unknown>
 ): Promise<UserProfileResponse> {
-  return await put<UserProfileResponse, typeof payload>(PROFILE_ENDPOINT, payload);
+  return await requestValidated(UserProfileSchema, {
+    url: PROFILE_ENDPOINT,
+    method: 'PUT',
+    data: payload,
+  });
 }
 
 export async function updateUserAvatar(fileId: string): Promise<UserProfileResponse> {

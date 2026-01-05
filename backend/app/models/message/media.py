@@ -6,6 +6,7 @@ This module contains SQLAlchemy models for media file management.
 
 from datetime import datetime
 
+from markupsafe import escape
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -17,6 +18,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from starlette.requests import Request
 
 from app.models.base import SnowflakeModel
 
@@ -62,9 +64,6 @@ class MediaFile(SnowflakeModel):
     is_public: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
-    cdn_domain: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, comment="CDN domain override"
-    )
     upload_by_type: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Uploader type: 1=user,2=admin,3=system"
     )
@@ -93,7 +92,7 @@ class MediaFile(SnowflakeModel):
 
     __table_args__ = (
         CheckConstraint(
-            "storage_provider IN ('local', 'tencent_cos')",
+            "storage_provider = 'tencent_cos'",
             name="ck_media_files_storage_provider",
         ),
         CheckConstraint(
@@ -111,3 +110,13 @@ class MediaFile(SnowflakeModel):
             name="uq_media_files_storage_object",
         ),
     )
+
+    def __admin_select2_repr__(self, request: Request) -> str:
+        """Display representation in admin select2 dropdown."""
+        file_type_map = {1: "Avatar", 2: "Emoji", 3: "Image", 4: "Document"}
+        file_type_str = file_type_map.get(self.file_type, "Unknown")
+        # Show: [ID] file_type / original_name / object_key
+        return (
+            f"<span>[{self.id}] {file_type_str} / {escape(self.original_name)} / "
+            f"{escape(self.object_key)}</span>"
+        )

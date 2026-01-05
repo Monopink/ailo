@@ -44,7 +44,7 @@ async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, Any
             logger.warning("user_profile_not_found", user_qiao_id=user_qiao_id)
             return None
 
-        avatar_url = await get_avatar_url(db, profile)
+        avatar_url = await get_avatar_url(profile)
 
         return {
             "profile": profile,
@@ -87,7 +87,7 @@ async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> dict[
             logger.warning("instance_profile_not_found", instance_qiao_id=instance_qiao_id)
             return None
 
-        avatar_url = await get_avatar_url(db, profile)
+        avatar_url = await get_avatar_url(profile)
 
         return {
             "profile": profile,

@@ -20,6 +20,7 @@ from app.type_defs import JSONDict
 
 if TYPE_CHECKING:
     from app.models.ai.instance import AIInstance
+    from app.models.message import MediaFile
     from app.models.user import User
 
 
@@ -60,11 +61,20 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         String(100), nullable=True, comment="Contact alias/remark name"
     )
 
-    custom_avatar_file_id: Mapped[int | None] = mapped_column(
+    custom_avatar_key: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment=(
+            "Custom avatar object key (overrides contact's real avatar). "
+            "NULL means the contact's real avatar is used."
+        ),
+    )
+
+    custom_avatar_media_id: Mapped[int | None] = mapped_column(
         BigInteger,
         ForeignKey("media_files.id", ondelete="SET NULL"),
         nullable=True,
-        comment="Custom avatar file ID overriding contact profile avatar",
+        comment="FK to media_files.id for audit trail. NULL when using contact's real avatar",
     )
 
     tags: Mapped[JSONDict | None] = mapped_column(
@@ -118,8 +128,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
     _contact_user: Mapped[User | None] = relationship(
         "User",
         primaryjoin=(
-            "and_(Contact.contact_id == User.id, "
-            f"Contact.contact_type == {ContactType.USER.value})"
+            f"and_(Contact.contact_id == User.id, Contact.contact_type == {ContactType.USER.value})"
         ),
         foreign_keys=[contact_id],
         lazy="select",
@@ -132,6 +141,15 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
             f"Contact.contact_type == {ContactType.AI.value})"
         ),
         foreign_keys=[contact_id],
+        lazy="select",
+        viewonly=True,
+    )
+
+    # Custom avatar media file relationship
+    custom_avatar_media: Mapped[MediaFile | None] = relationship(
+        "MediaFile",
+        primaryjoin="Contact.custom_avatar_media_id == MediaFile.id",
+        foreign_keys=[custom_avatar_media_id],
         lazy="select",
         viewonly=True,
     )

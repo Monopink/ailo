@@ -87,7 +87,6 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
 
   onShow(options: ShowOptions) {
     logger.info('App shown', { options });
-    void this.refreshTokenIfNeeded();
   },
 
   onHide() {
@@ -104,11 +103,11 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
   },
 
   onUnhandledRejection(event: UnhandledRejectionResult) {
-    logger.error('Unhandled rejection', { reason: event?.reason });
+    logger.error('Unhandled rejection', { reason: event.reason });
   },
 
   onThemeChange(event: ThemeChangeResult) {
-    logger.info('Theme changed', { theme: event?.theme });
+    logger.info('Theme changed', { theme: event.theme });
   },
 
   async initializeAuth() {
@@ -149,18 +148,6 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
       if (authService.isAuthenticated()) {
         redirectToSetupIfNeeded();
       }
-    }
-  },
-
-  async refreshTokenIfNeeded() {
-    try {
-      if (authService.isAuthenticated()) {
-        await authService.refreshToken();
-        logger.info('Token refreshed');
-      }
-    } catch (error) {
-      const err = normalizeError(error);
-      logger.error('Refresh token failed', { error: err.message });
     }
   },
 

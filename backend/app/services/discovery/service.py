@@ -57,7 +57,7 @@ async def get_square_contacts(
         # Check rate limit
         category_key = category.name if category else "all"
         rate_key = f"{user_qiao_id}:{category_key}"
-        allowed, error_code, retry_after = await check_rate_limit(
+        allowed, _error_code, retry_after = await check_rate_limit(
             identifier=rate_key, group="square", db=db
         )
 
@@ -82,7 +82,7 @@ async def get_square_contacts(
 
         # Transform to response format
         profiles = [profile for _, _, profile in entries if profile]
-        avatar_urls = await get_avatar_urls_batch(db, profiles)
+        avatar_urls = await get_avatar_urls_batch(profiles)
 
         items = []
         for entry, persona, profile in entries:
@@ -166,7 +166,7 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfil
             except ValueError:
                 category_api = None
 
-        avatar_url = await get_avatar_url(db, profile)
+        avatar_url = await get_avatar_url(profile)
 
         response = StrangerProfileResponse(
             qiao_id=profile.owner_qiao_id,

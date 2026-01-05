@@ -1,7 +1,7 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { formatRegion } from '../../utils/format';
 import { getLogger } from '../../utils/logger';
-import { updateCurrentUserProfile } from '../../utils/profile';
+import profileService from '../../utils/profile-service';
 
 const logger = getLogger('ProfileEdit');
 
@@ -125,7 +125,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
   },
 
   onLoad(options) {
-    const rawField = (options?.field ?? '') as FieldKey;
+    const rawField = (options.field ?? '') as FieldKey;
     const config = FIELD_CONFIG[rawField];
 
     if (!config) {
@@ -146,7 +146,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
     });
 
     if (config.type === 'gender') {
-      const genderValue = Number.parseInt(options?.value ?? '0', 10) || 0;
+      const genderValue = Number.parseInt(options.value ?? '0', 10) || 0;
       this.setData({
         field: rawField,
         fieldType: config.type,
@@ -161,7 +161,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
     }
 
     if (config.type === 'region') {
-      const decodedValue = decodeValue(options?.value);
+      const decodedValue = decodeValue(options.value);
       this.setData({
         field: rawField,
         fieldType: config.type,
@@ -173,7 +173,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       return;
     }
 
-    const decodedValue = decodeValue(options?.value);
+    const decodedValue = decodeValue(options.value);
     this.setData({
       field: rawField,
       fieldType: config.type,
@@ -269,7 +269,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
 
       logger.info('Updating profile', { field: this.data.field, data: updateData });
 
-      await updateCurrentUserProfile(updateData);
+      await profileService.updateProfile(updateData);
 
       void wx.showToast({
         title: '保存成功',

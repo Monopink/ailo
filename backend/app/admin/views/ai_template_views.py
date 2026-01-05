@@ -14,7 +14,7 @@ from starlette_admin._types import RequestAction
 from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
-from starlette_admin.fields import RelationField
+from starlette_admin.fields import BaseField, RelationField
 
 from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
@@ -230,10 +230,10 @@ class AITemplateView(ModelView):
         self,
         request: Request,
         action: RequestAction = RequestAction.LIST,
-    ) -> Sequence[object]:
+    ) -> Sequence[BaseField]:
         """Skip relation fields that point to missing model attributes."""
         base_fields = super().get_fields_list(request, action)
-        filtered_fields = []
+        filtered_fields: list[BaseField] = []
         for field in base_fields:
             if isinstance(field, RelationField) and not hasattr(self.model, field.name):
                 continue

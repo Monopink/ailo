@@ -21,7 +21,6 @@ from .ai_instance_views import (
 )
 from .ai_log_views import AI_LOG_VIEWS, ai_request_log_view
 
-# Import individual AI views for backward compatibility
 # Import views from different modules
 from .ai_personality_views import (
     AI_PERSONALITY_VIEWS,

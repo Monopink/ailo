@@ -3,7 +3,7 @@
 
 /* Profile Page */
 .profile {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
 }
 
 /* Header Section - Avatar and Name */

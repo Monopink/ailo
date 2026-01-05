@@ -8,6 +8,19 @@
 import { STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
 import { MESSAGE_TYPE } from './message/constants';
+import {
+  parse,
+  safeParse,
+  StoredContact,
+  StoredContactSchema,
+  StoredContacts,
+  StoredContactsSchema,
+  StoredMessage,
+  StoredMessageSchema,
+  StoredMessages,
+  StoredMessagesSchema,
+} from './schemas';
+import { ensureArray, firstNonEmptyString, hasValue, isNonEmptyString } from './guards';
 
 const logger = getLogger('Storage');
 
@@ -19,6 +32,39 @@ interface WxError {
 
 const isWxError = (error: unknown): error is WxError =>
   typeof error === 'object' && error !== null && 'errMsg' in error;
+
+const ensureJsonObject = (value: unknown): JsonRecord => {
+  if (!hasValue(value) || typeof value !== 'object') {
+    return {};
+  }
+  return value as JsonRecord;
+};
+
+const ensureStoredMessages = (value: unknown): StoredMessages => {
+  const parsed = safeParse(StoredMessagesSchema, value);
+  if (hasValue(parsed)) {
+    return parsed;
+  }
+  logger.warn('Stored messages schema validation failed, resetting to empty array', {
+    value,
+  });
+  return [];
+};
+
+const ensureStoredContacts = (value: unknown): StoredContacts => {
+  const parsed = safeParse(StoredContactsSchema, value);
+  if (hasValue(parsed)) {
+    return parsed;
+  }
+  logger.warn('Stored contacts schema validation failed, resetting to empty list', {
+    value,
+  });
+  return [];
+};
+
+const ensureStoredMessage = (value: unknown): StoredMessage => parse(StoredMessageSchema, value);
+
+const ensureStoredContact = (value: unknown): StoredContact => parse(StoredContactSchema, value);
 
 const wxSetStorage = async <T>(key: string, data: T): Promise<void> =>
   await new Promise((resolve, reject) => {
@@ -74,55 +120,6 @@ const wxGetStorageInfo = async (): Promise<WechatMiniprogram.GetStorageInfoSucce
     });
   });
 
-export interface ContactProfile {
-  nickname?: string | null;
-  avatar_url?: string | null;
-  gender?: number | null;
-  bio?: string | null;
-  region?: string | null;
-}
-
-export interface StoredContact extends JsonRecord {
-  conv_id?: string;
-  contact_qiao_id?: string;
-  alias?: string | null;
-  tags?: string[];
-  is_pinned?: boolean;
-  is_muted?: boolean;
-  is_blocked?: boolean;
-  profile?: ContactProfile;
-  // Legacy fields for backward compatibility
-  qiao_id?: string;
-  nickname?: string;
-  avatar_url?: string;
-  gender?: number | null;
-  contact_qiaoid?: string;
-  contact_profile?: JsonRecord;
-}
-
-export type StoredContacts = StoredContact[];
-
-export interface StoredMessage extends JsonRecord {
-  msg_id: string;
-  conv_id: string;
-  from?: string;
-  to?: string;
-  content?: string;
-  message_type?: number;
-  supports_typing?: boolean;
-  sent_time?: number;
-  status?: number;
-  action?: string | null;
-  notification_type?: string | null;
-  data?: JsonRecord | null;
-  id?: string;
-  text?: string;
-  created_at?: number;
-  timestamp?: number;
-}
-
-export type StoredMessages = StoredMessage[];
-
 export interface LatestRenderableMessage {
   content: string;
   sent_time: number | string | null;
@@ -142,49 +139,51 @@ export interface StoredAuthUser extends JsonRecord {
 }
 
 function normalizeContact(contact: unknown): StoredContact {
-  if (!contact || typeof contact !== 'object') {
+  if (!hasValue(contact) || typeof contact !== 'object') {
     return {} as StoredContact;
   }
 
   const record = contact as JsonRecord;
-  const profile = (record.profile as JsonRecord) || (record.contact_profile as JsonRecord) || {};
-  const normalized: StoredContact = { ...record } as StoredContact;
+  const profileSource = ensureJsonObject(record.profile);
+  const normalizedProfile = { ...profileSource };
+  const normalized: StoredContact = {
+    ...record,
+    tags: ensureArray<string>(record.tags as string[] | null | undefined),
+    profile: normalizedProfile,
+  } as StoredContact;
 
-  normalized.profile = profile;
-  normalized.contact_profile = profile;
+  const contactNickname = isNonEmptyString(normalizedProfile.nickname)
+    ? normalizedProfile.nickname
+    : undefined;
+  const profileNickname = isNonEmptyString(profileSource.nickname)
+    ? profileSource.nickname
+    : undefined;
+  normalizedProfile.nickname = firstNonEmptyString(contactNickname, profileNickname) ?? '';
 
-  if (!Array.isArray(normalized.tags)) {
-    const maybeTags = (normalized.tags as unknown as { tags?: unknown })?.tags;
-    normalized.tags = Array.isArray(maybeTags) ? (maybeTags as string[]) : [];
+  const contactAvatar = isNonEmptyString(normalizedProfile.avatar_url)
+    ? normalizedProfile.avatar_url
+    : undefined;
+  const profileAvatar = isNonEmptyString(profileSource.avatar_url)
+    ? profileSource.avatar_url
+    : undefined;
+  normalizedProfile.avatar_url = firstNonEmptyString(contactAvatar, profileAvatar) ?? '';
+
+  if (!hasValue(normalizedProfile.gender)) {
+    normalizedProfile.gender =
+      typeof profileSource.gender === 'number' ? profileSource.gender : null;
   }
 
-  const profileNickname = typeof profile.nickname === 'string' ? profile.nickname : '';
-  const alias = typeof normalized.alias === 'string' ? normalized.alias : '';
-  const contactId =
-    typeof normalized.contact_qiao_id === 'string' ? normalized.contact_qiao_id : '';
-  const nickname = typeof normalized.nickname === 'string' ? normalized.nickname : '';
-  normalized.nickname = nickname || profileNickname || alias || contactId || '';
-
-  const profileAvatar = typeof profile.avatar_url === 'string' ? profile.avatar_url : '';
-  const resolvedAvatar =
-    (typeof normalized.avatar_url === 'string' ? normalized.avatar_url : '') || profileAvatar || '';
-  normalized.avatar_url = resolvedAvatar;
-
-  if (normalized.gender === undefined || normalized.gender === null) {
-    normalized.gender = typeof profile.gender === 'number' ? profile.gender : null;
-  }
-
-  return normalized;
+  return ensureStoredContact(normalized);
 }
 
 export function extractContactsFromPayload(payload: unknown): StoredContacts {
-  if (!payload) {
+  if (!hasValue(payload)) {
     return [];
   }
   if (Array.isArray(payload)) {
     return payload as StoredContacts;
   }
-  if (payload && typeof payload === 'object') {
+  if (typeof payload === 'object' && payload !== null) {
     if (Array.isArray((payload as JsonRecord).items)) {
       return (payload as { items: StoredContacts }).items;
     }
@@ -272,22 +271,23 @@ export async function getStorageInfo(): Promise<WechatMiniprogram.GetStorageInfo
 
 export async function saveMessages(convId: string, messages: StoredMessages): Promise<void> {
   const qiaoId = await getCurrentQiaoId();
-  if (!qiaoId) {
+  if (qiaoId === null) {
     throw new Error('User not logged in');
   }
 
   const key = buildUserKey(`${STORAGE_KEYS.MESSAGES}${convId}`, qiaoId);
-  await setStorage(key, messages);
+  await setStorage(key, ensureStoredMessages(messages));
 }
 
 export async function getMessages(convId: string): Promise<StoredMessages> {
   const qiaoId = await getCurrentQiaoId();
-  if (!qiaoId) {
+  if (qiaoId === null) {
     return [];
   }
 
   const key = buildUserKey(`${STORAGE_KEYS.MESSAGES}${convId}`, qiaoId);
-  return await getStorage(key, [] as StoredMessages);
+  const stored = await getStorage(key, [] as StoredMessages);
+  return ensureStoredMessages(stored);
 }
 
 export async function getLatestRenderableMessage(
@@ -296,7 +296,7 @@ export async function getLatestRenderableMessage(
   const messages = await getMessages(convId);
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
-    if (!message) {
+    if (!hasValue(message)) {
       continue;
     }
 
@@ -311,10 +311,9 @@ export async function getLatestRenderableMessage(
       continue;
     }
 
-    const content =
-      (typeof message.content === 'string' && message.content) ||
-      (typeof message.text === 'string' ? message.text : '') ||
-      '';
+    const messageContent = isNonEmptyString(message.content) ? message.content : undefined;
+    const messageText = isNonEmptyString(message.text) ? message.text : undefined;
+    const content = firstNonEmptyString(messageContent, messageText) ?? '';
     return {
       content,
       sent_time: message.sent_time ?? message.created_at ?? message.timestamp ?? null,
@@ -325,15 +324,16 @@ export async function getLatestRenderableMessage(
 
 export async function addMessage(convId: string, message: StoredMessage): Promise<void> {
   const messages = await getMessages(convId);
-  const existingIndex = messages.findIndex((m) => m.msg_id === message.msg_id);
+  const normalizedMessage = ensureStoredMessage(message);
+  const existingIndex = messages.findIndex((m) => m.msg_id === normalizedMessage.msg_id);
 
   if (existingIndex !== -1) {
-    messages[existingIndex] = message;
+    messages[existingIndex] = normalizedMessage;
   } else {
-    messages.push(message);
+    messages.push(normalizedMessage);
   }
 
-  await saveMessages(convId, messages);
+  await saveMessages(convId, ensureStoredMessages(messages));
 }
 
 export async function updateMessage(
@@ -346,13 +346,13 @@ export async function updateMessage(
 
   if (index !== -1) {
     messages[index] = { ...messages[index], ...updates };
-    await saveMessages(convId, messages);
+    await saveMessages(convId, ensureStoredMessages(messages));
   }
 }
 
 export async function clearMessages(convId: string): Promise<void> {
   const qiaoId = await getCurrentQiaoId();
-  if (!qiaoId) {
+  if (qiaoId === null) {
     return;
   }
 
@@ -362,48 +362,28 @@ export async function clearMessages(convId: string): Promise<void> {
 
 export async function saveContacts(contacts: unknown): Promise<StoredContacts> {
   const qiaoId = await getCurrentQiaoId();
-  if (!qiaoId) {
+  if (qiaoId === null) {
     throw new Error('User not logged in');
   }
 
-  const normalized = normalizeContactsPayload(contacts);
+  const normalized = normalizeContactsPayload(contacts).map(ensureStoredContact);
+  const validatedContacts = ensureStoredContacts(normalized);
   const key = buildUserKey(STORAGE_KEYS.CONTACTS, qiaoId);
-  await setStorage(key, normalized);
-
-  const legacyKey = buildUserKey('contacts', qiaoId);
-  if (legacyKey !== key) {
-    try {
-      await removeStorage(legacyKey);
-    } catch (error) {
-      logger.debug('Legacy contacts key cleanup skipped', { legacyKey, error });
-    }
-  }
+  await setStorage(key, validatedContacts);
 
   return normalized;
 }
 
 export async function getContacts(): Promise<StoredContacts> {
   const qiaoId = await getCurrentQiaoId();
-  if (!qiaoId) {
+  if (qiaoId === null) {
     return [];
   }
 
   const key = buildUserKey(STORAGE_KEYS.CONTACTS, qiaoId);
   const contacts = await getStorage<StoredContacts | null>(key, null);
   if (contacts !== null) {
-    return contacts;
-  }
-
-  const legacyKey = buildUserKey('contacts', qiaoId);
-  const legacyContacts = await getStorage<StoredContacts | null>(legacyKey, null);
-  if (legacyContacts !== null) {
-    await setStorage(key, legacyContacts);
-    try {
-      await removeStorage(legacyKey);
-    } catch (error) {
-      logger.debug('Legacy contacts key removal failed', { legacyKey, error });
-    }
-    return legacyContacts;
+    return ensureStoredContacts(contacts);
   }
 
   return [];
@@ -411,7 +391,7 @@ export async function getContacts(): Promise<StoredContacts> {
 
 export async function getContactByConvId(convId: string): Promise<StoredContact | null> {
   const contacts = await getContacts();
-  return contacts.find((c) => c.conv_id === convId) || null;
+  return contacts.find((c) => c.conv_id === convId) ?? null;
 }
 
 export async function saveUserInfo(userInfo: StoredAuthUser | null): Promise<void> {
@@ -455,3 +435,5 @@ export default {
   saveSettings,
   getSettings,
 };
+
+export type { StoredContact, StoredContacts, StoredMessage, StoredMessages } from './schemas';

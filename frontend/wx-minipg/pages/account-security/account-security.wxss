@@ -2,7 +2,7 @@
 @import '/styles/design-tokens.wxss';
 
 .account-security {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
 }
 
 .account-security__cta {

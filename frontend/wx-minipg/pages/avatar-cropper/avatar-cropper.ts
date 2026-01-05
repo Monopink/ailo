@@ -56,9 +56,9 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
     this.setData({ containerSize });
     this._hasCompleted = false;
 
-    const eventChannel = this.getOpenerEventChannel?.();
-    eventChannel?.on('init', (payload: { filePath?: string }) => {
-      if (payload?.filePath) {
+    const eventChannel = this.getOpenerEventChannel();
+    eventChannel.on('init', (payload: { filePath?: string }) => {
+      if (payload.filePath) {
         void this.initializeCropper(payload.filePath);
       }
     });
@@ -167,8 +167,8 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
   },
 
   notifyOpener(eventName, payload = {}) {
-    const eventChannel = this.getOpenerEventChannel?.();
-    eventChannel?.emit(eventName, payload);
+    const eventChannel = this.getOpenerEventChannel();
+    eventChannel.emit(eventName, payload);
   },
 });
 

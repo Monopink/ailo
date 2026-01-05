@@ -473,13 +473,13 @@ def _get_base_response_schema(
             "current_state": {
                 "type": "string",
                 "description": (
-                    "根据当前时间等信息, 推测补充你当前的所处的地点环境, " "正在做的事情, 你的心情"
+                    "根据当前时间等信息, 推测补充你当前的所处的地点环境, 正在做的事情, 你的心情"
                 ),
             },
             "internal_thoughts": {
                 "type": "string",
                 "description": (
-                    "回复前的思考(整理你与{USER}的关系, {USER}的身份, 意图, " "回复的原则)"
+                    "回复前的思考(整理你与{USER}的关系, {USER}的身份, 意图, 回复的原则)"
                 ),
             },
             "attack_detected": {
@@ -886,7 +886,7 @@ def validate_prompt_completeness(
             validation_result["is_valid"] = False
             placeholders_str = ", ".join(unresolved_matches)
             validation_result["warnings"].append(
-                f"Found {len(unresolved_matches)} unresolved placeholders: " f"{placeholders_str}"
+                f"Found {len(unresolved_matches)} unresolved placeholders: {placeholders_str}"
             )
 
         # Check for required placeholders if specified

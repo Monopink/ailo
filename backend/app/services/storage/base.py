@@ -36,6 +36,7 @@ class StorageBackend(ABC):
         file_data: bytes | BinaryIO,
         mime_type: str,
         metadata: dict[str, str] | None = None,
+        is_public: bool = False,
     ) -> None:
         """Upload binary data to the storage backend."""
 

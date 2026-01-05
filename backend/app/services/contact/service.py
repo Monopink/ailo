@@ -175,7 +175,7 @@ async def get_user_contacts_with_profiles(
         if profile:
             profiles_with_avatars.append(profile)
 
-    avatar_urls = await get_avatar_urls_batch(db, profiles_with_avatars)
+    avatar_urls = await get_avatar_urls_batch(profiles_with_avatars)
 
     # Build response list
     result = []
@@ -229,7 +229,7 @@ async def get_contact_with_profile(
     # Get profile
     profile = await _get_contact_profile(db, contact.contact_qiao_id)
 
-    avatar_url = await get_avatar_url(db, profile)
+    avatar_url = await get_avatar_url(profile)
 
     # Build response
     contact_response = _build_contact_detail(contact, profile, avatar_url=avatar_url)
@@ -276,7 +276,7 @@ async def get_conversation_info(
     # Get profile
     profile = await _get_contact_profile(db, contact.contact_qiao_id)
 
-    avatar_url = await get_avatar_url(db, profile)
+    avatar_url = await get_avatar_url(profile)
 
     # Build contact info
     contact_info = _build_profile_summary(profile, avatar_url=avatar_url)
@@ -286,7 +286,7 @@ async def get_conversation_info(
         conv_id=contact.conv_id,
         im_conv_id=im_conv_id,
         contact_qiao_id=contact.contact_qiao_id,
-        contact_profile=contact_info,
+        profile=contact_info,
     )
 
     logger.info("conversation_info_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
@@ -348,7 +348,7 @@ async def update_contact(
     # Get profile
     profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
-    avatar_url = await get_avatar_url(db, profile)
+    avatar_url = await get_avatar_url(profile)
 
     # Build response
     contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)
@@ -400,7 +400,7 @@ async def block_contact(
     # Get profile
     profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
-    avatar_url = await get_avatar_url(db, profile)
+    avatar_url = await get_avatar_url(profile)
 
     # Build response
     contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)
@@ -447,7 +447,7 @@ async def unblock_contact(
     # Get profile
     profile = await _get_contact_profile(db, updated_contact.contact_qiao_id)
 
-    avatar_url = await get_avatar_url(db, profile)
+    avatar_url = await get_avatar_url(profile)
 
     # Build response
     contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)

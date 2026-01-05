@@ -91,7 +91,7 @@ async def send_contact_request_notification(
 
     if sender_profile:
         from_nickname = sender_profile.nickname
-        from_avatar = await get_avatar_url(db, sender_profile)
+        from_avatar = await get_avatar_url(sender_profile)
     else:
         logger.error(
             "sender_profile_not_found",

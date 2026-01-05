@@ -1,5 +1,5 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { del, get } from '../../utils/api';
+import { del } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
 import {
@@ -8,25 +8,14 @@ import {
   getContacts,
   saveContacts,
   type StoredContact,
-  type StoredContacts,
 } from '../../utils/storage';
+import { fetchConversationProfile, refreshStoredContact } from '../../utils/contact-service';
+import type { ContactProfile } from '../../utils/schemas';
+import { hasValue, isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('ContactInfo');
 
 type PageQuery = Record<string, string | undefined>;
-
-interface ContactProfile {
-  nickname?: string;
-  avatar_url?: string;
-  gender?: number | null;
-  bio?: string;
-  region?: string;
-  [key: string]: unknown;
-}
-
-interface ConversationResponse {
-  contact_profile?: ContactProfile;
-}
 
 type ContactRecord = StoredContact & {
   is_pinned?: boolean;
@@ -56,21 +45,9 @@ interface ContactInfoPageCustom {
 }
 
 const normalizeContact = (contact: StoredContact): ContactRecord => {
-  const profile =
-    (contact.profile as ContactProfile | undefined) ??
-    (contact.contact_profile as ContactProfile | undefined) ??
-    {};
-
-  const avatarFallback = profile.avatar_url ?? '';
-  const avatarUrl = contact.avatar_url ?? avatarFallback;
-
-  const resolvedGender =
-    typeof contact.gender === 'number'
-      ? contact.gender
-      : typeof profile.gender === 'number'
-        ? profile.gender
-        : null;
-
+  const contactRecord = contact as ContactRecord;
+  const profile: ContactProfile = contactRecord.profile ?? {};
+  const avatarUrl = isNonEmptyString(profile.avatar_url) ? profile.avatar_url : undefined;
   const resolvedBio =
     typeof profile.bio === 'string' && profile.bio.trim().length > 0 ? profile.bio : undefined;
   const resolvedRegion =
@@ -80,16 +57,13 @@ const normalizeContact = (contact: StoredContact): ContactRecord => {
 
   const normalizedAvatar = getAvatarUrl(avatarUrl ?? null);
   return {
-    ...contact,
+    ...contactRecord,
     avatar_url: normalizedAvatar,
-    gender: resolvedGender,
-    bio: resolvedBio ?? (typeof contact.bio === 'string' ? contact.bio : undefined) ?? null,
-    region:
-      resolvedRegion ?? (typeof contact.region === 'string' ? contact.region : undefined) ?? null,
+    bio: resolvedBio ?? contactRecord.bio ?? null,
+    region: resolvedRegion ?? contactRecord.region ?? null,
     displayAvatar: normalizedAvatar,
   };
 };
-
 const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {
     return error.message;
@@ -118,9 +92,9 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
   },
 
   async onLoad(options: PageQuery) {
-    const convId = options?.id;
+    const convId = options.id ?? '';
 
-    if (!convId) {
+    if (!isNonEmptyString(convId)) {
       void wx.showToast({
         title: '参数错误',
         icon: 'none',
@@ -132,7 +106,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
     this.setData({ convId });
 
     const cachedContact = await getContactByConvId(convId);
-    if (cachedContact) {
+    if (hasValue(cachedContact)) {
       this.setData({
         contact: normalizeContact(cachedContact),
         isPinned: Boolean(cachedContact.is_pinned),
@@ -147,36 +121,19 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
 
   async refreshContactInfo() {
     try {
-      const conversation = await get<ConversationResponse>(
-        `/contacts/${this.data.convId}/conversation`
-      );
-      const profile = conversation?.contact_profile ?? {};
+      const profile = await fetchConversationProfile(this.data.convId);
+      const updated = await refreshStoredContact(this.data.convId, profile);
 
-      const contacts = await getContacts();
-      const index = contacts.findIndex((contact) => contact.conv_id === this.data.convId);
-
-      if (index === -1) {
+      if (!hasValue(updated)) {
+        this.setData({
+          'pageLayoutData.isLoading': false,
+          'pageLayoutData.isEmpty': !hasValue(this.data.contact),
+        });
         return;
       }
 
-      const updatedContacts: StoredContacts = [...contacts];
-      const existing = updatedContacts[index];
-
-      updatedContacts[index] = {
-        ...existing,
-        nickname: profile.nickname ?? existing.nickname,
-        avatar_url: profile.avatar_url ?? existing.avatar_url,
-        gender: profile.gender ?? existing.gender,
-        profile: {
-          ...(existing.profile ?? {}),
-          ...profile,
-        },
-      };
-
-      await saveContacts(updatedContacts);
-
       this.setData({
-        contact: normalizeContact(updatedContacts[index]),
+        contact: normalizeContact(updated),
         'pageLayoutData.isLoading': false,
         'pageLayoutData.isEmpty': false,
       });
@@ -230,7 +187,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
       title: '提示',
       content: '确定清空聊天记录吗？',
       success: async (res) => {
-        if (!res.confirm) {
+        if (res.confirm !== true) {
           return;
         }
 
@@ -283,10 +240,11 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
             void wx.navigateBack();
           }, 300);
         } catch (error) {
-          const message = toErrorMessage(error) || '删除失败，请稍后重试';
-          logger.error('Failed to delete contact', { error: message });
+          const message = toErrorMessage(error);
+          const safeMessage = isNonEmptyString(message) ? message : '删除失败，请稍后重试';
+          logger.error('Failed to delete contact', { error: safeMessage });
           void wx.showToast({
-            title: message,
+            title: safeMessage,
             icon: 'none',
           });
         } finally {

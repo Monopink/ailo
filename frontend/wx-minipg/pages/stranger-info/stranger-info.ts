@@ -135,7 +135,7 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
   },
 
   async onLoad(options: StrangerInfoLoadOptions) {
-    const qiaoId = options?.id;
+    const qiaoId = options.id;
 
     if (!qiaoId) {
       void wx.showToast({

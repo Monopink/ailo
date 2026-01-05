@@ -272,8 +272,7 @@ class AIRelationshipView(ModelView):
             choices=WAKE_ADJUSTMENT_CHOICES,
             label="Wake Adjustment",
             help_text=(
-                "Either keep the wait or apply the random-half algorithm "
-                "(50% chance to shorten)."
+                "Either keep the wait or apply the random-half algorithm (50% chance to shorten)."
             ),
             required=True,
         ),

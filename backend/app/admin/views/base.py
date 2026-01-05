@@ -4,10 +4,10 @@ Base role-aware ModelView for Starlette-Admin.
 Provides unified create/edit/delete permissions based on admin role.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from starlette.requests import Request
-from starlette_admin import EnumField
+from starlette_admin import BooleanField, EnumField
 from starlette_admin._types import RequestAction
 from starlette_admin.contrib.sqla import ModelView
 
@@ -46,6 +46,49 @@ def _get_admin_role(request: Request) -> int | None:
         return int(role) if role is not None else None
     except Exception:
         return None
+
+
+class InvertedBooleanField(BooleanField):
+    """
+    Boolean field that inverts the value for display.
+
+    Database stores: True (needs setup) / False (completed)
+    Checkbox shows: Inverted - Checked=Completed, Unchecked=Needed
+
+    Usage:
+        InvertedBooleanField("needs_profile_setup")
+    """
+
+    async def parse_form_data(self, request: Request, form_data: Any, action: Any) -> Any:
+        """
+        Parse form checkbox value and invert it for database storage.
+
+        User checks box (True in form) -> Store False in database (completed)
+        User unchecks box (False in form) -> Store True in database (needs setup)
+        """
+        # Get the checkbox value from form (True if checked, False if unchecked)
+        display_value = cast(bool | None, await super().parse_form_data(request, form_data, action))
+
+        if display_value is None:
+            return None
+
+        # Invert: checkbox checked (True) -> database False (completed)
+        return not display_value
+
+    async def serialize_value(self, request: Request, value: Any, action: Any) -> Any:
+        """
+        Serialize database value and invert it for display.
+
+        Database False (completed) -> Show checkbox as checked (True)
+        Database True (needs setup) -> Show checkbox as unchecked (False)
+        """
+        if value is None:
+            return None
+
+        # Invert: database False (completed) -> display True (checked)
+        inverted_value = not bool(value)
+
+        return await super().serialize_value(request, inverted_value, action)
 
 
 class IntegerEnumField(EnumField):

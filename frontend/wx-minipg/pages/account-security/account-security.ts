@@ -1,9 +1,8 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { post } from '../../utils/api';
 import { requireAuth } from '../../utils/auth-guard';
 import authService from '../../utils/auth-service';
+import accountService, { type AccountViewModel } from '../../utils/account-service';
 import { getLogger } from '../../utils/logger';
-import { fetchAccountInfo } from '../../utils/profile';
 
 const logger = getLogger('AccountSecurity');
 
@@ -15,6 +14,7 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
 interface AccountSecurityPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
   phoneMasked: string;
+  account: AccountViewModel | null;
   isLogoutProcessing: boolean;
   phoneReauthLoading: boolean;
 }
@@ -59,6 +59,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
       hasFooter: false,
     }),
     phoneMasked: '',
+    account: null,
     isLogoutProcessing: false,
     phoneReauthLoading: false,
   },
@@ -82,10 +83,11 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
       });
 
       logger.info('Loading account info');
-      const account = await fetchAccountInfo();
+      const account = await accountService.loadAccountInfo();
 
       this.setData({
-        phoneMasked: account?.phone ?? '未绑定',
+        account,
+        phoneMasked: account.displayPhone,
         'pageLayoutData.isLoading': false,
         'pageLayoutData.isEmpty': false,
       });
@@ -96,6 +98,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
       logger.error('Load account info failed', { error: err.message });
 
       this.setData({
+        account: null,
         phoneMasked: '',
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': true,
@@ -132,13 +135,9 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
         throw new Error('无法获取登录凭证');
       }
 
-      const response = await post<{ phone: string }>(
-        '/auth/wechat/refresh-phone',
-        {
-          login_code: loginCode,
-          phone_code: phoneCode,
-        },
-        { auth: true }
+      const updatedAccount = await accountService.refreshPhoneNumber(
+        phoneCode,
+        loginCode
       );
 
       void wx.showToast({
@@ -146,7 +145,10 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
         icon: 'success',
       });
 
-      this.setData({ phoneMasked: response.phone || this.data.phoneMasked });
+      this.setData({
+        account: updatedAccount,
+        phoneMasked: updatedAccount.displayPhone,
+      });
     } catch (error) {
       const err = toError(error);
       logger.error('Phone reauthorization failed', { error: err.message });

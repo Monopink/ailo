@@ -2,7 +2,7 @@
 @import '/styles/design-tokens.wxss';
 
 .setup-page {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
 }
 
 /* Group - iOS style */

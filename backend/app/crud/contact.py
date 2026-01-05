@@ -141,7 +141,8 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             "contact_id": 0,  # Will be set after querying contact
             "contact_qiao_id": obj_in.contact_qiao_id,
             "alias": obj_in.alias,
-            "custom_avatar_file_id": obj_in.custom_avatar_file_id,
+            "custom_avatar_key": obj_in.custom_avatar_key,
+            "custom_avatar_media_id": obj_in.custom_avatar_media_id,
             "tags": tags_payload,
             "remark": obj_in.remark,
             "source": (obj_in.source or "unknown"),

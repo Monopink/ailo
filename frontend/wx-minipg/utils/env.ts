@@ -16,7 +16,7 @@ const resolveEnvironment = (): Environment => {
   try {
     if (typeof wx !== 'undefined' && typeof wx.getAccountInfoSync === 'function') {
       const accountInfo = wx.getAccountInfoSync();
-      const envVersion = accountInfo?.miniProgram?.envVersion;
+      const envVersion = accountInfo.miniProgram.envVersion;
       if (envVersion === 'release') {
         return 'production';
       }

@@ -88,6 +88,88 @@ frontend/wx-minipg/
 - 所有存储操作通过 `utils/storage.ts`，使用泛型指定类型: `getStorage<string>('token')`
 - 禁止直接使用 `wx.request` / `wx.getStorageSync` / `wx.setStorageSync`
 
+**运行时验证（新代码必须使用）**：
+
+1. **必须使用 Zod 的场景**：
+   - 用户认证相关（登录、注册、获取用户信息）
+   - 关键业务数据（消息、会话、联系人）
+   - 所有新功能的 API 调用
+
+2. **可选使用 Zod 的场景**：
+   - 简单的配置获取
+   - 不涉及业务逻辑的 API
+   - 修改旧代码但不涉及 API 调用逻辑
+
+3. **使用步骤**：
+   ```typescript
+   // Step 1: 定义 Schema (utils/schemas.ts)
+   export const UserInfoSchema = z.object({
+     id: z.number(),
+     nickname: z.string(),
+     avatar: z.string().url().nullable(),
+   });
+
+   // Step 2: 使用验证 API
+   import { getValidated } from '../../utils/api-validated';
+   import { UserInfoSchema } from '../../utils/schemas';
+
+   const user = await getValidated('/users/123', UserInfoSchema);
+   // user 类型安全，且运行时已验证
+   ```
+
+4. **错误处理**：
+   ```typescript
+   try {
+     const user = await getValidated('/users/123', UserInfoSchema);
+     this.setData({ userInfo: user });
+   } catch (error) {
+     console.error('数据验证失败', error);
+     wx.showToast({ title: '数据加载失败', icon: 'error' });
+   }
+   ```
+
+### 数据结构规范
+
+**联系人数据必须使用嵌套 `profile` 结构**（与后端 API 一致）:
+
+```typescript
+// ✅ 正确 - StoredContact (存储层)
+{
+  conv_id: string;
+  alias: string | null;
+  profile: {  // ← 嵌套对象
+    nickname: string | null;
+    avatar_url: string | null;
+    gender: number | null;
+  };
+}
+
+// ✅ 正确 - ContactListItem (视图层)
+{
+  ...StoredContact,  // 继承所有字段
+  avatarUrl: string;  // 从 profile.avatar_url 计算
+  displayName: string;  // 从 alias || profile.nickname 计算
+}
+
+// ❌ 错误 - 不要在 StoredContact 顶层访问
+contact.nickname  // ❌ 不存在
+contact.avatar_url  // ❌ 不存在
+// ✅ 正确访问
+contact.profile?.nickname
+contact.profile?.avatar_url
+```
+
+**三层数据流**:
+```
+API Response → StoredContact → ContactListItem
+(嵌套)       → (嵌套存储)     → (视图转换)
+```
+
+规则:
+- `utils/storage.ts`: 直接存储 API 返回的嵌套结构
+- `pages/*/index.ts`: 在业务逻辑层转换为视图模型
+- WXML: 绑定视图模型的扁平字段 (`displayName`, `avatarUrl`)
+
 ### 状态管理
 
 - 使用 TypeScript 接口定义 Page Data

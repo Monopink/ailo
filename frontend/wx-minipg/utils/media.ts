@@ -23,7 +23,7 @@ export async function uploadAvatarViaProxy(
     formData
   );
 
-  if (!response?.file_id || !response?.url) {
+  if (!response.file_id || !response.url) {
     throw new Error('上传响应无效');
   }
 

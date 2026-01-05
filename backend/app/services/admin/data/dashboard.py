@@ -175,7 +175,7 @@ async def get_active_sessions_stats(db: AsyncSession) -> dict[str, Any]:
                 """
                 SELECT COUNT(*) FROM user_tokens
                 WHERE status = 1
-                  AND expires_at > NOW()
+                  AND access_expires_at > NOW()
                   AND last_activity_at >= NOW() - INTERVAL '30 minutes'
             """
             )
@@ -188,7 +188,7 @@ async def get_active_sessions_stats(db: AsyncSession) -> dict[str, Any]:
                 """
                 SELECT COUNT(*) FROM user_tokens
                 WHERE status = 1
-                  AND expires_at > NOW() - INTERVAL '1 hour'
+                  AND access_expires_at > NOW() - INTERVAL '1 hour'
                   AND last_activity_at >= NOW() - INTERVAL '90 minutes'
                   AND last_activity_at < NOW() - INTERVAL '60 minutes'
             """

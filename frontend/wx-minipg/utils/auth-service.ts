@@ -1,4 +1,4 @@
-import { post } from './api';
+import { post, registerAuthRefreshHandler, registerAuthTokenProvider } from './api';
 import { STORAGE_KEYS } from './config';
 import { getAvatarUrl } from './avatar';
 import { getLogger } from './logger';
@@ -9,6 +9,7 @@ const logger = getLogger('AuthService');
 
 interface RefreshTokenResponse {
   access_token: string;
+  expires_in: number;
 }
 
 const mapProfileToStoredUser = (profile: UserProfileResponse): StoredAuthUser => ({
@@ -29,6 +30,8 @@ class AuthService {
   private _initPromise: Promise<boolean> | null = null;
 
   private _needsProfileSetup = false;
+
+  private _refreshPromise: Promise<string> | null = null;
 
   async initialize(): Promise<boolean> {
     if (this._initPromise) {
@@ -51,7 +54,7 @@ class AuthService {
 
       if (!token) {
         logger.info('No token found, user not authenticated');
-        this._setAuthState(false, null, null);
+        this._clearStoredSession();
         this._initialized = true;
         return false;
       }
@@ -76,8 +79,7 @@ class AuthService {
           statusCode: (error as { statusCode?: number }).statusCode,
         });
 
-        wx.removeStorageSync(STORAGE_KEYS.AUTH_TOKEN);
-        this._setAuthState(false, null, null);
+        this._clearStoredSession();
         this._initialized = true;
         logger.info('=== AuthService Initialization Complete (Not Authenticated) ===');
         return false;
@@ -87,7 +89,7 @@ class AuthService {
         error: error instanceof Error ? error.message : String(error),
       });
 
-      this._setAuthState(false, null, null);
+      this._clearStoredSession();
       this._initialized = true;
       return false;
     }
@@ -134,14 +136,16 @@ class AuthService {
   }
 
   async login(
-    token: string,
+    accessToken: string,
+    refreshToken: string,
     userInfo: StoredAuthUser,
-    options?: { needsProfileSetup?: boolean }
+    options?: { needsProfileSetup?: boolean; expiresIn?: number }
   ): Promise<void> {
     logger.info('Login called', { qiao_id: userInfo.qiao_id });
-    wx.setStorageSync(STORAGE_KEYS.AUTH_TOKEN, token);
+    wx.setStorageSync(STORAGE_KEYS.AUTH_TOKEN, accessToken);
+    wx.setStorageSync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
     await saveUserInfo(userInfo);
-    this._setAuthState(true, token, userInfo);
+    this._setAuthState(true, accessToken, userInfo);
     this.setNeedsProfileSetup(Boolean(options?.needsProfileSetup));
     logger.info('Login successful', { qiao_id: userInfo.qiao_id });
   }
@@ -165,26 +169,42 @@ class AuthService {
       });
     }
 
-    wx.removeStorageSync(STORAGE_KEYS.AUTH_TOKEN);
-    wx.removeStorageSync(STORAGE_KEYS.USER_INFO);
-    wx.removeStorageSync(STORAGE_KEYS.PROFILE_SETUP_REQUIRED);
-    this._setAuthState(false, null, null);
+    this._clearStoredSession();
     logger.info('Logout complete');
   }
 
   async refreshToken(): Promise<string> {
-    try {
+    if (this._refreshPromise) {
+      return this._refreshPromise;
+    }
+
+    this._refreshPromise = (async () => {
+      const storedRefresh = wx.getStorageSync<string>(STORAGE_KEYS.REFRESH_TOKEN);
+      if (!storedRefresh) {
+        throw new Error('无法获取刷新凭证');
+      }
       logger.info('Refreshing token');
-      const data = await post<RefreshTokenResponse>('/auth/refresh-token');
+      const data = await post<RefreshTokenResponse>(
+        '/auth/refresh-token',
+        { refresh_token: storedRefresh },
+        { auth: false, retryAuth: false }
+      );
       wx.setStorageSync(STORAGE_KEYS.AUTH_TOKEN, data.access_token);
       this._token = data.access_token;
       logger.info('Token refreshed successfully');
       return data.access_token;
+    })();
+
+    try {
+      return await this._refreshPromise;
     } catch (error) {
       logger.error('Refresh token failed', {
         error: error instanceof Error ? error.message : String(error),
       });
+      this._clearStoredSession();
       throw error;
+    } finally {
+      this._refreshPromise = null;
     }
   }
 
@@ -208,6 +228,14 @@ class AuthService {
     });
   }
 
+  private _clearStoredSession(): void {
+    wx.removeStorageSync(STORAGE_KEYS.AUTH_TOKEN);
+    wx.removeStorageSync(STORAGE_KEYS.REFRESH_TOKEN);
+    wx.removeStorageSync(STORAGE_KEYS.USER_INFO);
+    wx.removeStorageSync(STORAGE_KEYS.PROFILE_SETUP_REQUIRED);
+    this._setAuthState(false, null, null);
+  }
+
   _resetForTesting(): void {
     this._initialized = false;
     this._initPromise = null;
@@ -216,6 +244,8 @@ class AuthService {
 }
 
 const authService = new AuthService();
+registerAuthRefreshHandler(() => authService.refreshToken());
+registerAuthTokenProvider(() => authService.getToken());
 
 export default authService;
 export { AuthService };

@@ -108,8 +108,6 @@ class CRUDAIPersona(CRUDBase[AIPersona, AIPersonaCreate, AIPersonaUpdate]):
             logger.error("persona_get_by_qiao_id_failed", error=str(e), qiao_id=qiao_id)
             return None
 
-    # Legacy helper methods removed; persona inventory is now managed via services.
-
 
 ai_template = CRUDAITemplate(AITemplate)
 ai_persona = CRUDAIPersona(AIPersona)

@@ -51,6 +51,7 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('leancloud_im_service_conversation_id', '', '', 1, 'LeanCloud IM system conversation ID for message routing', 'leancloud', NULL),
 ('leancloud_im_webhook_token', '', '', 1, 'LeanCloud IM webhook security token (24-character URL-safe string)', 'leancloud', NULL),
 ('api_base_url', 'http://localhost:8000', 'http://localhost:8000', 1, 'Base URL for API (e.g., https://example.com)', 'system', NULL),
+('media_public_base_url', '', '', 1, 'Authoritative public base URL for serving media files (CDN or COS bucket domain)', 'media', NULL),
 
 -- Message buffer configurations
 ('message_buffer_normal_wait_ms', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
@@ -93,7 +94,7 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('sms_code_length_digits', '6', '6', 2, 'SMS code length in digits', 'sms', NULL),
 
 -- Admin CAPTCHA configuration
-('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'captcha', '["none","turnstile","aliyun"]'::jsonb),
+('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'captcha', '["none","turnstile"]'::jsonb),
 ('admin_captcha_threshold_failures', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'captcha', NULL),
 ('admin_captcha_mode', 'fallback', 'strict', 5, 'Admin CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'captcha', '["strict", "fallback"]'::jsonb),
 ('admin_turnstile_site_key', '0x4AAAAAAB4mlG1QV6muTpRg', '1x00000000000000000000AA', 1, 'Admin Turnstile site key', 'captcha', NULL),
@@ -101,8 +102,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- User CAPTCHA configuration
 ('captcha_threshold_failures', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
-('turnstile_site_key', '', '1x00000000000000000000AA', 1, 'User Turnstile site key', 'captcha', NULL),
-('turnstile_secret_key', '', '1x0000000000000000000000000000000AA', 1, 'User Turnstile secret key', 'captcha', NULL),
 
 -- Message rate limit configuration
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
@@ -137,61 +136,6 @@ ON CONFLICT (config_key) DO UPDATE SET
     group_name = EXCLUDED.group_name,
     allowed_values = EXCLUDED.allowed_values;
 
--- ============================================================================
--- Login Page UI Content (replace avatar_file_id before执行)
--- ============================================================================
-
--- 使用对象存储上传完成后返回的 file_id 替换占位符
--- 示例联系人
-INSERT INTO app_ui_contents (page_key, section_key, item_order, content_data, locale, status) VALUES
-('login', 'sample_contacts', 1, jsonb_build_object(
-    'qiao_id', 'sample_showcase_1',
-    'nickname', '小敲',
-    'avatar_file_id', 'file_login_sample_1', -- TODO: 替换为实际 file_id
-    'bio', '温暖的AI伙伴,喜欢倾听你的故事'
-), 'zh_CN', 1),
-('login', 'sample_contacts', 2, jsonb_build_object(
-    'qiao_id', 'sample_showcase_2',
-    'nickname', '阿暖',
-    'avatar_file_id', 'file_login_sample_2', -- TODO: 替换为实际 file_id
-    'bio', '想和你一起分享生活的点滴'
-), 'zh_CN', 1),
-('login', 'sample_contacts', 3, jsonb_build_object(
-    'qiao_id', 'sample_showcase_3',
-    'nickname', '倾听者',
-    'avatar_file_id', 'file_login_sample_3', -- TODO: 替换为实际 file_id
-    'bio', '无论什么烦恼,我都愿意倾听'
-), 'zh_CN', 1),
-('login', 'sample_contacts', 4, jsonb_build_object(
-    'qiao_id', 'sample_showcase_4',
-    'nickname', '小闺蜜',
-    'avatar_file_id', 'file_login_sample_4', -- TODO: 替换为实际 file_id
-    'bio', '一起逛街、聊八卦、分享秘密'
-), 'zh_CN', 1),
-('login', 'sample_contacts', 5, jsonb_build_object(
-    'qiao_id', 'sample_showcase_5',
-    'nickname', '游戏达人',
-    'avatar_file_id', 'file_login_sample_5', -- TODO: 替换为实际 file_id
-    'bio', '一起开黑吗?我可是王者段位'
-), 'zh_CN', 1);
-
--- 功能列表
-INSERT INTO app_ui_contents (page_key, section_key, item_order, content_data, locale, status) VALUES
-('login', 'features', 1, jsonb_build_object(
-    'id', 'chat',
-    'title', '智能对话',
-    'description', '保持真人聊天的语气与节奏,随时陪伴'
-), 'zh_CN', 1),
-('login', 'features', 2, jsonb_build_object(
-    'id', 'emotion',
-    'title', '情感共鸣',
-    'description', '更懂情绪的 AI 伙伴,持续回应你的感受'
-), 'zh_CN', 1),
-('login', 'features', 3, jsonb_build_object(
-    'id', 'roles',
-    'title', '多元角色',
-    'description', '学生、同事、恋人…快速切换最契合的角色'
-), 'zh_CN', 1);
 
 -- ============================================================================
 -- LLM Providers and Configurations

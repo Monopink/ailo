@@ -11,9 +11,13 @@ from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
+from app.core.config import get_settings
 from app.crud.system import system_configs
-from app.models.contact import ContactRequest, ContactRequestStatus
+from app.enums import ContactRequestStatus
+from app.exceptions import MissingConfigurationError
+from app.models.contact import ContactRequest
 from app.services.config import config_service
+from app.services.media.config import get_media_base_url, get_media_base_url_source
 from app.services.message.monitoring.health import get_message_service_status
 from app.utils.logging import get_logger
 
@@ -83,6 +87,16 @@ class DashboardView(CustomView):
             if webhook_token and api_base_url:
                 webhook_url = f"{api_base_url}/api/v1/webhook/leancloud/{webhook_token}"
 
+            media_db_value = await system_configs.get_config_value(
+                db, config_key="media_public_base_url"
+            )
+            settings = get_settings()
+            runtime_source = get_media_base_url_source()
+            try:
+                runtime_cdn = get_media_base_url()
+            except MissingConfigurationError:
+                runtime_cdn = ""
+
             context = {
                 "request": request,
                 "webhook_url": webhook_url,
@@ -105,9 +119,23 @@ class DashboardView(CustomView):
                     "last24h_success": last24h_success,
                     "last24h_failed": last24h_failed,
                 },
+                "media_cdn_status": {
+                    "db_value": media_db_value or "",
+                    "env_value": settings.MEDIA_PUBLIC_BASE_URL or "",
+                    "runtime_value": runtime_cdn,
+                    "runtime_source": runtime_source,
+                },
             }
             return templates.TemplateResponse("custom_views/dashboard.html", context)
         except Exception as e:
             logger.error("dashboard_render_error", error=str(e), exc_info=True)
-            context = {"request": request}
+            context = {
+                "request": request,
+                "media_cdn_status": {
+                    "db_value": "",
+                    "env_value": "",
+                    "runtime_value": "",
+                    "runtime_source": "unavailable",
+                },
+            }
             return templates.TemplateResponse("custom_views/dashboard.html", context)

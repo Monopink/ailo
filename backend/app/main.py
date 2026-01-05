@@ -21,6 +21,7 @@ from app.core.database import close_database, get_sessionmaker, init_database
 from app.middleware.rate_limit import APIRateLimitMiddleware
 from app.services.contact.request_worker import start_contact_request_worker
 from app.services.media.cleanup import start_media_cleanup_worker, stop_media_cleanup_worker
+from app.services.media.config import refresh_media_base_url
 from app.services.message.processing import reset_open_conversation_windows
 from app.services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
 from app.services.message.providers.leancloud import create_leancloud_provider
@@ -127,6 +128,7 @@ def _create_lifespan(
 
             async with session_factory() as db:
                 await reset_open_conversation_windows(db)
+                await refresh_media_base_url(db)
 
             logger.info("loading_rate_limit_config")
             async with session_factory() as db:

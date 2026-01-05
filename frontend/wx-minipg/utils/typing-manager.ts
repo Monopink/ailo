@@ -253,7 +253,7 @@ class TypingManager {
    */
   cleanup(convId: string): void {
     const state = this.typingStates.get(convId);
-    if (state && state.timer) {
+    if (state?.timer) {
       clearTimeout(state.timer);
     }
     this.typingStates.delete(convId);

@@ -1,8 +1,7 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { requireAuth } from '../../utils/auth-guard';
-import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
-import { fetchCurrentUserProfile, type UserProfileResponse } from '../../utils/profile';
+import profileService, { type ProfileViewModel } from '../../utils/profile-service';
 
 const logger = getLogger('Profile');
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
@@ -12,7 +11,7 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
 
 interface ProfilePageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
-  profile: (UserProfileResponse & { displayAvatar: string; displayUsername: string }) | null;
+  profile: ProfileViewModel | null;
 }
 
 interface ProfilePageCustom {
@@ -81,23 +80,15 @@ Page<ProfilePageData, ProfilePageCustom>({
       });
 
       logger.info('Loading user profile');
-      const profile = await fetchCurrentUserProfile();
-      const resolvedAvatar = getAvatarUrl(profile.avatar_url ?? null);
-      const normalizedProfile = profile
-        ? {
-            ...profile,
-            displayAvatar: resolvedAvatar,
-            displayUsername: profile.username || '--',
-          }
-        : null;
+      const profile = await profileService.loadProfile();
 
       this.setData({
-        profile: normalizedProfile,
+        profile,
         'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': !normalizedProfile,
+        'pageLayoutData.isEmpty': !profile,
       });
 
-      logger.info('Profile loaded', { qiao_id: profile?.qiao_id });
+      logger.info('Profile loaded', { qiao_id: profile.qiao_id });
     } catch (error) {
       const err = toError(error);
       logger.error('Load profile failed', { error: err.message });

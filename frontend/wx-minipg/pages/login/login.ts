@@ -1,5 +1,11 @@
 import { post } from '../../utils/api';
 import authService from '../../utils/auth-service';
+import {
+  type Feature,
+  type SampleContact,
+  SAMPLE_CONTACTS,
+  FEATURES,
+} from '../../constants/login-content';
 import { getAvatarUrl } from '../../utils/avatar';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { getLogger } from '../../utils/logger';
@@ -8,23 +14,12 @@ import { createPageLayoutData, type PageLayoutData } from '../../templates/page-
 
 const logger = getLogger('Login');
 
-interface SampleContact {
-  qiao_id: string;
-  nickname: string;
-  avatar: string;
-  bio: string;
-}
-
-interface LoginFeature {
-  id: string;
-  title: string;
-  description: string;
-}
-
 interface WechatLoginResponse {
   success: boolean;
   message?: string;
-  token: string;
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
   needs_profile_setup: boolean;
   user: AuthUserPayload;
 }
@@ -38,66 +33,14 @@ interface AuthUserPayload {
 interface LoginPageData {
   pageLayoutData: PageLayoutData;
   sampleContacts: SampleContact[];
-  featureList: LoginFeature[];
+  featureList: Feature[];
   wechatLoading: boolean;
   loginCode: string;
 }
 
 interface LoginPageCustom {
   handleWeChatLogin(event: WechatMiniprogram.ButtonGetPhoneNumber): Promise<void>;
-  onRetry(): void;
 }
-
-const FEATURE_LIST: LoginFeature[] = [
-  {
-    id: 'chat',
-    title: '智能对话',
-    description: '保持真人聊天的语气与节奏，随时陪伴',
-  },
-  {
-    id: 'emotion',
-    title: '情感共鸣',
-    description: '更懂情绪的 AI 伙伴，持续回应你的感受',
-  },
-  {
-    id: 'roles',
-    title: '多元角色',
-    description: '学生、同事、恋人…快速切换最契合的角色',
-  },
-];
-
-const SAMPLE_CONTACTS: SampleContact[] = [
-  {
-    qiao_id: 'sample_1',
-    nickname: '小敲',
-    avatar: '',
-    bio: '温暖的AI伙伴,喜欢倾听你的故事',
-  },
-  {
-    qiao_id: 'sample_2',
-    nickname: '阿暖',
-    avatar: '',
-    bio: '想和你一起分享生活的点滴',
-  },
-  {
-    qiao_id: 'sample_3',
-    nickname: '倾听者',
-    avatar: '',
-    bio: '无论什么烦恼,我都愿意倾听',
-  },
-  {
-    qiao_id: 'sample_4',
-    nickname: '小闺蜜',
-    avatar: '',
-    bio: '一起逛街、聊八卦、分享秘密',
-  },
-  {
-    qiao_id: 'sample_5',
-    nickname: '游戏达人',
-    avatar: '',
-    bio: '一起开黑吗?我可是王者段位',
-  },
-];
 
 const showToast = (
   title: string,
@@ -131,9 +74,10 @@ Page<LoginPageData, LoginPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
       hasFooter: false,
+      isLoading: false,
     }),
     sampleContacts: SAMPLE_CONTACTS,
-    featureList: FEATURE_LIST,
+    featureList: FEATURES,
     wechatLoading: false,
     loginCode: '',
   },
@@ -149,9 +93,8 @@ Page<LoginPageData, LoginPageCustom>({
         return;
       }
 
-      // Silently obtain login_code when page loads (valid for 5 minutes)
       const { code } = await wx.login();
-      if (code) {
+      if (typeof code === 'string' && code !== '') {
         this.setData({ loginCode: code });
         logger.info('Login code obtained silently', { code });
       } else {
@@ -160,12 +103,6 @@ Page<LoginPageData, LoginPageCustom>({
     } catch (error) {
       logger.error('Auth check or login code fetch failed', { error });
     }
-  },
-
-  onRetry() {
-    this.setData({
-      'pageLayoutData.hasError': false,
-    });
   },
 
   async handleWeChatLogin(event) {
@@ -186,7 +123,7 @@ Page<LoginPageData, LoginPageCustom>({
       let loginCode = this.data.loginCode;
       try {
         const { code: refreshedCode } = await wx.login();
-        if (refreshedCode) {
+        if (typeof refreshedCode === 'string' && refreshedCode !== '') {
           loginCode = refreshedCode;
           this.setData({ loginCode: refreshedCode });
           logger.info('Login code refreshed on demand', { refreshedCode });
@@ -195,7 +132,7 @@ Page<LoginPageData, LoginPageCustom>({
         logger.warn('Failed to refresh login code', { error: refreshError });
       }
 
-      if (!loginCode) {
+      if (loginCode === '') {
         throw new Error('Login code not available, please try again');
       }
 
@@ -212,7 +149,7 @@ Page<LoginPageData, LoginPageCustom>({
       );
 
       const normalizedUser = normalizeAuthUser(result.user);
-      await authService.login(result.token, normalizedUser, {
+      await authService.login(result.access_token, result.refresh_token, normalizedUser, {
         needsProfileSetup: Boolean(result.needs_profile_setup),
       });
       logger.info('WeChat login success', { qiao_id: normalizedUser.qiao_id });
@@ -229,7 +166,7 @@ Page<LoginPageData, LoginPageCustom>({
       void wx.switchTab({ url: '/pages/index/index' });
     } catch (error) {
       const errorMessage =
-        error instanceof Error && error.message ? error.message : '登录失败，请重试';
+        error instanceof Error && error.message !== '' ? error.message : '登录失败，请重试';
       logger.error('WeChat login failed', {
         error: errorMessage,
         rawError: error,

@@ -8,7 +8,6 @@ delegates transport details to provider adapters.
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +38,8 @@ from .streaming_policy import extract_stream_override, resolve_streaming_decisio
 from .utils import is_valid_json
 
 logger = get_logger(__name__)
+
+MAX_FALLBACK_PRIORITY = 99
 
 
 async def invoke_llm(
@@ -80,7 +81,6 @@ async def invoke_llm(
         for config, provider in configs_to_try:
             try:
                 result = await _call_provider(
-                    db=db,
                     config=config,
                     provider=provider,
                     messages=messages,
@@ -146,18 +146,17 @@ async def invoke_llm(
         }
 
 
-async def get_primary_llm_config(db: AsyncSession) -> tuple[LLMConfig, LLMProvider] | None:
-    """Compatibility helper reused by legacy callers."""
-    return await get_primary_config(db)
-
-
 async def invoke_llm_with_provider(
     db: AsyncSession,
     provider_name: str,
     messages: list[JSONDict],
     json_schema: JSONDict | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    thinking_mode: str | None = None,
+    instance_request_params: JSONDict | None = None,
+    preemption_checker: PreemptionChecker | None = None,
     session_context: LLMSessionContext | None = None,
-    **kwargs: Any,
 ) -> JSONDict:
     """Send an LLM invocation request to a specific provider."""
 
@@ -174,13 +173,16 @@ async def invoke_llm_with_provider(
 
     config, provider = config_result
     return await _call_provider(
-        db=db,
         config=config,
         provider=provider,
         messages=messages,
         json_schema=json_schema,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        thinking_mode=thinking_mode,
+        instance_request_params=instance_request_params,
+        preemption_checker=preemption_checker,
         session_context=session_context,
-        **kwargs,
     )
 
 
@@ -276,7 +278,6 @@ async def validate_ai_response(
 
 
 async def _call_provider(
-    db: AsyncSession,
     config: LLMConfig,
     provider: LLMProvider,
     messages: list[JSONDict],
@@ -288,10 +289,15 @@ async def _call_provider(
     preemption_checker: PreemptionChecker | None,
     session_context: LLMSessionContext | None,
 ) -> JSONDict:
+    session_meta: dict[str, str] = {}
+    if session_context:
+        session_meta = {
+            "session_user_qiao_id": session_context.user_qiao_id,
+            "session_instance_qiao_id": session_context.instance_qiao_id,
+        }
     try:
         overrides = instance_request_params if isinstance(instance_request_params, dict) else {}
         options = await _build_request_options(
-            db=db,
             config=config,
             provider=provider,
             messages=messages,
@@ -300,7 +306,6 @@ async def _call_provider(
             max_tokens=max_tokens,
             thinking_mode=thinking_mode,
             instance_request_params=overrides,
-            session_context=session_context,
         )
 
         stream_override = extract_stream_override(overrides)
@@ -371,12 +376,12 @@ async def _call_provider(
             provider=provider.name,
             error=str(exc),
             exc_info=True,
+            **session_meta,
         )
         raise
 
 
 async def _build_request_options(
-    db: AsyncSession,
     config: LLMConfig,
     provider: LLMProvider,
     messages: list[JSONDict],
@@ -385,7 +390,6 @@ async def _build_request_options(
     max_tokens: int | None,
     thinking_mode: str | None,
     instance_request_params: JSONDict | None,
-    session_context: LLMSessionContext | None,
 ) -> LLMRequestOptions:
     overrides = instance_request_params if isinstance(instance_request_params, dict) else {}
 
@@ -475,7 +479,6 @@ async def _build_request_options(
 
     caching_override = overrides.get("caching")
     caching_options = _build_caching_options(
-        config,
         caching_override if isinstance(caching_override, dict) else None,
     )
 
@@ -503,7 +506,6 @@ async def _build_request_options(
 
 
 def _build_caching_options(
-    config: LLMConfig,
     override: JSONDict | None,
 ) -> LLMCachingOptions:
     """Caching is disabled globally; allow explicit override for testing only."""
@@ -587,7 +589,6 @@ async def _get_configs_to_try(
         config_result = await get_llm_config(db, name)
         return [config_result] if config_result else []
 
-    MAX_FALLBACK_PRIORITY = 99
     return await get_active_configs(db, max_priority=MAX_FALLBACK_PRIORITY)
 
 
@@ -616,7 +617,7 @@ def _extract_int(source: JSONDict, key: str, default: int | None) -> int | None:
     return default
 
 
-def _to_float(value: Any | None, default: float | None) -> float | None:
+def _to_float(value: str | float | int | None, default: float | None) -> float | None:
     if value is None:
         return default
     try:

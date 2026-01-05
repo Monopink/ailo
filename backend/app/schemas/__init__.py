@@ -47,6 +47,8 @@ from .ai import (
 
 # Auth schemas
 from .auth import (
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     VerifyPhoneRequest,
     VerifyPhoneResponse,
     WeChatLoginRequest,
@@ -171,6 +173,7 @@ __all__ = [
     # Media (Object Storage)
     "MediaAccessResponse",
     "MediaUploadResponse",
+    # App content
     # AI
     "AIInstanceBase",
     "AIInstanceCreate",
@@ -196,6 +199,8 @@ __all__ = [
     "WeChatRefreshPhoneResponse",
     "VerifyPhoneRequest",
     "VerifyPhoneResponse",
+    "RefreshTokenRequest",
+    "RefreshTokenResponse",
     # Admin
     "AdminUserBase",
     "AdminUserCreate",

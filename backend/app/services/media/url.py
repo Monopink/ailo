@@ -12,10 +12,6 @@ from app.services.storage.factory import get_storage_backend
 
 def build_public_url(media_file: MediaFile) -> str:
     """Return permanent URL for a media file."""
-    if media_file.cdn_domain:
-        base = media_file.cdn_domain.rstrip("/")
-        return f"{base}/{media_file.object_key}"
-
     backend = get_storage_backend()
     return backend.get_public_url(media_file.object_key)
 

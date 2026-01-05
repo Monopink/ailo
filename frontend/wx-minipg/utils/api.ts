@@ -4,8 +4,21 @@
  */
 import { API_CONFIG, STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
+import type { ZodTypeAny } from 'zod';
+import { hasValue, isNonEmptyString } from './guards';
 
 const logger = getLogger('API');
+
+let authRefreshHandler: (() => Promise<string>) | null = null;
+let authTokenProvider: (() => string | null) | null = null;
+
+export function registerAuthRefreshHandler(handler: () => Promise<string>): void {
+  authRefreshHandler = handler;
+}
+
+export function registerAuthTokenProvider(provider: () => string | null): void {
+  authTokenProvider = provider;
+}
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
@@ -21,6 +34,9 @@ export interface RequestOptions<
   data?: TPayload | null;
   header?: Record<string, string>;
   auth?: boolean;
+  retryAuth?: boolean;
+  /** Internal use only to avoid retry loops */
+  _retry?: boolean;
 }
 
 export interface ApiError extends Error {
@@ -54,7 +70,7 @@ interface UploadResponse<T = unknown> {
 }
 
 const isWxError = (error: unknown): error is WxCallbackResult =>
-  Boolean(error) && typeof error === 'object' && 'errMsg' in (error as Record<string, unknown>);
+  hasValue(error) && typeof error === 'object' && 'errMsg' in (error as Record<string, unknown>);
 
 type WxRequestOptions<TResponse extends WxResponseData> = Omit<
   WechatMiniprogram.RequestOption<TResponse>,
@@ -104,7 +120,7 @@ const wxDownloadFile = async (
 const toHeaderRecord = (
   header: Record<string, unknown> | WechatMiniprogram.IAnyObject | undefined
 ): Record<string, string> | null => {
-  if (!header || typeof header !== 'object') {
+  if (!hasValue(header) || typeof header !== 'object') {
     return null;
   }
   const normalized: Record<string, string> = {};
@@ -118,32 +134,29 @@ const toHeaderRecord = (
 };
 
 const extractErrorMessage = (data: unknown, detail: unknown): string => {
-  if (typeof detail === 'string' && detail.trim()) {
+  if (typeof detail === 'string' && detail.trim() !== '') {
     return detail;
   }
-  if (
-    detail &&
-    typeof detail === 'object' &&
-    typeof (detail as { message?: string }).message === 'string'
-  ) {
-    return (detail as { message?: string }).message as string;
+  if (hasValue(detail) && typeof detail === 'object') {
+    const detailMessage = (detail as { message?: unknown }).message;
+    if (isNonEmptyString(detailMessage)) {
+      return detailMessage;
+    }
   }
-  if (data && typeof (data as { message?: string }).message === 'string') {
-    return (data as { message?: string }).message as string;
+  if (hasValue(data) && typeof data === 'object') {
+    const dataMessage = (data as { message?: unknown }).message;
+    if (isNonEmptyString(dataMessage)) {
+      return dataMessage;
+    }
   }
   return '请求失败';
 };
 
 const resolveDetail = (detail: unknown, data: unknown): ApiResponseDetail | undefined => {
-  if (detail && typeof detail === 'object') {
+  if (hasValue(detail) && typeof detail === 'object') {
     return detail as ApiResponseDetail;
   }
-  if (
-    data &&
-    typeof data === 'object' &&
-    data !== null &&
-    'detail' in (data as Record<string, unknown>)
-  ) {
+  if (hasValue(data) && typeof data === 'object' && 'detail' in (data as Record<string, unknown>)) {
     return (data as ApiResponseEnvelope).detail;
   }
   return undefined;
@@ -179,10 +192,10 @@ const toApiError = (
   if (detail?.retry_after !== undefined) {
     error.retryAfter = detail.retry_after;
   }
-  if (!error.retryAfter) {
+  if (!hasValue(error.retryAfter)) {
     const headers = toHeaderRecord(response.header);
     const retryValue = headers?.['Retry-After'] ?? headers?.['retry-after'];
-    if (retryValue) {
+    if (hasValue(retryValue)) {
       error.retryAfter = retryValue;
     }
   }
@@ -199,11 +212,16 @@ const safeJsonParse = <T>(raw: string): T => {
 };
 
 const extractResponseHeaders = (response: unknown): Record<string, unknown> | undefined => {
-  if (response && typeof response === 'object' && 'header' in response) {
-    const headerValue = (response as { header?: Record<string, unknown> }).header;
-    if (headerValue && typeof headerValue === 'object') {
-      return headerValue;
-    }
+  if (!hasValue(response) || typeof response !== 'object') {
+    return undefined;
+  }
+  const responseObject = response as { header?: Record<string, unknown> };
+  if (!('header' in responseObject)) {
+    return undefined;
+  }
+  const headerValue = responseObject.header;
+  if (hasValue(headerValue) && typeof headerValue === 'object') {
+    return headerValue;
   }
   return undefined;
 };
@@ -216,6 +234,16 @@ const normalizeMethod = (method: HttpMethod): WxMethod => {
 };
 
 function getToken(): string | null {
+  if (authTokenProvider !== null) {
+    try {
+      const providedToken = authTokenProvider();
+      if (isNonEmptyString(providedToken)) {
+        return providedToken;
+      }
+    } catch (error) {
+      logger.error('Auth token provider failed', { error });
+    }
+  }
   try {
     return wx.getStorageSync(STORAGE_KEYS.AUTH_TOKEN) ?? null;
   } catch (error) {
@@ -224,17 +252,49 @@ function getToken(): string | null {
   }
 }
 
+const isApiUnauthorizedError = (error: unknown): error is ApiError =>
+  error instanceof Error && (error as ApiError).statusCode === 401;
+
+const shouldRetryAuthRequest = (
+  auth: boolean,
+  retryAuth: boolean,
+  _retry: boolean,
+  error: unknown
+): error is ApiError =>
+  auth && retryAuth && !_retry && authRefreshHandler !== null && isApiUnauthorizedError(error);
+
+const handleWxCallbackError = (error: unknown): void => {
+  if (!isWxError(error)) {
+    return;
+  }
+  const errMsg = isNonEmptyString(error.errMsg) ? error.errMsg : '';
+  if (errMsg.includes('timeout')) {
+    throw new Error('请求超时，请检查网络连接');
+  }
+  if (errMsg.includes('fail')) {
+    throw new Error('网络连接失败，请检查网络设置');
+  }
+};
+
 export async function request<
   TResponse extends WxResponseData = WechatMiniprogram.IAnyObject,
   TPayload extends WxRequestData | undefined = WechatMiniprogram.IAnyObject,
 >(options: RequestOptions<TPayload>): Promise<TResponse> {
-  const { url, method = 'GET', data = null, header = {}, auth = true } = options;
+  const {
+    url,
+    method = 'GET',
+    data = null,
+    header = {},
+    auth = true,
+    retryAuth = true,
+    _retry = false,
+  } = options;
   const headers: Record<string, string> = { ...header };
   const fullUrl = `${API_CONFIG.baseUrl}/api/${API_CONFIG.version}${url}`;
 
   if (auth) {
     const token = getToken();
-    if (token) {
+    if (isNonEmptyString(token)) {
       headers.Authorization = `Bearer ${token}`;
     }
   }
@@ -258,7 +318,7 @@ export async function request<
     logger.debug('API response', { method, url, statusCode: response.statusCode });
 
     if (response.statusCode >= 400) {
-      const detail = (response.data as ApiResponseEnvelope)?.detail;
+      const detail = (response.data as ApiResponseEnvelope).detail;
       const message = extractErrorMessage(response.data, detail);
       throw toApiError(message, {
         statusCode: response.statusCode,
@@ -271,16 +331,28 @@ export async function request<
     return response.data;
   } catch (error) {
     logger.error('API request failed', { method, url, error });
-    if (isWxError(error) && error.errMsg) {
-      if (error.errMsg.includes('timeout')) {
-        throw new Error('请求超时，请检查网络连接');
-      }
-      if (error.errMsg.includes('fail')) {
-        throw new Error('网络连接失败，请检查网络设置');
+    handleWxCallbackError(error);
+    if (shouldRetryAuthRequest(auth, retryAuth, _retry, error)) {
+      try {
+        await authRefreshHandler!();
+        return await request<TResponse, TPayload>({
+          ...options,
+          _retry: true,
+        });
+      } catch (refreshError) {
+        logger.error('Auth refresh handler failed', { error: refreshError });
       }
     }
     throw error;
   }
+}
+
+export async function requestValidated<
+  TSchema extends ZodTypeAny,
+  TPayload extends WxRequestData | undefined = WechatMiniprogram.IAnyObject,
+>(schema: TSchema, options: RequestOptions<TPayload>): Promise<TSchema['_output']> {
+  const raw = await request<WxResponseData, TPayload>(options);
+  return schema.parse(raw);
 }
 
 export async function get<T extends WxResponseData = WechatMiniprogram.IAnyObject>(
@@ -292,7 +364,8 @@ export async function get<T extends WxResponseData = WechatMiniprogram.IAnyObjec
     .filter(([, value]) => value !== null && value !== undefined)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
     .join('&');
-  const fullUrl = queryString ? `${url}?${queryString}` : url;
+  const hasQueryString = queryString !== '';
+  const fullUrl = hasQueryString ? `${url}?${queryString}` : url;
   return await request<T>({
     url: fullUrl,
     method: 'GET',
@@ -359,49 +432,79 @@ export async function del<T extends WxResponseData = WechatMiniprogram.IAnyObjec
   });
 }
 
+interface UploadOptions {
+  auth?: boolean;
+  retryAuth?: boolean;
+}
+
 export async function uploadFile<T extends WxResponseData = WechatMiniprogram.IAnyObject>(
   url: string,
   filePath: string,
   name = 'file',
-  formData: Record<string, string> = {}
+  formData: Record<string, string> = {},
+  options: UploadOptions = {}
 ): Promise<T> {
+  const { auth = true, retryAuth = true } = options;
   const fullUrl = `${API_CONFIG.baseUrl}/api/${API_CONFIG.version}${url}`;
-  const token = getToken();
-  const header: Record<string, string> = {};
-  if (token) {
-    header.Authorization = `Bearer ${token}`;
-  }
-  logger.debug('Upload file', { url, filePath, name });
 
-  const response = await wxUploadFile({
-    url: fullUrl,
-    filePath,
-    name,
-    formData,
-    header,
-    timeout: API_CONFIG.timeout,
-  });
+  const performUpload = async (_retry = false): Promise<T> => {
+    const header: Record<string, string> = { 'X-Client': 'wxminipg' };
+    if (auth) {
+      const token = getToken();
+      if (isNonEmptyString(token)) {
+        header.Authorization = `Bearer ${token}`;
+      }
+    }
 
-  logger.debug('Upload response', { url, statusCode: response.statusCode });
+    logger.debug('Upload file', { url, filePath, name, retry: _retry });
 
-  const parsed = safeJsonParse<UploadResponse<T> | ApiResponseEnvelope<T> | T>(response.data);
-  const detail = (parsed as UploadResponse<T>).detail ?? (parsed as ApiResponseEnvelope).detail;
-  const responseHeaders = extractResponseHeaders(response);
-
-  if (response.statusCode >= 400) {
-    const message = extractErrorMessage(parsed, detail);
-    throw toApiError(message, {
-      statusCode: response.statusCode,
-      data: parsed,
-      detail,
-      header: responseHeaders,
+    const response = await wxUploadFile({
+      url: fullUrl,
+      filePath,
+      name,
+      formData,
+      header,
+      timeout: API_CONFIG.timeout,
     });
-  }
 
-  if (parsed && typeof parsed === 'object' && 'data' in (parsed as UploadResponse<T>)) {
-    return (parsed as UploadResponse<T>).data;
-  }
-  return parsed as T;
+    logger.debug('Upload response', { url, statusCode: response.statusCode });
+
+    const parsed = safeJsonParse<UploadResponse<T> | ApiResponseEnvelope<T> | T>(response.data);
+    const detail = (parsed as UploadResponse<T>).detail ?? (parsed as ApiResponseEnvelope).detail;
+    const responseHeaders = extractResponseHeaders(response);
+
+    if (
+      response.statusCode === 401 &&
+      auth &&
+      retryAuth &&
+      !_retry &&
+      authRefreshHandler !== null
+    ) {
+      try {
+        await authRefreshHandler();
+        return await performUpload(true);
+      } catch (refreshError) {
+        logger.error('Upload auth refresh failed', { url, refreshError });
+      }
+    }
+
+    if (response.statusCode >= 400) {
+      const message = extractErrorMessage(parsed, detail);
+      throw toApiError(message, {
+        statusCode: response.statusCode,
+        data: parsed,
+        detail,
+        header: responseHeaders,
+      });
+    }
+
+    if (hasValue(parsed) && typeof parsed === 'object' && 'data' in (parsed as UploadResponse<T>)) {
+      return (parsed as UploadResponse<T>).data;
+    }
+    return parsed as T;
+  };
+
+  return await performUpload();
 }
 
 export async function downloadFile(url: string, filePath?: string): Promise<string> {
@@ -425,7 +528,13 @@ export async function downloadFile(url: string, filePath?: string): Promise<stri
     });
   }
 
-  return response.tempFilePath || response.filePath || '';
+  if (isNonEmptyString(response.tempFilePath)) {
+    return response.tempFilePath;
+  }
+  if (isNonEmptyString(response.filePath)) {
+    return response.filePath;
+  }
+  return '';
 }
 
 export default {
@@ -437,4 +546,5 @@ export default {
   del,
   uploadFile,
   downloadFile,
+  registerAuthRefreshHandler,
 };

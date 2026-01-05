@@ -1,79 +1,69 @@
 """
 Avatar URL generation utilities.
 
-Provides helper functions for generating avatar URLs from profile.avatar_file_id,
-with support for both single and batch queries to avoid N+1 query problems.
+Provides helper functions for generating avatar URLs from profile.avatar_key.
+Zero-JOIN implementation for maximum performance.
 """
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
-from app.crud.message import media_file as media_file_crud
-from app.enums import FileStatus
-from app.models.message.media import MediaFile
+from app.exceptions import MissingConfigurationError
 from app.models.profile import Profile
-from app.services.media.url import build_public_url
+from app.services.media.config import (
+    get_media_base_url,
+    refresh_media_base_url,
+)
+from app.utils.logging import get_logger
 
-DEFAULT_AVATAR_OBJECT_KEY = "avatar/default.webp"
-
-
-async def _get_default_avatar_url() -> str:
-    """Resolve the default avatar URL using COS endpoint."""
-    settings = get_settings()
-    base = settings.STORAGE_PUBLIC_DOMAIN or settings.TENCENT_COS_ENDPOINT
-    base = base.rstrip("/")
-    return f"{base}/{DEFAULT_AVATAR_OBJECT_KEY}"
+DEFAULT_AVATAR_OBJECT_KEY = "avatars/default.webp"
+logger = get_logger(__name__)
 
 
-async def get_avatar_url(db: AsyncSession, profile: Profile | None) -> str:
+async def get_avatar_url(profile: Profile | None) -> str:
     """
     Generate avatar URL for a profile with fallback to the system default avatar.
 
     Args:
-        db: Database session
         profile: Profile object (may be None)
 
     Returns:
         Avatar CDN URL (never None). Falls back to the predefined default avatar
-        when user profile has no avatar or the custom avatar is inactive.
+        when user profile has no avatar_key set.
 
     Example:
         >>> profile = await profile_crud.get_by_owner(
         ...     db, owner_id=user.id, owner_type=ProfileOwnerType.USER
         ... )
-        >>> avatar_url = await get_avatar_url(db, profile)
+        >>> avatar_url = await get_avatar_url(profile)
     """
-    if profile and profile.avatar_file_id:
-        media_file = await media_file_crud.get(db, id=profile.avatar_file_id)
-        if media_file and media_file.status == int(FileStatus.ACTIVE):
-            return build_public_url(media_file)
+    base = _resolve_media_base_url()
+    if not base:
+        return ""
 
-    return await _get_default_avatar_url()
+    object_key = profile.avatar_key if profile and profile.avatar_key else DEFAULT_AVATAR_OBJECT_KEY
+    return f"{base}/{object_key}"
 
 
-async def get_avatar_urls_batch(db: AsyncSession, profiles: list[Profile]) -> dict[int, str]:
+async def get_avatar_urls_batch(profiles: list[Profile]) -> dict[int, str]:
     """
     Batch generate avatar URLs for multiple profiles.
 
-    This function performs a single database query to fetch all required media_files,
-    avoiding N+1 query problems when loading avatar URLs for lists (contacts, discovery, etc.).
+    Zero-JOIN implementation using avatar_key for maximum performance.
 
     Args:
-        db: Database session
         profiles: List of Profile objects
 
     Returns:
         Dictionary mapping profile.id -> avatar_url
-        Profiles without avatars or with inactive files will not appear in the result
+        All profiles will have an entry (default avatar if avatar_key is NULL)
 
     Example:
         >>> # Get contacts list
         >>> contacts = await contact_crud.get_user_contacts(db, user_id=current_user.id)
         >>> profiles = [contact.profile for contact in contacts if contact.profile]
         >>>
-        >>> # Batch fetch avatar URLs (single query)
-        >>> avatar_urls = await get_avatar_urls_batch(db, profiles)
+        >>> # Batch fetch avatar URLs (zero database queries!)
+        >>> avatar_urls = await get_avatar_urls_batch(profiles)
         >>>
         >>> # Use in response
         >>> for contact in contacts:
@@ -82,30 +72,34 @@ async def get_avatar_urls_batch(db: AsyncSession, profiles: list[Profile]) -> di
     if not profiles:
         return {}
 
-    # Extract file IDs from profiles
-    file_ids = [p.avatar_file_id for p in profiles if p.avatar_file_id]
+    base = _resolve_media_base_url()
+    if not base:
+        return {}
 
-    file_id_to_url: dict[int, str] = {}
-    if file_ids:
-        # Batch query media_files (single SQL query)
-        result = await db.execute(
-            select(MediaFile).where(
-                MediaFile.id.in_(file_ids), MediaFile.status == int(FileStatus.ACTIVE)
-            )
-        )
-        media_files = result.scalars().all()
-
-        # Build mapping: file_id -> CDN URL
-        file_id_to_url = {mf.id: build_public_url(mf) for mf in media_files}
-
-    default_url = await _get_default_avatar_url()
-
-    # Build result: profile_id -> avatar_url
+    # Build result: profile_id -> avatar_url (zero database queries)
     result_map: dict[int, str] = {}
     for profile in profiles:
-        if profile.avatar_file_id and profile.avatar_file_id in file_id_to_url:
-            result_map[profile.id] = file_id_to_url[profile.avatar_file_id]
-        else:
-            result_map[profile.id] = default_url
+        object_key = profile.avatar_key if profile.avatar_key else DEFAULT_AVATAR_OBJECT_KEY
+        result_map[profile.id] = f"{base}/{object_key}"
 
     return result_map
+
+
+def _resolve_media_base_url() -> str:
+    """Return normalized media base URL or empty string if unavailable."""
+    try:
+        return get_media_base_url()
+    except MissingConfigurationError:
+        logger.error("media_public_base_url_missing")
+        return ""
+
+
+async def get_default_avatar_url(db: AsyncSession) -> str:
+    """
+    Return the canonical default avatar URL with system config priority.
+    """
+    base = await refresh_media_base_url(db)
+    if not base:
+        logger.error("default_avatar_base_missing")
+        raise MissingConfigurationError(config_key="media_public_base_url")
+    return f"{base}/{DEFAULT_AVATAR_OBJECT_KEY}"

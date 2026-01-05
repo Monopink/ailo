@@ -4,7 +4,7 @@
 /* Import custom TDesign theme overrides */
 @import '/styles/tdesign-theme.wxss';
 
-/* Import legacy design tokens for custom components */
+/* Import shared design tokens for custom components */
 @import '/styles/design-tokens.wxss';
 
 /* Override TDesign TabBar colors globally */
@@ -44,7 +44,7 @@ page {
 
 page {
   min-height: 100%;
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   font-size: var(--font-size-base);
@@ -268,7 +268,7 @@ page {
 
 /* Cards */
 .card {
-  background-color: var(--color-bg-card);
+  background-color: var(--color-bg-secondary);
   border-radius: var(--radius-md);
   padding: var(--padding-card);
   margin-bottom: var(--space-sm);

@@ -3,7 +3,7 @@
 
 /* Profile Detail Page */
 .profile-detail {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
 }
 
 .profile-detail__avatar-slot {

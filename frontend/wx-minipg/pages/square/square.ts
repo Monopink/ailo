@@ -1,9 +1,13 @@
-import { get } from '../../utils/api';
 import { requireAuth } from '../../utils/auth-guard';
-import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
 import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
+import squareDiscoveryService, {
+  type SquareContactViewModel,
+  SQUARE_CACHE_STALE_PERIOD_MS,
+  SQUARE_CACHE_TTL_MS,
+} from '../../utils/discovery-service';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('Square');
 
@@ -16,9 +20,6 @@ const CATEGORIES = [
   { key: 5, label: '同好' },
 ] as const;
 
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-const STALE_PERIOD = 60 * 60 * 1000; // 1 hour
-
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
   Record<string, unknown>
@@ -29,43 +30,11 @@ interface CategoryItem {
   label: string;
 }
 
-interface SquareContact {
-  id: string;
-  qiao_id: string;
-  nickname?: string;
-  gender?: number | null;
-  avatar_url?: string;
-  bio?: string;
-  region?: string;
-  category?: number | null;
-}
-
-interface SquareApiContact {
-  qiao_id: string;
-  nickname?: string;
-  gender?: number | null;
-  avatar_url?: string;
-  bio?: string;
-  region?: string;
-  category?: number | null;
-}
-
-interface SquareApiResponse {
-  items: SquareApiContact[];
-  refresh_available_at?: string | null;
-}
-
-interface CacheEntry {
-  contacts: SquareContact[];
-  nextRefreshAvailableAt: number | null;
-  timestamp: number;
-}
-
 interface SquarePageData {
   pageLayoutData: PageLayoutData;
   categories: readonly CategoryItem[];
   currentCategory: number | null;
-  contacts: SquareContact[];
+  contacts: SquareContactViewModel[];
   loading: boolean;
   nextRefreshAvailableAt: number | null;
 }
@@ -77,13 +46,12 @@ interface LoadContactsOptions {
 }
 
 interface SquarePageCustom {
-  getCacheKey(): string;
+  displayCachedContacts(): boolean;
   loadContactsWithCache(): void;
   revalidateCache(): Promise<void>;
   loadContacts(options?: LoadContactsOptions): Promise<void>;
   canRefreshNow(): boolean;
   getRefreshWaitSeconds(): number;
-  processContacts(items: SquareApiContact[] | undefined): SquareContact[];
   selectCategory(event: WechatMiniprogram.TouchEvent): void;
   onPullDownRefresh(): void;
   handleContactTap(event: WechatMiniprogram.BaseEvent): void;
@@ -113,7 +81,7 @@ const showToast = (
 };
 
 const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unknown => {
-  const dataset = event?.currentTarget?.dataset as Record<string, unknown> | undefined;
+  const dataset = event.currentTarget.dataset as Record<string, unknown> | undefined;
   return dataset?.[key];
 };
 
@@ -144,14 +112,6 @@ const toStringValue = (value: unknown): string | undefined => {
   return undefined;
 };
 
-const parseRefreshTimestamp = (value?: string | null): number | null => {
-  if (typeof value !== 'string' || !value) {
-    return null;
-  }
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : parsed;
-};
-
 Page<SquarePageData, SquarePageCustom>({
   data: {
     pageLayoutData: createPageLayoutData(),
@@ -172,53 +132,48 @@ Page<SquarePageData, SquarePageCustom>({
 
   onShow() {
     // Update custom TabBar active state
-    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      this.getTabBar().init();
+    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null;
+    if (tabBar !== null) {
+      const initFn = (tabBar as { init?: unknown }).init;
+      if (typeof initFn === 'function') {
+        void initFn();
+      }
     }
   },
+  displayCachedContacts() {
+    const cache = squareDiscoveryService.getCacheEntry(this.data.currentCategory);
+    if (cache === null || typeof cache.timestamp !== 'number') {
+      return false;
+    }
 
-  getCacheKey() {
-    const category = this.data.currentCategory;
-    return `square_${category ?? 'all'}`;
+    const age = Date.now() - cache.timestamp;
+    this.setData({
+      contacts: cache.contacts,
+      nextRefreshAvailableAt: cache.nextRefreshAvailableAt,
+      'pageLayoutData.isLoading': false,
+      'pageLayoutData.hasError': false,
+      'pageLayoutData.errorMessage': '',
+      'pageLayoutData.isEmpty': cache.contacts.length === 0,
+    });
+
+    if (age < SQUARE_CACHE_TTL_MS) {
+      logger.info('Using fresh cache', { age: Math.floor(age / 1000) });
+      return true;
+    }
+
+    if (age < SQUARE_CACHE_TTL_MS + SQUARE_CACHE_STALE_PERIOD_MS) {
+      logger.info('Using stale cache, revalidating', { age: Math.floor(age / 1000) });
+      void this.revalidateCache();
+      return true;
+    }
+
+    return false;
   },
 
   loadContactsWithCache() {
-    const cacheKey = this.getCacheKey();
-    const cache = wx.getStorageSync<CacheEntry | null>(cacheKey);
-    const now = Date.now();
-
-    if (cache && typeof cache.timestamp === 'number') {
-      const age = now - cache.timestamp;
-
-      if (age < CACHE_TTL) {
-        this.setData({
-          contacts: cache.contacts,
-          nextRefreshAvailableAt: cache.nextRefreshAvailableAt ?? null,
-          'pageLayoutData.isLoading': false,
-          'pageLayoutData.hasError': false,
-          'pageLayoutData.isEmpty': cache.contacts.length === 0,
-          'pageLayoutData.errorMessage': '',
-        });
-        logger.info('Using fresh cache', { age: Math.floor(age / 1000) });
-        return;
-      }
-
-      if (age < CACHE_TTL + STALE_PERIOD) {
-        this.setData({
-          contacts: cache.contacts,
-          nextRefreshAvailableAt: cache.nextRefreshAvailableAt ?? null,
-          'pageLayoutData.isLoading': false,
-          'pageLayoutData.hasError': false,
-          'pageLayoutData.isEmpty': cache.contacts.length === 0,
-          'pageLayoutData.errorMessage': '',
-        });
-        logger.info('Using stale cache, revalidating', { age: Math.floor(age / 1000) });
-        void this.revalidateCache();
-        return;
-      }
+    if (this.displayCachedContacts()) {
+      return;
     }
-
     void this.loadContacts({ respectCooldown: false });
   },
 
@@ -248,12 +203,11 @@ Page<SquarePageData, SquarePageCustom>({
     if (respectCooldown && !this.canRefreshNow()) {
       if (!silentOnCooldown) {
         const waitSeconds = this.getRefreshWaitSeconds();
-        showToast(waitSeconds > 0 ? `请${waitSeconds}秒后再试` : '暂不可刷新');
+        showToast(waitSeconds > 0 ? '请' + waitSeconds + '秒后再试' : '还不能刷新');
       }
       return;
     }
 
-    const cacheKey = this.getCacheKey();
     if (this.data.loading) {
       return;
     }
@@ -269,65 +223,57 @@ Page<SquarePageData, SquarePageCustom>({
     });
 
     try {
-      const params: Record<string, number> = {};
-      if (this.data.currentCategory !== null) {
-        params.category = this.data.currentCategory;
-      }
-
-      const result = await get<SquareApiResponse>('/discovery/square', params);
-      const contacts = this.processContacts(result.items);
-      const nextRefreshAvailableAt = parseRefreshTimestamp(result.refresh_available_at);
-
+      const result = await squareDiscoveryService.load(this.data.currentCategory);
       this.setData({
-        contacts,
-        loading: false,
-        nextRefreshAvailableAt,
+        contacts: result.contacts,
+        nextRefreshAvailableAt: result.nextRefreshAvailableAt,
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': false,
-        'pageLayoutData.isEmpty': contacts.length === 0,
+        'pageLayoutData.isEmpty': result.contacts.length === 0,
         'pageLayoutData.errorMessage': '',
       });
 
-      const cacheEntry: CacheEntry = {
-        contacts,
-        nextRefreshAvailableAt,
-        timestamp: Date.now(),
-      };
-      wx.setStorageSync(cacheKey, cacheEntry);
-
       logger.info('Contacts loaded', {
         category: this.data.currentCategory,
-        count: contacts.length,
+        count: result.contacts.length,
       });
     } catch (error) {
       const err = normalizeError(error);
       this.setData({
-        loading: false,
         'pageLayoutData.isLoading': false,
       });
 
-      const cache = wx.getStorageSync<CacheEntry | null>(this.getCacheKey());
-      if (cache && typeof cache.timestamp === 'number') {
+      const cache = squareDiscoveryService.getCacheEntry(this.data.currentCategory);
+      if (cache !== null && typeof cache.timestamp === 'number') {
         const age = Date.now() - cache.timestamp;
-        if (age < CACHE_TTL + STALE_PERIOD) {
+        if (age < SQUARE_CACHE_TTL_MS + SQUARE_CACHE_STALE_PERIOD_MS) {
           logger.warn('Load failed, using stale cache', { age: Math.floor(age / 1000) });
+          this.setData({
+            contacts: cache.contacts,
+            nextRefreshAvailableAt: cache.nextRefreshAvailableAt,
+            'pageLayoutData.isEmpty': cache.contacts.length === 0,
+            'pageLayoutData.hasError': false,
+            'pageLayoutData.errorMessage': '',
+          });
           return;
         }
       }
 
-      wx.removeStorageSync(this.getCacheKey());
-      showToast(err.message || '加载失败');
+      const errorMessage = isNonEmptyString(err.message) ? err.message : '加载失败';
+      showToast(errorMessage);
       this.setData({
         'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': err.message || '加载失败',
+        'pageLayoutData.errorMessage': errorMessage,
       });
       logger.error('Load failed', { error: err.message });
+    } finally {
+      this.setData({ loading: false });
     }
   },
 
   canRefreshNow() {
     const { nextRefreshAvailableAt } = this.data;
-    if (!nextRefreshAvailableAt) {
+    if (nextRefreshAvailableAt === null) {
       return true;
     }
     return Date.now() >= nextRefreshAvailableAt;
@@ -335,25 +281,12 @@ Page<SquarePageData, SquarePageCustom>({
 
   getRefreshWaitSeconds() {
     const { nextRefreshAvailableAt } = this.data;
-    if (!nextRefreshAvailableAt) {
+    if (nextRefreshAvailableAt === null) {
       return 0;
     }
     const diffMs = nextRefreshAvailableAt - Date.now();
     const seconds = Math.ceil(diffMs / 1000);
     return seconds > 0 ? seconds : 0;
-  },
-
-  processContacts(items) {
-    return (items ?? []).map((contact) => ({
-      id: contact.qiao_id,
-      qiao_id: contact.qiao_id,
-      nickname: contact.nickname,
-      gender: contact.gender ?? null,
-      avatar_url: getAvatarUrl(contact.avatar_url ?? ''),
-      bio: contact.bio,
-      region: contact.region,
-      category: contact.category ?? null,
-    }));
   },
 
   selectCategory(event) {
@@ -380,7 +313,7 @@ Page<SquarePageData, SquarePageCustom>({
 
   handleContactTap(event) {
     const qiaoId = toStringValue(getDatasetValue(event, 'id'));
-    if (!qiaoId) {
+    if (!isNonEmptyString(qiaoId)) {
       return;
     }
 
@@ -391,11 +324,11 @@ Page<SquarePageData, SquarePageCustom>({
 
   async handleAddContact(event) {
     const qiaoId = toStringValue(getDatasetValue(event, 'id'));
-    if (!qiaoId) {
+    if (!isNonEmptyString(qiaoId)) {
       return;
     }
 
-    const originalContacts = this.data.contacts ?? [];
+    const originalContacts = [...this.data.contacts];
     const message = await promptContactRequestMessage();
     if (message === null) {
       return;
@@ -415,8 +348,7 @@ Page<SquarePageData, SquarePageCustom>({
         'pageLayoutData.isEmpty': updatedContacts.length === 0,
       });
 
-      const cacheKey = this.getCacheKey();
-      wx.removeStorageSync(cacheKey);
+      squareDiscoveryService.clearCache(this.data.currentCategory);
 
       void this.loadContacts({ silentOnCooldown: true, showGlobalLoading: false }).catch(
         (error) => {
@@ -429,8 +361,12 @@ Page<SquarePageData, SquarePageCustom>({
     } catch (error) {
       const err = normalizeError(error);
       void wx.hideLoading();
-      showToast(err.message || '发送失败');
-      logger.error('Failed to send contact request', { to_qiao_id: qiaoId, error: err.message });
+      const failureMessage = isNonEmptyString(err.message) ? err.message : '发送失败';
+      showToast(failureMessage);
+      logger.error('Failed to send contact request', {
+        to_qiao_id: qiaoId,
+        error: failureMessage,
+      });
       this.setData({ contacts: originalContacts });
     }
   },

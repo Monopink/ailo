@@ -192,17 +192,6 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             logger.error("get_profiles_by_gender_error", error=str(e), gender=gender)
             raise
 
-    async def get_profiles_by_age_range(
-        self,
-        db: AsyncSession,
-        min_age: int | None = None,
-        max_age: int | None = None,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> list[Profile]:
-        """Get profiles by age range - DEPRECATED: age field does not exist in Profile model"""
-        raise NotImplementedError("age field does not exist in Profile model")
-
     async def search_profiles(
         self,
         db: AsyncSession,

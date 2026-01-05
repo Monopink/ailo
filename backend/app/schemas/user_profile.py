@@ -40,7 +40,8 @@ class UserProfileUpdateRequest(BaseModel):
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
     avatar_file_id: str | None = Field(
-        None, description="File ID (file_xxx format) from media_files table"
+        None,
+        description=("File ID (file_xxx format) - converted to avatar_key and avatar_media_id."),
     )
     bio: str | None = Field(None, max_length=70, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")

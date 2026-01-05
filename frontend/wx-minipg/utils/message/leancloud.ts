@@ -269,8 +269,8 @@ export class LCAdapter implements MessageAdapter {
       logger.error('Get conversation failed', {
         imConvId,
         error: err.message,
-        errorCode: rawDetails?.code,
-        errorType: rawDetails?.constructor?.name,
+        errorCode: rawDetails.code,
+        errorType: rawDetails.constructor?.name,
         stack: err.stack,
       });
       const wrappedError = new Error('CONVERSATION_NOT_FOUND') as Error & {
@@ -309,8 +309,8 @@ export class LCAdapter implements MessageAdapter {
         logger.error('Conversation send failed', {
           imConvId,
           error: err.message,
-          errorCode: rawDetails?.code,
-          errorType: rawDetails?.constructor?.name,
+          errorCode: rawDetails.code,
+          errorType: rawDetails.constructor?.name,
           stack: err.stack,
         });
         this.invalidateConversation(imConvId);

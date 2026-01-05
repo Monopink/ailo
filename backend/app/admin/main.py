@@ -138,16 +138,6 @@ def _register_dropdowns(admin_instance: Admin) -> None:
     )
     admin_instance.add_view(message_group)
 
-    discovery_group = DropDown(
-        "Discovery",
-        icon="fa fa-compass",
-        views=[
-            square_type_entry_view,
-        ],
-        always_open=False,
-    )
-    admin_instance.add_view(discovery_group)
-
     ai_config_group = DropDown(
         "AI Configuration",
         icon="fa fa-sliders",
@@ -234,6 +224,16 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         always_open=False,
     )
     admin_instance.add_view(media_group)
+
+    app_content_group = DropDown(
+        "App Content",
+        icon="fa fa-mobile",
+        views=[
+            square_type_entry_view,
+        ],
+        always_open=False,
+    )
+    admin_instance.add_view(app_content_group)
 
     stats_group = DropDown(
         "Statistics",

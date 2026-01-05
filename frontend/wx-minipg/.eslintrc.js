@@ -23,6 +23,32 @@ module.exports = {
         tsconfigRootDir: __dirname,
       },
       extends: ['plugin:@typescript-eslint/recommended-requiring-type-checking'],
+      rules: {
+        // TypeScript safety rules requiring type information
+        '@typescript-eslint/no-floating-promises': ['error', {
+          ignoreVoid: true,
+          ignoreIIFE: true,
+        }],
+        '@typescript-eslint/no-misused-promises': ['error', {
+          checksConditionals: true,
+          checksVoidReturn: true,
+        }],
+        '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+        '@typescript-eslint/prefer-nullish-coalescing': 'error',
+        '@typescript-eslint/prefer-optional-chain': 'error',
+        '@typescript-eslint/no-unnecessary-condition': ['error', {
+          allowConstantLoopConditions: true,
+        }],
+        '@typescript-eslint/strict-boolean-expressions': ['error', {
+          allowString: false,
+          allowNumber: false,
+          allowNullableObject: false,
+          allowNullableBoolean: true,
+          allowNullableString: false,
+          allowNullableNumber: false,
+          allowAny: false,
+        }],
+      },
     },
     {
       files: ['*.wxml'],
@@ -43,10 +69,11 @@ module.exports = {
   rules: {
     '@typescript-eslint/no-explicit-any': 'error',
     '@typescript-eslint/explicit-function-return-type': [
-      'warn',
+      'error',
       {
         allowExpressions: true,
         allowTypedFunctionExpressions: true,
+        allowHigherOrderFunctions: true,
       },
     ],
     '@typescript-eslint/no-unused-vars': [
@@ -77,11 +104,24 @@ module.exports = {
         leadingUnderscore: 'allow',
       },
     ],
-    'no-console': ['warn', { allow: ['warn', 'error'] }],
+    'no-console': ['error', { allow: ['warn', 'error'] }],
     'prefer-const': 'error',
     'no-var': 'error',
     eqeqeq: ['error', 'always'],
     curly: ['error', 'all'],
+
+    // Code quality rules (not requiring type information)
+    'complexity': ['error', { max: 15 }],
+    'max-depth': ['error', { max: 4 }],
+    'max-lines-per-function': ['error', {
+      max: 100,
+      skipBlankLines: true,
+      skipComments: true,
+      IIFEs: true,
+    }],
+    'max-params': ['error', { max: 5 }],
+    'no-await-in-loop': 'error',
+    'require-atomic-updates': 'error',
   },
   env: {
     es6: true,

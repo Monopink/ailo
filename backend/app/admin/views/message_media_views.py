@@ -4,7 +4,7 @@ Creates ModelView instances for message system and media management.
 """
 
 from collections.abc import MutableMapping, Sequence
-from typing import ClassVar, SupportsInt, cast
+from typing import Any, ClassVar, SupportsInt, cast
 
 from starlette.requests import Request
 from starlette_admin import BooleanField, IntegerField, JSONField, StringField, TextAreaField
@@ -141,8 +141,24 @@ class MessageHistoryView(ModelView):
 class MediaFileView(ModelView):
     """Enhanced Media File view with proper field configuration."""
 
-    exclude_fields_from_create: ClassVar[list[str]] = ["id", "file_id", "created_at", "updated_at"]
-    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "file_id", "created_at", "updated_at"]
+    exclude_fields_from_create: ClassVar[list[str]] = [
+        "id",
+        "file_id",
+        "upload_by_type",  # Auto-filled from admin user
+        "upload_by_id",  # Auto-filled from admin user
+        "upload_by_qiao_id",  # Auto-filled from admin user
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_edit: ClassVar[list[str]] = [
+        "id",
+        "file_id",
+        "upload_by_type",  # Cannot change uploader
+        "upload_by_id",  # Cannot change uploader
+        "upload_by_qiao_id",  # Cannot change uploader
+        "created_at",
+        "updated_at",
+    ]
 
     def can_delete(self, request: Request) -> bool:
         del request
@@ -168,6 +184,12 @@ class MediaFileView(ModelView):
                 "file_type", enum=FileType, label="File Type", help_text="Type of media file"
             ),
             StringField(
+                "category",
+                label="Category",
+                help_text="Optional secondary category",
+                required=False,
+            ),
+            StringField(
                 "original_name", label="Original Name", help_text="Original filename when uploaded"
             ),
             StringField("storage_provider", label="Storage Provider", help_text="Storage backend"),
@@ -176,11 +198,15 @@ class MediaFileView(ModelView):
             ),
             StringField("object_key", label="Object Key", help_text="Object key in storage"),
             StringField(
-                "cdn_domain", label="CDN Domain", help_text="CDN domain override", required=False
+                "storage_region",
+                label="Storage Region",
+                help_text="Storage region identifier",
+                required=False,
             ),
             IntegerField("file_size", label="File Size (bytes)", help_text="File size in bytes"),
             StringField("mime_type", label="MIME Type", help_text="File MIME type"),
             StringField("file_hash", label="File Hash", help_text="SHA-256 hash", required=False),
+            BooleanField("is_public", label="Public", help_text="Is publicly accessible"),
             StringField("etag", label="ETag", help_text="Storage provider ETag", required=False),
             IntegerEnumField(
                 "upload_by_type",
@@ -192,12 +218,39 @@ class MediaFileView(ModelView):
             StringField(
                 "upload_by_qiao_id", label="Uploader Qiao ID", help_text="External ID of uploader"
             ),
+            LocalDateTimeField(
+                "confirmed_at",
+                label="Confirmed At",
+                help_text="Upload confirmation time",
+                required=False,
+            ),
+            StringField(
+                "confirmed_by_id",
+                label="Confirmed By",
+                help_text="Confirming operator ID",
+                required=False,
+            ),
             IntegerEnumField("status", enum=FileStatus, label="Status", help_text="File status"),
-            BooleanField("is_public", label="Public", help_text="Is publicly accessible"),
             LocalDateTimeField("created_at", label="Created At", help_text="File creation time"),
             LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
+
+    async def before_create(
+        self,
+        request: Request,
+        data: MutableMapping[str, Any],
+        obj: MediaFile,
+    ) -> None:
+        """Auto-fill uploader information from admin session."""
+        # Get admin user from session
+        admin_user = request.session.get("admin_user", {})
+        admin_username = admin_user.get("username", "unknown")
+
+        # Set uploader as admin
+        obj.upload_by_type = UploaderType.ADMIN.value
+        obj.upload_by_id = None  # Admin users don't have snowflake IDs
+        obj.upload_by_qiao_id = admin_username  # Use admin username as identifier
 
 
 class MessageDeliveryFailureView(ModelView):

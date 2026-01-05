@@ -44,7 +44,7 @@ class UserViolationLog(SnowflakeModel):
         Integer,
         nullable=False,
         comment=(
-            "Violation type: 1=prompt_injection, 2=abuse_content, " "3=spam, 4=harassment, 5=other"
+            "Violation type: 1=prompt_injection, 2=abuse_content, 3=spam, 4=harassment, 5=other"
         ),
     )
 
@@ -109,8 +109,7 @@ class UserRiskStats(SnowflakeModel):
         nullable=False,
         server_default=text("'{}'::jsonb"),
         comment=(
-            'Violations by type: {"prompt_injection": 5, "abuse": 2} '
-            "(JSONB for better performance)"
+            'Violations by type: {"prompt_injection": 5, "abuse": 2} (JSONB for better performance)'
         ),
     )
 

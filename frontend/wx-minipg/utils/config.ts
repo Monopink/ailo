@@ -74,6 +74,9 @@ export const STORAGE_KEYS = {
   // Auth token
   AUTH_TOKEN: 'auth_token',
 
+  // Refresh token
+  REFRESH_TOKEN: 'refresh_token',
+
   // User info
   USER_INFO: 'user_info',
 

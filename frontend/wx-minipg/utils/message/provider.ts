@@ -8,7 +8,7 @@ let currentAdapter: MessageAdapter | null = null;
 
 export function registerMessageAdapter(adapter: MessageAdapter): void {
   currentAdapter = adapter;
-  logger.info('Message adapter registered', { name: adapter.constructor?.name });
+  logger.info('Message adapter registered', { name: adapter.constructor.name });
 }
 
 export function getMessageAdapter(): MessageAdapter {

@@ -4,7 +4,7 @@ API dependencies for authentication and authorization.
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,9 @@ from app.services.security.auth_tracker import should_require_captcha
 from app.services.security.captcha.factory import create_captcha_provider
 from app.services.security.rate_limiter import check_message_rate_limit, check_rate_limit
 from app.utils.logging import get_logger
+
+DBSession = Annotated[AsyncSession, Depends(get_db)]
+DEFAULT_CAPTCHA_TOKEN_FIELD = "captcha_token"  # noqa: S105
 
 logger = get_logger(__name__)
 
@@ -51,12 +54,12 @@ async def verify_admin_session(request: Request) -> dict[str, Any]:
             detail="Authentication required",
             headers={"WWW-Authenticate": "Session"},
         )
-    # Type guard确保admin_user是dict，使用cast明确类型
+    # Type guard to ensure admin_user is a dict, then cast for typing clarity
     return cast(dict[str, Any], admin_user)
 
 
 async def get_admin_user_and_db(
-    request: Request, db: AsyncSession = Depends(get_db)
+    request: Request, db: DBSession
 ) -> tuple[dict[str, Any], AsyncSession]:
     """
     Get both admin user and database session.
@@ -93,7 +96,7 @@ async def require_auth_rate_limit(
         HTTPException: 429 if rate limit exceeded
     """
 
-    async def dependency(request: Request, db: AsyncSession = Depends(get_db)) -> None:
+    async def dependency(request: Request, db: DBSession) -> None:
         ip = request.client.host if request.client else "unknown"
         allowed, error_code, retry_after = await check_rate_limit(ip, f"{auth_type}_auth", db)
 
@@ -111,7 +114,7 @@ async def require_auth_rate_limit(
     return dependency
 
 
-async def require_sms_rate_limit(request: Request, db: AsyncSession = Depends(get_db)) -> None:
+async def require_sms_rate_limit(request: Request, db: DBSession) -> None:
     """
     SMS rate limit dependency.
 
@@ -146,7 +149,7 @@ async def require_sms_rate_limit(request: Request, db: AsyncSession = Depends(ge
         )
 
 
-async def require_message_rate_limit(user_id: str, db: AsyncSession = Depends(get_db)) -> None:
+async def require_message_rate_limit(user_id: str, db: DBSession) -> None:
     """
     Message rate limit dependency.
 
@@ -176,7 +179,7 @@ async def require_message_rate_limit(user_id: str, db: AsyncSession = Depends(ge
 
 async def require_captcha_if_needed(
     auth_type: str,
-    token_field: str = "captcha_token",  # 'admin' or 'user'
+    token_field: str = DEFAULT_CAPTCHA_TOKEN_FIELD,
 ) -> Callable[[Request, AsyncSession], Awaitable[None]]:
     """
     Conditional CAPTCHA verification dependency factory.
@@ -192,7 +195,7 @@ async def require_captcha_if_needed(
         HTTPException: 400 if CAPTCHA required but invalid
     """
 
-    async def dependency(request: Request, db: AsyncSession = Depends(get_db)) -> None:
+    async def dependency(request: Request, db: DBSession) -> None:
         ip = request.client.host if request.client else "unknown"
 
         # Check if CAPTCHA is required
@@ -219,7 +222,7 @@ async def require_captcha_if_needed(
     return dependency
 
 
-async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+async def get_current_user(request: Request, db: DBSession) -> User:
     """
     Get current authenticated user from JWT token.
 
@@ -244,20 +247,20 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     token = auth_header[7:]  # Remove "Bearer " prefix
 
     # 2. Get token from database
-    user_token = await token_crud.get_by_token(db, token=token)
+    user_token = await token_crud.get_by_access_token(db, token=token)
     if not user_token:
         raise HTTPException(
             status_code=401, detail="登录失败", headers={"WWW-Authenticate": "Bearer"}
         )
 
     # 3. Check token status
-    if user_token.status != 1:
+    if user_token.status != 1 or user_token.access_revoked_at is not None:
         raise HTTPException(
             status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"}
         )
 
     # 4. Check token expiration
-    if user_token.expires_at < datetime.now(UTC):
+    if user_token.access_expires_at < datetime.now(UTC):
         raise HTTPException(
             status_code=401, detail="登录失效", headers={"WWW-Authenticate": "Bearer"}
         )

@@ -65,27 +65,32 @@ CREATE TABLE IF NOT EXISTS users (
 -- Note: No additional indexes needed for MVP
 
 
--- User tokens table - JWT token management with device limits
+-- User tokens table - JWT token management with device limits and dual-token support
 CREATE TABLE IF NOT EXISTS user_tokens (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
-    token VARCHAR(512) NOT NULL UNIQUE,
+    access_token VARCHAR(512) NOT NULL UNIQUE,
     device_type INTEGER NOT NULL,
     device_id VARCHAR(128),
     platform_info JSONB,
     ip_address INET,
     user_agent TEXT,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    access_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
     last_activity_at TIMESTAMP WITH TIME ZONE,
-    revoked_at TIMESTAMP WITH TIME ZONE,
+    access_revoked_at TIMESTAMP WITH TIME ZONE,
+    refresh_token_hash VARCHAR(512),
+    refresh_expires_at TIMESTAMP WITH TIME ZONE,
+    refresh_revoked_at TIMESTAMP WITH TIME ZONE,
+    token_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for user_tokens table
 CREATE INDEX idx_user_tokens_user_qiao_id ON user_tokens(user_qiao_id);
+CREATE UNIQUE INDEX idx_user_tokens_refresh_hash ON user_tokens(refresh_token_hash) WHERE refresh_token_hash IS NOT NULL;
 
 -- Add foreign key constraint for user_tokens
 ALTER TABLE user_tokens ADD CONSTRAINT fk_user_tokens_user
@@ -150,7 +155,7 @@ CREATE TABLE IF NOT EXISTS media_files (
     file_id VARCHAR(32) NOT NULL UNIQUE,
     file_type SMALLINT NOT NULL,
     category VARCHAR(50),
-    storage_provider VARCHAR(20) NOT NULL CHECK (storage_provider IN ('local', 'tencent_cos')),
+    storage_provider VARCHAR(20) NOT NULL CHECK (storage_provider = 'tencent_cos'),
     bucket_name VARCHAR(100),
     object_key VARCHAR(500) NOT NULL,
     storage_region VARCHAR(50),
@@ -159,7 +164,6 @@ CREATE TABLE IF NOT EXISTS media_files (
     mime_type VARCHAR(100) NOT NULL,
     file_hash VARCHAR(64),
     is_public BOOLEAN DEFAULT false,
-    cdn_domain VARCHAR(255),
     upload_by_type SMALLINT NOT NULL,
     upload_by_id BIGINT,
     upload_by_qiao_id VARCHAR(32),
@@ -199,7 +203,8 @@ CREATE TABLE IF NOT EXISTS contacts (
     contact_id BIGINT NOT NULL,
     contact_qiao_id VARCHAR(32) NOT NULL,
     alias VARCHAR(100),
-    custom_avatar_file_id BIGINT,  -- Foreign key to media_files.id (custom avatar for this contact, overrides contact's real avatar)
+    custom_avatar_key VARCHAR(255),
+    custom_avatar_media_id BIGINT,
     tags JSONB,
     remark TEXT,
     source VARCHAR(32) NOT NULL DEFAULT 'unknown',
@@ -212,7 +217,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     -- Ensure one user cannot add the same qiao_id contact twice
     CONSTRAINT uq_contacts_user_contact_qiao UNIQUE (user_id, contact_qiao_id),
-    CONSTRAINT fk_contacts_custom_avatar_file FOREIGN KEY (custom_avatar_file_id) REFERENCES media_files(id) ON DELETE SET NULL
+    CONSTRAINT fk_contacts_custom_avatar_media FOREIGN KEY (custom_avatar_media_id) REFERENCES media_files(id) ON DELETE SET NULL
 );
 
 -- Create indexes for contacts table
@@ -263,13 +268,14 @@ CREATE TABLE IF NOT EXISTS profiles (
     owner_type INTEGER NOT NULL,
     nickname VARCHAR(100),
     gender INTEGER,
-    avatar_file_id BIGINT,  -- Foreign key to media_files.id (both preset and custom avatars)
+    avatar_key VARCHAR(255),
+    avatar_media_id BIGINT,
     avatar_prompt TEXT,
     bio TEXT,
     region VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_profiles_avatar_file FOREIGN KEY (avatar_file_id) REFERENCES media_files(id) ON DELETE SET NULL
+    CONSTRAINT fk_profiles_avatar_media FOREIGN KEY (avatar_media_id) REFERENCES media_files(id) ON DELETE SET NULL
 );
 
 -- Create indexes for profiles table
@@ -1357,42 +1363,6 @@ END;
 $$ language 'plpgsql';
 
 -- ============================================================================
--- App UI Content Management
--- ============================================================================
-CREATE TABLE IF NOT EXISTS app_ui_contents (
-    id SERIAL PRIMARY KEY,
-    page_key VARCHAR(64) NOT NULL,
-    section_key VARCHAR(64) NOT NULL,
-    item_order INTEGER NOT NULL DEFAULT 0,
-    content_data JSONB NOT NULL,
-    locale VARCHAR(10) NOT NULL DEFAULT 'zh_CN',
-    status INTEGER NOT NULL DEFAULT 1,
-    start_time TIMESTAMP WITH TIME ZONE NULL,
-    end_time TIMESTAMP WITH TIME ZONE NULL,
-    version INTEGER NOT NULL DEFAULT 1,
-    is_current BOOLEAN NOT NULL DEFAULT TRUE,
-    created_by INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
-    updated_by INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_app_ui_contents_page_section_locale_current
-        UNIQUE(page_key, section_key, locale, item_order, is_current)
-);
-
-CREATE INDEX IF NOT EXISTS idx_app_ui_contents_page_section
-    ON app_ui_contents(page_key, section_key);
-CREATE INDEX IF NOT EXISTS idx_app_ui_contents_status_time
-    ON app_ui_contents(status, start_time, end_time);
-CREATE INDEX IF NOT EXISTS idx_app_ui_contents_locale
-    ON app_ui_contents(locale);
-
-COMMENT ON TABLE app_ui_contents IS 'UI content configuration for app pages';
-COMMENT ON COLUMN app_ui_contents.page_key IS 'Page identifier (login, home, square, etc.)';
-COMMENT ON COLUMN app_ui_contents.section_key IS 'Section identifier (sample_contacts, features, etc.)';
-COMMENT ON COLUMN app_ui_contents.content_data IS 'Flexible content fields in JSON format';
-COMMENT ON COLUMN app_ui_contents.start_time IS 'Scheduled publish time (UTC)';
-COMMENT ON COLUMN app_ui_contents.end_time IS 'Scheduled unpublish time (UTC)';
-
 
 -- Create triggers for all tables with updated_at column
 -- Drop existing triggers first to ensure idempotency

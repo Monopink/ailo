@@ -9,6 +9,7 @@ import {
 const logger = getLogger('AvatarUploader');
 const AVATAR_FILE_TYPE = '1';
 const AVATAR_MIME_TYPE = 'image/webp';
+const HTTP_TMP_PREFIX = /^https?:\/\/tmp\//i;
 
 interface CroppedAvatarResult {
   tempFilePath: string;
@@ -71,6 +72,33 @@ const serializeError = (error: unknown): string => {
   }
 };
 
+// Removed downloadTmpFile - http://tmp/... paths are valid and should be used directly
+
+const ensureLocalFilePath = async (filePath: string): Promise<string> => {
+  // http://tmp/... is a valid local file protocol in DevTools (equivalent to wxfile:// on devices)
+  // No conversion needed - wx APIs support both protocols natively
+  if (HTTP_TMP_PREFIX.test(filePath)) {
+    logger.info('[avatar] using DevTools temp file path', {
+      pathPrefix: filePath.substring(0, 30),
+    });
+  }
+  return filePath;
+};
+
+const resolveEnvironmentTag = (): string => {
+  try {
+    const info = wx.getSystemInfoSync();
+    if (!info) {
+      return 'unknown';
+    }
+    const platform = info.platform || 'unknown';
+    const version = (info as { version?: string }).version;
+    return version ? `${platform}:${version}` : platform;
+  } catch {
+    return 'unknown';
+  }
+};
+
 const chooseAvatarMedia = (): Promise<ChooseMediaResult | null> =>
   new Promise((resolve, reject) => {
     wx.chooseMedia({
@@ -79,19 +107,18 @@ const chooseAvatarMedia = (): Promise<ChooseMediaResult | null> =>
       sourceType: ['album', 'camera'],
       sizeType: ['original', 'compressed'],
       success: (res) => {
-        const file = res.tempFiles?.[0];
+        const file = res.tempFiles[0];
         if (!file) {
           resolve(null);
           return;
         }
         const resolvedSource =
-          (res as { sourceType?: string[] })?.sourceType?.[0] ||
+          (res as { sourceType?: string[] }).sourceType?.[0] ||
           file.fileType ||
           (res as { type?: string }).type ||
           undefined;
         resolve({
           tempFilePath: file.tempFilePath,
-          mediaType: file.fileType,
           sourceType: resolvedSource,
         });
       },
@@ -113,7 +140,7 @@ const openCropper = (filePath: string): Promise<string | null> =>
       events: {
         cropComplete: (data: { tempFilePath?: string }) => {
           resolved = true;
-          resolve(data?.tempFilePath ?? null);
+          resolve(data.tempFilePath ?? null);
         },
         cropCancel: () => {
           resolved = true;
@@ -131,7 +158,31 @@ const openCropper = (filePath: string): Promise<string | null> =>
     });
   });
 
-const getFileSize = (filePath: string): Promise<number | null> =>
+const readFileSize = (filePath: string): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const fileSystem = wx.getFileSystemManager();
+    type ReadFileOption = Parameters<typeof fileSystem.readFile>[0];
+    type ReadFileSuccess = NonNullable<ReadFileOption['success']>;
+    type ReadFileResult = Parameters<ReadFileSuccess>[0];
+    fileSystem.readFile({
+      filePath,
+      success: (result: ReadFileResult) => {
+        const data = result.data;
+        if (data instanceof ArrayBuffer) {
+          resolve(data.byteLength);
+          return;
+        }
+        if (typeof data === 'string') {
+          resolve(data.length);
+          return;
+        }
+        reject(new Error('无法解析文件内容'));
+      },
+      fail: reject,
+    });
+  });
+
+const getFileInfoSize = (filePath: string): Promise<number> =>
   new Promise((resolve, reject) => {
     const fileSystem = wx.getFileSystemManager();
     fileSystem.getFileInfo({
@@ -139,15 +190,45 @@ const getFileSize = (filePath: string): Promise<number | null> =>
       success: (result: WechatMiniprogram.GetFileInfoSuccessCallbackResult) => {
         resolve(result.size);
       },
-      fail: (error: WechatMiniprogram.GeneralCallbackResult) => {
-        if (isUserCancelError(error)) {
-          resolve(null);
-          return;
-        }
-        reject(error);
-      },
+      fail: reject,
     });
   });
+
+const resolveFileSize = async (filePath: string): Promise<number | null> => {
+  // DevTools uses http://tmp/... protocol which FileSystemManager APIs don't support
+  // Return 0 to signal backend to use actual file size
+  if (HTTP_TMP_PREFIX.test(filePath)) {
+    logger.info('[avatar] DevTools path - skipping file size check, backend will detect', {
+      pathPrefix: filePath.substring(0, 30),
+    });
+    return 0;
+  }
+
+  // Real device uses wxfile:// protocol which FileSystemManager supports
+  try {
+    return await getFileInfoSize(filePath);
+  } catch (error) {
+    if (isUserCancelError(error)) {
+      return null;
+    }
+    logger.warn('[avatar] file info unavailable, fallback to readFile', {
+      filePath,
+      error: serializeError(error),
+    });
+    try {
+      return await readFileSize(filePath);
+    } catch (fallbackError) {
+      if (isUserCancelError(fallbackError)) {
+        return null;
+      }
+      logger.error('[avatar] unable to read file size', {
+        filePath,
+        error: serializeError(fallbackError),
+      });
+      throw fallbackError;
+    }
+  }
+};
 
 const mapApiErrorMessage = (error: ApiError): string => {
   switch (error.statusCode) {
@@ -226,14 +307,30 @@ export async function selectAndCropAvatar(): Promise<CroppedAvatarResult | null>
     return null;
   }
 
-  const croppedFilePath = await openCropper(media.tempFilePath);
+  const normalizedSourcePath = await ensureLocalFilePath(media.tempFilePath);
+  const croppedFilePath = await openCropper(normalizedSourcePath);
   if (!croppedFilePath) {
     return null;
   }
 
-  const fileSize = await getFileSize(croppedFilePath);
-  if (fileSize === null || fileSize <= 0) {
-    logger.error('Avatar file size invalid', { fileSize });
+  let normalizedCroppedPath: string;
+  try {
+    normalizedCroppedPath = await ensureLocalFilePath(croppedFilePath);
+  } catch (error) {
+    logger.error('[avatar] cropped file normalization failed', {
+      filePath: croppedFilePath,
+      error: serializeError(error),
+    });
+    void wx.showToast({
+      title: '处理图片失败，请重试',
+      icon: 'none',
+    });
+    return null;
+  }
+
+  const fileSize = await resolveFileSize(normalizedCroppedPath);
+  if (fileSize === null) {
+    logger.error('Avatar file size check failed', { filePath: normalizedCroppedPath });
     void wx.showToast({
       title: '无法读取图片，请重试',
       icon: 'none',
@@ -242,7 +339,7 @@ export async function selectAndCropAvatar(): Promise<CroppedAvatarResult | null>
   }
 
   return {
-    tempFilePath: croppedFilePath,
+    tempFilePath: normalizedCroppedPath,
     fileSize,
     sourceType: media.sourceType,
   };
@@ -271,10 +368,13 @@ export async function completeAvatarUpload(
 ): Promise<AvatarUploadResult | null> {
   const uploadStart = Date.now();
   let logContext = buildLogContext(context);
+  const environment = resolveEnvironmentTag();
 
   let selection: CroppedAvatarResult | null = null;
+  let selectionDurationMs = 0;
   try {
     selection = await selectAndCropAvatar();
+    selectionDurationMs = Date.now() - uploadStart;
   } catch (error) {
     handleSelectionError(error);
     return null;
@@ -283,13 +383,19 @@ export async function completeAvatarUpload(
   if (!selection) {
     logger.info('[avatar] upload aborted', {
       durationMs: Date.now() - uploadStart,
+      selectionDurationMs,
+      environment,
       ...logContext,
     });
     return null;
   }
 
   logContext = buildLogContext(context, selection.sourceType);
-  logger.info('[avatar] upload start', logContext);
+  logger.info('[avatar] upload start', {
+    environment,
+    selectionDurationMs,
+    ...logContext,
+  });
 
   void wx.showLoading({ title: '上传中', mask: true });
   try {
@@ -297,12 +403,17 @@ export async function completeAvatarUpload(
     logger.info('[avatar] upload success', {
       duplicate: Boolean(result.duplicate),
       durationMs: Date.now() - uploadStart,
+      selectionDurationMs,
+      uploadDurationMs: Date.now() - uploadStart - selectionDurationMs,
+      environment,
       ...logContext,
     });
     return result;
   } catch (error) {
     handleUploadError(error, {
       durationMs: Date.now() - uploadStart,
+      selectionDurationMs,
+      environment,
       ...logContext,
     });
     return null;

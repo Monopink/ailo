@@ -96,7 +96,8 @@ async def create_instance_with_relations(
             owner_type=2,
             nickname=instance_data.get("nickname"),
             gender=instance_data.get("gender"),
-            avatar_file_id=instance_data.get("avatar_file_id"),
+            avatar_key=instance_data.get("avatar_key"),
+            avatar_media_id=instance_data.get("avatar_media_id"),
             bio=instance_data.get("bio"),
             region=instance_data.get("region"),
         )

@@ -2,12 +2,12 @@
 @import '/styles/design-tokens.wxss';
 
 .square-page {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
 }
 
 /* Header - Always visible */
 .square-header {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
 }
 
 /* Category tabs */

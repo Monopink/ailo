@@ -2,7 +2,7 @@
 @import '/styles/design-tokens.wxss';
 
 .profile-edit {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
   padding: var(--padding-page);
 }
 

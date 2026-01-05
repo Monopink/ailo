@@ -118,6 +118,7 @@
     ]
   },
   "dependencies": {
-    "tdesign-miniprogram": "^1.12.0"
+    "tdesign-miniprogram": "^1.12.0",
+    "zod": "^4.2.1"
   }
 }

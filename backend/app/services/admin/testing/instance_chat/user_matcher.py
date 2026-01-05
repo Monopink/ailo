@@ -72,7 +72,7 @@ class UserMatcherService:
         profile_dict = None
         if profile:
             profile_dict = profile.to_dict()
-            profile_dict["avatar_url"] = await get_avatar_url(db, profile)
+            profile_dict["avatar_url"] = await get_avatar_url(profile)
 
         return {
             "user_id": user.id,
@@ -189,7 +189,7 @@ class UserMatcherService:
 
         if profile:
             profile_dict = profile.to_dict()
-            profile_dict["avatar_url"] = await get_avatar_url(db, profile)
+            profile_dict["avatar_url"] = await get_avatar_url(profile)
             return profile_dict
 
         created = await profile_crud.create_with_owner(
@@ -207,7 +207,7 @@ class UserMatcherService:
             test_user_qiao_id=test_user_info["qiao_id"],
         )
         created_dict = created.to_dict()
-        created_dict["avatar_url"] = await get_avatar_url(db, created)
+        created_dict["avatar_url"] = await get_avatar_url(created)
         return created_dict
 
     async def _fetch_instance_contacts(
@@ -238,7 +238,7 @@ class UserMatcherService:
         rows = await db.execute(stmt)
         row_data = rows.all()
         profiles = [profile for _, _, profile in row_data if profile]
-        avatar_urls = await get_avatar_urls_batch(db, profiles)
+        avatar_urls = await get_avatar_urls_batch(profiles)
         contacts: list[dict[str, Any]] = []
         for contact, user, profile in row_data:
             avatar_url = avatar_urls.get(profile.id) if profile else None

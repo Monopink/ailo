@@ -6,7 +6,7 @@ This module provides functional interfaces for interacting with different LLM pr
 
 from app.type_defs import LLMSessionContext
 
-from .client import get_primary_llm_config, invoke_llm, invoke_llm_with_provider
+from .client import invoke_llm, invoke_llm_with_provider
 from .config import get_active_configs, get_instance_llm_config, get_llm_config
 
 __all__ = [
@@ -14,7 +14,6 @@ __all__ = [
     "get_active_configs",
     "get_instance_llm_config",
     "get_llm_config",
-    "get_primary_llm_config",
     "invoke_llm",
     "invoke_llm_with_provider",
 ]

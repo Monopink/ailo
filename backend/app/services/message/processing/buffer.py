@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.enums import MessageType
 from app.enums.common import AIMessageBufferState, ConversationRole
@@ -31,6 +32,8 @@ from app.type_defs import RelationshipTiming
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+RANDOM_HALF_SCALE_DIVISOR = 50
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -672,16 +675,13 @@ def adjust_wake_time(current_remaining_ms: int, adjustment_mode: str, wake_time_
     """
     Adjust the wake timer when new messages arrive during the waiting window.
 
-    Spec (2025-11-14): only two modes remain.
-    - `none`: keep the remaining delay, but never let it drop under 1 second.
-    - `random_half`: 50% chance to shrink the timer by a random factor between 2% and 100%.
-      The other 50% keeps the timer unchanged. Regardless of the branch, the remaining time
-      after adjustment must be at least 1 second (1000 ms).
-
-    The wake_time_min_ms argument is kept for signature compatibility with earlier iterations.
+    Two modes are supported:
+    - `none`: keep the remaining delay, but never go below the configured floor.
+    - `random_half`: 50% chance to scale the wait by 2%-100%; otherwise keep it unchanged.
+      The resulting remaining time must respect the configured minimum.
     """
 
-    minimum_ms = 1000  # Absolute floor mandated by the spec (1 second).
+    minimum_ms = max(wake_time_min_ms, 500)
     if current_remaining_ms <= 0:
         return minimum_ms
 
@@ -689,9 +689,10 @@ def adjust_wake_time(current_remaining_ms: int, adjustment_mode: str, wake_time_
         return max(current_remaining_ms, minimum_ms)
 
     random_number = random.randint(1, 100)
-    if random_number <= 50:
-        # Scale the current wait by (random_number / 50), i.e. 2%-100% of the original.
-        adjusted = int(current_remaining_ms * random_number / 50)
+    if random_number <= RANDOM_HALF_SCALE_DIVISOR:
+        # Scale the current wait by (random_number / RANDOM_HALF_SCALE_DIVISOR),
+        # i.e. 2%-100% of the original.
+        adjusted = int(current_remaining_ms * random_number / RANDOM_HALF_SCALE_DIVISOR)
     else:
         adjusted = current_remaining_ms
 
@@ -1000,7 +1001,7 @@ def _compute_buffer_expiration(
     return min(candidates) if candidates else None
 
 
-def _buffer_expired_clause(now_ms: int) -> Any:
+def _buffer_expired_clause(now_ms: int) -> ColumnElement[bool]:
     """Generate SQLAlchemy clause for expired buffers."""
     return or_(
         and_(

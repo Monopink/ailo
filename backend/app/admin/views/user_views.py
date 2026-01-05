@@ -36,13 +36,14 @@ from app.enums import (
 from app.models.ai.instance import AIInstance
 from app.models.ai.template import AIPersona
 from app.models.contact import Contact, ContactRequest
+from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
 from app.services.contact.request_service import retry_pending_contact_request
 from app.services.system_config import get_config
 from app.type_defs import JSONDict
 
-from .base import BaseRoleAwareModelView
+from .base import BaseRoleAwareModelView, InvertedBooleanField
 
 FormData = MutableMapping[str, object | None]
 
@@ -82,6 +83,7 @@ class UserView(BaseRoleAwareModelView):
         "qiao_id",
         "status",
         "user_type",
+        "needs_profile_setup",
         "created_at",
         "updated_at",
         "last_login",
@@ -133,6 +135,11 @@ class UserView(BaseRoleAwareModelView):
             label="User Type",
             help_text="User classification (default: Normal)",
             required=True,
+        ),
+        InvertedBooleanField(
+            "needs_profile_setup",
+            label="Profile Completed",
+            help_text="Checked=Completed, Unchecked=Needed (inverted from database for clarity)",
         ),
         LocalDateTimeField("last_login", label="Last Login", help_text="Last login time"),
         LocalDateTimeField("created_at", label="Created At", help_text="Account creation time"),
@@ -191,6 +198,8 @@ class ProfileView(BaseRoleAwareModelView):
         "owner_id",  # Auto-filled
         "owner_qiao_id",  # Auto-filled
         "owner_type",  # Auto-inferred from selected owner
+        "avatar_key",  # Auto-filled from selected avatar_media
+        "avatar_media_id",  # Auto-filled from selected avatar_media
         "created_at",
         "updated_at",
     ]
@@ -199,8 +208,18 @@ class ProfileView(BaseRoleAwareModelView):
         "owner_id",  # Auto-filled
         "owner_qiao_id",  # Auto-filled
         "owner_type",  # Auto-inferred from selected owner
+        "avatar_key",  # Auto-filled from selected avatar_media
+        "avatar_media_id",  # Auto-filled from selected avatar_media
         "created_at",
         "updated_at",
+    ]
+    exclude_fields_from_list: ClassVar[list[str]] = [
+        "avatar_key",
+        "avatar_media_id",
+    ]
+    exclude_fields_from_detail: ClassVar[list[str]] = [
+        "avatar_key",
+        "avatar_media_id",
     ]
 
     def can_delete(self, _request: Request) -> bool:
@@ -246,8 +265,22 @@ class ProfileView(BaseRoleAwareModelView):
         ),
         StringField("nickname", label="Nickname", help_text="Display nickname"),
         IntegerEnumField("gender", enum=Gender, label="Gender", help_text="Gender information"),
+        HasOne(
+            "avatar_media",
+            identity="media_file",
+            label="Avatar",
+            help_text="Select avatar from media files (auto-fills avatar_key and avatar_media_id)",
+            required=False,
+        ),
         StringField(
-            "avatar_file_id", label="Avatar File ID", help_text="Avatar file ID from media library"
+            "avatar_key",
+            label="Avatar Object Key",
+            help_text="Object key for avatar (e.g. avatars/2025/12/xxx.webp)",
+        ),
+        IntegerField(
+            "avatar_media_id",
+            label="Avatar Media ID",
+            help_text="FK to media_files.id for audit trail",
         ),
         TextAreaField(
             "avatar_prompt", label="Avatar Prompt", help_text="Description for AI-generated avatars"
@@ -275,10 +308,17 @@ class ProfileView(BaseRoleAwareModelView):
 
     async def before_create(self, request: Request, data: FormData, obj: Profile) -> None:
         """Set auto-filled fields before database commit."""
-        # Convert empty string to None for integer fields FIRST (before any database operations)
-        # Admin form may submit empty fields as empty string, convert to None
-        if hasattr(obj, "avatar_file_id") and obj.avatar_file_id == "":  # type: ignore[comparison-overlap]
-            obj.avatar_file_id = None
+        # Auto-fill avatar_key and avatar_media_id from selected avatar_media
+        avatar_media = data.get("avatar_media")
+        if avatar_media and isinstance(avatar_media, MediaFile):
+            obj.avatar_key = avatar_media.object_key
+            obj.avatar_media_id = avatar_media.id
+        else:
+            # Convert empty string to None if no media selected
+            if hasattr(obj, "avatar_key") and obj.avatar_key == "":
+                obj.avatar_key = None
+            if hasattr(obj, "avatar_media_id") and obj.avatar_media_id == "":  # type: ignore[comparison-overlap]
+                obj.avatar_media_id = None
 
         # Auto-infer owner_type and fill owner_id, owner_qiao_id
         owner_user = data.get("_owner_user")
@@ -323,10 +363,17 @@ class ProfileView(BaseRoleAwareModelView):
 
     async def before_edit(self, _request: Request, data: FormData, obj: Profile) -> None:
         """Set auto-filled fields before database commit."""
-        # Convert empty string to None for integer fields
-        # Admin form may submit empty fields as empty string, convert to None
-        if hasattr(obj, "avatar_file_id") and obj.avatar_file_id == "":  # type: ignore[comparison-overlap]
-            obj.avatar_file_id = None
+        # Auto-fill avatar_key and avatar_media_id from selected avatar_media
+        avatar_media = data.get("avatar_media")
+        if avatar_media and isinstance(avatar_media, MediaFile):
+            obj.avatar_key = avatar_media.object_key
+            obj.avatar_media_id = avatar_media.id
+        else:
+            # Convert empty string to None if no media selected
+            if hasattr(obj, "avatar_key") and obj.avatar_key == "":
+                obj.avatar_key = None
+            if hasattr(obj, "avatar_media_id") and obj.avatar_media_id == "":  # type: ignore[comparison-overlap]
+                obj.avatar_media_id = None
 
         # Auto-infer owner_type and fill owner_id, owner_qiao_id
         owner_user = data.get("_owner_user")
@@ -435,6 +482,8 @@ class ContactView(BaseRoleAwareModelView):
         "contact_type",  # Auto-inferred from selected contact
         "contact_id",  # Auto-filled
         "contact_qiao_id",  # Auto-filled
+        "custom_avatar_key",  # Auto-filled from selected custom_avatar_media
+        "custom_avatar_media_id",  # Auto-filled from selected custom_avatar_media
         "created_at",
         "updated_at",
         "deleted_at",
@@ -447,11 +496,20 @@ class ContactView(BaseRoleAwareModelView):
         "contact_type",  # Auto-inferred from selected contact
         "contact_id",  # Auto-filled
         "contact_qiao_id",  # Auto-filled
+        "custom_avatar_key",  # Auto-filled from selected custom_avatar_media
+        "custom_avatar_media_id",  # Auto-filled from selected custom_avatar_media
         "created_at",
         "updated_at",
         "deleted_at",
     ]
-    exclude_fields_from_list: ClassVar[list[str]] = []
+    exclude_fields_from_list: ClassVar[list[str]] = [
+        "custom_avatar_key",
+        "custom_avatar_media_id",
+    ]
+    exclude_fields_from_detail: ClassVar[list[str]] = [
+        "custom_avatar_key",
+        "custom_avatar_media_id",
+    ]
 
     def can_delete(self, _request: Request) -> bool:
         return False
@@ -498,10 +556,22 @@ class ContactView(BaseRoleAwareModelView):
         ),
         StringField("contact_qiao_id", label="Contact Qiao ID", help_text="Contact external ID"),
         StringField("alias", label="Alias", help_text="Custom name for this contact"),
+        HasOne(
+            "custom_avatar_media",
+            identity="media_file",
+            label="Custom Avatar",
+            help_text="Select custom avatar from media files (auto-fills custom_avatar_key and custom_avatar_media_id)",
+            required=False,
+        ),
         StringField(
-            "custom_avatar_file_id",
-            label="Custom Avatar File ID",
-            help_text="Media file ID overriding contact avatar (optional)",
+            "custom_avatar_key",
+            label="Custom Avatar Key",
+            help_text="Object key overriding contact avatar (optional)",
+        ),
+        IntegerField(
+            "custom_avatar_media_id",
+            label="Custom Avatar Media ID",
+            help_text="FK to media_files.id for audit trail (optional)",
         ),
         JSONField("tags", label="Tags", help_text="Structured tag metadata (JSON)"),
         TextAreaField("remark", label="Remark", help_text="Additional notes about this contact"),
@@ -553,6 +623,18 @@ class ContactView(BaseRoleAwareModelView):
 
     async def before_create(self, request: Request, data: FormData, obj: Contact) -> None:
         """Set auto-filled fields before database commit."""
+        # Auto-fill custom_avatar_key and custom_avatar_media_id from selected custom_avatar_media
+        custom_avatar_media = data.get("custom_avatar_media")
+        if custom_avatar_media and isinstance(custom_avatar_media, MediaFile):
+            obj.custom_avatar_key = custom_avatar_media.object_key
+            obj.custom_avatar_media_id = custom_avatar_media.id
+        else:
+            # Convert empty string to None if no media selected
+            if hasattr(obj, "custom_avatar_key") and obj.custom_avatar_key == "":
+                obj.custom_avatar_key = None
+            if hasattr(obj, "custom_avatar_media_id") and obj.custom_avatar_media_id == "":  # type: ignore[comparison-overlap]
+                obj.custom_avatar_media_id = None
+
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
         if user and isinstance(user, User):
@@ -628,6 +710,18 @@ class ContactView(BaseRoleAwareModelView):
 
     async def before_edit(self, _request: Request, data: FormData, obj: Contact) -> None:
         """Set auto-filled fields before database commit."""
+        # Auto-fill custom_avatar_key and custom_avatar_media_id from selected custom_avatar_media
+        custom_avatar_media = data.get("custom_avatar_media")
+        if custom_avatar_media and isinstance(custom_avatar_media, MediaFile):
+            obj.custom_avatar_key = custom_avatar_media.object_key
+            obj.custom_avatar_media_id = custom_avatar_media.id
+        else:
+            # Convert empty string to None if no media selected
+            if hasattr(obj, "custom_avatar_key") and obj.custom_avatar_key == "":
+                obj.custom_avatar_key = None
+            if hasattr(obj, "custom_avatar_media_id") and obj.custom_avatar_media_id == "":  # type: ignore[comparison-overlap]
+                obj.custom_avatar_media_id = None
+
         # Auto-fill user_qiao_id from selected user
         user = data.get("user")
         if user and isinstance(user, User):

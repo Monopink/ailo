@@ -8,7 +8,9 @@ This module provides authentication-related endpoints including:
 - Message client signature generation for LeanCloud IM authentication
 """
 
+import hashlib
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -30,6 +32,8 @@ from app.models.base import generate_qiao_id
 from app.models.profile import Profile
 from app.models.user import User, UserToken
 from app.schemas.auth import (
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     VerifyPhoneRequest,
     VerifyPhoneResponse,
     WeChatLoginRequest,
@@ -81,6 +85,23 @@ _operation_tokens: dict[str, tuple[int, datetime]] = {}
 SMS_CODE_TTL_SECONDS = 5 * 60  # 5 minutes
 SMS_COOLDOWN_SECONDS = 60
 
+_refresh_token_requests: dict[str, list[datetime]] = {}
+REFRESH_RATE_LIMIT = 5
+REFRESH_RATE_WINDOW = timedelta(minutes=1)
+
+
+@dataclass
+class TokenPair:
+    access_token: str
+    refresh_token: str
+    expires_in: int
+
+
+@dataclass
+class AccessTokenInfo:
+    access_token: str
+    expires_in: int
+
 
 def _get_client_ip(request: Request) -> str:
     """
@@ -109,6 +130,36 @@ async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
         )
 
     return int(expires_in_days) * 86400
+
+
+async def _get_refresh_token_expiration_days(db: AsyncSession) -> int:
+    """Return refresh token expiration duration in days."""
+
+    refresh_in_days = await system_configs.get_config_value(
+        db, config_key="refresh_token_expires_in_days", default_value=90
+    )
+    try:
+        days = int(refresh_in_days)
+    except (TypeError, ValueError):
+        logger.warning("refresh_token_expiration_invalid", value=refresh_in_days)
+        return 90
+    return max(days, 1)
+
+
+def _enforce_refresh_rate_limit(refresh_hash: str) -> None:
+    """Prevent the same refresh token from being used too frequently."""
+
+    now = datetime.now(UTC)
+    window_start = now - REFRESH_RATE_WINDOW
+    history = [ts for ts in _refresh_token_requests.get(refresh_hash, []) if ts > window_start]
+    if len(history) >= REFRESH_RATE_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail="刷新过于频繁，请稍后再试",
+            headers={"Retry-After": str(int(REFRESH_RATE_WINDOW.total_seconds()))},
+        )
+    history.append(now)
+    _refresh_token_requests[refresh_hash] = history
 
 
 def _cleanup_expired_codes() -> None:
@@ -288,6 +339,32 @@ def _verify_operation_token(token: str) -> int | None:
     return user_id
 
 
+async def _rotate_access_token(
+    db: AsyncSession,
+    *,
+    user_token: UserToken,
+) -> AccessTokenInfo:
+    """Rotate access token for existing session."""
+
+    expires_in_seconds = await _get_jwt_expiration_seconds(db)
+    access_token = generate_jwt_token(
+        user_id=user_token.user_id,
+        qiao_id=user_token.user_qiao_id,
+        device_type=DeviceType(user_token.device_type),
+        expires_in_seconds=expires_in_seconds,
+    )
+    access_expires_at = calculate_token_expiry(expires_in_seconds)
+
+    user_token.access_token = access_token
+    user_token.access_expires_at = access_expires_at
+    user_token.last_activity_at = datetime.now(UTC)
+    user_token.access_revoked_at = None
+    db.add(user_token)
+    await db.commit()
+    await db.refresh(user_token)
+    return AccessTokenInfo(access_token=access_token, expires_in=expires_in_seconds)
+
+
 async def _issue_jwt_token_for_user(
     db: AsyncSession,
     *,
@@ -295,32 +372,44 @@ async def _issue_jwt_token_for_user(
     client_ip: str,
     user_agent: str | None,
     log_event: str,
-) -> str:
+    device_type: DeviceType = DeviceType.MINI_PROGRAM,
+) -> TokenPair:
     """
     Create and persist a JWT token for the given user.
     """
 
     expires_in_seconds = await _get_jwt_expiration_seconds(db)
+    refresh_days = await _get_refresh_token_expiration_days(db)
+
     jwt_token = generate_jwt_token(
         user_id=user.id,
         qiao_id=user.qiao_id,
-        device_type=DeviceType.MINI_PROGRAM,
+        device_type=device_type,
         expires_in_seconds=expires_in_seconds,
     )
     expires_at = calculate_token_expiry(expires_in_seconds)
+    refresh_token = secrets.token_urlsafe(64)
+    refresh_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+    refresh_expires_at = datetime.now(UTC) + timedelta(days=refresh_days)
 
     user_token = UserToken(
         id=generate_snowflake_id(),
         user_id=user.id,
         user_qiao_id=user.qiao_id,
-        token=jwt_token,
-        device_type=DeviceType.MINI_PROGRAM,
+        access_token=jwt_token,
+        device_type=device_type,
         device_id=None,
         platform_info=None,
         ip_address=client_ip,
         user_agent=user_agent,
-        expires_at=expires_at,
+        access_expires_at=expires_at,
         status=1,
+        last_activity_at=datetime.now(UTC),
+        access_revoked_at=None,
+        refresh_token_hash=refresh_token_hash,
+        refresh_expires_at=refresh_expires_at,
+        refresh_revoked_at=None,
+        token_metadata={},
     )
 
     db.add(user_token)
@@ -329,14 +418,16 @@ async def _issue_jwt_token_for_user(
 
     logger.info(log_event, qiao_id=user.qiao_id, token=jwt_token[:16] + "...")
 
-    return jwt_token
+    return TokenPair(
+        access_token=jwt_token, refresh_token=refresh_token, expires_in=expires_in_seconds
+    )
 
 
 async def _ensure_profile_stub(
     db: AsyncSession, *, user: User, nickname: str | None = None
 ) -> Profile:
     """
-    Ensure the specified user has a profile stub. Creates one using the default avatar when missing.
+    Ensure the specified user has a profile stub. Creates one with NULL avatar_key (uses default).
     """
 
     profile_result = await db.execute(
@@ -353,7 +444,8 @@ async def _ensure_profile_stub(
         db,
         obj_in=ProfileCreate(
             nickname=nickname or f"用户{user.qiao_id[-6:]}",
-            avatar_file_id=None,
+            avatar_key=None,
+            avatar_media_id=None,
         ),
         owner_id=user.id,
         owner_qiao_id=user.qiao_id,
@@ -684,7 +776,7 @@ async def wechat_login(
 
         # 8. Create token
         try:
-            jwt_token = await _issue_jwt_token_for_user(
+            token_pair = await _issue_jwt_token_for_user(
                 db,
                 user=user,
                 client_ip=client_ip,
@@ -704,7 +796,7 @@ async def wechat_login(
 
         # 9. Ensure profile stub exists for avatar rendering
         profile = await _ensure_profile_stub(db, user=user)
-        avatar_url = await get_avatar_url(db, profile)
+        avatar_url = await get_avatar_url(profile)
 
         if created_new_user:
             logger.info(
@@ -716,7 +808,9 @@ async def wechat_login(
         # 10. Return response
         return WeChatLoginResponse(
             success=True,
-            token=jwt_token,
+            access_token=token_pair.access_token,
+            refresh_token=token_pair.refresh_token,
+            expires_in=token_pair.expires_in,
             needs_profile_setup=bool(user.needs_profile_setup),
             user=_build_user_payload(user, profile, avatar_url),
             message="登录成功",
@@ -858,7 +952,7 @@ async def refresh_wechat_phone(
         )
 
         profile = await _ensure_profile_stub(db, user=current_user)
-        avatar_url = await get_avatar_url(db, profile)
+        avatar_url = await get_avatar_url(profile)
 
         return WeChatRefreshPhoneResponse(
             phone=mask_phone(normalized_phone),
@@ -887,6 +981,44 @@ async def refresh_wechat_phone(
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail="更新手机号失败，请稍后再试")
+
+
+@router.post("/refresh-token", response_model=RefreshTokenResponse)
+async def refresh_token(
+    body: RefreshTokenRequest, db: AsyncSession = Depends(get_db)
+) -> RefreshTokenResponse:
+    """
+    Refresh access token using refresh token.
+    """
+
+    refresh_token = body.refresh_token.strip()
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="刷新凭证无效")
+
+    refresh_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+    user_token = await token_crud.get_by_refresh_hash(db, refresh_hash=refresh_hash)
+    if (
+        not user_token
+        or user_token.status != 1
+        or user_token.refresh_revoked_at is not None
+        or not user_token.refresh_expires_at
+        or user_token.refresh_expires_at <= datetime.now(UTC)
+    ):
+        raise HTTPException(status_code=401, detail="登录失效")
+
+    _enforce_refresh_rate_limit(refresh_hash)
+    access_info = await _rotate_access_token(db, user_token=user_token)
+
+    logger.info(
+        "access_token_refreshed",
+        qiao_id=user_token.user_qiao_id,
+        token_id=user_token.id,
+    )
+
+    return RefreshTokenResponse(
+        access_token=access_info.access_token,
+        expires_in=access_info.expires_in,
+    )
 
 
 @router.post("/logout")
@@ -919,7 +1051,7 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> dict[s
 
     # 3. Revoke token
     try:
-        revoked_token = await token_crud.revoke_token(db, token=token)
+        revoked_token = await token_crud.revoke_access_token(db, token=token)
         if not revoked_token:
             logger.warning("logout_token_not_found", qiao_id=user.qiao_id, ip=client_ip)
             raise HTTPException(status_code=401, detail="登录失效")
@@ -1030,10 +1162,10 @@ async def verify_phone(
             raise HTTPException(status_code=400, detail="账号已被禁用")
 
         profile = await _ensure_profile_stub(db, user=user)
-        avatar_url = await get_avatar_url(db, profile)
+        avatar_url = await get_avatar_url(profile)
 
         try:
-            jwt_token = await _issue_jwt_token_for_user(
+            token_pair = await _issue_jwt_token_for_user(
                 db,
                 user=user,
                 client_ip=client_ip,
@@ -1059,7 +1191,9 @@ async def verify_phone(
             )
 
         return VerifyPhoneResponse(
-            token=jwt_token,
+            access_token=token_pair.access_token,
+            refresh_token=token_pair.refresh_token,
+            expires_in=token_pair.expires_in,
             needs_profile_setup=bool(user.needs_profile_setup),
             user=_build_user_payload(user, profile, avatar_url),
         )
@@ -1070,19 +1204,6 @@ async def verify_phone(
     except Exception as e:
         logger.error("verify_phone_failed", error=str(e), ip=client_ip, exc_info=True)
         raise HTTPException(status_code=500, detail="验证失败，请稍后再试")
-
-
-@router.post("/complete-registration")
-async def complete_registration_deprecated(request: Request) -> None:
-    """
-    Deprecated placeholder for legacy clients.
-
-    Always returns HTTP 410 to indicate the endpoint is no longer available.
-    """
-
-    client_ip = _get_client_ip(request)
-    logger.warning("complete_registration_deprecated_called", ip=client_ip)
-    raise HTTPException(status_code=410, detail="该接口已下线，请升级客户端")
 
 
 @router.post("/user/verify/send-code", response_model=VerifySendCodeResponse)

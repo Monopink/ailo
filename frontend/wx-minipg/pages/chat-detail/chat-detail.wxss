@@ -2,7 +2,7 @@
 @import '/styles/design-tokens.wxss';
 
 .chat-detail {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
 }
 
 /* Hero section - horizontal layout */

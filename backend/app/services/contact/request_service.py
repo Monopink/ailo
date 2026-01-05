@@ -177,7 +177,8 @@ async def _create_contact_record(
         contact_type=contact_type,
         contact_qiao_id=contact_qiao_id,
         alias=alias,
-        custom_avatar_file_id=None,
+        custom_avatar_key=None,
+        custom_avatar_media_id=None,
         tags=tags,
         remark=None,
         source=source or "unknown",
@@ -248,7 +249,7 @@ async def _process_ai_contact_request(
             request_id=contact_request.id,
             from_qiao_id=user_qiao_id,
             to_qiao_id=contact_request.to_qiao_id,
-            _message=contact_request.message or "",
+            message=contact_request.message or "",
         )
 
         if not decision.accepted or not decision.persona or not decision.template:
@@ -880,7 +881,7 @@ async def get_contact_requests_service(
             profile = await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=req.from_qiao_id)
 
             # Build profile info
-            avatar_url = await get_avatar_url(db, profile)
+            avatar_url = await get_avatar_url(profile)
 
             from_profile = ContactProfileSummary(
                 nickname=profile.nickname if profile else None,
@@ -1022,7 +1023,8 @@ async def accept_contact_request_service(
             contact_type=ContactType(contact_request.from_type),
             contact_qiao_id=contact_request.from_qiao_id,
             alias=accept_data.alias,
-            custom_avatar_file_id=None,
+            custom_avatar_key=None,
+            custom_avatar_media_id=None,
             tags=accept_data.tags,
             remark=None,
             source="contact_request",

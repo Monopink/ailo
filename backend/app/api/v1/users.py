@@ -41,7 +41,7 @@ async def get_user_profile(
 
     Returns only profile data (from profiles table).
     Does not include account security information (phone, email, etc).
-    avatar_url is dynamically generated from avatar_file_id.
+    avatar_url is dynamically generated from avatar_key.
 
     Args:
         current_user: Current authenticated user
@@ -57,7 +57,7 @@ async def get_user_profile(
         )
 
         # Generate avatar URL dynamically
-        avatar_url = await get_avatar_url(db, user_profile)
+        avatar_url = await get_avatar_url(user_profile)
 
         # Build response
         response = UserProfileResponse(
@@ -141,6 +141,7 @@ async def update_user_profile(
 
     All fields are optional. Only provided fields will be updated.
     avatar_file_id must reference an existing media_files record owned by the current user.
+    It will be converted to avatar_key (object key) and avatar_media_id (audit FK).
 
     Args:
         body: Profile update data (avatar_file_id in file_xxx format)
@@ -163,7 +164,8 @@ async def update_user_profile(
             current_user.username = body.username  # Update local object
 
         # Validate avatar_file_id if provided
-        avatar_file_id_int = None
+        avatar_key = None
+        avatar_media_id = None
         if body.avatar_file_id is not None:
             # Get media file by file_id (file_xxx format)
             media_file = await media_file_crud.get_by_file_id(db, file_id=body.avatar_file_id)
@@ -178,7 +180,9 @@ async def update_user_profile(
             if media_file.status != int(FileStatus.ACTIVE):
                 raise HTTPException(status_code=400, detail="头像文件未激活")
 
-            avatar_file_id_int = media_file.id
+            # Set both avatar_key (for URL generation) and avatar_media_id (for audit)
+            avatar_key = media_file.object_key
+            avatar_media_id = media_file.id
 
         # Check if profile exists
         user_profile = await profile_crud.get_by_owner(
@@ -188,9 +192,11 @@ async def update_user_profile(
         # Prepare update data (exclude username as it's not a profile field)
         profile_data = body.model_dump(exclude_unset=True, exclude={"username"})
 
-        # Convert avatar_file_id from file_xxx to integer ID
+        # Convert avatar_file_id from file_xxx to both avatar_key and avatar_media_id
         if "avatar_file_id" in profile_data:
-            profile_data["avatar_file_id"] = avatar_file_id_int
+            profile_data["avatar_key"] = avatar_key
+            profile_data["avatar_media_id"] = avatar_media_id
+            del profile_data["avatar_file_id"]  # Remove old field
 
         update_data = ProfileUpdate(**profile_data)
 
@@ -213,7 +219,7 @@ async def update_user_profile(
             )
 
         # Generate avatar URL dynamically
-        avatar_url = await get_avatar_url(db, updated_profile)
+        avatar_url = await get_avatar_url(updated_profile)
 
         if current_user.needs_profile_setup:
             current_user = await user_crud.update(

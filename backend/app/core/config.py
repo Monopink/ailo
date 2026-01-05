@@ -85,12 +85,12 @@ class Settings(BaseSettings):
     CAPTCHA_CLIENT_WHITELIST: list[str] = Field(default_factory=lambda: ["wxminipg"])
 
     # Storage settings
-    STORAGE_PUBLIC_DOMAIN: str = ""
-    TENCENT_COS_SECRET_ID: str = ""
-    TENCENT_COS_SECRET_KEY: str = ""
-    TENCENT_COS_REGION: str = "ap-beijing"
-    TENCENT_COS_BUCKET: str = ""
-    TENCENT_COS_ENDPOINT: str = "https://cos.ap-beijing.myqcloud.com"
+    MEDIA_PUBLIC_BASE_URL: str
+    TENCENT_COS_SECRET_ID: str
+    TENCENT_COS_SECRET_KEY: str
+    TENCENT_COS_REGION: str
+    TENCENT_COS_BUCKET: str
+    TENCENT_COS_ENDPOINT: str = ""  # Optional: defaults to virtual-hosted-style URL
 
     @property
     def database_url(self) -> str:
@@ -124,6 +124,16 @@ class Settings(BaseSettings):
             parts = [item.strip() for item in value.split(",")]
             return [item for item in parts if item]
         return value
+
+    @field_validator("MEDIA_PUBLIC_BASE_URL", mode="before")
+    @classmethod
+    def _validate_media_public_base_url(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("MEDIA_PUBLIC_BASE_URL must be configured")
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("MEDIA_PUBLIC_BASE_URL must be configured")
+        return normalized.rstrip("/")
 
 
 @lru_cache

@@ -1,5 +1,6 @@
-import { get } from '../api';
+import { requestValidated } from '../api';
 import { getLogger } from '../logger';
+import { ConversationConfigSchema } from '../schemas';
 
 const logger = getLogger('ConversationStore');
 const STORAGE_KEY = 'conversation_state';
@@ -10,13 +11,6 @@ interface ConversationState {
   signature_version: string;
   signature_ttl_ms: number;
   fetched_at: number;
-}
-
-interface ConversationConfigResponse {
-  im_conv_id: string;
-  signature_algorithm: string;
-  signature_version: string;
-  signature_ttl_ms: number;
 }
 
 type Subscriber = (state: ConversationState | null) => void;
@@ -107,7 +101,10 @@ class ConversationStore {
     }
 
     this.refreshPromise = (async () => {
-      const response = await get<ConversationConfigResponse>('/lc-im/config');
+      const response = await requestValidated(ConversationConfigSchema, {
+        url: '/lc-im/config',
+        method: 'GET',
+      });
       const nextState: ConversationState = {
         im_conv_id: response.im_conv_id,
         signature_algorithm: response.signature_algorithm,

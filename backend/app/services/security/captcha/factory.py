@@ -2,6 +2,21 @@
 CAPTCHA Provider Factory
 
 Creates CAPTCHA provider instances based on configuration.
+
+System Architecture:
+- Admin Backend: Uses Turnstile (configured via admin_captcha_provider='turnstile')
+- User/Clients: Currently disabled (provider='none', no human verification required)
+- Future Extension: Supports client-specific providers via X-Client header
+  (e.g., X-Client: wxminipg → reads wxminipg_captcha_provider config)
+
+Design Principles:
+- Factory Pattern: Easy to add new providers (reCAPTCHA, hCaptcha, etc.)
+- No user-side verification in MVP: Small-scale launch, fraud risk low
+- Reserved config mechanism for future clients (mobile app, web, etc.)
+
+Supported Providers:
+- 'none': No verification (NoneCaptchaProvider)
+- 'turnstile': Cloudflare Turnstile (TurnstileProvider)
 """
 
 from dataclasses import dataclass
@@ -43,7 +58,7 @@ class CaptchaRuntimeMetadata:
 
 
 def _resolve_provider_version(provider: str) -> str:
-    mapping = {"aliyun": "aliyun-v3", "turnstile": "turnstile-v1", "none": "none"}
+    mapping = {"turnstile": "turnstile-v1", "none": "none"}
     normalized = provider.lower()
     return mapping.get(normalized, normalized)
 

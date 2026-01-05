@@ -45,7 +45,7 @@ export function getUserFriendlyError(error: ErrorLike): string {
   }
 
   const errorCode =
-    typeof error === 'string' ? error : typeof error?.message === 'string' ? error.message : '';
+    typeof error === 'string' ? error : typeof error.message === 'string' ? error.message : '';
 
   // Check if it's a known error code
   if (isKnownErrorCode(errorCode)) {

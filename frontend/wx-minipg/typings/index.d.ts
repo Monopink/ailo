@@ -9,7 +9,7 @@ declare global {
     interface AuthTokens {
       accessToken: string;
       refreshToken: string;
-      expiresAt: number;
+      expiresIn: number;
     }
 
     interface AuthUser {
@@ -92,7 +92,6 @@ declare global {
   interface AppInstance extends WechatMiniprogram.App.Instance<WechatMiniprogram.IAnyObject> {
     globalData: Ailo.GlobalData;
     initializeAuth(): Promise<void>;
-    refreshTokenIfNeeded(): Promise<void>;
     initMessageService(): Promise<void>;
     getMessageService(): Ailo.MessageService | null;
     getConversationStore(): Ailo.ConversationStoreInstance;

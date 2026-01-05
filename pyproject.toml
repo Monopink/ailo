@@ -261,6 +261,14 @@ module = [
   "fsspec.*",
 ]
 
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "boto3",
+  "botocore",
+  "botocore.*",
+]
+
 # ============================================================================
 # Admin Module - Relaxed Type Checking
 # ============================================================================

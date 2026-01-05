@@ -9,7 +9,7 @@ from datetime import datetime
 from markupsafe import escape
 from sqlalchemy import BigInteger, Boolean, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from starlette.requests import Request
 
 from app.enums import UserType
@@ -107,8 +107,8 @@ class UserToken(SnowflakeModel):
         String(32), nullable=False, comment="User external ID (redundant for query optimization)"
     )
 
-    token: Mapped[str] = mapped_column(
-        String(512), nullable=False, unique=True, comment="JWT token"
+    access_token: Mapped[str] = mapped_column(
+        String(512), nullable=False, unique=True, comment="Access JWT token"
     )
 
     device_type: Mapped[int] = mapped_column(
@@ -127,8 +127,8 @@ class UserToken(SnowflakeModel):
 
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True, comment="User agent string")
 
-    expires_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, comment="Token expiration time"
+    access_expires_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, comment="Access token expiration time"
     )
 
     status: Mapped[int] = mapped_column(
@@ -143,13 +143,48 @@ class UserToken(SnowflakeModel):
         TIMESTAMP(timezone=True), nullable=True, comment="Last activity time"
     )
 
-    revoked_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True, comment="Token revocation time"
+    access_revoked_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Access token revocation time"
     )
 
-    # Indexes - Only essential indexes for MVP
-    # Note: token already has unique index
-    __table_args__ = (Index("idx_user_tokens_user_qiao_id", "user_qiao_id"),)
+    refresh_token_hash: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, comment="Refresh token hash (SHA-256)"
+    )
+
+    refresh_expires_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Refresh token expiration time"
+    )
+
+    refresh_revoked_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Refresh token revocation time"
+    )
+
+    token_metadata: Mapped[JSONDict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        comment="Additional metadata (refresh counters, device info, etc.)",
+    )
+
+    # Relationships
+    user: Mapped["User | None"] = relationship(
+        "User",
+        primaryjoin="UserToken.user_id == User.id",
+        foreign_keys=[user_id],
+        lazy="select",
+        viewonly=True,
+    )
+
+    __table_args__ = (
+        Index("idx_user_tokens_user_qiao_id", "user_qiao_id"),
+        Index(
+            "idx_user_tokens_refresh_hash",
+            "refresh_token_hash",
+            unique=True,
+            postgresql_where=text("refresh_token_hash IS NOT NULL"),
+        ),
+    )
 
 
 class UserAuth(SnowflakeModel, StatusMixin):
@@ -184,6 +219,15 @@ class UserAuth(SnowflakeModel, StatusMixin):
 
     revoked_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Unbind time"
+    )
+
+    # Relationships
+    user: Mapped["User | None"] = relationship(
+        "User",
+        primaryjoin="UserAuth.user_id == User.id",
+        foreign_keys=[user_id],
+        lazy="select",
+        viewonly=True,
     )
 
     # Indexes and constraints
@@ -251,4 +295,13 @@ class LoginRecord(Base, SnowflakeIDMixin):
         nullable=False,
         server_default=text("NOW()"),
         comment="Login record creation timestamp",
+    )
+
+    # Relationships
+    user: Mapped["User | None"] = relationship(
+        "User",
+        primaryjoin="LoginRecord.user_id == User.id",
+        foreign_keys=[user_id],
+        lazy="select",
+        viewonly=True,
     )

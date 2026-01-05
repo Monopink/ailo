@@ -319,24 +319,25 @@ ON CONFLICT (qiao_id) DO UPDATE SET
     updated_at = NOW();
 
 -- Insert profiles for AI personas
--- Note: avatar_file_id is NULL for sample data (system default avatar will be used until users upload one)
-INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_file_id) VALUES
-(223788765171154955, 223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, NULL),
-(223788765171154956, 223788765171155010, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, NULL),
-(223788765171154957, 223788765171155011, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, NULL)
+-- Note: avatar_key and avatar_media_id are NULL for sample data (system default avatar will be used until users upload one)
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_key, avatar_media_id) VALUES
+(223788765171154955, 223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 2, '小乔', '温柔善良的邻家女孩，喜欢听音乐和看电影，总是很有耐心', 2, NULL, NULL),
+(223788765171154956, 223788765171155010, 'qiao_sweet_girlfriend_001', 2, '小甜', '活泼可爱的甜美女孩，喜欢撒娇，热爱美食和电影', 2, NULL, NULL),
+(223788765171154957, 223788765171155011, 'qiao_friendly_buddy_001', 2, '阿杰', '开朗幽默的好伙伴，热爱运动和游戏，总是能带来欢乐', 1, NULL, NULL)
 ON CONFLICT (owner_qiao_id) DO UPDATE SET
     nickname = EXCLUDED.nickname,
     bio = EXCLUDED.bio,
-    avatar_file_id = EXCLUDED.avatar_file_id,
+    avatar_key = EXCLUDED.avatar_key,
+    avatar_media_id = EXCLUDED.avatar_media_id,
     updated_at = NOW();
 
 -- Insert profiles for test users
-INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_file_id) VALUES
-(223788765171154950, 223788765171154945, 'qqid_test_user_001', 1, '小雨', '喜欢看书和旅行的文艺青年，最近在学习摄影', 2, NULL),
-(223788765171154951, 223788765171154946, 'qqid_test_user_002', 1, '阿杰', '热爱运动的阳光男孩，篮球和游泳都很在行', 1, NULL),
-(223788765171154952, 223788765171154947, 'qqid_test_user_003', 1, '晓晓', '甜品师，喜欢烘焙和美食，梦想开一家自己的咖啡店', 2, NULL),
-(223788765171154953, 223788765171154948, 'qqid_test_user_004', 1, '大熊', '程序员，业余时间喜欢打游戏和看动漫', 1, NULL),
-(223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL)
+INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, gender, avatar_key, avatar_media_id) VALUES
+(223788765171154950, 223788765171154945, 'qqid_test_user_001', 1, '小雨', '喜欢看书和旅行的文艺青年，最近在学习摄影', 2, NULL, NULL),
+(223788765171154951, 223788765171154946, 'qqid_test_user_002', 1, '阿杰', '热爱运动的阳光男孩，篮球和游泳都很在行', 1, NULL, NULL),
+(223788765171154952, 223788765171154947, 'qqid_test_user_003', 1, '晓晓', '甜品师，喜欢烘焙和美食，梦想开一家自己的咖啡店', 2, NULL, NULL),
+(223788765171154953, 223788765171154948, 'qqid_test_user_004', 1, '大熊', '程序员，业余时间喜欢打游戏和看动漫', 1, NULL, NULL),
+(223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL, NULL)
 ON CONFLICT (owner_qiao_id) DO NOTHING;
 
 INSERT INTO square_type_entries (square_category, type_id, exposure_strategy, status) VALUES
@@ -630,9 +631,16 @@ INSERT INTO media_files (
     upload_by_type, upload_by_id, upload_by_qiao_id,
     status, created_at, updated_at
 ) VALUES
-(223788765171155003, 'media_001', 1, 'local', 'test/avatar_001.jpg', 'avatar.jpg', 102400, 'image/jpeg', 1, 223788765171154945, 'qqid_test_user_001', 1, NOW(), NOW()),
-(223788765171155004, 'media_002', 1, 'local', 'test/bg_001.png', 'background.png', 256000, 'image/png', 1, 223788765171154946, 'qqid_test_user_002', 1, NOW(), NOW())
+(223788765171155003, 'media_001', 1, 'tencent_cos', 'test/avatar_001.jpg', 'avatar.jpg', 102400, 'image/jpeg', 1, 223788765171154945, 'qqid_test_user_001', 1, NOW(), NOW()),
+(223788765171155004, 'media_002', 1, 'tencent_cos', 'test/bg_001.png', 'background.png', 256000, 'image/png', 1, 223788765171154946, 'qqid_test_user_002', 1, NOW(), NOW())
+,(223788765171155050, 'file_login_avatar_1', 1, 'tencent_cos', 'avatars/2025/12/263670989316034560.webp', 'login_avatar_1.webp', 43000, 'image/webp', 1, 223788765171154945, 'qqid_test_user_001', 1, NOW(), NOW())
+,(223788765171155051, 'file_login_avatar_2', 1, 'tencent_cos', 'avatars/2025/12/263670916205121536.webp', 'login_avatar_2.webp', 44000, 'image/webp', 1, 223788765171154946, 'qqid_test_user_002', 1, NOW(), NOW())
+,(223788765171155052, 'file_login_avatar_3', 1, 'tencent_cos', 'avatars/2025/12/263193083276038144.webp', 'login_avatar_3.webp', 42000, 'image/webp', 1, 223788765171154947, 'qqid_test_user_003', 1, NOW(), NOW())
+,(223788765171155053, 'file_login_avatar_4', 1, 'tencent_cos', 'avatars/2025/12/263192976845574144.webp', 'login_avatar_4.webp', 45000, 'image/webp', 1, 223788765171154948, 'qqid_test_user_004', 1, NOW(), NOW())
+,(223788765171155054, 'file_login_avatar_5', 1, 'tencent_cos', 'avatars/2025/12/263189301397950464.webp', 'login_avatar_5.webp', 44000, 'image/webp', 1, 223788765171154949, 'qqid_test_user_005', 1, NOW(), NOW())
+,(223788765171155055, 'file_login_avatar_6', 1, 'tencent_cos', 'avatars/2025/12/263140472107700224.webp', 'login_avatar_6.webp', 44000, 'image/webp', 1, 223788765171154945, 'qqid_test_user_001', 1, NOW(), NOW())
 ON CONFLICT (file_id) DO NOTHING;
+
 
 -- Insert sample user violation logs
 INSERT INTO user_violation_logs (id, user_id, user_qiao_id, instance_id, instance_qiao_id, violation_type, severity_level, original_message, auto_action_taken, manual_review_status) VALUES
@@ -647,10 +655,10 @@ INSERT INTO user_risk_stats (id, user_id, user_qiao_id, total_violations, violat
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample user tokens
-INSERT INTO user_tokens (id, user_id, user_qiao_id, token, device_type, device_id, platform_info, ip_address, user_agent, expires_at, status) VALUES
+INSERT INTO user_tokens (id, user_id, user_qiao_id, access_token, device_type, device_id, platform_info, ip_address, user_agent, access_expires_at, status) VALUES
 (223788765171154980, 223788765171154945, 'qqid_test_user_001', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDEiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDUsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MCwiZGV2aWNlX3R5cGUiOjMsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_001', 3, 'web_device_001', '{"browser": "Chrome", "os": "Windows 10"}', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', NOW() + INTERVAL '14 days', 1),
 (223788765171154981, 223788765171154946, 'qqid_test_user_002', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDIiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDYsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MSwiZGV2aWNlX3R5cGUiOjEsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_002', 1, 'ios_device_001', '{"device": "iPhone 13", "os": "iOS 15.0"}', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', NOW() + INTERVAL '14 days', 1)
-ON CONFLICT (token) DO NOTHING;
+ON CONFLICT (access_token) DO NOTHING;
 
 -- Insert sample login records
 INSERT INTO login_records (id, user_id, user_qiao_id, login_time, login_type, platform, device_id, ip_address, user_agent, result, fail_reason) VALUES

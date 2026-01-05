@@ -3,7 +3,7 @@
 
 /* Stranger Info Page */
 .stranger-info {
-  background-color: var(--color-bg-page);
+  background-color: var(--color-bg-primary);
   padding-bottom: calc(88rpx + var(--space-md) * 2 + env(safe-area-inset-bottom));
 }
 

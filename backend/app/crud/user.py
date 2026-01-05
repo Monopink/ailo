@@ -114,15 +114,22 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
 class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
     """CRUD operations for UserToken model."""
 
-    async def get_by_token(self, db: AsyncSession, *, token: str) -> UserToken | None:
-        """Get token by token string."""
-        result = await db.execute(select(self.model).where(self.model.token == token))
+    async def get_by_access_token(self, db: AsyncSession, *, token: str) -> UserToken | None:
+        """Get session by access token."""
+        result = await db.execute(select(self.model).where(self.model.access_token == token))
         return result.scalar_one_or_none()
 
-    async def get_active_token(self, db: AsyncSession, *, token: str) -> UserToken | None:
-        """Get active token by token string."""
+    async def get_active_access_token(self, db: AsyncSession, *, token: str) -> UserToken | None:
+        """Get active session by access token."""
         result = await db.execute(
-            select(self.model).where(and_(self.model.token == token, self.model.status == 1))
+            select(self.model).where(and_(self.model.access_token == token, self.model.status == 1))
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_refresh_hash(self, db: AsyncSession, *, refresh_hash: str) -> UserToken | None:
+        """Get session by refresh token hash."""
+        result = await db.execute(
+            select(self.model).where(self.model.refresh_token_hash == refresh_hash)
         )
         return result.scalar_one_or_none()
 
@@ -152,13 +159,15 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
         )
         return list(result.scalars().all())
 
-    async def revoke_token(self, db: AsyncSession, *, token: str) -> UserToken | None:
-        """Revoke a token."""
+    async def revoke_access_token(self, db: AsyncSession, *, token: str) -> UserToken | None:
+        """Revoke a single access token."""
 
-        user_token = await self.get_by_token(db, token=token)
+        user_token = await self.get_by_access_token(db, token=token)
         if user_token:
+            now = datetime.now(UTC)
             user_token.status = 2
-            user_token.revoked_at = datetime.now(UTC)
+            user_token.access_revoked_at = now
+            user_token.refresh_revoked_at = now
             db.add(user_token)
             await db.commit()
             await db.refresh(user_token)
@@ -173,7 +182,7 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
             and_(self.model.user_id == user_id, self.model.status == 1)
         )
         if exclude_token:
-            query = query.where(self.model.token != exclude_token)
+            query = query.where(self.model.access_token != exclude_token)
 
         result = await db.execute(query)
         tokens = result.scalars().all()
@@ -182,7 +191,8 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
         revoked_at = datetime.now(UTC)
         for user_token in tokens:
             user_token.status = 2
-            user_token.revoked_at = revoked_at
+            user_token.access_revoked_at = revoked_at
+            user_token.refresh_revoked_at = revoked_at
             db.add(user_token)
             count += 1
 
@@ -209,7 +219,8 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
         revoked_at = datetime.now(UTC)
         for user_token in tokens:
             user_token.status = 2
-            user_token.revoked_at = revoked_at
+            user_token.access_revoked_at = revoked_at
+            user_token.refresh_revoked_at = revoked_at
             db.add(user_token)
             count += 1
 

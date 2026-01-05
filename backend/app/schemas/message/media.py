@@ -37,7 +37,6 @@ class MediaFileResponse(MediaFileBase):
     storage_provider: str = Field(..., description="Storage provider identifier")
     bucket_name: str | None = Field(None, description="Bucket name if applicable")
     object_key: str = Field(..., description="Object key within storage backend")
-    cdn_domain: str | None = Field(None, description="CDN domain override")
     original_name: str = Field(..., description="Original filename when uploaded")
     file_hash: str | None = Field(None, description="SHA-256 hash for deduplication")
     upload_by_type: UploaderType = Field(..., description="Uploader type")

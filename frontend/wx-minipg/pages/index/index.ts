@@ -13,6 +13,7 @@ import {
 } from '../../utils/storage';
 import { MESSAGE_TYPE } from '../../utils/message/constants';
 import { formatMessageTime } from '../../utils/format';
+import { firstNonEmptyString, isNonEmptyString } from '../../utils/guards';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 
 const logger = getLogger('ContactList');
@@ -106,7 +107,7 @@ const showToast = (
 };
 
 const getDataset = (event: WechatMiniprogram.BaseEvent): Record<string, unknown> => {
-  const dataset = event?.currentTarget?.dataset as Record<string, unknown> | undefined;
+  const dataset = event.currentTarget.dataset as Record<string, unknown> | undefined;
   return dataset ?? {};
 };
 
@@ -165,9 +166,12 @@ Page<ContactListPageData, ContactListPageCustom>({
     }
 
     // Update custom TabBar active state
-    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      this.getTabBar().init();
+    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null;
+    if (tabBar !== null) {
+      const initFn = (tabBar as { init?: unknown }).init;
+      if (typeof initFn === 'function') {
+        void initFn();
+      }
     }
 
     this.updateNavigationTitle();
@@ -175,18 +179,18 @@ Page<ContactListPageData, ContactListPageCustom>({
   },
 
   updateNavigationTitle() {
-    const brandName = APP_CONFIG.brandName ?? '';
-    const unreadTotal = this.data.unreadTotal ?? 0;
+    const brandName = APP_CONFIG.brandName;
+    const unreadTotal = this.data.unreadTotal;
     const badge = unreadTotal > 99 ? '99+' : unreadTotal;
     const title = unreadTotal > 0 ? `${brandName}(${badge})` : brandName;
-    if (title) {
+    if (isNonEmptyString(title)) {
       void wx.setNavigationBarTitle({ title });
     }
   },
 
   async loadContactList(options: LoadOptions = {}) {
     const { forceReload = false } = options;
-    if (this._loadPromise && !forceReload) {
+    if (this._loadPromise !== null && !forceReload) {
       return this._loadPromise;
     }
 
@@ -214,11 +218,12 @@ Page<ContactListPageData, ContactListPageCustom>({
     this._loadPromise = loadTask
       .catch((error) => {
         const err = normalizeError(error);
+        const errorMessage = isNonEmptyString(err.message) ? err.message : '加载失败，请稍后重试';
         logger.error('Failed to load contact list', { error: err.message });
         this.setData({
           'pageLayoutData.isLoading': false,
           'pageLayoutData.hasError': true,
-          'pageLayoutData.errorMessage': err.message || '加载失败，请稍后重试',
+          'pageLayoutData.errorMessage': errorMessage,
           'pageLayoutData.isEmpty': false,
         });
         showToast('加载失败');
@@ -244,7 +249,7 @@ Page<ContactListPageData, ContactListPageCustom>({
   },
 
   async refreshContactListFromAPI() {
-    if (this._loadPromise) {
+    if (this._loadPromise !== null) {
       try {
         await this._loadPromise;
       } catch (error) {
@@ -257,27 +262,30 @@ Page<ContactListPageData, ContactListPageCustom>({
 
   onMessageReceived(message) {
     logger.info('Message received in contact list', {
-      msg_id: message?.msg_id,
-      message_type: message?.message_type,
+      msg_id: message.msg_id,
+      message_type: message.message_type,
     });
 
-    if (message?.message_type === MESSAGE_TYPE.CHAT_INFO) {
+    if (message.message_type === MESSAGE_TYPE.CHAT_INFO) {
       void this.refreshContactListFromAPI();
     }
   },
 
-  updateContactList(contacts) {
-    const contactList = (contacts ?? []).map((contact) => {
+  updateContactList(contacts: ContactWithPreview[]) {
+    const contactList = contacts.map((contact) => {
       const unreadCount = contact.unreadCount ?? 0;
       const latestMessage = contact._latestMessage ?? null;
       const lastMessageContent =
         latestMessage?.content ?? contact.last_message_content ?? contact.last_message ?? '';
       const lastMessageTimeRaw = latestMessage?.sent_time ?? contact.last_message_time ?? null;
+      const displayName =
+        firstNonEmptyString(contact.alias, contact.profile?.nickname, contact.contact_qiao_id) ??
+        '';
 
       return {
         ...contact,
-        avatarUrl: getAvatarUrl(contact.avatar_url ?? ''),
-        displayName: contact.alias || contact.nickname || contact.contact_qiao_id || '',
+        avatarUrl: getAvatarUrl(contact.profile?.avatar_url ?? ''),
+        displayName,
         lastMessageTime: formatMessageTime(lastMessageTimeRaw),
         lastMessage: lastMessageContent,
         hasUnread: unreadCount > 0,
@@ -300,18 +308,20 @@ Page<ContactListPageData, ContactListPageCustom>({
 
   goToChat(event) {
     const convId = getDatasetString(event, 'id');
-    if (!convId) {
+    if (!isNonEmptyString(convId)) {
       return;
     }
     void wx.navigateTo({ url: `/pages/chat/chat?id=${convId}` });
   },
 
   onSwipeActionClick(event: SwipeActionEvent) {
-    const action = event?.detail;
+    const action = event.detail;
     const convId = getDatasetString(event, 'id');
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
     const contactIndex = getDatasetNumber(event, 'index');
-
-    if (!action || !convId || typeof contactIndex !== 'number') {
+    if (typeof contactIndex !== 'number') {
       return;
     }
 
@@ -324,7 +334,7 @@ Page<ContactListPageData, ContactListPageCustom>({
   },
 
   navigateToContactInfo(convId?: string) {
-    if (!convId) {
+    if (!isNonEmptyString(convId)) {
       return;
     }
     void wx.navigateTo({ url: `/pages/contact-info/contact-info?id=${convId}` });
@@ -337,7 +347,7 @@ Page<ContactListPageData, ContactListPageCustom>({
 
     const contactList = [...this.data.contactList];
     const target = contactList[index];
-    if (!target) {
+    if (typeof target === 'undefined') {
       return;
     }
 
@@ -359,14 +369,14 @@ Page<ContactListPageData, ContactListPageCustom>({
     showToast('已标为未读', 'success');
   },
 
-  async attachLatestMessages(contacts) {
-    if (!Array.isArray(contacts) || contacts.length === 0) {
-      return contacts ?? [];
+  async attachLatestMessages(contacts: StoredContacts): Promise<ContactWithPreview[]> {
+    if (contacts.length === 0) {
+      return [];
     }
 
     const enriched = await Promise.all(
       contacts.map(async (contact) => {
-        if (!contact?.conv_id) {
+        if (!isNonEmptyString(contact.conv_id)) {
           return contact as ContactWithPreview;
         }
 

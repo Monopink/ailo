@@ -713,7 +713,7 @@ async def wechat_login(
                     id=user_id,
                     qiao_id=qiao_id,
                     phone=normalized_phone,
-                    username="",
+                    username=None,  # NULL until user sets it
                     user_type=1,  # Normal user
                     status=1,  # Active
                     needs_profile_setup=True,
@@ -1125,7 +1125,7 @@ async def verify_phone(
                     id=user_id,
                     qiao_id=qiao_id,
                     phone=normalized_phone,
-                    username="",
+                    username=None,  # NULL until user sets it
                     user_type=1,
                     status=1,
                     needs_profile_setup=True,

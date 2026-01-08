@@ -110,6 +110,18 @@ mc anonymous set download myminio/bucket-name
 **Cause**: Domain not in "request legal domains" config
 **Fix**: WeChat Public Platform → Development → Dev Management → Dev Settings → Server Domains
 
+### Page shows blank when using page-layout component
+**Symptom**: Page displays blank after navigating (e.g., setup page after registration)
+**Cause**: page-layout component references deleted ui-loading/ui-empty components
+**Root Cause**: Incomplete TDesign migration in commit 6e30407 - page-layout.json not updated
+**Fix**: Update page-layout to use t-loading/t-empty from TDesign (see commit fixing this issue)
+**Impact**: 13 pages use page-layout component
+**Prevention**: Before removing UI components, check all usages:
+```bash
+grep -r "component-name" frontend/wx-minipg/components/
+grep -r "component-name" frontend/wx-minipg/pages/
+```
+
 ---
 
 ## AI Dialogue

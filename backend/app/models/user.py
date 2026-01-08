@@ -26,8 +26,8 @@ class User(SnowflakeQiaoModel, StatusMixin):
 
     __tablename__ = "users"
 
-    username: Mapped[str] = mapped_column(
-        String(50), nullable=False, comment="Username, default to qiao_id"
+    username: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="User-customizable ID, NULL if not set"
     )
 
     phone: Mapped[str | None] = mapped_column(

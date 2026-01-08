@@ -9,7 +9,7 @@ class UserProfileResponse(BaseModel):
     """User profile response schema for GET /api/v1/user/profile - only profile data"""
 
     qiao_id: str = Field(..., description="User external ID")
-    username: str = Field(..., description="User-customizable ID")
+    username: str | None = Field(None, description="User-customizable ID, NULL if not set")
     nickname: str | None = Field(None, description="Display nickname")
     gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
     avatar_url: str | None = Field(None, description="Dynamically generated avatar CDN URL")

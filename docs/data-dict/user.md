@@ -9,7 +9,7 @@
 ```txt
 id -- Snowflake ID
 qiao_id -- qiao_+随机字符，外部使用，唯一标识
-username -- 用户名，初始默认为qiao_id
+username -- 用户自定义ID，可选字段，NULL表示未设置
 phone -- 手机号(E.164格式)，用于登录验证，必填，唯一
 email -- 邮箱地址
 password_hash -- 密码哈希值

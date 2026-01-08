@@ -2,7 +2,7 @@
   Page Layout Component
 
   Standard page structure component for all pages.
-  Automatically handles loading, error, and empty states via UI components.
+  Automatically handles loading, error, and empty states via TDesign components.
 
   Usage:
     <page-layout
@@ -47,21 +47,21 @@
 
   <!-- Loading State -->
   <view wx:if="{{isLoading}}" class="page-layout__state">
-    <ui-loading text="加载中..." />
+    <t-loading theme="circular" size="48rpx" text="加载中..." />
   </view>
 
   <!-- Error State -->
   <view wx:elif="{{hasError}}" class="page-layout__state">
-    <ui-empty
-      type="error"
-      message="{{errorMessage || '加载失败，请重试'}}"
+    <t-empty
+      icon="error-circle"
+      description="{{errorMessage || '加载失败，请重试'}}"
       action-text="重试"
-      bindaction="onRetryClick" />
+      bind:action="onRetryClick" />
   </view>
 
   <!-- Empty State -->
   <view wx:elif="{{isEmpty}}" class="page-layout__state">
-    <ui-empty type="empty" message="{{emptyMessage || '暂无数据'}}" />
+    <t-empty icon="info-circle" description="{{emptyMessage || '暂无数据'}}" />
   </view>
 
   <!-- Content with inline or fixed footer -->

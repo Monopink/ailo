@@ -45,7 +45,7 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT PRIMARY KEY,
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
-    username VARCHAR(50) NOT NULL,
+    username VARCHAR(50) NULL,
     phone VARCHAR(20) UNIQUE,
     email VARCHAR(100) UNIQUE,
     password_hash VARCHAR(255),

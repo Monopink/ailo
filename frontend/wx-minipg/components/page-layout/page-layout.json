@@ -1,4 +1,7 @@
 {
   "component": true,
-  "usingComponents": {}
+  "usingComponents": {
+    "t-loading": "tdesign-miniprogram/loading/loading",
+    "t-empty": "tdesign-miniprogram/empty/empty"
+  }
 }

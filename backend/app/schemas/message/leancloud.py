@@ -1,6 +1,4 @@
-"""
-LeanCloud messaging schemas.
-"""
+"""LeanCloud messaging schemas."""
 
 from pydantic import BaseModel, Field
 

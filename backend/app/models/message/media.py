@@ -1,5 +1,4 @@
-"""
-Media file related models.
+"""Media file related models.
 
 This module contains SQLAlchemy models for media file management.
 """
@@ -24,8 +23,7 @@ from app.models.base import SnowflakeModel
 
 
 class MediaFile(SnowflakeModel):
-    """
-    Media file model.
+    """Media file model.
 
     Media file storage and metadata management.
     """

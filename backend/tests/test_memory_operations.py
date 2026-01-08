@@ -1,7 +1,9 @@
 import uuid
+from typing import cast
 
 import pytest
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai.instance import AIInstance
 from app.models.ai.memory import AIInstanceMemory, AITemplateMemory
@@ -11,9 +13,12 @@ from app.models.ai.template import AITemplate, AIType
 from app.models.user import User
 from app.services.ai.memory import copy_template_memories_to_instance
 from app.services.ai.memory.operations import process_memory_operations
+from app.type_defs import InstanceContext
 
 
-async def _get_reference(session):
+async def _get_reference(
+    session: AsyncSession,
+) -> tuple[User | None, AIStyle | None, AIPersonality | None]:
     user = (await session.execute(select(User).limit(1))).scalar_one_or_none()
     style = (await session.execute(select(AIStyle).limit(1))).scalar_one_or_none()
     personality = (await session.execute(select(AIPersonality).limit(1))).scalar_one_or_none()
@@ -21,11 +26,17 @@ async def _get_reference(session):
 
 
 @pytest.mark.asyncio
-async def test_memory_operations_lifecycle(db_session):
+async def test_memory_operations_lifecycle(
+    db_session: AsyncSession,
+) -> None:
     """Ensure add/update/refresh/remove behave correctly on ai_instance_memories."""
     user, style, personality = await _get_reference(db_session)
     if not all([user, style, personality]):
         pytest.skip("Required seed data missing for memory operations test")
+
+    assert user is not None
+    assert style is not None
+    assert personality is not None
 
     instance = AIInstance(
         qiao_id=f"test_{uuid.uuid4().hex[:24]}",  # 5+24=29 chars, fits in varchar(32)
@@ -44,12 +55,37 @@ async def test_memory_operations_lifecycle(db_session):
     db_session.add(instance)
     await db_session.flush()
 
-    context = {
-        "instance_id": instance.id,
-        "instance_qiao_id": instance.qiao_id,
-        "user_id": user.id,
-        "user_qiao_id": user.qiao_id,
-    }
+    context = cast(
+        InstanceContext,
+        {
+            "instance_id": instance.id,
+            "instance_qiao_id": instance.qiao_id,
+            "user_id": user.id,
+            "user_qiao_id": user.qiao_id,
+            "status": instance.status,
+            "created_by": instance.created_by,
+            "prompt_variables": instance.prompt_variables,
+            "request_params": instance.request_params,
+            "typing_speed_wpm": instance.typing_speed_wpm,
+            "timezone": instance.timezone,
+            "relationship_counts": {"total": 0},
+            "style": {"id": style.id, "display_name": style.display_name},
+            "personality": {
+                "id": personality.id,
+                "display_name": personality.display_name,
+                "prompt": personality.prompt,
+            },
+            "profile": {
+                "nickname": user.username or user.qiao_id,
+                "bio": None,
+                "gender": None,
+                "avatar_url": None,
+                "avatar_prompt": None,
+                "region": None,
+            },
+            "dimensions": [],
+        },
+    )
 
     # Add core/recent memories
     await process_memory_operations(
@@ -126,12 +162,19 @@ async def test_memory_operations_lifecycle(db_session):
 
 
 @pytest.mark.asyncio
-async def test_copy_template_memories_to_instance(db_session):
+async def test_copy_template_memories_to_instance(
+    db_session: AsyncSession,
+) -> None:
     """Ensure template memories are copied into ai_instance_memories during instantiation."""
     user, style, personality = await _get_reference(db_session)
     ai_type = (await db_session.execute(select(AIType).limit(1))).scalar_one_or_none()
     if not all([user, style, personality, ai_type]):
         pytest.skip("Required seed data missing for template memory copy test")
+
+    assert user is not None
+    assert style is not None
+    assert personality is not None
+    assert ai_type is not None
 
     template = AITemplate(
         type_id=ai_type.id,

@@ -1,5 +1,4 @@
-"""
-Chat info message templates.
+"""Chat info message templates.
 
 This module provides template mappings for chat info messages.
 Templates are used by business logic to generate consistent messages.

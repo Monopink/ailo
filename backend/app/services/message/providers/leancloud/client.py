@@ -5,13 +5,17 @@ This module provides pure functions for LeanCloud REST API calls.
 All functions are stateless and return explicit results.
 """
 
-from typing import Any
-
 import httpx
 
+from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+HTTP_STATUS_OK = 200
+HTTP_STATUS_CREATED = 201
+HTTP_STATUS_NOT_FOUND = 404
 
 
 async def create_system_conversation(
@@ -54,7 +58,7 @@ async def create_system_conversation(
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, headers=headers, json=body)
 
-            if response.status_code == 201 or response.status_code == 200:
+            if response.status_code in {HTTP_STATUS_CREATED, HTTP_STATUS_OK}:
                 data = response.json()
                 conversation_id = data.get("objectId")
                 if conversation_id:
@@ -113,14 +117,14 @@ async def check_service_conversation_exists(
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(url, headers=headers)
 
-        if response.status_code == 200:
+        if response.status_code == HTTP_STATUS_OK:
             logger.debug(
                 "leancloud_conversation_exists",
                 conversation_id=conversation_id,
             )
             return True, None
 
-        if response.status_code == 404:
+        if response.status_code == HTTP_STATUS_NOT_FOUND:
             logger.warning(
                 "leancloud_conversation_missing",
                 conversation_id=conversation_id,
@@ -175,7 +179,7 @@ async def subscribe_user_to_conversation(
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, headers=headers, json=body)
 
-            if response.status_code == 200:
+            if response.status_code == HTTP_STATUS_OK:
                 logger.info(
                     "leancloud_user_subscribed",
                     conversation_id=conversation_id,
@@ -229,7 +233,7 @@ async def unsubscribe_user_from_conversation(
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.delete(url, headers=headers)
 
-            if response.status_code == 200:
+            if response.status_code == HTTP_STATUS_OK:
                 logger.info(
                     "leancloud_user_unsubscribed",
                     conversation_id=conversation_id,
@@ -299,7 +303,7 @@ async def send_service_message(
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, headers=headers, json=body)
 
-            if response.status_code == 200:
+            if response.status_code == HTTP_STATUS_OK:
                 data = response.json()
                 msg_id = _extract_msg_id(data)
                 if msg_id:
@@ -337,7 +341,7 @@ async def send_service_message(
         return False, None, error_msg
 
 
-def _extract_msg_id(response_data: Any) -> str | None:
+def _extract_msg_id(response_data: JSONDict | JSONValue) -> str | None:
     """
     LeanCloud responses sometimes wrap msg-id inside a result envelope.
     This helper normalizes the lookup so provider callers always get the ID.

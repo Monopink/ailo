@@ -228,7 +228,8 @@ async def initialize_service(db: AsyncSession) -> bool:
             else:
                 logger.warning("leancloud_webhook_token_generation_failed")
         else:
-            logger.info("leancloud_webhook_token_exists", token_length=len(existing_webhook_token))
+            token_length = len(str(existing_webhook_token))
+            logger.info("leancloud_webhook_token_exists", token_length=token_length)
 
         return True
 
@@ -607,11 +608,34 @@ async def broadcast_message(
     content: str,
     message_type: int = 1,
 ) -> MessageResult:
-    """Broadcast message through LeanCloud (to be implemented)."""
+    """Broadcast message through LeanCloud (to be implemented).
+
+    Args:
+        conversation_id: The LeanCloud conversation ID.
+        from_qiao_id: Sender qiao_id.
+        to_qiao_ids: Recipient qiao_id list.
+        content: Message body.
+        message_type: LeanCloud message type.
+
+    Returns:
+        MessageResult: Always indicates unimplemented behavior.
+    """
+    logger.warning(
+        "leancloud_broadcast_message_skipped",
+        conversation_id=conversation_id,
+        from_qiao_id=from_qiao_id,
+        to_recipient_count=len(to_qiao_ids),
+        message_type=message_type,
+        content_preview=content[:100],
+    )
     return MessageResult(
         success=False,
         error_code="NOT_IMPLEMENTED",
-        error_message="LeanCloud broadcast_message not yet implemented",
+        error_message=(
+            "LeanCloud broadcast_message is not yet implemented "
+            f"(conversation={conversation_id}, from={from_qiao_id}, type={message_type}) "
+            f"content={content}"
+        ),
     )
 
 
@@ -622,7 +646,26 @@ async def fetch_messages_by_time_range(
     limit: int = 1000,
     include_start: bool = False,
 ) -> list["InboundMessageEvent"]:
-    """Fetch messages by time range from LeanCloud (to be implemented)."""
+    """Fetch messages by time range from LeanCloud (to be implemented).
+
+    Args:
+        conversation_id: LeanCloud conversation ID.
+        start_time: Range start timestamp (Unix seconds).
+        end_time: Range end timestamp (Unix seconds).
+        limit: Maximum number of messages to return.
+        include_start: Whether to include the message at start_time.
+
+    Returns:
+        Placeholder inbox list (empty for now).
+    """
+    logger.warning(
+        "leancloud_fetch_messages_placeholder",
+        conversation_id=conversation_id,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+        include_start=include_start,
+    )
     return []
 
 

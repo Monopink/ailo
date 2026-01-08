@@ -1,5 +1,4 @@
-"""
-CRUD operations for LLM test logs.
+"""CRUD operations for LLM test logs.
 
 This module provides database operations for LLM configuration test logs.
 """
@@ -18,8 +17,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
     async def get_by_config_id(
         self, db: AsyncSession, config_id: int, limit: int = 100
     ) -> list[LLMTestLog]:
-        """
-        Get test logs by configuration ID.
+        """Get test logs by configuration ID.
 
         Args:
             db: Database session
@@ -28,6 +26,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
 
         Returns:
             List of test logs ordered by creation time (newest first)
+
         """
         result = await db.execute(
             select(LLMTestLog)
@@ -38,8 +37,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
         return list(result.scalars().all())
 
     async def get_recent_logs(self, db: AsyncSession, limit: int = 50) -> list[LLMTestLog]:
-        """
-        Get recent test logs across all configurations.
+        """Get recent test logs across all configurations.
 
         Args:
             db: Database session
@@ -47,6 +45,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
 
         Returns:
             List of test logs ordered by creation time (newest first)
+
         """
         result = await db.execute(
             select(LLMTestLog).order_by(desc(LLMTestLog.created_at)).limit(limit)
@@ -56,8 +55,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
     async def get_by_status(
         self, db: AsyncSession, status: int, limit: int = 100
     ) -> list[LLMTestLog]:
-        """
-        Get test logs by status.
+        """Get test logs by status.
 
         Args:
             db: Database session
@@ -66,6 +64,7 @@ class CRUDLLMTestLog(ImmutableCRUDBase[LLMTestLog, LLMTestLogCreate]):
 
         Returns:
             List of test logs with specified status
+
         """
         result = await db.execute(
             select(LLMTestLog)

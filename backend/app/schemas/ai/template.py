@@ -1,5 +1,4 @@
-"""
-AI template schemas.
+"""AI template schemas.
 
 This module contains Pydantic schemas for AI template-related operations.
 """
@@ -35,6 +34,8 @@ class AIType(AITypeBase):
     updated_at: str | None = Field(None, description="Update timestamp")
 
     class Config:
+        """Allow ORM models to populate this schema."""
+
         from_attributes = True
 
 
@@ -103,6 +104,8 @@ class AITemplate(AITemplateBase):
     timezone: str = Field(..., description="Default IANA timezone for instances")
 
     class Config:
+        """Allow ORM models to populate this schema."""
+
         from_attributes = True
 
 
@@ -137,4 +140,6 @@ class AIPersona(AIPersonaBase):
     updated_at: str | None = Field(None, description="Update timestamp")
 
     class Config:
+        """Allow ORM models to populate this schema."""
+
         from_attributes = True

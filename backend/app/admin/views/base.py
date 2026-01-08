@@ -1,5 +1,4 @@
-"""
-Base role-aware ModelView for Starlette-Admin.
+"""Base role-aware ModelView for Starlette-Admin.
 
 Provides unified create/edit/delete permissions based on admin role.
 """
@@ -15,8 +14,7 @@ from app.enums import AdminRole
 
 
 def convert_empty_strings_to_none(obj: Any, field_names: list[str]) -> None:
-    """
-    Convert empty string values to None for specified fields.
+    """Convert empty string values to None for specified fields.
 
     This is essential for fields with unique constraints in the database,
     as NULL values don't count as duplicates but empty strings do.
@@ -27,6 +25,7 @@ def convert_empty_strings_to_none(obj: Any, field_names: list[str]) -> None:
 
     Example:
         convert_empty_strings_to_none(user_obj, ["phone", "email", "wechat_openid"])
+
     """
     for field_name in field_names:
         if hasattr(obj, field_name):
@@ -49,8 +48,7 @@ def _get_admin_role(request: Request) -> int | None:
 
 
 class InvertedBooleanField(BooleanField):
-    """
-    Boolean field that inverts the value for display.
+    """Boolean field that inverts the value for display.
 
     Database stores: True (needs setup) / False (completed)
     Checkbox shows: Inverted - Checked=Completed, Unchecked=Needed
@@ -60,8 +58,7 @@ class InvertedBooleanField(BooleanField):
     """
 
     async def parse_form_data(self, request: Request, form_data: Any, action: Any) -> Any:
-        """
-        Parse form checkbox value and invert it for database storage.
+        """Parse form checkbox value and invert it for database storage.
 
         User checks box (True in form) -> Store False in database (completed)
         User unchecks box (False in form) -> Store True in database (needs setup)
@@ -76,8 +73,7 @@ class InvertedBooleanField(BooleanField):
         return not display_value
 
     async def serialize_value(self, request: Request, value: Any, action: Any) -> Any:
-        """
-        Serialize database value and invert it for display.
+        """Serialize database value and invert it for display.
 
         Database False (completed) -> Show checkbox as checked (True)
         Database True (needs setup) -> Show checkbox as unchecked (False)
@@ -92,8 +88,7 @@ class InvertedBooleanField(BooleanField):
 
 
 class IntegerEnumField(EnumField):
-    """
-    EnumField that properly handles integer values for database storage.
+    """EnumField that properly handles integer values for database storage.
 
     Starlette-admin's default EnumField returns strings from forms,
     but database INTEGER fields need actual integers. This field converts:
@@ -112,14 +107,14 @@ class IntegerEnumField(EnumField):
         choices: Any = None,
         **kwargs: Any,
     ) -> None:
-        """
-        Initialize IntegerEnumField.
+        """Initialize IntegerEnumField.
 
         Args:
             name: Field name
             enum: IntEnum class (will be converted to choices)
             choices: List of (int_value, display_label) tuples (alternative to enum)
             **kwargs: Additional field arguments
+
         """
         # Store enum for later use in serialize_value
         self._enum = enum
@@ -133,8 +128,7 @@ class IntegerEnumField(EnumField):
         super().__init__(name, choices=choices, **kwargs)
 
     async def parse_form_data(self, request: Request, form_data: Any, action: Any) -> Any:
-        """
-        Parse form data, converting string to integer.
+        """Parse form data, converting string to integer.
 
         Args:
             request: Request object
@@ -146,6 +140,7 @@ class IntegerEnumField(EnumField):
 
         Raises:
             ValueError: If conversion fails (invalid integer format)
+
         """
         value = await super().parse_form_data(request, form_data, action)
 
@@ -157,8 +152,7 @@ class IntegerEnumField(EnumField):
         return int(value)
 
     async def serialize_value(self, request: Request, value: Any, action: Any) -> Any:
-        """
-        Serialize database value for display.
+        """Serialize database value for display.
 
         Args:
             request: Request object
@@ -168,6 +162,7 @@ class IntegerEnumField(EnumField):
         Returns:
             For LIST/DETAIL: enum name (e.g., "Male") or None for invalid values
             For EDIT/CREATE: integer value for form selection (e.g., 1)
+
         """
         if value is None or value == "":
             return None

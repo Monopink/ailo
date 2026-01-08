@@ -1,5 +1,4 @@
-"""
-CRUD operations module.
+"""CRUD operations module.
 
 This module imports all CRUD classes for database operations.
 """

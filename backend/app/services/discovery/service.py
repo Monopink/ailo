@@ -17,6 +17,7 @@ from app.schemas.discovery import (
 from app.services.discovery import data as discovery_data
 from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
 from app.services.security.rate_limiter import check_rate_limit
+from app.type_defs import JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -48,10 +49,11 @@ async def get_square_contacts(
     try:
         # Load page_size from config if not provided
         if page_size is None:
-            page_size = int(
+            page_size = _coerce_page_size(
                 await system_configs.get_config_value(
                     db, config_key="square_page_size", default_value=20
-                )
+                ),
+                default=20,
             )
 
         # Check rate limit
@@ -184,3 +186,18 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfil
     except Exception as e:
         logger.error("stranger_profile_service_error", qiao_id=qiao_id, error=str(e))
         raise RuntimeError(f"Failed to get stranger profile: {e!s}")
+
+
+def _coerce_page_size(value: JSONValue | None, *, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError as exc:
+            raise ValueError(f"Invalid square_page_size configuration: {value!r}") from exc
+    raise ValueError(f"Unsupported square_page_size type: {type(value).__name__}")

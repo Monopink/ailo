@@ -10,13 +10,12 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from typing import Any
 
 from openai import AsyncOpenAI
 
 from app.exceptions.llm import LLMConfigurationError
 from app.models.llm import LLMConfig, LLMProvider
-from app.type_defs import LLMProviderResult, LLMRequestOptions, PreemptionChecker
+from app.type_defs import JSONDict, LLMProviderResult, LLMRequestOptions, PreemptionChecker
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -49,7 +48,7 @@ class OpenAIBaseAdapter(ABC):
 
     async def send_request(
         self,
-        config: LLMConfig,
+        config: LLMConfig,  # noqa: ARG002
         provider: LLMProvider,
         options: LLMRequestOptions,
         *,
@@ -95,14 +94,14 @@ class OpenAIBaseAdapter(ABC):
     async def build_request_params(
         self,
         options: LLMRequestOptions,
-    ) -> dict[str, Any]:
+    ) -> dict[str, JSONDict]:
         """Construct provider specific parameters."""
 
     @abstractmethod
     async def parse_response(
         self,
-        response: Any,
-        params: dict[str, Any],
+        response: JSONDict,
+        params: dict[str, JSONDict],
         options: LLMRequestOptions,
     ) -> LLMProviderResult:
         """Normalize provider response payload."""
@@ -112,9 +111,9 @@ class OpenAIBaseAdapter(ABC):
         self,
         *,
         client: AsyncOpenAI,
-        params: dict[str, Any],
+        params: dict[str, JSONDict],
         options: LLMRequestOptions,
-    ) -> Any:
+    ) -> JSONDict:
         """
         Execute the non-streaming request using the concrete API method.
         """
@@ -124,7 +123,7 @@ class OpenAIBaseAdapter(ABC):
         self,
         *,
         client: AsyncOpenAI,
-        params: dict[str, Any],
+        params: dict[str, JSONDict],
         options: LLMRequestOptions,
         preemption_checker: PreemptionChecker | None,
     ) -> LLMProviderResult:

@@ -1,5 +1,4 @@
-"""
-AI Instance admin views.
+"""AI Instance admin views.
 
 This module contains Starlette-Admin views for AI instance system.
 """
@@ -76,7 +75,7 @@ class _ProfileRelatedStringField(StringField):
                 return "(No Profile)"
 
             # Profile exists, check field value
-            profile_id, value = row
+            _profile_id, value = row
             if value is None:
                 return None  # Framework will display as -null-
             if value == "":
@@ -797,7 +796,6 @@ class AIInstanceMemoryView(ModelView):
         obj: AIInstanceMemory,
     ) -> None:
         """Ensure foreign keys/user metadata stay in sync."""
-
         errors = {}
         if hasattr(obj, "instance") and obj.instance is not None:
             obj.instance_id = obj.instance.id
@@ -822,7 +820,6 @@ class AIInstanceMemoryView(ModelView):
         obj: AIInstanceMemory,
     ) -> None:
         """Disallow editing ownership; keep derived fields synced."""
-
         if hasattr(obj, "instance") and obj.instance is not None:
             obj.instance_id = obj.instance.id
             obj.instance_qiao_id = getattr(obj.instance, "qiao_id", obj.instance_qiao_id)

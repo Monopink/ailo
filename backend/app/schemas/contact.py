@@ -1,5 +1,4 @@
-"""
-Contact management related schemas.
+"""Contact management related schemas.
 
 This module contains Pydantic schemas for contact relationships and requests.
 """

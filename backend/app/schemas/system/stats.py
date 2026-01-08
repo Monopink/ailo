@@ -1,5 +1,4 @@
-"""
-System statistics related schemas.
+"""System statistics related schemas.
 
 This module contains Pydantic schemas for various system statistics.
 """

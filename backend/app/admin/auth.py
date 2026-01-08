@@ -1,6 +1,4 @@
-"""
-Custom authentication provider for Starlette-Admin with security features.
-"""
+"""Custom authentication provider for Starlette-Admin with security features."""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import FormData
@@ -21,7 +19,7 @@ from app.services.security.auth_tracker import (
     should_require_captcha,
 )
 from app.services.security.captcha.factory import create_captcha_provider
-from app.services.system_config import get_config
+from app.services.system_config import get_config_str
 from app.utils.admin_logs import create_login_log
 from app.utils.logging import get_logger
 
@@ -32,14 +30,10 @@ templates = Jinja2Templates(directory="app/admin/templates")
 
 
 class CustomAuthProvider(AuthProvider):
-    """
-    Custom authentication provider using session-based authentication.
-    """
+    """Custom authentication provider using session-based authentication."""
 
     async def render_login(self, request: Request, admin: BaseAdmin) -> Response:
-        """
-        Handle both GET (display form) and POST (process login) for custom login page.
-        """
+        """Handle both GET (display form) and POST (process login) for custom login page."""
         if request.method == "GET":
             return await self._render_login_form(request, admin)
         if request.method == "POST":
@@ -51,8 +45,11 @@ class CustomAuthProvider(AuthProvider):
         session_factory = get_sessionmaker()
         async with session_factory() as db:
             client_ip = request.client.host if request.client else "unknown"
-            turnstile_site_key = await get_config(
-                db, key="admin_turnstile_site_key", required=False
+            turnstile_site_key = await get_config_str(
+                db,
+                key="admin_turnstile_site_key",
+                required=False,
+                default="",
             )
             show_captcha_raw = await should_require_captcha(client_ip, "admin_auth", db)
             show_captcha = bool(turnstile_site_key) and show_captcha_raw
@@ -258,15 +255,11 @@ class CustomAuthProvider(AuthProvider):
         return RedirectResponse(url=login_url, status_code=303)
 
     async def is_authenticated(self, request: Request) -> bool:
-        """
-        Check if user is authenticated.
-        """
+        """Check if user is authenticated."""
         return request.session.get("admin_user") is not None
 
     def get_admin_config(self, request: Request) -> AdminConfig | None:
-        """
-        Get admin configuration for current user.
-        """
+        """Get admin configuration for current user."""
         admin_user_data = request.session.get("admin_user")
         if not admin_user_data:
             return None
@@ -277,9 +270,7 @@ class CustomAuthProvider(AuthProvider):
         )
 
     def get_admin_user(self, request: Request) -> AdminUser | None:
-        """
-        Get current admin user.
-        """
+        """Get current admin user."""
         admin_user_data = request.session.get("admin_user")
         if not admin_user_data:
             return None
@@ -290,9 +281,7 @@ class CustomAuthProvider(AuthProvider):
         )
 
     async def render_logout(self, request: Request, admin: BaseAdmin) -> Response:
-        """
-        Handle admin logout with custom logic.
-        """
+        """Handle admin logout with custom logic."""
         admin_user_data = request.session.get("admin_user")
         if admin_user_data:
             logger.info("admin_logout", username=admin_user_data["username"])

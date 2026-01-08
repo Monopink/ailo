@@ -1,5 +1,4 @@
-"""
-AI style related schemas.
+"""AI style related schemas.
 
 This module contains Pydantic schemas for AI styles and relationships.
 """
@@ -212,8 +211,7 @@ class AIDimensionRelationshipMappingResponse(AIDimensionRelationshipMappingBase)
 
 
 class RelationshipMappingDetail(BaseModel):
-    """
-    Detailed relationship mapping with dimension and relationship info.
+    """Detailed relationship mapping with dimension and relationship info.
 
     Used by CRUD layer when returning joined query results.
     """
@@ -231,8 +229,7 @@ class RelationshipMappingDetail(BaseModel):
 
 
 class RelationshipMappingWithDimension(BaseModel):
-    """
-    Relationship mapping with full dimension and relationship objects.
+    """Relationship mapping with full dimension and relationship objects.
 
     Used for detailed style relationship queries.
     """
@@ -247,8 +244,7 @@ class RelationshipMappingWithDimension(BaseModel):
 
 
 class StyleWithRelationships(BaseModel):
-    """
-    Style with its relationship mappings.
+    """Style with its relationship mappings.
 
     Used by CRUD layer when returning style with joined relationship data.
     """

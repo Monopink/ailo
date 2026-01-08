@@ -10,8 +10,8 @@ from structlog.typing import EventDict, Processor, WrappedLogger
 
 
 def format_log_level(_logger: WrappedLogger, _name: str, event_dict: EventDict) -> EventDict:
-    """
-    Map python log levels to short uppercase names.
+    """Map python log levels to short uppercase names.
+
     e.g., 'warning' -> 'WARN', 'critical' -> 'FATAL'
     """
     level_map = {
@@ -31,8 +31,8 @@ def configure_logging(
     log_dir: str = "./logs",
     service_name: str = "backend",
 ) -> None:
-    """
-    Configure structured logging for the backend.
+    """Configure structured logging for the backend.
+
     This setup ensures that logs are processed as JSON and saved to files.
 
     Args:
@@ -40,6 +40,7 @@ def configure_logging(
         log_format: Log format (json, text)
         log_dir: Directory to store log files
         service_name: Name of the service for log identification
+
     """
     # Ensure logs directory exists
     log_dir_path = Path(log_dir)
@@ -114,32 +115,51 @@ def configure_logging(
 class BoundLoggerProtocol(Protocol):
     """Subset of structlog BoundLogger used by the application."""
 
-    def bind(self, **kwargs: object) -> "BoundLoggerProtocol": ...
-    def debug(self, event: str, **kwargs: object) -> object: ...
-    def info(self, event: str, **kwargs: object) -> object: ...
-    def warning(self, event: str, **kwargs: object) -> object: ...
-    def error(self, event: str, **kwargs: object) -> object: ...
-    def critical(self, event: str, **kwargs: object) -> object: ...
-    def exception(self, event: str, **kwargs: object) -> object: ...
+    def bind(self, **kwargs: object) -> "BoundLoggerProtocol":
+        """Bind context data to the logger."""
+        ...
+
+    def debug(self, event: str, **kwargs: object) -> object:
+        """Log a debug-level event."""
+        ...
+
+    def info(self, event: str, **kwargs: object) -> object:
+        """Log an info-level event."""
+        ...
+
+    def warning(self, event: str, **kwargs: object) -> object:
+        """Log a warning-level event."""
+        ...
+
+    def error(self, event: str, **kwargs: object) -> object:
+        """Log an error-level event."""
+        ...
+
+    def critical(self, event: str, **kwargs: object) -> object:
+        """Log a critical-level event."""
+        ...
+
+    def exception(self, event: str, **kwargs: object) -> object:
+        """Log an exception event."""
+        ...
 
 
 def get_logger(name: str | None = None) -> BoundLoggerProtocol:
-    """
-    Get a preconfigured structured logger
+    """Get a preconfigured structured logger.
 
     Args:
         name: Name of the logger, defaults to calling module name
 
     Returns:
         structlog.BoundLogger: The structured logger instance
+
     """
     logger = structlog.get_logger(name)
     return cast(BoundLoggerProtocol, logger)
 
 
 def bind_context(logger: BoundLoggerProtocol, **kwargs: object) -> BoundLoggerProtocol:
-    """
-    Bind context data to a logger
+    """Bind context data to a logger.
 
     Args:
         logger: The logger to bind context to
@@ -147,6 +167,7 @@ def bind_context(logger: BoundLoggerProtocol, **kwargs: object) -> BoundLoggerPr
 
     Returns:
         structlog.BoundLogger: A new logger with bound context
+
     """
     return logger.bind(**kwargs)
 
@@ -158,8 +179,7 @@ def log_with_context(
     context: Mapping[str, object] | None = None,
     **kwargs: object,
 ) -> None:
-    """
-    Log an event with context
+    """Log an event with context.
 
     Args:
         logger: The structured logger
@@ -167,6 +187,7 @@ def log_with_context(
         event: Event description
         context: Additional context data
         **kwargs: Other key-value pairs to log
+
     """
     log_method = cast(Callable[..., object], getattr(logger, level))
 

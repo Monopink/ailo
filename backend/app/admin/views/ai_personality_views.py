@@ -1,5 +1,4 @@
-"""
-AI Personality admin views.
+"""AI Personality admin views.
 
 This module contains Starlette-Admin views for AI personality system.
 """

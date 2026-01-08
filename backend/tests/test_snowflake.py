@@ -1,14 +1,13 @@
 """Tests for Snowflake ID generator."""
 
 import time
-from datetime import datetime
 
 import pytest
 
-from app.utils.snowflake import SnowflakeGenerator, generate_snowflake_id, init_snowflake
+from app.utils.snowflake import SnowflakeGenerator, generate_snowflake_id
 
 
-def test_snowflake_generator_initialization():
+def test_snowflake_generator_initialization() -> None:
     """Test SnowflakeGenerator initialization with valid parameters."""
     generator = SnowflakeGenerator(datacenter_id=1, machine_id=1)
     assert generator.datacenter_id == 1
@@ -16,7 +15,7 @@ def test_snowflake_generator_initialization():
     assert generator.sequence == 0
 
 
-def test_snowflake_generator_invalid_datacenter_id():
+def test_snowflake_generator_invalid_datacenter_id() -> None:
     """Test SnowflakeGenerator raises error for invalid datacenter_id."""
     with pytest.raises(ValueError, match="Datacenter ID must be between 0 and 31"):
         SnowflakeGenerator(datacenter_id=32, machine_id=1)
@@ -25,7 +24,7 @@ def test_snowflake_generator_invalid_datacenter_id():
         SnowflakeGenerator(datacenter_id=-1, machine_id=1)
 
 
-def test_snowflake_generator_invalid_machine_id():
+def test_snowflake_generator_invalid_machine_id() -> None:
     """Test SnowflakeGenerator raises error for invalid machine_id."""
     with pytest.raises(ValueError, match="Machine ID must be between 0 and 31"):
         SnowflakeGenerator(datacenter_id=1, machine_id=32)
@@ -34,7 +33,7 @@ def test_snowflake_generator_invalid_machine_id():
         SnowflakeGenerator(datacenter_id=1, machine_id=-1)
 
 
-def test_snowflake_id_generation():
+def test_snowflake_id_generation() -> None:
     """Test ID generation produces unique IDs."""
     generator = SnowflakeGenerator(datacenter_id=1, machine_id=1)
 
@@ -48,7 +47,7 @@ def test_snowflake_id_generation():
     assert all(isinstance(id_, int) and id_ > 0 for id_ in ids)
 
 
-def test_snowflake_id_monotonicity():
+def test_snowflake_id_monotonicity() -> None:
     """Test that IDs are monotonically increasing within same millisecond."""
     generator = SnowflakeGenerator(datacenter_id=1, machine_id=1)
 
@@ -59,7 +58,7 @@ def test_snowflake_id_monotonicity():
     assert ids == sorted(ids)
 
 
-def test_snowflake_id_components():
+def test_snowflake_id_components() -> None:
     """Test that ID components are correctly encoded."""
     datacenter_id = 5
     machine_id = 10
@@ -68,7 +67,8 @@ def test_snowflake_id_components():
     id_ = generator.generate_id()
 
     # Extract components from ID
-    # Snowflake ID structure: [timestamp(41 bits)][datacenter(5 bits)][machine(5 bits)][sequence(12 bits)]
+    # Snowflake ID structure: [timestamp(41 bits)][datacenter(5 bits)]
+    # [machine(5 bits)][sequence(12 bits)]
     extracted_sequence = id_ & 0xFFF  # Last 12 bits
     extracted_machine = (id_ >> 12) & 0x1F  # Next 5 bits
     extracted_datacenter = (id_ >> 17) & 0x1F  # Next 5 bits
@@ -78,15 +78,15 @@ def test_snowflake_id_components():
     assert 0 <= extracted_sequence < 4096
 
 
-def test_snowflake_id_timestamp():
+def test_snowflake_id_timestamp() -> None:
     """Test that timestamp component in ID is reasonable."""
     generator = SnowflakeGenerator(datacenter_id=1, machine_id=1)
 
     # Get timestamp relative to custom epoch (not wall clock time)
-    CUSTOM_EPOCH = 1704067200000  # 2024-01-01 00:00:00 UTC in milliseconds
-    before = int(time.time() * 1000) - CUSTOM_EPOCH
+    custom_epoch = 1704067200000  # 2024-01-01 00:00:00 UTC in milliseconds
+    before = int(time.time() * 1000) - custom_epoch
     id_ = generator.generate_id()
-    after = int(time.time() * 1000) - CUSTOM_EPOCH
+    after = int(time.time() * 1000) - custom_epoch
 
     # Extract timestamp from ID (41 bits, shifted by 22 bits)
     # This is time since custom epoch, not wall clock time
@@ -96,7 +96,7 @@ def test_snowflake_id_timestamp():
     assert before <= extracted_timestamp <= after + 1
 
 
-def test_global_snowflake_initialization():
+def test_global_snowflake_initialization() -> None:
     """Test global snowflake generator initialization."""
     # init_snowflake is already called in conftest.py
     # Just test that generate_snowflake_id works
@@ -106,7 +106,7 @@ def test_global_snowflake_initialization():
     assert id_ > 0
 
 
-def test_global_snowflake_generates_unique_ids():
+def test_global_snowflake_generates_unique_ids() -> None:
     """Test that global generator produces unique IDs."""
     ids = [generate_snowflake_id() for _ in range(100)]
 
@@ -117,7 +117,7 @@ def test_global_snowflake_generates_unique_ids():
     assert sorted(ids) == ids
 
 
-def test_snowflake_sequence_rollover():
+def test_snowflake_sequence_rollover() -> None:
     """Test that sequence counter rolls over correctly within same millisecond."""
     generator = SnowflakeGenerator(datacenter_id=1, machine_id=1)
 

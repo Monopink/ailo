@@ -5,15 +5,17 @@ This service tests whether an LLM configuration supports JSON Schema mode
 and automatically updates the json_schema_mode field based on the result.
 """
 
+from __future__ import annotations
+
 import time
 from datetime import UTC, datetime
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.llm import LLMConfig, LLMProvider, LLMTestLog
 from app.services.llm.client import invoke_llm
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +24,7 @@ logger = get_logger(__name__)
 async def test_json_schema_compatibility(
     db: AsyncSession,
     config_id: int,
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Test JSON Schema compatibility for an LLM configuration.
 
@@ -48,7 +50,7 @@ async def test_json_schema_compatibility(
     config, provider = row
 
     # Define fixed test schema
-    test_schema = {
+    test_schema: JSONDict = {
         "type": "object",
         "properties": {"test_field": {"type": "string", "description": "A test field"}},
         "required": ["test_field"],
@@ -57,11 +59,11 @@ async def test_json_schema_compatibility(
 
     # Test message
     test_message = "Please respond with a JSON object containing a test_field with value 'success'"
-    test_messages = [{"role": "user", "content": test_message}]
+    test_messages: list[JSONDict] = [{"role": "user", "content": test_message}]
 
     start_time = time.time()
-    llm_result = None
-    test_log = None
+    llm_result: JSONDict | None = None
+    test_log: LLMTestLog | None = None
 
     try:
         # Attempt to call LLM with JSON Schema
@@ -120,7 +122,10 @@ async def test_json_schema_compatibility(
             return {
                 "success": True,
                 "mode": "strict",
-                "message": f"✅ JSON Schema is supported! Mode updated from '{old_mode}' to 'strict' (AI Instance ready)",
+                "message": (
+                    "✅ JSON Schema is supported! Mode updated from "
+                    f"'{old_mode}' to 'strict' (AI Instance ready)"
+                ),
                 "response": llm_result.get("response"),
                 "usage": usage,
                 "model": llm_result.get("model"),
@@ -160,7 +165,10 @@ async def test_json_schema_compatibility(
         return {
             "success": False,
             "mode": config.json_schema_mode,  # Keep current mode
-            "message": f"⚠️ Test failed: {error_msg}. Mode unchanged (still '{config.json_schema_mode}')",
+            "message": (
+                f"⚠️ Test failed: {error_msg}. Mode unchanged "
+                f"(still '{config.json_schema_mode}')"
+            ),
             "test_log_id": test_log.id,
         }
 
@@ -212,7 +220,11 @@ async def test_json_schema_compatibility(
             return {
                 "success": False,
                 "mode": "disabled",
-                "message": f"❌ JSON Schema is NOT supported (verified). Mode updated from '{old_mode}' to 'disabled'. Error: {e!s}",
+                "message": (
+                    "❌ JSON Schema is NOT supported (verified). "
+                    f"Mode updated from '{old_mode}' to 'disabled'. "
+                    f"Error: {e!s}"
+                ),
                 "error": str(e),
                 "test_log_id": test_log.id,
             }
@@ -250,7 +262,9 @@ async def test_json_schema_compatibility(
         return {
             "success": False,
             "mode": config.json_schema_mode,  # Keep current mode
-            "message": f"⚠️ Test error: {e!s}. Mode unchanged (still '{config.json_schema_mode}')",
+            "message": (
+                f"⚠️ Test error: {e!s}. Mode unchanged " f"(still '{config.json_schema_mode}')"
+            ),
             "error": str(e),
             "test_log_id": test_log.id,
         }

@@ -7,13 +7,11 @@ use streaming or fallback to standard responses.
 
 from __future__ import annotations
 
-from typing import Any
-
 from app.models.llm import LLMConfig, LLMProvider
-from app.type_defs import LLMStreamingDecision
+from app.type_defs import JSONDict, LLMStreamingDecision
 
 
-def extract_stream_override(overrides: dict[str, Any] | None) -> bool | None:
+def extract_stream_override(overrides: JSONDict | None) -> bool | None:
     """Return per-request streaming override if provided."""
     if not isinstance(overrides, dict):
         return None
@@ -73,7 +71,7 @@ def resolve_streaming_decision(
     )
 
 
-def _coerce_bool(value: Any) -> bool | None:
+def _coerce_bool(value: object) -> bool | None:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):

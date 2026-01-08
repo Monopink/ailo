@@ -1,5 +1,4 @@
-"""
-Email utility functions
+"""Email utility functions.
 
 Handles email validation and masking.
 """
@@ -12,14 +11,14 @@ logger = get_logger(__name__)
 
 
 def validate_email(email: str) -> bool:
-    """
-    Validate email format
+    """Validate email format.
 
     Args:
         email: Email address to validate
 
     Returns:
         True if valid, False otherwise
+
     """
     if not email:
         return False
@@ -30,8 +29,7 @@ def validate_email(email: str) -> bool:
 
 
 def mask_email(email: str) -> str:
-    """
-    Mask email address for display
+    """Mask email address for display.
 
     Format: first_letter + *** + @ + domain
     Example: user@example.com → u***@example.com
@@ -41,6 +39,7 @@ def mask_email(email: str) -> str:
 
     Returns:
         Masked email address
+
     """
     if not email or "@" not in email:
         return email

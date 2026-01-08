@@ -6,7 +6,7 @@ asynchronous message sending tasks.
 """
 
 import asyncio
-from typing import Any, cast
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -40,19 +40,19 @@ async def process_llm_response(
     user_qiao_id: str,
     instance_qiao_id: str,
     instance_context: InstanceContext,
-    ai_response: dict[str, Any],
-    llm_result: dict[str, Any],
+    ai_response: JSONDict,
+    llm_result: JSONDict,
     locked_buffer_id: int | None,
     user_message_item_id: int | None,
-) -> dict[str, Any]:
+) -> JSONDict:
     """Persist side effects from one LLM response and emit outgoing messages."""
 
     try:
-        new_scores = ai_response.get("score")
+        score_updates = _normalize_score_payload(ai_response.get("score"))
 
-        if new_scores:
+        if score_updates:
             await update_instance_relationship_scores(
-                db, instance_context["instance_id"], new_scores
+                db, instance_context["instance_id"], score_updates
             )
 
             latest_scores = await get_instance_relationship_scores(
@@ -119,9 +119,9 @@ async def process_llm_response(
         )
         raise
 
-    outgoing_messages = ai_response.get("outgoing_messages", [])
-    followup_messages = ai_response.get("followup_messages", [])
-    should_reply = ai_response.get("should_reply", True)
+    outgoing_messages: list[str] = _coerce_string_list(ai_response.get("outgoing_messages"))
+    followup_messages: list[str] = _coerce_string_list(ai_response.get("followup_messages"))
+    should_reply = bool(ai_response.get("should_reply", True))
 
     if should_reply and (outgoing_messages or followup_messages):
         typing_speed_seconds_per_word = await _resolve_typing_speed_seconds_per_word(
@@ -188,7 +188,7 @@ async def _resolve_followup_delay_seconds(db: AsyncSession, instance_qiao_id: st
     return followup_delay_ms / 1000.0
 
 
-def _normalize_memory_operations(value: Any) -> JSONDict:
+def _normalize_memory_operations(value: JSONValue | None) -> JSONDict:
     """Normalize LLM-provided memory operations into canonical structure."""
     normalized: JSONDict = {"remove": [], "update": [], "refresh": [], "add": []}
     if not isinstance(value, dict):
@@ -246,6 +246,42 @@ def _normalize_memory_operations(value: Any) -> JSONDict:
     return normalized
 
 
+def _normalize_score_payload(score_value: JSONValue | None) -> dict[str, int]:
+    """Convert JSON payload into normalized integer mapping."""
+    if not isinstance(score_value, dict):
+        return {}
+
+    normalized: dict[str, int] = {}
+    for key, value in score_value.items():
+        coerced_value = _coerce_score_value(value)
+        if coerced_value is not None:
+            normalized[key] = coerced_value
+    return normalized
+
+
+def _coerce_score_value(value: JSONValue) -> int | None:
+    """Convert JSON scalar score values into ints."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int | float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _coerce_string_list(value: JSONValue | None) -> list[str]:
+    """Ensure a JSON value is returned as a string list."""
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, str)]
+    if isinstance(value, str):
+        return [value]
+    return []
+
+
 def _coerce_delay_value(value: JSONValue | None) -> float | None:
     """Convert JSON-style delay values to floats."""
     if isinstance(value, bool):
@@ -260,7 +296,7 @@ def _coerce_delay_value(value: JSONValue | None) -> float | None:
     return None
 
 
-def _log_send_task_failure(task: asyncio.Task[Any]) -> None:
+def _log_send_task_failure(task: asyncio.Task[JSONDict | None]) -> None:
     """Log any exceptions raised by the background send task."""
     try:
         task.result()

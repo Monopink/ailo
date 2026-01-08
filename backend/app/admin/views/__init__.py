@@ -1,5 +1,4 @@
-"""
-Model views aggregator for Starlette-Admin.
+"""Model views aggregator for Starlette-Admin.
 
 This module imports all model views from different categories and provides
 a unified interface for the admin panel setup.

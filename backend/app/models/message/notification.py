@@ -1,5 +1,4 @@
-"""
-Notification push history model.
+"""Notification push history model.
 
 This module contains SQLAlchemy model for notification push history.
 """
@@ -16,8 +15,7 @@ from app.type_defs import JSONDict
 
 
 class NotificationPushHistory(SnowflakeModel):
-    """
-    Notification push history model.
+    """Notification push history model.
 
     Tracks all notification messages sent to users.
     Used for debugging, analytics, and potential retry logic.

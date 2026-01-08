@@ -1,5 +1,4 @@
-"""
-CRUD helpers for AI memories.
+"""CRUD helpers for AI memories.
 
 This module exposes strongly typed CRUD helpers for template memories and
 instance memories so that services/admin APIs can reuse consistent DB access.
@@ -31,7 +30,6 @@ class CRUDAITemplateMemory(
         self, db: AsyncSession, *, template_id: int
     ) -> list[AITemplateMemory]:
         """Return all memories belonging to the specified template ordered by display_order."""
-
         stmt = (
             select(self.model)
             .where(self.model.template_id == template_id)
@@ -54,7 +52,6 @@ class CRUDAIInstanceMemory(
         include_archived: bool = False,
     ) -> list[AIInstanceMemory]:
         """Return memories for an instance, optionally filtering out archived rows."""
-
         stmt = select(self.model).where(self.model.instance_id == instance_id)
         if not include_archived:
             stmt = stmt.where(self.model.status == 1)
@@ -70,7 +67,6 @@ class CRUDAIInstanceMemory(
         self, db: AsyncSession, *, limit: int = 100
     ) -> Sequence[AIInstanceMemory]:
         """Return recent memories that are close to expiration for monitoring/ops."""
-
         stmt = (
             select(self.model)
             .where(

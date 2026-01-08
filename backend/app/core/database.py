@@ -19,9 +19,12 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+class DatabaseInitializationError(RuntimeError):
+    """Raised when the database fails to initialize."""
+
+
 def _create_engine(settings: Settings) -> AsyncEngine:
     """Create a configured AsyncEngine for the application."""
-
     echo_sql = getattr(settings, "POSTGRES_ECHO", False)
     return create_async_engine(
         settings.database_url,
@@ -41,14 +44,12 @@ def _create_engine(settings: Settings) -> AsyncEngine:
 @lru_cache
 def get_engine() -> AsyncEngine:
     """Return cached AsyncEngine instance."""
-
     return _create_engine(get_settings())
 
 
 @lru_cache
 def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     """Return cached session factory bound to the engine."""
-
     return async_sessionmaker(
         autocommit=False,
         autoflush=False,
@@ -60,7 +61,6 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to provide a managed database session."""
-
     session_factory = get_sessionmaker()
     async with session_factory() as session:
         try:
@@ -75,7 +75,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_database() -> None:
     """Initialize database connection with retry mechanism."""
-
     max_retries = 10
     retry_count = 0
     base_delay = 1
@@ -98,7 +97,7 @@ async def init_database() -> None:
                 logger.critical(
                     "database_initialization_failed", error=str(e), attempts=max_retries
                 )
-                raise Exception(error_msg) from e
+                raise DatabaseInitializationError(error_msg) from e
 
             delay = min(base_delay * (2 ** (retry_count - 1)), max_delay)
             logger.warning(
@@ -108,12 +107,11 @@ async def init_database() -> None:
         except Exception as e:
             error_msg = "Unexpected error during database initialization"
             logger.critical("unexpected_database_initialization_error", error=str(e), exc_info=True)
-            raise Exception(error_msg) from e
+            raise DatabaseInitializationError(error_msg) from e
 
 
 async def close_database() -> None:
     """Close database connections."""
-
     try:
         await get_engine().dispose()
         logger.info("database_connections_closed")
@@ -123,6 +121,5 @@ async def close_database() -> None:
 
 def reset_database_state() -> None:
     """Clear cached engine and session maker (useful for tests)."""
-
     get_sessionmaker.cache_clear()
     get_engine.cache_clear()

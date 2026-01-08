@@ -1,5 +1,4 @@
-"""
-Custom views for advanced editing in AI models.
+"""Custom views for advanced editing in AI models.
 Provides specialized editing interfaces for prompt_variables and position_mapping_params.
 """
 

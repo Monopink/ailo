@@ -33,14 +33,14 @@ async def get_llm_config(
     if name:
         config = await llm_config.get_by_name(db, name=name)
     elif config_id:
-        config = await llm_config.get(db, id=config_id)
+        config = await llm_config.get(db, record_id=config_id)
     else:
         return None
 
     if not config:
         return None
 
-    provider = await llm_provider.get(db, id=config.provider_id)
+    provider = await llm_provider.get(db, record_id=config.provider_id)
     if not provider:
         return None
 
@@ -61,7 +61,7 @@ async def get_primary_config(db: AsyncSession) -> tuple[LLMConfig, LLMProvider] 
     if not config:
         return None
 
-    provider = await llm_provider.get(db, id=config.provider_id)
+    provider = await llm_provider.get(db, record_id=config.provider_id)
     if not provider:
         return None
 
@@ -97,7 +97,7 @@ async def get_active_configs(
 
     result = []
     for config in configs:
-        provider = await llm_provider.get(db, id=config.provider_id)
+        provider = await llm_provider.get(db, record_id=config.provider_id)
         if provider:
             result.append((config, provider))
 

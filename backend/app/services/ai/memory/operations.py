@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai.memory import AIInstanceMemory
-from app.type_defs import InstanceContext, JSONDict
+from app.type_defs import InstanceContext, JSONDict, JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,6 +17,18 @@ logger = get_logger(__name__)
 MIN_IMPORTANCE = 1
 MAX_IMPORTANCE = 10
 RECENT_LIFETIME_MULTIPLIER = 10
+
+
+def _coerce_str_list(value: JSONValue | None) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    return [item for item in value if isinstance(item, str)]
+
+
+def _coerce_json_dict_list(value: JSONValue | None) -> list[JSONDict] | None:
+    if not isinstance(value, list):
+        return None
+    return [item for item in value if isinstance(item, dict)]
 
 
 async def process_memory_operations(
@@ -43,16 +54,16 @@ async def process_memory_operations(
     user_qiao_id = context["user_qiao_id"]
 
     try:
-        await _apply_remove(db, instance_id, operations.get("remove"))
-        await _apply_update(db, instance_id, operations.get("update"))
-        await _apply_refresh(db, instance_id, operations.get("refresh"))
+        await _apply_remove(db, instance_id, _coerce_str_list(operations.get("remove")))
+        await _apply_update(db, instance_id, _coerce_json_dict_list(operations.get("update")))
+        await _apply_refresh(db, instance_id, _coerce_str_list(operations.get("refresh")))
         await _apply_add(
             db,
             user_id=user_id,
             user_qiao_id=user_qiao_id,
             instance_id=instance_id,
             instance_qiao_id=instance_qiao_id,
-            payloads=operations.get("add"),
+            payloads=_coerce_json_dict_list(operations.get("add")),
             source_message_id=source_message_id,
         )
         await db.flush()
@@ -68,7 +79,7 @@ async def process_memory_operations(
         return True
 
 
-async def _apply_remove(db: AsyncSession, instance_id: int, items: Any) -> None:
+async def _apply_remove(db: AsyncSession, instance_id: int, items: Sequence[str] | None) -> None:
     if not isinstance(items, list):
         return
 
@@ -87,7 +98,11 @@ async def _apply_remove(db: AsyncSession, instance_id: int, items: Any) -> None:
         memory.updated_at = datetime.now(UTC)
 
 
-async def _apply_update(db: AsyncSession, instance_id: int, items: Any) -> None:
+async def _apply_update(
+    db: AsyncSession,
+    instance_id: int,
+    items: Sequence[JSONDict] | None,
+) -> None:
     if not isinstance(items, list):
         return
 
@@ -116,7 +131,7 @@ async def _apply_update(db: AsyncSession, instance_id: int, items: Any) -> None:
         _reset_expiration(memory, last_refresh=memory.refreshed_at or memory.created_at)
 
 
-async def _apply_refresh(db: AsyncSession, instance_id: int, items: Any) -> None:
+async def _apply_refresh(db: AsyncSession, instance_id: int, items: Sequence[str] | None) -> None:
     if not isinstance(items, list):
         return
 
@@ -143,7 +158,7 @@ async def _apply_add(
     user_qiao_id: str,
     instance_id: int,
     instance_qiao_id: str,
-    payloads: Any,
+    payloads: Sequence[JSONDict] | None,
     source_message_id: int | None,
 ) -> None:
     if not isinstance(payloads, list):

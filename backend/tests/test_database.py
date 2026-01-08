@@ -6,14 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_database_connection(db_session: AsyncSession):
+async def test_database_connection(db_session: AsyncSession) -> None:
     """Test that database connection works."""
     result = await db_session.execute(text("SELECT 1"))
     assert result.scalar() == 1
 
 
 @pytest.mark.asyncio
-async def test_database_version(db_session: AsyncSession):
+async def test_database_version(db_session: AsyncSession) -> None:
     """Test that PostgreSQL version can be retrieved."""
     result = await db_session.execute(text("SELECT version()"))
     version = result.scalar()
@@ -23,7 +23,7 @@ async def test_database_version(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_database_current_database(db_session: AsyncSession):
+async def test_database_current_database(db_session: AsyncSession) -> None:
     """Test that we're connected to the correct database."""
     result = await db_session.execute(text("SELECT current_database()"))
     db_name = result.scalar()
@@ -32,7 +32,7 @@ async def test_database_current_database(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_database_tables_exist(db_session: AsyncSession):
+async def test_database_tables_exist(db_session: AsyncSession) -> None:
     """Test that essential tables exist in the database."""
     # Check if users table exists
     result = await db_session.execute(

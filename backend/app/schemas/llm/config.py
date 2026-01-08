@@ -1,5 +1,4 @@
-"""
-LLM configuration schemas.
+"""LLM configuration schemas.
 
 This module contains Pydantic schemas for LLM configurations.
 """

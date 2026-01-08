@@ -1,5 +1,4 @@
-"""
-Security monitoring related admin views.
+"""Security monitoring related admin views.
 
 This module contains Starlette-Admin views for managing user security logs and statistics.
 """

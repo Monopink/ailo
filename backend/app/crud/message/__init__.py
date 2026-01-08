@@ -1,5 +1,4 @@
-"""
-Message system CRUD operations module.
+"""Message system CRUD operations module.
 
 This module imports all message-related CRUD operations.
 """

@@ -8,9 +8,9 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.message.providers.base import MessageProvider, MessageResult
 from app.services.message.schemas import InboundMessageEvent
 
-from ..base import MessageProvider, MessageResult
 from . import service
 
 
@@ -21,7 +21,7 @@ class LeanCloudProvider:
     This class adapts the functional service layer to the MessageProvider protocol.
     """
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def initialize_service(self) -> bool:

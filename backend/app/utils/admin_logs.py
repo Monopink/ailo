@@ -1,5 +1,5 @@
-"""
-Admin logging utilities.
+"""Admin logging utilities.
+
 Provides both operation logging and login logging functionality.
 """
 
@@ -22,8 +22,7 @@ async def create_operation_log(
     resource_name: str | None = None,
     request: Request | None = None,
 ) -> None:
-    """
-    Create an operation log entry.
+    """Create an operation log entry.
 
     Args:
         db: Database session
@@ -34,6 +33,7 @@ async def create_operation_log(
         resource_id: ID of the resource (optional)
         resource_name: Name of the resource (optional)
         request: FastAPI request object for IP and user agent (optional)
+
     """
     try:
         log_data = {
@@ -83,8 +83,7 @@ async def create_login_log(
     fail_reason: str | None = None,
     request: Request | None = None,
 ) -> None:
-    """
-    Create a login log entry.
+    """Create a login log entry.
 
     Args:
         db: Database session
@@ -93,6 +92,7 @@ async def create_login_log(
         admin_user_id: ID of admin user (None for failed logins with invalid username)
         fail_reason: Reason for failure (if applicable)
         request: FastAPI request object for IP and user agent (optional)
+
     """
     try:
         log_data = {

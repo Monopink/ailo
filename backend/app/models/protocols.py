@@ -1,5 +1,4 @@
-"""
-Protocols that describe shared fields on SQLAlchemy models.
+"""Protocols that describe shared fields on SQLAlchemy models.
 
 These structural types are used purely for type checking so that the CRUD layer
 can safely access attributes like ``id`` or ``status`` without tripping
@@ -12,8 +11,7 @@ from typing import Any, Protocol
 
 
 class IdModelProtocol(Protocol):
-    """
-    Model with an integer or Snowflake-based primary key.
+    """Model with an integer or Snowflake-based primary key.
 
     For SQLAlchemy models, class-level access (e.g., ``Model.id``) returns an
     instrumented attribute rather than the runtime Python type. We therefore

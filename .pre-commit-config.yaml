@@ -61,7 +61,6 @@ repos:
           [
             "--config-file=pyproject.toml",
             "--no-error-summary",
-            "--follow-imports=silent",
           ]
 
       # import-linter - Architecture contracts

@@ -1,5 +1,4 @@
-"""
-Discovery API endpoints.
+"""Discovery API endpoints.
 
 This module contains API endpoints for discovery page operations.
 """

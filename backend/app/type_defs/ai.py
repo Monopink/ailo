@@ -1,5 +1,4 @@
-"""
-Shared AI service data structures.
+"""Shared AI service data structures.
 
 Defines strict TypedDict models used across AI services to keep
 instance-related data consistent and detached from ORM objects.

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud.message import media_file as media_file_crud
 from app.enums import FileType
 from app.services.media.rules import get_file_type_rule
-from app.services.system_config import get_config
+from app.services.system_config import get_config_int
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,8 +32,8 @@ async def enforce_daily_quota(
     if not rule:
         raise HTTPException(status_code=400, detail="当前仅支持头像上传")
 
-    daily_quota = int(await get_config(db, rule.daily_quota_key))
-    daily_size_limit_mb = int(await get_config(db, rule.daily_size_quota_key))
+    daily_quota = await get_config_int(db, rule.daily_quota_key)
+    daily_size_limit_mb = await get_config_int(db, rule.daily_size_quota_key)
     daily_size_limit_bytes = daily_size_limit_mb * 1024 * 1024
 
     day_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)

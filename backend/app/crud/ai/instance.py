@@ -1,11 +1,8 @@
-"""
-AI instance CRUD operations.
+"""AI instance CRUD operations.
 
 This module provides both standard CRUD operations and complex queries
 for AI instance management.
 """
-
-from typing import Any
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,8 +21,7 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
     """AI instance CRUD operations with usage tracking."""
 
     async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> AIInstance | None:
-        """
-        Get instance by qiao_id.
+        """Get instance by qiao_id.
 
         Args:
             db: Database session
@@ -33,6 +29,7 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
 
         Returns:
             Instance object or None if not found
+
         """
         try:
             result = await db.execute(select(AIInstance).where(AIInstance.qiao_id == qiao_id))
@@ -47,8 +44,7 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
     async def get_user_instances(
         self, db: AsyncSession, *, user_qiao_id: str, skip: int = 0, limit: int = 100
     ) -> list[AIInstance]:
-        """
-        Get instances belonging to a specific user.
+        """Get instances belonging to a specific user.
 
         Args:
             db: Database session
@@ -58,6 +54,7 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
 
         Returns:
             List of instances
+
         """
         try:
             result = await db.execute(
@@ -89,18 +86,19 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
     async def create(
         self, db: AsyncSession, *, obj_in: AIInstanceCreate, commit: bool = True
     ) -> AIInstance:
-        """
-        Create a new AI instance and update usage counts.
+        """Create a new AI instance and update usage counts.
 
         Args:
             db: Database session
             obj_in: Instance creation schema
+            commit: Whether to commit the transaction after creation
 
         Returns:
             Created instance object
 
         Raises:
             Exception: If creation or usage tracking fails
+
         """
         try:
             # Map schema fields to model fields to avoid invalid kwargs
@@ -143,37 +141,37 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
             logger.error("instance_creation_failed", error=str(e))
             raise
 
-    async def remove(self, db: AsyncSession, *, id: Any) -> AIInstance | None:
-        """
-        Remove an AI instance and update usage counts.
+    async def remove(self, db: AsyncSession, *, record_id: object) -> AIInstance | None:
+        """Remove an AI instance and update usage counts.
 
         Args:
             db: Database session
-            id: Instance ID
+            record_id: Instance ID
 
         Returns:
             Removed instance or None if not found
 
         Raises:
             Exception: If removal or usage tracking fails
+
         """
         try:
             # Get instance first to access personality_id and style_id
-            instance = await self.get(db, id=id)
+            instance = await self.get(db, record_id=record_id)
 
             if not instance:
-                logger.warning("instance_not_found_for_removal", instance_id=id)
+                logger.warning("instance_not_found_for_removal", instance_id=record_id)
                 return None
 
             personality_id = instance.personality_id
             style_id = instance.style_id
 
             # Remove instance using base class method
-            removed_instance = await super().remove(db, id=id)
+            removed_instance = await super().remove(db, record_id=record_id)
 
             logger.info(
                 "instance_removed",
-                instance_id=id,
+                instance_id=record_id,
                 personality_id=personality_id,
                 style_id=style_id,
             )
@@ -181,7 +179,11 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
             return removed_instance
 
         except Exception as e:
-            logger.error("instance_removal_failed", error=str(e), instance_id=id)
+            logger.error(
+                "instance_removal_failed",
+                error=str(e),
+                instance_id=record_id,
+            )
             raise
 
 

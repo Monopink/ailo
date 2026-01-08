@@ -1,5 +1,4 @@
-"""
-System schemas module.
+"""System schemas module.
 
 This module imports all system-related Pydantic schemas.
 """

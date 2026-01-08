@@ -6,13 +6,12 @@ Handles LeanCloud-specific format conversion without business logic.
 
 import json
 import time
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.system import system_configs
-from app.type_defs import JSONDict
+from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -20,9 +19,7 @@ logger = get_logger(__name__)
 BUSINESS_MESSAGE_TYPE = 1
 
 
-async def parse_webhook_to_dict(
-    db: AsyncSession, webhook_payload: dict[str, Any]
-) -> dict[str, Any] | None:
+async def parse_webhook_to_dict(db: AsyncSession, webhook_payload: JSONDict) -> JSONDict | None:
     """
     Parse LeanCloud webhook payload to intermediate dict format.
 
@@ -41,8 +38,19 @@ async def parse_webhook_to_dict(
         msg_id_provider = webhook_payload.get("msgId")
         lc_from = webhook_payload.get("from")
         data_str = webhook_payload.get("data")
-        created_at_iso = webhook_payload.get("createdAt", {}).get("iso")
-        lc_conv_id = webhook_payload.get("conv", {}).get("objectId")
+        created_at_entry = webhook_payload.get("createdAt")
+        created_at_iso = (
+            created_at_entry.get("iso")
+            if isinstance(created_at_entry, dict) and isinstance(created_at_entry.get("iso"), str)
+            else None
+        )
+
+        conv_entry = webhook_payload.get("conv")
+        lc_conv_id = (
+            conv_entry.get("objectId")
+            if isinstance(conv_entry, dict) and isinstance(conv_entry.get("objectId"), str)
+            else None
+        )
 
         if not all([msg_id_provider, data_str, created_at_iso, lc_conv_id]):
             logger.error(
@@ -52,7 +60,7 @@ async def parse_webhook_to_dict(
                 has_createdAt=bool(created_at_iso),
                 has_conv=bool(lc_conv_id),
             )
-            return None
+            raise ValueError("missing_required_fields")
 
         # Verify LeanCloud conversation ID matches system conversation
         system_conv_id = await system_configs.get_config_value(
@@ -65,7 +73,7 @@ async def parse_webhook_to_dict(
                 lc_conv_id=lc_conv_id,
                 system_conv_id=system_conv_id,
             )
-            return None
+            raise ValueError("wrong_conversation")
 
         # Parse inner message JSON (TypedMessage format or flattened JSON)
         if isinstance(data_str, dict | list):
@@ -77,17 +85,17 @@ async def parse_webhook_to_dict(
                     "invalid_data_str_type",
                     data_str_type=type(data_str).__name__ if data_str is not None else "None",
                 )
-                return None
+                raise ValueError("invalid_data_str_type")
 
             try:
                 inner_message = json.loads(data_str)
             except json.JSONDecodeError as e:
                 logger.error("lc_invalid_json", data=data_str, error=str(e))
-                return None
+                raise ValueError("lc_invalid_json")
 
         if not isinstance(inner_message, dict):
             logger.error("lc_invalid_message_payload", payload=inner_message)
-            return None
+            raise TypeError("invalid_message_payload")
 
         logger.info(
             "lc_incoming_message",
@@ -102,7 +110,7 @@ async def parse_webhook_to_dict(
                 lctype=inner_message.get("_lctype"),
                 expected=BUSINESS_MESSAGE_TYPE,
             )
-            return None
+            raise ValueError("unsupported_message_type")
 
         attrs = inner_message.get("_lcattrs")
         if not isinstance(attrs, dict):
@@ -112,7 +120,11 @@ async def parse_webhook_to_dict(
             "to": webhook_payload.get("to"),
         }
 
-        def _extract(field: str, *sources: dict[str, Any], default: Any = None) -> Any:
+        def _extract(
+            field: str,
+            *sources: JSONDict,
+            default: JSONValue | None = None,
+        ) -> JSONValue | None:
             """Extract field from first source dict that contains it."""
             for source in sources:
                 if field in source and source[field] is not None:
@@ -125,21 +137,42 @@ async def parse_webhook_to_dict(
         conv_id = _extract("conv_id", attrs, inner_message)
         content = _extract("content", attrs, inner_message, default="") or ""
         message_type = _extract("message_type", attrs, inner_message)
-        supports_typing = bool(_extract("supports_typing", attrs, inner_message, default=False))
-        sent_time = _extract("sent_time", attrs, inner_message)
-        action = _extract("action", attrs, inner_message)
-        notification_type = _extract("notification_type", attrs, inner_message)
-        notification_data = _extract("data", attrs, inner_message)
-        encryption = _extract("encryption", attrs, inner_message)
-        encryption_version = _extract("enc_version", attrs, inner_message)
+        supports_typing_raw = _extract("supports_typing", attrs, inner_message, default=False)
+        supports_typing = (
+            bool(supports_typing_raw)
+            if isinstance(supports_typing_raw, (bool, int, float))
+            else False
+        )
+        sent_time_raw = _extract("sent_time", attrs, inner_message)
+        sent_time = int(sent_time_raw) if isinstance(sent_time_raw, (int, float)) else None
+        action_raw = _extract("action", attrs, inner_message)
+        action = action_raw if isinstance(action_raw, dict) else None
+        notification_type_raw = _extract("notification_type", attrs, inner_message)
+        notification_type = (
+            int(notification_type_raw) if isinstance(notification_type_raw, (int, float)) else None
+        )
+        notification_data_raw = _extract("data", attrs, inner_message)
+        notification_data = (
+            notification_data_raw if isinstance(notification_data_raw, dict) else None
+        )
+        encryption_raw = _extract("encryption", attrs, inner_message)
+        encryption = encryption_raw if isinstance(encryption_raw, str) else None
+        encryption_version_raw = _extract("enc_version", attrs, inner_message)
+        encryption_version = (
+            encryption_version_raw if isinstance(encryption_version_raw, str) else None
+        )
 
         # Convert ISO timestamp to milliseconds
-        try:
-            dt = datetime.fromisoformat(created_at_iso.replace("Z", "+00:00"))
-            timestamp_ms = int(dt.timestamp() * 1000)
-        except (ValueError, AttributeError) as e:
-            logger.error("lc_invalid_timestamp", iso=created_at_iso, error=str(e))
-            timestamp_ms = sent_time or int(datetime.now().timestamp() * 1000)
+        timestamp_ms: int
+        if isinstance(created_at_iso, str):
+            try:
+                dt = datetime.fromisoformat(created_at_iso.replace("Z", "+00:00"))
+                timestamp_ms = int(dt.timestamp() * 1000)
+            except (ValueError, AttributeError) as e:
+                logger.error("lc_invalid_timestamp", iso=created_at_iso, error=str(e))
+                timestamp_ms = sent_time or int(datetime.now(tz=UTC).timestamp() * 1000)
+        else:
+            timestamp_ms = sent_time or int(datetime.now(tz=UTC).timestamp() * 1000)
 
         # Return intermediate format (business layer will process further)
         return {
@@ -199,7 +232,7 @@ def build_outbound_typed_message(
     Returns:
         JSON string for LeanCloud API
     """
-    attrs: dict[str, Any] = {
+    attrs: dict[str, JSONValue] = {
         "msg_id": msg_id,
         "from_qiao_id": from_qiao_id,
         "to_qiao_id": to_qiao_id,

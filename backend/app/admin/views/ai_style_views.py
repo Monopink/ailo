@@ -1,5 +1,4 @@
-"""
-AI Style and Relationship admin views.
+"""AI Style and Relationship admin views.
 
 This module contains Starlette-Admin views for AI style and relationship system.
 """
@@ -134,7 +133,6 @@ WAKE_ADJUSTMENT_CHOICES = [
 
 def _validate_relationship_payload(obj: Any) -> dict[str, str]:
     """Collect validation errors for relationship timing fields."""
-
     errors: dict[str, str] = {}
     wake_time_min = getattr(obj, "wake_time_min_ms", None)
     if wake_time_min is not None and wake_time_min < MIN_WAKE_TIME_MS:
@@ -173,7 +171,6 @@ def _validate_relationship_payload(obj: Any) -> dict[str, str]:
 
 def _validate_position_value(value: Any, field_name: str, errors: dict[str, str]) -> None:
     """Ensure a position stays inside the valid range."""
-
     if value is None:
         return
     if not (MIN_POSITION <= value <= MAX_POSITION):
@@ -185,7 +182,6 @@ def _validate_position_value(value: Any, field_name: str, errors: dict[str, str]
 
 def _validate_position_order(start_value: Any, end_value: Any, errors: dict[str, str]) -> None:
     """Ensure start position is less than end position."""
-
     if start_value is None or end_value is None:
         return
     if start_value >= end_value:

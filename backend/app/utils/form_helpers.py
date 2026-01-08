@@ -1,5 +1,4 @@
-"""
-Form data helper utilities for type-safe form field extraction.
+"""Form data helper utilities for type-safe form field extraction.
 
 This module provides utilities to safely extract text fields from Starlette
 form data, ensuring type safety and proper error handling.
@@ -18,8 +17,7 @@ def get_text_field(
     required: bool = True,
     default: str = "",
 ) -> str:
-    """
-    Extract text field from form data with type safety.
+    """Extract text field from form data with type safety.
 
     Args:
         form_data: Form data object from request
@@ -37,6 +35,7 @@ def get_text_field(
         >>> form_data = await request.form()
         >>> username = get_text_field(form_data, "username")
         >>> bio = get_text_field(form_data, "bio", required=False, default="")
+
     """
     value = form_data.get(field_name)
 
@@ -60,8 +59,7 @@ def get_int_field(
     required: bool = True,
     default: int = 0,
 ) -> int:
-    """
-    Extract integer field from form data with type safety.
+    """Extract integer field from form data with type safety.
 
     Args:
         form_data: Form data object from request
@@ -79,6 +77,7 @@ def get_int_field(
         >>> form_data = await request.form()
         >>> age = get_int_field(form_data, "age")
         >>> count = get_int_field(form_data, "count", required=False, default=10)
+
     """
     text_value = get_text_field(form_data, field_name, required=required, default=str(default))
 
@@ -94,8 +93,7 @@ def get_float_field(
     required: bool = True,
     default: float = 0.0,
 ) -> float:
-    """
-    Extract float field from form data with type safety.
+    """Extract float field from form data with type safety.
 
     Args:
         form_data: Form data object from request
@@ -113,6 +111,7 @@ def get_float_field(
         >>> form_data = await request.form()
         >>> temperature = get_float_field(form_data, "temperature")
         >>> rate = get_float_field(form_data, "rate", required=False, default=0.5)
+
     """
     text_value = get_text_field(form_data, field_name, required=required, default=str(default))
 

@@ -31,4 +31,9 @@ class NoneCaptchaProvider:
         Returns:
             (True, None)
         """
+        logger.debug(
+            "none_captcha_verify_token",
+            token_present=bool(token),
+            client_ip=ip,
+        )
         return True, None

@@ -1,5 +1,4 @@
-"""
-Media file CRUD operations.
+"""Media file CRUD operations.
 
 This module contains CRUD operations for media file management.
 """
@@ -17,8 +16,7 @@ from app.schemas.message import MediaFileUpload
 
 
 class _MediaFileUpdateSchema(BaseModel):
-    """
-    Dummy schema for MediaFile update operations.
+    """Dummy schema for MediaFile update operations.
 
     MediaFile updates are rare (mostly status changes handled separately),
     so a full update schema is not needed.

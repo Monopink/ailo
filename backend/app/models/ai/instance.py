@@ -1,5 +1,4 @@
-"""
-AI instance and context related models.
+"""AI instance and context related models.
 
 This module contains SQLAlchemy models for AI instances and conversation contexts.
 """
@@ -42,8 +41,7 @@ if TYPE_CHECKING:
 
 
 class AIInstance(SnowflakeQiaoModel):
-    """
-    AI instance model.
+    """AI instance model.
 
     Represents a user-specific instantiation of a persona/template.
     """
@@ -184,9 +182,7 @@ class AIInstance(SnowflakeQiaoModel):
 
 
 class AIMessageBuffer(SnowflakeModel):
-    """
-    Message aggregation window metadata for incoming user messages.
-    """
+    """Message aggregation window metadata for incoming user messages."""
 
     __tablename__ = "ai_message_buffer"
 
@@ -375,9 +371,7 @@ class AIConversationItem(ImmutableSnowflakeModel):
 
 
 class AIConversationState(Base, TimestampMixin):
-    """
-    Per-conversation transient state (pending AI messages, interruption metadata).
-    """
+    """Per-conversation transient state (pending AI messages, interruption metadata)."""
 
     __tablename__ = "ai_conversation_state"
 

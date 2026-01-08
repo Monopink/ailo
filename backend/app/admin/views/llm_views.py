@@ -1,5 +1,4 @@
-"""
-LLM (Large Language Model) related admin views.
+"""LLM (Large Language Model) related admin views.
 
 This module contains Starlette-Admin views for managing LLM providers and configurations.
 """
@@ -360,29 +359,42 @@ class LLMConfigView(ModelView):
         async with session_factory() as session:
             result = await test_json_schema_compatibility(session, int(pk))
 
+            def _format_field(value: Any, fallback: str = "N/A") -> str:
+                if isinstance(value, str):
+                    return value
+                if value is None:
+                    return fallback
+                return str(value)
+
             # Build detailed message
-            message = result["message"]
+            message_value = result.get("message")
+            message = message_value if isinstance(message_value, str) else ""
 
             # Add test log link if available
             if result.get("test_log_id"):
                 message += f"\n\n📝 Test Log ID: {result['test_log_id']}"
 
             # Add response details for successful tests
-            if result.get("success") and result.get("response"):
+            if result.get("success") and isinstance(result.get("response"), str):
                 message += f"\n\n📤 Response: {result['response'][:100]}..."
 
             # Add performance metrics
-            if result.get("response_time_ms"):
-                message += f"\n⏱️ Response Time: {result['response_time_ms']}ms"
+            if result.get("response_time_ms") is not None:
+                message += f"\n⏱️ Response Time: {_format_field(result['response_time_ms'])}ms"
 
-            if result.get("usage"):
-                usage = result["usage"]
-                message += f"\n📊 Tokens: {usage.get('total_tokens', 'N/A')} (prompt: {usage.get('prompt_tokens', 'N/A')}, completion: {usage.get('completion_tokens', 'N/A')})"
+            usage_value = result.get("usage")
+            usage = usage_value if isinstance(usage_value, dict) else {}
+            if usage:
+                message += (
+                    f"\n📊 Tokens: {_format_field(usage.get('total_tokens'))} "
+                    f"(prompt: {_format_field(usage.get('prompt_tokens'))}, "
+                    f"completion: {_format_field(usage.get('completion_tokens'))})"
+                )
 
-            if result.get("model"):
-                message += f"\n🤖 Model: {result['model']}"
+            if result.get("model") is not None:
+                message += f"\n🤖 Model: {_format_field(result['model'])}"
 
-            return message
+        return message
 
     async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation."""

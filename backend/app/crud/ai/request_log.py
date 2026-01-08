@@ -1,17 +1,17 @@
-"""
-AI Request Log CRUD operations.
+"""AI Request Log CRUD operations.
 
 This module provides both standard CRUD operations and complex queries
 for AI request logging and analytics.
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
+from app.enums import AIRequestStatus
 from app.models.ai import AIRequestLog
 from app.schemas.ai import AIRequestLogCreate, AIRequestLogUpdate
 from app.utils.logging import get_logger
@@ -25,8 +25,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
     async def get_usage_stats(
         self, db: AsyncSession, *, instance_id: int | None = None, days: int = 7
     ) -> dict[str, Any]:
-        """
-        Get usage statistics for AI requests.
+        """Get usage statistics for AI requests.
 
         Args:
             db: Database session
@@ -35,18 +34,19 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
         Returns:
             Dictionary containing usage statistics
+
         """
         try:
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = datetime.now(UTC) - timedelta(days=days)
 
             # Build base query
             query = select(
                 func.count(AIRequestLog.id).label("total_requests"),
                 func.count(AIRequestLog.id)
-                .filter(AIRequestLog.status == 1)
+                .filter(AIRequestLog.status == AIRequestStatus.SUCCESS)
                 .label("successful_requests"),
                 func.count(AIRequestLog.id)
-                .filter(AIRequestLog.status == 2)
+                .filter(AIRequestLog.status == AIRequestStatus.FAILED)
                 .label("failed_requests"),
                 func.avg(AIRequestLog.response_time).label("avg_response_time"),
                 func.sum(AIRequestLog.token_count).label("total_tokens"),
@@ -106,8 +106,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
     async def get_error_logs(
         self, db: AsyncSession, *, instance_id: int | None = None, limit: int = 50
     ) -> list[AIRequestLog]:
-        """
-        Get recent error logs.
+        """Get recent error logs.
 
         Args:
             db: Database session
@@ -116,9 +115,10 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
         Returns:
             List of error log entries
+
         """
         try:
-            query = select(AIRequestLog).where(AIRequestLog.status == 2)  # failed status
+            query = select(AIRequestLog).where(AIRequestLog.status == AIRequestStatus.FAILED)
 
             if instance_id:
                 query = query.where(AIRequestLog.instance_id == instance_id)
@@ -140,8 +140,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
     async def get_instance_logs(
         self, db: AsyncSession, *, instance_id: int, skip: int = 0, limit: int = 100
     ) -> list[AIRequestLog]:
-        """
-        Get request logs for a specific instance.
+        """Get request logs for a specific instance.
 
         Args:
             db: Database session
@@ -151,6 +150,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
         Returns:
             List of request logs
+
         """
         try:
             result = await db.execute(
@@ -175,8 +175,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
     async def get_user_logs(
         self, db: AsyncSession, *, user_qiao_id: str, skip: int = 0, limit: int = 100
     ) -> list[AIRequestLog]:
-        """
-        Get request logs for a specific user.
+        """Get request logs for a specific user.
 
         Args:
             db: Database session
@@ -186,6 +185,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
         Returns:
             List of request logs
+
         """
         try:
             result = await db.execute(
@@ -210,8 +210,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
     async def get_daily_stats(
         self, db: AsyncSession, *, instance_id: int | None = None, days: int = 30
     ) -> list[dict[str, Any]]:
-        """
-        Get daily usage statistics.
+        """Get daily usage statistics.
 
         Args:
             db: Database session
@@ -220,9 +219,10 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
         Returns:
             List of daily statistics
+
         """
         try:
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = datetime.now(UTC) - timedelta(days=days)
 
             # Build query for daily stats
             query = select(
@@ -279,8 +279,7 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
             return []
 
     async def cleanup_old_logs(self, db: AsyncSession, *, days_to_keep: int = 90) -> int:
-        """
-        Clean up old request logs.
+        """Clean up old request logs.
 
         Args:
             db: Database session
@@ -288,9 +287,10 @@ class CRUDAIRequestLog(CRUDBase[AIRequestLog, AIRequestLogCreate, AIRequestLogUp
 
         Returns:
             Number of logs deleted
+
         """
         try:
-            cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+            cutoff_date = datetime.now(UTC) - timedelta(days=days_to_keep)
 
             # Get logs to delete
             result = await db.execute(

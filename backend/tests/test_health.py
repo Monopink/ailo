@@ -5,7 +5,7 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_health_check_success(client: AsyncClient):
+async def test_health_check_success(client: AsyncClient) -> None:
     """Test that health check endpoint returns success."""
     response = await client.get("/health")
 
@@ -25,7 +25,7 @@ async def test_health_check_success(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_health_check_includes_version(client: AsyncClient):
+async def test_health_check_includes_version(client: AsyncClient) -> None:
     """Test that health check includes version information."""
     response = await client.get("/health")
 

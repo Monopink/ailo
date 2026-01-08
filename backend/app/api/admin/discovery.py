@@ -1,6 +1,4 @@
-"""
-Admin APIs for discovery management.
-"""
+"""Admin APIs for discovery management."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +56,7 @@ async def update_square_entry(
     db: AsyncSession = Depends(get_db),
 ) -> SquareEntry:
     """Update an existing discovery entry."""
-    db_obj = await square_entry.get(db, id=entry_id)
+    db_obj = await square_entry.get(db, record_id=entry_id)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Entry not found")
 

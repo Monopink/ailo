@@ -1,6 +1,4 @@
-"""
-Notification push history CRUD operations.
-"""
+"""Notification push history CRUD operations."""
 
 from typing import Any
 
@@ -24,8 +22,7 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
         notification_type: int,
         action_data: dict[str, Any],
     ) -> NotificationPushHistory:
-        """
-        Create notification record.
+        """Create notification record.
 
         Args:
             db: Database session
@@ -35,6 +32,7 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
 
         Returns:
             Created notification record
+
         """
         notification = NotificationPushHistory(
             to_qiao_id=to_qiao_id,
@@ -54,8 +52,7 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
         notification_id: int,
         error_message: str,
     ) -> NotificationPushHistory | None:
-        """
-        Mark notification as failed.
+        """Mark notification as failed.
 
         Args:
             db: Database session
@@ -64,8 +61,9 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
 
         Returns:
             Updated notification record or None if not found
+
         """
-        notification = await self.get(db, id=notification_id)
+        notification = await self.get(db, record_id=notification_id)
         if notification:
             notification.status = NotificationStatus.FAILED
             notification.error_message = error_message
@@ -83,8 +81,7 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
         skip: int = 0,
         limit: int = 100,
     ) -> list[NotificationPushHistory]:
-        """
-        Get user's notifications.
+        """Get user's notifications.
 
         Args:
             db: Database session
@@ -95,6 +92,7 @@ class CRUDNotificationPushHistory(CRUDBase[NotificationPushHistory, BaseModel, B
 
         Returns:
             List of notification records
+
         """
         conditions = [self.model.to_qiao_id == to_qiao_id]
         if notification_type:

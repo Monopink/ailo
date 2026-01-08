@@ -25,7 +25,7 @@ from app.services.media.config import refresh_media_base_url
 from app.services.message.processing import reset_open_conversation_windows
 from app.services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
 from app.services.message.providers.leancloud import create_leancloud_provider
-from app.services.system_config import get_config
+from app.services.system_config import get_config_int
 from app.utils.logging import configure_logging, get_logger
 from app.utils.snowflake import init_snowflake
 
@@ -43,6 +43,7 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
+        """Forward proxy headers into the request scope."""
         forwarded_proto = request.headers.get("X-Forwarded-Proto")
         if forwarded_proto:
             request.scope["scheme"] = forwarded_proto
@@ -52,7 +53,6 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
 @api_router.get("/health", tags=["Health"])
 async def health_check() -> Response:
     """Liveness probe for container orchestration."""
-
     session_factory = get_sessionmaker()
     try:
         async with session_factory() as db:
@@ -67,7 +67,6 @@ async def health_check() -> Response:
 @api_router.get("/")
 async def root() -> JSONResponse:
     """Root endpoint with simple greeting."""
-
     settings = get_settings()
     return JSONResponse(
         {
@@ -81,7 +80,6 @@ async def root() -> JSONResponse:
 @api_router.get("/qiao-dash/theme/{mode}")
 async def set_theme(mode: str, request: Request) -> RedirectResponse:
     """Persist admin theme preference via cookie."""
-
     normalized = mode.lower()
     if normalized not in {"light", "dark", "auto"}:
         normalized = "light"
@@ -97,7 +95,6 @@ async def set_theme(mode: str, request: Request) -> RedirectResponse:
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all exception handler to hide internal details."""
-
     logger.error(
         "unhandled_exception",
         path=request.url.path,
@@ -132,8 +129,8 @@ def _create_lifespan(
 
             logger.info("loading_rate_limit_config")
             async with session_factory() as db:
-                api_requests = int(await get_config(db, key="api_rate_limit_requests"))
-                api_window_seconds = int(await get_config(db, key="api_rate_limit_window_seconds"))
+                api_requests = await get_config_int(db, key="api_rate_limit_requests")
+                api_window_seconds = await get_config_int(db, key="api_rate_limit_window_seconds")
             app.state.api_rate_limit_requests = api_requests
             app.state.api_rate_limit_window_seconds = api_window_seconds
             logger.info(
@@ -233,7 +230,6 @@ def _mount_admin(app: FastAPI) -> None:
 
 def create_app() -> FastAPI:
     """Application factory used by ASGI servers."""
-
     settings = get_settings()
     configure_logging(
         log_level=settings.LOG_LEVEL,

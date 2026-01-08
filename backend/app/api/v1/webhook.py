@@ -1,5 +1,4 @@
-"""
-LeanCloud webhook endpoints.
+"""LeanCloud webhook endpoints.
 
 This module validates webhook authenticity and routes inbound events.
 """
@@ -7,6 +6,7 @@ This module validates webhook authenticity and routes inbound events.
 import hashlib
 import secrets
 import time
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,8 +49,7 @@ def _raise_signature_mismatch() -> None:
 
 
 def _validate_signature(signature_header: str, master_key: str) -> None:
-    """
-    Validate LeanCloud webhook signature.
+    """Validate LeanCloud webhook signature.
 
     Note: Uses MD5 as required by LeanCloud's webhook signature protocol.
     This is not a security concern as it's used for HMAC-like verification,
@@ -109,8 +108,7 @@ async def leancloud_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
-    """
-    Receive messages from LeanCloud webhook.
+    """Receive messages from LeanCloud webhook.
 
     Security:
     - Validates webhook token from URL path
@@ -126,6 +124,7 @@ async def leancloud_webhook(
 
     Raises:
         HTTPException: 403 if token invalid, 400 if message invalid
+
     """
     try:
         # 1. Validate webhook token
@@ -133,12 +132,17 @@ async def leancloud_webhook(
             db, config_key="leancloud_im_webhook_token"
         )
 
-        if not correct_token:
+        if not isinstance(correct_token, str):
+            logger.error("webhook_token_not_configured")
+            _raise_webhook_not_configured()
+        correct_token_str = cast(str, correct_token)
+
+        if not correct_token_str:
             logger.error("webhook_token_not_configured")
             _raise_webhook_not_configured()
 
         # Use constant-time comparison to prevent timing attacks
-        if not secrets.compare_digest(webhook_token, correct_token):
+        if not secrets.compare_digest(webhook_token, correct_token_str):
             logger.warning(
                 "invalid_webhook_token_attempt",
                 token_prefix=(
@@ -151,6 +155,10 @@ async def leancloud_webhook(
 
         # 2. Validate LeanCloud headers
         app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
+
+        if not isinstance(app_id, str):
+            logger.error("leancloud_im_app_id_not_configured_for_webhook")
+            _raise_webhook_not_configured()
         if not app_id:
             logger.error("leancloud_im_app_id_not_configured_for_webhook")
             _raise_webhook_not_configured()

@@ -1,5 +1,4 @@
-"""
-System configuration related schemas.
+"""System configuration related schemas.
 
 This module contains Pydantic schemas for system configuration management.
 """
@@ -13,6 +12,8 @@ from pydantic_core.core_schema import ValidationInfo
 
 from app.enums import ConfigType
 from app.schemas.common import BaseSchema
+
+MAX_CONFIG_BATCH_UPDATE = 50
 
 # System Configuration Schemas
 
@@ -131,7 +132,7 @@ class BatchConfigUpdate(BaseModel):
         """Validate configuration dictionary."""
         if not value:
             raise ValueError("configs cannot be empty")
-        if len(value) > 50:
+        if len(value) > MAX_CONFIG_BATCH_UPDATE:
             raise ValueError("Cannot update more than 50 configurations at once")
         return value
 

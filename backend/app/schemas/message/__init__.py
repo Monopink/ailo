@@ -1,5 +1,4 @@
-"""
-Message system schemas module.
+"""Message system schemas module.
 
 This module imports all message-related Pydantic schemas.
 """

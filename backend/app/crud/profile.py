@@ -1,6 +1,4 @@
-"""
-Profile CRUD operations
-"""
+"""Profile CRUD operations."""
 
 from typing import Any
 
@@ -18,12 +16,12 @@ logger = get_logger(__name__)
 
 
 class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
-    """Profile CRUD operations"""
+    """Profile CRUD operations."""
 
     async def get_by_owner(
         self, db: AsyncSession, *, owner_id: int, owner_type: ProfileOwnerType
     ) -> Profile | None:
-        """Get profile by owner ID and type"""
+        """Get profile by owner ID and type."""
         try:
             stmt = select(self.model).where(
                 and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type)
@@ -68,7 +66,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         owner_type: ProfileOwnerType,
         commit: bool = True,
     ) -> Profile:
-        """Create profile with owner information"""
+        """Create profile with owner information."""
         try:
             obj_data = obj_in.model_dump(exclude_unset=True)
             obj_data["owner_id"] = owner_id
@@ -113,7 +111,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         obj_in: ProfileUpdate,
         commit: bool = True,
     ) -> Profile | None:
-        """Update profile by owner ID and type"""
+        """Update profile by owner ID and type."""
         try:
             # Get existing profile
             db_obj = await self.get_by_owner(db, owner_id=owner_id, owner_type=owner_type)
@@ -160,7 +158,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
     async def delete_by_owner(
         self, db: AsyncSession, *, owner_id: int, owner_type: ProfileOwnerType
     ) -> bool:
-        """Delete profile by owner ID and type"""
+        """Delete profile by owner ID and type."""
         try:
             stmt = delete(self.model).where(
                 and_(self.model.owner_id == owner_id, self.model.owner_type == owner_type)
@@ -183,7 +181,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
     async def get_profiles_by_gender(
         self, db: AsyncSession, gender: str, skip: int = 0, limit: int = 100
     ) -> list[Profile]:
-        """Get profiles by gender"""
+        """Get profiles by gender."""
         try:
             stmt = select(self.model).where(self.model.gender == gender).offset(skip).limit(limit)
             result = await db.execute(stmt)
@@ -202,7 +200,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Profile]:
-        """Search profiles with multiple criteria"""
+        """Search profiles with multiple criteria."""
         try:
             stmt = select(self.model)
 
@@ -221,7 +219,7 @@ class CRUDProfile(CRUDBase[Profile, ProfileCreate, ProfileUpdate]):
             raise
 
     async def get_profile_stats(self, db: AsyncSession) -> dict[str, Any]:
-        """Get profile statistics"""
+        """Get profile statistics."""
         try:
             # Total profiles
             total_stmt = select(func.count(self.model.id))

@@ -1,5 +1,4 @@
-"""
-Snowflake ID Generator
+"""Snowflake ID Generator.
 
 A distributed unique ID generator based on Twitter's Snowflake algorithm.
 Generates 64-bit unique IDs with timestamp, machine ID, and sequence components.
@@ -15,8 +14,7 @@ logger = get_logger(__name__)
 
 
 class SnowflakeGenerator:
-    """
-    Snowflake ID generator for distributed systems.
+    """Snowflake ID generator for distributed systems.
 
     ID Structure (64 bits):
     - 1 bit: Sign bit (always 0)
@@ -45,8 +43,7 @@ class SnowflakeGenerator:
     TIMESTAMP_SHIFT = SEQUENCE_BITS + MACHINE_ID_BITS + DATACENTER_ID_BITS  # 22
 
     def __init__(self, datacenter_id: int = 0, machine_id: int = 0) -> None:
-        """
-        Initialize Snowflake generator.
+        """Initialize Snowflake generator.
 
         Args:
             datacenter_id: Datacenter identifier (0-31)
@@ -54,6 +51,7 @@ class SnowflakeGenerator:
 
         Raises:
             ValueError: If datacenter_id or machine_id is out of range
+
         """
         if not (0 <= datacenter_id <= self.MAX_DATACENTER_ID):
             raise ValueError(f"Datacenter ID must be between 0 and {self.MAX_DATACENTER_ID}")
@@ -75,14 +73,14 @@ class SnowflakeGenerator:
         )
 
     def generate_id(self) -> int:
-        """
-        Generate a unique Snowflake ID.
+        """Generate a unique Snowflake ID.
 
         Returns:
             int: 64-bit unique identifier
 
         Raises:
             RuntimeError: If clock moves backwards
+
         """
         with self.lock:
             timestamp = self._get_timestamp()
@@ -131,14 +129,14 @@ class SnowflakeGenerator:
         return timestamp
 
     def parse_id(self, snowflake_id: int) -> SnowflakeComponents:
-        """
-        Parse a Snowflake ID into its components.
+        """Parse a Snowflake ID into its components.
 
         Args:
             snowflake_id: The Snowflake ID to parse
 
         Returns:
             dict: Components of the ID (timestamp, datacenter_id, machine_id, sequence)
+
         """
         timestamp = (snowflake_id >> self.TIMESTAMP_SHIFT) + self.EPOCH
         datacenter_id = (snowflake_id >> self.DATACENTER_ID_SHIFT) & self.MAX_DATACENTER_ID
@@ -159,26 +157,26 @@ _snowflake_state: dict[str, SnowflakeGenerator | None] = {"instance": None}
 
 
 def init_snowflake(datacenter_id: int = 0, machine_id: int = 0) -> None:
-    """
-    Initialize the global Snowflake generator.
+    """Initialize the global Snowflake generator.
 
     Args:
         datacenter_id: Datacenter identifier (0-31)
         machine_id: Machine identifier (0-31)
+
     """
     _snowflake_state["instance"] = SnowflakeGenerator(datacenter_id, machine_id)
     logger.info("global_snowflake_generator_initialized")
 
 
 def generate_snowflake_id() -> int:
-    """
-    Generate a Snowflake ID using the global generator.
+    """Generate a Snowflake ID using the global generator.
 
     Returns:
         int: 64-bit unique identifier
 
     Raises:
         RuntimeError: If generator is not initialized
+
     """
     generator = _snowflake_state["instance"]
     if generator is None:
@@ -188,8 +186,7 @@ def generate_snowflake_id() -> int:
 
 
 def parse_snowflake_id(snowflake_id: int) -> SnowflakeComponents:
-    """
-    Parse a Snowflake ID using the global generator.
+    """Parse a Snowflake ID using the global generator.
 
     Args:
         snowflake_id: The Snowflake ID to parse
@@ -199,6 +196,7 @@ def parse_snowflake_id(snowflake_id: int) -> SnowflakeComponents:
 
     Raises:
         RuntimeError: If generator is not initialized
+
     """
     generator = _snowflake_state["instance"]
     if generator is None:
@@ -208,14 +206,14 @@ def parse_snowflake_id(snowflake_id: int) -> SnowflakeComponents:
 
 
 def get_snowflake_generator() -> SnowflakeGenerator:
-    """
-    Get the global Snowflake generator instance.
+    """Get the global Snowflake generator instance.
 
     Returns:
         SnowflakeGenerator: The global generator instance
 
     Raises:
         RuntimeError: If generator is not initialized
+
     """
     generator = _snowflake_state["instance"]
     if generator is None:

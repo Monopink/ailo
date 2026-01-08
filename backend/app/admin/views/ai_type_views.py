@@ -1,5 +1,4 @@
-"""
-AI Type admin views.
+"""AI Type admin views.
 
 Provides a lightweight interface for managing the new ai_types table.
 """

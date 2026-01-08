@@ -1,5 +1,4 @@
-"""
-LLM test log schemas.
+"""LLM test log schemas.
 
 This module contains Pydantic schemas for LLM test logs.
 """

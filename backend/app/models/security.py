@@ -1,5 +1,4 @@
-"""
-Security monitoring related models.
+"""Security monitoring related models.
 
 This module contains SQLAlchemy models for user security logs and statistics.
 """
@@ -16,8 +15,7 @@ from app.type_defs import JSONDict
 
 
 class UserViolationLog(SnowflakeModel):
-    """
-    User violation log model.
+    """User violation log model.
 
     User security violation records.
     """
@@ -80,8 +78,7 @@ class UserViolationLog(SnowflakeModel):
 
 
 class UserRiskStats(SnowflakeModel):
-    """
-    User risk stats model.
+    """User risk stats model.
 
     User security statistics summary.
     """

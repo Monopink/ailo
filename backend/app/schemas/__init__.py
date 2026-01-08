@@ -1,5 +1,4 @@
-"""
-Pydantic schemas module.
+"""Pydantic schemas module.
 
 This module imports all Pydantic schemas for API request/response validation
 and serialization.

@@ -1,5 +1,4 @@
-"""
-Profile management related models.
+"""Profile management related models.
 
 This module contains SQLAlchemy models for user profiles and profile change logs.
 """
@@ -23,8 +22,7 @@ if TYPE_CHECKING:
 
 
 class Profile(SnowflakeModel):
-    """
-    Profile model.
+    """Profile model.
 
     Unified profile data for users, AI instances, and official accounts.
     """
@@ -125,8 +123,7 @@ class Profile(SnowflakeModel):
 
 
 class UserProfileLog(ImmutableSnowflakeModel):
-    """
-    User profile log model.
+    """User profile log model.
 
     Tracks profile changes for users only.
     Immutable log - profile changes should not be modified after creation.

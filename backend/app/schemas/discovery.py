@@ -1,5 +1,4 @@
-"""
-Discovery page schemas.
+"""Discovery page schemas.
 
 This module contains Pydantic schemas for discovery page operations.
 """
@@ -26,6 +25,8 @@ class SquareContactResponse(BaseModel):
     region: str | None = Field(None, description="Region/location")
 
     class Config:
+        """Configuration for discovery schema population."""
+
         from_attributes = True
 
 
@@ -81,6 +82,8 @@ class SquareEntry(SquareEntryBase):
     updated_at: datetime = Field(..., description="Last update timestamp")
 
     class Config:
+        """Configuration for discovery query schema population."""
+
         from_attributes = True
 
 
@@ -105,4 +108,6 @@ class StrangerProfileResponse(BaseModel):
     category: int | None = Field(None, description="Category (1-5)")
 
     class Config:
+        """Configuration for discovery filters schema population."""
+
         from_attributes = True

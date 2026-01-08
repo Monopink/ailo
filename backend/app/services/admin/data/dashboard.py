@@ -1,6 +1,6 @@
 """Dashboard data service for admin panel."""
 
-from typing import Any
+from typing import Any, TypedDict
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class ChartSeries(TypedDict):
+    labels: list[str]
+    data: list[int]
 
 
 async def get_total_users(db: AsyncSession) -> dict[str, Any]:
@@ -210,7 +215,7 @@ async def get_active_sessions_stats(db: AsyncSession) -> dict[str, Any]:
         return {"value": 0, "change": 0.0, "trend": "stable"}
 
 
-async def get_user_growth_chart(db: AsyncSession) -> dict[str, list]:
+async def get_user_growth_chart(db: AsyncSession) -> ChartSeries:
     """
     Get user growth data for last 7 days.
 
@@ -247,7 +252,7 @@ async def get_user_growth_chart(db: AsyncSession) -> dict[str, list]:
         return {"labels": [], "data": []}
 
 
-async def get_message_volume_chart(db: AsyncSession) -> dict[str, list]:
+async def get_message_volume_chart(db: AsyncSession) -> ChartSeries:
     """
     Get message volume data for last 7 days.
 

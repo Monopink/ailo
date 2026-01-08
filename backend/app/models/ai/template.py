@@ -1,5 +1,4 @@
-"""
-AI template related models.
+"""AI template related models.
 
 This module contains SQLAlchemy models for AI configuration templates.
 """
@@ -22,9 +21,7 @@ if TYPE_CHECKING:
 
 
 class AIType(AutoIncrementModel):
-    """
-    AI type model for grouping templates and personas.
-    """
+    """AI type model for grouping templates and personas."""
 
     __tablename__ = "ai_types"
 
@@ -40,8 +37,7 @@ class AIType(AutoIncrementModel):
 
 
 class AITemplate(AutoIncrementModel):
-    """
-    AI template model.
+    """AI template model.
 
     AI core configuration templates.
     """
@@ -164,9 +160,7 @@ class AITemplate(AutoIncrementModel):
 
 
 class AIPersona(SnowflakeQiaoModel):
-    """
-    AI persona inventory model (SKU-level definition).
-    """
+    """AI persona inventory model (SKU-level definition)."""
 
     __tablename__ = "ai_personas"
 

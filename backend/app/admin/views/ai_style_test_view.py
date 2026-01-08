@@ -1,5 +1,4 @@
-"""
-AI Score Algorithm Test view for admin panel.
+"""AI Score Algorithm Test view for admin panel.
 
 This module provides admin interface for testing AI score algorithms
 and relationship selection logic.

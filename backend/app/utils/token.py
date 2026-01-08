@@ -1,6 +1,4 @@
-"""
-JWT token generation and validation utilities.
-"""
+"""JWT token generation and validation utilities."""
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -19,8 +17,7 @@ def generate_jwt_token(
     expires_in_seconds: int,
     session_id: int | None = None,
 ) -> str:
-    """
-    Generate a JWT token for user authentication.
+    """Generate a JWT token for user authentication.
 
     Args:
         user_id: Internal user ID
@@ -31,8 +28,8 @@ def generate_jwt_token(
 
     Returns:
         JWT token string
-    """
 
+    """
     now = datetime.now(UTC)
     exp = now + timedelta(seconds=expires_in_seconds)
 
@@ -54,14 +51,14 @@ def generate_jwt_token(
 
 
 def decode_jwt_token(token: str) -> dict[str, Any] | None:
-    """
-    Decode and validate a JWT token.
+    """Decode and validate a JWT token.
 
     Args:
         token: JWT token string
 
     Returns:
         Decoded payload dict, or None if invalid
+
     """
     try:
         settings = get_settings()
@@ -81,5 +78,4 @@ def decode_jwt_token(token: str) -> dict[str, Any] | None:
 
 def calculate_token_expiry(expires_in_seconds: int) -> datetime:
     """Calculate token expiration timestamp based on provided duration."""
-
     return datetime.now(UTC) + timedelta(seconds=expires_in_seconds)

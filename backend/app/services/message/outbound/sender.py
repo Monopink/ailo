@@ -118,7 +118,7 @@ async def send_message(
     msg_id_server = msg_id or f"msg_{generate_snowflake_id()}"
 
     # Send through provider (handles encryption)
-    result, encryption_meta = await _send_message_internal(
+    result, _encryption_meta = await _send_message_internal(
         db=db,
         from_qiao_id=from_qiao_id,
         to_qiao_id=to_qiao_id,
@@ -147,13 +147,13 @@ async def send_message(
         notification_type_value = nt if isinstance(nt, int) else None
 
     encryption_value: str | None = None
-    if "encryption" in encryption_meta:
-        enc = encryption_meta["encryption"]
+    if "encryption" in _encryption_meta:
+        enc = _encryption_meta["encryption"]
         encryption_value = enc if isinstance(enc, str) else None
 
     enc_version_value: str | None = None
-    if "enc_version" in encryption_meta:
-        ver = encryption_meta["enc_version"]
+    if "enc_version" in _encryption_meta:
+        ver = _encryption_meta["enc_version"]
         enc_version_value = ver if isinstance(ver, str) else None
 
     metadata = EventMetadata(
@@ -240,6 +240,8 @@ async def send_notification(
         action=action_data.action.model_dump(mode="json"),
         extra_fields=notification_payload,
     )
+    # encryption_meta is returned for parity with send_message but notifications
+    # currently ignore it; keep for future auditing/reference.
 
     if not result.success:
         # Mark notification as failed

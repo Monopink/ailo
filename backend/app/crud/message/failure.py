@@ -1,5 +1,4 @@
-"""
-Message delivery failure CRUD operations.
+"""Message delivery failure CRUD operations.
 
 This module contains CRUD operations for message delivery failures and retry logic.
 """

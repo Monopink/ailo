@@ -1,5 +1,4 @@
-"""
-Admin AI Style API endpoints.
+"""Admin AI Style API endpoints.
 Handles style management including dimensions, associations, and relationship mappings.
 """
 
@@ -60,7 +59,7 @@ async def save_style_complete(
     - Enforces invariants: no defaults, proper ranges, and referential checks.
     """
     # Get style
-    style = await style_crud.get(db, id=style_id)
+    style = await style_crud.get(db, record_id=style_id)
     if not style:
         raise HTTPException(status_code=404, detail="Style not found")
 

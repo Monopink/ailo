@@ -1,12 +1,10 @@
-"""
-Password management schemas
-"""
+"""Password management schemas."""
 
 from pydantic import BaseModel, Field
 
 
 class ChangePasswordRequest(BaseModel):
-    """Request schema for changing password"""
+    """Request schema for changing password."""
 
     old_password: str | None = Field(
         None, description="Current password, optional for first-time setup"
@@ -17,7 +15,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    """Request schema for resetting password"""
+    """Request schema for resetting password."""
 
     operation_token: str = Field(..., description="Operation token from verification")
     new_password: str = Field(

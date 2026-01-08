@@ -1,6 +1,4 @@
-"""
-Discovery (Square) CRUD helpers.
-"""
+"""Discovery (Square) CRUD helpers."""
 
 from __future__ import annotations
 
@@ -13,9 +11,12 @@ from app.schemas.discovery import SquareEntryCreate, SquareEntryUpdate
 
 
 class CRUDSquareEntry(CRUDBase[SquareTypeEntry, SquareEntryCreate, SquareEntryUpdate]):
+    """CRUD helpers for Square entries."""
+
     async def get_active_by_category(
         self, db: AsyncSession, *, category: str, limit: int
     ) -> list[SquareTypeEntry]:
+        """Return active square entries for the given category."""
         stmt = (
             select(self.model)
             .where(self.model.square_category == category, self.model.status == 1)

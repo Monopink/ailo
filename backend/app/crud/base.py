@@ -1,5 +1,4 @@
-"""
-Base CRUD operations.
+"""Base CRUD operations.
 
 This module contains generic CRUD classes that provide common database operations
 for all models.
@@ -33,26 +32,24 @@ ImmutableCreateSchemaType = TypeVar("ImmutableCreateSchemaType", bound=BaseModel
 
 
 class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    """
-    Base CRUD class with default methods to Create, Read, Update, Delete (CRUD).
+    """Base CRUD class with default methods to Create, Read, Update, Delete (CRUD).
 
     **Parameters**
     * `model`: A SQLAlchemy model class
     * `schema`: A Pydantic model (schema) class
     """
 
-    def __init__(self, model: type[ModelType]):
-        """
-        CRUD object with default methods to Create, Read, Update, Delete (CRUD).
+    def __init__(self, model: type[ModelType]) -> None:
+        """CRUD object with default methods to Create, Read, Update, Delete (CRUD).
 
         **Parameters**
         * `model`: A SQLAlchemy model class
         """
         self.model = model
 
-    async def get(self, db: AsyncSession, id: Any) -> ModelType | None:
+    async def get(self, db: AsyncSession, record_id: object) -> ModelType | None:
         """Get a single record by ID."""
-        result = await db.execute(select(self.model).where(self.model.id == id))
+        result = await db.execute(select(self.model).where(self.model.id == record_id))
         return result.scalar_one_or_none()
 
     async def get_multi(
@@ -90,9 +87,9 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         await db.refresh(db_obj)
         return db_obj
 
-    async def remove(self, db: AsyncSession, *, id: Any) -> ModelType | None:
+    async def remove(self, db: AsyncSession, *, record_id: object) -> ModelType | None:
         """Remove a record by ID."""
-        obj = await self.get(db, id=id)
+        obj = await self.get(db, record_id=record_id)
         if obj:
             await db.delete(obj)
             await db.commit()
@@ -104,19 +101,19 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         count = result.scalar()
         return count if count is not None else 0
 
-    async def exists(self, db: AsyncSession, *, id: Any) -> bool:
+    async def exists(self, db: AsyncSession, *, record_id: object) -> bool:
         """Check if a record exists by ID."""
-        result = await db.execute(select(func.count(self.model.id)).where(self.model.id == id))
+        result = await db.execute(
+            select(func.count(self.model.id)).where(self.model.id == record_id)
+        )
         count = result.scalar()
         return (count if count is not None else 0) > 0
 
 
 class CRUDBaseWithQiaoId(
     CRUDBase[QiaoIdModelType, CreateSchemaType, UpdateSchemaType],
-    Generic[QiaoIdModelType, CreateSchemaType, UpdateSchemaType],
 ):
-    """
-    CRUD base class for models with qiao_id field.
+    """CRUD base class for models with qiao_id field.
 
     Extends CRUDBase with qiao_id specific operations.
     """
@@ -144,19 +141,17 @@ class CRUDBaseWithQiaoId(
 
 class CRUDBaseWithStatus(
     CRUDBase[StatusModelType, CreateSchemaType, UpdateSchemaType],
-    Generic[StatusModelType, CreateSchemaType, UpdateSchemaType],
 ):
-    """
-    CRUD base class for models with status field.
+    """CRUD base class for models with status field.
 
     Extends CRUDBase with status-specific operations.
     """
 
-    async def get_active(self, db: AsyncSession, id: Any) -> StatusModelType | None:
+    async def get_active(self, db: AsyncSession, record_id: object) -> StatusModelType | None:
         """Get a single active record by ID."""
         result = await db.execute(
             select(self.model).where(
-                self.model.id == id, self.model.status == 1
+                self.model.id == record_id, self.model.status == 1
             )  # Assuming 1 = active
         )
         return result.scalar_one_or_none()
@@ -171,10 +166,10 @@ class CRUDBaseWithStatus(
         return list(result.scalars().all())
 
     async def update_status(
-        self, db: AsyncSession, *, id: Any, status: int
+        self, db: AsyncSession, *, record_id: object, status: int
     ) -> StatusModelType | None:
         """Update record status."""
-        obj = await self.get(db, id=id)
+        obj = await self.get(db, record_id=record_id)
         if obj:
             obj.status = status
             db.add(obj)
@@ -182,14 +177,13 @@ class CRUDBaseWithStatus(
             await db.refresh(obj)
         return obj
 
-    async def soft_delete(self, db: AsyncSession, *, id: Any) -> StatusModelType | None:
+    async def soft_delete(self, db: AsyncSession, *, record_id: object) -> StatusModelType | None:
         """Soft delete a record by setting status to 0."""
-        return await self.update_status(db, id=id, status=0)
+        return await self.update_status(db, record_id=record_id, status=0)
 
 
 class ImmutableCRUDBase(Generic[ImmutableModelType, ImmutableCreateSchemaType]):
-    """
-    Base CRUD class for immutable log tables.
+    """Base CRUD class for immutable log tables.
 
     Provides only Create and Read operations. No Update or Delete operations.
     Use this for log tables that should never be modified after creation.
@@ -198,18 +192,17 @@ class ImmutableCRUDBase(Generic[ImmutableModelType, ImmutableCreateSchemaType]):
     * `model`: A SQLAlchemy model class (immutable log table)
     """
 
-    def __init__(self, model: type[ImmutableModelType]):
-        """
-        CRUD object for immutable log tables.
+    def __init__(self, model: type[ImmutableModelType]) -> None:
+        """CRUD object for immutable log tables.
 
         **Parameters**
         * `model`: A SQLAlchemy model class
         """
         self.model = model
 
-    async def get(self, db: AsyncSession, id: Any) -> ImmutableModelType | None:
+    async def get(self, db: AsyncSession, record_id: object) -> ImmutableModelType | None:
         """Get a single log record by ID."""
-        result = await db.execute(select(self.model).where(self.model.id == id))
+        result = await db.execute(select(self.model).where(self.model.id == record_id))
         return result.scalar_one_or_none()
 
     async def get_multi(

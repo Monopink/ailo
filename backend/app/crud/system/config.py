@@ -1,11 +1,10 @@
-"""
-System configuration CRUD operations.
+"""System configuration CRUD operations.
 
 This module contains CRUD operations for system configuration management.
 """
 
 import json
-from typing import Any
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +13,7 @@ from app.crud.base import CRUDBase
 from app.enums import ConfigType
 from app.models.system import SystemConfig
 from app.schemas.system import SystemConfigCreate, SystemConfigUpdate
+from app.type_defs import JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -57,8 +57,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         updated_by: int | None = None,
         validate_enum: bool = True,
     ) -> SystemConfig | None:
-        """
-        Update configuration value with optional enum validation.
+        """Update configuration value with optional enum validation.
 
         Args:
             db: Database session
@@ -72,6 +71,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
 
         Raises:
             ValueError: If enum validation fails or value is invalid
+
         """
         config = await self.get_by_key(db, config_key=config_key)
         if not config:
@@ -99,7 +99,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         return config
 
     async def batch_update_configs(
-        self, db: AsyncSession, *, configs: dict[str, Any], updated_by: int | None = None
+        self, db: AsyncSession, *, configs: dict[str, JSONValue], updated_by: int | None = None
     ) -> int:
         """Batch update multiple configurations."""
         count = 0
@@ -116,10 +116,9 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         return count
 
     async def get_config_value(
-        self, db: AsyncSession, *, config_key: str, default_value: Any = None
-    ) -> Any:
-        """
-        Get parsed configuration value.
+        self, db: AsyncSession, *, config_key: str, default_value: JSONValue | None = None
+    ) -> JSONValue | None:
+        """Get parsed configuration value.
 
         Args:
             db: Database session
@@ -131,6 +130,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
 
         Raises:
             ValueError: If configuration value is invalid/corrupted
+
         """
         config = await self.get_by_key(db, config_key=config_key)
         if not config:
@@ -154,7 +154,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
                 )
         elif config.config_type == ConfigType.JSON:
             try:
-                return json.loads(config.config_value)
+                return cast(JSONValue, json.loads(config.config_value))
             except json.JSONDecodeError as e:
                 logger.error(
                     "config_json_parse_error",

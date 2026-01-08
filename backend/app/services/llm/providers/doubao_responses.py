@@ -7,7 +7,7 @@ delegates client creation/error handling to :class:`OpenAIBaseAdapter`.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from openai import AsyncOpenAI
 
@@ -16,7 +16,13 @@ from app.models.llm import LLMConfig, LLMProvider
 from app.services.llm.converters import ResponsesFormatConverter
 from app.services.llm.providers.base import ProviderCapabilities
 from app.services.llm.providers.openai_base import OpenAIBaseAdapter
-from app.type_defs import LLMProviderResult, LLMRequestOptions, PreemptionChecker
+from app.type_defs import (
+    JSONDict,
+    JSONValue,
+    LLMProviderResult,
+    LLMRequestOptions,
+    PreemptionChecker,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -48,19 +54,20 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
     async def build_request_params(
         self,
         options: LLMRequestOptions,
-    ) -> dict[str, Any]:
+    ) -> dict[str, JSONDict]:
         call_params = _build_responses_call_params(options)
         request_kwargs = _build_request_kwargs(options)
         return {"call_params": call_params, "request_kwargs": request_kwargs}
 
     async def parse_response(
         self,
-        response: Any,
-        params: dict[str, Any],
-        options: LLMRequestOptions,
+        response: JSONDict,
+        params: dict[str, JSONDict],
+        options: LLMRequestOptions,  # noqa: ARG002
     ) -> LLMProviderResult:
         content, tool_calls, reasoning_content = _extract_responses_text(response)
         usage = _usage_to_dict(getattr(response, "usage", None))
+        call_params = params.get("call_params")
 
         return LLMProviderResult(
             content=content,
@@ -68,7 +75,7 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
             usage=usage,
             finish_reason=_extract_finish_reason(response),
             raw_response=response.to_dict() if hasattr(response, "to_dict") else None,
-            request_params=params.get("call_params"),
+            request_params=call_params if isinstance(call_params, dict) else None,
             response_id=getattr(response, "id", None),
             cache_hit=_is_cache_hit(usage),
             tool_calls=tool_calls,
@@ -79,14 +86,19 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
         self,
         *,
         client: AsyncOpenAI,
-        params: dict[str, Any],
-        options: LLMRequestOptions,
-    ) -> Any:
+        params: dict[str, JSONDict],
+        options: LLMRequestOptions,  # noqa: ARG002
+    ) -> JSONDict:
+        call_params = cast(dict[str, Any], params["call_params"])
+        request_kwargs = cast(dict[str, Any], params["request_kwargs"])
+        create_fn = cast(Any, client.responses.create)
         try:
-            return await client.responses.create(
-                **params["call_params"],
-                **params["request_kwargs"],
-            )
+            response = await create_fn(**call_params, **request_kwargs)
+            if hasattr(response, "to_dict"):
+                response_dict = response.to_dict()
+                if isinstance(response_dict, dict):
+                    return response_dict
+            return dict(response)
         except (LLMTimeoutError, LLMRequestError):
             raise
         except Exception as exc:  # pragma: no cover - safety net
@@ -97,29 +109,30 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
         self,
         *,
         client: AsyncOpenAI,
-        params: dict[str, Any],
-        options: LLMRequestOptions,
+        params: dict[str, JSONDict],
+        options: LLMRequestOptions,  # noqa: ARG002
         preemption_checker: PreemptionChecker | None,
     ) -> LLMProviderResult:
-        call_params = params["call_params"]
-        request_kwargs = dict(params["request_kwargs"])
+        call_params = cast(dict[str, Any], params["call_params"])
+        request_kwargs = cast(dict[str, Any], params["request_kwargs"])
+        create_fn = cast(Any, client.responses.create)
 
         accumulated_text_parts: list[str] = []
-        accumulated_tool_calls: list[dict[str, Any]] = []
+        accumulated_tool_calls: list[JSONDict] = []
         accumulated_reasoning_parts: list[str] = []
-        final_model = call_params["model"]
-        final_usage: dict[str, Any] | None = None
+        final_model: str | None = _coerce_model(call_params.get("model"))
+        final_usage: JSONDict | None = None
         final_response_id: str | None = None
         final_finish_reason: str | None = None
 
         try:
-            stream = await client.responses.create(
+            stream = await create_fn(
                 **call_params,
                 **request_kwargs,
                 stream=True,
             )
 
-            logger.debug("stream_started", model=call_params["model"])
+            logger.debug("stream_started", model=final_model)
             chunk_count = 0
 
             async for chunk in stream:
@@ -137,10 +150,11 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
                         preempted=True,
                     )
 
+                chunk_model = getattr(chunk, "model", None)
+                if isinstance(chunk_model, str):
+                    final_model = chunk_model
                 if getattr(chunk, "id", None):
                     final_response_id = chunk.id
-                if getattr(chunk, "model", None):
-                    final_model = chunk.model
                 if getattr(chunk, "usage", None):
                     final_usage = _usage_to_dict(chunk.usage)
                 if getattr(chunk, "status", None):
@@ -205,13 +219,13 @@ async def send_request(
 # ---------------------------------------------------------------------------
 
 
-def _build_responses_call_params(options: LLMRequestOptions) -> dict[str, Any]:
+def _build_responses_call_params(options: LLMRequestOptions) -> JSONDict:
     """
     Build the set of direct parameters accepted by Responses API.
     """
-    params: dict[str, Any] = {
+    params: JSONDict = {
         "model": options.model,
-        "input": _converter.convert_to_provider_format(options.messages),
+        "input": cast(JSONValue, _converter.convert_to_provider_format(options.messages)),
     }
 
     if options.caching.previous_response_id:
@@ -239,11 +253,11 @@ def _build_responses_call_params(options: LLMRequestOptions) -> dict[str, Any]:
     return params
 
 
-def _build_request_kwargs(options: LLMRequestOptions) -> dict[str, Any]:
+def _build_request_kwargs(options: LLMRequestOptions) -> JSONDict:
     """
     Build kwargs (extra headers/body/query) for Responses API invocation.
     """
-    extra_body: dict[str, Any] = dict(options.extra_body or {})
+    extra_body: JSONDict = dict(options.extra_body or {})
 
     if options.temperature is not None:
         extra_body["temperature"] = options.temperature
@@ -252,10 +266,10 @@ def _build_request_kwargs(options: LLMRequestOptions) -> dict[str, Any]:
     if options.max_tokens is not None:
         extra_body["max_output_tokens"] = options.max_tokens
     if options.stop_sequences:
-        extra_body["stop"] = options.stop_sequences
+        extra_body["stop"] = cast(JSONValue, options.stop_sequences)
 
     if options.tools:
-        extra_body["tools"] = options.tools
+        extra_body["tools"] = cast(JSONValue, options.tools)
         if options.tool_choice:
             extra_body["tool_choice"] = options.tool_choice
         if options.max_tool_calls:
@@ -263,10 +277,14 @@ def _build_request_kwargs(options: LLMRequestOptions) -> dict[str, Any]:
 
     if options.json_schema:
         text_format_payload = _build_json_schema_format(options.json_schema)
-        extra_body["text"] = _merge_text_format(extra_body.get("text"), text_format_payload)
+        existing_text = extra_body.get("text")
+        extra_body["text"] = _merge_text_format(
+            existing_text if isinstance(existing_text, dict) else None,
+            text_format_payload,
+        )
 
     if options.caching.enabled and options.caching.strategy != "none":
-        caching_payload: dict[str, Any] = {"type": "enabled"}
+        caching_payload: JSONDict = {"type": "enabled"}
         if options.caching.strategy == "prefix":
             caching_payload["prefix"] = True
         if options.caching.ttl_seconds:
@@ -278,12 +296,12 @@ def _build_request_kwargs(options: LLMRequestOptions) -> dict[str, Any]:
         extra_body.update(overrides_extra_body)
 
     override_headers = options.provider_overrides.get("extra_headers")
-    merged_headers: dict[str, Any] = dict(options.extra_headers or {})
+    merged_headers: JSONDict = dict(options.extra_headers or {})
     if isinstance(override_headers, dict):
         merged_headers.update(override_headers)
 
     override_query = options.provider_overrides.get("extra_query")
-    merged_query: dict[str, Any] = dict(options.extra_query or {})
+    merged_query: JSONDict = dict(options.extra_query or {})
     if isinstance(override_query, dict):
         merged_query.update(override_query)
 
@@ -297,7 +315,7 @@ def _build_request_kwargs(options: LLMRequestOptions) -> dict[str, Any]:
     }
 
 
-def _validate_extra_body(extra_body: dict[str, Any]) -> None:
+def _validate_extra_body(extra_body: JSONDict) -> None:
     """Ensure no legacy Chat Completions fields are present."""
     unsupported_keys = sorted(key for key in ("response_format", "thinking") if key in extra_body)
     if unsupported_keys:
@@ -307,7 +325,7 @@ def _validate_extra_body(extra_body: dict[str, Any]) -> None:
         )
 
 
-def _build_json_schema_format(schema_definition: dict[str, Any]) -> dict[str, Any]:
+def _build_json_schema_format(schema_definition: JSONDict) -> JSONDict:
     return {
         "type": "json_schema",
         "name": "ai_response",
@@ -316,8 +334,8 @@ def _build_json_schema_format(schema_definition: dict[str, Any]) -> dict[str, An
     }
 
 
-def _merge_text_format(existing_text: Any, format_payload: dict[str, Any]) -> dict[str, Any]:
-    text_section: dict[str, Any] = {}
+def _merge_text_format(existing_text: JSONDict | None, format_payload: JSONDict) -> JSONDict:
+    text_section: JSONDict = {}
     if isinstance(existing_text, dict):
         text_section.update(existing_text)
     text_section["format"] = format_payload
@@ -331,9 +349,9 @@ def _merge_text_format(existing_text: Any, format_payload: dict[str, Any]) -> di
 
 def _process_stream_chunk(
     *,
-    chunk: Any,
+    chunk: object,
     accumulated_text_parts: list[str],
-    accumulated_tool_calls: list[dict[str, Any]],
+    accumulated_tool_calls: list[JSONDict],
     accumulated_reasoning_parts: list[str],
 ) -> None:
     output_list = getattr(chunk, "output", None)
@@ -362,80 +380,129 @@ def _process_stream_chunk(
                 accumulated_tool_calls.append({"type": output_type})
 
 
-def _extract_responses_text(response: Any) -> tuple[str, list[dict[str, Any]] | None, str | None]:
+def _coerce_to_json_dict(value: object | JSONValue) -> JSONDict | None:
+    if isinstance(value, dict):
+        return value
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        converted = to_dict()
+        if isinstance(converted, dict):
+            return converted
+    return None
+
+
+def _coerce_to_json_response(response: object) -> JSONDict | None:
+    if isinstance(response, dict):
+        return response
+    return _coerce_to_json_dict(response)
+
+
+def _ensure_json_dicts(value: object | JSONValue | None) -> list[JSONDict]:
+    normalized: list[JSONDict] = []
+    if value is None:
+        return normalized
+    if isinstance(value, list):
+        for item in value:
+            item_dict = item if isinstance(item, dict) else _coerce_to_json_dict(item)
+            if item_dict is not None:
+                normalized.append(item_dict)
+        return normalized
+    item_dict = _coerce_to_json_dict(value)
+    if item_dict is not None:
+        normalized.append(item_dict)
+    return normalized
+
+
+def _extract_responses_text(response: object) -> tuple[str, list[JSONDict] | None, str | None]:
     text_parts: list[str] = []
-    tool_calls: list[dict[str, Any]] = []
+    tool_calls: list[JSONDict] = []
     reasoning_parts: list[str] = []
 
-    for output in getattr(response, "output", []) or []:
-        output_type = getattr(output, "type", None)
+    payload = _coerce_to_json_response(response)
+    if not payload:
+        return "", None, None
 
-        summary_blocks = getattr(output, "summary", None)
+    for output in _ensure_json_dicts(payload.get("output")):
+        output_type = output.get("type")
+        summary_blocks = output.get("summary")
         if summary_blocks:
             reasoning_parts.extend(_collect_text_blocks(summary_blocks))
 
         if output_type == "message":
-            for part in getattr(output, "content", []) or []:
-                if getattr(part, "type", None) == "output_text":
-                    text_parts.append(part.text or "")
+            for part in _ensure_json_dicts(output.get("content")):
+                if part.get("type") == "output_text":
+                    text_value = part.get("text")
+                    if isinstance(text_value, str) and text_value:
+                        text_parts.append(text_value)
         elif output_type in {"function_call", "function"}:
-            try:
-                tool_calls.append(output.to_dict())
-            except AttributeError:
-                tool_calls.append({"type": output_type})
+            tool_calls.append(output)
 
-    content = "\n".join(filter(None, text_parts))
-    reasoning_content = "\n".join(filter(None, reasoning_parts)) or None
+    content = "\n".join(text_parts)
+    reasoning_content = "\n".join(reasoning_parts) or None
     return content, tool_calls or None, reasoning_content
 
 
-def _collect_text_blocks(blocks: Any) -> list[str]:
+def _collect_text_blocks(blocks: object | JSONValue | None) -> list[str]:
     collected: list[str] = []
     if not blocks:
         return collected
 
-    for block in blocks:
-        text_value = getattr(block, "text", None)
-        if text_value is None and isinstance(block, dict):
-            text_value = block.get("text")
-        if text_value:
+    for block in _ensure_json_dicts(blocks):
+        text_value = block.get("text")
+        if isinstance(text_value, str) and text_value:
             collected.append(text_value)
     return collected
 
 
-def _extract_finish_reason(response: Any) -> str | None:
+def _extract_finish_reason(response: object) -> str | None:
     try:
-        choices = getattr(response, "output", None)
-        if choices:
-            for choice in choices:
-                if getattr(choice, "type", None) == "message":
-                    metadata = getattr(choice, "metadata", None)
-                    if isinstance(metadata, dict):
-                        finish_reason = metadata.get("finish_reason")
-                        if isinstance(finish_reason, str):
-                            return finish_reason
-        status_value = getattr(response, "status", None)
+        payload = _coerce_to_json_response(response)
+        if not payload:
+            return None
+        for choice in _ensure_json_dicts(payload.get("output")):
+            if choice.get("type") == "message":
+                metadata = choice.get("metadata")
+                if isinstance(metadata, dict):
+                    finish_reason = metadata.get("finish_reason")
+                    if isinstance(finish_reason, str):
+                        return finish_reason
+        status_value = payload.get("status")
         return status_value if isinstance(status_value, str) else None
     except Exception:  # pragma: no cover - defensive
         return None
 
 
-def _usage_to_dict(usage: Any) -> dict[str, Any] | None:
+def _usage_to_dict(usage: object | JSONDict | None) -> JSONDict | None:
     if usage is None:
         return None
-    try:
-        usage_dict = usage.to_dict()
-        return usage_dict if isinstance(usage_dict, dict) else None
-    except AttributeError:
-        return usage if isinstance(usage, dict) else None
+    return _coerce_to_json_dict(usage)
 
 
-def _is_cache_hit(usage: dict[str, Any] | None) -> bool:
+def _coerce_cached_tokens(value: JSONValue | None) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _is_cache_hit(usage: JSONDict | None) -> bool:
     if not usage:
         return False
-    input_details = usage.get("input_tokens_details") or {}
-    cached_tokens = input_details.get("cached_tokens") or 0
-    return cached_tokens > 0
+    input_details = usage.get("input_tokens_details")
+    if not isinstance(input_details, dict):
+        return False
+    return _coerce_cached_tokens(input_details.get("cached_tokens")) > 0
+
+
+def _coerce_model(value: JSONValue | None) -> str | None:
+    """Normalize model field into a string if present."""
+    return value if isinstance(value, str) else None
 
 
 __all__ = [

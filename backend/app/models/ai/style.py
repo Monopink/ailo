@@ -1,5 +1,4 @@
-"""
-AI style and relationship related models.
+"""AI style and relationship related models.
 
 This module contains SQLAlchemy models for AI styles and relationship configurations.
 """
@@ -13,8 +12,7 @@ from app.models.base import AutoIncrementModel
 
 
 class AIStyle(AutoIncrementModel):
-    """
-    AI style model.
+    """AI style model.
 
     AI style definitions.
     """
@@ -44,8 +42,7 @@ class AIStyle(AutoIncrementModel):
 
 
 class AIDimension(AutoIncrementModel):
-    """
-    AI dimension model.
+    """AI dimension model.
 
     Dimension definitions (e.g., "extroversion-introversion", "rational-emotional").
     """
@@ -88,8 +85,7 @@ class AIDimension(AutoIncrementModel):
 
 
 class AIStyleDimension(AutoIncrementModel):
-    """
-    AI style dimension model.
+    """AI style dimension model.
 
     Style-specific dimension configurations (many-to-many relationship
     between styles and dimensions).
@@ -135,8 +131,7 @@ class AIStyleDimension(AutoIncrementModel):
 
 
 class AIRelationship(AutoIncrementModel):
-    """
-    AI relationship model.
+    """AI relationship model.
 
     AI relationship type definitions.
     """
@@ -238,8 +233,7 @@ class AIRelationship(AutoIncrementModel):
 
 
 class AIDimensionRelationshipMapping(AutoIncrementModel):
-    """
-    AI dimension relationship mapping model.
+    """AI dimension relationship mapping model.
 
     Mapping from dimension position ranges to relationship types.
     """

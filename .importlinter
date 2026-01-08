@@ -10,3 +10,16 @@ layers =
     queries
 containers =
     app.services.ai
+
+[importlinter:contract:backend-layering]
+name = Enforce backend layered architecture according to AGENTS
+type = layers
+layers =
+    services.ai.orchestrators
+    services.ai.relationship_scoring
+    services.ai.queries
+    services.ai.memory
+    crud
+    models
+containers =
+    app

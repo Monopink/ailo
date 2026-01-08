@@ -1,20 +1,17 @@
-"""
-Common schemas for API requests and responses.
+"""Common schemas for API requests and responses.
 
-This module contains base schemas and common response formats
-used across the application.
+This module contains base schemas and common response formats used across the application.
 """
 
 from datetime import datetime
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
-# Generic type for data responses
 DataT = TypeVar("DataT")
 
 
-class BaseResponse(BaseModel, Generic[DataT]):
+class BaseResponse[DataT](BaseModel):
     """Base response schema for all API responses."""
 
     success: bool = Field(..., description="Whether the request was successful")
@@ -39,7 +36,7 @@ class PaginationParams(BaseModel):
     limit: int = Field(20, ge=1, le=100, description="Maximum number of records to return")
 
 
-class PaginatedResponse(BaseModel, Generic[DataT]):
+class PaginatedResponse[DataT](BaseModel):
     """Paginated response schema."""
 
     success: bool = Field(True, description="Whether the request was successful")
@@ -76,11 +73,9 @@ class BaseSchema(BaseModel):
     """Base schema with common configuration."""
 
     class Config:
-        # Allow population from SQLAlchemy models
+        """Configuration for base schemas."""
+
         from_attributes = True
-        # Use enum values instead of enum names
         use_enum_values = True
-        # Validate assignment
         validate_assignment = True
-        # Allow extra fields to be ignored
         extra = "ignore"

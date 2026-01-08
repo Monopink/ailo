@@ -1,5 +1,4 @@
-"""
-System configuration related models.
+"""System configuration related models.
 
 This module contains SQLAlchemy models for system configuration management.
 """
@@ -13,8 +12,7 @@ from app.type_defs import JSONArray
 
 
 class SystemConfig(AutoIncrementModel):
-    """
-    System configuration model.
+    """System configuration model.
 
     System-wide configuration parameters.
     """

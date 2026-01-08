@@ -1,18 +1,14 @@
-"""
-Base exception classes.
+"""Base exception classes.
 
 This module defines the base exception hierarchy and common exception types
 used throughout the application.
 """
 
-from typing import Any
-
 from fastapi import status
 
 
-class BaseAppException(Exception):
-    """
-    Base exception class for all application exceptions.
+class BaseAppError(Exception):
+    """Base exception class for all application errors.
 
     Provides structured error information including error codes,
     HTTP status codes, and additional details.
@@ -23,41 +19,41 @@ class BaseAppException(Exception):
         message: str,
         error_code: str,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
-        details: dict[str, Any] | None = None,
-    ):
-        """
-        Initialize base exception.
+        details: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize base exception.
 
         Args:
             message: Human-readable error message
             error_code: Machine-readable error code
             status_code: HTTP status code
             details: Additional error details
+
         """
         super().__init__(message)
         self.message = message
         self.error_code = error_code
         self.status_code = status_code
-        self.details = details or {}
+        self.details: dict[str, object] = details or {}
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Convert exception to dictionary format."""
         return {
             "error": {"code": self.error_code, "message": self.message, "details": self.details}
         }
 
 
-class ValidationError(BaseAppException):
+class ValidationError(BaseAppError):
     """Exception raised for data validation errors."""
 
     def __init__(
         self,
         message: str = "Validation failed",
         field: str | None = None,
-        value: Any | None = None,
-        details: dict[str, Any] | None = None,
-    ):
-        error_details = details or {}
+        value: object | None = None,
+        details: dict[str, object] | None = None,
+    ) -> None:
+        error_details: dict[str, object] = details or {}
         if field:
             error_details["field"] = field
         if value is not None:
@@ -71,7 +67,7 @@ class ValidationError(BaseAppException):
         )
 
 
-class NotFoundError(BaseAppException):
+class NotFoundError(BaseAppError):
     """Exception raised when a requested resource is not found."""
 
     def __init__(
@@ -79,9 +75,9 @@ class NotFoundError(BaseAppException):
         message: str = "Resource not found",
         resource_type: str | None = None,
         resource_id: str | None = None,
-        details: dict[str, Any] | None = None,
-    ):
-        error_details = details or {}
+        details: dict[str, object] | None = None,
+    ) -> None:
+        error_details: dict[str, object] = details or {}
         if resource_type:
             error_details["resource_type"] = resource_type
         if resource_id:
@@ -95,16 +91,16 @@ class NotFoundError(BaseAppException):
         )
 
 
-class PermissionError(BaseAppException):
+class PermissionDeniedError(BaseAppError):
     """Exception raised for permission/authorization errors."""
 
     def __init__(
         self,
         message: str = "Permission denied",
         required_permission: str | None = None,
-        details: dict[str, Any] | None = None,
-    ):
-        error_details = details or {}
+        details: dict[str, object] | None = None,
+    ) -> None:
+        error_details: dict[str, object] = details or {}
         if required_permission:
             error_details["required_permission"] = required_permission
 
@@ -116,7 +112,7 @@ class PermissionError(BaseAppException):
         )
 
 
-class ConflictError(BaseAppException):
+class ConflictError(BaseAppError):
     """Exception raised for resource conflicts."""
 
     def __init__(
@@ -124,9 +120,9 @@ class ConflictError(BaseAppException):
         message: str = "Resource conflict",
         conflicting_field: str | None = None,
         conflicting_value: str | None = None,
-        details: dict[str, Any] | None = None,
-    ):
-        error_details = details or {}
+        details: dict[str, object] | None = None,
+    ) -> None:
+        error_details: dict[str, object] = details or {}
         if conflicting_field:
             error_details["conflicting_field"] = conflicting_field
         if conflicting_value:
@@ -140,7 +136,7 @@ class ConflictError(BaseAppException):
         )
 
 
-class ExternalServiceError(BaseAppException):
+class ExternalServiceError(BaseAppError):
     """Exception raised for external service errors."""
 
     def __init__(
@@ -148,9 +144,9 @@ class ExternalServiceError(BaseAppException):
         message: str = "External service error",
         service_name: str | None = None,
         service_error: str | None = None,
-        details: dict[str, Any] | None = None,
-    ):
-        error_details = details or {}
+        details: dict[str, object] | None = None,
+    ) -> None:
+        error_details: dict[str, object] = details or {}
         if service_name:
             error_details["service_name"] = service_name
         if service_error:
@@ -164,7 +160,7 @@ class ExternalServiceError(BaseAppException):
         )
 
 
-class RateLimitError(BaseAppException):
+class RateLimitError(BaseAppError):
     """Exception raised when rate limits are exceeded."""
 
     def __init__(
@@ -173,9 +169,9 @@ class RateLimitError(BaseAppException):
         limit: int | None = None,
         window: str | None = None,
         retry_after: int | None = None,
-        details: dict[str, Any] | None = None,
-    ):
-        error_details = details or {}
+        details: dict[str, object] | None = None,
+    ) -> None:
+        error_details: dict[str, object] = details or {}
         if limit:
             error_details["limit"] = limit
         if window:
@@ -191,16 +187,16 @@ class RateLimitError(BaseAppException):
         )
 
 
-class ConfigurationError(BaseAppException):
+class ConfigurationError(BaseAppError):
     """Exception raised for configuration errors."""
 
     def __init__(
         self,
         message: str = "Configuration error",
         config_key: str | None = None,
-        details: dict[str, Any] | None = None,
-    ):
-        error_details = details or {}
+        details: dict[str, object] | None = None,
+    ) -> None:
+        error_details: dict[str, object] = details or {}
         if config_key:
             error_details["config_key"] = config_key
 
@@ -215,7 +211,7 @@ class ConfigurationError(BaseAppException):
 class MissingConfigurationError(ConfigurationError):
     """Exception raised when a required configuration value is missing."""
 
-    def __init__(self, config_key: str):
+    def __init__(self, config_key: str) -> None:
         super().__init__(
             message=f"Configuration '{config_key}' is required but not set",
             config_key=config_key,

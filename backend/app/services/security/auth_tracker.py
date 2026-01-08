@@ -10,7 +10,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.system_config import get_config
+from app.services.system_config import get_config_int, get_config_str
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -65,9 +65,9 @@ async def record_auth_failure(
     if auth_type not in MAX_FAILURE_KEYS or auth_type not in LOCKOUT_DURATION_KEYS:
         raise ValueError(f"Unsupported auth_type: {auth_type}")
 
-    max_failures = int(await get_config(db, key=MAX_FAILURE_KEYS[auth_type]))
+    max_failures = await get_config_int(db, key=MAX_FAILURE_KEYS[auth_type])
     duration_key, multiplier = LOCKOUT_DURATION_KEYS[auth_type]
-    lockout_duration_value = int(await get_config(db, key=duration_key))
+    lockout_duration_value = await get_config_int(db, key=duration_key)
     lockout_duration = lockout_duration_value * multiplier
 
     # Clean old failures (outside lockout window)
@@ -120,7 +120,12 @@ async def check_lockout(
 
     whitelist_key = AUTH_WHITELIST_KEYS.get(auth_type)
     if whitelist_key:
-        whitelist_str = await get_config(db, key=whitelist_key, required=False) or ""
+        whitelist_str = await get_config_str(
+            db,
+            key=whitelist_key,
+            required=False,
+            default="",
+        )
 
         if whitelist_str:
             whitelist = [ip.strip() for ip in whitelist_str.split(",")]
@@ -168,10 +173,11 @@ async def should_require_captcha(identifier: str, auth_type: str, db: AsyncSessi
         True if CAPTCHA is required
     """
     # Check if CAPTCHA is enabled
-    captcha_provider = await get_config(
+    captcha_provider = await get_config_str(
         db,
         key=f"{auth_type.split('_')[0]}_captcha_provider",  # Extract 'admin' or 'user'
         required=False,
+        default="",
     )
 
     if captcha_provider is None or captcha_provider == "none":
@@ -181,7 +187,7 @@ async def should_require_captcha(identifier: str, auth_type: str, db: AsyncSessi
     if not threshold_key:
         raise ValueError(f"Unsupported auth_type: {auth_type}")
 
-    threshold = int(await get_config(db, key=threshold_key))
+    threshold = await get_config_int(db, key=threshold_key)
 
     cache_key = f"{auth_type}:{identifier}"
     now = time.time()
@@ -233,8 +239,6 @@ def cleanup_auth_tracker_cache() -> None:
     Removes entries with no recent failures.
     Should be called periodically.
     """
-    global _failure_cache
-
     now = time.time()
     keys_to_remove = []
 

@@ -5,7 +5,7 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_api_root_redirect(client: AsyncClient):
+async def test_api_root_redirect(client: AsyncClient) -> None:
     """Test that root path redirects or returns valid response."""
     response = await client.get("/", follow_redirects=False)
 
@@ -14,7 +14,7 @@ async def test_api_root_redirect(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_api_v1_prefix_exists(client: AsyncClient):
+async def test_api_v1_prefix_exists(client: AsyncClient) -> None:
     """Test that API v1 prefix is accessible."""
     # Try to access a non-existent v1 endpoint
     # Should return 404 (not found) rather than 500 (server error)
@@ -26,7 +26,7 @@ async def test_api_v1_prefix_exists(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_cors_headers_present(client: AsyncClient):
+async def test_cors_headers_present(client: AsyncClient) -> None:
     """Test that CORS headers are configured."""
     response = await client.get("/health")
 

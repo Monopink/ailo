@@ -1,5 +1,4 @@
-"""
-Message and media-related model views for Starlette-Admin.
+"""Message and media-related model views for Starlette-Admin.
 Creates ModelView instances for message system and media management.
 """
 

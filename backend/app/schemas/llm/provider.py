@@ -1,5 +1,4 @@
-"""
-LLM provider schemas.
+"""LLM provider schemas.
 
 This module contains Pydantic schemas for LLM providers.
 """

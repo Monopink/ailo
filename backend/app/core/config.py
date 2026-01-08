@@ -6,14 +6,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _find_env_file() -> Path | None:
-    """
-    Find .env file in deployment directory.
+    """Find .env file in deployment directory.
 
     Searches from current file location upward to find project root,
     then looks for deployment/.env file.
 
     Returns:
         Path to .env file if found, None otherwise
+
     """
     current = Path(__file__).resolve()
 
@@ -27,6 +27,8 @@ def _find_env_file() -> Path | None:
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment and .env files."""
+
     model_config = SettingsConfigDict(
         env_file=_find_env_file(),
         env_file_encoding="utf-8",
@@ -104,17 +106,17 @@ class Settings(BaseSettings):
 
     @property
     def is_development(self) -> bool:
-        """Check if running in development environment"""
+        """Check if running in development environment."""
         return self.ENVIRONMENT.lower() in ("development", "dev")
 
     @property
     def is_production(self) -> bool:
-        """Check if running in production environment"""
+        """Check if running in production environment."""
         return self.ENVIRONMENT.lower() in ("production", "prod")
 
     @property
     def is_staging(self) -> bool:
-        """Check if running in staging environment"""
+        """Check if running in staging environment."""
         return self.ENVIRONMENT.lower() in ("staging", "test")
 
     @field_validator("CAPTCHA_CLIENT_WHITELIST", mode="before")
@@ -138,8 +140,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """
-    Return cached Settings instance.
+    """Return cached Settings instance.
 
     Pydantic BaseSettings automatically loads values from environment variables
     and .env file as configured in model_config.
@@ -149,7 +150,6 @@ def get_settings() -> Settings:
 
 def reset_settings_cache() -> None:
     """Clear cached Settings instance."""
-
     get_settings.cache_clear()
 
 

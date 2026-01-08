@@ -1,6 +1,4 @@
-"""
-LeanCloud IM configuration and signature endpoints.
-"""
+"""LeanCloud IM configuration and signature endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,10 +32,7 @@ async def get_lc_im_config(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LeanCloudConfigResponse:
-    """
-    Return LeanCloud IM configuration required by clients.
-    """
-
+    """Return LeanCloud IM configuration required by clients."""
     state = await leancloud_service.get_conversation_registry_state(db)
 
     # Type guard: validate im_conv_id from JSONDict
@@ -68,16 +63,19 @@ async def generate_lc_im_signature(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LeanCloudSignatureResponse:
-    """
-    Generate LeanCloud IM login signature for the authenticated client.
-    """
-
+    """Generate LeanCloud IM login signature for the authenticated client."""
     if payload.client_id != current_user.qiao_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="客户端ID与当前用户不匹配"
         )
 
     app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
+    if not isinstance(app_id, str):
+        logger.error("leancloud_im_app_id_not_configured")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="消息服务未配置",
+        )
     if not app_id:
         logger.error("leancloud_im_app_id_not_configured")
         raise HTTPException(

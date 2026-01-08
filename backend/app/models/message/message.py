@@ -1,5 +1,4 @@
-"""
-Message related models.
+"""Message related models.
 
 This module contains SQLAlchemy models for message history and delivery failures.
 """
@@ -15,8 +14,7 @@ from app.type_defs import JSONDict
 
 
 class MessageHistory(ImmutableSnowflakeModel):
-    """
-    Message history model.
+    """Message history model.
 
     Complete message history and metadata.
     Message history is immutable - no updated_at field needed.
@@ -123,8 +121,7 @@ class MessageHistory(ImmutableSnowflakeModel):
 
 
 class MessageDeliveryFailure(SnowflakeModel):
-    """
-    Message delivery failure model.
+    """Message delivery failure model.
 
     Failed message delivery tracking and retry management.
     """

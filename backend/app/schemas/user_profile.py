@@ -1,12 +1,10 @@
-"""
-User profile schemas for API request/response
-"""
+"""User profile schemas for API request/response."""
 
 from pydantic import BaseModel, Field
 
 
 class UserProfileResponse(BaseModel):
-    """User profile response schema for GET /api/v1/user/profile - only profile data"""
+    """User profile response schema for GET /api/v1/user/profile - only profile data."""
 
     qiao_id: str = Field(..., description="User external ID")
     username: str | None = Field(None, description="User-customizable ID, NULL if not set")
@@ -18,10 +16,10 @@ class UserProfileResponse(BaseModel):
 
 
 class UserAccountResponse(BaseModel):
-    """User account response schema for GET /api/v1/user/account - security info"""
+    """User account response schema for GET /api/v1/user/account - security info."""
 
     qiao_id: str = Field(..., description="User external ID")
-    username: str = Field(..., description="Username for login")
+    username: str | None = Field(None, description="Username for login, NULL if not set")
     phone: str = Field(..., description="Masked phone number (138******00)")
     email: str | None = Field(
         None, description="Masked email (u***@example.com), null if not bound"
@@ -30,7 +28,7 @@ class UserAccountResponse(BaseModel):
 
 
 class UserProfileUpdateRequest(BaseModel):
-    """User profile update request schema for PUT /api/v1/user/profile"""
+    """User profile update request schema for PUT /api/v1/user/profile."""
 
     username: str | None = Field(
         None, min_length=3, max_length=20, description="User-customizable ID"

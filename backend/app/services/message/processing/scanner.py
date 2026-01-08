@@ -30,9 +30,17 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 # Scanner state
-_scanner_task: asyncio.Task[None] | None = None
-_scanner_running: bool = False
+class _ScannerState:
+    """Track background scanner status."""
+
+    def __init__(self) -> None:
+        self.task: asyncio.Task[None] | None = None
+        self.running: bool = False
+
+
+_scanner_state = _ScannerState()
 _scan_interval: float = 0.1  # 100ms
 _processing_tasks: set[asyncio.Task[None]] = set()
 _max_concurrent_processing = 10
@@ -46,14 +54,12 @@ async def start_buffer_scanner() -> None:
     Should be called once during application startup.
     Scans database every 100ms for expired OPEN contexts.
     """
-    global _scanner_task, _scanner_running
-
-    if _scanner_running:
+    if _scanner_state.running:
         logger.warning("scanner_already_running")
         return
 
-    _scanner_running = True
-    _scanner_task = asyncio.create_task(_scanner_loop())
+    _scanner_state.running = True
+    _scanner_state.task = asyncio.create_task(_scanner_loop())
     logger.info("buffer_scanner_started", scan_interval_ms=_scan_interval * 1000)
 
 
@@ -63,19 +69,17 @@ async def stop_buffer_scanner() -> None:
 
     Cancels the background task and waits for it to finish.
     """
-    global _scanner_task, _scanner_running
-
-    if not _scanner_running:
+    if not _scanner_state.running:
         return
 
-    _scanner_running = False
-    if _scanner_task and not _scanner_task.done():
-        _scanner_task.cancel()
+    _scanner_state.running = False
+    if _scanner_state.task and not _scanner_state.task.done():
+        _scanner_state.task.cancel()
         try:
-            await _scanner_task
+            await _scanner_state.task
         except asyncio.CancelledError:
             pass
-    _scanner_task = None
+    _scanner_state.task = None
 
     if _processing_tasks:
         await asyncio.gather(*_processing_tasks, return_exceptions=True)
@@ -91,7 +95,7 @@ async def _scanner_loop() -> None:
     Runs every 100ms to scan for expired contexts.
     Continues running even if individual scans fail.
     """
-    while _scanner_running:
+    while _scanner_state.running:
         try:
             await _scan_and_process()
             await asyncio.sleep(_scan_interval)

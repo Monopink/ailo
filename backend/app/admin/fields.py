@@ -1,6 +1,4 @@
-"""
-Custom fields for Starlette-Admin with timezone support.
-"""
+"""Custom fields for Starlette-Admin with timezone support."""
 
 from datetime import datetime
 from typing import Any
@@ -12,8 +10,7 @@ from starlette_admin.fields import DateTimeField
 
 
 class LocalDateTimeField(DateTimeField):
-    """
-    DateTimeField that displays datetime in user's local timezone.
+    """DateTimeField that displays datetime in user's local timezone.
 
     Only converts timezone for display (LIST/DETAIL views).
     EDIT views use default behavior.

@@ -1,6 +1,4 @@
-"""
-Conversation schemas.
-"""
+"""Conversation schemas."""
 
 from pydantic import BaseModel
 

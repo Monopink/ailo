@@ -1,5 +1,4 @@
-"""
-API v1 router integration.
+"""API v1 router integration.
 Combines all v1 API endpoints.
 """
 

@@ -1,5 +1,4 @@
-"""
-System models module.
+"""System models module.
 
 This module imports all system-related SQLAlchemy models.
 """

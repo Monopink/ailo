@@ -8,11 +8,17 @@ import httpx
 
 from app.utils.logging import get_logger
 
+HTTP_OK = 200
+DEFAULT_HEALTH_TIMEOUT = 5.0
+
 logger = get_logger(__name__)
 
 
 async def check_leancloud_health(
-    app_id: str, master_key: str, base_url: str, timeout: float = 5.0
+    app_id: str,
+    master_key: str,
+    base_url: str,
+    health_timeout: float = DEFAULT_HEALTH_TIMEOUT,
 ) -> tuple[bool, str | None]:
     """
     Check LeanCloud service health.
@@ -24,7 +30,7 @@ async def check_leancloud_health(
         app_id: LeanCloud App ID
         master_key: LeanCloud Master Key
         base_url: LeanCloud base URL
-        timeout: Request timeout in seconds (default: 5.0)
+        health_timeout: Request timeout in seconds (default: 5.0)
 
     Returns:
         Tuple of (is_healthy, error_message)
@@ -40,6 +46,7 @@ async def check_leancloud_health(
         >>> if not is_healthy:
         ...     logger.error("LeanCloud unhealthy", error=error)
     """
+    result: tuple[bool, str | None] = (False, None)
     try:
         # Use /1.1/date endpoint for health check
         # This is a lightweight endpoint that returns server time
@@ -50,38 +57,46 @@ async def check_leancloud_health(
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=health_timeout) as client:
             response = await client.get(url, headers=headers)
 
-            if response.status_code == 200:
-                logger.debug("leancloud_health_check_passed")
-                return True, None
+        if response.status_code == HTTP_OK:
+            logger.debug("leancloud_health_check_passed")
+            result = (True, None)
+        else:
             error_msg = f"API returned status {response.status_code}"
             logger.warning(
                 "leancloud_health_check_failed",
                 status=response.status_code,
                 response_text=response.text[:200],  # Log first 200 chars
             )
-            return False, error_msg
+            result = (False, error_msg)
+
+    except TimeoutError:
+        error_msg = f"Connection timeout ({health_timeout}s)"
+        logger.warning("leancloud_health_check_timeout", timeout=health_timeout)
+        result = (False, error_msg)
 
     except httpx.TimeoutException:
-        error_msg = f"Connection timeout ({timeout}s)"
-        logger.warning("leancloud_health_check_timeout", timeout=timeout)
-        return False, error_msg
+        error_msg = "Connection timeout (HTTP client)"
+        logger.warning("leancloud_health_check_timeout", timeout=health_timeout)
+        result = (False, error_msg)
 
     except httpx.ConnectError as e:
         error_msg = f"Connection error: {e!s}"
         logger.warning("leancloud_health_check_connection_error", error=str(e))
-        return False, error_msg
+        result = (False, error_msg)
 
     except httpx.HTTPError as e:
         error_msg = f"HTTP error: {e!s}"
         logger.warning("leancloud_health_check_http_error", error=str(e))
-        return False, error_msg
+        result = (False, error_msg)
 
     except Exception as e:
         error_msg = f"Unexpected error: {e!s}"
         logger.error(
             "leancloud_health_check_error", error=str(e), error_type=type(e).__name__, exc_info=True
         )
-        return False, error_msg
+        result = (False, error_msg)
+
+    return result

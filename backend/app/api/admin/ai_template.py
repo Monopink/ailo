@@ -1,5 +1,4 @@
-"""
-Admin AI Template API endpoints.
+"""Admin AI Template API endpoints.
 Handles template management including prompt variables and position mapping configurations.
 """
 
@@ -24,7 +23,7 @@ async def save_ai_template(
     template_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
     """Save template advanced edit (prompt_variables and position_mapping_config)."""
-    template = await ai_template_crud.get(db, id=template_id)
+    template = await ai_template_crud.get(db, record_id=template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
 

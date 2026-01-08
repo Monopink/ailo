@@ -1,6 +1,4 @@
-"""
-Verification schemas for unified verification mechanism
-"""
+"""Verification schemas for unified verification mechanism."""
 
 from typing import Literal
 
@@ -8,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class VerifySendCodeRequest(BaseModel):
-    """Request schema for sending verification code"""
+    """Request schema for sending verification code."""
 
     verify_type: Literal["phone", "email"] = Field(
         ..., description="Verification type: phone or email"
@@ -19,13 +17,13 @@ class VerifySendCodeRequest(BaseModel):
 
 
 class VerifySendCodeResponse(BaseModel):
-    """Response schema for sending verification code"""
+    """Response schema for sending verification code."""
 
     cooldown: int = Field(..., description="Cooldown time in seconds before next code can be sent")
 
 
 class VerifyConfirmRequest(BaseModel):
-    """Request schema for confirming verification code"""
+    """Request schema for confirming verification code."""
 
     verify_type: Literal["phone", "email"] = Field(
         ..., description="Verification type: phone or email"
@@ -34,7 +32,7 @@ class VerifyConfirmRequest(BaseModel):
 
 
 class OperationTokenResponse(BaseModel):
-    """Response schema for operation token"""
+    """Response schema for operation token."""
 
     operation_token: str = Field(..., description="Operation token for sensitive operations")
     expires_in: int = Field(..., description="Token expiration time in seconds")

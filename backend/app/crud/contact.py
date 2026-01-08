@@ -1,5 +1,4 @@
-"""
-Contact management CRUD operations.
+"""Contact management CRUD operations.
 
 This module contains CRUD operations for contact relationships and requests.
 """
@@ -186,8 +185,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
     async def get_user_contact_including_deleted(
         self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
     ) -> Contact | None:
-        """
-        Get contact including deleted ones.
+        """Get contact including deleted ones.
 
         Used for checking if a deleted contact exists before re-adding.
 
@@ -198,6 +196,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
 
         Returns:
             Contact record or None if not found
+
         """
         result = await db.execute(
             select(self.model).where(
@@ -217,8 +216,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         alias: str | None = None,
         tags: dict[str, Any] | None = None,
     ) -> Contact:
-        """
-        Restore a soft-deleted contact with new settings.
+        """Restore a soft-deleted contact with new settings.
 
         Strategy: Do not preserve old settings (alias, tags, remark).
 
@@ -230,6 +228,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
 
         Returns:
             Restored contact
+
         """
         contact.is_deleted = 0
         contact.deleted_at = None
@@ -381,7 +380,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
         self, db: AsyncSession, *, request_id: int, status: ContactRequestStatus
     ) -> ContactRequest | None:
         """Update contact request status."""
-        request = await self.get(db, id=request_id)
+        request = await self.get(db, record_id=request_id)
         if request:
             request.status = status
             db.add(request)

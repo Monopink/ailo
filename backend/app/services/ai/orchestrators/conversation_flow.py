@@ -433,14 +433,24 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
         )
 
     # Step 9: JSON Schema validation (already done in LLM call)
-    ai_response = llm_result["response"]
+    ai_response_raw = llm_result["response"]
+    if not isinstance(ai_response_raw, dict):
+        raise AIConversationError(
+            conversation_step="llm_response_validation",
+            reason="invalid_response_format",
+            message="LLM response is not a JSON dict",
+        )
+    ai_response: JSONDict = ai_response_raw
 
     # Post-check: Validate response format
     # Convert Python dict to JSON string for validation
     raw_content = llm_result.get("raw_content")
-    if not raw_content:
-        # If no raw_content, convert Python object to JSON string
+    if raw_content is None or raw_content == "":
         raw_content = json.dumps(ai_response, ensure_ascii=False)
+    elif isinstance(raw_content, (dict, list)):
+        raw_content = json.dumps(raw_content, ensure_ascii=False)
+    elif not isinstance(raw_content, str):
+        raw_content = str(raw_content)
     await validate_ai_response(db, config, raw_content, allow_auto_update=False)
 
     # Step 10 & 11: Save all conversation results in single atomic transaction

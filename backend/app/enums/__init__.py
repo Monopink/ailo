@@ -1,11 +1,13 @@
-"""
-Database enums module.
+"""Database enums module.
 
 This module contains all enumeration definitions used in the database.
 All enum values correspond to the integer values defined in the database schema.
 """
 
-from .common import (  # User Management; Contact Management; Message System; Media Files; Profile Management; AI System; Security; System Configuration; Admin System; LLM Service
+# Categories: User Management, Contact Management, Message System, Media Files,
+# Profile Management, AI System, Security, System Configuration, Admin System,
+# and LLM Service.
+from .common import (
     AdminLoginResult,
     AdminOperationType,
     AdminRole,

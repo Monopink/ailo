@@ -1,5 +1,4 @@
-"""
-Admin management related models.
+"""Admin management related models.
 
 This module contains SQLAlchemy models for admin users and operation logs.
 """
@@ -15,8 +14,7 @@ from app.models.base import AutoIncrementModel, ImmutableAutoIncrementModel, Sta
 
 
 class AdminUser(AutoIncrementModel, StatusMixin):
-    """
-    Admin user model.
+    """Admin user model.
 
     Admin account management.
     """
@@ -48,14 +46,14 @@ class AdminUser(AutoIncrementModel, StatusMixin):
     )
 
     def has_permission(self, permission: str) -> bool:
-        """
-        Check if admin user has specific permission.
+        """Check if admin user has specific permission.
 
         Args:
             permission: Permission to check (e.g., 'create_user', 'delete_bot')
 
         Returns:
             bool: True if user has permission
+
         """
         if self.status != AdminStatus.ACTIVE:
             return False
@@ -125,8 +123,7 @@ class AdminUser(AutoIncrementModel, StatusMixin):
 
 
 class AdminOperationLog(ImmutableAutoIncrementModel):
-    """
-    Admin operation log model.
+    """Admin operation log model.
 
     Admin operation tracking.
     Immutable log - operations should not be modified after creation.
@@ -172,8 +169,7 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
 
 
 class AdminLoginLog(ImmutableAutoIncrementModel):
-    """
-    Admin login log model.
+    """Admin login log model.
 
     Admin login tracking.
     Immutable log - only has created_at, no updated_at.

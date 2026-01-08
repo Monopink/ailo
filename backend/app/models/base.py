@@ -1,5 +1,4 @@
-"""
-Base model classes for SQLAlchemy models.
+"""Base model classes for SQLAlchemy models.
 
 This module provides base classes with common fields and functionality
 that are shared across all database models.
@@ -86,8 +85,7 @@ class QiaoIDMixin:
 
 
 class BaseModel(Base, TimestampMixin):
-    """
-    Abstract base model with common functionality.
+    """Abstract base model with common functionality.
 
     This class should not be instantiated directly.
     Use SnowflakeModel or AutoIncrementModel instead.
@@ -96,14 +94,14 @@ class BaseModel(Base, TimestampMixin):
     __abstract__ = True
 
     def to_dict(self, exclude: set[str] | None = None) -> dict[str, object]:
-        """
-        Convert model instance to dictionary.
+        """Convert model instance to dictionary.
 
         Args:
             exclude: Set of field names to exclude from the result
 
         Returns:
             Dict containing model data
+
         """
         excluded = exclude or set()
         result: dict[str, object] = {}
@@ -119,12 +117,12 @@ class BaseModel(Base, TimestampMixin):
         return result
 
     def update_from_dict(self, data: Mapping[str, object], exclude: set[str] | None = None) -> None:
-        """
-        Update model instance from dictionary.
+        """Update model instance from dictionary.
 
         Args:
             data: Dictionary containing field values
             exclude: Set of field names to exclude from update
+
         """
         excluded = exclude or {"id", "created_at"}
 
@@ -134,8 +132,7 @@ class BaseModel(Base, TimestampMixin):
 
 
 class SnowflakeModel(BaseModel, SnowflakeIDMixin):
-    """
-    Base model for entities that use Snowflake IDs.
+    """Base model for entities that use Snowflake IDs.
 
     Use this for core business entities like users, messages, AI instances, etc.
     """
@@ -144,8 +141,7 @@ class SnowflakeModel(BaseModel, SnowflakeIDMixin):
 
 
 class AutoIncrementModel(BaseModel, AutoIncrementIDMixin):
-    """
-    Base model for entities that use auto-increment IDs.
+    """Base model for entities that use auto-increment IDs.
 
     Use this for configuration tables, statistics, and other auxiliary data.
     """
@@ -154,8 +150,7 @@ class AutoIncrementModel(BaseModel, AutoIncrementIDMixin):
 
 
 class ImmutableAutoIncrementModel(Base, AutoIncrementIDMixin):
-    """
-    Base model for immutable entities that use auto-increment IDs.
+    """Base model for immutable entities that use auto-increment IDs.
 
     Use this for log tables and other immutable data that only needs created_at.
     Does not include updated_at field.
@@ -172,8 +167,7 @@ class ImmutableAutoIncrementModel(Base, AutoIncrementIDMixin):
 
 
 class ImmutableSnowflakeModel(Base, SnowflakeIDMixin):
-    """
-    Base model for immutable entities that use Snowflake IDs.
+    """Base model for immutable entities that use Snowflake IDs.
 
     Use this for log tables that need Snowflake IDs and only created_at.
     Does not include updated_at field.
@@ -190,8 +184,7 @@ class ImmutableSnowflakeModel(Base, SnowflakeIDMixin):
 
 
 class SnowflakeQiaoModel(SnowflakeModel, QiaoIDMixin):
-    """
-    Base model for entities that use both Snowflake IDs and qiao_id.
+    """Base model for entities that use both Snowflake IDs and qiao_id.
 
     Use this for entities that need external identifiers for API exposure.
     """

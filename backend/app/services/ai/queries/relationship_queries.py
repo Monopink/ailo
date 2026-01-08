@@ -39,7 +39,8 @@ async def get_instance_relationship_scores(
         List of score dictionaries
     """
     try:
-        # Join with global AIDimension and style junction to get initial_position, name and display name
+        # Join with global AIDimension and style junction to get
+        # initial_position, name and display name
         result = await db.execute(
             select(
                 AIInstanceDimension,
@@ -116,7 +117,7 @@ async def get_instance_current_relationship(db: AsyncSession, instance_id: int) 
         if instance and getattr(instance, "relationship_id", None) is not None:
             current_relationship = {
                 "relationship_id": instance.relationship_id,
-                "relationship_display_name": None,  # display name can be resolved by caller if needed
+                "relationship_display_name": None,  # display name resolved on caller demand
                 "instance_id": instance_id,
             }
 

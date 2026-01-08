@@ -1,5 +1,4 @@
-"""
-Shared JSON-compatible type aliases for the backend application.
+"""Shared JSON-compatible type aliases for the backend application.
 
 This module centralizes recursive JSON type hints so that business logic
 can import them from a single place (`app.types`).

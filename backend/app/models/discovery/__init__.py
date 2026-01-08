@@ -1,6 +1,4 @@
-"""
-Discovery (Square) models.
-"""
+"""Discovery (Square) models."""
 
 from __future__ import annotations
 

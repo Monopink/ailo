@@ -1,5 +1,4 @@
-"""
-System management API endpoints for admin backend.
+"""System management API endpoints for admin backend.
 
 This module provides API endpoints for system-level operations like
 refreshing LeanCloud system conversation and webhook management.
@@ -7,6 +6,7 @@ refreshing LeanCloud system conversation and webhook management.
 
 import secrets
 from datetime import UTC, datetime
+from http import HTTPStatus
 from typing import Any
 
 import httpx
@@ -33,8 +33,7 @@ async def refresh_leancloud_conversation(
     db: AsyncSession = Depends(get_db),
     admin_user: dict[str, Any] = Depends(verify_admin_session),
 ) -> dict[str, Any]:
-    """
-    Refresh LeanCloud IM system conversation.
+    """Refresh LeanCloud IM system conversation.
 
     Creates a new system conversation and updates the stored conversation_id.
     This endpoint should be used when the old conversation needs to be replaced.
@@ -54,6 +53,7 @@ async def refresh_leancloud_conversation(
             "success": false,
             "error": "LeanCloud configuration incomplete"
         }
+
     """
     logger.info(
         "admin_refresh_leancloud_conversation_requested",
@@ -73,7 +73,10 @@ async def refresh_leancloud_conversation(
                 resource_type="leancloud_system",
                 resource_id="system_conversation",
                 resource_name="uni_conversation_id",
-                operation_desc=f"Refreshed LeanCloud system conversation successfully. New conversation ID: {result}",
+                operation_desc=(
+                    "Refreshed LeanCloud system conversation successfully. "
+                    f"New conversation ID: {result}"
+                ),
                 request=request,
             )
 
@@ -146,8 +149,7 @@ async def get_leancloud_service_status(
     db: AsyncSession = Depends(get_db),
     admin_user: dict[str, Any] = Depends(verify_admin_session),
 ) -> dict[str, Any]:
-    """
-    Get LeanCloud IM service status.
+    """Get LeanCloud IM service status.
 
     Tests LeanCloud IM API connectivity and returns service reachability status.
 
@@ -163,6 +165,7 @@ async def get_leancloud_service_status(
                 "error_message": null
             }
         }
+
     """
     logger.info("admin_get_leancloud_service_status_requested", admin_user=admin_user["username"])
 
@@ -192,11 +195,16 @@ async def get_leancloud_service_status(
             base_url = leancloud_config["base_url"]
             app_id = leancloud_config["app_id"]
 
+            if not isinstance(base_url, str) or not base_url:
+                raise ValueError("Invalid LeanCloud base_url")
+            if not isinstance(app_id, str) or not app_id:
+                raise ValueError("Invalid LeanCloud app_id")
+
             # Simple API test: get server time
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{base_url}/1.1/date", headers={"X-LC-Id": app_id})
 
-                service_reachable = response.status_code == 200
+                service_reachable = response.status_code == HTTPStatus.OK
                 error_message = None if service_reachable else f"HTTP {response.status_code}"
 
         except Exception as e:
@@ -238,11 +246,12 @@ async def regenerate_webhook_token(
     db: AsyncSession = Depends(get_db),
     admin_user: dict[str, Any] = Depends(verify_admin_session),
 ) -> dict[str, Any]:
-    """
-    Regenerate LeanCloud IM webhook security token.
+    """Regenerate LeanCloud IM webhook security token.
 
     Generates a new random token and updates the database.
-    WARNING: After regenerating, you must update the webhook URL in LeanCloud IM console immediately.
+
+    Warning:
+        After regenerating, you must update the webhook URL in LeanCloud IM console immediately.
 
     Returns:
         dict: Success status and warning message
@@ -254,6 +263,7 @@ async def regenerate_webhook_token(
             "warning": "Please update the webhook URL in LeanCloud console immediately",
             "new_token_length": 24
         }
+
     """
     logger.info(
         "admin_regenerate_webhook_token_requested",

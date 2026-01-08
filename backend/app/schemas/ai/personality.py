@@ -1,5 +1,4 @@
-"""
-AI personality related schemas.
+"""AI personality related schemas.
 
 This module contains Pydantic schemas for AI personalities and templates.
 """

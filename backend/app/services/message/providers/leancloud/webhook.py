@@ -6,7 +6,6 @@ parsing incoming messages and converting them to standardized format.
 """
 
 from datetime import UTC, datetime
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +13,7 @@ from app.crud.contact import contact as contact_crud
 from app.enums import MessageType
 from app.services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
 from app.services.message.security.encryption import decrypt_from_transport
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 from .adapter import parse_webhook_to_dict
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 async def parse_leancloud_webhook(
-    db: AsyncSession, message: dict[str, Any]
+    db: AsyncSession, message: JSONDict
 ) -> InboundMessageEvent | None:
     """
     Parse incoming webhook data from LeanCloud.
@@ -58,20 +58,38 @@ async def parse_leancloud_webhook(
     try:
         intermediate = await parse_webhook_to_dict(db, message)
         if not intermediate:
-            return None
+            raise TypeError("empty_intermediate_payload")
 
         from_qiao_id = intermediate.get("from_qiao_id")
         to_qiao_id = intermediate.get("to_qiao_id")
         conv_id = intermediate.get("conv_id")
-        content = intermediate.get("content") or ""
+        content_value = intermediate.get("content")
+        content = content_value if isinstance(content_value, str) else ""
         message_type_raw = intermediate.get("message_type")
-        supports_typing = intermediate.get("supports_typing", False)
-        sent_time = intermediate.get("sent_time")
-        action = intermediate.get("action")
-        notification_type = intermediate.get("notification_type")
-        notification_data = intermediate.get("notification_data")
-        encryption_algo = intermediate.get("encryption")
-        encryption_version = intermediate.get("encryption_version")
+        supports_typing_raw = intermediate.get("supports_typing", False)
+        supports_typing = (
+            bool(supports_typing_raw)
+            if isinstance(supports_typing_raw, (bool, int, float))
+            else False
+        )
+        sent_time_raw = intermediate.get("sent_time")
+        sent_time = int(sent_time_raw) if isinstance(sent_time_raw, (int, float)) else None
+        action_raw = intermediate.get("action")
+        action = action_raw if isinstance(action_raw, dict) else None
+        notification_type_raw = intermediate.get("notification_type")
+        notification_type = (
+            int(notification_type_raw) if isinstance(notification_type_raw, (int, float)) else None
+        )
+        notification_data_raw = intermediate.get("notification_data")
+        notification_data = (
+            notification_data_raw if isinstance(notification_data_raw, dict) else None
+        )
+        encryption_raw = intermediate.get("encryption")
+        encryption_algo = encryption_raw if isinstance(encryption_raw, str) else None
+        encryption_version_raw = intermediate.get("encryption_version")
+        encryption_version = (
+            encryption_version_raw if isinstance(encryption_version_raw, str) else None
+        )
 
         if not all([from_qiao_id, to_qiao_id, conv_id, message_type_raw is not None]):
             logger.error(
@@ -82,18 +100,18 @@ async def parse_leancloud_webhook(
                 has_message_type=message_type_raw is not None,
                 intermediate=intermediate,
             )
-            return None
+            raise TypeError("missing_required_inner_fields")
 
         # Type narrowing - ensure required string fields are strings
         if not isinstance(from_qiao_id, str):
             logger.error("invalid_from_qiao_id_type", type=type(from_qiao_id).__name__)
-            return None
+            raise TypeError("invalid_from_qiao_id_type")
         if not isinstance(to_qiao_id, str):
             logger.error("invalid_to_qiao_id_type", type=type(to_qiao_id).__name__)
-            return None
+            raise TypeError("invalid_to_qiao_id_type")
         if not isinstance(conv_id, str):
             logger.error("invalid_conv_id_type", type=type(conv_id).__name__)
-            return None
+            raise TypeError("invalid_conv_id_type")
 
         # Type narrowing - validate message_type is int
         if not isinstance(message_type_raw, int):
@@ -102,16 +120,17 @@ async def parse_leancloud_webhook(
                 message_type=message_type_raw,
                 expected_type="int",
             )
-            return None
+            raise TypeError("invalid_message_type")
 
         # Verify conversation exists in contacts table
         contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
         if not contact:
             logger.warning("conversation_not_found", conv_id=conv_id)
-            return None
+            raise TypeError("conversation_not_found")
 
         # Convert ISO timestamp to milliseconds
-        timestamp = intermediate.get("timestamp_ms")
+        timestamp_raw = intermediate.get("timestamp_ms")
+        timestamp = int(timestamp_raw) if isinstance(timestamp_raw, (int, float)) else None
         if not timestamp:
             timestamp = sent_time if sent_time else int(datetime.now(UTC).timestamp() * 1000)
 
@@ -131,6 +150,13 @@ async def parse_leancloud_webhook(
                 )
 
         # Build event metadata payloads
+        lc_from_raw = intermediate.get("lc_from")
+        lc_from = lc_from_raw if isinstance(lc_from_raw, str) else None
+        lc_conv_id_raw = intermediate.get("lc_conv_id")
+        lc_conv_id = lc_conv_id_raw if isinstance(lc_conv_id_raw, str) else None
+        raw_webhook_raw = intermediate.get("raw_webhook")
+        raw_webhook = raw_webhook_raw if isinstance(raw_webhook_raw, str) else None
+
         event_metadata = EventMetadata(
             action=action,
             notification_type=notification_type,
@@ -139,9 +165,9 @@ async def parse_leancloud_webhook(
             encryption_version=encryption_version,
         )
         provider_metadata = ProviderMetadata(
-            lc_from=intermediate.get("lc_from"),
-            lc_conv_id=intermediate.get("lc_conv_id"),
-            raw_webhook=intermediate.get("raw_webhook"),
+            lc_from=lc_from,
+            lc_conv_id=lc_conv_id,
+            raw_webhook=raw_webhook,
             notification_data=notification_data,
         )
 
@@ -151,10 +177,10 @@ async def parse_leancloud_webhook(
 
         if not isinstance(msg_id_client, str):
             logger.error("invalid_msg_id_client_type", type=type(msg_id_client).__name__)
-            return None
+            raise TypeError("invalid_msg_id_client_type")
         if not isinstance(msg_id_provider, str):
             logger.error("invalid_msg_id_provider_type", type=type(msg_id_provider).__name__)
-            return None
+            raise TypeError("invalid_msg_id_provider_type")
 
         # 9. Return InboundMessageEvent (msg_id_server to be filled downstream)
         return InboundMessageEvent(

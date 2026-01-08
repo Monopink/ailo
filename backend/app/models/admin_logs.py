@@ -1,5 +1,5 @@
-"""
-Admin log models for operation and login tracking.
+"""Admin log models for operation and login tracking.
+
 Simplified logging system for admin activities.
 """
 
@@ -11,8 +11,8 @@ from .base import ImmutableAutoIncrementModel
 
 
 class AdminOperationLog(ImmutableAutoIncrementModel):
-    """
-    Admin operation log model.
+    """Admin operation log model.
+
     Records important operations performed by admin users.
     """
 
@@ -45,8 +45,8 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
 
 
 class AdminLoginLog(ImmutableAutoIncrementModel):
-    """
-    Admin login log model.
+    """Admin login log model.
+
     Records all login attempts (successful and failed).
     """
 

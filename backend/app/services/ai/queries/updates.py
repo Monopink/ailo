@@ -18,7 +18,7 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def _coerce_context_status(raw_status: Any) -> int:
+def _coerce_context_status(raw_status: JSONValue | ConversationItemContextStatus | None) -> int:
     """Normalize incoming context status into ConversationItemContextStatus value."""
     if isinstance(raw_status, ConversationItemContextStatus):
         return int(raw_status)
@@ -33,15 +33,19 @@ def _coerce_context_status(raw_status: Any) -> int:
     if raw_status is None:
         return int(ConversationItemContextStatus.INCLUDED)
 
-    try:
-        value = int(raw_status)
-    except (TypeError, ValueError):
-        return int(ConversationItemContextStatus.INCLUDED)
+    if isinstance(raw_status, (str, int, float)):
+        try:
+            value = int(raw_status)
+        except (TypeError, ValueError):
+            value = int(ConversationItemContextStatus.INCLUDED)
+    else:
+        value = int(ConversationItemContextStatus.INCLUDED)
 
-    if value == int(ConversationItemContextStatus.EXCLUDED):
-        return int(ConversationItemContextStatus.EXCLUDED)
-
-    return int(ConversationItemContextStatus.INCLUDED)
+    return (
+        int(ConversationItemContextStatus.EXCLUDED)
+        if value == int(ConversationItemContextStatus.EXCLUDED)
+        else int(ConversationItemContextStatus.INCLUDED)
+    )
 
 
 def _coerce_relationship_count(value: JSONValue | None) -> int:

@@ -1,5 +1,4 @@
-"""
-AI Template admin views.
+"""AI Template admin views.
 
 This module contains Starlette-Admin views for AI instance configuration and persona inventory.
 """
@@ -494,7 +493,6 @@ class AITemplateMemoryView(ModelView):
         self, _request: Request, _data: FormData, obj: AITemplateMemory
     ) -> None:
         """Ensure template_id is synced from relationship."""
-
         if hasattr(obj, "template") and obj.template is not None:
             obj.template_id = obj.template.id
 
@@ -511,7 +509,6 @@ class AITemplateMemoryView(ModelView):
         obj: AITemplateMemory,
     ) -> None:
         """Ensure template relationship stays synchronized."""
-
         if hasattr(obj, "template") and obj.template is not None:
             obj.template_id = obj.template.id
 

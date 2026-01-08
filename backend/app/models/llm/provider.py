@@ -1,5 +1,4 @@
-"""
-LLM provider model.
+"""LLM provider model.
 
 This module contains the LLMProvider SQLAlchemy model.
 """
@@ -16,8 +15,7 @@ if TYPE_CHECKING:
 
 
 class LLMProvider(AutoIncrementModel):
-    """
-    LLM provider model.
+    """LLM provider model.
 
     Manages different LLM providers like Doubao, OpenAI, Claude, etc.
     Multiple providers with the same name are allowed (e.g., Doubao Production, Doubao Test).

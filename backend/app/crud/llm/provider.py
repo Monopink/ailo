@@ -1,5 +1,4 @@
-"""
-CRUD operations for LLM providers.
+"""CRUD operations for LLM providers.
 
 This module provides database operations for LLM providers.
 """

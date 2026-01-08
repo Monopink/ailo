@@ -25,7 +25,7 @@ from typing import Any
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.system_config import get_config
+from app.services.system_config import get_config_str
 from app.utils.logging import get_logger
 
 from .base import CaptchaProvider
@@ -90,22 +90,38 @@ async def _create_provider_by_name(
 
     if provider_normalized == "turnstile":
         if client_id:
-            secret_key = await get_config(
+            secret_key = await get_config_str(
                 db,
                 key=f"{client_id}_turnstile_secret_key",
                 required=False,
+                default="",
             )
             if not secret_key:
-                secret_key = await get_config(db, key="turnstile_secret_key", required=False)
+                secret_key = await get_config_str(
+                    db,
+                    key="turnstile_secret_key",
+                    required=False,
+                    default="",
+                )
         else:
-            secret_key = await get_config(
-                db, key=f"{provider_type}_turnstile_secret_key", required=False
+            secret_key = await get_config_str(
+                db,
+                key=f"{provider_type}_turnstile_secret_key",
+                required=False,
+                default="",
             )
             if not secret_key:
-                secret_key = await get_config(db, key="turnstile_secret_key", required=False)
+                secret_key = await get_config_str(
+                    db,
+                    key="turnstile_secret_key",
+                    required=False,
+                    default="",
+                )
 
         mode = (
-            await get_config(db, key="admin_captcha_mode") if provider_type == "admin" else "strict"
+            await get_config_str(db, key="admin_captcha_mode")
+            if provider_type == "admin"
+            else "strict"
         )
         logger.info(
             "creating_turnstile_provider",
@@ -157,7 +173,10 @@ async def create_captcha_provider(
         ValueError: If provider type is not supported
     """
     # Get provider configuration
-    captcha_provider = await get_config(db, key=f"{provider_type}_captcha_provider")
+    captcha_provider = await get_config_str(
+        db,
+        key=f"{provider_type}_captcha_provider",
+    )
 
     provider, _ = await _create_provider_by_name(captcha_provider, provider_type, db)
     return provider
@@ -190,11 +209,19 @@ async def create_captcha_provider_for_request(
     # Try client-specific provider key first (new scheme without 'user_' prefix)
     if client_id:
         provider_key = f"{client_id}_captcha_provider"
-        captcha_provider = await get_config(db, key=provider_key, required=False)
+        captcha_provider = await get_config_str(
+            db,
+            key=provider_key,
+            required=False,
+            default="",
+        )
         if captcha_provider:
             return await _create_provider_by_name(
                 captcha_provider, provider_type, db, client_id=client_id
             )
 
-    captcha_provider = await get_config(db, key=f"{provider_type}_captcha_provider")
+    captcha_provider = await get_config_str(
+        db,
+        key=f"{provider_type}_captcha_provider",
+    )
     return await _create_provider_by_name(captcha_provider, provider_type, db)

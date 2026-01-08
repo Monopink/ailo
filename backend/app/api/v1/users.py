@@ -1,5 +1,4 @@
-"""
-User profile API endpoints.
+"""User profile API endpoints.
 
 This module provides user profile management endpoints including:
 - Get user profile
@@ -36,8 +35,7 @@ router = APIRouter(prefix="/user", tags=["User Profile"])
 async def get_user_profile(
     current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> UserProfileResponse:
-    """
-    Get current user's profile.
+    """Get current user's profile.
 
     Returns only profile data (from profiles table).
     Does not include account security information (phone, email, etc).
@@ -49,6 +47,7 @@ async def get_user_profile(
 
     Returns:
         UserProfileResponse: User profile data with dynamically generated avatar_url
+
     """
     try:
         # Get user profile
@@ -85,8 +84,7 @@ async def get_user_profile(
 async def get_user_account(
     current_user: User = Depends(get_current_user),
 ) -> UserAccountResponse:
-    """
-    Get current user's account information.
+    """Get current user's account information.
 
     Returns account security related information including:
     - qiao_id, username
@@ -99,6 +97,7 @@ async def get_user_account(
 
     Returns:
         UserAccountResponse: User account data
+
     """
     try:
         # Mask phone number
@@ -136,8 +135,7 @@ async def update_user_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserProfileResponse:
-    """
-    Update current user's profile.
+    """Update current user's profile.
 
     All fields are optional. Only provided fields will be updated.
     avatar_file_id must reference an existing media_files record owned by the current user.
@@ -150,6 +148,7 @@ async def update_user_profile(
 
     Returns:
         UserProfileResponse: Updated user profile data with dynamically generated avatar_url
+
     """
     try:
         # Update username if provided (user table field)

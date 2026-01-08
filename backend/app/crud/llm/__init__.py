@@ -1,5 +1,4 @@
-"""
-LLM CRUD operations.
+"""LLM CRUD operations.
 
 This module provides CRUD operations for LLM-related models.
 """

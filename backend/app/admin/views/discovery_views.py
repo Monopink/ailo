@@ -1,5 +1,4 @@
-"""
-Discovery management views.
+"""Discovery management views.
 
 Provides admin tooling for Square exposure tables.
 """

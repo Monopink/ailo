@@ -1,5 +1,4 @@
-"""
-Admin management CRUD operations.
+"""Admin management CRUD operations.
 
 This module contains CRUD operations for admin users and operation logs.
 """
@@ -11,14 +10,13 @@ from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase, CRUDBaseWithStatus
-from app.enums import AdminRole, AdminStatus
+from app.enums import AdminRole, AdminStatus, LoginResult
 from app.models.admin import AdminLoginLog, AdminOperationLog, AdminUser
 from app.schemas.admin import AdminOperationLogCreate, AdminUserCreate, AdminUserUpdate
 
 
 class _AdminLogSchema(BaseModel):
-    """
-    Dummy schema for read-only admin log CRUD operations.
+    """Dummy schema for read-only admin log CRUD operations.
 
     Admin login logs are read-only, so update operations are not used.
     """
@@ -33,7 +31,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
         return result.scalar_one_or_none()
 
     async def authenticate(
-        self, db: AsyncSession, *, username: str, password: str
+        self, db: AsyncSession, *, username: str, _password: str
     ) -> AdminUser | None:
         """Authenticate admin user."""
         user = await self.get_by_username(db, username=username)
@@ -86,8 +84,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
 
     async def update_last_login(self, db: AsyncSession, *, user_id: int) -> AdminUser | None:
         """Update admin user's last login time."""
-
-        user = await self.get(db, id=user_id)
+        user = await self.get(db, record_id=user_id)
         if user:
             user.last_login = datetime.now(UTC)
             user.login_count += 1
@@ -100,7 +97,7 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
         self, db: AsyncSession, *, user_id: int, new_password_hash: str
     ) -> AdminUser | None:
         """Change admin user password."""
-        user = await self.get(db, id=user_id)
+        user = await self.get(db, record_id=user_id)
         if user:
             user.password_hash = new_password_hash
             db.add(user)
@@ -189,7 +186,6 @@ class CRUDAdminOperationLog(CRUDBase[AdminOperationLog, AdminOperationLogCreate,
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
     ) -> list[AdminOperationLog]:
         """Get recent operations within specified hours."""
-
         cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
@@ -233,14 +229,13 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, _AdminLogSchema, _AdminLogSchema
         self, db: AsyncSession, *, username: str, hours: int = 1
     ) -> list[AdminLoginLog]:
         """Get recent failed login attempts for username."""
-
         cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
             .where(
                 and_(
                     self.model.username == username,
-                    self.model.result == 2,  # Failed
+                    self.model.result == LoginResult.FAIL,
                     self.model.created_at >= cutoff_time,
                 )
             )
@@ -252,11 +247,12 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, _AdminLogSchema, _AdminLogSchema
         self, db: AsyncSession, *, hours: int = 24, limit: int = 100
     ) -> list[AdminLoginLog]:
         """Get recent successful logins."""
-
         cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         result = await db.execute(
             select(self.model)
-            .where(and_(self.model.result == 1, self.model.created_at >= cutoff_time))  # Success
+            .where(
+                and_(self.model.result == LoginResult.SUCCESS, self.model.created_at >= cutoff_time)
+            )
             .order_by(desc(self.model.created_at))
             .limit(limit)
         )
@@ -266,7 +262,6 @@ class CRUDAdminLoginLog(CRUDBase[AdminLoginLog, _AdminLogSchema, _AdminLogSchema
         self, db: AsyncSession, *, username: str, hours: int = 24, result: int | None = None
     ) -> int:
         """Count login attempts for username."""
-
         cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         conditions = [self.model.username == username, self.model.created_at >= cutoff_time]
 

@@ -1,5 +1,4 @@
-"""
-User management related models.
+"""User management related models.
 
 This module contains SQLAlchemy models for user accounts, tokens, and login records.
 """
@@ -18,8 +17,7 @@ from app.type_defs import JSONDict
 
 
 class User(SnowflakeQiaoModel, StatusMixin):
-    """
-    User account model.
+    """User account model.
 
     Represents user accounts with various login methods and status tracking.
     """
@@ -93,8 +91,7 @@ class User(SnowflakeQiaoModel, StatusMixin):
 
 
 class UserToken(SnowflakeModel):
-    """
-    User token model.
+    """User token model.
 
     Manages JWT tokens with device limits and activity tracking.
     """
@@ -188,8 +185,7 @@ class UserToken(SnowflakeModel):
 
 
 class UserAuth(SnowflakeModel, StatusMixin):
-    """
-    Third-party identity binding model.
+    """Third-party identity binding model.
 
     Stores stable mapping between internal users and external identity providers
     (WeChat/Apple/QQ etc.). Does NOT store login sessions/tokens.
@@ -238,8 +234,7 @@ class UserAuth(SnowflakeModel, StatusMixin):
 
 
 class LoginRecord(Base, SnowflakeIDMixin):
-    """
-    Login record model.
+    """Login record model.
 
     Tracks all login attempts for security and analytics purposes.
     Login records are immutable - no updated_at field needed.

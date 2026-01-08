@@ -1,5 +1,4 @@
-"""
-Authentication API endpoints.
+"""Authentication API endpoints.
 
 This module provides authentication-related endpoints including:
 - SMS verification code sending
@@ -12,7 +11,6 @@ import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -56,6 +54,7 @@ from app.services.security.captcha.none import NoneCaptchaProvider
 from app.services.security.rate_limiter import check_rate_limit
 from app.services.security.sms.factory import create_sms_provider
 from app.services.wechat.client import WeChatAPIError, WeChatClient
+from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 from app.utils.phone import is_china_phone, mask_phone, normalize_phone
 from app.utils.snowflake import generate_snowflake_id
@@ -92,6 +91,8 @@ REFRESH_RATE_WINDOW = timedelta(minutes=1)
 
 @dataclass
 class TokenPair:
+    """Access and refresh tokens issued together."""
+
     access_token: str
     refresh_token: str
     expires_in: int
@@ -99,48 +100,48 @@ class TokenPair:
 
 @dataclass
 class AccessTokenInfo:
+    """Metadata describing an access token."""
+
     access_token: str
     expires_in: int
 
 
 def _get_client_ip(request: Request) -> str:
-    """
-    Safely get client IP address from request.
+    """Safely get client IP address from request.
 
     Args:
         request: FastAPI request object
 
     Returns:
         Client IP address or "unknown" if not available
+
     """
     return request.client.host if request.client else "unknown"
 
 
 async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
     """Return JWT expiration duration in seconds from configuration."""
-
     expires_in_days = await system_configs.get_config_value(
         db, config_key="jwt_token_expires_in_days"
     )
-    if expires_in_days is None:
+    expires_in = _coerce_int(expires_in_days)
+    if expires_in is None:
         logger.error("jwt_expiration_config_missing")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="系统配置缺失",
         )
 
-    return int(expires_in_days) * 86400
+    return expires_in * 86400
 
 
 async def _get_refresh_token_expiration_days(db: AsyncSession) -> int:
     """Return refresh token expiration duration in days."""
-
     refresh_in_days = await system_configs.get_config_value(
         db, config_key="refresh_token_expires_in_days", default_value=90
     )
-    try:
-        days = int(refresh_in_days)
-    except (TypeError, ValueError):
+    days = _coerce_int(refresh_in_days)
+    if days is None:
         logger.warning("refresh_token_expiration_invalid", value=refresh_in_days)
         return 90
     return max(days, 1)
@@ -148,7 +149,6 @@ async def _get_refresh_token_expiration_days(db: AsyncSession) -> int:
 
 def _enforce_refresh_rate_limit(refresh_hash: str) -> None:
     """Prevent the same refresh token from being used too frequently."""
-
     now = datetime.now(UTC)
     window_start = now - REFRESH_RATE_WINDOW
     history = [ts for ts in _refresh_token_requests.get(refresh_hash, []) if ts > window_start]
@@ -163,8 +163,7 @@ def _enforce_refresh_rate_limit(refresh_hash: str) -> None:
 
 
 def _cleanup_expired_codes() -> None:
-    """
-    Clean up expired verification codes from memory.
+    """Clean up expired verification codes from memory.
 
     This function should be called before storing new codes to prevent memory leaks.
     In production, Redis TTL should be used instead.
@@ -181,8 +180,7 @@ def _cleanup_expired_codes() -> None:
 
 
 def _cleanup_expired_operation_tokens() -> None:
-    """
-    Clean up expired operation tokens from memory.
+    """Clean up expired operation tokens from memory.
 
     This function should be called before storing new tokens to prevent memory leaks.
     In production, Redis TTL should be used instead.
@@ -200,10 +198,9 @@ def _cleanup_expired_operation_tokens() -> None:
 
 async def _apply_wechat_phone_mock(
     db: AsyncSession,
-    phone_info: dict[str, Any],
-) -> dict[str, Any]:
-    """
-    Replace phone data with configured mock number when using WeChat virtual accounts.
+    phone_info: JSONDict,
+) -> JSONDict:
+    """Replace phone data with configured mock number when using WeChat virtual accounts.
 
     Args:
         db: Database session
@@ -211,8 +208,8 @@ async def _apply_wechat_phone_mock(
 
     Returns:
         Potentially modified phone info dictionary
-    """
 
+    """
     if not isinstance(phone_info, dict) or settings.is_production:
         return phone_info
 
@@ -269,8 +266,7 @@ async def _apply_wechat_phone_mock(
 
 
 def _consume_sms_code(phone: str, sms_code: str) -> None:
-    """
-    Validate and consume a previously issued SMS verification code.
+    """Validate and consume a previously issued SMS verification code.
 
     Args:
         phone: Normalized E.164 phone number
@@ -278,8 +274,8 @@ def _consume_sms_code(phone: str, sms_code: str) -> None:
 
     Raises:
         HTTPException: If code is missing, expired, or mismatched
-    """
 
+    """
     stored_data = _verification_codes.get(phone)
     if not stored_data:
         raise HTTPException(status_code=400, detail="验证码错误或已过期")
@@ -296,16 +292,15 @@ def _consume_sms_code(phone: str, sms_code: str) -> None:
 
 
 def _generate_operation_token(user_id: int) -> str:
-    """
-    Generate an operation token for sensitive operations.
+    """Generate an operation token for sensitive operations.
 
     Args:
         user_id: User ID
 
     Returns:
         Operation token string
-    """
 
+    """
     token = f"opt_{secrets.token_urlsafe(32)}"
     expires_at = datetime.now(UTC) + timedelta(seconds=SMS_CODE_TTL_SECONDS)
     _operation_tokens[token] = (user_id, expires_at)
@@ -317,14 +312,14 @@ def _generate_operation_token(user_id: int) -> str:
 
 
 def _verify_operation_token(token: str) -> int | None:
-    """
-    Verify operation token and return user ID.
+    """Verify operation token and return user ID.
 
     Args:
         token: Operation token
 
     Returns:
         User ID if valid, None if invalid or expired
+
     """
     if token not in _operation_tokens:
         logger.warning("operation_token_not_found", token=token[:10])
@@ -345,7 +340,6 @@ async def _rotate_access_token(
     user_token: UserToken,
 ) -> AccessTokenInfo:
     """Rotate access token for existing session."""
-
     expires_in_seconds = await _get_jwt_expiration_seconds(db)
     access_token = generate_jwt_token(
         user_id=user_token.user_id,
@@ -374,10 +368,7 @@ async def _issue_jwt_token_for_user(
     log_event: str,
     device_type: DeviceType = DeviceType.MINI_PROGRAM,
 ) -> TokenPair:
-    """
-    Create and persist a JWT token for the given user.
-    """
-
+    """Create and persist a JWT token for the given user."""
     expires_in_seconds = await _get_jwt_expiration_seconds(db)
     refresh_days = await _get_refresh_token_expiration_days(db)
 
@@ -426,10 +417,7 @@ async def _issue_jwt_token_for_user(
 async def _ensure_profile_stub(
     db: AsyncSession, *, user: User, nickname: str | None = None
 ) -> Profile:
-    """
-    Ensure the specified user has a profile stub. Creates one with NULL avatar_key (uses default).
-    """
-
+    """Ensure the specified user has a profile stub (NULL avatar_key default)."""
     profile_result = await db.execute(
         select(Profile).where(
             Profile.owner_id == user.id,
@@ -457,11 +445,8 @@ async def _ensure_profile_stub(
 
 def _build_user_payload(
     user: User, profile: Profile | None, avatar_url: str
-) -> dict[str, str | int | None]:
-    """
-    Construct user payload for authentication responses.
-    """
-
+) -> dict[str, JSONValue]:
+    """Construct user payload for authentication responses."""
     return {
         "qiao_id": user.qiao_id,
         "phone": user.phone,
@@ -473,7 +458,7 @@ def _build_user_payload(
 
 
 class SendSMSRequest(BaseModel):
-    """Request model for sending SMS verification code"""
+    """Request model for sending SMS verification code."""
 
     phone: str = Field(..., description="Phone number (11 digits)")
     # Optional for on-demand verification. When CAPTCHA is enabled and
@@ -483,7 +468,7 @@ class SendSMSRequest(BaseModel):
 
 
 class SendSMSResponse(BaseModel):
-    """Response model for sending SMS"""
+    """Response model for sending SMS."""
 
     expires_in: int = Field(..., description="Verification code TTL in seconds")
     cooldown_seconds: int = Field(..., description="Cooldown before next send in seconds")
@@ -493,8 +478,7 @@ class SendSMSResponse(BaseModel):
 async def send_sms_code(
     request: Request, body: SendSMSRequest, db: AsyncSession = Depends(get_db)
 ) -> SendSMSResponse:
-    """
-    Send SMS verification code.
+    """Send SMS verification code.
 
     Args:
         request: FastAPI request
@@ -506,6 +490,7 @@ async def send_sms_code(
 
     Raises:
         HTTPException: 400 for invalid phone, 429 for rate limit
+
     """
     # 0. On-demand CAPTCHA: if enabled and missing token -> 428
     try:
@@ -594,8 +579,7 @@ async def send_sms_code(
 async def wechat_login(
     request: Request, body: WeChatLoginRequest, db: AsyncSession = Depends(get_db)
 ) -> WeChatLoginResponse:
-    """
-    WeChat Mini Program login
+    """WeChat Mini Program login.
 
     Args:
         request: FastAPI request
@@ -607,6 +591,7 @@ async def wechat_login(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     client_ip = _get_client_ip(request)
     wechat_client = WeChatClient()
@@ -840,10 +825,7 @@ async def refresh_wechat_phone(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> WeChatRefreshPhoneResponse:
-    """
-    Refresh bound phone number via WeChat authorization for authenticated users.
-    """
-
+    """Refresh bound phone number via WeChat authorization for authenticated users."""
     client_ip = _get_client_ip(request)
     wechat_client = WeChatClient()
 
@@ -987,10 +969,7 @@ async def refresh_wechat_phone(
 async def refresh_token(
     body: RefreshTokenRequest, db: AsyncSession = Depends(get_db)
 ) -> RefreshTokenResponse:
-    """
-    Refresh access token using refresh token.
-    """
-
+    """Refresh access token using refresh token."""
     refresh_token = body.refresh_token.strip()
     if not refresh_token:
         raise HTTPException(status_code=400, detail="刷新凭证无效")
@@ -1023,8 +1002,7 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
-    """
-    User logout endpoint.
+    """User logout endpoint.
 
     Revokes the current JWT token by marking it as inactive in the database.
 
@@ -1037,6 +1015,7 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> dict[s
 
     Raises:
         HTTPException: 401 if not authenticated or token invalid
+
     """
     client_ip = _get_client_ip(request)
 
@@ -1074,8 +1053,8 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> dict[s
 async def verify_phone(
     request: Request, body: VerifyPhoneRequest, db: AsyncSession = Depends(get_db)
 ) -> VerifyPhoneResponse:
-    """
-    Unified phone verification endpoint (login/registration entry).
+    """Unified phone verification endpoint (login/registration entry).
+
     This endpoint handles both login and registration scenarios:
     - If user exists: Direct login, return token and user info
     - If user doesn't exist: Return temporary token for profile setup
@@ -1090,6 +1069,7 @@ async def verify_phone(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     client_ip = _get_client_ip(request)
 
@@ -1213,14 +1193,14 @@ async def send_verification_code(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> VerifySendCodeResponse:
-    """
-    Send verification code for unified verification mechanism.
+    """Send verification code for unified verification mechanism.
 
     Supports phone and email verification.
     Used for sensitive operations like changing phone/email, resetting password, etc.
 
     Args:
         body: Verification code request
+        request: FastAPI request
         current_user: Current authenticated user
         db: Database session
 
@@ -1229,6 +1209,7 @@ async def send_verification_code(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     try:
         # Determine target
@@ -1339,8 +1320,7 @@ async def confirm_verification_code(
     body: VerifyConfirmRequest,
     current_user: User = Depends(get_current_user),
 ) -> OperationTokenResponse:
-    """
-    Confirm verification code and get operation token.
+    """Confirm verification code and get operation token.
 
     Args:
         body: Verification confirmation request
@@ -1351,6 +1331,7 @@ async def confirm_verification_code(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     try:
         if body.verify_type == "phone":
@@ -1397,3 +1378,19 @@ async def confirm_verification_code(
             "confirm_verification_failed", error=str(e), user_id=current_user.id, exc_info=True
         )
         raise HTTPException(status_code=500, detail="验证失败，请稍后再试")
+
+
+def _coerce_int(value: JSONValue | None) -> int | None:
+    """Normalize JSONValue into an integer, if possible."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None

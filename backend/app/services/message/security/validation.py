@@ -10,12 +10,13 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import ChatInfoType
+from app.enums import AIInstanceStatus, ChatInfoType
 from app.models.ai.instance import AIInstance
 from app.models.contact import Contact
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+BLOCKED_STATUS = AIInstanceStatus.BLOCKED
 
 
 @dataclass
@@ -53,6 +54,13 @@ class MessageValidationService:
         Returns:
             ValidationResult with permission status and reason
         """
+        logger.debug(
+            "message_permission_validation_started",
+            db_session_id=id(db),
+            user_qiao_id=from_qiao_id,
+            instance_qiao_id=instance.qiao_id,
+        )
+
         # Check 1: User blocked AI instance
         if contact.is_blocked:
             logger.info(
@@ -69,7 +77,7 @@ class MessageValidationService:
             )
 
         # Check 2: AI instance blocked user
-        if instance.status == 3:  # BLOCKED status
+        if instance.status == BLOCKED_STATUS:
             logger.info(
                 "message_blocked_by_instance",
                 user_qiao_id=from_qiao_id,
@@ -109,11 +117,21 @@ class MessageValidationService:
         Returns:
             ValidationResult with permission status and detailed suggestions
         """
+        logger.debug(
+            "test_user_permission_validation_started",
+            db_session_id=id(db),
+            test_user_qiao_id=test_user_qiao_id,
+            instance_qiao_id=instance.qiao_id,
+        )
+
         # Check 1: User blocked AI instance
         if contact.is_blocked:
             return ValidationResult(
                 allowed=False,
-                reason=f"Test user '{test_user_qiao_id}' has blocked AI instance '{instance.qiao_id}'",
+                reason=(
+                    f"Test user '{test_user_qiao_id}' has blocked "
+                    f"AI instance '{instance.qiao_id}'"
+                ),
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
                 error_code="TEST_USER_BLOCKED_INSTANCE",
                 suggestions=[
@@ -123,10 +141,13 @@ class MessageValidationService:
             )
 
         # Check 2: AI instance blocked user
-        if instance.status == 3:  # BLOCKED status
+        if instance.status == BLOCKED_STATUS:
             return ValidationResult(
                 allowed=False,
-                reason=f"AI instance '{instance.qiao_id}' has blocked test user '{test_user_qiao_id}'",
+                reason=(
+                    f"AI instance '{instance.qiao_id}' has blocked "
+                    f"test user '{test_user_qiao_id}'"
+                ),
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
                 error_code="INSTANCE_BLOCKED_TEST_USER",
                 suggestions=[

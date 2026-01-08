@@ -17,6 +17,8 @@ extend-exclude = [
 [tool.ruff.lint]
 # Enable rule sets
 select = [
+  # Docstring
+  "D",  # pydocstyle - enabled with selective ignores for progressive adoption
   # Pyflakes
   "F", # pycodestyle
   "E",
@@ -51,7 +53,12 @@ select = [
 
 # Ignore rules (mapped from previous pylint config)
 ignore = [
-  "D", # pydocstring (corresponds to missing-docstring)
+  # Docstring rules - selective enablement for progressive adoption
+  "D100",  # Missing docstring in public module (not all modules need docs)
+  "D104",  # Missing docstring in public package (not all __init__.py need docs)
+  "D105",  # Missing docstring in magic method (often self-explanatory)
+  "D107",  # Missing docstring in __init__ (often simple assignments)
+  "D203",  # Disable due to conflict with D211 (per project preference)
   "TD", # flake8-todos (corresponds to fixme)
   "FIX", # flake8-fixme
   "PLR0913", # Too many arguments (handled by max-args below)
@@ -70,27 +77,43 @@ ignore = [
   "TRY300", # Allow return in try block (else block often less clear for AI)
   "B904", # Allow raise without exception chaining (already logging errors)
   "RUF022", # Allow logical grouping in __all__ over alphabetical sorting (AI-friendly)
+  "D213",  # Disable due to conflict with D212, prefer the more permissive layout
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Test files special rules
 "tests/**/*.py" = [
-  "S101", # Allow assert in tests
-  "PLR2004", # Allow magic values in tests
-  "ANN", # Don't require annotations in tests
+  "S101",  # Allow assert in tests
+  "PLR2004",  # Allow magic values in tests
+  "ANN",  # Don't require annotations in tests
+  "D",  # Don't require docstrings in tests
+]
+"backend/tests/**/*.py" = [
+  "S101",  # Allow assert in tests
+  "PLR2004",  # Allow magic values in tests
+  "ANN",  # Don't require annotations in tests
+  "D",  # Don't require docstrings in tests
 ]
 # Migration files special rules
 "**/migrations/**/*.py" = ["ALL"]
+# Internal services - progressive docstring adoption
+"backend/app/services/**/*.py" = [
+  "D",  # Progressive docstring adoption for internal services
+]
 # Admin API files - allow FastAPI patterns and higher complexity
 "backend/app/api/admin/**/*.py" = [
   "B008", # Allow Depends() in function defaults (FastAPI pattern)
   "TRY301", # Allow raise in try blocks (admin error handling pattern)
   "PLR0912", # Allow higher branch complexity for admin endpoints
   "PLR0915", # Allow higher statement count for admin endpoints
+  "D200", # Allow API docstrings to be succinct without reflow
+  "D205", # Allow summary line to be immediately followed by description
 ]
 # API v1 files - allow FastAPI Depends() pattern
 "backend/app/api/v1/**/*.py" = [
   "B008", # Allow Depends() in function defaults (FastAPI pattern)
+  "D200", # LeanCloud/API v1 modules keep short headers
+  "D205", # Allow immediate descriptions after summary lines
 ]
 # Auth API - authentication flows require more complexity
 "backend/app/api/v1/auth.py" = [
@@ -107,6 +130,23 @@ ignore = [
 "backend/app/services/admin/testing/**/*.py" = [
   "ANN401", # Allow Any for test service flexibility
   "ARG002", # Allow unused parameters (reserved for future features)
+]
+# Admin docstrings and small helpers - only focused validation in this module tree
+"backend/app/admin/**/*.py" = [
+  "D102", # Allow simple permission overrides without docstrings
+  "D200", # Allow docs that span multiple lines for descriptive clarity
+  "D202", # Allow blank lines after docstrings
+  "D205", # Allow multi-line descriptions without forced spacing after summary
+  "D212", # Allow multi-line summaries with additional blank lines
+  "D213", # Allow nested blank-line summaries
+  "D400", # Allow sentences without period for concise descriptions
+  "D401", # Allow imperative mood relaxation for admin helpers
+  "D413", # Allow Docs without blank line after sections for readability
+  "D415", # Allow slight punctuation variations for admin logging helpers
+  "D107", # __init__ docstrings may be omitted
+]
+"backend/app/utils/validation.py" = [
+  "ANN401", # Allow Any usage for validation helpers
 ]
 # Admin main module - allow Any for Jinja2 templates and framework compatibility
 "backend/app/admin/main.py" = [
@@ -143,10 +183,16 @@ ignore = [
 "backend/app/services/message/processing/*.py" = [
   "S311", # Allow random module for message timing simulation and reply probability
 ]
-# Admin data queries - safe parameterized SQL with fixed string fragments
+# Admin data queries - S608 exemption with security review
+# SECURITY: This file uses f-string SQL for query building BUT with strict safety constraints:
+# 1. All user input MUST be parameterized (no direct string interpolation)
+# 2. Only FIXED string fragments can be in f-string (e.g., column names, WHERE clauses)
+# 3. Dynamic parts use :param_name with values dict passed to db.execute()
+# Example: f"SELECT * FROM t WHERE 1=1{fixed_where}" with execute(sql, {"id": user_input})
+# Reviewed: 2026-01-08 - Uses safe pattern with where_extra as fixed string
 "backend/app/services/admin/data/style_dimensions.py" = [
-  "S608", # Allow f-string SQL with parameterized values (reviewed for safety)
-  "E501", # Allow long SQL lines for readability
+  "S608",  # Allow f-string SQL with parameterized values (reviewed for safety)
+  "E501",  # Allow long SQL lines for readability
 ]
 
 [tool.ruff.lint.pylint]
@@ -269,6 +315,13 @@ module = [
   "botocore.*",
 ]
 
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "passlib",
+  "passlib.*",
+]
+
 # ============================================================================
 # Admin Module - Relaxed Type Checking
 # ============================================================================
@@ -304,6 +357,18 @@ disable_error_code = [
   "call-overload", # JSON method overload
   "no-any-return", # Allow Any returns in testing code
   "dict-item", # JSON dict type flexibility
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "backend.tests.*",
+]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disable_error_code = [
+  "no-untyped-def",
+  "arg-type",
+  "return-value",
 ]
 
 # ============================================================================

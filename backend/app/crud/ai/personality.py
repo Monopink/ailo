@@ -1,5 +1,4 @@
-"""
-AI Personality CRUD operations.
+"""AI Personality CRUD operations.
 
 This module provides both standard CRUD operations and complex queries
 for AI personality management.
@@ -24,8 +23,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
     async def get_with_placeholders(
         self, db: AsyncSession, *, personality_id: int
     ) -> dict[str, Any] | None:
-        """
-        Get personality with its placeholders.
+        """Get personality with its placeholders.
 
         Args:
             db: Database session
@@ -33,6 +31,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
 
         Returns:
             Dictionary containing personality and placeholders, or None if not found
+
         """
         try:
             # Get personality
@@ -84,8 +83,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
     async def get_available_personalities(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
     ) -> list[AIPersonality]:
-        """
-        Get available personalities for instance creation.
+        """Get available personalities for instance creation.
 
         Args:
             db: Database session
@@ -94,6 +92,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
 
         Returns:
             List of available personalities
+
         """
         try:
             result = await db.execute(
@@ -118,8 +117,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
     async def search_personalities(
         self, db: AsyncSession, *, query: str, skip: int = 0, limit: int = 20
     ) -> list[AIPersonality]:
-        """
-        Search personalities by display name or prompt text.
+        """Search personalities by display name or prompt text.
 
         Args:
             db: Database session
@@ -129,6 +127,7 @@ class CRUDAIPersonality(CRUDBase[AIPersonality, AIPersonalityCreate, AIPersonali
 
         Returns:
             List of matching personalities
+
         """
         try:
             search_pattern = f"%{query}%"
@@ -165,8 +164,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
     async def get_by_personality(
         self, db: AsyncSession, *, personality_id: int | None = None
     ) -> list[AIPersonalityPlaceholder]:
-        """
-        Get placeholders by personality ID (or global placeholders if None).
+        """Get placeholders by personality ID (or global placeholders if None).
 
         Args:
             db: Database session
@@ -174,6 +172,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
 
         Returns:
             List of placeholders
+
         """
         try:
             if personality_id is None:
@@ -207,8 +206,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
     async def get_by_key(
         self, db: AsyncSession, *, placeholder_key: str, personality_id: int | None = None
     ) -> AIPersonalityPlaceholder | None:
-        """
-        Get placeholder by key and personality ID.
+        """Get placeholder by key and personality ID.
 
         Args:
             db: Database session
@@ -217,6 +215,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
 
         Returns:
             Placeholder object or None if not found
+
         """
         try:
             result = await db.execute(
@@ -240,8 +239,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
     async def get_placeholders_by_personality(
         self, db: AsyncSession, *, personality_id: int
     ) -> list[AIPersonalityPlaceholder]:
-        """
-        Get all placeholders for a personality (both specific and global).
+        """Get all placeholders for a personality (both specific and global).
 
         Args:
             db: Database session
@@ -249,6 +247,7 @@ class CRUDAIPersonalityPlaceholder(CRUDBase[AIPersonalityPlaceholder, Any, Any])
 
         Returns:
             List of placeholders (personality-specific + global)
+
         """
         try:
             result = await db.execute(

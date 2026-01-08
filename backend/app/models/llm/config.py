@@ -1,5 +1,4 @@
-"""
-LLM configuration model.
+"""LLM configuration model.
 
 This module contains the LLMConfig SQLAlchemy model.
 """
@@ -20,8 +19,7 @@ if TYPE_CHECKING:
 
 
 class LLMConfig(AutoIncrementModel):
-    """
-    LLM configuration model.
+    """LLM configuration model.
 
     Manages runtime configuration for LLM providers.
     """

@@ -46,7 +46,8 @@ async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
         db, config_key="leancloud_im_service_conversation_id"
     )
     if ensure_valid or not conv_id:
-        conv_id = await ensure_system_conversation(db, existing_conv_id=conv_id)
+        existing_conv_id = conv_id if isinstance(conv_id, str) else None
+        conv_id = await ensure_system_conversation(db, existing_conv_id=existing_conv_id)
 
     if not conv_id:
         logger.error("im_conv_id_not_configured")

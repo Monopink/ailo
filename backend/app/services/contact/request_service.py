@@ -43,7 +43,7 @@ from app.services.ai.instance_creation import create_instance_from_persona
 from app.services.contact.service import _get_im_conv_id, get_contact_with_profile
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
 from app.services.profile.avatar import get_avatar_url
-from app.type_defs import JSONDict
+from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
@@ -99,14 +99,15 @@ async def _get_contact_expiration_days(db: AsyncSession) -> int:
     expiry_days_value = await system_configs.get_config_value(
         db, config_key="contact_request_expiration_days"
     )
-    if expiry_days_value is None:
+    expiry = _coerce_int(expiry_days_value)
+    if expiry is None:
         logger.error("contact_request_expiration_config_missing")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="系统配置缺失",
         )
 
-    return int(expiry_days_value)
+    return expiry
 
 
 async def get_ai_contact_limit(db: AsyncSession, user_qiao_id: str) -> int:
@@ -125,11 +126,27 @@ async def get_ai_contact_limit(db: AsyncSession, user_qiao_id: str) -> int:
     """
     limit = await system_configs.get_config_value(db, config_key="default_contact_limit")
 
-    if limit is None:
+    limit_coerced = _coerce_int(limit)
+    if limit_coerced is None:
         logger.error("contact_limit_config_not_found", user_qiao_id=user_qiao_id)
         raise ValueError("Contact limit not configured")
+    return limit_coerced
 
-    return int(limit)
+
+def _coerce_int(value: JSONValue | None) -> int | None:
+    """Convert JSONValue into integer if possible."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _map_request_source_to_contact(source: int | None) -> str:
@@ -990,7 +1007,7 @@ async def accept_contact_request_service(
 
     try:
         # Get contact request
-        contact_request = await contact_request_crud.get(db, id=request_id)
+        contact_request = await contact_request_crud.get(db, record_id=request_id)
         if not contact_request:
             _raise_request_not_found()
         assert contact_request is not None
@@ -1135,7 +1152,7 @@ async def ignore_contact_request_service(
 
     try:
         # Get contact request
-        contact_request = await contact_request_crud.get(db, id=request_id)
+        contact_request = await contact_request_crud.get(db, record_id=request_id)
         if not contact_request:
             _raise_request_not_found()
         assert contact_request is not None

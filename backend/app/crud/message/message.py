@@ -1,5 +1,4 @@
-"""
-Message CRUD operations.
+"""Message CRUD operations.
 
 This module contains CRUD operations for message history and conversations.
 """
@@ -17,8 +16,7 @@ from app.models.message import MessageHistory
 
 
 class _MessageSchema(BaseModel):
-    """
-    Dummy schema for read-only message CRUD operations.
+    """Dummy schema for read-only message CRUD operations.
 
     MessageHistory is read-only from CRUD perspective (created via IM SDK events),
     so create/update operations are not used.

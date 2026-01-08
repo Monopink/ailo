@@ -1,5 +1,4 @@
-"""
-User management CRUD operations.
+"""User management CRUD operations.
 
 This module contains CRUD operations for user accounts, tokens, and authentication.
 """
@@ -64,7 +63,6 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         self, db: AsyncSession, *, phone: str | None = None, email: str | None = None, password: str
     ) -> User | None:
         """Authenticate user with phone/email and password."""
-
         user = await self.get_by_phone_or_email(db, phone=phone, email=email)
         if not user:
             return None
@@ -161,7 +159,6 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
 
     async def revoke_access_token(self, db: AsyncSession, *, token: str) -> UserToken | None:
         """Revoke a single access token."""
-
         user_token = await self.get_by_access_token(db, token=token)
         if user_token:
             now = datetime.now(UTC)
@@ -177,7 +174,6 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
         self, db: AsyncSession, *, user_id: int, exclude_token: str | None = None
     ) -> int:
         """Revoke all user tokens except the excluded one."""
-
         query = select(self.model).where(
             and_(self.model.user_id == user_id, self.model.status == 1)
         )
@@ -203,7 +199,6 @@ class CRUDUserToken(CRUDBase[UserToken, TokenCreate, TokenUpdate]):
         self, db: AsyncSession, *, user_id: int, device_type: DeviceType
     ) -> int:
         """Revoke all user tokens for a specific device type."""
-
         query = select(self.model).where(
             and_(
                 self.model.user_id == user_id,
@@ -247,7 +242,6 @@ class CRUDLoginRecord(ImmutableCRUDBase[LoginRecord, LoginRecordCreate]):
         self, db: AsyncSession, *, identifier: str, minutes: int = 15
     ) -> list[LoginRecord]:
         """Get recent failed login attempts for phone/email."""
-
         cutoff_time = datetime.now(UTC) - timedelta(minutes=minutes)
         stmt = (
             select(self.model)
@@ -276,6 +270,7 @@ class CRUDUserAuth(CRUDBase[UserAuth, UserAuthCreate, UserAuthUpdate]):
     async def get_by_provider_uid(
         self, db: AsyncSession, *, auth_type: AuthType | int, provider_uid: str
     ) -> UserAuth | None:
+        """Find an auth binding for a specific provider UID."""
         result = await db.execute(
             select(self.model).where(
                 and_(
@@ -297,6 +292,7 @@ class CRUDUserAuth(CRUDBase[UserAuth, UserAuthCreate, UserAuthUpdate]):
         app_id: str | None = None,
         extra_data: dict[str, Any] | None = None,
     ) -> UserAuth:
+        """Create a third-party identity binding for a user."""
         binding = self.model(
             id=generate_snowflake_id(),
             user_id=user_id,

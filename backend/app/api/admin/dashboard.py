@@ -1,5 +1,4 @@
-"""
-Admin Dashboard API endpoints.
+"""Admin Dashboard API endpoints.
 Provides system statistics and monitoring data for admin panel.
 """
 
@@ -19,11 +18,11 @@ dashboard_router = APIRouter()
 
 @dashboard_router.get("/stats")
 async def get_stats(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """
-    Get dashboard statistics data.
+    """Get dashboard statistics data.
 
     Returns:
         Dashboard statistics including metrics, charts, and system status
+
     """
     try:
         return await get_dashboard_stats(db)

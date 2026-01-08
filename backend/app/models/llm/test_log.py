@@ -1,5 +1,4 @@
-"""
-LLM test log model.
+"""LLM test log model.
 
 This module contains SQLAlchemy model for LLM configuration testing logs.
 """
@@ -15,8 +14,7 @@ from app.type_defs import JSONDict
 
 
 class LLMTestLog(ImmutableSnowflakeModel):
-    """
-    LLM test log model.
+    """LLM test log model.
 
     Records LLM configuration tests performed through admin interface.
     Test logs are immutable - no updated_at field needed.

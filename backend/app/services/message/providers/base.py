@@ -103,7 +103,8 @@ class MessageProvider(Protocol):
         """
         Send message as system (from='system').
 
-        Provider implementation handles protocol details (from_client, provider conversation ID, etc.).
+        Provider implementation handles protocol details
+        (from_client, provider conversation ID, etc.).
         Business layer doesn't need to know about these details.
 
         Args:

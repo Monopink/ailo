@@ -1,12 +1,10 @@
-"""
-Phone number management schemas
-"""
+"""Phone number management schemas."""
 
 from pydantic import BaseModel, Field
 
 
 class ChangePhoneRequest(BaseModel):
-    """Request schema for changing phone number"""
+    """Request schema for changing phone number."""
 
     operation_token: str | None = Field(None, description="Operation token from verification")
     new_phone: str = Field(..., max_length=20, description="New phone number in E.164 format")
@@ -16,6 +14,6 @@ class ChangePhoneRequest(BaseModel):
 
 
 class ChangePhoneResponse(BaseModel):
-    """Response schema for changing phone number"""
+    """Response schema for changing phone number."""
 
     phone: str = Field(..., description="Masked new phone number")

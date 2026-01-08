@@ -1,5 +1,4 @@
-"""
-Dashboard views for non-database functionality.
+"""Dashboard views for non-database functionality.
 All business logic is handled through internal API calls.
 """
 

@@ -1,5 +1,4 @@
-"""
-AI Instance Dimension CRUD operations.
+"""AI Instance Dimension CRUD operations.
 
 This module provides CRUD operations for AI instance dimension scores.
 """
@@ -95,14 +94,13 @@ class DimensionPayload:
     score_int: int
     score_float: float
     algorithm: int
-    params: dict[str, object] | None
+    params: JSONDict | None
 
 
 async def update_dimensions_batch(
     db: AsyncSession, instance_id: int, dimensions_data: list[JSONDict]
 ) -> dict[str, int]:
-    """
-    Batch update/create instance dimensions.
+    """Batch update/create instance dimensions.
 
     Args:
         db: Database session
@@ -115,6 +113,7 @@ async def update_dimensions_batch(
 
     Returns:
         {"updated": int, "created": int}
+
     """
     try:
         # Resolve instance style_id
@@ -281,7 +280,7 @@ def _coerce_algorithm(value: JSONValue | None) -> int | None:
     return None
 
 
-def _coerce_params(value: JSONValue | None) -> dict[str, object] | None:
+def _coerce_params(value: JSONValue | None) -> JSONDict | None:
     """Ensure position mapping parameters are dictionary-based."""
     if isinstance(value, dict):
         return dict(value)

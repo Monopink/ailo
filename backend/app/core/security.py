@@ -1,6 +1,4 @@
-"""
-Security utilities for authentication and password management.
-"""
+"""Security utilities for authentication and password management."""
 
 import secrets
 import string
@@ -16,8 +14,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verify a plain password against a hashed password.
+    """Verify a plain password against a hashed password.
 
     Args:
         plain_password: The plain text password
@@ -25,40 +22,40 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
     Returns:
         bool: True if password matches, False otherwise
+
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    return bool(pwd_context.verify(plain_password, hashed_password))
 
 
 def get_password_hash(password: str) -> str:
-    """
-    Hash a password using bcrypt.
+    """Hash a password using bcrypt.
 
     Args:
         password: The plain text password to hash
 
     Returns:
         str: The hashed password
+
     """
-    return pwd_context.hash(password)
+    return str(pwd_context.hash(password))
 
 
 def generate_password(length: int = 12) -> str:
-    """
-    Generate a random password.
+    """Generate a random password.
 
     Args:
         length: Length of the password to generate
 
     Returns:
         str: A randomly generated password
+
     """
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def create_access_token(subject: str | int, expires_delta: timedelta | None = None) -> str:
-    """
-    Create a JWT access token.
+    """Create a JWT access token.
 
     Args:
         subject: The subject (usually user ID) to encode in the token
@@ -66,6 +63,7 @@ def create_access_token(subject: str | int, expires_delta: timedelta | None = No
 
     Returns:
         str: The encoded JWT token
+
     """
     settings = get_settings()
     if expires_delta:
@@ -78,14 +76,14 @@ def create_access_token(subject: str | int, expires_delta: timedelta | None = No
 
 
 def decode_access_token(token: str) -> dict[str, str | int] | None:
-    """
-    Decode and verify a JWT access token.
+    """Decode and verify a JWT access token.
 
     Args:
         token: The JWT token to decode
 
     Returns:
         dict: The decoded payload if valid (contains 'sub' and 'exp'), None otherwise
+
     """
     settings = get_settings()
     try:

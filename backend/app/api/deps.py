@@ -1,6 +1,4 @@
-"""
-API dependencies for authentication and authorization.
-"""
+"""API dependencies for authentication and authorization."""
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -19,6 +17,17 @@ from app.services.security.captcha.factory import create_captcha_provider
 from app.services.security.rate_limiter import check_message_rate_limit, check_rate_limit
 from app.utils.logging import get_logger
 
+__all__ = [
+    "verify_admin_session",
+    "get_admin_user_and_db",
+    "require_auth_rate_limit",
+    "require_sms_rate_limit",
+    "require_message_rate_limit",
+    "require_captcha_if_needed",
+    "get_current_user",
+    "get_db",
+]
+
 DBSession = Annotated[AsyncSession, Depends(get_db)]
 DEFAULT_CAPTCHA_TOKEN_FIELD = "captcha_token"  # noqa: S105
 
@@ -26,8 +35,7 @@ logger = get_logger(__name__)
 
 
 async def verify_admin_session(request: Request) -> dict[str, Any]:
-    """
-    Verify admin session from Starlette-Admin.
+    """Verify admin session from Starlette-Admin.
 
     This reuses the same session authentication as the admin dashboard.
     All admin API endpoints should use this dependency for authentication.
@@ -46,6 +54,7 @@ async def verify_admin_session(request: Request) -> dict[str, Any]:
 
     Raises:
         HTTPException: 401 if not authenticated
+
     """
     admin_user = request.session.get("admin_user")
     if not admin_user or not isinstance(admin_user, dict):
@@ -61,8 +70,7 @@ async def verify_admin_session(request: Request) -> dict[str, Any]:
 async def get_admin_user_and_db(
     request: Request, db: DBSession
 ) -> tuple[dict[str, Any], AsyncSession]:
-    """
-    Get both admin user and database session.
+    """Get both admin user and database session.
 
     Convenience dependency that combines verify_admin_session and get_db.
 
@@ -72,6 +80,7 @@ async def get_admin_user_and_db(
 
     Returns:
         tuple: (admin_user, db)
+
     """
     admin_user = await verify_admin_session(request)
     return admin_user, db
@@ -83,17 +92,17 @@ async def get_admin_user_and_db(
 async def require_auth_rate_limit(
     auth_type: str,
 ) -> Callable[[Request, AsyncSession], Awaitable[None]]:
-    """
-    Authentication rate limit dependency factory.
+    """Create authentication rate limit dependency factory.
 
     Args:
         auth_type: 'admin' or 'user'
 
     Returns:
-        Dependency function that validates rate limits for auth operations
+        Dependency function that validates rate limits for auth operations.
 
     Raises:
         HTTPException: 429 if rate limit exceeded
+
     """
 
     async def dependency(request: Request, db: DBSession) -> None:
@@ -115,8 +124,7 @@ async def require_auth_rate_limit(
 
 
 async def require_sms_rate_limit(request: Request, db: DBSession) -> None:
-    """
-    SMS rate limit dependency.
+    """SMS rate limit dependency.
 
     Validates rate limits for SMS verification code sending.
 
@@ -126,8 +134,8 @@ async def require_sms_rate_limit(request: Request, db: DBSession) -> None:
 
     Raises:
         HTTPException: 400 if phone missing, 429 if rate limit exceeded
-    """
 
+    """
     # Get phone from request body
     body = await request.json()
     phone = body.get("phone", "")
@@ -150,8 +158,7 @@ async def require_sms_rate_limit(request: Request, db: DBSession) -> None:
 
 
 async def require_message_rate_limit(user_id: str, db: DBSession) -> None:
-    """
-    Message rate limit dependency.
+    """Message rate limit dependency.
 
     Validates rate limits for message sending operations.
 
@@ -161,8 +168,8 @@ async def require_message_rate_limit(user_id: str, db: DBSession) -> None:
 
     Raises:
         HTTPException: 429 if rate limit exceeded
-    """
 
+    """
     allowed, error_code, retry_after = await check_message_rate_limit(user_id, db)
 
     if not allowed:
@@ -181,8 +188,7 @@ async def require_captcha_if_needed(
     auth_type: str,
     token_field: str = DEFAULT_CAPTCHA_TOKEN_FIELD,
 ) -> Callable[[Request, AsyncSession], Awaitable[None]]:
-    """
-    Conditional CAPTCHA verification dependency factory.
+    """Conditional CAPTCHA verification dependency factory.
 
     Args:
         auth_type: 'admin' or 'user'
@@ -193,6 +199,7 @@ async def require_captcha_if_needed(
 
     Raises:
         HTTPException: 400 if CAPTCHA required but invalid
+
     """
 
     async def dependency(request: Request, db: DBSession) -> None:
@@ -223,8 +230,7 @@ async def require_captcha_if_needed(
 
 
 async def get_current_user(request: Request, db: DBSession) -> User:
-    """
-    Get current authenticated user from JWT token.
+    """Get current authenticated user from JWT token.
 
     Args:
         request: FastAPI request
@@ -235,8 +241,8 @@ async def get_current_user(request: Request, db: DBSession) -> User:
 
     Raises:
         HTTPException: 401 if not authenticated or token invalid
-    """
 
+    """
     # 1. Get token from Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):

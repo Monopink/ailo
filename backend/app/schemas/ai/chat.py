@@ -1,5 +1,4 @@
-"""
-AI chat related schemas.
+"""AI chat related schemas.
 
 This module contains Pydantic schemas for AI chat interactions and relationship scoring.
 """

@@ -1,5 +1,4 @@
-"""
-Contact management API endpoints.
+"""Contact management API endpoints.
 
 This module provides endpoints for managing user contacts and conversations.
 """
@@ -37,7 +36,6 @@ router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
 def _decode_cursor(cursor: str | None) -> int:
     """Decode opaque cursor into skip offset."""
-
     if not cursor:
         return 0
 
@@ -51,7 +49,6 @@ def _decode_cursor(cursor: str | None) -> int:
 
 def _encode_cursor(offset: int) -> str:
     """Encode skip offset into opaque cursor."""
-
     return base64.urlsafe_b64encode(str(offset).encode()).decode().rstrip("=")
 
 
@@ -62,8 +59,7 @@ async def get_contacts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactListResult:
-    """
-    Get user's contact list.
+    """Get user's contact list.
 
     Returns a paginated list of contacts with presentation information.
 
@@ -78,6 +74,7 @@ async def get_contacts(
 
     Raises:
         HTTPException: 500 if retrieval fails
+
     """
     try:
         skip = _decode_cursor(cursor)
@@ -132,8 +129,7 @@ async def get_contact(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
-    """
-    Get specific contact details.
+    """Get specific contact details.
 
     Returns detailed information about a specific contact.
 
@@ -147,6 +143,7 @@ async def get_contact(
 
     Raises:
         HTTPException: 404 if contact not found, 500 for internal errors
+
     """
     try:
         contact = await get_contact_with_profile(
@@ -202,8 +199,7 @@ async def get_contact_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationInfoResponse:
-    """
-    Get conversation information.
+    """Get conversation information.
 
     Returns conversation information including contact basic info and IM conversation ID.
     Used by messaging client to initialize conversation.
@@ -218,6 +214,7 @@ async def get_contact_conversation(
 
     Raises:
         HTTPException: 404 if conversation not found, 500 for internal errors
+
     """
     try:
         conversation = await get_conversation_info(
@@ -274,8 +271,7 @@ async def update_contact_info(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
-    """
-    Update contact information.
+    """Update contact information.
 
     Allows updating contact alias, tags, remark, pin status, mute status, and block status.
     All fields are optional - only provided fields will be updated.
@@ -292,6 +288,7 @@ async def update_contact_info(
     Raises:
         HTTPException: 400 if contact not found or access denied
         HTTPException: 500 if update fails
+
     """
     try:
         updated_contact = await update_contact(
@@ -353,8 +350,7 @@ async def block_contact_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
-    """
-    Block a contact.
+    """Block a contact.
 
     Blocks the specified contact, preventing messages from being received.
 
@@ -369,6 +365,7 @@ async def block_contact_endpoint(
     Raises:
         HTTPException: 400 if contact not found or access denied
         HTTPException: 500 if block operation fails
+
     """
     try:
         blocked_contact = await block_contact(
@@ -429,8 +426,7 @@ async def unblock_contact_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
-    """
-    Unblock a contact.
+    """Unblock a contact.
 
     Unblocks the specified contact, allowing messages to be received again.
 
@@ -445,6 +441,7 @@ async def unblock_contact_endpoint(
     Raises:
         HTTPException: 400 if contact not found or access denied
         HTTPException: 500 if unblock operation fails
+
     """
     try:
         unblocked_contact = await unblock_contact(
@@ -505,8 +502,7 @@ async def delete_contact_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """
-    Delete a contact.
+    """Delete a contact.
 
     Soft deletes the contact relationship. Chat history is not deleted (managed by client).
 
@@ -521,6 +517,7 @@ async def delete_contact_endpoint(
     Raises:
         HTTPException: 400 if contact not found or access denied
         HTTPException: 500 if delete operation fails
+
     """
     try:
         success = await delete_contact(

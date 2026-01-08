@@ -1,5 +1,4 @@
-"""
-Token management related admin views.
+"""Token management related admin views.
 
 This module contains Starlette-Admin views for managing user tokens and login records.
 """

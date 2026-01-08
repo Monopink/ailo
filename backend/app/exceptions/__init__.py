@@ -1,5 +1,4 @@
-"""
-Custom exceptions module.
+"""Custom exceptions module.
 
 This module contains all custom exception classes used throughout the application.
 Exceptions are organized by category and provide structured error information.
@@ -7,13 +6,13 @@ Exceptions are organized by category and provide structured error information.
 
 # Base exceptions
 from .base import (
-    BaseAppException,
+    BaseAppError,
     ConfigurationError,
     ConflictError,
     ExternalServiceError,
     MissingConfigurationError,
     NotFoundError,
-    PermissionError,
+    PermissionDeniedError,
     ValidationError,
 )
 
@@ -55,10 +54,10 @@ from .llm import (
 
 __all__ = [
     # Base exceptions
-    "BaseAppException",
+    "BaseAppError",
     "ValidationError",
     "NotFoundError",
-    "PermissionError",
+    "PermissionDeniedError",
     "ConflictError",
     "ExternalServiceError",
     "ConfigurationError",

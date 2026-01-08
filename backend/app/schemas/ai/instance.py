@@ -1,5 +1,4 @@
-"""
-AI instance related schemas.
+"""AI instance related schemas.
 
 This module contains Pydantic schemas for AI instances and contexts.
 """

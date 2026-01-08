@@ -1,5 +1,4 @@
-"""
-AI instance dimension related models.
+"""AI instance dimension related models.
 
 This module contains SQLAlchemy models for AI instance dimension scores.
 """
@@ -19,8 +18,7 @@ if TYPE_CHECKING:
 
 
 class AIInstanceDimension(SnowflakeModel):
-    """
-    AI instance dimension score model.
+    """AI instance dimension score model.
 
     Dimension scoring for each instance.
     """

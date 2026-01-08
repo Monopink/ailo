@@ -1,5 +1,4 @@
-"""
-AI request log related models.
+"""AI request log related models.
 
 This module contains SQLAlchemy models for AI service request logging.
 """
@@ -15,8 +14,7 @@ from app.type_defs import JSONDict
 
 
 class AIRequestLog(ImmutableSnowflakeModel):
-    """
-    AI request log model.
+    """AI request log model.
 
     AI service request logging.
     AI request logs are immutable - no updated_at field needed.

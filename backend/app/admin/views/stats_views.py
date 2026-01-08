@@ -1,5 +1,4 @@
-"""
-Statistics admin views.
+"""Statistics admin views.
 
 This module contains Starlette-Admin views for statistics tables.
 All views are read-only.

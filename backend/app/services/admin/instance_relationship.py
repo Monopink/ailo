@@ -24,6 +24,7 @@ from app.services.ai.relationship_scoring import (
 from app.services.ai.relationship_selection import collect_candidates, select_final_relationship
 from app.services.ai.utils.position_mapping import map_score_to_position
 from app.services.ai.utils.score_mapping import map_to_permille
+from app.type_defs import JSONValue, RelationshipCandidate
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -79,8 +80,14 @@ async def generate_relationship_for_instance(
         return {"success": False, "message": "No dimensions configured for this style"}
 
     # Read JSON Schema for mapping ranges from personality
-    json_schema = instance.personality.json_schema or {}
-    score_props = json_schema.get("properties", {}).get("score", {}).get("properties", {})
+    json_schema_raw = instance.personality.json_schema
+    json_schema_props = (
+        json_schema_raw.get("properties") if isinstance(json_schema_raw, dict) else {}
+    )
+    score_props_raw = json_schema_props.get("score") if isinstance(json_schema_props, dict) else {}
+    score_props = score_props_raw.get("properties") if isinstance(score_props_raw, dict) else {}
+    if not isinstance(score_props, dict):
+        score_props = {}
 
     # Read current instance dimensions
     char_scores = await get_by_instance(db, instance_id)
@@ -90,22 +97,30 @@ async def generate_relationship_for_instance(
     override_map: dict[int, dict[str, Any]] = {}
     if overrides and isinstance(overrides.get("dimensions"), list):
         for d in overrides["dimensions"]:
+            dim_id = d.get("dimension_id")
+            if dim_id is None:
+                continue
             try:
-                override_map[int(d.get("dimension_id"))] = d
-            except Exception:
+                override_map[int(dim_id)] = d
+            except (TypeError, ValueError) as exc:
+                logger.warning(
+                    "instance_override_bad_dimension_id",
+                    dimension_id=dim_id,
+                    error=str(exc),
+                )
                 continue
 
     # Process per-dimension mapping+offset and collect candidates
     dimension_results: list[dict[str, Any]] = []
-    all_candidates: list[dict[str, Any]] = []
+    all_candidates: list[RelationshipCandidate] = []
 
     for dim in style_dims:
         ov = override_map.get(dim.id, {})
+        base = score_map.get(dim.id)
         # Score: override -> current -> fallback 500
         score = ov.get("score")
         if score is None:
-            base = score_map.get(dim.id, {})
-            score = base.get("score", 500)
+            score = base.get("score", 500) if base else 500
         try:
             score = float(score)
         except Exception:
@@ -114,8 +129,7 @@ async def generate_relationship_for_instance(
         # Algorithm & params: override -> current -> defaults
         algorithm = ov.get("position_mapping_algorithm")
         if algorithm is None:
-            base = score_map.get(dim.id, {})
-            algorithm = base.get("position_mapping_algorithm", 1)
+            algorithm = base.get("position_mapping_algorithm", 1) if base else 1
         try:
             algorithm = int(algorithm)
         except Exception:
@@ -123,13 +137,13 @@ async def generate_relationship_for_instance(
 
         params = ov.get("position_mapping_params") or {}
         if not params:
-            base = score_map.get(dim.id, {})
-            params = base.get("position_mapping_params", {}) or {}
+            params = base.get("position_mapping_params", {}) or {} if base else {}
 
         # Map using JSON Schema ranges (fallback 0..1000)
-        dim_schema = score_props.get(dim.name, {}) if isinstance(score_props, dict) else {}
-        min_v = dim_schema.get("minimum", 0)
-        max_v = dim_schema.get("maximum", 1000)
+        dim_schema_raw = score_props.get(dim.name) if isinstance(score_props, dict) else {}
+        dim_schema = dim_schema_raw if isinstance(dim_schema_raw, dict) else {}
+        min_v = _coerce_numeric_bound(dim_schema.get("minimum"), 0.0)
+        max_v = _coerce_numeric_bound(dim_schema.get("maximum"), 1000.0)
         try:
             mapped = map_to_permille(score, float(min_v), float(max_v))
         except Exception as e:
@@ -197,7 +211,8 @@ async def generate_relationship_for_instance(
     # Persist (optional): positions and current relationship
     if not preview:
         try:
-            # Use overrides.score as llm_response_scores; calculate_new_scores will map via schema again
+            # Use overrides.score as llm_response_scores; calculate_new_scores will map
+            # via schema again
             llm_scores = {dr["dimension_name"]: int(dr["input_score"]) for dr in dimension_results}
             new_scores = await calculate_new_scores(db, context, llm_scores)
             await update_relationship_positions(db, instance_id, new_scores)
@@ -218,3 +233,15 @@ async def generate_relationship_for_instance(
         "selected_relationship": selected,
         "selection_reason": reason,
     }
+
+
+def _coerce_numeric_bound(value: JSONValue | None, default: float) -> float:
+    """Convert JSON value into a floating-point bound."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default

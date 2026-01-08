@@ -5,8 +5,6 @@ This module handles discovery page queries that rely on square exposure entries
 and the corresponding AI persona profiles.
 """
 
-from typing import Any
-
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,15 +37,16 @@ async def get_random_persona_entries(
         limit = max(page_size, 1)
         offset = (page - 1) * limit
 
-        excluded_qiao_ids = (
-            select(Contact.contact_qiao_id)
-            .where(
+        excluded_result = await db.execute(
+            select(Contact.contact_qiao_id).where(
                 Contact.user_qiao_id == user_qiao_id,
                 Contact.contact_type == ContactType.AI,
                 Contact.is_deleted == 0,
             )
-            .scalar_subquery()
         )
+        excluded_qiao_ids: list[str] = [
+            qiao_id for qiao_id in excluded_result.scalars().all() if isinstance(qiao_id, str)
+        ]
 
         base_conditions = [SquareTypeEntry.status == SquareEntryStatus.ACTIVE]
         if category is not None:
@@ -165,10 +164,11 @@ async def _pick_persona_for_ai_type(
     db: AsyncSession,
     *,
     type_id: int,
-    excluded_qiao_ids: Any,
+    excluded_qiao_ids: list[str],
 ) -> tuple[AIPersona, Profile] | None:
     """
-    Pick an active persona + profile pair for the given AI type that is not already in the user's contacts.
+    Pick an active persona + profile pair for the given AI type
+    that is not already in the user's contacts.
     """
 
     stmt = (
@@ -184,12 +184,14 @@ async def _pick_persona_for_ai_type(
             and_(
                 AIPersona.type_id == type_id,
                 AIPersona.status == AIPersonaStatus.ACTIVE,
-                AIPersona.qiao_id.notin_(excluded_qiao_ids),
             )
         )
         .order_by(func.random())
         .limit(1)
     )
+
+    if excluded_qiao_ids:
+        stmt = stmt.where(AIPersona.qiao_id.notin_(excluded_qiao_ids))
 
     result = await db.execute(stmt)
     row = result.first()

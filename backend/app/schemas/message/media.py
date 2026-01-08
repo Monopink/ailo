@@ -1,5 +1,4 @@
-"""
-Media file related schemas.
+"""Media file related schemas.
 
 Defines Pydantic representations aligned with the new object storage model.
 """

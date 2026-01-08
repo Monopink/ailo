@@ -1,5 +1,4 @@
-"""
-Lightweight runtime validation helpers for development mode.
+"""Lightweight runtime validation helpers for development mode.
 
 The helpers in this module are intentionally minimal and only enforce
 basic invariants (required field presence and primitive type checks) to
@@ -19,7 +18,6 @@ _PRIMITIVE_TYPES: tuple[type[Any], ...] = (str, int, float, bool)
 
 def _flatten_annotation(annotation: Any) -> set[type[Any]]:
     """Return a set of primitive/None types contained in annotation."""
-
     origin = get_origin(annotation)
     if origin in (None, NoneType):
         return {annotation}
@@ -45,7 +43,6 @@ def _flatten_annotation(annotation: Any) -> set[type[Any]]:
 
 def _is_primitive_type(value: Any, expected: type[Any]) -> bool:
     """Return True if value matches expected primitive type."""
-
     if expected in _PRIMITIVE_TYPES:
         return isinstance(value, expected)
     if expected is NoneType:
@@ -56,8 +53,7 @@ def _is_primitive_type(value: Any, expected: type[Any]) -> bool:
 def validate_typed_dict(
     data: Mapping[str, Any], expected_type: type[Any], *, name: str | None = None
 ) -> None:
-    """
-    Validate a TypedDict instance in DEBUG mode.
+    """Validate a TypedDict instance in DEBUG mode.
 
     Checks:
         - Required fields exist
@@ -70,8 +66,8 @@ def validate_typed_dict(
 
     Raises:
         ValueError: When required keys missing or primitive type mismatch.
-    """
 
+    """
     settings = get_settings()
     if not settings.DEBUG:
         return

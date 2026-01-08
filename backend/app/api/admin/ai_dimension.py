@@ -1,5 +1,4 @@
-"""
-Admin AI Dimension API endpoints.
+"""Admin AI Dimension API endpoints.
 Handles dimension queries and relationship mappings.
 """
 
@@ -26,7 +25,6 @@ async def get_dimensions_by_names(
     data: dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> list[dict[str, Any]]:
     """Get dimension details by names."""
-
     names = data.get("names", [])
     if not names:
         return []

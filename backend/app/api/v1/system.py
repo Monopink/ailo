@@ -1,6 +1,4 @@
-"""
-System endpoints for client bootstrapping configs.
-"""
+"""System endpoints for client bootstrapping configs."""
 
 from typing import TypedDict
 
@@ -22,6 +20,8 @@ ALLOWED_CLIENTS = {
 
 
 class CaptchaConfigResponse(TypedDict):
+    """Captcha configuration payload returned to clients."""
+
     provider: str
     scene_id: str
     region: str
@@ -48,7 +48,6 @@ async def get_captcha_config(
     request: Request, db: AsyncSession = Depends(get_db)
 ) -> CaptchaConfigResponse:
     """Return public captcha configuration for clients."""
-
     _require_client_id(request)
     _, metadata = await create_captcha_provider_for_request("user", db, request)
     return metadata.to_response()  # type: ignore[return-value]

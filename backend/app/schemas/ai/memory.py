@@ -1,5 +1,4 @@
-"""
-AI memory schemas.
+"""AI memory schemas.
 
 Defines Pydantic models for template memories and instance memories so that
 CRUD layers and APIs can share the same validation logic.
@@ -45,6 +44,8 @@ class AITemplateMemory(AITemplateMemoryBase):
     updated_at: str | None = Field(None, description="Last update timestamp")
 
     class Config:
+        """Allow ORM models to populate this schema."""
+
         from_attributes = True
 
 
@@ -88,6 +89,8 @@ class AIInstanceMemory(AIInstanceMemoryBase):
     updated_at: str | None = Field(None, description="Last update timestamp")
 
     class Config:
+        """Allow ORM models to populate this schema."""
+
         from_attributes = True
 
 

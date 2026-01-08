@@ -1,16 +1,24 @@
 """Pytest configuration and shared fixtures for testing."""
 
 import asyncio
+import importlib
 import os
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
+
+from app.utils.snowflake import init_snowflake
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent.parent / "deployment" / ".env"
@@ -25,15 +33,16 @@ os.environ["POSTGRES_HOST"] = "localhost"
 backend_app_path = Path(__file__).parent.parent / "app"
 sys.path.insert(0, str(backend_app_path))
 
-from core.config import get_settings
-from core.database import get_db
-from main import create_app
-
-from app.utils.snowflake import init_snowflake
+core_config = importlib.import_module("core.config")
+get_settings = core_config.get_settings
+core_database = importlib.import_module("core.database")
+get_db = core_database.get_db
+main_module = importlib.import_module("main")
+create_app = main_module.create_app
 
 
 @pytest.fixture(scope="session", autouse=True)
-def initialize_snowflake():
+def initialize_snowflake() -> None:
     """
     Initialize Snowflake generator for all tests.
 
@@ -43,7 +52,7 @@ def initialize_snowflake():
 
 
 @pytest.fixture(scope="session")
-def event_loop():
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Create an event loop for the test session."""
     policy = asyncio.get_event_loop_policy()
     loop = policy.new_event_loop()
@@ -52,7 +61,7 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-async def test_engine():
+async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create a test database engine."""
     settings = get_settings()
 
@@ -69,8 +78,8 @@ async def test_engine():
     await engine.dispose()
 
 
-@pytest.fixture(scope="function")
-async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
+@pytest.fixture
+async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Create a database session for each test."""
     async_session_factory = async_sessionmaker(
         test_engine,
@@ -83,7 +92,7 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Create an HTTP client for testing the API."""
     app = create_app()
@@ -100,7 +109,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def auth_headers() -> dict[str, str]:
     """Return authentication headers for testing protected endpoints."""
     # This is a placeholder - implement actual token generation

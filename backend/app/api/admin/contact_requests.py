@@ -17,8 +17,7 @@ async def admin_retry_contact_request(
     payload: ContactRequestRetryPayload | None = None,
     admin_context: tuple[dict[str, Any], AsyncSession] = Depends(get_admin_user_and_db),
 ) -> JSONDict:
-    """
-    Retry a pending AI contact request that previously failed due to missing templates.
+    """Retry a pending AI contact request that previously failed due to missing templates.
 
     This endpoint allows administrators to manually retry contact requests that are stuck
     in PENDING status with a failure_code set (e.g., NO_TEMPLATE_AVAILABLE).
@@ -30,6 +29,7 @@ async def admin_retry_contact_request(
 
     Returns:
         Success message indicating retry was triggered
+
     """
     admin_user, db = admin_context
     alias = payload.alias if payload else None

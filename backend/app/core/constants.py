@@ -1,6 +1,4 @@
-"""
-Core application constants.
-"""
+"""Core application constants."""
 
 # Dimension and position limits
 POSITION_MAX_VALUE = 1000

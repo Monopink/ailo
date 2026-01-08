@@ -1,5 +1,4 @@
-"""
-AI CRUD operations module.
+"""AI CRUD operations module.
 
 This module provides unified data access for all AI-related operations,
 supporting both standard CRUD operations and complex business queries.

@@ -1,5 +1,4 @@
-"""
-System statistics related models.
+"""System statistics related models.
 
 This module contains SQLAlchemy models for various system statistics.
 """

@@ -1,5 +1,4 @@
-"""
-AI Instance Chat Test view for admin panel.
+"""AI Instance Chat Test view for admin panel.
 
 This module provides admin interface for testing AI instance chat functionality
 following the architectural patterns and prototype design specifications.
@@ -29,8 +28,7 @@ templates = Jinja2Templates(directory="app/admin/templates", auto_reload=True)
 
 
 class AIInstanceChatTestView(CustomView):
-    """
-    AI Instance Chat Test interface following prototype design.
+    """AI Instance Chat Test interface following prototype design.
 
     Prototype Requirements:
     - Only includes: LLM Configuration dropdown + Test message input
@@ -124,8 +122,7 @@ class AIInstanceChatTestView(CustomView):
         )
 
     async def handle_test_request(self, request: Request) -> JSONResponse:
-        """
-        Handle AI instance test request using the new unified service.
+        """Handle AI instance test request using the new unified service.
 
         This method leverages the facade service to execute the complete test flow:
         validation -> user matching -> execution (calling main logic).

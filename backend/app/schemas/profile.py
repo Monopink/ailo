@@ -1,6 +1,4 @@
-"""
-Profile schemas for request/response validation
-"""
+"""Profile schemas for request/response validation."""
 
 from datetime import datetime
 
@@ -8,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProfileBase(BaseModel):
-    """Base profile schema matching Profile model"""
+    """Base profile schema matching Profile model."""
 
     nickname: str | None = Field(None, max_length=10, description="Display nickname")
     gender: int | None = Field(
@@ -26,15 +24,15 @@ class ProfileBase(BaseModel):
 
 
 class ProfileCreate(ProfileBase):
-    """Schema for creating a profile"""
+    """Schema for creating a profile."""
 
 
 class ProfileUpdate(ProfileBase):
-    """Schema for updating a profile"""
+    """Schema for updating a profile."""
 
 
 class ProfileInDBBase(ProfileBase):
-    """Base schema for profile in database"""
+    """Base schema for profile in database."""
 
     id: int
     owner_id: int
@@ -47,8 +45,8 @@ class ProfileInDBBase(ProfileBase):
 
 
 class Profile(ProfileInDBBase):
-    """Schema for profile response"""
+    """Schema for profile response."""
 
 
 class ProfileInDB(ProfileInDBBase):
-    """Schema for profile in database (internal use)"""
+    """Schema for profile in database (internal use)."""

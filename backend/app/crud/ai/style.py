@@ -1,5 +1,4 @@
-"""
-AI Style CRUD operations.
+"""AI Style CRUD operations.
 
 This module provides both standard CRUD operations and complex queries
 for AI style and relationship mapping management.
@@ -36,8 +35,7 @@ logger = get_logger(__name__)
 
 # Dummy schemas for read-only CRUD operations
 class _ReadOnlySchema(BaseModel):
-    """
-    Dummy schema for read-only CRUD operations.
+    """Dummy schema for read-only CRUD operations.
 
     AIRelationship and AIDimensionRelationshipMapping tables are managed
     through admin interface, so create/update operations are not used in code.
@@ -50,8 +48,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
     async def get_with_relationships(
         self, db: AsyncSession, *, style_id: int
     ) -> StyleWithRelationships | None:
-        """
-        Get style with its relationship mappings.
+        """Get style with its relationship mappings.
 
         Args:
             db: Database session
@@ -59,6 +56,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
         Returns:
             StyleWithRelationships object or None if not found
+
         """
         try:
             # Get style
@@ -125,8 +123,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
     async def get_relationship_mappings(
         self, db: AsyncSession, *, style_id: int
     ) -> list[RelationshipMappingDetail]:
-        """
-        Get relationship mappings for a style.
+        """Get relationship mappings for a style.
 
         Args:
             db: Database session
@@ -134,6 +131,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
         Returns:
             List of relationship mapping details
+
         """
         try:
             result = await db.execute(
@@ -182,8 +180,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
     async def get_available_styles(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
     ) -> list[AIStyle]:
-        """
-        Get available styles for instance creation.
+        """Get available styles for instance creation.
 
         Args:
             db: Database session
@@ -192,6 +189,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
         Returns:
             List of available styles
+
         """
         try:
             result = await db.execute(
@@ -216,8 +214,7 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
     async def get_score_ranges(
         self, db: AsyncSession, *, style_id: int
     ) -> dict[str, DimensionScoreRange]:
-        """
-        Get score ranges for a style.
+        """Get score ranges for a style.
 
         Args:
             db: Database session
@@ -225,9 +222,10 @@ class CRUDAIStyle(CRUDBase[AIStyle, AIStyleCreate, AIStyleUpdate]):
 
         Returns:
             Dictionary mapping dimension name to range info
+
         """
         try:
-            style = await self.get(db, id=style_id)
+            style = await self.get(db, record_id=style_id)
 
             if not style:
                 logger.warning("style_not_found_for_ranges", style_id=style_id)
@@ -266,8 +264,7 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, _ReadOnlySchema, _ReadOnlySche
     async def get_available_relationships(
         self, db: AsyncSession, *, skip: int = 0, limit: int = 100
     ) -> list[AIRelationship]:
-        """
-        Get available relationships.
+        """Get available relationships.
 
         Args:
             db: Database session
@@ -276,6 +273,7 @@ class CRUDAIRelationship(CRUDBase[AIRelationship, _ReadOnlySchema, _ReadOnlySche
 
         Returns:
             List of available relationships
+
         """
         try:
             result = await db.execute(
@@ -305,8 +303,7 @@ class CRUDAIDimensionRelationshipMapping(
     async def get_by_style(
         self, db: AsyncSession, *, style_id: int
     ) -> list[AIDimensionRelationshipMapping]:
-        """
-        Get dimension relationship mappings by style ID.
+        """Get dimension relationship mappings by style ID.
 
         Args:
             db: Database session
@@ -314,6 +311,7 @@ class CRUDAIDimensionRelationshipMapping(
 
         Returns:
             List of dimension relationship mappings
+
         """
         try:
             result = await db.execute(
@@ -350,8 +348,7 @@ class CRUDAIStyleDimension(
     async def get_by_style_and_name(
         self, db: AsyncSession, *, style_id: int, name: str
     ) -> AIStyleDimension | None:
-        """
-        Get dimension by style ID and name.
+        """Get dimension by style ID and name.
 
         Args:
             db: Database session
@@ -360,6 +357,7 @@ class CRUDAIStyleDimension(
 
         Returns:
             Dimension object or None if not found
+
         """
         try:
             result = await db.execute(
@@ -377,8 +375,7 @@ class CRUDAIStyleDimension(
             return None
 
     async def get_by_style(self, db: AsyncSession, *, style_id: int) -> list[AIStyleDimension]:
-        """
-        Get all dimensions for a style.
+        """Get all dimensions for a style.
 
         Args:
             db: Database session
@@ -386,6 +383,7 @@ class CRUDAIStyleDimension(
 
         Returns:
             List of dimension objects
+
         """
         try:
             result = await db.execute(

@@ -1,5 +1,4 @@
-"""
-LLM configuration testing views for admin panel.
+"""LLM configuration testing views for admin panel.
 
 This module provides admin interface for testing LLM configurations.
 Following the architectural pattern of separating concerns:
@@ -30,8 +29,7 @@ templates = Jinja2Templates(directory="app/admin/templates")
 
 
 class LLMConfigTestView(CustomView):
-    """
-    LLM Configuration Test interface.
+    """LLM Configuration Test interface.
 
     This view provides a testing interface for LLM configurations,
     allowing administrators to:
@@ -47,13 +45,11 @@ class LLMConfigTestView(CustomView):
         return True
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
-        """
-        Render the LLM config test interface.
+        """Render the LLM config test interface.
 
         GET: Display test form with configuration details
         POST: Execute test and return results
         """
-
         # Handle POST requests (test execution)
         if request.method == "POST":
             return await self.handle_test_request(request)
@@ -175,8 +171,7 @@ class LLMConfigTestView(CustomView):
             )
 
     async def handle_test_request(self, request: Request) -> JSONResponse:
-        """
-        Handle test execution request.
+        """Handle test execution request.
 
         This method:
         1. Extracts and validates form data

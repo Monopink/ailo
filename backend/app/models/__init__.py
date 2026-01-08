@@ -1,5 +1,4 @@
-"""
-SQLAlchemy models module.
+"""SQLAlchemy models module.
 
 This module imports all database models to ensure they are registered
 with SQLAlchemy's metadata for table creation and migrations.

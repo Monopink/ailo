@@ -88,7 +88,7 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
             tags=None,
         )
 
-        updated_req = await contact_request_crud.get(db, id=req.id)
+        updated_req = await contact_request_crud.get(db, record_id=req.id)
         if not updated_req:
             return
 

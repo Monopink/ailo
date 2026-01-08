@@ -1,5 +1,4 @@
-"""
-Central export module for shared backend type definitions.
+"""Central export module for shared backend type definitions.
 
 Modules should import TypedDicts and aliases from here instead of touching
 service-specific files, ensuring type contracts stay consistent.

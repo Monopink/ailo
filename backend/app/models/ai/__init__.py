@@ -1,5 +1,4 @@
-"""
-AI system models module.
+"""AI system models module.
 
 This module imports all AI-related SQLAlchemy models.
 """

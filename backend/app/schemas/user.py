@@ -1,5 +1,4 @@
-"""
-User management related schemas.
+"""User management related schemas.
 
 This module contains Pydantic schemas for user accounts, tokens, and authentication.
 """

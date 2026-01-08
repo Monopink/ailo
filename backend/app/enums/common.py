@@ -1,5 +1,4 @@
-"""
-Common enumeration definitions for database fields.
+"""Common enumeration definitions for database fields.
 
 All enum values correspond to the integer values defined in the database schema.
 These enums ensure type safety and consistency across the application.
@@ -11,7 +10,7 @@ from enum import Enum, IntEnum
 
 
 class UserStatus(IntEnum):
-    """User account status (users.status)"""
+    """User account status (users.status)."""
 
     ACTIVE = 1  # Normal active user
     DEACTIVATED = 2  # Account deactivated (user-initiated)
@@ -30,7 +29,7 @@ class UserType(IntEnum):
 
 
 class DeviceType(IntEnum):
-    """Device type for sessions and login records"""
+    """Device type for sessions and login records."""
 
     IOS = 1
     ANDROID = 2
@@ -39,7 +38,7 @@ class DeviceType(IntEnum):
 
 
 class LoginType(IntEnum):
-    """Login method (login_records.login_type)"""
+    """Login method (login_records.login_type)."""
 
     PASSWORD = 1
     SMS = 2
@@ -56,7 +55,7 @@ class AuthType(IntEnum):
 
 
 class LoginResult(IntEnum):
-    """Login attempt result (login_records.result)"""
+    """Login attempt result (login_records.result)."""
 
     SUCCESS = 1
     FAIL = 2
@@ -66,7 +65,7 @@ class LoginResult(IntEnum):
 
 
 class ContactType(IntEnum):
-    """Contact type classification (contacts.contact_type)"""
+    """Contact type classification (contacts.contact_type)."""
 
     USER = 1
     AI = 2  # AI instance
@@ -74,7 +73,7 @@ class ContactType(IntEnum):
 
 
 class ContactRequestSource(IntEnum):
-    """Contact request source (contact_requests.source)"""
+    """Contact request source (contact_requests.source)."""
 
     SEARCH = 1
     ADMIN = 2
@@ -83,7 +82,7 @@ class ContactRequestSource(IntEnum):
 
 
 class ContactRequestStatus(IntEnum):
-    """Contact request status (contact_requests.status)"""
+    """Contact request status (contact_requests.status)."""
 
     PENDING = 1
     ACCEPTED = 2
@@ -93,14 +92,14 @@ class ContactRequestStatus(IntEnum):
 
 
 class ContactRequestFailureCode(str, Enum):
-    """Contact request failure codes (contact_requests.failure_code)"""
+    """Contact request failure codes (contact_requests.failure_code)."""
 
     NO_TEMPLATE_AVAILABLE = "NO_TEMPLATE_AVAILABLE"
     MANUAL_PROVISION_REQUIRED = "MANUAL_PROVISION_REQUIRED"
 
 
 class SquareEntryStatus(IntEnum):
-    """Square exposure status (square_type_entries.status)"""
+    """Square exposure status (square_type_entries.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
@@ -110,14 +109,14 @@ class SquareEntryStatus(IntEnum):
 
 
 class MessageDirection(IntEnum):
-    """Message direction (message_history.direction)"""
+    """Message direction (message_history.direction)."""
 
     INBOUND = 1
     OUTBOUND = 2
 
 
 class MessageParticipantType(IntEnum):
-    """Message sender/receiver type"""
+    """Message sender/receiver type."""
 
     USER = 1
     AI = 2  # AI instance
@@ -126,14 +125,14 @@ class MessageParticipantType(IntEnum):
 
 
 class ServiceProvider(IntEnum):
-    """Message service provider (message_history.service_provider)"""
+    """Message service provider (message_history.service_provider)."""
 
     INTERNAL = 1  # Internal system (Reserved for the future)
     LEANCLOUD = 2  # LeanCloud im service
 
 
 class MessageType(IntEnum):
-    """Message type classification (message_history.message_type)"""
+    """Message type classification (message_history.message_type)."""
 
     TEXT = 1
     TYPING_START = 2  # Typing indicator (user started typing)
@@ -143,7 +142,7 @@ class MessageType(IntEnum):
 
 
 class ChatInfoType(IntEnum):
-    """Chat interface informational message subtypes"""
+    """Chat interface informational message subtypes."""
 
     CONTACT_ADDED = 1  # Contact has added you
     MESSAGE_BLOCKED = 2  # Message sent but blocked by recipient
@@ -151,13 +150,13 @@ class ChatInfoType(IntEnum):
 
 
 class NotificationType(IntEnum):
-    """Notification message subtypes"""
+    """Notification message subtypes."""
 
     CONTACT_REQUEST = 1
 
 
 class NotificationActionType(str, Enum):
-    """Notification action types"""
+    """Notification action types."""
 
     NAVIGATE = "navigate"  # Navigate to a page
     REFRESH = "refresh"  # Refresh data
@@ -165,21 +164,21 @@ class NotificationActionType(str, Enum):
 
 
 class NotificationTarget(str, Enum):
-    """Notification action targets"""
+    """Notification action targets."""
 
     CONTACT_REQUESTS = "contact_requests"  # Contact requests page
     CONTACTS = "contacts"  # Contacts list page
 
 
 class NotificationStatus(IntEnum):
-    """Notification push status"""
+    """Notification push status."""
 
     SENT = 1
     FAILED = 2
 
 
 class MessageStatus(IntEnum):
-    """Message delivery status (message_history.status)"""
+    """Message delivery status (message_history.status)."""
 
     SENT = 1
     DELIVERED = 2
@@ -204,7 +203,7 @@ class EncryptionVersion(str, Enum):
 
 
 class FileType(IntEnum):
-    """Media file type classification (media_files.file_type)"""
+    """Media file type classification (media_files.file_type)."""
 
     AVATAR = 1
     EMOJI = 2
@@ -213,7 +212,7 @@ class FileType(IntEnum):
 
 
 class FileStatus(IntEnum):
-    """Media file status (media_files.status)"""
+    """Media file status (media_files.status)."""
 
     ACTIVE = 1
     PENDING = 2
@@ -221,7 +220,7 @@ class FileStatus(IntEnum):
 
 
 class UploaderType(IntEnum):
-    """File uploader type (media_files.upload_by_type)"""
+    """File uploader type (media_files.upload_by_type)."""
 
     USER = 1
     ADMIN = 2
@@ -232,7 +231,7 @@ class UploaderType(IntEnum):
 
 
 class Gender(IntEnum):
-    """Gender classification (profiles.gender)"""
+    """Gender classification (profiles.gender)."""
 
     MALE = 1
     FEMALE = 2
@@ -240,7 +239,7 @@ class Gender(IntEnum):
 
 
 class ProfileOwnerType(IntEnum):
-    """Profile owner type (profiles.owner_type)
+    """Profile owner type (profiles.owner_type).
 
     Note: All user types (normal, official, virtual) use owner_type=1 (USER).
     The user_type field in users table distinguishes between them.
@@ -252,7 +251,7 @@ class ProfileOwnerType(IntEnum):
 
 
 class ProfileModifierType(IntEnum):
-    """Profile modifier type (user_profile_logs.modified_by_type)"""
+    """Profile modifier type (user_profile_logs.modified_by_type)."""
 
     USER = 1
     ADMIN = 2
@@ -279,7 +278,7 @@ class ExposureStrategy(IntEnum):
 
 
 class AITemplateStatus(IntEnum):
-    """AI template status (ai_templates.status)"""
+    """AI template status (ai_templates.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
@@ -287,7 +286,7 @@ class AITemplateStatus(IntEnum):
 
 
 class AIInstanceStatus(IntEnum):
-    """AI instance status (ai_instances.status)"""
+    """AI instance status (ai_instances.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
@@ -295,14 +294,14 @@ class AIInstanceStatus(IntEnum):
 
 
 class AIStyleStatus(IntEnum):
-    """AI style status (ai_styles.status)"""
+    """AI style status (ai_styles.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
 
 
 class AIPersonaStatus(IntEnum):
-    """AI persona status (ai_personas.status)"""
+    """AI persona status (ai_personas.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
@@ -310,21 +309,21 @@ class AIPersonaStatus(IntEnum):
 
 
 class AIPersonalityStatus(IntEnum):
-    """AI personality status (ai_personalities.status)"""
+    """AI personality status (ai_personalities.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
 
 
 class AIRelationshipStatus(IntEnum):
-    """AI relationship status (ai_relationships.status)"""
+    """AI relationship status (ai_relationships.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
 
 
 class AIMessageBufferState(IntEnum):
-    """Message buffer aggregate state (ai_message_buffer.aggregate_state)"""
+    """Message buffer aggregate state (ai_message_buffer.aggregate_state)."""
 
     WAITING_WAKEUP = 0  # Waiting to finish wake timer before aggregation
     OPEN = 1  # Waiting for merge/timer
@@ -334,7 +333,7 @@ class AIMessageBufferState(IntEnum):
 
 
 class AIInstanceCreator(IntEnum):
-    """AI instance creator type (ai_instances.created_by)"""
+    """AI instance creator type (ai_instances.created_by)."""
 
     USER = 1
     ADMIN = 2
@@ -342,7 +341,7 @@ class AIInstanceCreator(IntEnum):
 
 
 class ConversationRole(str, Enum):
-    """Conversation role type (ai_conversation_items.role)"""
+    """Conversation role type (ai_conversation_items.role)."""
 
     SYSTEM = "system"
     USER = "user"
@@ -357,7 +356,7 @@ class ConversationItemContextStatus(IntEnum):
 
 
 class AIRequestStatus(IntEnum):
-    """AI request status (ai_request_logs.status)"""
+    """AI request status (ai_request_logs.status)."""
 
     SUCCESS = 1
     FAILED = 2
@@ -365,7 +364,7 @@ class AIRequestStatus(IntEnum):
 
 
 class PositionMappingAlgorithm(IntEnum):
-    """Position mapping algorithm type (ai_instance_dimensions.position_mapping_algorithm, etc.)
+    """Position mapping algorithm type (ai_instance_dimensions.position_mapping_algorithm, etc.).
 
     Maps LLM output score to final position value with optional offset adjustments.
     """
@@ -375,7 +374,7 @@ class PositionMappingAlgorithm(IntEnum):
 
 
 class LLMRequestStatus(IntEnum):
-    """LLM request status (llm_request_logs.status)"""
+    """LLM request status (llm_request_logs.status)."""
 
     PENDING = 1
     SUCCESS = 2
@@ -383,14 +382,14 @@ class LLMRequestStatus(IntEnum):
 
 
 class RequiredStatus(IntEnum):
-    """Required status for placeholders and fields"""
+    """Required status for placeholders and fields."""
 
     OPTIONAL = 0
     REQUIRED = 1
 
 
 class ReusableStatus(IntEnum):
-    """Reusable status for templates"""
+    """Reusable status for templates."""
 
     SINGLE_USE = 0
     REUSABLE = 1  # Can be reused
@@ -400,7 +399,7 @@ class ReusableStatus(IntEnum):
 
 
 class ViolationType(IntEnum):
-    """Security violation type (user_violation_logs.violation_type)"""
+    """Security violation type (user_violation_logs.violation_type)."""
 
     PROMPT_INJECTION = 1  # Prompt injection attack
     ABUSE_CONTENT = 2  # Abusive content
@@ -410,7 +409,7 @@ class ViolationType(IntEnum):
 
 
 class SeverityLevel(IntEnum):
-    """Violation severity level (user_violation_logs.severity_level)"""
+    """Violation severity level (user_violation_logs.severity_level)."""
 
     LOW = 1
     MEDIUM = 2
@@ -419,7 +418,7 @@ class SeverityLevel(IntEnum):
 
 
 class AutoAction(IntEnum):
-    """Automatic action taken (user_violation_logs.auto_action_taken)"""
+    """Automatic action taken (user_violation_logs.auto_action_taken)."""
 
     NONE = 1
     WARNING = 2
@@ -428,7 +427,7 @@ class AutoAction(IntEnum):
 
 
 class ManualReviewStatus(IntEnum):
-    """Manual review status (user_violation_logs.manual_review_status)"""
+    """Manual review status (user_violation_logs.manual_review_status)."""
 
     PENDING = 1  # Pending review
     CONFIRMED = 2  # Violation confirmed
@@ -437,7 +436,7 @@ class ManualReviewStatus(IntEnum):
 
 
 class RiskLevel(IntEnum):
-    """User risk level (user_risk_stats.current_risk_level)"""
+    """User risk level (user_risk_stats.current_risk_level)."""
 
     LOW = 1
     MEDIUM = 2
@@ -449,7 +448,7 @@ class RiskLevel(IntEnum):
 
 
 class ConfigType(IntEnum):
-    """Configuration value type (system_configs.config_type)"""
+    """Configuration value type (system_configs.config_type)."""
 
     STRING = 1
     NUMBER = 2
@@ -462,7 +461,7 @@ class ConfigType(IntEnum):
 
 
 class AdminRole(IntEnum):
-    """Administrator role (admin_users.role)"""
+    """Administrator role (admin_users.role)."""
 
     SUPER_ADMIN = 1
     ADMIN = 2
@@ -470,14 +469,14 @@ class AdminRole(IntEnum):
 
 
 class AdminStatus(IntEnum):
-    """Administrator status (admin_users.status)"""
+    """Administrator status (admin_users.status)."""
 
     ACTIVE = 1
     INACTIVE = 2
 
 
 class AdminOperationType(IntEnum):
-    """Admin operation type (admin_operation_logs.operation_type)"""
+    """Admin operation type (admin_operation_logs.operation_type)."""
 
     CREATE = 1
     UPDATE = 2
@@ -492,7 +491,7 @@ class AdminOperationType(IntEnum):
 
 
 class AdminLoginResult(IntEnum):
-    """Admin login result (admin_login_logs.result)"""
+    """Admin login result (admin_login_logs.result)."""
 
     SUCCESS = 1
     FAIL = 2
@@ -502,7 +501,7 @@ class AdminLoginResult(IntEnum):
 
 
 class LLMTestStatus(IntEnum):
-    """LLM test execution status (llm_test_logs.status)"""
+    """LLM test execution status (llm_test_logs.status)."""
 
     SUCCESS = 1
     FAILED = 2
@@ -510,7 +509,7 @@ class LLMTestStatus(IntEnum):
 
 
 class LLMErrorCode(IntEnum):
-    """LLM error code classification"""
+    """LLM error code classification."""
 
     UNKNOWN = 0  # Unknown error
     ENDPOINT_NOT_FOUND = 1  # 404: Endpoint not found

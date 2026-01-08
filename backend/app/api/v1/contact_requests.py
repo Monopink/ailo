@@ -1,5 +1,4 @@
-"""
-Contact request API endpoints.
+"""Contact request API endpoints.
 
 This module provides endpoints for managing contact requests.
 """
@@ -31,8 +30,7 @@ async def create_contact_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """
-    Send contact request.
+    """Send contact request.
 
     Unified API for adding both AI and user contacts.
     Backend automatically routes to appropriate handler based on target type.
@@ -79,8 +77,7 @@ async def accept_contact_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
-    """
-    Accept a contact request.
+    """Accept a contact request.
 
     Creates a contact relationship and sends notification to the applicant.
 
@@ -135,8 +132,7 @@ async def ignore_contact_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """
-    Ignore a contact request.
+    """Ignore a contact request.
 
     Updates the request status to ignored. Does not send notification to the applicant.
 

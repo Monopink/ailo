@@ -1,5 +1,4 @@
-"""
-Admin management related schemas.
+"""Admin management related schemas.
 
 This module contains Pydantic schemas for admin users and operation logs.
 """

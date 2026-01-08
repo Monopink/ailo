@@ -1,5 +1,4 @@
-"""
-System-related model views for Starlette-Admin.
+"""System-related model views for Starlette-Admin.
 Creates ModelView instances for user management and admin system models.
 """
 

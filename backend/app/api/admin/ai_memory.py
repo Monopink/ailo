@@ -1,5 +1,4 @@
-"""
-Admin AI Memory API endpoints.
+"""Admin AI Memory API endpoints.
 Handles CRUD operations for Template Memories and Instance Memories.
 """
 

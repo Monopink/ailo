@@ -1,5 +1,4 @@
-"""
-User-related model views for Starlette-Admin.
+"""User-related model views for Starlette-Admin.
 Creates ModelView instances for user management and admin system models.
 """
 
@@ -40,7 +39,7 @@ from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
 from app.services.contact.request_service import retry_pending_contact_request
-from app.services.system_config import get_config
+from app.services.system_config import get_config_int
 from app.type_defs import JSONDict
 
 from .base import BaseRoleAwareModelView, InvertedBooleanField
@@ -942,8 +941,11 @@ class ContactRequestView(ModelView):
         obj.status = ContactRequestStatus.PENDING.value
 
         # Get expiration time from config (stored in days)
-        expiration_days = await get_config(request.state.session, "contact_request_expiration_days")
-        obj.expires_at = datetime.now(UTC) + timedelta(days=int(expiration_days))
+        expiration_days = await get_config_int(
+            request.state.session,
+            "contact_request_expiration_days",
+        )
+        obj.expires_at = datetime.now(UTC) + timedelta(days=expiration_days)
 
     async def before_edit(self, _request: Request, data: FormData, obj: ContactRequest) -> None:
         """Set auto-filled fields before database commit."""

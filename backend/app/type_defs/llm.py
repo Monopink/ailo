@@ -1,5 +1,4 @@
-"""
-LLM request/response data structures.
+"""LLM request/response data structures.
 
 These dataclasses provide a shared contract between the LLM client and
 provider adapters. They keep configuration/override handling explicit

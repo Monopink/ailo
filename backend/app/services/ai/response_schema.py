@@ -5,13 +5,22 @@ This module centralizes JSON schema generation so that business layers
 can share the same implementation without introducing circular imports.
 """
 
-from typing import Any
+from typing import Any, Protocol
 
 from app.exceptions import AIServiceError
-from app.type_defs import DimensionSpec, InstanceContext
+from app.type_defs import DimensionSpec, InstanceContext, JSONDict, StyleInfo
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class StyleWithId(Protocol):
+    """Represents any object that exposes a style identifier."""
+
+    id: int | str
+
+
+StyleSource = StyleInfo | JSONDict | StyleWithId
 
 
 def _build_memory_operations_schema() -> dict[str, Any]:
@@ -190,11 +199,18 @@ def build_response_schema(context: InstanceContext) -> dict[str, Any]:
         return schema
 
 
-def _build_dynamic_response_schema(style: Any, dimensions: list[DimensionSpec]) -> dict[str, Any]:
+def _build_dynamic_response_schema(
+    style: StyleSource, dimensions: list[DimensionSpec]
+) -> dict[str, Any]:
     """
     Build dynamic JSON schema based on AI style and dimensions.
     """
-    style_id = style.get("id") if isinstance(style, dict) else getattr(style, "id", None)
+    if isinstance(style, dict):
+        style_id_raw = style.get("id")
+    else:
+        style_id_raw = getattr(style, "id", None)
+
+    style_id = style_id_raw if isinstance(style_id_raw, (int, str)) else None
 
     try:
         score_properties, score_required = _prepare_score_fields(style_id, dimensions)
@@ -223,8 +239,8 @@ def _build_dynamic_response_schema(style: Any, dimensions: list[DimensionSpec]) 
 
 
 def _prepare_score_fields(
-    style_id: Any, dimensions: list[DimensionSpec]
-) -> tuple[dict[str, Any], list[str]]:
+    style_id: int | str | None, dimensions: list[DimensionSpec]
+) -> tuple[dict[str, JSONDict], list[str]]:
     """Validate dimensions and build score schema fragments."""
 
     if not dimensions:
@@ -235,7 +251,7 @@ def _prepare_score_fields(
             "This indicates a database configuration error.",
         )
 
-    score_properties: dict[str, Any] = {}
+    score_properties: dict[str, JSONDict] = {}
     score_required: list[str] = []
 
     for dimension in dimensions:

@@ -6,7 +6,7 @@ Creates SMS provider instances based on configuration.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.system_config import get_config
+from app.services.system_config import get_config_str
 from app.utils.logging import get_logger
 
 from .base import SMSProvider
@@ -31,7 +31,7 @@ async def create_sms_provider(db: AsyncSession) -> SMSProvider:
     Raises:
         ValueError: If provider type is not supported
     """
-    provider_type = await get_config(db, key="sms_provider")
+    provider_type = await get_config_str(db, key="sms_provider")
 
     if provider_type == "mock":
         logger.info("creating_mock_sms_provider")

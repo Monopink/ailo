@@ -1,5 +1,4 @@
-"""
-System statistics CRUD operations.
+"""System statistics CRUD operations.
 
 This module contains CRUD operations for various system statistics.
 """
@@ -19,8 +18,7 @@ from app.models.system import (
 
 
 class _StatsSchema(BaseModel):
-    """
-    Dummy schema for read-only stats CRUD operations.
+    """Dummy schema for read-only stats CRUD operations.
 
     Stats tables are read-only (populated by background jobs),
     so create/update operations are not used.

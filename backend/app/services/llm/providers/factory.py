@@ -10,10 +10,10 @@ from app.models.llm import LLMConfig, LLMProvider
 from app.type_defs import LLMProviderResult, LLMRequestOptions, PreemptionChecker
 from app.utils.logging import get_logger
 
-logger = get_logger(__name__)
-
 # Import all adapters at module level
 from . import doubao_responses, mock
+
+logger = get_logger(__name__)
 
 PROVIDER_ADAPTERS: dict[str, str] = {
     "doubao": "doubao_responses",

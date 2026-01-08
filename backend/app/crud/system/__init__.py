@@ -1,5 +1,4 @@
-"""
-System CRUD operations module.
+"""System CRUD operations module.
 
 This module imports all system-related CRUD operations.
 """

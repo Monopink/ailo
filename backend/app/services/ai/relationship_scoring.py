@@ -453,132 +453,55 @@ def _find_matching_relationship(
     Returns:
         Matching relationship mapping, or None if no match
     """
+    result: RelationshipMapping | None = None
+
     try:
-        # Group matching mappings by dimension
-        dimension_matches: dict[str, list[RelationshipMapping]] = {}
-
-        for mapping in relationship_mappings:
-            dimension_name = mapping["dimension_name"]
-            start_position = mapping["start_position"]
-            end_position = mapping["end_position"]
-
-            if dimension_name in score_positions:
-                position = score_positions[dimension_name]
-
-                # Check if position falls within range
-                if start_position <= position <= end_position:
-                    if dimension_name not in dimension_matches:
-                        dimension_matches[dimension_name] = []
-                    dimension_matches[dimension_name].append(mapping)
-                    logger.debug(
-                        "relationship_mapping_candidate",
-                        dimension_name=dimension_name,
-                        position=position,
-                        start_position=start_position,
-                        end_position=end_position,
-                        relationship_id=mapping["relationship"].id,
-                    )
+        dimension_matches = _group_dimension_candidates(score_positions, relationship_mappings)
 
         if not dimension_matches:
             logger.debug("no_relationship_mapping_matched", score_positions=score_positions)
-            return None
-
-        # Per-dimension current relationship filtering
-        matching_mappings: list[RelationshipMapping] = []
-        for dimension_name, dim_candidates in dimension_matches.items():
-            if current_relationship_id is not None:
-                current_in_dim = any(
-                    int(m["relationship"].id) == int(current_relationship_id)
-                    for m in dim_candidates
-                )
-                if current_in_dim:
-                    # Filter to keep only current relationship in this dimension
-                    dim_candidates = [
-                        m
-                        for m in dim_candidates
-                        if int(m["relationship"].id) == int(current_relationship_id)
-                    ]
-            matching_mappings.extend(dim_candidates)
-
-        if not matching_mappings:
-            logger.debug("no_mappings_after_dimension_filtering")
-            return None
-
-        # Build unique candidate set aggregated by relationship_id with max priority
-        unique: dict[int, RelationshipMapping] = {}
-        for m in matching_mappings:
-            rid = int(m["relationship"].id)
-            pr = int(m["priority"])
-            if rid not in unique:
-                unique[rid] = RelationshipMapping(
-                    relationship=m["relationship"],
-                    dimension_name=m["dimension_name"],
-                    start_position=m["start_position"],
-                    end_position=m["end_position"],
-                    priority=pr,
-                    limit_count=m["limit_count"],
-                )
-            elif pr > unique[rid]["priority"]:
-                unique[rid]["priority"] = pr
-
-        if not unique:
-            logger.debug("no_unique_candidates_after_match")
-            return None
-
-        # Enforce limit_count using relationship_counts
-        if relationship_counts:
-            filtered: dict[int, RelationshipMapping] = {}
-            for rid, data in unique.items():
-                limit = int(data.get("limit_count") or 0)
-                if limit <= 0:
-                    filtered[rid] = data
-                    continue
-                cnt = relationship_counts.get(str(rid), 0)
-                try:
-                    cnt_int = int(cnt or 0)
-                except Exception:
-                    cnt_int = 0
-                if cnt_int > limit:
-                    logger.error(
-                        "relationship_count_anomaly_gt_limit",
-                        relationship_id=rid,
-                        count=cnt_int,
-                        limit=limit,
-                    )
-                    continue
-                if cnt_int >= limit:
-                    continue
-                filtered[rid] = data
-            unique = filtered
-
-        if not unique:
-            logger.error("no_candidate_after_limit_filter")
-            return None
-
-        # Select by priority: higher number = higher priority
-        top_priority = max(v["priority"] for v in unique.values())
-        top_relations = [v for v in unique.values() if v["priority"] == top_priority]
-
-        if len(top_relations) > 1:
-            logger.error(
-                "priority_tie_detected",
-                top_priority=top_priority,
-                candidates=len(top_relations),
+        else:
+            matching_candidates = _filter_current_relationship_candidates(
+                dimension_matches, current_relationship_id
             )
-            return None
 
-        selected_mapping = top_relations[0]
+            if not matching_candidates:
+                logger.debug("no_mappings_after_dimension_filtering")
+            else:
+                aggregated_candidates = _aggregate_relationship_candidates(matching_candidates)
 
-        logger.debug(
-            "relationship_mapping_selected",
-            relationship_id=selected_mapping["relationship"].id,
-            priority=selected_mapping.get("priority", 0),
-            candidates_count=len(unique),
-            current_relationship_id=current_relationship_id,
-        )
+                if not aggregated_candidates:
+                    logger.debug("no_unique_candidates_after_match")
+                else:
+                    limited_candidates = _apply_relationship_limits(
+                        aggregated_candidates, relationship_counts
+                    )
 
-        return selected_mapping
+                    if not limited_candidates:
+                        logger.error("no_candidate_after_limit_filter")
+                    else:
+                        top_priority = max(v["priority"] for v in limited_candidates.values())
+                        top_relations = [
+                            v for v in limited_candidates.values() if v["priority"] == top_priority
+                        ]
 
+                        if len(top_relations) > 1:
+                            logger.error(
+                                "priority_tie_detected",
+                                top_priority=top_priority,
+                                candidates=len(top_relations),
+                            )
+                        else:
+                            selected_mapping = top_relations[0]
+                            candidates_count = len(limited_candidates)
+                            logger.debug(
+                                "relationship_mapping_selected",
+                                relationship_id=selected_mapping["relationship"].id,
+                                priority=selected_mapping.get("priority", 0),
+                                candidates_count=candidates_count,
+                                current_relationship_id=current_relationship_id,
+                            )
+                            result = selected_mapping
     except Exception as e:
         logger.error(
             "relationship_matching_failed",
@@ -587,7 +510,159 @@ def _find_matching_relationship(
             mappings_count=len(relationship_mappings),
             current_relationship_id=current_relationship_id,
         )
-        return None
+
+    return result
+
+
+def _group_dimension_candidates(
+    score_positions: ScorePositions,
+    relationship_mappings: list[RelationshipMapping],
+) -> dict[str, list[RelationshipMapping]]:
+    """
+    Group relationship mappings by dimension that match the score positions.
+
+    Args:
+        score_positions: Dimension -> position mapping
+        relationship_mappings: All configured relationship mappings
+
+    Returns:
+        Mapping of dimension_name to matching relationship mappings
+    """
+    matches: dict[str, list[RelationshipMapping]] = {}
+
+    for mapping in relationship_mappings:
+        dimension_name = mapping["dimension_name"]
+        start_position = mapping["start_position"]
+        end_position = mapping["end_position"]
+
+        if dimension_name not in score_positions:
+            continue
+
+        position = score_positions[dimension_name]
+
+        if start_position <= position <= end_position:
+            matches.setdefault(dimension_name, []).append(mapping)
+            logger.debug(
+                "relationship_mapping_candidate",
+                dimension_name=dimension_name,
+                position=position,
+                start_position=start_position,
+                end_position=end_position,
+                relationship_id=mapping["relationship"].id,
+            )
+
+    return matches
+
+
+def _filter_current_relationship_candidates(
+    dimension_matches: dict[str, list[RelationshipMapping]],
+    current_relationship_id: int | None,
+) -> list[RelationshipMapping]:
+    """
+    Apply per-dimension current relationship filtering.
+
+    Args:
+        dimension_matches: Candidates grouped by dimension
+        current_relationship_id: Candidate relationship to prioritize
+
+    Returns:
+        Filtered relationship mappings
+    """
+    filtered: list[RelationshipMapping] = []
+    if current_relationship_id is None:
+        for candidates in dimension_matches.values():
+            filtered.extend(candidates)
+        return filtered
+
+    current_id = int(current_relationship_id)
+
+    for candidates in dimension_matches.values():
+        if any(int(c["relationship"].id) == current_id for c in candidates):
+            filtered.extend([c for c in candidates if int(c["relationship"].id) == current_id])
+        else:
+            filtered.extend(candidates)
+
+    return filtered
+
+
+def _aggregate_relationship_candidates(
+    candidates: list[RelationshipMapping],
+) -> dict[int, RelationshipMapping]:
+    """
+    Aggregate candidates by relationship_id keeping the highest priority mapping.
+
+    Args:
+        candidates: Filtered relationship mappings
+
+    Returns:
+        Relationship_id keyed dict of RelationshipMapping
+    """
+    aggregated: dict[int, RelationshipMapping] = {}
+
+    for candidate in candidates:
+        rid = int(candidate["relationship"].id)
+        priority = int(candidate["priority"])
+        existing = aggregated.get(rid)
+
+        if existing is None or priority > existing["priority"]:
+            aggregated[rid] = RelationshipMapping(
+                relationship=candidate["relationship"],
+                dimension_name=candidate["dimension_name"],
+                start_position=candidate["start_position"],
+                end_position=candidate["end_position"],
+                priority=priority,
+                limit_count=candidate["limit_count"],
+            )
+
+    return aggregated
+
+
+def _apply_relationship_limits(
+    candidates: dict[int, RelationshipMapping],
+    relationship_counts: RelationshipCounts | None,
+) -> dict[int, RelationshipMapping]:
+    """
+    Enforce limit_count constraints using relationship_counts.
+
+    Args:
+        candidates: Aggregated relationship candidates
+        relationship_counts: Instance-level usage counts
+
+    Returns:
+        Filtered candidates satisfying limit_count
+    """
+    if not relationship_counts:
+        return candidates
+
+    filtered: dict[int, RelationshipMapping] = {}
+
+    for rid, candidate in candidates.items():
+        limit = int(candidate.get("limit_count") or 0)
+        if limit <= 0:
+            filtered[rid] = candidate
+            continue
+
+        cnt = relationship_counts.get(str(rid), 0)
+        try:
+            cnt_int = int(cnt or 0)
+        except Exception:
+            cnt_int = 0
+
+        if cnt_int > limit:
+            logger.error(
+                "relationship_count_anomaly_gt_limit",
+                relationship_id=rid,
+                count=cnt_int,
+                limit=limit,
+            )
+            continue
+
+        if cnt_int >= limit:
+            continue
+
+        filtered[rid] = candidate
+
+    return filtered
 
 
 def _get_default_relationship_mapping(
@@ -687,7 +762,7 @@ async def calculate_new_scores(
                 new_scores[dimension_name] = current_score
                 continue
 
-            # Get dimension-specific offset config (already typed correctly from InstanceDimensionData)
+            # InstanceDimensionData already provides typed offset config
             algorithm = score_data["position_mapping_algorithm"]
             params = score_data["position_mapping_params"]
 

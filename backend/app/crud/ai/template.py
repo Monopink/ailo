@@ -1,5 +1,4 @@
-"""
-AI template/persona CRUD operations.
+"""AI template/persona CRUD operations.
 
 This module provides both standard CRUD operations and helper queries
 for template and persona management.
@@ -29,8 +28,7 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> Sequence[AITemplate]:
-        """
-        Get available templates.
+        """Get available templates.
 
         Args:
             db: Database session
@@ -40,6 +38,7 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
 
         Returns:
             List of available templates
+
         """
         try:
             stmt = select(AITemplate).where(AITemplate.status == 1)  # active
@@ -63,9 +62,7 @@ class CRUDAITemplate(CRUDBase[AITemplate, AITemplateCreate, AITemplateUpdate]):
     async def get_active_template_for_type(
         self, db: AsyncSession, type_id: int
     ) -> AITemplate | None:
-        """
-        Pick the highest priority template for the given template type.
-        """
+        """Pick the highest priority template for the given template type."""
         try:
             stmt = (
                 select(AITemplate)
@@ -101,6 +98,7 @@ class CRUDAIPersona(CRUDBase[AIPersona, AIPersonaCreate, AIPersonaUpdate]):
     """AI persona CRUD operations with complex queries."""
 
     async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> AIPersona | None:
+        """Retrieve an AI persona by its qiao_id."""
         try:
             result = await db.execute(select(self.model).where(self.model.qiao_id == qiao_id))
             return result.scalar_one_or_none()

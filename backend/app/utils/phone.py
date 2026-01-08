@@ -1,5 +1,4 @@
-"""
-Phone number utility functions
+"""Phone number utility functions.
 
 Handles phone number normalization, validation, and masking.
 """
@@ -18,8 +17,7 @@ MASK_BODY = "******"
 
 
 def normalize_phone(phone: str) -> str:
-    """
-    Normalize phone number to E.164 format
+    """Normalize phone number to E.164 format.
 
     Handles various input formats:
         - "+8613800138000" → "+8613800138000"
@@ -35,6 +33,7 @@ def normalize_phone(phone: str) -> str:
 
     Raises:
         ValueError: If phone number format is invalid
+
     """
     if not phone:
         logger.error("Empty phone number")
@@ -63,21 +62,20 @@ def normalize_phone(phone: str) -> str:
 
 
 def is_china_phone(phone: str) -> bool:
-    """
-    Check if phone number is China mainland phone
+    """Check if phone number is China mainland phone.
 
     Args:
         phone: Phone number in E.164 format
 
     Returns:
         True if China phone, False otherwise
+
     """
     return phone.startswith("+86")
 
 
 def mask_phone(phone: str) -> str:
-    """
-    Mask phone number for display
+    """Mask phone number for display.
 
     Format: +[country_code] [first_3_digits]******[last_2_digits]
     Example: +8613800138000 → +86 138******00
@@ -87,6 +85,7 @@ def mask_phone(phone: str) -> str:
 
     Returns:
         Masked phone number (e.g., "+86 138******00")
+
     """
     if not phone or not phone.startswith("+"):
         return phone

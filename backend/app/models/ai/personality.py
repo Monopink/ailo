@@ -1,5 +1,4 @@
-"""
-AI personality related models.
+"""AI personality related models.
 
 This module contains SQLAlchemy models for AI personality templates and placeholders.
 """
@@ -15,8 +14,7 @@ from app.type_defs import JSONDict
 
 
 class AIPersonality(AutoIncrementModel):
-    """
-    AI personality model.
+    """AI personality model.
 
     AI personality templates.
     """
@@ -44,8 +42,7 @@ class AIPersonality(AutoIncrementModel):
 
 
 class AIPersonalityPlaceholder(AutoIncrementModel):
-    """
-    AI personality placeholder model.
+    """AI personality placeholder model.
 
     Personality template placeholders.
     """

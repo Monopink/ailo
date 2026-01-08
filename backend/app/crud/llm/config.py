@@ -1,5 +1,4 @@
-"""
-CRUD operations for LLM configurations.
+"""CRUD operations for LLM configurations.
 
 This module provides database operations for LLM configurations.
 """
@@ -71,7 +70,7 @@ class CRUDLLMConfig(CRUDBase[LLMConfig, LLMConfigCreate, LLMConfigUpdate]):
         self, db: AsyncSession, *, config_id: int, status: int
     ) -> LLMConfig | None:
         """Update config status."""
-        config = await self.get(db, id=config_id)
+        config = await self.get(db, record_id=config_id)
         if config:
             config.status = status
             await db.commit()

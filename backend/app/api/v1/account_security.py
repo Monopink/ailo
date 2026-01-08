@@ -1,5 +1,4 @@
-"""
-Account security API endpoints.
+"""Account security API endpoints.
 
 This module provides account security management endpoints including:
 - Password management (change, reset)
@@ -39,8 +38,7 @@ async def send_email_code(
     body: EmailSendCodeRequest,
     current_user: User = Depends(get_current_user),
 ) -> EmailSendCodeResponse:
-    """
-    Send verification code to email.
+    """Send verification code to email.
 
     Used for binding or changing email.
 
@@ -53,6 +51,7 @@ async def send_email_code(
 
     Raises:
         HTTPException: 400/501 for various errors
+
     """
     try:
         # Validate email
@@ -76,8 +75,7 @@ async def bind_email(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BindEmailResponse:
-    """
-    Bind email to user account.
+    """Bind email to user account.
 
     Args:
         body: Bind email request
@@ -89,6 +87,7 @@ async def bind_email(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     try:
         # Validate email
@@ -128,8 +127,7 @@ async def change_email(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ChangeEmailResponse:
-    """
-    Change user email.
+    """Change user email.
 
     Requires operation token for verification.
 
@@ -143,6 +141,7 @@ async def change_email(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     try:
         # Verify operation token
@@ -183,8 +182,7 @@ async def unbind_email(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """
-    Unbind email from user account.
+    """Unbind email from user account.
 
     Requires operation token for verification.
 
@@ -195,6 +193,7 @@ async def unbind_email(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     try:
         # Verify operation token
@@ -225,8 +224,7 @@ async def change_phone(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ChangePhoneResponse:
-    """
-    Change user phone number.
+    """Change user phone number.
 
     If an operation token is provided it will be verified, otherwise the
     authenticated session is treated as sufficient authorization. The request
@@ -242,6 +240,7 @@ async def change_phone(
 
     Raises:
         HTTPException: 400/500 for various errors
+
     """
     try:
         if not body.operation_token:

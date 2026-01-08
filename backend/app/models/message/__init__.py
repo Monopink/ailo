@@ -1,5 +1,4 @@
-"""
-Message system models module.
+"""Message system models module.
 
 This module imports all message-related SQLAlchemy models.
 """

@@ -1,8 +1,8 @@
 """
 LLM configuration testing service.
 
-This service provides functionality for testing LLM configurations
-through the admin interface. It orchestrates the test execution by:
+This service provides functionality for testing LLM configurations through the
+admin interface. It orchestrates the test execution by:
 1. Validating configuration
 2. Calling LLM API using existing client (reuse!)
 3. Detecting JSON Schema support and auto-updating json_schema_mode
@@ -10,8 +10,9 @@ through the admin interface. It orchestrates the test execution by:
 5. Returning formatted results
 """
 
-from datetime import datetime
-from typing import Any
+from __future__ import annotations
+
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +20,7 @@ from app.enums.common import LLMTestStatus
 from app.models.llm import LLMTestLog
 from app.services.llm.client import invoke_llm
 from app.services.llm.config import get_llm_config
+from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
@@ -32,8 +34,8 @@ async def execute_llm_config_test(
     override_temperature: float | None = None,
     override_max_tokens: int | None = None,
     thinking_mode: str | None = None,
-    request_overrides: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+    request_overrides: JSONDict | None = None,
+) -> JSONDict:
     """
     Execute LLM configuration test.
 
@@ -50,14 +52,19 @@ async def execute_llm_config_test(
         override_temperature: Optional temperature override (0.0-2.0)
         override_max_tokens: Optional max tokens override
         thinking_mode: Optional thinking mode override (enabled/disabled/auto)
-        request_overrides: Optional instance_request_params overrides (tools, caching, headers, etc.)
+        request_overrides: Optional instance_request_params overrides (tools,
+            caching, headers, etc.)
 
     Returns:
         Dictionary containing test results and metadata
     """
-    start_time = datetime.now()
+    start_time = datetime.now(UTC)
 
     try:
+
+        def _as_json_dict(value: JSONValue | None) -> JSONDict:
+            return value if isinstance(value, dict) else {}
+
         # Step 1: Get and validate configuration
         config_result = await get_llm_config(db, config_id=config_id)
         if not config_result:
@@ -77,10 +84,10 @@ async def execute_llm_config_test(
         )
 
         # Step 2: Build messages for LLM
-        messages = [{"role": "user", "content": test_message}]
+        messages: list[JSONDict] = [{"role": "user", "content": test_message}]
 
         # Step 3: Call LLM without JSON Schema - pure model testing
-        llm_result = await invoke_llm(
+        llm_result: JSONDict = await invoke_llm(
             db=db,
             messages=messages,
             json_schema=None,  # No JSON Schema for regular testing
@@ -92,21 +99,22 @@ async def execute_llm_config_test(
         )
 
         # Step 4: Calculate response time
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         response_time_ms = int((end_time - start_time).total_seconds() * 1000)
 
         # Step 5: Safely extract data with defaults
-        usage = llm_result.get("usage") or {}
-        config_used = llm_result.get("config_used") or {}
-        request_payload = llm_result.get("request_payload") or {}
+        usage: JSONDict = _as_json_dict(llm_result.get("usage"))
+        config_used: JSONDict = _as_json_dict(llm_result.get("config_used"))
+        request_payload: JSONDict = _as_json_dict(llm_result.get("request_payload"))
 
         # Determine status using enum
         if llm_result.get("success"):
             status = LLMTestStatus.SUCCESS
             error_message = None
         else:
-            error_code = llm_result.get("error_code", "UNKNOWN")
-            if "TIMEOUT" in error_code:
+            error_code_value = llm_result.get("error_code")
+            error_code_text = str(error_code_value) if error_code_value is not None else "UNKNOWN"
+            if "TIMEOUT" in error_code_text:
                 status = LLMTestStatus.TIMEOUT
             else:
                 status = LLMTestStatus.FAILED

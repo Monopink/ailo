@@ -1,5 +1,4 @@
-"""
-AI system schemas module.
+"""AI system schemas module.
 
 This module imports all AI-related Pydantic schemas.
 """

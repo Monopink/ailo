@@ -17,6 +17,9 @@ from app.utils.snowflake import generate_snowflake_id
 logger = get_logger(__name__)
 
 
+CONTACT_TYPE_AI = 2
+
+
 async def route_message(db: AsyncSession, event: InboundMessageEvent) -> None:
     """
     Route message to appropriate handler.
@@ -42,7 +45,7 @@ async def route_message(db: AsyncSession, event: InboundMessageEvent) -> None:
             return
 
         # Determine if message is for AI
-        is_for_ai = contact.contact_type == 2  # 2 = AI
+        is_for_ai = contact.contact_type == CONTACT_TYPE_AI
         is_buffer_event = event.message_type in (
             MessageType.TEXT,
             MessageType.TYPING_START,

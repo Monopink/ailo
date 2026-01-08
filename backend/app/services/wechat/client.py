@@ -37,7 +37,7 @@ class WeChatPhoneNumberResponse(TypedDict):
 class WeChatAPIError(Exception):
     """WeChat API error"""
 
-    def __init__(self, errcode: int, errmsg: str):
+    def __init__(self, errcode: int, errmsg: str) -> None:
         self.errcode = errcode
         self.errmsg = errmsg
         super().__init__(f"WeChat API error {errcode}: {errmsg}")

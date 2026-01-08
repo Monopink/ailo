@@ -10,6 +10,10 @@ from app.utils.logging import get_logger
 
 from .base import SMSResult
 
+PHONE_MASK_PREFIX_LEN = 3
+PHONE_MASK_SUFFIX_LEN = 2
+PHONE_MASK_THRESHOLD = 5
+
 logger = get_logger(__name__)
 
 
@@ -36,7 +40,11 @@ class MockSMSProvider:
             SMSResult with success status
         """
         # Mask phone number for privacy (show first 3 and last 2 digits)
-        masked_phone = f"{phone[:3]}****{phone[-2:]}" if len(phone) > 5 else "***"
+        masked_phone = (
+            f"{phone[:PHONE_MASK_PREFIX_LEN]}****{phone[-PHONE_MASK_SUFFIX_LEN:]}"
+            if len(phone) > PHONE_MASK_THRESHOLD
+            else "***"
+        )
 
         # Log SMS (include full phone for testing convenience)
         logger.info(

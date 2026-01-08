@@ -1,6 +1,4 @@
-"""
-Schemas for media upload APIs.
-"""
+"""Schemas for media upload APIs."""
 
 from datetime import datetime
 

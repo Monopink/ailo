@@ -1,5 +1,4 @@
-"""
-AI Log admin views.
+"""AI Log admin views.
 
 This module contains Starlette-Admin views for AI request logging.
 """

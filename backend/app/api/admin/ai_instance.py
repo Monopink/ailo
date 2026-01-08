@@ -1,5 +1,4 @@
-"""
-Admin AI Instance API endpoints.
+"""Admin AI Instance API endpoints.
 Handles instance management including prompt variables, dimensions, and relationships.
 """
 
@@ -29,9 +28,8 @@ async def save_instance(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Save instance prompt_variables and dimensions."""
-
     # Get instance
-    instance = await ai_instance_crud.get(db, id=instance_id)
+    instance = await ai_instance_crud.get(db, record_id=instance_id)
     if not instance:
         raise HTTPException(status_code=404, detail="Instance not found")
 

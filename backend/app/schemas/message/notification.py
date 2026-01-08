@@ -1,5 +1,4 @@
-"""
-Notification schemas for type-safe notification data.
+"""Notification schemas for type-safe notification data.
 
 These schemas ensure notification payloads are validated at API boundaries
 and provide strong typing throughout the notification system.
@@ -31,8 +30,7 @@ class ContactRequestNotificationData(NotificationData):
 
 
 class NotificationActionData(BaseModel):
-    """
-    Complete notification action data structure.
+    """Complete notification action data structure.
 
     This schema enforces the structure of notification payloads used across
     the system. Use specific data types (e.g., ContactRequestNotificationData)

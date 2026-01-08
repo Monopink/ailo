@@ -5,19 +5,26 @@ This module provides functions for validating AI responses against JSON schemas.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import jsonschema
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.llm import LLMSessionContext, invoke_llm
-from app.type_defs import JSONDict, PreemptionChecker
+from app.type_defs import JSONDict, JSONValue, PreemptionChecker
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def validate_ai_response(response: Any, json_schema: dict[str, Any]) -> dict[str, Any]:
+JSONPayload = JSONDict | list[JSONValue]
+ValidationResult = dict[str, bool | str | JSONPayload | None]
+
+
+def validate_ai_response(
+    response: str | JSONPayload,
+    json_schema: JSONDict,
+) -> ValidationResult:
     """
     Validate AI response against JSON schema.
 
@@ -29,7 +36,7 @@ def validate_ai_response(response: Any, json_schema: dict[str, Any]) -> dict[str
         {
             "valid": bool,
             "error": str,
-            "validated_data": Any
+            "validated_data": JSONPayload | None
         }
     """
     if not json_schema:
@@ -57,10 +64,11 @@ def validate_ai_response(response: Any, json_schema: dict[str, Any]) -> dict[str
             logger.warning(
                 "ai_response_json_parse_failed",
                 error=error_msg,
-                response_preview=response[:500] if response else None,
+                response_preview=str(response)[:500] if isinstance(response, str) else None,
             )
             return {"valid": False, "error": error_msg, "validated_data": None}
 
+    validation_result: ValidationResult
     try:
         jsonschema.validate(instance=response, schema=json_schema)
     except jsonschema.ValidationError as e:
@@ -85,11 +93,11 @@ def validate_ai_response(response: Any, json_schema: dict[str, Any]) -> dict[str
 async def invoke_llm_with_validation(
     db: AsyncSession,
     messages: list[JSONDict],
-    json_schema: dict[str, Any] | None = None,
+    json_schema: JSONDict | None = None,
     preemption_checker: PreemptionChecker | None = None,
     session_context: LLMSessionContext | None = None,
-    **kwargs: Any,
-) -> dict[str, Any]:
+    **kwargs: object,
+) -> dict[str, bool | str | JSONPayload | None]:
     """
     LLM invocation with optional JSON schema validation and streaming early stop.
 
@@ -107,16 +115,16 @@ async def invoke_llm_with_validation(
         Dictionary containing response data and metadata:
         {
             "success": bool,
-            "response": Any,
-            "error": Optional[str],
-            "usage": Optional[Dict],
-            "preempted": Optional[bool]
+            "response": JSONPayload | None,
+            "error": str | None,
+            "usage": JSONDict | None,
+            "preempted": bool | None,
         }
     """
-    result: dict[str, Any]
     try:
         # Call LLM service with preemption checker
-        llm_result = await invoke_llm(
+        llm_fn = cast(Any, invoke_llm)
+        llm_result = await llm_fn(
             db=db,
             messages=messages,
             json_schema=json_schema,
@@ -124,16 +132,17 @@ async def invoke_llm_with_validation(
             session_context=session_context,
             **kwargs,
         )
+        normalized_result = _normalize_llm_result(llm_result)
 
         # Preemption means streaming was stopped intentionally (no validation needed)
-        if llm_result.get("preempted"):
+        if normalized_result.get("preempted"):
             logger.info("llm_call_preempted")
-            result = llm_result
-        elif not llm_result.get("success", False):
+            return normalized_result
+        if not normalized_result["success"]:
             # Check if LLM call succeeded
             logger.warning("llm_call_failed", error=llm_result.get("error"))
-            result = llm_result
-        elif json_schema:
+            return normalized_result
+        if json_schema:
             validation_result = validate_ai_response(
                 response=llm_result.get("response"),
                 json_schema=json_schema,
@@ -141,30 +150,54 @@ async def invoke_llm_with_validation(
 
             if validation_result["valid"]:
                 logger.debug("ai_response_validated_successfully")
-                # Replace response with validated (parsed) data
                 llm_result["response"] = validation_result["validated_data"]
-                result = llm_result
-            else:
-                # Validation failed
-                error_msg = f"AI response validation failed: {validation_result['error']}"
-                logger.error("ai_response_validation_failed", error=validation_result["error"])
-                result = {
-                    "success": False,
-                    "error": error_msg,
-                    "response": None,
-                    "usage": llm_result.get("usage"),
-                }
-        else:
-            logger.debug("ai_response_validation_skipped")
-            result = llm_result
+                return _normalize_llm_result(llm_result)
+
+            error_msg = f"AI response validation failed: {validation_result['error']}"
+            logger.error("ai_response_validation_failed", error=validation_result["error"])
+            return {
+                "success": False,
+                "error": error_msg,
+                "response": None,
+                "usage": normalized_result["usage"],
+                "preempted": normalized_result["preempted"],
+            }
+
+        logger.debug("ai_response_validation_skipped")
+        return normalized_result
 
     except Exception as e:
         logger.error("invoke_llm_with_validation_error", error=str(e), exc_info=True)
-        result = {
+        return {
             "success": False,
             "error": f"Chat completion with validation error: {e!s}",
             "response": None,
             "usage": None,
+            "preempted": False,
         }
 
-    return result
+
+def _coerce_optional_str(value: JSONValue | None) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _coerce_usage_dict(value: JSONValue | None) -> JSONDict | None:
+    return value if isinstance(value, dict) else None
+
+
+def _coerce_json_payload(value: JSONValue | None) -> JSONPayload | None:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        return value
+    return None
+
+
+def _normalize_llm_result(llm_result: JSONDict) -> ValidationResult:
+    return {
+        "success": bool(llm_result.get("success")),
+        "response": _coerce_json_payload(llm_result.get("response")),
+        "error": _coerce_optional_str(llm_result.get("error")),
+        "usage": _coerce_usage_dict(llm_result.get("usage")),
+        "preempted": bool(llm_result.get("preempted")),
+    }

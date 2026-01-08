@@ -1,15 +1,12 @@
-"""
-Business logic exception classes.
+"""Business logic exception classes.
 
 This module defines specific exceptions for business logic errors
 that occur during application operations.
 """
 
-from typing import Any
-
 from fastapi import status as http_status
 
-from .base import BaseAppException, ConflictError, NotFoundError, ValidationError
+from .base import BaseAppError, ConflictError, NotFoundError, ValidationError
 
 # User Management Exceptions
 
@@ -21,8 +18,8 @@ class UserNotFoundError(NotFoundError):
         self,
         user_id: str | None = None,
         message: str = "User not found",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         super().__init__(
             message=message, resource_type="user", resource_id=user_id, details=details
         )
@@ -37,18 +34,20 @@ class UserAlreadyExistsError(ConflictError):
         field: str,
         value: str,
         message: str = "User already exists",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         super().__init__(
             message=message, conflicting_field=field, conflicting_value=value, details=details
         )
         self.error_code = "USER_ALREADY_EXISTS"
 
 
-class InvalidCredentialsError(BaseAppException):
+class InvalidCredentialsError(BaseAppError):
     """Exception raised for invalid login credentials."""
 
-    def __init__(self, message: str = "Invalid credentials", details: dict[str, Any] | None = None):
+    def __init__(
+        self, message: str = "Invalid credentials", details: dict[str, object] | None = None
+    ) -> None:
         super().__init__(
             message=message,
             error_code="INVALID_CREDENTIALS",
@@ -57,15 +56,15 @@ class InvalidCredentialsError(BaseAppException):
         )
 
 
-class AccountSuspendedError(BaseAppException):
+class AccountSuspendedError(BaseAppError):
     """Exception raised when trying to access a suspended account."""
 
     def __init__(
         self,
         user_id: str | None = None,
         message: str = "Account is suspended",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if user_id:
             error_details["user_id"] = user_id
@@ -88,8 +87,8 @@ class ContactNotFoundError(NotFoundError):
         self,
         contact_id: str | None = None,
         message: str = "Contact not found",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         super().__init__(
             message=message, resource_type="contact", resource_id=contact_id, details=details
         )
@@ -104,8 +103,8 @@ class ContactAlreadyExistsError(ConflictError):
         user_id: str,
         contact_id: str,
         message: str = "Contact already exists",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         error_details.update({"user_id": user_id, "contact_id": contact_id})
 
@@ -121,8 +120,8 @@ class ContactRequestPendingError(ConflictError):
         user_qiao_id: str,
         contact_qiao_id: str,
         message: str = "Contact request already pending",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         error_details.update({"user_qiao_id": user_qiao_id, "contact_qiao_id": contact_qiao_id})
 
@@ -130,15 +129,15 @@ class ContactRequestPendingError(ConflictError):
         self.error_code = "CONTACT_REQUEST_PENDING"
 
 
-class ContactRequestInventoryPendingError(BaseAppException):
+class ContactRequestInventoryPendingError(BaseAppError):
     """Exception raised when a contact request is waiting for inventory."""
 
     def __init__(
         self,
         type_id: int | None = None,
         message: str = "Contact request is waiting for template inventory",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if type_id is not None:
             error_details["type_id"] = type_id
@@ -151,7 +150,7 @@ class ContactRequestInventoryPendingError(BaseAppException):
         )
 
 
-class ContactLimitExceededError(BaseAppException):
+class ContactLimitExceededError(BaseAppError):
     """Exception raised when contact limit is exceeded."""
 
     def __init__(
@@ -159,8 +158,8 @@ class ContactLimitExceededError(BaseAppException):
         current_count: int,
         limit: int,
         message: str = "Contact limit exceeded",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         error_details.update({"current_count": current_count, "limit": limit})
 
@@ -175,7 +174,7 @@ class ContactLimitExceededError(BaseAppException):
 # Message System Exceptions
 
 
-class MessageDeliveryError(BaseAppException):
+class MessageDeliveryError(BaseAppError):
     """Exception raised when message delivery fails."""
 
     def __init__(
@@ -183,8 +182,8 @@ class MessageDeliveryError(BaseAppException):
         message_id: str | None = None,
         reason: str | None = None,
         message: str = "Message delivery failed",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if message_id:
             error_details["message_id"] = message_id
@@ -207,8 +206,8 @@ class MessageTooLongError(ValidationError):
         current_length: int,
         max_length: int,
         message: str = "Message too long",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         error_details.update({"current_length": current_length, "max_length": max_length})
 
@@ -219,7 +218,7 @@ class MessageTooLongError(ValidationError):
 # AI System Exceptions
 
 
-class AIServiceError(BaseAppException):
+class AIServiceError(BaseAppError):
     """Exception raised for AI service errors."""
 
     def __init__(
@@ -227,8 +226,8 @@ class AIServiceError(BaseAppException):
         ai_service: str | None = None,
         reason: str | None = None,
         message: str = "AI service error",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if ai_service:
             error_details["ai_service"] = ai_service
@@ -251,8 +250,8 @@ class AIDataAccessError(AIServiceError):
         query: str | None = None,
         reason: str | None = None,
         message: str = "AI data access failed",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if query:
             error_details["query"] = query
@@ -273,15 +272,15 @@ class AIInstanceNotFoundError(NotFoundError):
         self,
         instance_id: str | None = None,
         message: str = "AI instance not found",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         super().__init__(
             message=message, resource_type="ai_instance", resource_id=instance_id, details=details
         )
         self.error_code = "AI_INSTANCE_NOT_FOUND"
 
 
-class AIInstanceInactiveError(BaseAppException):
+class AIInstanceInactiveError(BaseAppError):
     """Exception raised when an AI instance is inactive or blocked."""
 
     def __init__(
@@ -289,8 +288,8 @@ class AIInstanceInactiveError(BaseAppException):
         instance_id: str | None = None,
         status: int | None = None,
         message: str = "AI instance is inactive",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if instance_id:
             error_details["instance_id"] = instance_id
@@ -313,8 +312,8 @@ class AIConversationError(AIServiceError):
         conversation_step: str | None = None,
         reason: str | None = None,
         message: str = "Conversation processing failed",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if conversation_step:
             error_details["conversation_step"] = conversation_step
@@ -336,8 +335,8 @@ class AIRelationshipError(AIServiceError):
         operation: str | None = None,
         reason: str | None = None,
         message: str = "Relationship operation failed",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if operation:
             error_details["operation"] = operation
@@ -359,8 +358,8 @@ class AIInstanceCreationError(AIServiceError):
         template_id: str | None = None,
         reason: str | None = None,
         message: str = "Instance creation failed",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if template_id:
             error_details["template_id"] = template_id
@@ -377,7 +376,7 @@ class AIInstanceCreationError(AIServiceError):
 # Security Exceptions
 
 
-class SecurityViolationError(BaseAppException):
+class SecurityViolationError(BaseAppError):
     """Exception raised for security violations."""
 
     def __init__(
@@ -385,8 +384,8 @@ class SecurityViolationError(BaseAppException):
         violation_type: str | None = None,
         severity: str | None = None,
         message: str = "Security violation detected",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if violation_type:
             error_details["violation_type"] = violation_type
@@ -404,15 +403,15 @@ class SecurityViolationError(BaseAppException):
 # System Exceptions
 
 
-class SnowflakeGeneratorError(BaseAppException):
+class SnowflakeGeneratorError(BaseAppError):
     """Exception raised for Snowflake ID generator errors."""
 
     def __init__(
         self,
         reason: str | None = None,
         message: str = "Snowflake ID generation failed",
-        details: dict[str, Any] | None = None,
-    ):
+        details: dict[str, object] | None = None,
+    ) -> None:
         error_details = details or {}
         if reason:
             error_details["reason"] = reason

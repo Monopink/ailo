@@ -10,12 +10,16 @@ import math
 from typing import Any, cast
 
 from app.enums.common import PositionMappingAlgorithm
-from app.type_defs import AlgorithmParameterSpec, V1Params
+from app.type_defs import AlgorithmParameterSpec, JSONDict, JSONValue, V1Params
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 EPSILON = 1e-10  # Numerical stability threshold for floating-point comparisons
+SCORE_MIN = 0.0
+SCORE_MAX = 1000.0
+SENSITIVITY_MIN = -100.0
+SENSITIVITY_MAX = 100.0
 
 Numeric = int | float
 
@@ -25,7 +29,9 @@ ALGORITHM_PARAM_SPECS: dict[PositionMappingAlgorithm, list[AlgorithmParameterSpe
         {
             "name": "left_sensitivity",
             "label": "Left Sensitivity (%)",
-            "description": "Sensitivity factor for positions below the initial position (-100 to 100).",
+            "description": (
+                "Sensitivity factor for positions below the initial position " "(-100 to 100)."
+            ),
             "input_type": "integer",
             "min": -100,
             "max": 100,
@@ -35,7 +41,9 @@ ALGORITHM_PARAM_SPECS: dict[PositionMappingAlgorithm, list[AlgorithmParameterSpe
         {
             "name": "right_sensitivity",
             "label": "Right Sensitivity (%)",
-            "description": "Sensitivity factor for positions above the initial position (-100 to 100).",
+            "description": (
+                "Sensitivity factor for positions above the initial position " "(-100 to 100)."
+            ),
             "input_type": "integer",
             "min": -100,
             "max": 100,
@@ -100,10 +108,10 @@ def _clone_specs(specs: list[AlgorithmParameterSpec]) -> list[AlgorithmParameter
     return [cast(AlgorithmParameterSpec, dict(spec)) for spec in specs]
 
 
-def _coerce_numeric_param(value: Any, spec: AlgorithmParameterSpec) -> Numeric:
+def _coerce_numeric_param(value: JSONValue, spec: AlgorithmParameterSpec) -> Numeric:
     """Convert a raw value into the numeric type required by the spec."""
 
-    raw_value: Any = value
+    raw_value: JSONValue = value
     if raw_value is None:
         raise ValueError(f"{spec['label']} is required")
 
@@ -111,6 +119,9 @@ def _coerce_numeric_param(value: Any, spec: AlgorithmParameterSpec) -> Numeric:
         raw_value = raw_value.strip()
         if raw_value == "":
             raise ValueError(f"{spec['label']} is required")
+
+    if not isinstance(raw_value, (str, int, float)):
+        raise TypeError(f"{spec['label']} must be a number")
 
     try:
         number = float(raw_value)
@@ -139,7 +150,9 @@ def get_algorithm_param_specs(
     Return parameter specifications for algorithms.
 
     Args:
-        algorithm: Optional algorithm identifier. When provided, only that algorithm's specs are returned.
+        algorithm:
+            Optional algorithm identifier. When provided, only that algorithm's
+            specs are returned.
 
     Returns:
         Mapping of algorithm enum value to its parameter specs.
@@ -154,7 +167,7 @@ def get_algorithm_param_specs(
 
 def parse_algorithm_params(
     algorithm: int | PositionMappingAlgorithm,
-    params: dict[str, Any],
+    params: JSONDict,
 ) -> dict[str, Numeric]:
     """
     Normalize and validate algorithm parameters according to the registered spec.
@@ -194,7 +207,10 @@ def parse_algorithm_params(
 
 
 def map_score_to_position(
-    algorithm: int, score: float, initial_position: float, params: dict[str, Any] | None = None
+    algorithm: int,
+    score: float,
+    initial_position: float,
+    params: JSONDict | None = None,
 ) -> float:
     """
     Map LLM output score to final position value using specified algorithm.
@@ -217,10 +233,12 @@ def map_score_to_position(
     if params is None:
         params = {}
 
-    if not (0 <= score <= 1000):
-        raise ValueError(f"Score must be between 0 and 1000, got: {score}")
-    if not (0 <= initial_position <= 1000):
-        raise ValueError(f"Initial position must be between 0 and 1000, got: {initial_position}")
+    if not (SCORE_MIN <= score <= SCORE_MAX):
+        raise ValueError(f"Score must be between {SCORE_MIN} and {SCORE_MAX}, got: {score}")
+    if not (SCORE_MIN <= initial_position <= SCORE_MAX):
+        raise ValueError(
+            f"Initial position must be between {SCORE_MIN} and {SCORE_MAX}, got: {initial_position}"
+        )
 
     try:
         algorithm_enum = _normalize_algorithm(algorithm)
@@ -229,7 +247,7 @@ def map_score_to_position(
 
     try:
         if algorithm_enum == PositionMappingAlgorithm.NONE:
-            return calculate_none_mapping(score, initial_position, {})
+            return calculate_none_mapping(score, initial_position)
         if algorithm_enum == PositionMappingAlgorithm.V1:
             validated = parse_algorithm_params(algorithm_enum, params)
             return calculate_v1_mapping(score, initial_position, cast(V1Params, validated))
@@ -247,20 +265,22 @@ def map_score_to_position(
         raise
 
 
-def calculate_none_mapping(score: float, initial_position: float, params: dict[str, Any]) -> float:
+def calculate_none_mapping(
+    score: float, _initial_position: float, _params: JSONDict | None = None
+) -> float:
     """
     Direct mapping without any offset - returns LLM score directly.
 
     Args:
         score: LLM response score (0-1000)
-        initial_position: Not used for this algorithm
-        params: Not used for this algorithm
+        _initial_position: Placeholder for consistency with other algorithms
+        _params: Placeholder for consistency with other algorithms
 
     Returns:
         The same score value, clamped to valid range
     """
 
-    return max(0.0, min(1000.0, score))
+    return max(SCORE_MIN, min(SCORE_MAX, score))
 
 
 def calculate_v1_mapping(score: float, initial_position: float, params: V1Params) -> float:
@@ -268,15 +288,16 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
     V1 algorithm: Nonlinear position mapping with sensitivity-controlled offset.
 
     Maps score to position distance [0, 1000] with initial_position as origin.
-    Left and right segments use mirrored calculation with independent sensitivity control.
-    Uses logarithmic function for nonlinear acceleration near threshold.
+    Left and right segments use mirrored calculation with independent sensitivity
+    control. Uses logarithmic function for nonlinear acceleration near threshold.
 
     Args:
         score: LLM output score (0-1000)
         initial_position: Initial position from dimension config (0-1000)
         params: Algorithm parameters
             - left_sensitivity/right_sensitivity: [-100, 100], sensitivity controls
-            - left_positive_gain/left_negative_gain/right_positive_gain/right_negative_gain: [1, 100], logarithmic gains
+            - left_positive_gain/left_negative_gain/right_positive_gain/right_negative_gain:
+                [1, 100], logarithmic gains
 
     Returns:
         Final mapped position (0-1000)
@@ -300,9 +321,9 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
         # Left segment calculations
         relative_position = distance / max(_initial_position, EPSILON)
 
-        if left_sensitivity >= 100:
+        if left_sensitivity >= SENSITIVITY_MAX:
             position = 0.0
-        elif left_sensitivity <= -100:
+        elif left_sensitivity <= SENSITIVITY_MIN:
             position = _initial_position
         else:
             if left_sensitivity >= 0:
@@ -328,12 +349,12 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
             position = _initial_position * offset_ratio
     else:
         # Right segment calculations
-        max_range = 1000 - _initial_position
+        max_range = SCORE_MAX - _initial_position
         relative_position = distance / max(max_range, EPSILON)
 
-        if right_sensitivity >= 100:
+        if right_sensitivity >= SENSITIVITY_MAX:
             position = 1000.0
-        elif right_sensitivity <= -100:
+        elif right_sensitivity <= SENSITIVITY_MIN:
             position = _initial_position
         else:
             if right_sensitivity >= 0:
@@ -359,7 +380,7 @@ def calculate_v1_mapping(score: float, initial_position: float, params: V1Params
 
             position = _initial_position + max_range * offset_ratio
 
-    return max(0.0, min(1000.0, position))
+    return max(SCORE_MIN, min(SCORE_MAX, position))
 
 
 def get_algorithm_info(algorithm: int) -> dict[str, Any]:
@@ -387,7 +408,7 @@ def get_algorithm_info(algorithm: int) -> dict[str, Any]:
         return {
             "name": "None (direct)",
             "version": "1.0",
-            "descr_initial_positiontion": "Direct score to position mapping without offset",
+            "descr_initial_positiontion": ("Direct score to position mapping without offset"),
             "parameters": [],
             "formula": "position = score",
         }
@@ -396,7 +417,9 @@ def get_algorithm_info(algorithm: int) -> dict[str, Any]:
     return {
         "name": "V1",
         "version": "6.0",
-        "descr_initial_positiontion": "Nonlinear position mapping with sensitivity-controlled logarithmic offset.",
+        "descr_initial_positiontion": (
+            "Nonlinear position mapping with sensitivity-controlled " "logarithmic offset."
+        ),
         "parameters": [
             {
                 "name": spec["name"],
@@ -412,11 +435,15 @@ def get_algorithm_info(algorithm: int) -> dict[str, Any]:
             }
             for spec in specs
         ],
-        "formula": "offset_ratio = -gain * ln(1 - ratio) / 100; position = initial ± distance * offset_ratio, using independent left/right sensitivities and gains.",
+        "formula": (
+            "offset_ratio = -gain * ln(1 - ratio) / 100; position = initial ± "
+            "distance * offset_ratio, using independent left/right "
+            "sensitivities and gains."
+        ),
     }
 
 
-def validate_algorithm_params(algorithm: int, params: dict[str, Any]) -> bool:
+def validate_algorithm_params(algorithm: int, params: JSONDict) -> bool:
     """
     Validate parameters for a specific algorithm.
 

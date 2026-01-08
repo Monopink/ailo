@@ -1,5 +1,4 @@
-"""
-Admin API router integration.
+"""Admin API router integration.
 Combines all admin API endpoints for management backend.
 
 All admin API endpoints require authentication via Starlette-Admin session.

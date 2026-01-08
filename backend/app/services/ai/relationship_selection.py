@@ -129,7 +129,9 @@ def select_final_relationship(
     - If tie on top priority => return empty (None) with reason
     - If empty list => return empty (None) with reason
 
-    Note: Per-dimension current relationship filtering should be applied before calling this function.
+    Note:
+        Per-dimension current relationship filtering should be applied before
+        calling this function.
     """
     if not candidates_across_dimensions:
         return {"relationship": None, "changed": False, "reason": "no_candidate"}

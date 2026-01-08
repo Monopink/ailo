@@ -1,5 +1,4 @@
-"""
-Contact management related models.
+"""Contact management related models.
 
 This module contains SQLAlchemy models for contact relationships and requests.
 """
@@ -25,8 +24,7 @@ if TYPE_CHECKING:
 
 
 class Contact(SnowflakeModel, SoftDeleteMixin):
-    """
-    Contact relationship model.
+    """Contact relationship model.
 
     Manages contact relationships between users and AI instances.
     """
@@ -174,8 +172,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
 
 
 class ContactRequest(SnowflakeModel):
-    """
-    Contact request model.
+    """Contact request model.
 
     Manages contact addition requests and approvals.
     """

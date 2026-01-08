@@ -88,7 +88,6 @@ logger = logging.getLogger(__name__)
 # Jinja2 filter helper for JSON rendering
 def _pretty_json(data: Any) -> str:
     """Render JSON for admin templates without raising."""
-
     try:
         return json.dumps(data, default=str, ensure_ascii=False, indent=2)
     except Exception as exc:
@@ -329,5 +328,4 @@ def _create_admin(settings: Settings) -> Admin:
 @lru_cache
 def get_admin() -> Admin:
     """Return cached Admin application instance."""
-
     return _create_admin(get_settings())

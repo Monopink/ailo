@@ -4,17 +4,16 @@ Inbound message parser (business layer).
 Converts intermediate format to InboundMessageEvent with business logic.
 """
 
-from typing import Any
-
 from app.enums import MessageType
 from app.services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
 from app.services.message.security.encryption import decrypt_from_transport
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
+def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
     """
     Parse intermediate format to InboundMessageEvent.
 
@@ -44,20 +43,20 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
                 has_conv_id=bool(conv_id_raw),
                 has_message_type=message_type_raw is not None,
             )
-            return None
+            raise TypeError("missing_required_fields")
 
         # Type guards: ensure all required fields are correct types
         if not isinstance(from_qiao_id_raw, str) or not from_qiao_id_raw:
             logger.error("invalid_from_qiao_id_type", value=from_qiao_id_raw)
-            return None
+            raise TypeError("invalid_from_qiao_id_type")
 
         if not isinstance(to_qiao_id_raw, str) or not to_qiao_id_raw:
             logger.error("invalid_to_qiao_id_type", value=to_qiao_id_raw)
-            return None
+            raise TypeError("invalid_to_qiao_id_type")
 
         if not isinstance(conv_id_raw, str) or not conv_id_raw:
             logger.error("invalid_conversation_id_type", value=conv_id_raw)
-            return None
+            raise TypeError("invalid_conversation_id_type")
 
         if not isinstance(message_type_raw, int):
             logger.error(
@@ -65,7 +64,7 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
                 message_type=message_type_raw,
                 expected_type="int",
             )
-            return None
+            raise TypeError("invalid_message_type")
 
         # Type narrowing complete - assign to typed variables
         from_qiao_id: str = from_qiao_id_raw
@@ -78,11 +77,37 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
         # Validate content type
         if not isinstance(content_raw, str):
             logger.error("invalid_content_type", content_type=type(content_raw).__name__)
-            return None
+            raise TypeError("invalid_content_type")
 
         content: str = content_raw
-        encryption_algo = intermediate.get("encryption")
-        encryption_version = intermediate.get("encryption_version")
+        action_value = intermediate.get("action")
+        action = action_value if isinstance(action_value, dict) else None
+
+        notification_type_value = intermediate.get("notification_type")
+        notification_type = (
+            int(notification_type_value)
+            if isinstance(notification_type_value, (int, float))
+            else None
+        )
+
+        encryption_algo_value = intermediate.get("encryption")
+        encryption_algo = encryption_algo_value if isinstance(encryption_algo_value, str) else None
+        encryption_version_value = intermediate.get("encryption_version")
+        encryption_version = (
+            encryption_version_value if isinstance(encryption_version_value, str) else None
+        )
+        supports_typing_raw = intermediate.get("supports_typing", False)
+        supports_typing = (
+            bool(supports_typing_raw)
+            if isinstance(supports_typing_raw, (bool, int, float))
+            else False
+        )
+        client_sent_time_value = intermediate.get("sent_time")
+        client_sent_time = (
+            int(client_sent_time_value)
+            if isinstance(client_sent_time_value, (int, float))
+            else None
+        )
 
         if encryption_algo:
             encryption_metadata = {
@@ -100,24 +125,39 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
 
         # Build event metadata
         event_metadata = EventMetadata(
-            action=intermediate.get("action"),
-            notification_type=intermediate.get("notification_type"),
+            action=action,
+            notification_type=notification_type,
             encryption=encryption_algo,
             encryption_version=encryption_version,
         )
 
+        lc_from_value = intermediate.get("lc_from")
+        lc_from = lc_from_value if isinstance(lc_from_value, str) else None
+
+        lc_conv_id_value = intermediate.get("lc_conv_id")
+        lc_conv_id = lc_conv_id_value if isinstance(lc_conv_id_value, str) else None
+
+        raw_webhook_value = intermediate.get("raw_webhook")
+        raw_webhook = raw_webhook_value if isinstance(raw_webhook_value, str) else None
+
+        notification_data_value = intermediate.get("notification_data")
+        notification_data = (
+            notification_data_value if isinstance(notification_data_value, dict) else None
+        )
+
         # Build provider metadata
         provider_metadata = ProviderMetadata(
-            lc_from=intermediate.get("lc_from"),
-            lc_conv_id=intermediate.get("lc_conv_id"),
-            raw_webhook=intermediate.get("raw_webhook"),
+            lc_from=lc_from,
+            lc_conv_id=lc_conv_id,
+            raw_webhook=raw_webhook,
+            notification_data=notification_data,
         )
 
         # Validate timestamp_ms type
         timestamp_ms_raw = intermediate.get("timestamp_ms")
         if not isinstance(timestamp_ms_raw, int):
             logger.error("invalid_timestamp_type", timestamp_type=type(timestamp_ms_raw).__name__)
-            return None
+            raise TypeError("invalid_timestamp_type")
 
         timestamp_ms: int = timestamp_ms_raw
 
@@ -125,7 +165,7 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
         msg_id_client_raw = intermediate.get("msg_id_client")
         if not isinstance(msg_id_client_raw, str) or not msg_id_client_raw:
             logger.error("invalid_msg_id_client_type", value=msg_id_client_raw)
-            return None
+            raise TypeError("invalid_msg_id_client_type")
 
         msg_id_client: str = msg_id_client_raw
 
@@ -133,7 +173,7 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
         msg_id_provider_raw = intermediate.get("msg_id_provider")
         if not isinstance(msg_id_provider_raw, str) or not msg_id_provider_raw:
             logger.error("invalid_msg_id_provider_type", value=msg_id_provider_raw)
-            return None
+            raise TypeError("invalid_msg_id_provider_type")
 
         msg_id_provider: str = msg_id_provider_raw
 
@@ -147,8 +187,8 @@ def parse_to_event(intermediate: dict[str, Any]) -> InboundMessageEvent | None:
             sent_at_ms=timestamp_ms,
             msg_id_client=msg_id_client,
             msg_id_provider_inbound=msg_id_provider,
-            supports_typing=intermediate.get("supports_typing", False),
-            client_sent_time=intermediate.get("sent_time"),
+            supports_typing=supports_typing,
+            client_sent_time=client_sent_time,
             metadata=event_metadata,
             provider_metadata=provider_metadata,
         )

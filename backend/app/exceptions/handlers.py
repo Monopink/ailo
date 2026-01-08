@@ -1,5 +1,4 @@
-"""
-Exception handlers for FastAPI application.
+"""Exception handlers for FastAPI application.
 
 This module provides centralized exception handling for all application exceptions,
 ensuring consistent error responses and proper logging.
@@ -15,7 +14,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.exceptions.base import BaseAppException
+from app.exceptions.base import BaseAppError
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -28,8 +27,7 @@ def create_error_response(
     details: dict[str, Any] | None = None,
     path: str | None = None,
 ) -> Response:
-    """
-    Create a standardized error response.
+    """Create a standardized error response.
 
     Args:
         error_code: Machine-readable error code
@@ -40,6 +38,7 @@ def create_error_response(
 
     Returns:
         JSONResponse: Standardized error response
+
     """
     error_dict: dict[str, Any] = {"code": error_code, "message": message}
     if details:
@@ -57,9 +56,8 @@ def create_error_response(
     return JSONResponse(status_code=status_code, content=response_data)
 
 
-async def base_app_exception_handler(request: Request, exc: BaseAppException) -> Response:
-    """
-    Handle custom application exceptions.
+async def base_app_exception_handler(request: Request, exc: BaseAppError) -> Response:
+    """Handle custom application exceptions.
 
     Args:
         request: FastAPI request object
@@ -67,6 +65,7 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
 
     Returns:
         JSONResponse: Error response
+
     """
     logger.warning(
         "application_exception",
@@ -87,8 +86,7 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> Response:
-    """
-    Handle FastAPI request validation errors.
+    """Handle FastAPI request validation errors.
 
     Args:
         request: FastAPI request object
@@ -96,6 +94,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     Returns:
         JSONResponse: Error response
+
     """
     # Extract validation error details
     errors = []
@@ -123,8 +122,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def pydantic_validation_exception_handler(
     request: Request, exc: PydanticValidationError
 ) -> Response:
-    """
-    Handle Pydantic validation errors.
+    """Handle Pydantic validation errors.
 
     Args:
         request: FastAPI request object
@@ -132,6 +130,7 @@ async def pydantic_validation_exception_handler(
 
     Returns:
         JSONResponse: Error response
+
     """
     # Extract validation error details
     errors = []
@@ -157,8 +156,7 @@ async def pydantic_validation_exception_handler(
 
 
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> Response:
-    """
-    Handle SQLAlchemy database errors.
+    """Handle SQLAlchemy database errors.
 
     Args:
         request: FastAPI request object
@@ -166,6 +164,7 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -
 
     Returns:
         JSONResponse: Error response
+
     """
     logger.error("database_exception", path=str(request.url.path), error=str(exc), exc_info=True)
 
@@ -179,8 +178,7 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -
 
 
 async def generic_exception_handler(request: Request, exc: Exception) -> Response:
-    """
-    Handle unexpected exceptions.
+    """Handle unexpected exceptions.
 
     Args:
         request: FastAPI request object
@@ -188,6 +186,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> Respons
 
     Returns:
         JSONResponse: Error response
+
     """
     logger.error(
         "unexpected_exception",
@@ -206,17 +205,17 @@ async def generic_exception_handler(request: Request, exc: Exception) -> Respons
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """
-    Register all exception handlers with the FastAPI application.
+    """Register all exception handlers with the FastAPI application.
 
     Args:
         app: FastAPI application instance
+
     """
     # Custom application exceptions
     # Note: type: ignore required due to Starlette typing limitation (see issue #2417)
     # The type system cannot fully validate exception_handlers mapping where
     # each value type depends on each key type. Runtime behavior is correct.
-    app.add_exception_handler(BaseAppException, base_app_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(BaseAppError, base_app_exception_handler)  # type: ignore[arg-type]
 
     # Validation exceptions
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]

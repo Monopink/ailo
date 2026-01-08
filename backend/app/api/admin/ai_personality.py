@@ -1,5 +1,4 @@
-"""
-Admin AI Personality API endpoints.
+"""Admin AI Personality API endpoints.
 Handles personality management including prompts, schemas, and placeholders.
 """
 
@@ -46,8 +45,7 @@ async def save_personality_all(
     personality_id: int, data: dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
     """Save personality with auto-generated JSON schema from structured config."""
-
-    personality = await personality_crud.get(db, id=personality_id)
+    personality = await personality_crud.get(db, record_id=personality_id)
     if not personality:
         raise HTTPException(status_code=404, detail="Personality not found")
 
@@ -82,7 +80,7 @@ async def save_personality_all(
         placeholder_id = placeholder_data.pop("id", None)
 
         if placeholder_id:
-            existing_placeholder = await placeholder_crud.get(db, id=placeholder_id)
+            existing_placeholder = await placeholder_crud.get(db, record_id=placeholder_id)
             if existing_placeholder:
                 await placeholder_crud.update(
                     db, db_obj=existing_placeholder, obj_in=placeholder_data
@@ -97,7 +95,7 @@ async def save_personality_all(
     # Delete placeholders
     deleted = 0
     for placeholder_id in data.get("deleted_placeholder_ids", []):
-        await placeholder_crud.remove(db, id=placeholder_id)
+        await placeholder_crud.remove(db, record_id=placeholder_id)
         deleted += 1
 
     await db.commit()

@@ -1,5 +1,4 @@
-"""
-LLM models.
+"""LLM models.
 
 This module contains SQLAlchemy models for LLM management.
 """

@@ -1,5 +1,4 @@
-"""
-Admin LLM Management API endpoints.
+"""Admin LLM Management API endpoints.
 Provides LLM testing and management functionality for admin panel.
 """
 
@@ -50,11 +49,10 @@ class LLMTestRequest(BaseModel):
 
 
 @llm_router.post("/test")
-async def test_llm_configurations(
+async def run_llm_configuration_tests(
     request: LLMTestRequest, db: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
-    """
-    Test LLM configurations with multiple test cases.
+    """Test LLM configurations with multiple test cases.
 
     Args:
         request: LLM test request parameters
@@ -62,6 +60,7 @@ async def test_llm_configurations(
 
     Returns:
         Test results with performance metrics and comparison
+
     """
     try:
         # Get available configs
@@ -127,14 +126,14 @@ async def test_llm_configurations(
 
 @llm_router.get("/configs")
 async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """
-    Get available LLM configurations.
+    """Get available LLM configurations.
 
     Args:
         db: Database session
 
     Returns:
         List of available LLM configurations
+
     """
     try:
         # Get actual configs from the service
@@ -165,11 +164,11 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
 
 @llm_router.get("/health-check")
 async def health_check_llm_configs() -> dict[str, Any]:
-    """
-    Check health status of all LLM configurations.
+    """Check health status of all LLM configurations.
 
     Returns:
         Health status of all LLM configurations
+
     """
     try:
         # TODO: Implement actual health check

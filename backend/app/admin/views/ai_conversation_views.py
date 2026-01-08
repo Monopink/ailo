@@ -1,5 +1,4 @@
-"""
-AI Conversation admin views.
+"""AI Conversation admin views.
 
 This module contains Starlette-Admin views for AI conversation management
 (message buffer, conversation items, and archives).

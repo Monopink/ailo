@@ -1,6 +1,4 @@
-"""
-Media upload and asset endpoints.
-"""
+"""Media upload and asset endpoints."""
 
 from __future__ import annotations
 

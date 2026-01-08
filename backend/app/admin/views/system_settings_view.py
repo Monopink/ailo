@@ -1,5 +1,4 @@
-"""
-System settings views for non-database functionality.
+"""System settings views for non-database functionality.
 All business logic is handled through internal API calls.
 """
 
@@ -44,7 +43,6 @@ class SystemSettingsView(CustomView):
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         """Render system settings interface."""
-
         try:
             # Get database session
             db = request.state.session

@@ -1,5 +1,4 @@
-"""
-LLM service exception classes.
+"""LLM service exception classes.
 
 This module defines specific exceptions for LLM service errors.
 """
@@ -21,7 +20,7 @@ class LLMServiceError(ExternalServiceError):
         model: str | None = None,
         error_code: str | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         error_details = details or {}
         if provider:
             error_details["provider"] = provider
@@ -48,7 +47,7 @@ class LLMEndpointNotFoundError(LLMServiceError):
         provider: str | None = None,
         message: str | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         if not message:
             message = f"LLM endpoint not found or not accessible: {endpoint}"
 
@@ -74,7 +73,7 @@ class LLMAuthenticationError(LLMServiceError):
         provider: str | None = None,
         message: str = "LLM API key is invalid or expired",
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         super().__init__(
             message=message,
             provider=provider,
@@ -94,7 +93,7 @@ class LLMRateLimitError(RateLimitError):
         message: str = "LLM API请求频率超限",
         retry_after: int | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         error_details = details or {}
         if provider:
             error_details["provider"] = provider
@@ -116,7 +115,7 @@ class LLMTimeoutError(LLMServiceError):
         provider: str | None = None,
         message: str | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         if not message:
             message = f"LLM API请求超时 ({timeout_seconds}秒)"
 
@@ -141,7 +140,7 @@ class LLMNetworkError(LLMServiceError):
         provider: str | None = None,
         message: str = "无法连接到LLM API",
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         super().__init__(
             message=message,
             provider=provider,
@@ -160,7 +159,7 @@ class LLMConfigurationError(ConfigurationError):
         config_name: str | None = None,
         message: str = "LLM配置错误",
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         error_details = details or {}
         if config_name:
             error_details["config_name"] = config_name
@@ -180,7 +179,7 @@ class LLMNoConfigError(LLMConfigurationError):
         config_name: str | None = None,
         message: str = "没有可用的LLM配置",
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         super().__init__(
             config_name=config_name,
             message=message,
@@ -198,7 +197,7 @@ class LLMRequestError(LLMServiceError):
         message: str = "LLM请求失败",
         error_code: str | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         super().__init__(
             message=message,
             provider=provider,
@@ -217,7 +216,7 @@ class ConfigNotVerifiedError(LLMConfigurationError):
         config_name: str,
         message: str | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         if not message:
             message = (
                 f"配置 '{config_name}' 未经过测试验证。"
@@ -240,7 +239,7 @@ class JSONSchemaNotSupportedError(LLMConfigurationError):
         config_name: str,
         message: str | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         if not message:
             message = (
                 f"配置 '{config_name}' 不支持JSON Schema，无法用于AI Instance功能。"
@@ -265,7 +264,7 @@ class LLMResponseFormatError(LLMServiceError):
         provider: str | None = None,
         message: str | None = None,
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         if not message:
             message = (
                 f"配置 '{config_name}' 返回了非JSON格式的响应。"

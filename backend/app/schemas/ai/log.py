@@ -1,5 +1,4 @@
-"""
-AI request log related schemas.
+"""AI request log related schemas.
 
 This module contains Pydantic schemas for AI request logging and statistics.
 """

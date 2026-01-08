@@ -1,9 +1,4 @@
-"""
-API Global Rate Limit Middleware
-
-Provides fast, unified protection for all API endpoints without accessing the database.
-Uses memory cache for best performance.
-"""
+"""API global rate limit middleware providing fast, in-memory protection."""
 
 import time
 from collections import deque
@@ -18,10 +13,11 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+MAX_RATE_LIMIT_CACHE_SIZE = 1000
+
 
 class APIRateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    Global API rate limit middleware.
+    """Global API rate limit middleware.
 
     Protects all /api/v1/* endpoints with IP-based rate limiting.
     Does not access database for performance.
@@ -33,11 +29,11 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     def __init__(self, app: ASGIApp) -> None:
-        """
-        Initialize middleware.
+        """Initialize middleware.
 
         Args:
             app: FastAPI application
+
         """
         super().__init__(app)
         self._cache: dict[str, deque[float]] = {}
@@ -47,8 +43,7 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        """
-        Process request with rate limiting.
+        """Process request with rate limiting.
 
         Args:
             request: Incoming request
@@ -56,6 +51,7 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
 
         Returns:
             Response or rate limit error
+
         """
         # Only apply to API endpoints
         if not request.url.path.startswith("/api/v1/"):
@@ -110,18 +106,18 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
         self._cache[ip].append(now)
 
         # Clean up old IPs periodically (every 1000 requests)
-        if len(self._cache) > 1000:
+        if len(self._cache) > MAX_RATE_LIMIT_CACHE_SIZE:
             self._cleanup_cache(now, window_seconds)
 
         return await call_next(request)
 
     def _cleanup_cache(self, now: float, window_seconds: int) -> None:
-        """
-        Clean up cache entries for IPs with no recent requests.
+        """Clean up cache entries for IPs with no recent requests.
 
         Args:
             now: Current timestamp
             window_seconds: Time window in seconds
+
         """
         ips_to_remove = []
 

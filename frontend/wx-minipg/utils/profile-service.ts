@@ -2,6 +2,7 @@ import { getAvatarUrl } from './avatar';
 import { getLogger } from './logger';
 import { fetchCurrentUserProfile, updateCurrentUserProfile } from './profile';
 import type { UserProfile } from './schemas';
+import { isNonEmptyString } from './guards';
 
 export interface ProfileViewModel extends UserProfile {
   displayAvatar: string;
@@ -24,7 +25,11 @@ class ProfileService {
   }
 
   private buildViewModel(profile: UserProfile): ProfileViewModel {
-    const displayUsername = profile.username || profile.nickname || '--';
+    const displayUsername = isNonEmptyString(profile.username)
+      ? profile.username
+      : isNonEmptyString(profile.nickname)
+      ? profile.nickname
+      : '--';
     return {
       ...profile,
       displayAvatar: getAvatarUrl(profile.avatar_url ?? null),

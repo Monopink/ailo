@@ -37,11 +37,12 @@ export class TypingManager {
     }
 
     const existingTimer = this.debounceTimers.get(convId);
-    if (existingTimer) {
+    if (existingTimer !== undefined) {
       clearTimeout(existingTimer);
     }
 
-    if (!text || text.trim().length === 0) {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) {
       void this.stopTyping(convId);
       return;
     }
@@ -56,7 +57,7 @@ export class TypingManager {
   private async startTyping(convId: string): Promise<void> {
     try {
       const state = this.typingStates.get(convId);
-      if (state?.isTyping) {
+      if (state?.isTyping === true) {
         this.resetTimeout(convId);
         return;
       }
@@ -80,12 +81,12 @@ export class TypingManager {
   async stopTyping(convId: string): Promise<void> {
     try {
       const state = this.typingStates.get(convId);
-      if (!state?.isTyping) {
+      if (state?.isTyping !== true) {
         return;
       }
 
       logger.debug('Stop typing', { convId });
-      if (state.timeout) {
+      if (state.timeout !== null) {
         clearTimeout(state.timeout);
       }
 
@@ -98,11 +99,11 @@ export class TypingManager {
 
   private resetTimeout(convId: string): void {
     const state = this.typingStates.get(convId);
-    if (!state) {
+    if (state === undefined) {
       return;
     }
 
-    if (state.timeout) {
+    if (state.timeout !== null) {
       clearTimeout(state.timeout);
     }
 
@@ -120,7 +121,7 @@ export class TypingManager {
     this.debounceTimers.clear();
 
     this.typingStates.forEach((state) => {
-      if (state.timeout) {
+      if (state.timeout !== null) {
         clearTimeout(state.timeout);
       }
     });

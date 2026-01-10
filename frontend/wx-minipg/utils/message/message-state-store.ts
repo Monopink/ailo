@@ -3,7 +3,8 @@ import { parse, StoredMessage, StoredMessageSchema, StoredMessages } from '../sc
 import { getMessages, getUserInfo } from '../storage';
 import messageEventBus from './event-bus';
 import { buildMessageViewModels, MessageViewModel } from './message-view-model';
-import { hasValue, isNonEmptyString } from '../guards';
+import { isNonEmptyString } from '../guards';
+import { normalizeError } from '../errors';
 import { MessageStatus } from '../constants/message';
 
 const logger = getLogger('MessageStateStore');
@@ -101,8 +102,8 @@ class MessageStateStore {
     this.emit();
   }
 
-  private async handleAdapterMessage(message: StoredMessage): Promise<void> {
-    if (!hasValue(message)) {
+  private async handleAdapterMessage(message: StoredMessage | null | undefined): Promise<void> {
+    if (message === null || message === undefined) {
       return;
     }
     if (!isNonEmptyString(message.conv_id)) {
@@ -172,8 +173,11 @@ class MessageStateStore {
   private safeParseMessage(message: unknown): StoredMessage | null {
     try {
       return parse(StoredMessageSchema, message);
-    } catch (error) {
-      logger.error('Message validation failed', { error });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.error('Message validation failed', {
+        errorMessage: err.message,
+      });
       return null;
     }
   }
@@ -184,8 +188,11 @@ class MessageStateStore {
     this.subscribers.forEach((subscriber) => {
       try {
         subscriber(this.state);
-      } catch (error) {
-        logger.error('MessageStateStore subscriber threw', { error });
+      } catch (error: unknown) {
+        const err = normalizeError(error);
+        logger.error('MessageStateStore subscriber threw', {
+          errorMessage: err.message,
+        });
       }
     });
   }
@@ -194,8 +201,11 @@ class MessageStateStore {
     this.errorHandlers.forEach((handler) => {
       try {
         handler(error);
-      } catch (err) {
-        logger.error('MessageStateStore error handler threw', { error: err });
+      } catch (err: unknown) {
+        const normalizedErr = normalizeError(err);
+        logger.error('MessageStateStore error handler threw', {
+          errorMessage: normalizedErr.message,
+        });
       }
     });
   }

@@ -2,6 +2,8 @@ import { requestValidated } from './api';
 import { getAvatarUrl } from './avatar';
 import { getLogger } from './logger';
 import { SquareApiResponseSchema, type SquareContact } from './schemas';
+import { isNonEmptyString } from './guards';
+import { normalizeError } from './errors';
 
 export const SQUARE_CACHE_TTL_MS = 10 * 60 * 1000;
 export const SQUARE_CACHE_STALE_PERIOD_MS = 60 * 60 * 1000;
@@ -39,14 +41,17 @@ class SquareDiscoveryService {
         this.getCacheKey(category)
       );
       if (
-        stored &&
+        stored !== null &&
         Array.isArray(stored.contacts) &&
         typeof stored.timestamp === 'number'
       ) {
         return stored;
       }
-    } catch (error) {
-      this.logger.warn('Failed to read square cache', { error });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      this.logger.warn('Failed to read square cache', {
+        errorMessage: err.message,
+      });
     }
     return null;
   }
@@ -82,16 +87,22 @@ class SquareDiscoveryService {
   private setCacheEntry(category: number | null, entry: SquareCacheEntry): void {
     try {
       wx.setStorageSync(this.getCacheKey(category), entry);
-    } catch (error) {
-      this.logger.warn('Failed to write square cache', { error });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      this.logger.warn('Failed to write square cache', {
+        errorMessage: err.message,
+      });
     }
   }
 
   clearCache(category: number | null): void {
     try {
       wx.removeStorageSync(this.getCacheKey(category));
-    } catch (error) {
-      this.logger.warn('Failed to clear square cache', { error });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      this.logger.warn('Failed to clear square cache', {
+        errorMessage: err.message,
+      });
     }
   }
 
@@ -110,35 +121,25 @@ class SquareDiscoveryService {
     return {
       id: contact.qiao_id,
       qiao_id: contact.qiao_id,
-      nickname:
-        typeof contact.nickname === 'string' && contact.nickname.trim()
-          ? contact.nickname
-          : undefined,
+      nickname: isNonEmptyString(contact.nickname)
+        ? contact.nickname.trim()
+        : undefined,
       gender:
-        typeof contact.gender === 'number'
-          ? contact.gender
-          : contact.gender ?? null,
+        typeof contact.gender === 'number' ? contact.gender : null,
       avatar_url: getAvatarUrl(contact.avatar_url ?? null),
-      bio:
-        typeof contact.bio === 'string' && contact.bio.trim()
-          ? contact.bio
-          : undefined,
-      region:
-        typeof contact.region === 'string' && contact.region.trim()
-          ? contact.region
-          : undefined,
+      bio: isNonEmptyString(contact.bio) ? contact.bio.trim() : undefined,
+      region: isNonEmptyString(contact.region) ? contact.region.trim() : undefined,
       category:
-        typeof contact.category === 'number'
-          ? contact.category
-          : contact.category ?? null,
+        typeof contact.category === 'number' ? contact.category : null,
     };
   }
 
   private parseRefreshTimestamp(value?: string | null): number | null {
-    if (!value) {
+    if (!isNonEmptyString(value)) {
       return null;
     }
-    const parsed = Date.parse(value);
+    const normalized = value.trim();
+    const parsed = Date.parse(normalized);
     return Number.isNaN(parsed) ? null : parsed;
   }
 }

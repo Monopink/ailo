@@ -8,6 +8,7 @@ import squareDiscoveryService, {
 } from '../../utils/discovery-service';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { isNonEmptyString } from '../../utils/guards';
+import { initTabBar } from '../../utils/tab-bar';
 
 const logger = getLogger('Square');
 
@@ -131,14 +132,7 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   onShow() {
-    // Update custom TabBar active state
-    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null;
-    if (tabBar !== null) {
-      const initFn = (tabBar as { init?: unknown }).init;
-      if (typeof initFn === 'function') {
-        void initFn();
-      }
-    }
+    initTabBar(this);
   },
   displayCachedContacts() {
     const cache = squareDiscoveryService.getCacheEntry(this.data.currentCategory);

@@ -1,4 +1,5 @@
 import { uploadFile } from './api';
+import { isNonEmptyString } from './guards';
 
 export interface AvatarUploadResponse {
   file_id: string;
@@ -23,7 +24,7 @@ export async function uploadAvatarViaProxy(
     formData
   );
 
-  if (!response.file_id || !response.url) {
+  if (!isNonEmptyString(response.file_id) || !isNonEmptyString(response.url)) {
     throw new Error('上传响应无效');
   }
 

@@ -5,6 +5,7 @@
 
 /* eslint-disable no-console */
 import { LOG_LEVEL, LogLevel } from './env';
+import { isNonEmptyString } from './guards';
 
 export type LogLevelName = LogLevel | 'INFO' | 'WARN' | 'ERROR';
 
@@ -16,9 +17,7 @@ const LOG_LEVELS: Record<LogLevelName, number> = {
   NONE: 4,
 };
 
-let currentLogLevel: number = Object.prototype.hasOwnProperty.call(LOG_LEVELS, LOG_LEVEL)
-  ? LOG_LEVELS[LOG_LEVEL]
-  : LOG_LEVELS.NONE;
+let currentLogLevel: number = LOG_LEVELS[LOG_LEVEL];
 
 type LogPayload = unknown;
 
@@ -31,21 +30,19 @@ const serializePayload = (payload: LogPayload): string | null => {
   }
   try {
     return JSON.stringify(payload);
-  } catch (error) {
-    return String(payload);
+  } catch {
+    return null;
   }
 };
 
 export function setLogLevel(level: LogLevelName): void {
-  if (LOG_LEVELS[level] !== undefined) {
-    currentLogLevel = LOG_LEVELS[level];
-  }
+  currentLogLevel = LOG_LEVELS[level];
 }
 
 function formatLog(level: LogLevelName, tag: string, message: string, data?: LogPayload): string {
   const timestamp = new Date().toISOString();
   const serialized = serializePayload(data);
-  const dataStr = serialized ? ` ${serialized}` : '';
+  const dataStr = isNonEmptyString(serialized) ? ` ${serialized}` : '';
   return `[${timestamp}] [${level}] [${tag}] ${message}${dataStr}`;
 }
 

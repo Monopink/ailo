@@ -20,6 +20,7 @@ import type {
 } from './adapter-types';
 import { getMessageAdapter } from './provider';
 import messageEventBus from './event-bus';
+import { isDefined, isNonEmptyString } from '../guards';
 
 const logger = getLogger('MessageService');
 
@@ -36,8 +37,7 @@ const createBusinessMessage = (
   conv_id: base.conv_id,
   content: base.content,
   message_type: base.message_type ?? MESSAGE_TYPE.TEXT,
-  supports_typing:
-    base.supports_typing !== undefined ? base.supports_typing : true,
+  supports_typing: base.supports_typing ?? true,
   sent_time: Date.now(),
   status,
 });
@@ -119,16 +119,19 @@ export class MessageService {
       throw new Error('Message service not initialized');
     }
 
+    const contentLength = messageData.content.length;
     logger.info('Sending message', {
       conv_id: messageData.conv_id,
       message_type: messageData.message_type,
-      content_length: messageData.content ? messageData.content.length : 0,
+      content_length: contentLength,
       from: messageData.from,
       to: messageData.to,
       client_msg_id: messageData.client_msg_id,
     });
 
-    const msgId = messageData.client_msg_id || generateClientMessageId();
+    const msgId = isNonEmptyString(messageData.client_msg_id)
+      ? messageData.client_msg_id
+      : generateClientMessageId();
 
     const message = createBusinessMessage(messageData, msgId, MESSAGE_STATUS.SENDING);
 
@@ -198,7 +201,7 @@ export class MessageService {
   }
 
   async invalidateConversation(imConvId?: string | null): Promise<void> {
-    if (this.adapter.invalidateConversation) {
+    if (typeof this.adapter.invalidateConversation === 'function') {
       await Promise.resolve(this.adapter.invalidateConversation(imConvId));
     }
   }
@@ -211,7 +214,7 @@ export class MessageService {
         to: message.to,
         conv_id: message.conv_id,
         message_type: message.message_type,
-        content_length: message.content ? message.content.length : 0,
+        content_length: message.content.length,
       });
 
       const storedMessage: StoredMessage = { ...message };
@@ -292,34 +295,45 @@ export class MessageService {
 }
 
 let messageServiceInstance: MessageService | null = null;
+let messageServiceInitPromise: Promise<MessageService> | null = null;
 
 export async function initMessageService(): Promise<MessageService> {
-  if (messageServiceInstance) {
+  if (isDefined(messageServiceInstance)) {
     logger.info('Message service already initialized');
     return messageServiceInstance;
   }
 
-  logger.info('Initializing message service');
-
-  const userInfo = await getUserInfo();
-
-  if (!userInfo?.qiao_id) {
-    const error = new Error('User info not found or invalid');
-    logger.error('Cannot initialize message service', {
-      hasUserInfo: Boolean(userInfo),
-      hasQiaoId: Boolean(userInfo?.qiao_id),
-    });
-    throw error;
+  if (messageServiceInitPromise !== null) {
+    return messageServiceInitPromise;
   }
 
-  logger.info('User info loaded', { qiao_id: userInfo.qiao_id });
+  messageServiceInitPromise = (async () => {
+    logger.info('Initializing message service');
 
-  messageServiceInstance = new MessageService();
-  await messageServiceInstance.initialize(userInfo.qiao_id);
+    const userInfo = await getUserInfo();
 
-  logger.info('Message service initialized successfully');
+    if (!isNonEmptyString(userInfo?.qiao_id)) {
+      const error = new Error('User info not found or invalid');
+      logger.error('Cannot initialize message service', {
+        hasUserInfo: isDefined(userInfo),
+        hasQiaoId: isNonEmptyString(userInfo?.qiao_id),
+      });
+      throw error;
+    }
 
-  return messageServiceInstance;
+    logger.info('User info loaded', { qiao_id: userInfo.qiao_id });
+
+    const service = new MessageService();
+    await service.initialize(userInfo.qiao_id);
+
+    messageServiceInstance = service;
+    logger.info('Message service initialized successfully');
+    return service;
+  })().finally(() => {
+    messageServiceInitPromise = null;
+  });
+
+  return messageServiceInitPromise;
 }
 
 export function getMessageService(): MessageService | null {

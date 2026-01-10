@@ -1,4 +1,5 @@
 import { getLogger } from '../../utils/logger';
+import { isDefined, isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('AvatarCropper');
 const OUTPUT_SIZE = 512;
@@ -58,7 +59,7 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
 
     const eventChannel = this.getOpenerEventChannel();
     eventChannel.on('init', (payload: { filePath?: string }) => {
-      if (payload.filePath) {
+      if (isNonEmptyString(payload.filePath)) {
         void this.initializeCropper(payload.filePath);
       }
     });
@@ -130,7 +131,7 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
   },
 
   async handleConfirm() {
-    if (this.data.isSaving || !this._imageInfo) {
+    if (this.data.isSaving || !isDefined(this._imageInfo)) {
       return;
     }
 
@@ -236,7 +237,7 @@ function clampPosition(
   y: number,
   scale: number
 ): { x: number; y: number } {
-  if (!imageInfo) {
+  if (!isDefined(imageInfo)) {
     return { x, y };
   }
   const width = imageInfo.imageWidth * imageInfo.baseScale * scale;

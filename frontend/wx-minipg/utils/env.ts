@@ -17,11 +17,13 @@ const resolveEnvironment = (): Environment => {
     if (typeof wx !== 'undefined' && typeof wx.getAccountInfoSync === 'function') {
       const accountInfo = wx.getAccountInfoSync();
       const envVersion = accountInfo.miniProgram.envVersion;
-      if (envVersion === 'release') {
-        return 'production';
-      }
-      if (envVersion === 'trial' || envVersion === 'develop') {
-        return 'development';
+      switch (envVersion) {
+        case 'release':
+          return 'production';
+        case 'trial':
+        case 'develop':
+        default:
+          return 'development';
       }
     }
   } catch {

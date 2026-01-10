@@ -122,6 +122,28 @@ grep -r "component-name" frontend/wx-minipg/components/
 grep -r "component-name" frontend/wx-minipg/pages/
 ```
 
+### Custom TabBar TypeError: Cannot read property 'data' of undefined
+**Symptom**: Pages with custom TabBar crash on load/show: `TypeError: Cannot read property 'data' of undefined at init (custom-tab-bar/index.js:28)`
+**Root Cause**: Extracting `init` function reference and calling it loses `this` context
+**Wrong Pattern**:
+```typescript
+const tabBar = this.getTabBar();
+const initFn = tabBar.init;
+initFn(); // ❌ this is undefined
+```
+**Fix**: Use `initTabBar()` utility from `utils/tab-bar.ts`
+```typescript
+import { initTabBar } from '../../utils/tab-bar';
+Page({
+  onShow() {
+    initTabBar(this); // ✅ Correct
+  }
+});
+```
+**Architecture**: Type-safe wrapper with proper `this` binding. See `typings/custom-tab-bar.d.ts` for type definitions.
+**Affected Files**: Any page using custom TabBar (index, square, profile)
+**Documentation**: See AGENTS.md § Custom TabBar 使用规范
+
 ---
 
 ## AI Dialogue

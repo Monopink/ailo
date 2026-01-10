@@ -23,12 +23,8 @@ import typingManager from '../../utils/typing-manager';
 import conversationStore from '../../utils/message/conversation-store';
 import messageStateStore, { MessageStoreState } from '../../utils/message/message-state-store';
 import type { MessageViewModel } from '../../utils/message/message-view-model';
-import {
-  hasValue,
-  isNonEmptyString,
-  firstNonEmptyString,
-  isPositiveNumber,
-} from '../../utils/guards';
+import { isNonEmptyString, firstNonEmptyString, isPositiveNumber } from '../../utils/guards';
+import { normalizeError } from '../../utils/errors';
 
 const logger = getLogger('Chat');
 
@@ -116,20 +112,6 @@ interface ChatPageCustom {
   ): Promise<boolean>;
 }
 
-const normalizeError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error;
-  }
-  if (typeof error === 'string') {
-    return new Error(error);
-  }
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error('Unknown error');
-  }
-};
-
 const showToast = (
   title: string,
   icon: WechatMiniprogram.ShowToastOption['icon'] = 'none'
@@ -145,10 +127,12 @@ const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unkno
   return dataset?.[key];
 };
 
+const toStringValue = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+
 const ensureMessageService = (): Ailo.MessageService => {
   const app = getApp<AppInstance>();
   const messageService = app.getMessageService();
-  if (!hasValue(messageService)) {
+  if (messageService === null) {
     throw new Error('MESSAGE_SERVICE_DISCONNECTED');
   }
   return messageService;
@@ -286,8 +270,10 @@ Page<ChatPageData, ChatPageCustom>({
    */
   async refreshContactInfo(convId: string) {
     const conversation = await get<ConversationResponse>(`/contacts/${convId}/conversation`);
-
-    if (!hasValue(conversation)) {
+    if (
+      !isNonEmptyString(conversation.contact_qiao_id) ||
+      !isNonEmptyString(conversation.im_conv_id)
+    ) {
       throw new Error('CONVERSATION_NOT_FOUND');
     }
 
@@ -342,7 +328,7 @@ Page<ChatPageData, ChatPageCustom>({
       if (isNonEmptyString(refreshedState.im_conv_id)) {
         nextImConvId = refreshedState.im_conv_id;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to refresh conversation store', { error: err.message });
     }
@@ -360,7 +346,7 @@ Page<ChatPageData, ChatPageCustom>({
 
   handleChatInfoAction(message: ChatMessage) {
     const action = message.action as { type?: string; target_msg_id?: string } | null;
-    if (!hasValue(action)) {
+    if (action === null) {
       return;
     }
 
@@ -413,7 +399,7 @@ Page<ChatPageData, ChatPageCustom>({
       this.setData({ userAvatar: getAvatarUrl(userInfo.avatar ?? '') });
 
       const contact = await getContactByConvId(convId);
-      if (!hasValue(contact)) {
+      if (contact === null) {
         logger.error('Contact not found', { convId });
         this.setData({
           'pageLayoutData.isLoading': false,
@@ -442,7 +428,7 @@ Page<ChatPageData, ChatPageCustom>({
       });
 
       await this.loadMessages();
-    } catch (error) {
+    } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to load chat page', { error: err.message });
       showToast('加载失败');
@@ -457,15 +443,15 @@ Page<ChatPageData, ChatPageCustom>({
   onUnload() {
     typingManager.cleanup(this.data.convId);
 
-    if (hasValue(this.unsubscribeConversationStore)) {
+    if (this.unsubscribeConversationStore !== null) {
       this.unsubscribeConversationStore();
       this.unsubscribeConversationStore = null;
     }
-    if (hasValue(this.messageStoreSubscription)) {
+    if (this.messageStoreSubscription !== null) {
       this.messageStoreSubscription();
       this.messageStoreSubscription = null;
     }
-    if (hasValue(this.errorSubscription)) {
+    if (this.errorSubscription !== null) {
       this.errorSubscription();
       this.errorSubscription = null;
     }
@@ -483,7 +469,7 @@ Page<ChatPageData, ChatPageCustom>({
       this.setData({
         'pageLayoutData.isLoading': false,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to load messages', { error: err.message });
       showToast('加载消息失败');
@@ -557,7 +543,7 @@ Page<ChatPageData, ChatPageCustom>({
    * Handle emoji selection
    */
   onEmojiSelect(event: WechatMiniprogram.BaseEvent) {
-    const emoji = getDatasetValue(event, 'emoji') as string | undefined;
+    const emoji = toStringValue(getDatasetValue(event, 'emoji'));
     if (!isNonEmptyString(emoji)) {
       return;
     }
@@ -572,12 +558,12 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   async onRetryMessage(event: WechatMiniprogram.BaseEvent) {
-    const msgIdValue = getDatasetValue(event, 'msgid');
+    const msgIdValue = toStringValue(getDatasetValue(event, 'msgid'));
     if (!isNonEmptyString(msgIdValue)) {
       return;
     }
     const failedMessage = this.data.messages.find((msg) => msg.msg_id === msgIdValue);
-    if (!hasValue(failedMessage) || failedMessage.status !== MESSAGE_STATUS.FAILED) {
+    if (failedMessage?.status !== MESSAGE_STATUS.FAILED) {
       return;
     }
 
@@ -763,7 +749,7 @@ Page<ChatPageData, ChatPageCustom>({
         message_type: MESSAGE_TYPE.TEXT,
         supports_typing: true,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to send message', { error: err.message });
 

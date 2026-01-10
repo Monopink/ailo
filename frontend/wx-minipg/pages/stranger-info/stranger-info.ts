@@ -3,26 +3,32 @@ import { get } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
 import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
+import { isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('StrangerInfo');
 
-const GENDER_SYMBOL_MAP = {
+const GENDER_SYMBOL_MAP: Record<number, string> = {
   1: '♂',
   2: '♀',
   3: '⚧',
-  4: '',
-} as const;
+};
 
-const CATEGORY_TEXT_MAP = {
+const CATEGORY_TEXT_MAP: Record<string, string> = {
   '1': '交友',
   '2': '恋爱',
   '3': '倾诉',
   '4': '闺蜜',
   '5': '同好',
-} as const;
+};
 
 type GenderKey = keyof typeof GENDER_SYMBOL_MAP;
 type CategoryKey = keyof typeof CATEGORY_TEXT_MAP;
+
+const isGenderKey = (value: unknown): value is GenderKey =>
+  typeof value === 'number' && value in GENDER_SYMBOL_MAP;
+
+const isCategoryKey = (value: unknown): value is CategoryKey =>
+  typeof value === 'string' && value in CATEGORY_TEXT_MAP;
 
 interface StrangerProfileResponse {
   qiao_id: string;
@@ -70,41 +76,46 @@ interface ApiError {
 }
 
 const isApiError = (error: unknown): error is ApiError =>
-  Boolean(error) && typeof error === 'object';
+  typeof error === 'object' && error !== null;
 
 const getGenderText = (gender?: number): string => {
-  if (typeof gender === 'number' && GENDER_SYMBOL_MAP[gender as GenderKey] !== undefined) {
-    return GENDER_SYMBOL_MAP[gender as GenderKey];
+  if (!isGenderKey(gender)) {
+    return '';
   }
-  return '';
+  return GENDER_SYMBOL_MAP[gender];
 };
 
 const getCategoryText = (category?: string): string => {
-  if (category && CATEGORY_TEXT_MAP[category as CategoryKey]) {
-    return CATEGORY_TEXT_MAP[category as CategoryKey];
+  if (!isCategoryKey(category)) {
+    return '';
   }
-  return '';
+  return CATEGORY_TEXT_MAP[category];
 };
 
 const normalizeProfile = (profile: StrangerProfileResponse): StrangerProfileView => {
-  const displayName = profile.nickname || profile.qiao_id || '未命名用户';
+  const displayName = isNonEmptyString(profile.nickname)
+    ? profile.nickname
+    : isNonEmptyString(profile.qiao_id)
+      ? profile.qiao_id
+      : '未命名用户';
   const genderText = getGenderText(profile.gender);
+  const resolvedGender = isGenderKey(profile.gender) ? profile.gender : 0;
   let genderType: 'success' | 'danger' | 'default' = 'default';
-  if (profile.gender === 1) {
+  if (resolvedGender === 1) {
     genderType = 'success';
-  } else if (profile.gender === 2) {
+  } else if (resolvedGender === 2) {
     genderType = 'danger';
   }
   return {
     qiaoId: profile.qiao_id,
-    avatarUrl: getAvatarUrl(profile.avatar_url ?? ''),
+    avatarUrl: getAvatarUrl(profile.avatar_url),
     displayName,
-    gender: profile.gender ?? 0,
+    gender: resolvedGender,
     genderText,
     genderType,
     categoryText: getCategoryText(profile.category),
-    regionText: profile.region ?? '',
-    bioText: profile.bio ?? '',
+    regionText: isNonEmptyString(profile.region) ? profile.region : '',
+    bioText: isNonEmptyString(profile.bio) ? profile.bio : '',
   };
 };
 
@@ -112,7 +123,7 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   if (isApiError(error) && typeof error.data?.detail === 'string') {
     return error.data.detail;
   }
-  if (error instanceof Error && error.message) {
+  if (error instanceof Error && isNonEmptyString(error.message)) {
     return error.message;
   }
   return fallback;
@@ -137,7 +148,7 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
   async onLoad(options: StrangerInfoLoadOptions) {
     const qiaoId = options.id;
 
-    if (!qiaoId) {
+    if (!isNonEmptyString(qiaoId)) {
       void wx.showToast({
         title: '参数错误',
         icon: 'none',

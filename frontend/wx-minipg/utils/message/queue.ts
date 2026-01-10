@@ -1,6 +1,7 @@
 import { getLogger } from '../logger';
 import { MESSAGE_CONFIG } from '../config';
 import type { AdapterSendResult, BusinessMessagePayload, MessageAdapter } from './adapter-types';
+import { isDefined } from '../guards';
 
 const logger = getLogger('MessageQueue');
 
@@ -39,42 +40,53 @@ export class MessageQueue {
     }
 
     this.processing = true;
-
-    while (this.queue.length > 0) {
-      const message = this.queue[0];
-
-      try {
-        if (!this.checkRateLimit()) {
-          logger.warn('Rate limit exceeded, waiting...');
-          await this.waitForRateLimit();
-          continue;
-        }
-
-        await this.sendMessage(message);
-        this.queue.shift();
-        this.incrementRateLimit();
-      } catch (error) {
-        logger.error('Send message failed', { messageId: message.payload.msg_id, error });
-        message.retryCount = (message.retryCount || 0) + 1;
-
-        if ((message.retryCount || 0) >= MESSAGE_CONFIG.maxRetryCount) {
-          logger.error('Max retries reached', { messageId: message.payload.msg_id });
-          message.status = 'failed';
-          this.queue.shift();
-        } else {
-          await this.sleep(MESSAGE_CONFIG.retryDelay);
-        }
-      }
-    }
-
-    this.processing = false;
+    await this.processNext();
   }
 
-  private async sendMessage(message: QueueMessage): Promise<void> {
-    logger.debug('Sending message', { messageId: message.payload.msg_id });
-    await this.provider.sendMessage(message.payload, message.imConvId);
-    message.status = 'sent';
-    logger.info('Message sent', { messageId: message.payload.msg_id });
+  private async processNext(): Promise<void> {
+    const message = this.queue[0];
+
+    if (!isDefined(message)) {
+      this.processing = false;
+      return;
+    }
+
+    try {
+      if (!this.checkRateLimit()) {
+        logger.warn('Rate limit exceeded, waiting...');
+        await this.waitForRateLimit();
+        await this.processNext();
+        return;
+      }
+
+      await this.sendMessage(message);
+      this.queue.shift();
+      this.incrementRateLimit();
+      await this.processNext();
+    } catch (error) {
+      logger.error('Send message failed', { messageId: message.payload.msg_id, error });
+      const retries = (message.retryCount ?? 0) + 1;
+      message.retryCount = retries;
+
+      if (retries >= MESSAGE_CONFIG.maxRetryCount) {
+        logger.error('Max retries reached', { messageId: message.payload.msg_id });
+        message.status = 'failed';
+        this.queue.shift();
+        await this.processNext();
+      } else {
+        await this.sleep(MESSAGE_CONFIG.retryDelay);
+        await this.processNext();
+      }
+    }
+  }
+
+  private sendMessage(message: QueueMessage): Promise<void> {
+    const messageId = message.payload.msg_id;
+    logger.debug('Sending message', { messageId });
+    return this.provider.sendMessage(message.payload, message.imConvId).then(() => {
+      message.status = 'sent';
+      logger.info('Message sent', { messageId });
+    });
   }
 
   private checkRateLimit(): boolean {

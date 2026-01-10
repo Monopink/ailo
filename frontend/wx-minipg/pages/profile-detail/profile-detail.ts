@@ -3,17 +3,9 @@ import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import { getLogger } from '../../utils/logger';
 import profileService, { type ProfileViewModel } from '../../utils/profile-service';
 import { fetchAccountInfo, updateUserAvatar } from '../../utils/profile';
+import { isDefined, isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('ProfileDetail');
-
-const GENDER_TEXT_MAP = {
-  1: '男',
-  2: '女',
-  3: '其他',
-  4: '未知',
-} as const;
-
-type GenderCode = keyof typeof GENDER_TEXT_MAP;
 
 interface ProfileDetailPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
@@ -37,10 +29,16 @@ interface ProfileDetailPageCustom {
 }
 
 const normalizeGenderText = (gender?: number | null): string => {
-  if (typeof gender === 'number' && GENDER_TEXT_MAP[gender as GenderCode]) {
-    return GENDER_TEXT_MAP[gender as GenderCode];
+  switch (gender) {
+    case 1:
+      return '男';
+    case 2:
+      return '女';
+    case 3:
+      return '其他';
+    default:
+      return '未设置';
   }
-  return '未设置';
 };
 
 const encodeValue = (value: string | undefined | null): string => encodeURIComponent(value ?? '');
@@ -86,15 +84,15 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       });
 
       const [profile, account] = await Promise.all([profilePromise, accountPromise]);
-      const genderText = normalizeGenderText(profile.gender ?? undefined);
+      const genderText = normalizeGenderText(profile.gender);
 
       this.setData({
         profile,
         phoneMasked: account?.phone ?? '未绑定',
         genderText,
         'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': !profile,
-        'pageLayoutData.hasFooter': Boolean(profile),
+        'pageLayoutData.isEmpty': false,
+        'pageLayoutData.hasFooter': true,
       });
 
       logger.info('Profile loaded', { qiao_id: profile.qiao_id });
@@ -174,7 +172,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     void wx.showLoading({ title: '上传中', mask: true });
     try {
       const result = await completeAvatarUpload({ page: 'profile-detail' });
-      if (!result) {
+      if (!isDefined(result)) {
         return;
       }
       await updateUserAvatar(result.fileId);
@@ -188,7 +186,10 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
         error: error instanceof Error ? error.message : String(error),
       });
       void wx.showToast({
-        title: error instanceof Error && error.message ? error.message : '更新头像失败，请重试',
+        title:
+          error instanceof Error && isNonEmptyString(error.message)
+            ? error.message
+            : '更新头像失败，请重试',
         icon: 'none',
       });
     } finally {

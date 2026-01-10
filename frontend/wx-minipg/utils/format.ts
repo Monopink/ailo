@@ -2,10 +2,11 @@
  * Format utility
  * Provides formatting functions for display
  */
+import { isDefined, isNonEmptyString } from './guards';
 
 export function formatPhone(phone: string | null | undefined): string {
-  if (!phone || phone.length !== 11) {
-    return phone || '';
+  if (!isNonEmptyString(phone) || phone.length !== 11) {
+    return phone ?? '';
   }
   return `${phone.substring(0, 3)}******${phone.substring(9)}`;
 }
@@ -14,7 +15,7 @@ export function formatTime(
   timestamp: number | string | null | undefined,
   showDate = false
 ): string {
-  if (!timestamp && timestamp !== 0) {
+  if (!isDefined(timestamp) || timestamp === '') {
     return '';
   }
   const date = new Date(Number(timestamp));
@@ -48,7 +49,7 @@ export function formatTime(
 }
 
 export function formatMessageTime(timestamp: number | string | null | undefined): string {
-  if (!timestamp && timestamp !== 0) {
+  if (!isDefined(timestamp) || timestamp === '') {
     return '';
   }
   const date = new Date(Number(timestamp));
@@ -81,10 +82,10 @@ export function formatChatTimestamp(
   currentTimestamp: number | string,
   previousTimestamp: number | string | null | undefined
 ): string | null {
-  if (!currentTimestamp && currentTimestamp !== 0) {
+  if (currentTimestamp === '') {
     return '';
   }
-  if (!previousTimestamp && previousTimestamp !== 0) {
+  if (previousTimestamp === undefined || previousTimestamp === null || previousTimestamp === '') {
     return formatTime(currentTimestamp, true);
   }
   const diff = Number(currentTimestamp) - Number(previousTimestamp);
@@ -118,7 +119,10 @@ export function formatNumber(num: number): string {
 }
 
 export function truncate(text: string, maxLength: number): string {
-  if (!text || text.length <= maxLength) {
+  if (!isNonEmptyString(text)) {
+    return text;
+  }
+  if (text.length <= maxLength) {
     return text;
   }
   return `${text.substring(0, maxLength)}...`;
@@ -136,7 +140,7 @@ export function formatGender(gender: number | string | null | undefined): string
 }
 
 export function formatAge(birthYear: number | null | undefined): number {
-  if (!birthYear) {
+  if (birthYear === undefined || birthYear === null) {
     return 0;
   }
   const currentYear = new Date().getFullYear();
@@ -149,7 +153,7 @@ export function formatRegion(
   province: string | null | undefined,
   city: string | null | undefined
 ): string {
-  if (!province || !city) {
+  if (!isNonEmptyString(province) || !isNonEmptyString(city)) {
     return '';
   }
 

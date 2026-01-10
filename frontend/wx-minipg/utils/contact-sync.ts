@@ -1,5 +1,6 @@
 import { get } from './api';
 import { getLogger } from './logger';
+import { isNonEmptyString } from './guards';
 import type { StoredContacts } from './storage';
 
 const logger = getLogger('ContactSync');
@@ -27,7 +28,7 @@ export async function fetchAllContactsFromApi(
 
   while (hasMore) {
     const params: Record<string, string | number> = { limit };
-    if (cursor) {
+    if (isNonEmptyString(cursor)) {
       params.cursor = cursor;
     }
 
@@ -37,9 +38,12 @@ export async function fetchAllContactsFromApi(
     aggregated.push(...items);
 
     const pagination = response.pagination;
-    const nextCursor = typeof pagination?.cursor === 'string' ? pagination.cursor : '';
-    hasMore = Boolean(pagination?.has_more && nextCursor);
-    cursor = hasMore ? nextCursor : undefined;
+    const candidateCursor = pagination?.cursor;
+    const nextCursor = isNonEmptyString(candidateCursor) ? candidateCursor : '';
+    const hasMorePagination =
+      pagination?.has_more === true && isNonEmptyString(nextCursor);
+    hasMore = hasMorePagination;
+    cursor = hasMorePagination ? nextCursor : undefined;
     pageCount += 1;
 
     if (pageCount >= MAX_CONTACT_PAGES) {

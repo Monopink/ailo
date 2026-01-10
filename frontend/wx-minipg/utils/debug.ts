@@ -4,6 +4,8 @@
 
 import { getLogger } from './logger';
 import { STORAGE_KEYS } from './config';
+import { isDefined, isNonEmptyString } from './guards';
+import { normalizeError } from './errors';
 
 const logger = getLogger('Debug');
 
@@ -39,34 +41,52 @@ interface GlobalDataStatus {
   systemInfo: boolean;
 }
 
+interface AppGlobalData {
+  token?: boolean;
+  userInfo?: unknown;
+  messageService?: unknown;
+  systemInfo?: unknown;
+}
+
 /**
  * Check storage status
  * @returns {Object} Storage status
  */
 export function checkStorage(): StorageStatus | null {
   try {
-    const token = wx.getStorageSync<string>(STORAGE_KEYS.AUTH_TOKEN) ?? '';
-    const userInfoRaw = wx.getStorageSync<string>(STORAGE_KEYS.USER_INFO) ?? '';
-    const verifiedPhoneToken = wx.getStorageSync<string>('verified_phone_token') ?? '';
-    const verifiedPhone = wx.getStorageSync<string>('verified_phone') ?? '';
+    const storedToken = wx.getStorageSync<string>(STORAGE_KEYS.AUTH_TOKEN);
+    const token = isNonEmptyString(storedToken) ? storedToken : '';
+    const storedUserInfo = wx.getStorageSync<string>(STORAGE_KEYS.USER_INFO);
+    const userInfoRaw = isNonEmptyString(storedUserInfo) ? storedUserInfo : '';
+    const storedVerifiedPhoneToken = wx.getStorageSync<string>('verified_phone_token');
+    const verifiedPhoneToken = isNonEmptyString(storedVerifiedPhoneToken)
+      ? storedVerifiedPhoneToken
+      : '';
+    const storedVerifiedPhone = wx.getStorageSync<string>('verified_phone');
+    const verifiedPhone = isNonEmptyString(storedVerifiedPhone) ? storedVerifiedPhone : '';
+
+    const hasToken = isNonEmptyString(token);
+    const hasUserInfo = isNonEmptyString(userInfoRaw);
+    const hasVerifiedPhoneToken = isNonEmptyString(verifiedPhoneToken);
+    const hasVerifiedPhone = isNonEmptyString(verifiedPhone);
 
     const status: StorageStatus = {
       token: {
-        exists: Boolean(token),
+        exists: hasToken,
         length: token.length,
-        prefix: token ? `${token.substring(0, 10)}...` : 'none',
+        prefix: hasToken ? `${token.substring(0, 10)}...` : 'none',
       },
       userInfo: {
-        exists: Boolean(userInfoRaw),
-        data: userInfoRaw ? (JSON.parse(userInfoRaw) as Record<string, unknown>) : null,
+        exists: hasUserInfo,
+        data: hasUserInfo ? (JSON.parse(userInfoRaw) as Record<string, unknown>) : null,
       },
       verifiedPhoneToken: {
-        exists: Boolean(verifiedPhoneToken),
+        exists: hasVerifiedPhoneToken,
         length: verifiedPhoneToken.length,
       },
       verifiedPhone: {
-        exists: Boolean(verifiedPhone),
-        value: verifiedPhone || 'none',
+        exists: hasVerifiedPhone,
+        value: hasVerifiedPhone ? verifiedPhone : 'none',
       },
     };
 
@@ -78,8 +98,11 @@ export function checkStorage(): StorageStatus | null {
     logger.info('=====================');
 
     return status;
-  } catch (error) {
-    logger.error('Check storage failed', { error });
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Check storage failed', {
+      errorMessage: err.message,
+    });
     return null;
   }
 }
@@ -91,8 +114,11 @@ export function clearAllStorage(): void {
   try {
     wx.clearStorageSync();
     logger.info('All storage cleared');
-  } catch (error) {
-    logger.error('Clear storage failed', { error });
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Clear storage failed', {
+      errorMessage: err.message,
+    });
   }
 }
 
@@ -102,7 +128,7 @@ export function clearAllStorage(): void {
 export function showStorageStatus(): void {
   const status = checkStorage();
 
-  if (!status) {
+  if (status === null) {
     void wx.showModal({
       title: 'Storage Status',
       content: 'Failed to check storage',
@@ -131,13 +157,14 @@ Verified Phone: ${status.verifiedPhone.value}
 export function checkGlobalData(): GlobalDataStatus | null {
   try {
     const app = getApp();
-    const globalData = (app.globalData || {}) as Record<string, unknown>;
+    const typedApp = app as { globalData?: AppGlobalData };
+    const globalData = typedApp.globalData ?? {};
 
     const status: GlobalDataStatus = {
-      token: Boolean(globalData.token),
-      userInfo: Boolean(globalData.userInfo),
-      messageService: Boolean(globalData.messageService),
-      systemInfo: Boolean(globalData.systemInfo),
+      token: globalData.token === true,
+      userInfo: isDefined(globalData.userInfo),
+      messageService: isDefined(globalData.messageService),
+      systemInfo: isDefined(globalData.systemInfo),
     };
 
     logger.info('=== Global Data Status ===');
@@ -148,8 +175,11 @@ export function checkGlobalData(): GlobalDataStatus | null {
     logger.info('=========================');
 
     return status;
-  } catch (error) {
-    logger.error('Check global data failed', { error });
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Check global data failed', {
+      errorMessage: err.message,
+    });
     return null;
   }
 }
@@ -160,7 +190,7 @@ export function checkGlobalData(): GlobalDataStatus | null {
 export function showGlobalDataStatus(): void {
   const status = checkGlobalData();
 
-  if (!status) {
+  if (status === null) {
     void wx.showModal({
       title: 'Global Data Status',
       content: 'Failed to check global data',

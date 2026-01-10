@@ -5,7 +5,8 @@
 import { API_CONFIG, STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
 import type { ZodTypeAny } from 'zod';
-import { hasValue, isNonEmptyString } from './guards';
+import { isNonEmptyString } from './guards';
+import { normalizeError } from './errors';
 
 const logger = getLogger('API');
 
@@ -44,7 +45,7 @@ export interface ApiError extends Error {
   status?: number;
   data?: unknown;
   errorCode?: string | number;
-  retryAfter?: string | number;
+  retryAfter?: string | number | null;
 }
 
 type QueryParams = Record<string, string | number | boolean | null | undefined>;
@@ -70,7 +71,7 @@ interface UploadResponse<T = unknown> {
 }
 
 const isWxError = (error: unknown): error is WxCallbackResult =>
-  hasValue(error) && typeof error === 'object' && 'errMsg' in (error as Record<string, unknown>);
+  typeof error === 'object' && error !== null && 'errMsg' in (error as Record<string, unknown>);
 
 type WxRequestOptions<TResponse extends WxResponseData> = Omit<
   WechatMiniprogram.RequestOption<TResponse>,
@@ -118,9 +119,9 @@ const wxDownloadFile = async (
   });
 
 const toHeaderRecord = (
-  header: Record<string, unknown> | WechatMiniprogram.IAnyObject | undefined
+  header: Record<string, unknown> | WechatMiniprogram.IAnyObject | null | undefined
 ): Record<string, string> | null => {
-  if (!hasValue(header) || typeof header !== 'object') {
+  if (header === null || header === undefined || typeof header !== 'object') {
     return null;
   }
   const normalized: Record<string, string> = {};
@@ -137,15 +138,15 @@ const extractErrorMessage = (data: unknown, detail: unknown): string => {
   if (typeof detail === 'string' && detail.trim() !== '') {
     return detail;
   }
-  if (hasValue(detail) && typeof detail === 'object') {
+  if (detail !== null && detail !== undefined && typeof detail === 'object') {
     const detailMessage = (detail as { message?: unknown }).message;
-    if (isNonEmptyString(detailMessage)) {
+    if (typeof detailMessage === 'string' && detailMessage.trim() !== '') {
       return detailMessage;
     }
   }
-  if (hasValue(data) && typeof data === 'object') {
+  if (data !== null && data !== undefined && typeof data === 'object') {
     const dataMessage = (data as { message?: unknown }).message;
-    if (isNonEmptyString(dataMessage)) {
+    if (typeof dataMessage === 'string' && dataMessage.trim() !== '') {
       return dataMessage;
     }
   }
@@ -153,10 +154,15 @@ const extractErrorMessage = (data: unknown, detail: unknown): string => {
 };
 
 const resolveDetail = (detail: unknown, data: unknown): ApiResponseDetail | undefined => {
-  if (hasValue(detail) && typeof detail === 'object') {
+  if (detail !== null && detail !== undefined && typeof detail === 'object') {
     return detail as ApiResponseDetail;
   }
-  if (hasValue(data) && typeof data === 'object' && 'detail' in (data as Record<string, unknown>)) {
+  if (
+    data !== null &&
+    data !== undefined &&
+    typeof data === 'object' &&
+    'detail' in (data as Record<string, unknown>)
+  ) {
     return (data as ApiResponseEnvelope).detail;
   }
   return undefined;
@@ -192,10 +198,10 @@ const toApiError = (
   if (detail?.retry_after !== undefined) {
     error.retryAfter = detail.retry_after;
   }
-  if (!hasValue(error.retryAfter)) {
+  if (error.retryAfter === undefined || error.retryAfter === null) {
     const headers = toHeaderRecord(response.header);
     const retryValue = headers?.['Retry-After'] ?? headers?.['retry-after'];
-    if (hasValue(retryValue)) {
+    if (typeof retryValue === 'string') {
       error.retryAfter = retryValue;
     }
   }
@@ -205,22 +211,25 @@ const toApiError = (
 const safeJsonParse = <T>(raw: string): T => {
   try {
     return JSON.parse(raw) as T;
-  } catch (error) {
-    logger.error('JSON parse failed', { error });
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('JSON parse failed', { errorMessage: err.message });
     throw new Error('响应解析失败');
   }
 };
 
 const extractResponseHeaders = (response: unknown): Record<string, unknown> | undefined => {
-  if (!hasValue(response) || typeof response !== 'object') {
+  if (response === null || typeof response !== 'object') {
     return undefined;
   }
-  const responseObject = response as { header?: Record<string, unknown> };
+  const responseObject = response as {
+    header?: Record<string, unknown> | null;
+  };
   if (!('header' in responseObject)) {
     return undefined;
   }
   const headerValue = responseObject.header;
-  if (hasValue(headerValue) && typeof headerValue === 'object') {
+  if (headerValue !== undefined && headerValue !== null && typeof headerValue === 'object') {
     return headerValue;
   }
   return undefined;
@@ -240,14 +249,16 @@ function getToken(): string | null {
       if (isNonEmptyString(providedToken)) {
         return providedToken;
       }
-    } catch (error) {
-      logger.error('Auth token provider failed', { error });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.error('Auth token provider failed', { errorMessage: err.message });
     }
   }
   try {
     return wx.getStorageSync(STORAGE_KEYS.AUTH_TOKEN) ?? null;
-  } catch (error) {
-    logger.error('Get token failed', { error });
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Get token failed', { errorMessage: err.message });
     return null;
   }
 }
@@ -329,8 +340,13 @@ export async function request<
     }
 
     return response.data;
-  } catch (error) {
-    logger.error('API request failed', { method, url, error });
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('API request failed', {
+      method,
+      url,
+      errorMessage: err.message,
+    });
     handleWxCallbackError(error);
     if (shouldRetryAuthRequest(auth, retryAuth, _retry, error)) {
       try {
@@ -339,8 +355,11 @@ export async function request<
           ...options,
           _retry: true,
         });
-      } catch (refreshError) {
-        logger.error('Auth refresh handler failed', { error: refreshError });
+      } catch (refreshError: unknown) {
+        const refreshErr = normalizeError(refreshError);
+        logger.error('Auth refresh handler failed', {
+          errorMessage: refreshErr.message,
+        });
       }
     }
     throw error;
@@ -360,14 +379,15 @@ export async function requestValidated<
     logger.debug('requestValidated: validation successful', { url: options.url });
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return validated;
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = normalizeError(error);
     logger.error('requestValidated: Zod validation failed', {
       url: options.url,
       rawData: raw,
-      errorName: error instanceof Error ? error.name : 'Unknown',
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: err.name,
+      errorMessage: err.message,
     });
-    throw error;
+    throw err;
   }
 }
 
@@ -462,6 +482,8 @@ export async function uploadFile<T extends WxResponseData = WechatMiniprogram.IA
 ): Promise<T> {
   const { auth = true, retryAuth = true } = options;
   const fullUrl = `${API_CONFIG.baseUrl}/api/${API_CONFIG.version}${url}`;
+  const hasUploadData = (value: unknown): value is UploadResponse<T> =>
+    typeof value === 'object' && value !== null && 'data' in value;
 
   const performUpload = async (_retry = false): Promise<T> => {
     const header: Record<string, string> = { 'X-Client': 'wxminipg' };
@@ -499,8 +521,12 @@ export async function uploadFile<T extends WxResponseData = WechatMiniprogram.IA
       try {
         await authRefreshHandler();
         return await performUpload(true);
-      } catch (refreshError) {
-        logger.error('Upload auth refresh failed', { url, refreshError });
+      } catch (refreshError: unknown) {
+        const err = normalizeError(refreshError);
+        logger.error('Upload auth refresh failed', {
+          url,
+          errorMessage: err.message,
+        });
       }
     }
 
@@ -514,8 +540,8 @@ export async function uploadFile<T extends WxResponseData = WechatMiniprogram.IA
       });
     }
 
-    if (hasValue(parsed) && typeof parsed === 'object' && 'data' in (parsed as UploadResponse<T>)) {
-      return (parsed as UploadResponse<T>).data;
+    if (hasUploadData(parsed)) {
+      return parsed.data;
     }
     return parsed as T;
   };

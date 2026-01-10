@@ -5,6 +5,7 @@ import {
   type AvatarUploadFormData,
   type AvatarUploadResponse,
 } from './media';
+import { isDefined, isNonEmptyString } from './guards';
 
 const logger = getLogger('AvatarUploader');
 const AVATAR_FILE_TYPE = '1';
@@ -42,7 +43,7 @@ const buildLogContext = (
 });
 
 const isUserCancelError = (error: unknown): boolean => {
-  if (!error) {
+  if (error === null || error === undefined) {
     return false;
   }
   if (typeof error === 'string') {
@@ -50,7 +51,7 @@ const isUserCancelError = (error: unknown): boolean => {
   }
   if (typeof error === 'object') {
     const errMsg = (error as { errMsg?: string }).errMsg;
-    const message = errMsg || (error as { message?: string }).message;
+    const message = errMsg ?? (error as { message?: string }).message;
     if (typeof message === 'string') {
       return message.toLowerCase().includes('cancel');
     }
@@ -72,9 +73,12 @@ const serializeError = (error: unknown): string => {
   }
 };
 
+const pickNonEmptyString = (...values: Array<string | undefined | null>): string | undefined =>
+  values.find((value) => isNonEmptyString(value));
+
 // Removed downloadTmpFile - http://tmp/... paths are valid and should be used directly
 
-const ensureLocalFilePath = async (filePath: string): Promise<string> => {
+const ensureLocalFilePath = (filePath: string): Promise<string> => {
   // http://tmp/... is a valid local file protocol in DevTools (equivalent to wxfile:// on devices)
   // No conversion needed - wx APIs support both protocols natively
   if (HTTP_TMP_PREFIX.test(filePath)) {
@@ -82,18 +86,15 @@ const ensureLocalFilePath = async (filePath: string): Promise<string> => {
       pathPrefix: filePath.substring(0, 30),
     });
   }
-  return filePath;
+  return Promise.resolve(filePath);
 };
 
 const resolveEnvironmentTag = (): string => {
   try {
     const info = wx.getSystemInfoSync();
-    if (!info) {
-      return 'unknown';
-    }
-    const platform = info.platform || 'unknown';
+    const platform = isNonEmptyString(info.platform) ? info.platform : 'unknown';
     const version = (info as { version?: string }).version;
-    return version ? `${platform}:${version}` : platform;
+    return isNonEmptyString(version) ? `${platform}:${version}` : platform;
   } catch {
     return 'unknown';
   }
@@ -108,15 +109,15 @@ const chooseAvatarMedia = (): Promise<ChooseMediaResult | null> =>
       sizeType: ['original', 'compressed'],
       success: (res) => {
         const file = res.tempFiles[0];
-        if (!file) {
+        if (!isDefined(file)) {
           resolve(null);
           return;
         }
-        const resolvedSource =
-          (res as { sourceType?: string[] }).sourceType?.[0] ||
-          file.fileType ||
-          (res as { type?: string }).type ||
-          undefined;
+        const resolvedSource = pickNonEmptyString(
+          (res as { sourceType?: string[] }).sourceType?.[0],
+          file.fileType,
+          (res as { type?: string }).type
+        );
         resolve({
           tempFilePath: file.tempFilePath,
           sourceType: resolvedSource,
@@ -127,7 +128,7 @@ const chooseAvatarMedia = (): Promise<ChooseMediaResult | null> =>
           resolve(null);
           return;
         }
-        reject(error);
+        reject(new Error(serializeError(error)));
       },
     });
   });
@@ -152,7 +153,7 @@ const openCropper = (filePath: string): Promise<string | null> =>
       },
       fail: (error) => {
         if (!resolved) {
-          reject(error);
+          reject(new Error(serializeError(error)));
         }
       },
     });
@@ -178,7 +179,7 @@ const readFileSize = (filePath: string): Promise<number> =>
         }
         reject(new Error('无法解析文件内容'));
       },
-      fail: reject,
+      fail: (error) => reject(new Error(serializeError(error))),
     });
   });
 
@@ -230,6 +231,14 @@ const resolveFileSize = async (filePath: string): Promise<number | null> => {
   }
 };
 
+interface ApiErrorMetadata {
+  message: string;
+  statusCode?: number;
+  errorCode?: string | number;
+  retryAfter?: string | number;
+  detail?: unknown;
+}
+
 const mapApiErrorMessage = (error: ApiError): string => {
   switch (error.statusCode) {
     case 401:
@@ -241,8 +250,29 @@ const mapApiErrorMessage = (error: ApiError): string => {
     case 429:
       return '今日上传次数已用完';
     default:
-      return error.message || '上传失败，请重试';
+      return isNonEmptyString(error.message) ? error.message : '上传失败，请重试';
   }
+};
+
+const extractApiErrorMetadata = (apiError: ApiError & { detail?: unknown }): ApiErrorMetadata => {
+  const dataRecord =
+    apiError.data !== null && apiError.data !== undefined && typeof apiError.data === 'object'
+      ? (apiError.data as Record<string, unknown>)
+      : undefined;
+  let detail: unknown;
+  if (dataRecord !== undefined && 'detail' in dataRecord) {
+    detail = dataRecord.detail;
+  } else if (apiError.detail !== undefined) {
+    detail = apiError.detail;
+  }
+  const retryAfter = apiError.retryAfter === null ? undefined : apiError.retryAfter;
+  return {
+    message: mapApiErrorMessage(apiError),
+    statusCode: apiError.statusCode ?? apiError.status,
+    errorCode: apiError.errorCode,
+    retryAfter,
+    detail,
+  };
 };
 
 const handleSelectionError = (error: unknown): void => {
@@ -268,23 +298,19 @@ const handleUploadError = (error: unknown, logContext?: Record<string, unknown>)
   let retryAfter: string | number | undefined;
   let detail: unknown;
 
-  if (error && typeof error === 'object' && 'statusCode' in error) {
+  if (error !== null && error !== undefined && typeof error === 'object' && 'statusCode' in error) {
     const apiError = error as ApiError & { detail?: unknown };
-    message = mapApiErrorMessage(apiError);
-    statusCode = apiError.statusCode ?? apiError.status;
-    errorCode = apiError.errorCode;
-    retryAfter = apiError.retryAfter;
-    const dataRecord =
-      apiError.data && typeof apiError.data === 'object'
-        ? (apiError.data as Record<string, unknown>)
-        : undefined;
-    if (dataRecord && 'detail' in dataRecord) {
-      detail = dataRecord.detail;
-    } else if (apiError.detail !== undefined) {
-      detail = apiError.detail;
+    const metadata = extractApiErrorMetadata(apiError);
+    message = metadata.message;
+    statusCode = metadata.statusCode;
+    errorCode = metadata.errorCode;
+    retryAfter = metadata.retryAfter;
+    detail = metadata.detail;
+  } else if (error instanceof Error) {
+    const errorMessage = error.message;
+    if (isNonEmptyString(errorMessage)) {
+      message = errorMessage;
     }
-  } else if (error instanceof Error && error.message) {
-    message = error.message;
   }
 
   logger.error('[avatar] upload fail', {
@@ -303,13 +329,13 @@ const handleUploadError = (error: unknown, logContext?: Record<string, unknown>)
 
 export async function selectAndCropAvatar(): Promise<CroppedAvatarResult | null> {
   const media = await chooseAvatarMedia();
-  if (!media) {
+  if (!isDefined(media)) {
     return null;
   }
 
   const normalizedSourcePath = await ensureLocalFilePath(media.tempFilePath);
   const croppedFilePath = await openCropper(normalizedSourcePath);
-  if (!croppedFilePath) {
+  if (croppedFilePath === null) {
     return null;
   }
 
@@ -380,7 +406,7 @@ export async function completeAvatarUpload(
     return null;
   }
 
-  if (!selection) {
+  if (!isDefined(selection)) {
     logger.info('[avatar] upload aborted', {
       durationMs: Date.now() - uploadStart,
       selectionDurationMs,

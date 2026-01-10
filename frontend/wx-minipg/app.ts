@@ -10,6 +10,7 @@ import { getLogger } from './utils/logger';
 import { initMessageService } from './utils/message/service';
 import type { MessageService } from './utils/message/service';
 import conversationStore from './utils/message/conversation-store';
+import { normalizeError } from './utils/errors';
 
 type MessagePayload = Ailo.MessagePayload;
 type TypingEvent = Ailo.TypingEvent;
@@ -29,20 +30,6 @@ type MessageHandlerPage = AnyPageInstance & {
 };
 
 const logger = getLogger('App');
-
-const normalizeError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error;
-  }
-  if (typeof error === 'string') {
-    return new Error(error);
-  }
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error('Unknown error');
-  }
-};
 
 const getActivePage = (): AnyPageInstance | undefined => {
   const pages = getCurrentPages();
@@ -153,7 +140,7 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
 
   async initMessageService() {
     try {
-      if (this.globalData.messageService) {
+      if (this.globalData.messageService !== null) {
         logger.info('Message service already initialized');
         return;
       }
@@ -202,7 +189,7 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
   clearAuth() {
     logger.warn('app.clearAuth() is deprecated, use authService.logout()');
 
-    if (this.globalData.messageService) {
+    if (this.globalData.messageService !== null) {
       void this.globalData.messageService.disconnect();
       this.globalData.messageService = null;
     }

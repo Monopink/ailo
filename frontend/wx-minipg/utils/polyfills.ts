@@ -1,4 +1,5 @@
 import { getLogger } from './logger';
+import { isNonEmptyString } from './guards';
 
 const logger = getLogger('Polyfills');
 
@@ -11,16 +12,33 @@ let appBaseInfoPatched = false;
 
 const buildFallbackAppBaseInfo = (): WechatMiniprogram.AppBaseInfo => {
   try {
-    const systemInfo = wx.getSystemInfoSync();
+    const systemInfo: WechatMiniprogram.SystemInfo = wx.getSystemInfoSync();
+    const sdkVersion = isNonEmptyString(systemInfo.SDKVersion)
+      ? systemInfo.SDKVersion
+      : isNonEmptyString(systemInfo.version)
+        ? systemInfo.version
+        : '';
+    const version = isNonEmptyString(systemInfo.version)
+      ? systemInfo.version
+      : isNonEmptyString(systemInfo.SDKVersion)
+        ? systemInfo.SDKVersion
+        : '';
+    const language = isNonEmptyString(systemInfo.language) ? systemInfo.language : 'zh_CN';
+    const fontSizeSettingCandidate = (systemInfo as { fontSizeSetting?: number }).fontSizeSetting;
+    const fontSizeScaleFactorCandidate = (systemInfo as { fontSizeScaleFactor?: number })
+      .fontSizeScaleFactor;
     return {
-      SDKVersion: systemInfo.SDKVersion || systemInfo.version || '',
-      version: systemInfo.version || systemInfo.SDKVersion || '',
-      language: systemInfo.language || 'zh_CN',
-      enableDebug: Boolean((systemInfo as { enableDebug?: boolean }).enableDebug),
-      fontSizeSetting: systemInfo.fontSizeSetting ?? 16,
+      SDKVersion: sdkVersion,
+      version,
+      language,
+      enableDebug: (systemInfo as { enableDebug?: boolean }).enableDebug === true,
+      fontSizeSetting: typeof fontSizeSettingCandidate === 'number' ? fontSizeSettingCandidate : 16,
       fontSizeScaleFactor:
-        (systemInfo as { fontSizeScaleFactor?: number }).fontSizeScaleFactor ??
-        (typeof systemInfo.fontSizeSetting === 'number' ? systemInfo.fontSizeSetting / 16 : 1),
+        typeof fontSizeScaleFactorCandidate === 'number'
+          ? fontSizeScaleFactorCandidate
+          : typeof fontSizeSettingCandidate === 'number'
+            ? fontSizeSettingCandidate / 16
+            : 1,
       host: { appId: '' },
       theme: (systemInfo as { theme?: 'light' | 'dark' }).theme,
     };

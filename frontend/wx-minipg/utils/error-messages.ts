@@ -8,6 +8,8 @@
  * - Business errors: Message blocked, not friends
  */
 
+import { isNonEmptyString } from './guards';
+
 export const ERROR_MESSAGES = {
   // Network layer errors
   NETWORK_ERROR: '网络连接失败，请检查网络',
@@ -29,8 +31,30 @@ export const ERROR_MESSAGES = {
 
 export type ErrorMessageKey = keyof typeof ERROR_MESSAGES;
 
-const isKnownErrorCode = (code: string): code is ErrorMessageKey =>
-  Boolean(code && Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, code));
+const isKnownErrorCode = (code: string): code is ErrorMessageKey => {
+  if (!isNonEmptyString(code)) {
+    return false;
+  }
+  return Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, code);
+};
+
+const matchesKeyword = (value: string, keywords: string[]): boolean =>
+  keywords.some((keyword) => value.includes(keyword));
+
+const ERROR_KEYWORD_CHECKS: { keywords: string[]; message: string }[] = [
+  {
+    keywords: ['network', 'timeout', '连接', 'Network', 'Timeout'],
+    message: ERROR_MESSAGES.NETWORK_ERROR,
+  },
+  {
+    keywords: ['blocked', '拒收'],
+    message: ERROR_MESSAGES.MESSAGE_BLOCKED,
+  },
+  {
+    keywords: ['not_friend', '不是好友'],
+    message: ERROR_MESSAGES.NOT_FRIEND,
+  },
+];
 
 /**
  * Get user-friendly error message
@@ -40,37 +64,27 @@ const isKnownErrorCode = (code: string): code is ErrorMessageKey =>
 type ErrorLike = Error | { message?: string } | string | null | undefined;
 
 export function getUserFriendlyError(error: ErrorLike): string {
-  if (!error) {
+  if (error === null || error === undefined) {
     return ERROR_MESSAGES.UNKNOWN_ERROR;
   }
 
-  const errorCode =
-    typeof error === 'string' ? error : typeof error.message === 'string' ? error.message : '';
+  const rawCode =
+    typeof error === 'string'
+      ? error
+      : typeof error.message === 'string'
+      ? error.message
+      : '';
+  const errorCode = isNonEmptyString(rawCode) ? rawCode : '';
 
   // Check if it's a known error code
   if (isKnownErrorCode(errorCode)) {
     return ERROR_MESSAGES[errorCode];
   }
 
-  // Check for network errors (network layer)
-  if (
-    errorCode &&
-    (errorCode.includes('network') ||
-      errorCode.includes('timeout') ||
-      errorCode.includes('连接') ||
-      errorCode.includes('Network') ||
-      errorCode.includes('Timeout'))
-  ) {
-    return ERROR_MESSAGES.NETWORK_ERROR;
-  }
-
-  // Check for business errors
-  if (errorCode && (errorCode.includes('blocked') || errorCode.includes('拒收'))) {
-    return ERROR_MESSAGES.MESSAGE_BLOCKED;
-  }
-
-  if (errorCode && (errorCode.includes('not_friend') || errorCode.includes('不是好友'))) {
-    return ERROR_MESSAGES.NOT_FRIEND;
+  for (const check of ERROR_KEYWORD_CHECKS) {
+    if (matchesKeyword(errorCode, check.keywords)) {
+      return check.message;
+    }
   }
 
   // Default to service error

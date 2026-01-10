@@ -252,10 +252,51 @@ import { GENDER, MESSAGE_STATUS } from '../../utils/constants';
 ### 状态管理
 
 - 使用 TypeScript 接口定义 Page Data
-- setData 必须批量更新，禁止多次调用
+- setData 必须批量更新,禁止多次调用
 - 使用路径更新: `this.setData({ 'user.name': newName })`
 - 使用防抖节流避免频繁更新 (`utils/format.ts` 的 `debounce`)
 - 禁止修改第三方库代码 (`libs/` 目录)
+
+### Custom TabBar 使用规范
+
+所有使用 custom TabBar 的页面必须在 `onShow()` 生命周期中调用 `initTabBar()` 以更新激活状态。
+
+**正确做法**:
+```typescript
+import { initTabBar } from '../../utils/tab-bar';
+
+Page({
+  onShow() {
+    initTabBar(this);
+    // ... other logic
+  }
+});
+```
+
+**错误做法**:
+```typescript
+// ❌ 错误：提取函数引用会导致 this 上下文丢失
+const tabBar = this.getTabBar();
+const initFn = tabBar.init;
+initFn(); // TypeError: Cannot read property 'data' of undefined
+
+// ❌ 错误：手动实现类型检查和调用逻辑
+const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null;
+if (tabBar !== null && typeof tabBar.init === 'function') {
+  tabBar.init(); // 容易出错,缺少类型安全
+}
+```
+
+**为什么要使用工具函数**:
+- ✅ 类型安全: `typings/custom-tab-bar.d.ts` 提供完整类型定义
+- ✅ this 绑定正确: 直接通过对象调用方法,保持正确的上下文
+- ✅ DRY 原则: 避免在多个页面重复相同的初始化代码
+- ✅ 防御性编程: 完善的 null/undefined 检查
+
+**相关文件**:
+- `typings/custom-tab-bar.d.ts`: TabBar 组件类型定义
+- `utils/tab-bar.ts`: TabBar 工具函数
+- `custom-tab-bar/index.ts`: TabBar 组件实现
 
 ### 错误处理与数据展示
 

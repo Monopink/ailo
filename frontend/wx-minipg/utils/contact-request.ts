@@ -1,5 +1,6 @@
 import { post } from './api';
 import defaultLogger from './logger';
+import { isNonEmptyString } from './guards';
 
 const logger = defaultLogger;
 
@@ -30,8 +31,11 @@ export function promptContactRequestMessage(
           resolve(null);
           return;
         }
-        const message = (res.content ?? '').trim();
-        resolve(message || defaultMessage);
+        const content = res.content;
+        const trimmedContent = isNonEmptyString(content) ? content.trim() : '';
+        const finalMessage =
+          trimmedContent.length > 0 ? trimmedContent : defaultMessage;
+        resolve(finalMessage);
       },
       fail: (error) => {
         logger.error('contact_request_prompt_failed', { error });
@@ -45,7 +49,7 @@ export async function sendContactRequest({
   qiaoId,
   message,
 }: SendContactRequestOptions): Promise<void> {
-  if (!qiaoId) {
+  if (!isNonEmptyString(qiaoId)) {
     throw new Error('Missing qiaoId');
   }
 

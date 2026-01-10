@@ -4,6 +4,7 @@
  */
 
 import { VALIDATION_RULES } from './config';
+import { isNonEmptyString } from './guards';
 
 export interface ValidationResult {
   valid: boolean;
@@ -16,7 +17,7 @@ export interface ValidationResult {
  * @returns {Object} Validation result
  */
 export function validatePhone(phone: string | null | undefined): ValidationResult {
-  if (!phone) {
+  if (!isNonEmptyString(phone)) {
     return { valid: false, message: '请输入手机号' };
   }
 
@@ -33,7 +34,7 @@ export function validatePhone(phone: string | null | undefined): ValidationResul
  * @returns {Object} Validation result
  */
 export function validateSmsCode(code: string | null | undefined): ValidationResult {
-  if (!code) {
+  if (!isNonEmptyString(code)) {
     return { valid: false, message: '请输入验证码' };
   }
 
@@ -50,7 +51,7 @@ export function validateSmsCode(code: string | null | undefined): ValidationResu
  * @returns {Object} Validation result
  */
 export function validateNickname(nickname: string | null | undefined): ValidationResult {
-  if (!nickname) {
+  if (!isNonEmptyString(nickname)) {
     return { valid: false, message: '请输入昵称' };
   }
 
@@ -71,7 +72,7 @@ export function validateNickname(nickname: string | null | undefined): Validatio
  * @returns {Object} Validation result
  */
 export function validateBio(bio: string | null | undefined): ValidationResult {
-  if (!bio) {
+  if (!isNonEmptyString(bio)) {
     return { valid: true }; // Bio is optional
   }
 
@@ -88,7 +89,7 @@ export function validateBio(bio: string | null | undefined): ValidationResult {
  * @returns {Object} Validation result
  */
 export function validateMessage(message: string | null | undefined): ValidationResult {
-  if (!message || message.trim().length === 0) {
+  if (!isNonEmptyString(message)) {
     return { valid: false, message: '请输入消息内容' };
   }
 
@@ -105,7 +106,7 @@ export function validateMessage(message: string | null | undefined): ValidationR
  * @returns {Object} Validation result
  */
 export function validateVerifyMessage(message: string | null | undefined): ValidationResult {
-  if (!message) {
+  if (!isNonEmptyString(message)) {
     return { valid: true }; // Verify message is optional
   }
 

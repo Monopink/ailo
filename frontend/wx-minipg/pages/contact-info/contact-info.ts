@@ -11,7 +11,8 @@ import {
 } from '../../utils/storage';
 import { fetchConversationProfile, refreshStoredContact } from '../../utils/contact-service';
 import type { ContactProfile } from '../../utils/schemas';
-import { hasValue, isNonEmptyString } from '../../utils/guards';
+import { isNonEmptyString } from '../../utils/guards';
+import { normalizeError } from '../../utils/errors';
 
 const logger = getLogger('ContactInfo');
 
@@ -64,20 +65,6 @@ const normalizeContact = (contact: StoredContact): ContactRecord => {
     displayAvatar: normalizedAvatar,
   };
 };
-const toErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return '未知错误';
-  }
-};
-
 Page<ContactInfoPageData, ContactInfoPageCustom>({
   data: {
     convId: '',
@@ -106,7 +93,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
     this.setData({ convId });
 
     const cachedContact = await getContactByConvId(convId);
-    if (hasValue(cachedContact)) {
+    if (cachedContact !== null) {
       this.setData({
         contact: normalizeContact(cachedContact),
         isPinned: Boolean(cachedContact.is_pinned),
@@ -124,10 +111,10 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
       const profile = await fetchConversationProfile(this.data.convId);
       const updated = await refreshStoredContact(this.data.convId, profile);
 
-      if (!hasValue(updated)) {
+      if (updated === null) {
         this.setData({
           'pageLayoutData.isLoading': false,
-          'pageLayoutData.isEmpty': !hasValue(this.data.contact),
+          'pageLayoutData.isEmpty': this.data.contact === null,
         });
         return;
       }
@@ -139,8 +126,9 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
       });
 
       logger.info('Contact info refreshed', { conv_id: this.data.convId });
-    } catch (error) {
-      logger.error('Failed to refresh contact info', { error: toErrorMessage(error) });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.error('Failed to refresh contact info', { error: err.message });
       this.setData({
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': true,
@@ -198,8 +186,9 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
             icon: 'success',
           });
           logger.info('Chat history cleared', { conv_id: this.data.convId });
-        } catch (error) {
-          logger.error('Failed to clear chat history', { error: toErrorMessage(error) });
+        } catch (error: unknown) {
+          const err = normalizeError(error);
+          logger.error('Failed to clear chat history', { error: err.message });
           void wx.showToast({
             title: '清空失败',
             icon: 'none',
@@ -239,9 +228,11 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
           setTimeout(() => {
             void wx.navigateBack();
           }, 300);
-        } catch (error) {
-          const message = toErrorMessage(error);
-          const safeMessage = isNonEmptyString(message) ? message : '删除失败，请稍后重试';
+        } catch (error: unknown) {
+          const err = normalizeError(error);
+          const safeMessage = isNonEmptyString(err.message)
+            ? err.message
+            : '删除失败，请稍后重试';
           logger.error('Failed to delete contact', { error: safeMessage });
           void wx.showToast({
             title: safeMessage,

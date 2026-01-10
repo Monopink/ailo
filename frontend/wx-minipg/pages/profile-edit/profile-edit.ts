@@ -2,6 +2,7 @@ import { createPageLayoutData, type PageLayoutData } from '../../templates/page-
 import { formatRegion } from '../../utils/format';
 import { getLogger } from '../../utils/logger';
 import profileService from '../../utils/profile-service';
+import { isDefined, isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('ProfileEdit');
 
@@ -128,7 +129,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
     const rawField = (options.field ?? '') as FieldKey;
     const config = FIELD_CONFIG[rawField];
 
-    if (!config) {
+    if (!isDefined(config)) {
       showErrorToast('参数错误');
       this.setData({
         'pageLayoutData.hasFooter': false,
@@ -146,7 +147,8 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
     });
 
     if (config.type === 'gender') {
-      const genderValue = Number.parseInt(options.value ?? '0', 10) || 0;
+      const parsedValue = Number.parseInt(options.value ?? '0', 10);
+      const genderValue = Number.isNaN(parsedValue) ? 0 : parsedValue;
       this.setData({
         field: rawField,
         fieldType: config.type,
@@ -162,11 +164,14 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
 
     if (config.type === 'region') {
       const decodedValue = decodeValue(options.value);
+      const regionDisplay = isNonEmptyString(decodedValue)
+        ? decodedValue
+        : '请选择地区';
       this.setData({
         field: rawField,
         fieldType: config.type,
         fieldLabel: config.label,
-        regionDisplay: decodedValue || '请选择地区',
+        regionDisplay,
         regionValue: [],
         'pageLayoutData.isEmpty': false,
       });
@@ -190,7 +195,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
   },
 
   onInput(event) {
-    const value = event.detail.value || '';
+    const value = event.detail.value;
     this.setData({
       value: value,
       valueLength: value.length,
@@ -215,11 +220,12 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       actualCity = null;
     }
 
-    const regionDisplay = actualCity
-      ? formatRegion(province, actualCity)
+    const hasActualCity = isNonEmptyString(actualCity);
+    const regionDisplay = hasActualCity
+      ? formatRegion(province, actualCity as string)
       : formatRegion(province, province);
     this.setData({
-      regionValue: actualCity ? [province, actualCity] : [province],
+      regionValue: hasActualCity ? [province, actualCity as string] : [province],
       regionDisplay,
     });
   },
@@ -233,7 +239,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       if (this.data.fieldType === 'text') {
         const trimmedValue = this.data.value.trim();
 
-        if (!trimmedValue) {
+        if (trimmedValue.length === 0) {
           showErrorToast('请输入内容');
           return;
         }
@@ -250,7 +256,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
           }
         }
       } else if (this.data.fieldType === 'region') {
-        if (!this.data.regionDisplay) {
+        if (!isNonEmptyString(this.data.regionDisplay)) {
           showErrorToast('请选择地区');
           return;
         }
@@ -259,7 +265,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       this.setData({ saving: true, submitButtonText: '保存中...' });
 
       const updateData: Record<string, unknown> = {};
-      if (this.data.fieldType === 'text' && this.data.field) {
+      if (this.data.fieldType === 'text' && isNonEmptyString(this.data.field)) {
         updateData[this.data.field] = this.data.value.trim();
       } else if (this.data.fieldType === 'gender') {
         updateData.gender = this.data.genderIndex + 1;

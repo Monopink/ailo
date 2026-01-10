@@ -1,4 +1,5 @@
 import { API_CONFIG } from './config';
+import { isNonEmptyString } from './guards';
 
 const MEDIA_ENDPOINT_PREFIX = `${API_CONFIG.baseUrl}/api/${API_CONFIG.version}/media/`;
 
@@ -19,13 +20,13 @@ const buildRelativeUrl = (value: string): string => {
  * Supports CDN URLs, relative paths, and backend file IDs (file_*).
  */
 export function getAvatarUrl(source?: string | null): string {
-  if (!source) {
+  if (!isNonEmptyString(source)) {
     return '';
   }
 
   const normalized = source.trim();
 
-  if (!normalized) {
+  if (!isNonEmptyString(normalized)) {
     return '';
   }
 

@@ -52,7 +52,7 @@
     "disableSWC": true
   },
   "compileType": "miniprogram",
-  "libVersion": "2.19.2",
+  "libVersion": "3.0.0",
   "appid": "wx6935fe0a74a96664",
   "projectname": "ailo-miniprogram",
   "condition": {},

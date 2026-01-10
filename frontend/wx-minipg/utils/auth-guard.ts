@@ -6,6 +6,8 @@
 
 import authService from './auth-service';
 import { getLogger } from './logger';
+import { isNonEmptyString } from './guards';
+import { normalizeError } from './errors';
 
 const logger = getLogger('AuthGuard');
 
@@ -60,17 +62,18 @@ export async function requireAuth(
           }
         },
       });
-    } else if (redirectUrl) {
+    } else if (isNonEmptyString(redirectUrl)) {
       void wx.reLaunch({ url: redirectUrl });
     } else {
       handleCancelRedirect(redirectUrl);
     }
 
     return false;
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = normalizeError(error);
     logger.error('Auth check failed', {
       route: getPageRoute(page),
-      error,
+      errorMessage: err.message,
     });
 
     void wx.showToast({
@@ -111,9 +114,10 @@ export async function requireAuthForAction(
     });
 
     return false;
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = normalizeError(error);
     logger.error('Auth check for action failed', {
-      error,
+      errorMessage: err.message,
     });
 
     return false;
@@ -125,7 +129,7 @@ export function isAuthenticated(): boolean {
 }
 
 function handleCancelRedirect(redirectUrl?: string | null): void {
-  if (redirectUrl) {
+  if (isNonEmptyString(redirectUrl)) {
     void wx.reLaunch({ url: redirectUrl });
     return;
   }

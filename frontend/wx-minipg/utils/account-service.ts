@@ -3,6 +3,7 @@ import { getLogger } from './logger';
 import { fetchAccountInfo } from './profile';
 import type { AccountInfo } from './schemas';
 import { PhoneRefreshResponseSchema } from './schemas';
+import { isNonEmptyString } from './guards';
 
 export interface AccountViewModel extends AccountInfo {
   displayPhone: string;
@@ -19,7 +20,7 @@ class AccountService {
 
   async refreshPhoneNumber(phoneCode: string, loginCode: string): Promise<AccountViewModel> {
     this.logger.info('Refreshing phone number via WeChat', {
-      hasPhoneCode: Boolean(phoneCode),
+      hasPhoneCode: isNonEmptyString(phoneCode),
     });
     const response = await requestValidated(PhoneRefreshResponseSchema, {
       url: '/auth/wechat/refresh-phone',
@@ -44,7 +45,7 @@ class AccountService {
   }
 
   private static formatPhone(value?: string | null): string {
-    if (!value) {
+    if (!isNonEmptyString(value)) {
       return '未绑定';
     }
     if (value.length >= 7) {

@@ -156,13 +156,13 @@ Component({
 
   observers: {
     value(value: string) {
-      this.setData({ internalValue: value ?? '' });
+      this.setData({ internalValue: value });
     },
   },
 
   methods: {
     handleInput(event: WechatMiniprogram.CustomEvent<MessageInputEventDetail>) {
-      const value = event.detail.value ?? '';
+      const value = event.detail.value;
       this.setData({ internalValue: value });
       this.triggerEvent('input', event.detail);
     },

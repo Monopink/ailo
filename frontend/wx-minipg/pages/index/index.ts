@@ -15,6 +15,8 @@ import { MESSAGE_TYPE } from '../../utils/constants/message';
 import { formatMessageTime } from '../../utils/format';
 import { firstNonEmptyString, isNonEmptyString } from '../../utils/guards';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
+import { normalizeError } from '../../utils/errors';
+import { initTabBar } from '../../utils/tab-bar';
 
 const logger = getLogger('ContactList');
 
@@ -85,20 +87,6 @@ interface ContactListPageCustom {
   onMessageReceived(message: Ailo.MessagePayload): void;
 }
 
-const normalizeError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error;
-  }
-  if (typeof error === 'string') {
-    return new Error(error);
-  }
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error('Unknown error');
-  }
-};
-
 const showToast = (
   title: string,
   icon: WechatMiniprogram.ShowToastOption['icon'] = 'none'
@@ -165,14 +153,7 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
 
-    // Update custom TabBar active state
-    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null;
-    if (tabBar !== null) {
-      const initFn = (tabBar as { init?: unknown }).init;
-      if (typeof initFn === 'function') {
-        void initFn();
-      }
-    }
+    initTabBar(this);
 
     this.updateNavigationTitle();
     void this.loadContactList();
@@ -205,7 +186,7 @@ Page<ContactListPageData, ContactListPageCustom>({
         const normalizedContacts = await saveContacts(remoteContacts);
         const enrichedContacts = await this.attachLatestMessages(normalizedContacts);
         this.updateContactList(enrichedContacts);
-      } catch (error) {
+      } catch (error: unknown) {
         const err = normalizeError(error);
         logger.warn('Contact list API failed, falling back to cache', { error: err.message });
         const cacheLoaded = await this.loadContactsFromCache();
@@ -241,7 +222,7 @@ Page<ContactListPageData, ContactListPageCustom>({
       const enrichedContacts = await this.attachLatestMessages(cachedContacts);
       this.updateContactList(enrichedContacts);
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to load contacts from cache', { error: err.message });
       return false;
@@ -252,7 +233,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     if (this._loadPromise !== null) {
       try {
         await this._loadPromise;
-      } catch (error) {
+      } catch (error: unknown) {
         const err = normalizeError(error);
         logger.warn('Previous contact refresh failed', { error: err.message });
       }
@@ -386,7 +367,7 @@ Page<ContactListPageData, ContactListPageCustom>({
             ...contact,
             _latestMessage: latestMessage,
           } as ContactWithPreview;
-        } catch (error) {
+        } catch (error: unknown) {
           const err = normalizeError(error);
           logger.warn('Failed to load latest message preview', {
             convId: contact.conv_id,

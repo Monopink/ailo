@@ -4,6 +4,8 @@ import { getAvatarUrl } from './avatar';
 import { getLogger } from './logger';
 import { fetchCurrentUserProfile, type UserProfileResponse } from './profile';
 import { saveUserInfo, StoredAuthUser } from './storage';
+import { isNonEmptyString } from './guards';
+import { normalizeError } from './errors';
 
 const logger = getLogger('AuthService');
 
@@ -34,7 +36,7 @@ class AuthService {
   private _refreshPromise: Promise<string> | null = null;
 
   async initialize(): Promise<boolean> {
-    if (this._initPromise) {
+    if (this._initPromise !== null) {
       logger.info('Initialization already in progress, waiting...');
       return this._initPromise;
     }
@@ -47,12 +49,13 @@ class AuthService {
     try {
       logger.info('=== AuthService Initialization Start ===');
 
-      const token = wx.getStorageSync<string>(STORAGE_KEYS.AUTH_TOKEN) ?? null;
+      const storedToken = wx.getStorageSync<string>(STORAGE_KEYS.AUTH_TOKEN);
+      const token = isNonEmptyString(storedToken) ? storedToken : '';
       const storedProfileSetupFlag =
-        wx.getStorageSync<boolean>(STORAGE_KEYS.PROFILE_SETUP_REQUIRED) ?? false;
-      this._needsProfileSetup = Boolean(storedProfileSetupFlag);
+        wx.getStorageSync<boolean>(STORAGE_KEYS.PROFILE_SETUP_REQUIRED);
+      this._needsProfileSetup = storedProfileSetupFlag === true;
 
-      if (!token) {
+      if (!isNonEmptyString(token)) {
         logger.info('No token found, user not authenticated');
         this._clearStoredSession();
         this._initialized = true;
@@ -73,10 +76,16 @@ class AuthService {
         this._initialized = true;
         logger.info('=== AuthService Initialization Complete (Authenticated) ===');
         return true;
-      } catch (error) {
+      } catch (error: unknown) {
+        const statusCandidate = error as { statusCode?: number };
+        const statusCode =
+          typeof statusCandidate.statusCode === 'number'
+            ? statusCandidate.statusCode
+            : undefined;
+        const err = normalizeError(error);
         logger.warn('Token verification failed, clearing invalid token', {
-          error: error instanceof Error ? error.message : String(error),
-          statusCode: (error as { statusCode?: number }).statusCode,
+          errorMessage: err.message,
+          statusCode,
         });
 
         this._clearStoredSession();
@@ -84,9 +93,10 @@ class AuthService {
         logger.info('=== AuthService Initialization Complete (Not Authenticated) ===');
         return false;
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = normalizeError(error);
       logger.error('Initialization failed', {
-        error: error instanceof Error ? error.message : String(error),
+        errorMessage: err.message,
       });
 
       this._clearStoredSession();
@@ -100,7 +110,7 @@ class AuthService {
       return this._isAuthenticated;
     }
 
-    if (this._initPromise) {
+    if (this._initPromise !== null) {
       return this._initPromise;
     }
 
@@ -163,9 +173,10 @@ class AuthService {
     try {
       await post('/auth/logout');
       logger.info('Logout API call successful');
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = normalizeError(error);
       logger.error('Logout API call failed', {
-        error: error instanceof Error ? error.message : String(error),
+        errorMessage: err.message,
       });
     }
 
@@ -174,13 +185,13 @@ class AuthService {
   }
 
   async refreshToken(): Promise<string> {
-    if (this._refreshPromise) {
+    if (this._refreshPromise !== null) {
       return this._refreshPromise;
     }
 
     this._refreshPromise = (async () => {
       const storedRefresh = wx.getStorageSync<string>(STORAGE_KEYS.REFRESH_TOKEN);
-      if (!storedRefresh) {
+      if (!isNonEmptyString(storedRefresh)) {
         throw new Error('无法获取刷新凭证');
       }
       logger.info('Refreshing token');
@@ -197,12 +208,13 @@ class AuthService {
 
     try {
       return await this._refreshPromise;
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = normalizeError(error);
       logger.error('Refresh token failed', {
-        error: error instanceof Error ? error.message : String(error),
+        errorMessage: err.message,
       });
       this._clearStoredSession();
-      throw error;
+      throw err;
     } finally {
       this._refreshPromise = null;
     }

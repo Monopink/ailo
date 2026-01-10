@@ -2,6 +2,7 @@ import { createPageLayoutData, type PageLayoutData } from '../../templates/page-
 import { requireAuth } from '../../utils/auth-guard';
 import { getLogger } from '../../utils/logger';
 import profileService, { type ProfileViewModel } from '../../utils/profile-service';
+import { initTabBar } from '../../utils/tab-bar';
 
 const logger = getLogger('Profile');
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
@@ -62,11 +63,7 @@ Page<ProfilePageData, ProfilePageCustom>({
       return;
     }
 
-    // Update custom TabBar active state
-    if (typeof this.getTabBar === 'function' && this.getTabBar()) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      this.getTabBar().init();
-    }
+    initTabBar(this);
 
     await this.loadProfile();
   },
@@ -85,7 +82,7 @@ Page<ProfilePageData, ProfilePageCustom>({
       this.setData({
         profile,
         'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': !profile,
+        'pageLayoutData.isEmpty': false,
       });
 
       logger.info('Profile loaded', { qiao_id: profile.qiao_id });
@@ -97,7 +94,7 @@ Page<ProfilePageData, ProfilePageCustom>({
         profile: null,
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
+        'pageLayoutData.errorMessage': '加载失败,请稍后再试',
       });
 
       void wx.showToast({

@@ -67,7 +67,7 @@ Component({
     },
 
     _updateStatusLabel(value: MessageStatus) {
-      const label = value && STATUS_LABELS[value] ? STATUS_LABELS[value] : '';
+      const label = STATUS_LABELS[value];
       this.setData({ statusLabel: label });
     },
   },

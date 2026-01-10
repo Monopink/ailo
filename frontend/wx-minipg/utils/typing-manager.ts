@@ -6,7 +6,12 @@
 import { MESSAGE_TYPE } from './constants/message';
 import { getLogger } from './logger';
 import { MESSAGE_CONFIG } from './config';
-import { getContactByConvId, getUserInfo as getStoredUserInfo } from './storage';
+import {
+  getContactByConvId,
+  getUserInfo as getStoredUserInfo,
+} from './storage';
+import { isNonEmptyString } from './guards';
+import { normalizeError } from './errors';
 
 const logger = getLogger('TypingManager');
 
@@ -45,7 +50,7 @@ class TypingManager {
     const state = this.getState(convId);
     state.isComposing = true;
 
-    if (!currentValue || currentValue.length === 0) {
+    if (!isNonEmptyString(currentValue)) {
       this.sendTypingStartDebounced(convId);
     }
   }
@@ -57,7 +62,7 @@ class TypingManager {
     const state = this.getState(convId);
     state.isComposing = false;
 
-    if (!currentValue || currentValue.length === 0) {
+    if (!isNonEmptyString(currentValue)) {
       void this.sendTypingEnd(convId);
     }
   }
@@ -68,14 +73,12 @@ class TypingManager {
   onInputChange(convId: string, newValue: string, oldValue: string): void {
     const state = this.getState(convId);
 
-    if (oldValue && oldValue.length > 0 && (!newValue || newValue.length === 0)) {
+    const hasOldValue = isNonEmptyString(oldValue);
+    const hasNewValue = isNonEmptyString(newValue);
+
+    if (hasOldValue && !hasNewValue) {
       void this.sendTypingEnd(convId);
-    } else if (
-      (!oldValue || oldValue.length === 0) &&
-      newValue &&
-      newValue.length > 0 &&
-      !state.isComposing
-    ) {
+    } else if (!hasOldValue && hasNewValue && !state.isComposing) {
       this.sendTypingStartDebounced(convId);
     }
   }
@@ -84,7 +87,7 @@ class TypingManager {
    * Handle input focus
    */
   onInputFocus(convId: string, currentValue: string): void {
-    if (currentValue && currentValue.length > 0) {
+    if (isNonEmptyString(currentValue)) {
       this.sendTypingStartDebounced(convId);
     }
   }
@@ -111,7 +114,7 @@ class TypingManager {
 
     // If within debounce delay, schedule for later
     if (timeSinceLastSend < MESSAGE_CONFIG.typingDebounce) {
-      if (state.timer) {
+      if (state.timer !== null) {
         clearTimeout(state.timer);
       }
       state.timer = setTimeout(() => {
@@ -134,24 +137,24 @@ class TypingManager {
       const app = getApp<AppInstance>();
       const messageService = app.getMessageService() as MessageService | null;
 
-      if (!messageService) {
+      if (messageService === null) {
         logger.warn('Message service not available for typing indicator');
         return;
       }
 
       const contact = await getContactByConvId(convId);
-      if (!contact) {
+      if (contact === null) {
         logger.warn('Contact not found for typing indicator', { convId });
         return;
       }
       const contactQiaoId = contact.contact_qiao_id;
-      if (!contactQiaoId) {
+      if (!isNonEmptyString(contactQiaoId)) {
         logger.warn('Contact lacks qiao id for typing indicator', { convId });
         return;
       }
 
       const userInfo = await getStoredUserInfo();
-      if (!userInfo) {
+      if (userInfo === null) {
         logger.warn('User info not found for typing indicator');
         return;
       }
@@ -169,8 +172,12 @@ class TypingManager {
       state.lastSendTime = Date.now();
 
       logger.debug('Typing start sent', { convId });
-    } catch (error) {
-      logger.error('Failed to send typing start', { error, convId });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.error('Failed to send typing start', {
+        errorMessage: err.message,
+        convId,
+      });
     }
   }
 
@@ -184,7 +191,7 @@ class TypingManager {
       return;
     }
 
-    if (state.timer) {
+    if (state.timer !== null) {
       clearTimeout(state.timer);
       state.timer = null;
     }
@@ -193,24 +200,24 @@ class TypingManager {
       const app = getApp<AppInstance>();
       const messageService = app.getMessageService() as MessageService | null;
 
-      if (!messageService) {
+      if (messageService === null) {
         logger.warn('Message service not available for typing indicator');
         return;
       }
 
       const contact = await getContactByConvId(convId);
-      if (!contact) {
+      if (contact === null) {
         logger.warn('Contact not found for typing indicator', { convId });
         return;
       }
       const contactQiaoId = contact.contact_qiao_id;
-      if (!contactQiaoId) {
+      if (!isNonEmptyString(contactQiaoId)) {
         logger.warn('Contact lacks qiao id for typing indicator', { convId });
         return;
       }
 
       const userInfo = await getStoredUserInfo();
-      if (!userInfo) {
+      if (userInfo === null) {
         logger.warn('User info not found for typing indicator');
         return;
       }
@@ -228,8 +235,12 @@ class TypingManager {
       state.lastSendTime = Date.now();
 
       logger.debug('Typing end sent', { convId });
-    } catch (error) {
-      logger.error('Failed to send typing end', { error, convId });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.error('Failed to send typing end', {
+        errorMessage: err.message,
+        convId,
+      });
     }
   }
 
@@ -239,7 +250,7 @@ class TypingManager {
   forceStopTyping(convId: string): void {
     const state = this.getState(convId);
 
-    if (state.timer) {
+    if (state.timer !== null) {
       clearTimeout(state.timer);
       state.timer = null;
     }
@@ -253,8 +264,9 @@ class TypingManager {
    */
   cleanup(convId: string): void {
     const state = this.typingStates.get(convId);
-    if (state?.timer) {
-      clearTimeout(state.timer);
+    const timerId = state?.timer;
+    if (timerId !== null && timerId !== undefined) {
+      clearTimeout(timerId);
     }
     this.typingStates.delete(convId);
   }

@@ -1,9 +1,9 @@
 import type { MessageAdapter } from './adapter-types';
 import leancloudAdapter from './leancloud';
 import { getLogger } from '../logger';
+import { isDefined } from '../guards';
 
 const logger = getLogger('MessageProvider');
-
 let currentAdapter: MessageAdapter | null = null;
 
 export function registerMessageAdapter(adapter: MessageAdapter): void {
@@ -12,7 +12,7 @@ export function registerMessageAdapter(adapter: MessageAdapter): void {
 }
 
 export function getMessageAdapter(): MessageAdapter {
-  if (!currentAdapter) {
+  if (!isDefined(currentAdapter)) {
     currentAdapter = leancloudAdapter;
   }
   return currentAdapter;

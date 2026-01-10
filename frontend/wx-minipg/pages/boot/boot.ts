@@ -1,5 +1,6 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { getLogger } from '../../utils/logger';
+import { isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('Boot');
 
@@ -45,13 +46,14 @@ Page<BootPageData, BootPageCustom>({
 
     try {
       const token = wx.getStorageSync<string | null>('auth_token');
+      const hasToken = isNonEmptyString(token);
 
       logger.info('Boot routing', {
-        hasToken: Boolean(token),
+        hasToken,
         options,
       });
 
-      if (token) {
+      if (hasToken) {
         this._routeOnce(() => {
           void wx.switchTab({ url: '/pages/index/index' });
         });

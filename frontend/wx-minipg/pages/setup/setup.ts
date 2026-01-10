@@ -130,8 +130,8 @@ Page<SetupPageData, SetupPageCustom>({
     bio: '',
     regionValue: [],
     regionDisplay: '',
-    maxNicknameLength: APP_CONFIG.maxNicknameLength ?? 20,
-    maxBioLength: APP_CONFIG.maxBioLength ?? 200,
+    maxNicknameLength: APP_CONFIG.maxNicknameLength,
+    maxBioLength: APP_CONFIG.maxBioLength,
     loading: false,
   },
 
@@ -236,11 +236,6 @@ Page<SetupPageData, SetupPageCustom>({
 
   onRegionChange(event) {
     const regionArray = event.detail.value;
-    if (!Array.isArray(regionArray) || regionArray.length < 3) {
-      this.setData({ regionValue: [], regionDisplay: '' });
-      return;
-    }
-
     const normalized = normalizeRegionSelection(regionArray);
     this.setData({
       regionValue: normalized.regionValue,

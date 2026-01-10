@@ -56,7 +56,7 @@ export function formatPhoneWithCountryCode(countryCode: string, phone: string): 
  */
 export function validatePhoneLength(countryCode: string, phone: string): boolean {
   const country = getCountryByCode(countryCode);
-  if (!country) {
+  if (country === undefined) {
     return false;
   }
   return phone.length === country.phoneLength;

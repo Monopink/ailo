@@ -20,11 +20,22 @@ import {
   StoredMessages,
   StoredMessagesSchema,
 } from './schemas';
-import { ensureArray, firstNonEmptyString, hasValue, isNonEmptyString } from './guards';
+import { firstNonEmptyString, isNonEmptyString } from './guards';
+import { normalizeError } from './errors';
 
 const logger = getLogger('Storage');
 
 type JsonRecord = Record<string, unknown>;
+
+const isJsonObject = (value: unknown): value is JsonRecord =>
+  typeof value === 'object' && value !== null;
+
+const ensureStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === 'string');
+};
 
 interface WxError {
   errMsg?: string;
@@ -34,7 +45,7 @@ const isWxError = (error: unknown): error is WxError =>
   typeof error === 'object' && error !== null && 'errMsg' in error;
 
 const ensureJsonObject = (value: unknown): JsonRecord => {
-  if (!hasValue(value) || typeof value !== 'object') {
+  if (value === null || typeof value !== 'object') {
     return {};
   }
   return value as JsonRecord;
@@ -42,7 +53,7 @@ const ensureJsonObject = (value: unknown): JsonRecord => {
 
 const ensureStoredMessages = (value: unknown): StoredMessages => {
   const parsed = safeParse(StoredMessagesSchema, value);
-  if (hasValue(parsed)) {
+  if (parsed !== null) {
     return parsed;
   }
   logger.warn('Stored messages schema validation failed, resetting to empty array', {
@@ -53,7 +64,7 @@ const ensureStoredMessages = (value: unknown): StoredMessages => {
 
 const ensureStoredContacts = (value: unknown): StoredContacts => {
   const parsed = safeParse(StoredContactsSchema, value);
-  if (hasValue(parsed)) {
+  if (parsed !== null) {
     return parsed;
   }
   logger.warn('Stored contacts schema validation failed, resetting to empty list', {
@@ -90,7 +101,11 @@ const wxGetStorage = async <T>(key: string): Promise<T | undefined> =>
           resolve(undefined);
           return;
         }
-        reject(error);
+        reject(
+          error instanceof Error
+            ? error
+            : new Error(typeof error === 'string' ? error : 'wx.getStorage failed')
+        );
       },
     });
   });
@@ -139,57 +154,54 @@ export interface StoredAuthUser extends JsonRecord {
 }
 
 function normalizeContact(contact: unknown): StoredContact {
-  if (!hasValue(contact) || typeof contact !== 'object') {
+  if (contact === null || typeof contact !== 'object') {
     return {} as StoredContact;
   }
 
   const record = contact as JsonRecord;
   const profileSource = ensureJsonObject(record.profile);
   const normalizedProfile = { ...profileSource };
-  const normalized: StoredContact = {
-    ...record,
-    tags: ensureArray<string>(record.tags as string[] | null | undefined),
-    profile: normalizedProfile,
-  } as StoredContact;
+  const normalizedBase = ensureStoredContact(record);
+  normalizedBase.tags = ensureStringArray(record.tags);
+  normalizedBase.profile = normalizedProfile;
 
-  const contactNickname = isNonEmptyString(normalizedProfile.nickname)
-    ? normalizedProfile.nickname
-    : undefined;
-  const profileNickname = isNonEmptyString(profileSource.nickname)
-    ? profileSource.nickname
-    : undefined;
+  const normalizedNickname =
+    typeof normalizedProfile.nickname === 'string' ? normalizedProfile.nickname : null;
+  const profileNicknameValue =
+    typeof profileSource.nickname === 'string' ? profileSource.nickname : null;
+  const contactNickname = isNonEmptyString(normalizedNickname) ? normalizedNickname : undefined;
+  const profileNickname = isNonEmptyString(profileNicknameValue) ? profileNicknameValue : undefined;
   normalizedProfile.nickname = firstNonEmptyString(contactNickname, profileNickname) ?? '';
 
-  const contactAvatar = isNonEmptyString(normalizedProfile.avatar_url)
-    ? normalizedProfile.avatar_url
-    : undefined;
-  const profileAvatar = isNonEmptyString(profileSource.avatar_url)
-    ? profileSource.avatar_url
-    : undefined;
+  const normalizedAvatar =
+    typeof normalizedProfile.avatar_url === 'string' ? normalizedProfile.avatar_url : null;
+  const profileAvatarValue =
+    typeof profileSource.avatar_url === 'string' ? profileSource.avatar_url : null;
+  const contactAvatar = isNonEmptyString(normalizedAvatar) ? normalizedAvatar : undefined;
+  const profileAvatar = isNonEmptyString(profileAvatarValue) ? profileAvatarValue : undefined;
   normalizedProfile.avatar_url = firstNonEmptyString(contactAvatar, profileAvatar) ?? '';
 
-  if (!hasValue(normalizedProfile.gender)) {
-    normalizedProfile.gender =
-      typeof profileSource.gender === 'number' ? profileSource.gender : null;
-  }
+  normalizedProfile.gender ??=
+    typeof profileSource.gender === 'number' ? profileSource.gender : null;
 
-  return ensureStoredContact(normalized);
+  return normalizedBase;
 }
 
 export function extractContactsFromPayload(payload: unknown): StoredContacts {
-  if (!hasValue(payload)) {
+  if (payload === null || payload === undefined) {
     return [];
   }
   if (Array.isArray(payload)) {
     return payload as StoredContacts;
   }
-  if (typeof payload === 'object' && payload !== null) {
-    if (Array.isArray((payload as JsonRecord).items)) {
-      return (payload as { items: StoredContacts }).items;
-    }
-    if (Array.isArray((payload as JsonRecord).contacts)) {
-      return (payload as { contacts: StoredContacts }).contacts;
-    }
+  if (!isJsonObject(payload)) {
+    return [];
+  }
+  if (Array.isArray(payload.items)) {
+    return ensureStoredContacts(payload.items);
+  }
+  if (Array.isArray(payload.contacts)) {
+    return ensureStoredContacts(payload.contacts);
   }
   return [];
 }
@@ -203,8 +215,11 @@ async function getCurrentQiaoId(): Promise<string | null> {
   try {
     const userInfo = await getStorage<StoredAuthUser | null>(STORAGE_KEYS.USER_INFO, null);
     return userInfo?.qiao_id ?? null;
-  } catch (error) {
-    logger.error('Get current qiao_id failed', { error });
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Get current qiao_id failed', {
+      errorMessage: err.message,
+    });
     return null;
   }
 }
@@ -217,9 +232,13 @@ export async function setStorage<T>(key: string, data: T): Promise<void> {
   try {
     await wxSetStorage(key, data);
     logger.debug('Storage set', { key });
-  } catch (error) {
-    logger.error('Set storage failed', { key, error });
-    throw error;
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Set storage failed', {
+      key,
+      errorMessage: err.message,
+    });
+    throw err;
   }
 }
 
@@ -232,9 +251,13 @@ export async function getStorage<T>(key: string, defaultValue: T): Promise<T> {
       return defaultValue;
     }
     return result;
-  } catch (error) {
-    logger.error('Get storage failed', { key, error });
-    throw error;
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Get storage failed', {
+      key,
+      errorMessage: err.message,
+    });
+    throw err;
   }
 }
 
@@ -242,9 +265,13 @@ export async function removeStorage(key: string): Promise<void> {
   try {
     await wxRemoveStorage(key);
     logger.debug('Storage removed', { key });
-  } catch (error) {
-    logger.error('Remove storage failed', { key, error });
-    throw error;
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Remove storage failed', {
+      key,
+      errorMessage: err.message,
+    });
+    throw err;
   }
 }
 
@@ -252,9 +279,12 @@ export async function clearStorage(): Promise<void> {
   try {
     await wxClearStorage();
     logger.info('Storage cleared');
-  } catch (error) {
-    logger.error('Clear storage failed', { error });
-    throw error;
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Clear storage failed', {
+      errorMessage: err.message,
+    });
+    throw err;
   }
 }
 
@@ -263,9 +293,12 @@ export async function getStorageInfo(): Promise<WechatMiniprogram.GetStorageInfo
     const info = await wxGetStorageInfo();
     logger.debug('Storage info', { info });
     return info;
-  } catch (error) {
-    logger.error('Get storage info failed', { error });
-    throw error;
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.error('Get storage info failed', {
+      errorMessage: err.message,
+    });
+    throw err;
   }
 }
 
@@ -296,9 +329,6 @@ export async function getLatestRenderableMessage(
   const messages = await getMessages(convId);
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
-    if (!hasValue(message)) {
-      continue;
-    }
 
     const type =
       typeof message.message_type === 'number' ? message.message_type : MESSAGE_TYPE.TEXT;

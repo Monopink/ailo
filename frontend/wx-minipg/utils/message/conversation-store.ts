@@ -1,6 +1,8 @@
 import { requestValidated } from '../api';
 import { getLogger } from '../logger';
 import { ConversationConfigSchema } from '../schemas';
+import { isNonEmptyString } from '../guards';
+import { normalizeError } from '../errors';
 
 const logger = getLogger('ConversationStore');
 const STORAGE_KEY = 'conversation_state';
@@ -27,20 +29,31 @@ class ConversationStore {
 
   private loadFromStorage(): void {
     try {
-      const stored = wx.getStorageSync<ConversationState>(STORAGE_KEY);
-      if (stored && stored.im_conv_id && stored.signature_algorithm) {
+      const stored = wx.getStorageSync<ConversationState | null | undefined>(STORAGE_KEY);
+      if (
+        stored !== null &&
+        stored !== undefined &&
+        isNonEmptyString(stored.im_conv_id) &&
+        isNonEmptyString(stored.signature_algorithm)
+      ) {
         this.state = stored;
       }
-    } catch (error) {
-      logger.warn('Failed to load conversation state from storage', { error });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Failed to load conversation state from storage', {
+        errorMessage: err.message,
+      });
     }
   }
 
   private persist(state: ConversationState): void {
     try {
       wx.setStorageSync(STORAGE_KEY, state);
-    } catch (error) {
-      logger.warn('Failed to persist conversation state', { error });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Failed to persist conversation state', {
+        errorMessage: err.message,
+      });
     }
   }
 
@@ -48,8 +61,11 @@ class ConversationStore {
     this.subscribers.forEach((callback) => {
       try {
         callback(state);
-      } catch (error) {
-        logger.error('ConversationStore subscriber error', { error });
+      } catch (error: unknown) {
+        const err = normalizeError(error);
+        logger.error('ConversationStore subscriber error', {
+          errorMessage: err.message,
+        });
       }
     });
   }
@@ -63,27 +79,28 @@ class ConversationStore {
   }
 
   async init(force = false): Promise<ConversationState | null> {
-    if (this.state && !force) {
+    if (this.state !== null && !force) {
       return this.state;
     }
 
-    if (!this.initializing) {
-      this.initializing = (async () => {
+    if (this.initializing === null) {
+      const initializing = (async () => {
         this.loadFromStorage();
-        if (!this.state || force) {
+        if (this.state === null || force) {
           await this.refresh();
         }
         return this.state;
       })().finally(() => {
         this.initializing = null;
       });
+      this.initializing = initializing;
     }
 
     return this.initializing;
   }
 
   async getState(): Promise<ConversationState | null> {
-    if (this.state) {
+    if (this.state !== null) {
       return this.state;
     }
     await this.init();
@@ -92,15 +109,18 @@ class ConversationStore {
 
   async getImConvId(): Promise<string> {
     const state = await this.getState();
-    return state ? state.im_conv_id : '';
+    if (state === null) {
+      return '';
+    }
+    return state.im_conv_id;
   }
 
   async refresh(): Promise<ConversationState> {
-    if (this.refreshPromise) {
+    if (this.refreshPromise !== null) {
       return this.refreshPromise;
     }
 
-    this.refreshPromise = (async () => {
+    const refreshing = (async () => {
       const response = await requestValidated(ConversationConfigSchema, {
         url: '/lc-im/config',
         method: 'GET',
@@ -124,7 +144,8 @@ class ConversationStore {
       this.refreshPromise = null;
     });
 
-    return this.refreshPromise;
+    this.refreshPromise = refreshing;
+    return refreshing;
   }
 }
 

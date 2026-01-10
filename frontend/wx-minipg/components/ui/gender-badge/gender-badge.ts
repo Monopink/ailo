@@ -1,5 +1,5 @@
 // Gender values: 1 = male, 2 = female, others = unknown
-const GENDER_MAP: Record<number, string> = {
+const GENDER_MAP: Record<number, string | undefined> = {
   1: '♂',
   2: '♀',
 };
@@ -23,7 +23,8 @@ Component({
 
   observers: {
     gender(value: number) {
-      this.setData({ icon: GENDER_MAP[value] || '' });
+      const icon = GENDER_MAP[value];
+      this.setData({ icon: icon ?? '' });
     },
   },
 });

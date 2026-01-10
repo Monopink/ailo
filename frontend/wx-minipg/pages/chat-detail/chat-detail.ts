@@ -12,7 +12,8 @@ import {
 import { fetchConversationProfile, refreshStoredContact } from '../../utils/contact-service';
 import type { ContactProfile } from '../../utils/schemas';
 import messageStateStore from '../../utils/message/message-state-store';
-import { hasValue, isNonEmptyString } from '../../utils/guards';
+import { isNonEmptyString } from '../../utils/guards';
+import { normalizeError } from '../../utils/errors';
 
 const logger = getLogger('ChatDetail');
 
@@ -120,7 +121,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
     this.setData({ convId });
 
     const cachedContact = await getContactByConvId(convId);
-    if (hasValue(cachedContact)) {
+    if (cachedContact !== null) {
       this.setData({
         contact: cachedContact,
         contactView: buildContactView(cachedContact),
@@ -138,7 +139,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
     try {
       const profile = await fetchConversationProfile(this.data.convId);
       const updatedContact = await refreshStoredContact(this.data.convId, profile);
-      if (!hasValue(updatedContact)) {
+      if (updatedContact === null) {
         this.setData({
           'pageLayoutData.isLoading': false,
           'pageLayoutData.isEmpty': this.data.contact === null,
@@ -153,10 +154,9 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
         'pageLayoutData.isEmpty': false,
       });
       logger.info('Chat detail refreshed', { conv_id: this.data.convId });
-    } catch (error) {
-      logger.error('Failed to refresh chat detail', {
-        error: error instanceof Error ? error.message : error,
-      });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.error('Failed to refresh chat detail', { error: err.message });
       this.setData({
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': true,
@@ -205,8 +205,9 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
           await clearMessages(this.data.convId);
           messageStateStore.clearConversation();
           void wx.showToast({ title: '已清空', icon: 'success' });
-        } catch (error) {
-          logger.error('Failed to clear chat history', { error });
+        } catch (error: unknown) {
+          const err = normalizeError(error);
+          logger.error('Failed to clear chat history', { error: err.message });
           void wx.showToast({ title: '清空失败', icon: 'none' });
         }
       },
@@ -236,8 +237,9 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
           setTimeout(() => {
             void wx.navigateBack();
           }, 300);
-        } catch (error) {
-          logger.error('Failed to delete contact', { error });
+        } catch (error: unknown) {
+          const err = normalizeError(error);
+          logger.error('Failed to delete contact', { error: err.message });
           void wx.showToast({ title: '删除失败，请稍后重试', icon: 'none' });
         } finally {
           void wx.hideLoading();

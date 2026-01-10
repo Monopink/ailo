@@ -3,6 +3,7 @@ import { requireAuth } from '../../utils/auth-guard';
 import authService from '../../utils/auth-service';
 import accountService, { type AccountViewModel } from '../../utils/account-service';
 import { getLogger } from '../../utils/logger';
+import { isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('AccountSecurity');
 
@@ -131,14 +132,11 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
 
     try {
       const { code: loginCode } = await wx.login();
-      if (!loginCode) {
+      if (!isNonEmptyString(loginCode)) {
         throw new Error('无法获取登录凭证');
       }
 
-      const updatedAccount = await accountService.refreshPhoneNumber(
-        phoneCode,
-        loginCode
-      );
+      const updatedAccount = await accountService.refreshPhoneNumber(phoneCode, loginCode);
 
       void wx.showToast({
         title: '手机号已更新',
@@ -152,8 +150,9 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
     } catch (error) {
       const err = toError(error);
       logger.error('Phone reauthorization failed', { error: err.message });
+      const toastTitle = isNonEmptyString(err.message) ? err.message : '更新失败，请稍后再试';
       void wx.showToast({
-        title: err.message || '更新失败，请稍后再试',
+        title: toastTitle,
         icon: 'none',
       });
     } finally {
@@ -189,7 +188,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
 
       const app = getApp<AppInstance>();
       const messageService = app.getMessageService();
-      if (messageService) {
+      if (messageService !== null) {
         await messageService.disconnect();
         app.globalData.messageService = null;
       }

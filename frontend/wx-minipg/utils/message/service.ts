@@ -7,8 +7,8 @@ import { getMessageClientSignature } from '../message-signature';
 import { getLogger } from '../logger';
 import { addMessage, getUserInfo } from '../storage';
 import type { StoredMessage } from '../storage';
-import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
-import type { MessageType } from './constants';
+import { MESSAGE_STATUS, MESSAGE_TYPE } from '../constants/message';
+import type { MessageType } from '../constants/message';
 import conversationStore from './conversation-store';
 import type {
   AdapterMessage,

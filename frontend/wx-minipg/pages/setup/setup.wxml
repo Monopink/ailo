@@ -20,7 +20,7 @@
 
     <!-- Basic info group -->
     <view class="setup-group">
-      <t-cell title="昵称">
+      <t-cell title="昵称 *">
         <input
           slot="note"
           class="setup-input"
@@ -30,7 +30,7 @@
           maxlength="{{maxNicknameLength}}" />
       </t-cell>
 
-      <t-cell title="性别 (必填)" arrow hover>
+      <t-cell title="性别" arrow hover>
         <picker
           slot="note"
           mode="selector"
@@ -47,7 +47,7 @@
 
     <!-- Additional info group -->
     <view class="setup-group">
-      <t-cell title="个人简介 (可选)">
+      <t-cell title="个人简介">
         <textarea
           slot="note"
           class="setup-textarea"
@@ -58,7 +58,7 @@
           auto-height />
       </t-cell>
 
-      <t-cell title="地区 (可选)" arrow hover>
+      <t-cell title="地区" arrow hover>
         <picker
           slot="note"
           mode="region"

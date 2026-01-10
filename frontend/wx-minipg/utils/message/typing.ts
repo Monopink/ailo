@@ -1,6 +1,6 @@
 import { getLogger } from '../logger';
 import { MESSAGE_CONFIG } from '../config';
-import { MESSAGE_TYPE } from './constants';
+import { MESSAGE_TYPE } from '../constants/message';
 
 const logger = getLogger('TypingManager');
 

@@ -9,7 +9,7 @@ import { MESSAGE_CONFIG } from '../../utils/config';
 import { getUserFriendlyError } from '../../utils/error-messages';
 import { getLogger } from '../../utils/logger';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { MESSAGE_STATUS, MESSAGE_TYPE, type MessageType } from '../../utils/message/constants';
+import { MESSAGE_STATUS, MESSAGE_TYPE, type MessageType } from '../../utils/constants/message';
 import {
   addMessage,
   getContactByConvId,

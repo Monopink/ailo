@@ -6,21 +6,13 @@ import logger from '../../utils/logger';
 import { formatRegion } from '../../utils/format';
 import { fetchCurrentUserProfile, updateCurrentUserProfile } from '../../utils/profile';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { GENDER_OPTIONS, type GenderOption, type GenderValue } from '../../utils/constants/user';
 import type { StoredAuthUser } from '../../utils/storage';
 
 const MIN_NICKNAME_LENGTH = 2;
 const PROVINCE_ADMIN_DIVISIONS = new Set(['省直辖县级行政区划', '自治区直辖县级行政区划']);
 const MUNICIPALITY_COUNTY_LABEL = '县';
 
-const GENDER_OPTIONS = [
-  { value: 1, label: '男' },
-  { value: 2, label: '女' },
-  { value: 3, label: '其他' },
-  { value: 4, label: '未知' },
-] as const;
-
-type GenderOption = (typeof GENDER_OPTIONS)[number];
-type GenderValue = 0 | GenderOption['value'];
 type RegionValue = [] | [string] | [string, string];
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
@@ -37,7 +29,7 @@ interface SetupPageData {
   avatarUrl: string;
   avatarFileId: string;
   uploadingAvatar: boolean;
-  gender: GenderValue;
+  gender: GenderValue | null;
   genderOptions: readonly GenderOption[];
   genderIndex: number;
   bio: string;
@@ -73,10 +65,10 @@ const normalizeRegionSelection = (
     resolvedCity = null;
   }
 
-  const regionDisplay = resolvedCity
+  const regionDisplay = resolvedCity !== null
     ? formatRegion(province, resolvedCity)
     : formatRegion(province, province);
-  const regionValue: RegionValue = resolvedCity ? [province, resolvedCity] : [province];
+  const regionValue: RegionValue = resolvedCity !== null ? [province, resolvedCity] : [province];
 
   return { regionValue, regionDisplay };
 };
@@ -86,20 +78,20 @@ const buildProfilePayload = (data: SetupPageData, nickname: string): Record<stri
     nickname,
   };
 
-  if (data.gender !== 0) {
+  if (data.gender !== null) {
     payload.gender = data.gender;
   }
 
   const trimmedBio = data.bio.trim();
-  if (trimmedBio) {
+  if (trimmedBio !== '') {
     payload.bio = trimmedBio;
   }
 
-  if (data.regionDisplay) {
+  if (data.regionDisplay !== '') {
     payload.region = data.regionDisplay;
   }
 
-  if (data.avatarFileId) {
+  if (data.avatarFileId !== '') {
     payload.avatar_file_id = data.avatarFileId;
   }
 
@@ -116,8 +108,12 @@ const mapProfileToStoredUser = (profile: {
   avatar: getAvatarUrl(profile.avatar_url ?? ''),
 });
 
-const resolveGenderIndex = (value: GenderValue): number =>
-  GENDER_OPTIONS.findIndex((option) => option.value === value);
+const resolveGenderIndex = (value: GenderValue | null): number => {
+  if (value === null) {
+    return -1;
+  }
+  return GENDER_OPTIONS.findIndex((option) => option.value === value);
+};
 
 Page<SetupPageData, SetupPageCustom>({
   data: {
@@ -128,14 +124,14 @@ Page<SetupPageData, SetupPageCustom>({
     avatarUrl: '',
     avatarFileId: '',
     uploadingAvatar: false,
-    gender: 0,
+    gender: null,
     genderOptions: GENDER_OPTIONS,
     genderIndex: -1,
     bio: '',
     regionValue: [],
     regionDisplay: '',
-    maxNicknameLength: APP_CONFIG.maxNicknameLength || 20,
-    maxBioLength: APP_CONFIG.maxBioLength || 200,
+    maxNicknameLength: APP_CONFIG.maxNicknameLength ?? 20,
+    maxBioLength: APP_CONFIG.maxBioLength ?? 200,
     loading: false,
   },
 
@@ -173,9 +169,11 @@ Page<SetupPageData, SetupPageCustom>({
     this.setData({ 'pageLayoutData.isLoading': true, 'pageLayoutData.hasError': false });
 
     try {
+      logger.debug('Fetching user profile for setup');
       const profile = await fetchCurrentUserProfile();
+      logger.debug('Profile fetched successfully', { profile });
 
-      const gender = typeof profile.gender === 'number' ? (profile.gender as GenderValue) : 0;
+      const gender = typeof profile.gender === 'number' ? (profile.gender as GenderValue) : null;
       const avatarUrl = getAvatarUrl(profile.avatar_url ?? '');
       const genderIndex = resolveGenderIndex(gender);
 
@@ -192,7 +190,18 @@ Page<SetupPageData, SetupPageCustom>({
         'pageLayoutData.isEmpty': false,
       });
     } catch (error) {
-      logger.error('Load profile for setup failed', { error });
+      // Enhanced error logging
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorName = error instanceof Error ? error.name : 'Unknown';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
+      logger.error('Load profile for setup failed', {
+        errorMessage,
+        errorName,
+        errorStack,
+        errorType: typeof error,
+      });
+
       this.setData({
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': true,
@@ -212,7 +221,7 @@ Page<SetupPageData, SetupPageCustom>({
   onGenderChange(event) {
     const genderIndex = Number(event.detail.value);
     const genderOption = Number.isNaN(genderIndex) ? undefined : GENDER_OPTIONS[genderIndex];
-    if (!genderOption) {
+    if (genderOption === undefined) {
       return;
     }
     this.setData({
@@ -247,14 +256,14 @@ Page<SetupPageData, SetupPageCustom>({
     this.setData({ uploadingAvatar: true });
     try {
       const result = await completeAvatarUpload({ page: 'setup' });
-      if (!result) {
+      if (result === null) {
         return;
       }
 
       const resolvedUrl = getAvatarUrl(result.url);
       this.setData({
         avatarFileId: result.fileId,
-        avatarUrl: resolvedUrl || result.url,
+        avatarUrl: resolvedUrl !== '' ? resolvedUrl : result.url,
       });
       void wx.showToast({
         title: '头像已更新',
@@ -274,7 +283,7 @@ Page<SetupPageData, SetupPageCustom>({
   async handleSubmit() {
     const trimmedNickname = this.data.nickname.trim();
 
-    if (!trimmedNickname || trimmedNickname.length < MIN_NICKNAME_LENGTH) {
+    if (trimmedNickname === '' || trimmedNickname.length < MIN_NICKNAME_LENGTH) {
       this.setData({
         'pageLayoutData.hasError': true,
         'pageLayoutData.errorMessage': '请输入昵称(至少2个字符)',
@@ -286,14 +295,6 @@ Page<SetupPageData, SetupPageCustom>({
       this.setData({
         'pageLayoutData.hasError': true,
         'pageLayoutData.errorMessage': `昵称不能超过${this.data.maxNicknameLength}个字符`,
-      });
-      return;
-    }
-
-    if (this.data.gender === 0) {
-      this.setData({
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '请选择性别',
       });
       return;
     }
@@ -323,7 +324,7 @@ Page<SetupPageData, SetupPageCustom>({
       logger.error('Update profile failed', { error });
       this.setData({
         'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': (error as Error).message || '提交失败，请稍后再试',
+        'pageLayoutData.errorMessage': (error as Error).message !== '' ? (error as Error).message : '提交失败,请稍后再试',
       });
     } finally {
       this.setData({ loading: false });

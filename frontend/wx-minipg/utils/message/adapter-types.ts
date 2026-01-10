@@ -1,5 +1,5 @@
-import { MESSAGE_STATUS } from './constants';
-import type { MessageType } from './constants';
+import { MESSAGE_STATUS } from '../constants/message';
+import type { MessageType } from '../constants/message';
 
 export interface BusinessMessagePayload {
   msg_id: string;

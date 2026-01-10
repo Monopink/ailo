@@ -10,46 +10,17 @@ export interface ProfileViewModel extends UserProfile {
 
 class ProfileService {
   private logger = getLogger('ProfileService');
-  private currentProfile: ProfileViewModel | null = null;
-  private loadingPromise: Promise<ProfileViewModel> | null = null;
 
-  async loadProfile(forceRefresh = false): Promise<ProfileViewModel> {
-    if (!forceRefresh && this.currentProfile) {
-      return this.currentProfile;
-    }
-    if (!forceRefresh && this.loadingPromise) {
-      return this.loadingPromise;
-    }
-
-    const promise = (async () => {
-      this.logger.debug('Fetching profile', { forceRefresh });
-      const profile = await fetchCurrentUserProfile();
-      const viewModel = this.buildViewModel(profile);
-      this.currentProfile = viewModel;
-      return viewModel;
-    })();
-
-    this.loadingPromise = promise;
-
-    try {
-      return await promise;
-    } finally {
-      if (this.loadingPromise === promise) {
-        this.loadingPromise = null;
-      }
-    }
+  async loadProfile(): Promise<ProfileViewModel> {
+    this.logger.debug('Fetching profile');
+    const profile = await fetchCurrentUserProfile();
+    return this.buildViewModel(profile);
   }
 
   async updateProfile(payload: Record<string, unknown>): Promise<ProfileViewModel> {
     this.logger.info('Updating profile', { fields: Object.keys(payload) });
     const profile = await updateCurrentUserProfile(payload);
-    const viewModel = this.buildViewModel(profile);
-    this.currentProfile = viewModel;
-    return viewModel;
-  }
-
-  getCachedProfile(): ProfileViewModel | null {
-    return this.currentProfile;
+    return this.buildViewModel(profile);
   }
 
   private buildViewModel(profile: UserProfile): ProfileViewModel {

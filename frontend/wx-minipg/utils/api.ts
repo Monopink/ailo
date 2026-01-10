@@ -352,7 +352,23 @@ export async function requestValidated<
   TPayload extends WxRequestData | undefined = WechatMiniprogram.IAnyObject,
 >(schema: TSchema, options: RequestOptions<TPayload>): Promise<TSchema['_output']> {
   const raw = await request<WxResponseData, TPayload>(options);
-  return schema.parse(raw);
+  logger.debug('requestValidated: received raw data', { raw, url: options.url });
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const validated = schema.parse(raw);
+    logger.debug('requestValidated: validation successful', { url: options.url });
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return validated;
+  } catch (error) {
+    logger.error('requestValidated: Zod validation failed', {
+      url: options.url,
+      rawData: raw,
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 export async function get<T extends WxResponseData = WechatMiniprogram.IAnyObject>(

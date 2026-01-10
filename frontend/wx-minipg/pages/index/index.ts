@@ -11,7 +11,7 @@ import {
   type StoredContact,
   type StoredContacts,
 } from '../../utils/storage';
-import { MESSAGE_TYPE } from '../../utils/message/constants';
+import { MESSAGE_TYPE } from '../../utils/constants/message';
 import { formatMessageTime } from '../../utils/format';
 import { firstNonEmptyString, isNonEmptyString } from '../../utils/guards';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';

@@ -1,5 +1,5 @@
 import { StoredMessage, StoredMessages } from '../storage';
-import { MESSAGE_TYPE, MessageType } from './constants';
+import { MESSAGE_TYPE, MessageType } from '../constants/message';
 
 const TIMESTAMP_GAP_MS = 5 * 60 * 1000;
 
@@ -74,11 +74,11 @@ function formatTimestamp(timestamp: number): string {
 }
 
 function buildSystemContent(message: StoredMessage): string {
-  return message.content || '';
+  return message.content ?? '';
 }
 
 function getMessageText(message: StoredMessage): string {
-  if (typeof message.content === 'string' && message.content) {
+  if (typeof message.content === 'string' && message.content !== '') {
     return message.content;
   }
   if (typeof message.text === 'string') {
@@ -124,7 +124,7 @@ export function buildMessageViewModels(
     viewModel.sent_time = timestamp;
     viewModel.timestampText = formatTimestamp(timestamp);
     viewModel.showTimestamp =
-      !previous || timestamp - (previous.sent_time ?? 0) > TIMESTAMP_GAP_MS;
+      previous === null || timestamp - (previous.sent_time ?? 0) > TIMESTAMP_GAP_MS;
     viewModel.systemContent = viewModel.isSystemMessage
       ? buildSystemContent(message)
       : '';

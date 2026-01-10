@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { MESSAGE_STATUS, MESSAGE_TYPE } from './message/constants';
+import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants/message';
 
 // ============================================================================
 // User Schemas
@@ -46,12 +46,12 @@ export type ConversationResponse = z.infer<typeof ConversationResponseSchema>;
 
 export const UserProfileSchema = z.object({
   qiao_id: z.string(),
-  username: z.string().optional().nullable(),
-  nickname: z.string().optional().nullable(),
-  avatar_url: z.string().optional().nullable(),
-  gender: z.number().optional().nullable(),
-  bio: z.string().optional().nullable(),
-  region: z.string().optional().nullable(),
+  username: z.string().nullable(),
+  nickname: z.string().nullable(),
+  avatar_url: z.string().nullable(),
+  gender: z.number().nullable(),
+  bio: z.string().nullable(),
+  region: z.string().nullable(),
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;
 

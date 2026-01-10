@@ -18,8 +18,8 @@
 import { LEANCLOUD_CONFIG } from '../config';
 import { ENABLE_LEANCLOUD_DEBUG } from '../env';
 import { getLogger } from '../logger';
-import { MESSAGE_STATUS, MESSAGE_TYPE } from './constants';
-import type { MessageType } from './constants';
+import { MESSAGE_STATUS, MESSAGE_TYPE } from '../constants/message';
+import type { MessageType } from '../constants/message';
 import type {
   AdapterMessage,
   AdapterSendResult,
@@ -120,10 +120,10 @@ export class LCAdapter implements MessageAdapter {
   private errorCallbacks: ErrorCallback[] = [];
 
   constructor() {
-    if (!ENABLE_LEANCLOUD_DEBUG && debug && typeof debug.disable === 'function') {
+    if (!ENABLE_LEANCLOUD_DEBUG && typeof debug?.disable === 'function') {
       debug.disable();
       logger.info('LeanCloud debug logging disabled');
-    } else if (ENABLE_LEANCLOUD_DEBUG && debug && typeof debug.enable === 'function') {
+    } else if (ENABLE_LEANCLOUD_DEBUG && typeof debug?.enable === 'function') {
       debug.enable();
       logger.info('LeanCloud debug logging enabled');
     }
@@ -179,7 +179,7 @@ export class LCAdapter implements MessageAdapter {
    */
   async disconnect(): Promise<void> {
     try {
-      if (this.imClient) {
+      if (this.imClient !== null) {
         await this.imClient.close();
         this.imClient = null;
       }
@@ -240,7 +240,7 @@ export class LCAdapter implements MessageAdapter {
     imConvId: string,
     forceRefresh = false
   ): Promise<IM.Conversation> {
-    if (!imConvId) {
+    if (imConvId === '') {
       throw new Error('IM_CONVERSATION_ID_REQUIRED');
     }
 
@@ -249,14 +249,14 @@ export class LCAdapter implements MessageAdapter {
     }
 
     const cachedConversation = this.conversations.get(imConvId);
-    if (cachedConversation) {
+    if (cachedConversation !== undefined) {
       logger.debug('Using cached conversation', { imConvId });
       return cachedConversation;
     }
 
     try {
       const conversation = await this.imClient!.getConversation(imConvId);
-      if (!conversation) {
+      if (conversation === null) {
         logger.error('Conversation lookup returned empty result', { imConvId });
         throw new Error('CONVERSATION_NOT_FOUND');
       }
@@ -286,7 +286,7 @@ export class LCAdapter implements MessageAdapter {
     imConvId: string
   ): Promise<AdapterSendResult> {
     try {
-      if (!this.connected || !this.imClient) {
+      if (!this.connected || this.imClient === null) {
         throw new Error('MESSAGE_SERVICE_DISCONNECTED');
       }
 
@@ -322,7 +322,7 @@ export class LCAdapter implements MessageAdapter {
       }
 
       const lcMsgId =
-        typeof sentMessage.id === 'string' && sentMessage.id ? sentMessage.id : messageData.msg_id;
+        typeof sentMessage.id === 'string' && sentMessage.id !== '' ? sentMessage.id : messageData.msg_id;
       const lcTimestamp =
         typeof sentMessage.timestamp === 'number' && Number.isFinite(sentMessage.timestamp)
           ? sentMessage.timestamp
@@ -355,7 +355,7 @@ export class LCAdapter implements MessageAdapter {
    * @param {string} imConvId
    */
   invalidateConversation(imConvId?: string | null): void {
-    if (!imConvId) {
+    if (imConvId === null || imConvId === undefined || imConvId === '') {
       this.conversations.clear();
       logger.warn('Conversation cache cleared (no id provided)');
       return;
@@ -421,6 +421,48 @@ export class LCAdapter implements MessageAdapter {
   }
 
   /**
+   * Process business message
+   * @param {BusinessMessage} message - Business message instance
+   */
+  private processBusinessMessage(message: BusinessMessage): void {
+    const lcMsgId = typeof message.id === 'string' && message.id !== '' ? message.id : message.msg_id;
+    const lcTimestamp =
+      typeof message.timestamp === 'number' && Number.isFinite(message.timestamp)
+        ? message.timestamp
+        : Date.now();
+
+    const businessData: AdapterMessage = {
+      msg_id: message.msg_id,
+      from: message.from,
+      to: message.to,
+      conv_id: message.conv_id,
+      content: message.content,
+      message_type: message.message_type,
+      supports_typing: message.supports_typing,
+      sent_time: message.sent_time,
+      status: MESSAGE_STATUS.RECEIVED,
+      lc_msg_id: lcMsgId,
+      lc_timestamp: lcTimestamp,
+      action: message.action ?? null,
+      notification_type: message.notification_type ?? null,
+      data: message.data ?? null,
+    };
+
+    if (
+      businessData.message_type === MESSAGE_TYPE.TYPING_START ||
+      businessData.message_type === MESSAGE_TYPE.TYPING_END
+    ) {
+      this.triggerTypingCallbacks({
+        from: businessData.from,
+        conv_id: businessData.conv_id,
+        isTyping: businessData.message_type === MESSAGE_TYPE.TYPING_START,
+      });
+    } else {
+      this.triggerMessageCallbacks(businessData);
+    }
+  }
+
+  /**
    * Handle incoming message (internal)
    * @param {Object} message - LeanCloud message object
    */
@@ -432,41 +474,7 @@ export class LCAdapter implements MessageAdapter {
       });
 
       if (message instanceof BusinessMessage) {
-        const lcMsgId = typeof message.id === 'string' && message.id ? message.id : message.msg_id;
-        const lcTimestamp =
-          typeof message.timestamp === 'number' && Number.isFinite(message.timestamp)
-            ? message.timestamp
-            : Date.now();
-
-        const businessData: AdapterMessage = {
-          msg_id: message.msg_id,
-          from: message.from,
-          to: message.to,
-          conv_id: message.conv_id,
-          content: message.content,
-          message_type: message.message_type,
-          supports_typing: message.supports_typing,
-          sent_time: message.sent_time,
-          status: MESSAGE_STATUS.RECEIVED,
-          lc_msg_id: lcMsgId,
-          lc_timestamp: lcTimestamp,
-          action: message.action || null,
-          notification_type: message.notification_type ?? null,
-          data: message.data ?? null,
-        };
-
-        if (
-          businessData.message_type === MESSAGE_TYPE.TYPING_START ||
-          businessData.message_type === MESSAGE_TYPE.TYPING_END
-        ) {
-          this.triggerTypingCallbacks({
-            from: businessData.from,
-            conv_id: businessData.conv_id,
-            isTyping: businessData.message_type === MESSAGE_TYPE.TYPING_START,
-          });
-        } else {
-          this.triggerMessageCallbacks(businessData);
-        }
+        this.processBusinessMessage(message);
       } else {
         const nonBusinessType =
           typeof message === 'object' && message !== null && 'constructor' in message
@@ -499,7 +507,7 @@ export class LCAdapter implements MessageAdapter {
    */
   private handleError(error: Error): void {
     logger.error('LeanCloud error', {
-      error: error.message || String(error),
+      error: error.message !== '' ? error.message : String(error),
       stack: error.stack,
     });
     this.triggerErrorCallbacks(error);

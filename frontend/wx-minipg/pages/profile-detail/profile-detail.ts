@@ -1,13 +1,8 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { getAvatarUrl } from '../../utils/avatar';
 import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import { getLogger } from '../../utils/logger';
-import {
-  fetchAccountInfo,
-  fetchCurrentUserProfile,
-  updateUserAvatar,
-  type UserProfileResponse,
-} from '../../utils/profile';
+import profileService, { type ProfileViewModel } from '../../utils/profile-service';
+import { fetchAccountInfo, updateUserAvatar } from '../../utils/profile';
 
 const logger = getLogger('ProfileDetail');
 
@@ -20,16 +15,9 @@ const GENDER_TEXT_MAP = {
 
 type GenderCode = keyof typeof GENDER_TEXT_MAP;
 
-type NormalizedProfile =
-  | (UserProfileResponse & {
-      displayAvatar: string;
-      displayUsername: string;
-    })
-  | null;
-
 interface ProfileDetailPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
-  profile: NormalizedProfile;
+  profile: ProfileViewModel | null;
   phoneMasked: string;
   genderText: string;
   avatarUploading: boolean;
@@ -89,7 +77,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       });
 
       logger.info('Loading user profile');
-      const profilePromise = fetchCurrentUserProfile();
+      const profilePromise = profileService.loadProfile();
       const accountPromise = fetchAccountInfo().catch((error: unknown) => {
         logger.error('Load account info failed', {
           error: error instanceof Error ? error.message : String(error),
@@ -100,22 +88,13 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       const [profile, account] = await Promise.all([profilePromise, accountPromise]);
       const genderText = normalizeGenderText(profile.gender ?? undefined);
 
-      const normalizedProfile = profile
-        ? {
-            ...profile,
-            avatar_url: profile.avatar_url ?? '',
-            displayAvatar: getAvatarUrl(profile.avatar_url ?? null),
-            displayUsername: profile.username || '--',
-          }
-        : null;
-
       this.setData({
-        profile: normalizedProfile,
+        profile,
         phoneMasked: account?.phone ?? '未绑定',
         genderText,
         'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': !normalizedProfile,
-        'pageLayoutData.hasFooter': Boolean(normalizedProfile),
+        'pageLayoutData.isEmpty': !profile,
+        'pageLayoutData.hasFooter': Boolean(profile),
       });
 
       logger.info('Profile loaded', { qiao_id: profile.qiao_id });

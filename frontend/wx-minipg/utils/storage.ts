@@ -7,7 +7,7 @@
 
 import { STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
-import { MESSAGE_TYPE } from './message/constants';
+import { MESSAGE_TYPE } from './constants/message';
 import {
   parse,
   safeParse,

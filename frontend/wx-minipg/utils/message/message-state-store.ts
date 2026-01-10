@@ -4,7 +4,7 @@ import { getMessages, getUserInfo } from '../storage';
 import messageEventBus from './event-bus';
 import { buildMessageViewModels, MessageViewModel } from './message-view-model';
 import { hasValue, isNonEmptyString } from '../guards';
-import { MessageStatus } from './constants';
+import { MessageStatus } from '../constants/message';
 
 const logger = getLogger('MessageStateStore');
 

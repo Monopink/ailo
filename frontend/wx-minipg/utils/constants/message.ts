@@ -1,11 +1,14 @@
 /**
- * Message Constants
- * Defines business layer message types and status enums
- * These constants are independent of any third-party messaging service
+ * Message-related constants and enums
+ *
+ * These constants define business layer message types and status
+ * Independent of any third-party messaging service (Leancloud)
+ *
+ * IMPORTANT: All enum values MUST match backend definitions
  */
 
 /**
- * Message status enum
+ * Message status enum - MUST match backend
  * @readonly
  * @enum {number}
  */
@@ -19,7 +22,7 @@ export const MESSAGE_STATUS = {
 export type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 
 /**
- * Message type enum
+ * Message type enum - MUST match backend
  * @readonly
  * @enum {number}
  */

@@ -10,34 +10,11 @@ export interface AccountViewModel extends AccountInfo {
 
 class AccountService {
   private logger = getLogger('AccountService');
-  private cachedAccount: AccountViewModel | null = null;
-  private loadingPromise: Promise<AccountViewModel> | null = null;
 
-  async loadAccountInfo(forceRefresh = false): Promise<AccountViewModel> {
-    if (!forceRefresh && this.cachedAccount) {
-      return this.cachedAccount;
-    }
-    if (!forceRefresh && this.loadingPromise) {
-      return this.loadingPromise;
-    }
-
-    const promise = (async () => {
-      this.logger.debug('Fetching account info', { forceRefresh });
-      const account = await fetchAccountInfo();
-      const viewModel = this.buildViewModel(account);
-      this.cachedAccount = viewModel;
-      return viewModel;
-    })();
-
-    this.loadingPromise = promise;
-
-    try {
-      return await promise;
-    } finally {
-      if (this.loadingPromise === promise) {
-        this.loadingPromise = null;
-      }
-    }
+  async loadAccountInfo(): Promise<AccountViewModel> {
+    this.logger.debug('Fetching account info');
+    const account = await fetchAccountInfo();
+    return this.buildViewModel(account);
   }
 
   async refreshPhoneNumber(phoneCode: string, loginCode: string): Promise<AccountViewModel> {
@@ -53,20 +30,10 @@ class AccountService {
       },
     });
 
-    const account = this.cachedAccount
-      ? {
-          ...this.cachedAccount,
-          phone: response.phone,
-          displayPhone: AccountService.formatPhone(response.phone),
-        }
-      : null;
-
-    if (account) {
-      this.cachedAccount = account;
-      return account;
-    }
-
-    return this.loadAccountInfo(true);
+    return {
+      phone: response.phone,
+      displayPhone: AccountService.formatPhone(response.phone),
+    };
   }
 
   private buildViewModel(account: AccountInfo): AccountViewModel {

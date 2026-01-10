@@ -66,6 +66,4 @@
   flex-direction: column;
   gap: var(--space-sm);
   padding: var(--space-md) var(--padding-page) calc(var(--space-md) + var(--safe-area-inset-bottom));
-  background-color: var(--color-bg-secondary);
-  border-top: 1rpx solid var(--color-separator);
 }

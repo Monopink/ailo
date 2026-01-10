@@ -27,15 +27,83 @@
 ```
 Pages / Components (UI 层)
     ↓
+Services (业务逻辑层)
+    ↓
 Utils (工具层)
     ↓
 Libs (第三方库)
 ```
 
 依赖规则:
-- Pages/Components 可以调用 Utils
+- Pages/Components 可以调用 Services 和 Utils
+- Services 可以调用 Utils
 - Utils 可以调用 Libs
 - 禁止反向依赖（下层不能依赖上层）
+
+### Service 层规范
+
+**目的**：封装数据获取、转换和业务逻辑，提供统一的数据访问接口。
+
+**核心原则**：
+- 所有 API 数据获取必须通过 Service 层
+- Service 负责将 API 返回的原始数据转换为 ViewModel
+- Service 提供类型安全的接口（ProfileViewModel, AccountViewModel 等）
+- **MVP 阶段禁止实现内存缓存**（增加复杂度，容易出错）
+
+**现有 Services**：
+- `profileService`: 用户资料管理（头像、昵称、性别等）
+- `accountService`: 账号信息管理（手机号、邮箱等）
+- `contact-service`: 联系人管理
+- `auth-service`: 认证管理
+- `discovery-service`: 发现页管理
+
+**使用示例**：
+```typescript
+// ✅ 正确：使用 Service 层
+import profileService from '../../utils/profile-service';
+
+async loadProfile() {
+  const profile = await profileService.loadProfile();
+  this.setData({ profile }); // profile 是 ProfileViewModel，包含 displayAvatar, displayUsername
+}
+
+// ❌ 错误：直接调用 API
+import { fetchCurrentUserProfile } from '../../utils/profile';
+const profile = await fetchCurrentUserProfile(); // 绕过 Service 层
+```
+
+**Service 实现规范**：
+```typescript
+// utils/xxx-service.ts
+class XxxService {
+  private logger = getLogger('XxxService');
+
+  async loadData(): Promise<XxxViewModel> {
+    this.logger.debug('Fetching data');
+    const data = await fetchXxxFromAPI();
+    return this.buildViewModel(data);
+  }
+
+  private buildViewModel(data: RawData): XxxViewModel {
+    return {
+      ...data,
+      displayField: transformField(data.field),
+    };
+  }
+}
+
+const xxxService = new XxxService();
+export default xxxService;
+```
+
+**禁止事项**：
+- ❌ 禁止实现内存缓存（`private cachedData`）
+- ❌ 禁止防重复请求逻辑（`private loadingPromise`）
+- ❌ 禁止在页面层直接调用 `utils/profile.ts` 等 API 函数
+- ❌ 禁止在页面层手动构建 ViewModel（如 `displayAvatar = getAvatarUrl(...)`）
+
+**例外场景**：
+- setup 页面（首次登录设置资料）可以直接调用 API，因为涉及特殊的初始化逻辑
 
 ### 目录结构
 
@@ -73,6 +141,58 @@ frontend/wx-minipg/
 - 类型/接口: PascalCase (`UserInfo`, `ApiResponse`)
 - 常量: UPPER_CASE (`API_BASE_URL`, `MAX_RETRY_COUNT`)
 - 事件处理器: 以 `handle` 或 `on` 开头 (`handleTap`, `onLoad`)
+
+### 枚举管理
+
+所有枚举必须集中管理在 `utils/constants/` 目录下，按业务领域分类：
+
+**目录结构**：
+```
+utils/constants/
+├── index.ts           # 统一导出入口
+├── user.ts            # 用户相关枚举 (GENDER, USER_TYPE, USER_STATUS)
+├── message.ts         # 消息相关枚举 (MESSAGE_STATUS, MESSAGE_TYPE)
+└── [domain].ts        # 其他业务领域枚举
+```
+
+**枚举定义规范**：
+```typescript
+// utils/constants/user.ts
+
+/** Gender enum - MUST match backend (1=male, 2=female, 3=other) */
+export const GENDER = {
+  MALE: 1,
+  FEMALE: 2,
+  OTHER: 3,
+} as const;
+
+export type GenderValue = (typeof GENDER)[keyof typeof GENDER];
+
+/** Gender display options for UI pickers */
+export const GENDER_OPTIONS = [
+  { value: GENDER.MALE, label: '男' },
+  { value: GENDER.FEMALE, label: '女' },
+  { value: GENDER.OTHER, label: '其他' },
+] as const;
+
+export type GenderOption = (typeof GENDER_OPTIONS)[number];
+```
+
+**使用规范**：
+```typescript
+// 页面中使用
+import { GENDER, GENDER_OPTIONS, type GenderValue } from '../../utils/constants/user';
+
+// 或从统一入口导入
+import { GENDER, MESSAGE_STATUS } from '../../utils/constants';
+```
+
+**关键约束**：
+- 所有枚举值必须与后端完全一致，添加注释说明对应关系
+- 禁止在页面/组件中定义本地枚举常量
+- 使用 `as const` 确保类型安全
+- 枚举值变更必须同步更新后端文档链接
+- 历史遗留枚举迁移时保留重新导出以维持向后兼容
 
 ### 类型系统
 

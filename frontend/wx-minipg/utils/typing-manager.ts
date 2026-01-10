@@ -3,7 +3,7 @@
  * Manages typing state and sends typing indicators
  */
 
-import { MESSAGE_TYPE } from './message/constants';
+import { MESSAGE_TYPE } from './constants/message';
 import { getLogger } from './logger';
 import { MESSAGE_CONFIG } from './config';
 import { getContactByConvId, getUserInfo as getStoredUserInfo } from './storage';

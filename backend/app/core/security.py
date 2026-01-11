@@ -4,13 +4,10 @@ import secrets
 import string
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from app.core.config import get_settings
-
-# Password context for hashing and verification
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -24,7 +21,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         bool: True if password matches, False otherwise
 
     """
-    return bool(pwd_context.verify(plain_password, hashed_password))
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def get_password_hash(password: str) -> str:
@@ -37,7 +34,7 @@ def get_password_hash(password: str) -> str:
         str: The hashed password
 
     """
-    return str(pwd_context.hash(password))
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def generate_password(length: int = 12) -> str:

@@ -46,6 +46,7 @@ class AIInstanceCreate(BaseModel):
 
     user_id: int = Field(..., description="Owning user ID")
     user_qiao_id: str = Field(..., max_length=32, description="Owning user qiao_id")
+    qiao_id: str = Field(..., max_length=32, description="Instance qiao_id")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
     creation_metadata: JSONDict | None = Field(

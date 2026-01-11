@@ -70,6 +70,7 @@ async def create_instance_from_persona(
     instance_data = AIInstanceCreate(
         user_id=user_id,
         user_qiao_id=user_qiao_id,
+        qiao_id=persona.qiao_id,
         creation_metadata=creation_metadata,
         style_id=template.style_id,
         personality_id=template.personality_id,
@@ -85,6 +86,13 @@ async def create_instance_from_persona(
     )
 
     instance = await ai_instance.create(db, obj_in=instance_data, commit=False)
+    if instance.qiao_id != persona.qiao_id:
+        logger.error(
+            "instance_qiao_id_mismatch",
+            instance_qiao_id=instance.qiao_id,
+            persona_qiao_id=persona.qiao_id,
+        )
+        raise ValueError("Instance qiao_id must match persona qiao_id")
     if int(getattr(instance, "status", 1)) != 1:
         instance.status = 1
         await db.flush()

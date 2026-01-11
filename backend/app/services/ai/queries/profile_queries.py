@@ -77,14 +77,22 @@ async def get_instance_profile(db: AsyncSession, instance_qiao_id: str) -> dict[
             select(Profile).where(
                 and_(
                     Profile.owner_qiao_id == instance_qiao_id,
-                    Profile.owner_type == ProfileOwnerType.AI_PERSONA,
+                    Profile.owner_type.in_(
+                        [
+                            ProfileOwnerType.AI_PERSONA,
+                            ProfileOwnerType.AI_INSTANCE,
+                        ]
+                    ),
                 )
             )
         )
 
         profile = result.scalar_one_or_none()
         if not profile:
-            logger.warning("instance_profile_not_found", instance_qiao_id=instance_qiao_id)
+            logger.error(
+                "instance_profile_not_found",
+                instance_qiao_id=instance_qiao_id,
+            )
             return None
 
         avatar_url = await get_avatar_url(profile)

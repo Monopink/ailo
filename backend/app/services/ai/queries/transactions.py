@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums import ProfileOwnerType
 from app.models.ai import AIConversationItem, AIConversationItemArchive, AIInstance, AIRequestLog
 from app.models.contact import Contact
 from app.models.profile import Profile
@@ -93,7 +94,7 @@ async def create_instance_with_relations(
 
         profile = Profile(
             owner_qiao_id=qiao_id,
-            owner_type=2,
+            owner_type=ProfileOwnerType.AI_INSTANCE,
             nickname=instance_data.get("nickname"),
             gender=instance_data.get("gender"),
             avatar_key=instance_data.get("avatar_key"),

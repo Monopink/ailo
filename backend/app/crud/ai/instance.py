@@ -15,6 +15,7 @@ from app.schemas.ai import AIInstanceCreate, AIInstanceUpdate
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+MAX_QIAO_ID_LENGTH = 32
 
 
 class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
@@ -103,6 +104,11 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
         try:
             # Map schema fields to model fields to avoid invalid kwargs
             payload = obj_in.model_dump()
+            qiao_id_value = payload.get("qiao_id")
+            if not isinstance(qiao_id_value, str) or not qiao_id_value:
+                raise ValueError("qiao_id is required to create AI instance")
+            if len(qiao_id_value) > MAX_QIAO_ID_LENGTH:
+                raise ValueError("qiao_id length must be <= 32 characters")
             creation_metadata_override = payload.pop("creation_metadata", None)
             metadata_snapshot = payload.copy()
             data = payload.copy()

@@ -1,12 +1,13 @@
 *.log
 *.pyc
 nul
+tmpclaude*
 venv/
 __pycache__/
 node_modules/
 /logs/
+/CLAUDE.md
 /deployment/.env
 /deployment/.env.prod
 /deployment/.env.test
 /deployment/.env.staging
-/.claude/settings.json

@@ -31,8 +31,8 @@ async def handle_ai_contact_request(
 
 **相关文档**:
 
-- [联系人请求流程](contact-request-flow.md#L51)
-- [API 设计文档](../prototype/api-spec.md#L1045)
+- [联系人请求流程](../spec/contact/request-flow.md)
+- [API 设计文档](../api/contact-requests.md)
 
 **Data Flow**: `message` → `contact_requests.message` (persisted but not yet consumed)
 

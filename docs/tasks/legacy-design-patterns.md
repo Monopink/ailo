@@ -95,7 +95,7 @@ if last_message_type == MessageType.CHAT and message_type == MessageType.TYPING:
 
 ### 应用到新方案
 
-已在新方案中实现，使用 `micro_expires_at_ms` 和 `macro_expires_at_ms` 字段。详见 [ai-message-processing.md](ai-message-processing.md#双计时器机制)。
+已在新方案中实现，使用 `micro_expires_at_ms` 和 `macro_expires_at_ms` 字段。详见 [message/buffer.md](../spec/message/buffer.md#双计时器机制)。
 
 ## 3. 关系驱动的响应时间
 

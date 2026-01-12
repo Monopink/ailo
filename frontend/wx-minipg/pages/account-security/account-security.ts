@@ -103,7 +103,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
         phoneMasked: '',
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
+        'pageLayoutData.errorMessage': '加载失败，请稍后重试',
       });
 
       void wx.showToast({
@@ -121,7 +121,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
     if (event.detail.errMsg !== 'getPhoneNumber:ok') {
       logger.warn('Phone reauthorization rejected', { errMsg: event.detail.errMsg });
       void wx.showToast({
-        title: '需要授权手机号才能更新',
+        title: '请完成手机号验证',
         icon: 'none',
       });
       return;
@@ -194,7 +194,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
       }
 
       void wx.reLaunch({
-        url: '/pages/login/login',
+        url: '/pages/login/login?source=logout',
       });
     } catch (error) {
       const err = toError(error);

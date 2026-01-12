@@ -103,7 +103,7 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
         error: error instanceof Error ? error.message : String(error),
       });
       void wx.showToast({
-        title: '无法加载图片',
+        title: '图片加载失败，请重试',
         icon: 'none',
       });
       setTimeout(() => {

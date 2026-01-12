@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -28,12 +28,14 @@ from app.crud.user import user_token as token_crud
 from app.enums import AuthType, DeviceType, ProfileOwnerType
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
-from app.models.user import User, UserToken
+from app.models.user import User, UserAuth, UserToken
 from app.schemas.auth import (
     RefreshTokenRequest,
     RefreshTokenResponse,
     VerifyPhoneRequest,
     VerifyPhoneResponse,
+    WeChatBindPhoneRequest,
+    WeChatBindPhoneResponse,
     WeChatLoginRequest,
     WeChatLoginResponse,
     WeChatRefreshPhoneRequest,
@@ -129,7 +131,7 @@ async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
         logger.error("jwt_expiration_config_missing")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统配置缺失",
+            detail="服务暂时不可用，请稍后再试",
         )
 
     return expires_in * 86400
@@ -278,15 +280,15 @@ def _consume_sms_code(phone: str, sms_code: str) -> None:
     """
     stored_data = _verification_codes.get(phone)
     if not stored_data:
-        raise HTTPException(status_code=400, detail="验证码错误或已过期")
+        raise HTTPException(status_code=400, detail="验证码有误，请重新输入")
 
     stored_code, expires_at = stored_data
     if datetime.now(UTC) >= expires_at:
         del _verification_codes[phone]
-        raise HTTPException(status_code=400, detail="验证码已过期")
+        raise HTTPException(status_code=400, detail="验证码已失效，请重新获取")
 
     if stored_code != sms_code:
-        raise HTTPException(status_code=400, detail="验证码错误")
+        raise HTTPException(status_code=400, detail="验证码有误，请重新输入")
 
     del _verification_codes[phone]
 
@@ -513,13 +515,13 @@ async def send_sms_code(
             is_valid, error = await provider.verify_token(body.captcha_token, client_ip)
             if not is_valid:
                 logger.warning("sms_captcha_failed", ip=client_ip, error=error)
-                raise HTTPException(status_code=400, detail="验证失败，请稍后再试")
+                raise HTTPException(status_code=400, detail="人机验证失败，请重试")
             logger.info("sms_captcha_verified", ip=client_ip)
     except HTTPException:
         raise
     except Exception as e:
         logger.error("sms_captcha_error", error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="验证服务错误，请稍后再试")
+        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
 
     # 1. Normalize and check phone number
     try:
@@ -579,35 +581,119 @@ async def send_sms_code(
 async def wechat_login(
     request: Request, body: WeChatLoginRequest, db: AsyncSession = Depends(get_db)
 ) -> WeChatLoginResponse:
-    """WeChat Mini Program login.
-
-    Args:
-        request: FastAPI request
-        body: Contains login_code and phone_code
-        db: Database session
-
-    Returns:
-        WeChatLoginResponse with user info or phone binding requirement
-
-    Raises:
-        HTTPException: 400/500 for various errors
-
-    """
+    """WeChat Mini Program login stage 1: openid check only."""
     client_ip = _get_client_ip(request)
     wechat_client = WeChatClient()
 
     try:
-        # 1. Get access_token
-        access_token = await wechat_client.get_access_token()
-
-        # 2. Exchange login_code for openid
         session_data = await wechat_client.code2session(body.login_code)
         openid = session_data["openid"]
         unionid = session_data.get("unionid")
 
-        logger.info("wechat_login_code2session_success", openid=openid[:8] + "...", ip=client_ip)
+        logger.info(
+            "wechat_login_code2session_success",
+            openid=openid[:8] + "...",
+            unionid=(unionid[:8] + "..." if unionid else None),
+            ip=client_ip,
+        )
 
-        # 3. Exchange phone_code for phone number
+        existing_binding = await user_auth_crud.get_by_provider_uid(
+            db, auth_type=AuthType.WECHAT, provider_uid=openid
+        )
+
+        if not existing_binding:
+            logger.info("wechat_need_phone", openid=openid[:8] + "...", ip=client_ip)
+            return WeChatLoginResponse(
+                status="need_phone",
+                access_token=None,
+                refresh_token=None,
+                expires_in=None,
+                needs_profile_setup=None,
+                user=None,
+                message=None,
+            )
+
+        user = await user_crud.get(db, existing_binding.user_id)
+        if not user:
+            logger.error(
+                "wechat_binding_dirty_data",
+                openid=openid[:8] + "...",
+                user_ids=[existing_binding.user_id],
+                ip=client_ip,
+            )
+            raise HTTPException(status_code=400, detail="登录遇到问题，请联系客服")
+
+        if not await user_crud.is_active(user):
+            logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
+            raise HTTPException(status_code=400, detail="账号已被禁用")
+
+        token_pair = await _issue_jwt_token_for_user(
+            db,
+            user=user,
+            client_ip=client_ip,
+            user_agent=request.headers.get("user-agent"),
+            log_event="wechat_token_created",
+        )
+
+        profile = await _ensure_profile_stub(db, user=user)
+        avatar_url = await get_avatar_url(profile)
+
+        logger.info(
+            "wechat_bound_user_login",
+            user_id=user.id,
+            qiao_id=user.qiao_id,
+            openid=openid[:8] + "...",
+            ip=client_ip,
+        )
+
+        return WeChatLoginResponse(
+            status="bound",
+            access_token=token_pair.access_token,
+            refresh_token=token_pair.refresh_token,
+            expires_in=token_pair.expires_in,
+            needs_profile_setup=bool(user.needs_profile_setup),
+            user=_build_user_payload(user, profile, avatar_url),
+            message="登录成功",
+        )
+
+    except WeChatAPIError as e:
+        logger.error(
+            "wechat_api_error",
+            errcode=e.errcode,
+            errmsg=e.errmsg,
+            ip=client_ip,
+        )
+        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error("wechat_login_failed", error=str(e), ip=client_ip, exc_info=True)
+        raise HTTPException(status_code=500, detail="登录失败，请稍后再试")
+
+
+@router.post("/wechat/bind-phone", response_model=WeChatBindPhoneResponse)
+async def bind_wechat_phone(
+    request: Request, body: WeChatBindPhoneRequest, db: AsyncSession = Depends(get_db)
+) -> WeChatBindPhoneResponse:
+    """WeChat Mini Program login stage 2: bind phone and issue tokens."""
+    client_ip = _get_client_ip(request)
+    wechat_client = WeChatClient()
+
+    try:
+        access_token = await wechat_client.get_access_token()
+        session_data = await wechat_client.code2session(body.login_code)
+        openid = session_data["openid"]
+        unionid = session_data.get("unionid")
+
+        logger.info(
+            "wechat_bind_code2session_success",
+            openid=openid[:8] + "...",
+            unionid=(unionid[:8] + "..." if unionid else None),
+            ip=client_ip,
+        )
+
         phone_data = await wechat_client.get_phone_number(body.phone_code, access_token)
         phone_info = await _apply_wechat_phone_mock(
             db,
@@ -617,15 +703,6 @@ async def wechat_login(
         country_code = phone_info.get("countryCode")
         pure_phone = phone_info.get("purePhoneNumber")
 
-        logger.info(
-            "wechat_phone_obtained",
-            openid=openid[:8] + "...",
-            country_code=country_code,
-            phone=pure_phone,
-            ip=client_ip,
-        )
-
-        # 4. Check if China phone by constructing E.164 format
         try:
             phone_e164 = f"+{country_code}{pure_phone}"
         except Exception:
@@ -646,9 +723,7 @@ async def wechat_login(
             )
             raise HTTPException(status_code=400, detail="暂不支持国际手机号")
 
-        # 5. Normalize phone number
         try:
-            # Construct E.164 format phone
             normalized_phone = normalize_phone(phone_e164)
 
             logger.info(
@@ -659,7 +734,6 @@ async def wechat_login(
             )
 
         except ValueError as e:
-            # Invalid phone format
             logger.warning(
                 "wechat_invalid_phone_format",
                 openid=openid[:8] + "...",
@@ -670,26 +744,26 @@ async def wechat_login(
 
             raise HTTPException(status_code=400, detail="手机号格式无效")
 
-        # 6. Find or create user
-        user = await user_crud.get_by_phone(db, phone=normalized_phone)
+        logger.info(
+            "wechat_bind_phone_start",
+            openid=openid[:8] + "...",
+            phone=normalized_phone,
+            ip=client_ip,
+        )
 
-        # If an existing binding for this openid exists and points to a different user, block login
-        existing_binding = await user_auth_crud.get_by_provider_uid(
+        user = await user_crud.get_by_phone(db, phone=normalized_phone)
+        created_new_user = False
+        replaced_old_wechat = False
+        binding_reused = False
+        binding_created = False
+        needs_commit = False
+        old_openid_for_log: str | None = None
+
+        existing_binding_for_openid = await user_auth_crud.get_by_provider_uid(
             db, auth_type=AuthType.WECHAT, provider_uid=openid
         )
 
-        created_new_user = False
-        if not user and existing_binding:
-            logger.warning(
-                "wechat_openid_already_bound",
-                bound_user_id=existing_binding.user_id,
-                phone=normalized_phone,
-                ip=client_ip,
-            )
-            raise HTTPException(status_code=409, detail="该微信已绑定其它账号")
-
         if not user:
-            # Create new user
             try:
                 user_id = generate_snowflake_id()
                 qiao_id = generate_qiao_id()
@@ -698,9 +772,9 @@ async def wechat_login(
                     id=user_id,
                     qiao_id=qiao_id,
                     phone=normalized_phone,
-                    username=None,  # NULL until user sets it
-                    user_type=1,  # Normal user
-                    status=1,  # Active
+                    username=None,
+                    user_type=1,
+                    status=1,
                     needs_profile_setup=True,
                 )
 
@@ -710,7 +784,7 @@ async def wechat_login(
                 created_new_user = True
 
                 logger.info(
-                    "wechat_user_created",
+                    "wechat_new_user_created",
                     qiao_id=qiao_id,
                     openid=openid[:8] + "...",
                     phone=normalized_phone,
@@ -724,81 +798,114 @@ async def wechat_login(
                     error=str(e),
                     exc_info=True,
                 )
-                raise HTTPException(status_code=500, detail="用户创建失败")
-        else:
-            # If binding exists and belongs to another user -> reject
-            if existing_binding and existing_binding.user_id != user.id:
-                logger.warning(
-                    "wechat_openid_already_bound",
-                    bound_user_id=existing_binding.user_id,
-                    phone=normalized_phone,
-                    ip=client_ip,
+                raise HTTPException(status_code=500, detail="注册失败，请稍后再试")
+
+        # Resolve binding for existing user (or newly created one)
+        user_binding_result = await db.execute(
+            select(UserAuth).where(
+                and_(
+                    UserAuth.user_id == user.id,
+                    UserAuth.auth_type == int(AuthType.WECHAT),
+                    UserAuth.status == 1,
                 )
-                raise HTTPException(status_code=409, detail="该微信已绑定其它账号")
+            )
+        )
+        user_binding = user_binding_result.scalar_one_or_none()
+        now = datetime.now(UTC)
 
-            # Ensure binding exists
-            if not existing_binding:
-                try:
-                    await user_auth_crud.create_binding(
-                        db,
-                        user_id=user.id,
-                        user_qiao_id=user.qiao_id,
-                        auth_type=AuthType.WECHAT,
-                        provider_uid=openid,
-                        unionid=unionid,
-                    )
-                    logger.info(
-                        "wechat_binding_created", qiao_id=user.qiao_id, openid=openid[:8] + "..."
-                    )
-                except Exception as e:
-                    logger.error("wechat_binding_create_failed", error=str(e), exc_info=True)
-                    raise HTTPException(status_code=500, detail="绑定失败")
+        binding_obj: UserAuth | None = None
 
-        # 7. Check user status
+        if user_binding and user_binding.provider_uid == openid:
+            binding_obj = user_binding
+        else:
+            if user_binding and user_binding.provider_uid != openid:
+                old_openid_for_log = user_binding.provider_uid
+                user_binding.status = 2
+                user_binding.revoked_at = now
+                db.add(user_binding)
+                replaced_old_wechat = True
+                needs_commit = True
+
+            if existing_binding_for_openid and existing_binding_for_openid.user_id != user.id:
+                existing_binding_for_openid.user_id = user.id
+                existing_binding_for_openid.user_qiao_id = user.qiao_id
+                existing_binding_for_openid.unionid = unionid
+                existing_binding_for_openid.status = 1
+                existing_binding_for_openid.revoked_at = None
+                db.add(existing_binding_for_openid)
+                binding_obj = existing_binding_for_openid
+                replaced_old_wechat = True
+                needs_commit = True
+            elif existing_binding_for_openid and existing_binding_for_openid.user_id == user.id:
+                binding_obj = existing_binding_for_openid
+            else:
+                binding_obj = await user_auth_crud.create_binding(
+                    db,
+                    user_id=user.id,
+                    user_qiao_id=user.qiao_id,
+                    auth_type=AuthType.WECHAT,
+                    provider_uid=openid,
+                    unionid=unionid,
+                )
+                binding_created = True
+
+        if not created_new_user:
+            binding_reused = True
+
+        if replaced_old_wechat:
+            logger.info(
+                "wechat_binding_replaced",
+                user_id=user.id,
+                old_openid=old_openid_for_log,
+                new_openid=openid[:8] + "...",
+                phone=normalized_phone,
+                ip=client_ip,
+            )
+
+        if not binding_created and needs_commit:
+            await db.commit()
+            if binding_obj:
+                await db.refresh(binding_obj)
+
         if not await user_crud.is_active(user):
             logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
             raise HTTPException(status_code=400, detail="账号已被禁用")
 
-        # 8. Create token
-        try:
-            token_pair = await _issue_jwt_token_for_user(
-                db,
-                user=user,
-                client_ip=client_ip,
-                user_agent=request.headers.get("user-agent"),
-                log_event="wechat_token_created",
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(
-                "wechat_token_creation_failed",
-                qiao_id=user.qiao_id,
-                error=str(e),
-                exc_info=True,
-            )
-            raise HTTPException(status_code=500, detail="登录失败")
+        token_pair = await _issue_jwt_token_for_user(
+            db,
+            user=user,
+            client_ip=client_ip,
+            user_agent=request.headers.get("user-agent"),
+            log_event="wechat_token_created",
+        )
 
-        # 9. Ensure profile stub exists for avatar rendering
         profile = await _ensure_profile_stub(db, user=user)
         avatar_url = await get_avatar_url(profile)
 
+        message: str | None = None
         if created_new_user:
-            logger.info(
-                "needs_profile_setup_initial",
-                qiao_id=user.qiao_id,
-                needs_profile_setup=user.needs_profile_setup,
-            )
+            message = "注册成功"
+        elif replaced_old_wechat:
+            message = "已用该手机号的账号登录并完成微信绑定"
 
-        # 10. Return response
-        return WeChatLoginResponse(
-            success=True,
+        logger.info(
+            "wechat_bind_success",
+            user_id=user.id,
+            phone=normalized_phone,
+            openid=openid[:8] + "...",
+            ip=client_ip,
+        )
+
+        return WeChatBindPhoneResponse(
+            status="success",
             access_token=token_pair.access_token,
             refresh_token=token_pair.refresh_token,
             expires_in=token_pair.expires_in,
             needs_profile_setup=bool(user.needs_profile_setup),
             user=_build_user_payload(user, profile, avatar_url),
-            message="登录成功",
+            message=message,
+            binding_reused=binding_reused,
+            replaced_old_wechat=replaced_old_wechat,
         )
 
     except WeChatAPIError as e:
@@ -808,14 +915,14 @@ async def wechat_login(
             errmsg=e.errmsg,
             ip=client_ip,
         )
-        raise HTTPException(status_code=500, detail="微信服务异常,请稍后再试")
+        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
 
     except HTTPException:
         raise
 
     except Exception as e:
-        logger.error("wechat_login_failed", error=str(e), ip=client_ip, exc_info=True)
-        raise HTTPException(status_code=500, detail="登录失败,请稍后再试")
+        logger.error("wechat_bind_phone_failed", error=str(e), ip=client_ip, exc_info=True)
+        raise HTTPException(status_code=500, detail="绑定失败，请稍后再试")
 
 
 @router.post("/wechat/refresh-phone", response_model=WeChatRefreshPhoneResponse)
@@ -854,7 +961,7 @@ async def refresh_wechat_phone(
                 bound_user_id=existing_binding.user_id,
                 ip=client_ip,
             )
-            raise HTTPException(status_code=409, detail="该微信已绑定其它账号")
+            raise HTTPException(status_code=409, detail="此微信已关联其他账号")
 
         if not existing_binding:
             await user_auth_crud.create_binding(
@@ -921,7 +1028,7 @@ async def refresh_wechat_phone(
                 qiao_id=current_user.qiao_id,
                 ip=client_ip,
             )
-            raise HTTPException(status_code=409, detail="该手机号已被使用")
+            raise HTTPException(status_code=409, detail="该手机号已注册")
 
         await user_crud.update(db, db_obj=current_user, obj_in={"phone": normalized_phone})
         await db.refresh(current_user)
@@ -949,7 +1056,7 @@ async def refresh_wechat_phone(
             qiao_id=current_user.qiao_id,
             ip=client_ip,
         )
-        raise HTTPException(status_code=500, detail="微信服务异常,请稍后再试")
+        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
 
     except HTTPException:
         raise
@@ -972,7 +1079,7 @@ async def refresh_token(
     """Refresh access token using refresh token."""
     refresh_token = body.refresh_token.strip()
     if not refresh_token:
-        raise HTTPException(status_code=400, detail="刷新凭证无效")
+        raise HTTPException(status_code=400, detail="登录已失效，请重新登录")
 
     refresh_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     user_token = await token_crud.get_by_refresh_hash(db, refresh_hash=refresh_hash)
@@ -1241,11 +1348,11 @@ async def send_verification_code(
                 raise
             except Exception as e:
                 logger.error("verify_send_code_captcha_error", error=str(e), exc_info=True)
-                raise HTTPException(status_code=500, detail="验证服务错误，请稍后再试")
+                raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
 
             target = body.target if body.target else current_user.phone
             if not target:
-                raise HTTPException(status_code=400, detail="用户未绑定手机号")
+                raise HTTPException(status_code=400, detail="请先绑定手机号")
 
             # Normalize phone
             normalized_phone = normalize_phone(target)
@@ -1283,7 +1390,7 @@ async def send_verification_code(
                     error_code=result.error_code,
                     error_message=result.error_message,
                 )
-                raise HTTPException(status_code=500, detail="发送验证码失败，请稍后再试")
+                raise HTTPException(status_code=500, detail="发送失败，请稍后再试")
 
             logger.info(
                 "verification_code_sent",
@@ -1297,11 +1404,11 @@ async def send_verification_code(
         if body.verify_type == "email":
             target = body.target if body.target else current_user.email
             if not target:
-                raise HTTPException(status_code=400, detail="用户未绑定邮箱")
+                raise HTTPException(status_code=400, detail="请先绑定邮箱")
 
             # TODO: Implement email verification code sending
             # For now, raise not implemented error
-            raise HTTPException(status_code=501, detail="邮箱验证功能暂未实现")
+            raise HTTPException(status_code=501, detail="邮箱验证功能即将推出")
 
         raise HTTPException(status_code=400, detail="不支持的验证类型")
 
@@ -1337,22 +1444,22 @@ async def confirm_verification_code(
         if body.verify_type == "phone":
             # Get user's phone
             if not current_user.phone:
-                raise HTTPException(status_code=400, detail="用户未绑定手机号")
+                raise HTTPException(status_code=400, detail="请先绑定手机号")
 
             normalized_phone = normalize_phone(current_user.phone)
 
             # Verify code
             if normalized_phone not in _verification_codes:
-                raise HTTPException(status_code=400, detail="验证码不存在或已过期")
+                raise HTTPException(status_code=400, detail="验证码已失效，请重新获取")
 
             stored_code, expires_at = _verification_codes[normalized_phone]
 
             if datetime.now(UTC) >= expires_at:
                 del _verification_codes[normalized_phone]
-                raise HTTPException(status_code=400, detail="验证码已过期")
+                raise HTTPException(status_code=400, detail="验证码已失效，请重新获取")
 
             if stored_code != body.code:
-                raise HTTPException(status_code=400, detail="验证码错误")
+                raise HTTPException(status_code=400, detail="验证码有误，请重新输入")
 
             # Delete used code
             del _verification_codes[normalized_phone]
@@ -1366,7 +1473,7 @@ async def confirm_verification_code(
 
         if body.verify_type == "email":
             # TODO: Implement email verification
-            raise HTTPException(status_code=501, detail="邮箱验证功能暂未实现")
+            raise HTTPException(status_code=501, detail="邮箱验证功能即将推出")
 
         raise HTTPException(status_code=400, detail="不支持的验证类型")
 

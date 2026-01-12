@@ -43,16 +43,18 @@ Page<ContactRequestsPageData, ContactRequestsPageCustom>({
 
   handleApprove(event) {
     const { id } = event.currentTarget.dataset as { id: string };
+    void id; // TODO: Will be used for API call - POST /contacts/requests/${id}/accept
     void wx.showToast({
-      title: `已接受 ${id}`,
+      title: '已通过好友请求',
       icon: 'success',
     });
   },
 
   handleReject(event) {
     const { id } = event.currentTarget.dataset as { id: string };
+    void id; // TODO: Will be used for API call - POST /contacts/requests/${id}/reject
     void wx.showToast({
-      title: `已拒绝 ${id}`,
+      title: '已拒绝该请求',
       icon: 'none',
     });
   },

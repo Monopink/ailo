@@ -155,15 +155,64 @@
 
 > 旧版 `POST /api/v1/auth/complete-registration` 依赖 `verified_phone_token` 的流程已废弃。调用该接口将返回 **410 Gone**，客户端必须改为在 `PUT /api/v1/user/profile` 中补全资料。
 
-## 微信登录
+## 微信登录（两段式）
 
-### 基本信息
+### 1) 检查绑定状态
 
 - **路径**: `POST /api/v1/auth/wechat/login`
 - **认证**: 无需认证
-- **说明**: 小程序微信登录
+- **说明**: 仅用 `login_code` 检查 openid 是否已有绑定
 
-### 请求参数
+**请求参数**
+
+```json
+{
+  "login_code": "wx_login_code"
+}
+```
+
+**响应（已绑定）**
+
+```json
+{
+  "status": "bound",
+  "access_token": "jwt_token_here",
+  "refresh_token": "refresh_token_here",
+  "expires_in": 86400,
+  "needs_profile_setup": false,
+  "user": {
+    "qiao_id": "qiao_abc123",
+    "nickname": "小雨",
+    "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp"
+  },
+  "message": "登录成功"
+}
+```
+
+**响应（需要手机号绑定）**
+
+```json
+{
+  "status": "need_phone"
+}
+```
+
+**错误响应**
+
+- `400 Bad Request`
+  - `"账号异常，请联系客服"` - openid 绑定数据异常
+  - `"账号已被禁用"`
+- `500 Internal Server Error`
+  - `"微信服务异常,请稍后再试"`
+  - `"登录失败,请稍后再试"`
+
+### 2) 绑定手机号
+
+- **路径**: `POST /api/v1/auth/wechat/bind-phone`
+- **认证**: 无需认证
+- **说明**: 仅在 `status=need_phone` 时调用，完成手机号绑定并登录
+
+**请求参数**
 
 ```json
 {
@@ -172,67 +221,42 @@
 }
 ```
 
-**字段说明**:
-
-- `login_code` (string, 必填)
-  - 小程序 `wx.login()` 返回的code
-  - 用于获取openid
-
-- `phone_code` (string, 必填)
-  - 小程序 `getPhoneNumber` 返回的code
-  - 用于获取手机号
-
-### 成功响应 (200)
+**成功响应 (200)**
 
 ```json
 {
-  "success": true,
-  "token": "jwt_token_here",
+  "status": "success",
+  "access_token": "jwt_token_here",
+  "refresh_token": "refresh_token_here",
+  "expires_in": 86400,
   "needs_profile_setup": false,
   "user": {
     "qiao_id": "qiao_abc123",
-    "phone": "138******00",
     "nickname": "小雨",
-    "gender": 2,
     "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp"
-  }
+  },
+  "message": "已用该手机号的账号登录并完成微信绑定",
+  "binding_reused": true,
+  "replaced_old_wechat": true
 }
 ```
 
-**字段说明**:
+**错误响应**
 
-- `success` (boolean) - 登录是否成功
-- `token` (string) - JWT token
-- `needs_profile_setup` (boolean) - 是否需要跳转到资料设置页
-- `user` (object) - 当前用户信息
-- `message` (string, 可选) - 失败或提示信息（成功时通常为空）
+- `400 Bad Request`
+  - `"暂不支持国际手机号"`
+  - `"手机号格式无效"`
+  - `"账号已被禁用"`
+- `500 Internal Server Error`
+  - `"微信服务异常,请稍后再试"`
+  - `"绑定失败，请稍后再试"`
 
-### 错误响应
+**业务说明**
 
-**400 Bad Request**:
-
-- "微信授权失败" - 微信接口调用失败
-- "暂不支持国际手机号" - 微信返回的手机号不是中国大陆号码
-- "需要授权手机号才能登录" - 用户拒绝 `getPhoneNumber`
-- "手机号格式无效" - 微信返回的手机号格式异常
-- "该微信已绑定其它账号" - openid 已绑定其他用户
-
-**409 Conflict**:
-
-- "该微信已绑定其它账号" - openid 与已有账号冲突
-
-**500 Internal Server Error**:
-
-- "微信服务异常,请稍后再试" - 微信 API 异常
-- "系统错误" - 服务器内部错误
-
-### 业务说明
-
-- 该接口一次按钮点击内同时完成 `wx.login()`（获取 `login_code`）和 `getPhoneNumber`（获取 `phone_code`），任何一步失败都会导致整体失败。
-- 服务端会校验 `phone_code` 返回的手机号，并只接受中国大陆（+86）号码；国际手机号直接返回 400。
-- 成功登录后会自动创建/更新 `users` 与 `profiles`，并返回 `token` 与 `needs_profile_setup` 标记；标记为 `true` 时客户端必须跳转资料设置页并调用 `PUT /api/v1/user/profile` 完成补充。
-- 登录路径只允许微信授权链路，用户拒绝授权时在登录页提示“需要授权手机号才能使用本应用”。
-- 开发/测试可以在 `system_configs` 中设置 `wechat_phone_mock_enabled=true` 与 `wechat_phone_mock_number`（仅填写数字，例如 `13812341234`），当使用微信提供的虚拟手机号（12066600001-12066600004）调试时，后端会自动替换；生产环境内该配置不会生效。参考：[虚拟账号手机号 Mock 方案](https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/phone_mock.html)。
+- 该接口只在用户同意手机号授权后调用。
+- 仅支持中国大陆手机号；国际号码直接返回 400。
+- 手机号已存在时会解绑旧微信并绑定到当前微信，轻提示用户；旧微信下次按未绑定流程处理，无需特殊分支。
+- 开发/测试可用虚拟手机号 Mock：`system_configs` 配置 `wechat_phone_mock_enabled=true` 与 `wechat_phone_mock_number`（仅数字，例如 `13812341234`），生产环境不开启。
 
 ## 微信手机号更新
 

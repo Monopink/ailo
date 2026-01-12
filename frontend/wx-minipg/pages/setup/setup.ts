@@ -65,9 +65,8 @@ const normalizeRegionSelection = (
     resolvedCity = null;
   }
 
-  const regionDisplay = resolvedCity !== null
-    ? formatRegion(province, resolvedCity)
-    : formatRegion(province, province);
+  const regionDisplay =
+    resolvedCity !== null ? formatRegion(province, resolvedCity) : formatRegion(province, province);
   const regionValue: RegionValue = resolvedCity !== null ? [province, resolvedCity] : [province];
 
   return { regionValue, regionDisplay };
@@ -205,7 +204,7 @@ Page<SetupPageData, SetupPageCustom>({
       this.setData({
         'pageLayoutData.isLoading': false,
         'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
+        'pageLayoutData.errorMessage': '加载失败，请稍后重试',
       });
     }
   },
@@ -319,7 +318,8 @@ Page<SetupPageData, SetupPageCustom>({
       logger.error('Update profile failed', { error });
       this.setData({
         'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': (error as Error).message !== '' ? (error as Error).message : '提交失败,请稍后再试',
+        'pageLayoutData.errorMessage':
+          (error as Error).message !== '' ? (error as Error).message : '提交失败，请稍后重试',
       });
     } finally {
       this.setData({ loading: false });
@@ -336,7 +336,7 @@ Page<SetupPageData, SetupPageCustom>({
         }
         await authService.logout();
         logger.info('User exited setup and logged out');
-        void wx.reLaunch({ url: '/pages/login/login' });
+        void wx.reLaunch({ url: '/pages/login/login?source=logout' });
       },
     });
   },

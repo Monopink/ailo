@@ -61,6 +61,41 @@ export const AccountInfoSchema = z.object({
 });
 export type AccountInfo = z.infer<typeof AccountInfoSchema>;
 
+// ============================================================================
+// Auth Schemas
+// ============================================================================
+
+export const AuthUserPayloadSchema = z.object({
+  qiao_id: z.string(),
+  nickname: z.string().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+});
+export type AuthUserPayload = z.infer<typeof AuthUserPayloadSchema>;
+
+export const WechatLoginCheckSchema = z.object({
+  status: z.enum(['bound', 'need_phone']),
+  access_token: z.string().nullable().optional(),
+  refresh_token: z.string().nullable().optional(),
+  expires_in: z.number().nullable().optional(),
+  needs_profile_setup: z.boolean().nullable().optional(),
+  user: AuthUserPayloadSchema.nullable().optional(),
+  message: z.string().nullable().optional(),
+});
+export type WechatLoginCheckResponse = z.infer<typeof WechatLoginCheckSchema>;
+
+export const WechatBindPhoneResponseSchema = z.object({
+  status: z.literal('success'),
+  access_token: z.string(),
+  refresh_token: z.string(),
+  expires_in: z.number(),
+  needs_profile_setup: z.boolean(),
+  user: AuthUserPayloadSchema,
+  message: z.string().optional().nullable(),
+  binding_reused: z.boolean().optional(),
+  replaced_old_wechat: z.boolean().optional(),
+});
+export type WechatBindPhoneResponse = z.infer<typeof WechatBindPhoneResponseSchema>;
+
 export const StoredContactSchema = z.object({
   conv_id: z.string().optional(),
   contact_qiao_id: z.string().optional(),

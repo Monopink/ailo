@@ -50,6 +50,8 @@ from .auth import (
     RefreshTokenResponse,
     VerifyPhoneRequest,
     VerifyPhoneResponse,
+    WeChatBindPhoneRequest,
+    WeChatBindPhoneResponse,
     WeChatLoginRequest,
     WeChatLoginResponse,
     WeChatRefreshPhoneRequest,
@@ -192,6 +194,8 @@ __all__ = [
     "AIChatResponse",
     "BatchAIInstanceDelete",
     # Auth
+    "WeChatBindPhoneRequest",
+    "WeChatBindPhoneResponse",
     "WeChatLoginRequest",
     "WeChatLoginResponse",
     "WeChatRefreshPhoneRequest",

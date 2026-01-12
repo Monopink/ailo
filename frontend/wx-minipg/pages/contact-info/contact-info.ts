@@ -145,7 +145,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
 
   editRemarkAndTags() {
     void wx.showToast({
-      title: '功能开发中',
+      title: '功能即将上线',
       icon: 'none',
     });
   },
@@ -155,7 +155,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
     this.setData({ isPinned });
     logger.info('Pinned status changed', { conv_id: this.data.convId, is_pinned: isPinned });
     void wx.showToast({
-      title: isPinned ? '已置顶' : '已取消置顶',
+      title: isPinned ? '置顶成功' : '已取消置顶',
       icon: 'success',
     });
   },
@@ -165,7 +165,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
     this.setData({ isMuted });
     logger.info('Muted status changed', { conv_id: this.data.convId, is_muted: isMuted });
     void wx.showToast({
-      title: isMuted ? '已开启免打扰' : '已关闭免打扰',
+      title: isMuted ? '免打扰已开启' : '免打扰已关闭',
       icon: 'success',
     });
   },
@@ -182,7 +182,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
         try {
           await clearMessages(this.data.convId);
           void wx.showToast({
-            title: '已清空',
+            title: '聊天记录已清空',
             icon: 'success',
           });
           logger.info('Chat history cleared', { conv_id: this.data.convId });
@@ -190,7 +190,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
           const err = normalizeError(error);
           logger.error('Failed to clear chat history', { error: err.message });
           void wx.showToast({
-            title: '清空失败',
+            title: '清空失败，请稍后重试',
             icon: 'none',
           });
         }
@@ -219,7 +219,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
           await clearMessages(this.data.convId);
 
           void wx.showToast({
-            title: '已删除',
+            title: '联系人已删除',
             icon: 'success',
           });
 
@@ -230,9 +230,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
           }, 300);
         } catch (error: unknown) {
           const err = normalizeError(error);
-          const safeMessage = isNonEmptyString(err.message)
-            ? err.message
-            : '删除失败，请稍后重试';
+          const safeMessage = isNonEmptyString(err.message) ? err.message : '删除失败，请稍后重试';
           logger.error('Failed to delete contact', { error: safeMessage });
           void wx.showToast({
             title: safeMessage,

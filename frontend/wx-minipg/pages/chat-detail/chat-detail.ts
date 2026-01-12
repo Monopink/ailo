@@ -178,19 +178,19 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
   },
 
   manageTags() {
-    void wx.showToast({ title: '标签管理开发中', icon: 'none' });
+    void wx.showToast({ title: '标签管理功能即将上线', icon: 'none' });
   },
 
   onPinnedChange(event) {
     const isPinned = Boolean(event.detail.value);
     this.setData({ isPinned });
-    void wx.showToast({ title: isPinned ? '已置顶' : '已取消置顶', icon: 'success' });
+    void wx.showToast({ title: isPinned ? '置顶成功' : '已取消置顶', icon: 'success' });
   },
 
   onMutedChange(event) {
     const isMuted = Boolean(event.detail.value);
     this.setData({ isMuted });
-    void wx.showToast({ title: isMuted ? '已开启免打扰' : '已关闭免打扰', icon: 'success' });
+    void wx.showToast({ title: isMuted ? '免打扰已开启' : '免打扰已关闭', icon: 'success' });
   },
 
   clearChatHistory() {
@@ -204,11 +204,11 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
         try {
           await clearMessages(this.data.convId);
           messageStateStore.clearConversation();
-          void wx.showToast({ title: '已清空', icon: 'success' });
+          void wx.showToast({ title: '聊天记录已清空', icon: 'success' });
         } catch (error: unknown) {
           const err = normalizeError(error);
           logger.error('Failed to clear chat history', { error: err.message });
-          void wx.showToast({ title: '清空失败', icon: 'none' });
+          void wx.showToast({ title: '清空失败，请稍后重试', icon: 'none' });
         }
       },
     });
@@ -233,7 +233,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
           await saveContacts(updatedContacts);
           await clearMessages(this.data.convId);
           messageStateStore.clearConversation();
-          void wx.showToast({ title: '已删除', icon: 'success' });
+          void wx.showToast({ title: '联系人已删除', icon: 'success' });
           setTimeout(() => {
             void wx.navigateBack();
           }, 300);

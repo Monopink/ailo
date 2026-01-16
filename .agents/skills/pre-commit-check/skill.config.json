@@ -1,0 +1,57 @@
+{
+  "name": "pre-commit-check",
+  "version": "2.0.0",
+  "description": "Pre-commit validation workflow for all modified files",
+
+  "triggers": [
+    "pre-commit check",
+    "ready to commit",
+    "check before commit",
+    "validate all"
+  ],
+
+  "project_config": {
+    "verified": true,
+    "verification_date": "2026-01-22",
+    "uses_skills": [
+      "validate-backend",
+      "validate-frontend"
+    ]
+  },
+
+  "workflow": {
+    "steps": [
+      {
+        "name": "check_git_status",
+        "description": "Check what files have been modified",
+        "command": "git status --short"
+      },
+      {
+        "name": "categorize_changes",
+        "description": "Determine which validations to run",
+        "patterns": {
+          "backend": "backend/**/*.py",
+          "frontend": "frontend/wx-minipg/**/*.{ts,js,wxml,wxss}",
+          "database": "backend/app/models/*.py OR backend/alembic/versions/*.py OR backend/database/init/*.sql"
+        }
+      },
+      {
+        "name": "run_backend_validation",
+        "description": "If backend files modified, run validate-backend skill",
+        "condition": "backend files modified",
+        "action": "Use validate-backend skill"
+      },
+      {
+        "name": "run_frontend_validation",
+        "description": "If frontend files modified, run validate-frontend skill",
+        "condition": "frontend files modified",
+        "action": "Use validate-frontend skill"
+      }
+    ]
+  },
+
+  "references": {
+    "validate_backend_skill": ".claude/skills/validate-backend/",
+    "validate_frontend_skill": ".claude/skills/validate-frontend/"
+  }
+}

@@ -11,6 +11,23 @@
 
 set -e  # Exit on error
 
+# Auto-activate virtual environment if not already activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    # Try to find and activate venv
+    if [ -f "venv/bin/activate" ]; then
+        echo "Activating virtual environment (venv)..."
+        source venv/bin/activate
+    elif [ -f ".venv/bin/activate" ]; then
+        echo "Activating virtual environment (.venv)..."
+        source .venv/bin/activate
+    elif [ -f "venv/Scripts/activate" ]; then
+        echo "Activating virtual environment (venv - Windows)..."
+        source venv/Scripts/activate
+    else
+        echo "Warning: No virtual environment found. Tools must be installed globally."
+    fi
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

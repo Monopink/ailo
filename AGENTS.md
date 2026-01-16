@@ -84,6 +84,19 @@
 - docs\tasks\* 的文档为临时任务管理文档，只做为任务跟踪使用，完成后不需要更新，不要记录持久化内容
 - 文档更新必须找到正确的位置插入，并去除冗余和过时内容，而不是简单追加
 
+## Skills
+
+项目提供以下 skills 来标准化常见操作流程。
+
+在开发流程中的使用：
+- 会话开始 → `/session-start`
+- 修改后端代码后 → `/validate-backend`
+- 修改前端代码后 → `/validate-frontend`
+- 代码实施过程中 → `/implementation-check`
+- 修改数据库模型后 → `/db-migration`
+- 准备提交前 → `/pre-commit-check`
+- 需要重置数据库 → `/reset-db`
+
 ## MCP
 
 ### Serena（本地代码分析优先）

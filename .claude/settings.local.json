@@ -29,7 +29,6 @@
     "deepwiki",
     "serena",
     "ddg-search",
-    "chrome-devtools",
-    "playwright"
+    "chrome-devtools"
   ]
 }

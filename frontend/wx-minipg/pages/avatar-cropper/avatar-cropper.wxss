@@ -72,8 +72,8 @@
 
 .avatar-cropper__canvas {
   position: absolute;
-  width: 512px;
-  height: 512px;
-  left: -2000px;
-  top: -2000px;
+  width: 512rpx;
+  height: 512rpx;
+  left: -2000rpx;
+  top: -2000rpx;
 }

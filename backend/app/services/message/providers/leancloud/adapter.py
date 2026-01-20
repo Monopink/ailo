@@ -140,16 +140,16 @@ async def parse_webhook_to_dict(db: AsyncSession, webhook_payload: JSONDict) -> 
         supports_typing_raw = _extract("supports_typing", attrs, inner_message, default=False)
         supports_typing = (
             bool(supports_typing_raw)
-            if isinstance(supports_typing_raw, (bool, int, float))
+            if isinstance(supports_typing_raw, bool | int | float)
             else False
         )
         sent_time_raw = _extract("sent_time", attrs, inner_message)
-        sent_time = int(sent_time_raw) if isinstance(sent_time_raw, (int, float)) else None
+        sent_time = int(sent_time_raw) if isinstance(sent_time_raw, int | float) else None
         action_raw = _extract("action", attrs, inner_message)
         action = action_raw if isinstance(action_raw, dict) else None
         notification_type_raw = _extract("notification_type", attrs, inner_message)
         notification_type = (
-            int(notification_type_raw) if isinstance(notification_type_raw, (int, float)) else None
+            int(notification_type_raw) if isinstance(notification_type_raw, int | float) else None
         )
         notification_data_raw = _extract("data", attrs, inner_message)
         notification_data = (
@@ -232,6 +232,16 @@ def build_outbound_typed_message(
     Returns:
         JSON string for LeanCloud API
     """
+    if not isinstance(msg_id, str) or not msg_id:
+        logger.error(
+            "lc_outbound_msg_id_missing",
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+            conv_id=conv_id,
+            message_type=message_type,
+        )
+        raise ValueError("msg_id is required for outbound messages.")
+
     attrs: dict[str, JSONValue] = {
         "msg_id": msg_id,
         "from_qiao_id": from_qiao_id,

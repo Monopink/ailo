@@ -70,7 +70,7 @@
 
 ### 数据库存储映射
 
-message_history 表存储多个ID字段（完整定义见 [data-dictessage.md](../../data-dict/message.md)）：
+message_history 表存储多个ID字段（完整定义见 [message.md](../../data-dict/message.md)）：
 
 - msg_id_server - 服务端统一生成的 Snowflake ID（主键）- 示例：`223788765171154945`
 - msg_id_client - 客户端生成的ID（仅用户消息有值）- 示例：`client_1710001111222_abc123`

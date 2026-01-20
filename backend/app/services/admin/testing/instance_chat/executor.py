@@ -218,7 +218,8 @@ class ExecutorService:
 
         instance_result = await db.execute(
             select(AIInstance.id, AIInstance.style_id, AIInstance.personality_id).where(
-                AIInstance.qiao_id == instance_qiao_id
+                AIInstance.qiao_id == instance_qiao_id,
+                AIInstance.user_qiao_id == user_qiao_id,
             )
         )
         instance = instance_result.one()

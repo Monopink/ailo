@@ -62,6 +62,33 @@ def _build_score_field(_: str) -> dict[str, int]:
     return {"friendship": 500, "romance": 500}
 
 
+def _build_score_from_schema(field_schema: dict[str, Any]) -> dict[str, int]:
+    properties = field_schema.get("properties")
+    required = field_schema.get("required")
+    if not isinstance(properties, dict) or not properties:
+        return _build_score_field("")
+
+    if isinstance(required, list) and required:
+        target_fields = [name for name in required if isinstance(name, str)]
+    else:
+        target_fields = [name for name in properties if isinstance(name, str)]
+
+    scores: dict[str, int] = {}
+    for name in target_fields:
+        dim_schema = properties.get(name, {})
+        if not isinstance(dim_schema, dict):
+            scores[name] = 500
+            continue
+        min_value = dim_schema.get("minimum", 0)
+        max_value = dim_schema.get("maximum", 1000)
+        if isinstance(min_value, int | float) and isinstance(max_value, int | float):
+            midpoint = (float(min_value) + float(max_value)) / 2.0
+            scores[name] = round(midpoint)
+        else:
+            scores[name] = 500
+    return scores
+
+
 _STATIC_FIELD_VALUES: dict[str, Any] = {
     "attack_detected": False,
     "should_reply": True,
@@ -155,6 +182,10 @@ def _build_mock_content(
 
             if field in _STATIC_FIELD_VALUES:
                 mock_body[field] = _STATIC_FIELD_VALUES[field]
+                continue
+
+            if field == "score":
+                mock_body[field] = _build_score_from_schema(field_schema)
                 continue
 
             builder = _FIELD_BUILDERS.get(field)

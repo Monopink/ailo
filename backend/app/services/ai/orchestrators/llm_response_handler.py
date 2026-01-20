@@ -85,7 +85,7 @@ async def process_llm_response(
             await mark_conversation_item_as_excluded(db, user_message_item_id)
 
         if ai_response.get("should_block"):
-            await update_instance_status(db, instance_qiao_id, status=3)
+            await update_instance_status(db, instance_context["instance_id"], status=3)
 
         await save_ai_request_log(
             db=db,
@@ -125,9 +125,11 @@ async def process_llm_response(
 
     if should_reply and (outgoing_messages or followup_messages):
         typing_speed_seconds_per_word = await _resolve_typing_speed_seconds_per_word(
-            db, instance_qiao_id
+            db, instance_context["instance_id"]
         )
-        followup_delay_seconds = await _resolve_followup_delay_seconds(db, instance_qiao_id)
+        followup_delay_seconds = await _resolve_followup_delay_seconds(
+            db, instance_context["instance_id"]
+        )
     else:
         outgoing_messages = []
         followup_messages = []
@@ -154,10 +156,10 @@ async def process_llm_response(
     }
 
 
-async def _resolve_typing_speed_seconds_per_word(db: AsyncSession, instance_qiao_id: str) -> float:
+async def _resolve_typing_speed_seconds_per_word(db: AsyncSession, instance_id: int) -> float:
     """Derive seconds per word based on the instance's configured WPM."""
 
-    stmt = select(AIInstance.typing_speed_wpm).where(AIInstance.qiao_id == instance_qiao_id)
+    stmt = select(AIInstance.typing_speed_wpm).where(AIInstance.id == instance_id)
     result = await db.execute(stmt)
     value = result.scalar_one_or_none()
 
@@ -165,7 +167,7 @@ async def _resolve_typing_speed_seconds_per_word(db: AsyncSession, instance_qiao
     if wpm <= 0:
         logger.warning(
             "invalid_typing_speed_wpm",
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
             configured_value=wpm,
         )
         wpm = DEFAULT_TYPING_SPEED_WPM
@@ -173,10 +175,10 @@ async def _resolve_typing_speed_seconds_per_word(db: AsyncSession, instance_qiao
     return 60.0 / float(wpm)
 
 
-async def _resolve_followup_delay_seconds(db: AsyncSession, instance_qiao_id: str) -> float:
+async def _resolve_followup_delay_seconds(db: AsyncSession, instance_id: int) -> float:
     """Resolve follow-up delay from relationship configuration."""
 
-    config = await get_instance_relationship_config(db, instance_qiao_id)
+    config = await get_instance_relationship_config(db, instance_id=instance_id)
     if not config:
         raise ValueError("Missing followup_delay_ms configuration")
 

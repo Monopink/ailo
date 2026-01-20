@@ -128,7 +128,7 @@ updated_at
 
 - `user_id + qiao_id` 保证同一用户对同一 persona 只有一个实例（UNIQUE 约束）。
 - `creation_metadata` 保存创建时的完整快照（persona、template、type 信息），用于审计和溯源，不受后续数据变更影响。
-- 运行时只依赖 `qiao_id`（通过 profiles 获取展示信息）和实例自身的配置字段，不需要读取 persona 或 template 表。
+- 运行时实例定位必须通过 `contact.contact_id` 或 `(user_id, qiao_id)`，禁止仅凭 `qiao_id` 解析实例。
 - 所有与联系人、关系状态相关的字段仅保存在 `ai_instances`。
 - persona 元数据（昵称、头像等）统一从 `profiles` 获取。
 - **记忆管理**：AI对用户的记忆现在独立存储在 `ai_instance_memories` 表中，支持基于重要性的寿命管理和模糊化遗忘机制。详见 [ai-conversation.md](ai-conversation.md#ai_instance_memories)。

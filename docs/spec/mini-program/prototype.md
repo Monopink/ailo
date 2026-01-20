@@ -356,7 +356,7 @@
 
 #### 消息接收状态
 
-- 正在输入：收到typing类型消息时显示"对方正在输入..."，持续10秒
+- 正在输入：收到 typing 类型消息时显示"对方正在输入..."，时长见 `docs/spec/message/special-types.md`
 - 输入结束：收到新消息或typing_end消息时取消输入状态
 
 ### 网络状态处理
@@ -420,9 +420,9 @@
 
 客户端的具体技术实现细节（如输入状态处理、消息状态管理、通知处理、本地存储、消息服务架构等）请参考开发文档：
 
-- 消息流程：[消息流程文档](../development/message-flow.md)
-- AI消息处理：[AI消息处理文档](../development/ai-message-processing.md)
-- 联系人请求流程：[联系人请求流程文档](../development/contact-request-flow.md)
+- 消息流程：[消息流程文档](../message/README.md)
+- AI消息处理：[AI消息处理文档](../message/buffer.md)
+- 联系人请求流程：[联系人请求流程文档](../contact/request-flow.md)
 
 ---
 

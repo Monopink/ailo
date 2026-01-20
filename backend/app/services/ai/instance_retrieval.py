@@ -55,13 +55,16 @@ def _ensure_active(
     )
 
 
-async def get_instance_info(db: AsyncSession, instance_qiao_id: str) -> InstanceContext:
+async def get_instance_info(
+    db: AsyncSession, instance_qiao_id: str, user_qiao_id: str
+) -> InstanceContext:
     """
     Get instance information with validation.
 
     Args:
         db: Database session
         instance_qiao_id: Instance's qiao_id
+        user_qiao_id: User's qiao_id
 
     Returns:
         Dictionary containing instance information
@@ -70,7 +73,9 @@ async def get_instance_info(db: AsyncSession, instance_qiao_id: str) -> Instance
         InstanceNotFoundError: If instance doesn't exist
         InstanceInactiveError: If instance is inactive or blocked
     """
-    context = await get_instance_context(db, instance_qiao_id=instance_qiao_id)
+    context = await get_instance_context(
+        db, instance_qiao_id=instance_qiao_id, user_qiao_id=user_qiao_id
+    )
 
     if not context:
         raise AIInstanceNotFoundError(instance_id=instance_qiao_id)

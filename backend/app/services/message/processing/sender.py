@@ -191,12 +191,30 @@ async def _send_message_list(
     if not messages:
         return True, 0
 
+    contact = await contact_crud.get_user_contact(
+        db, user_qiao_id=user_qiao_id, contact_qiao_id=instance_qiao_id
+    )
+    if not contact:
+        raise ValueError(
+            f"Contact between user {user_qiao_id} and instance {instance_qiao_id} not found"
+        )
+
+    conv_id = contact.conv_id
+
     for idx, message in enumerate(messages):
         if interrupt_event.is_set():
             return False, idx
 
         typing_duration = calculate_typing_time(message, typing_speed)
         if typing_duration > 0:
+            await send_message(
+                db=db,
+                from_qiao_id=instance_qiao_id,
+                to_qiao_id=user_qiao_id,
+                conv_id=conv_id,
+                content="",
+                message_type=MessageType.TYPING_START,
+            )
             try:
                 await asyncio.wait_for(interrupt_event.wait(), timeout=typing_duration)
                 logger.debug(
@@ -216,6 +234,7 @@ async def _send_message_list(
             db=db,
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
+            conv_id=conv_id,
             buffer_id=buffer_id,
             message=message,
         )
@@ -228,25 +247,18 @@ async def _send_and_record_message(
     *,
     user_qiao_id: str,
     instance_qiao_id: str,
+    conv_id: str,
     buffer_id: int | None,
     message: str,
 ) -> None:
     """
     Send single message via provider transport and persist conversation item.
     """
-    contact = await contact_crud.get_user_contact(
-        db, user_qiao_id=user_qiao_id, contact_qiao_id=instance_qiao_id
-    )
-    if not contact:
-        raise ValueError(
-            f"Contact between user {user_qiao_id} and instance {instance_qiao_id} not found"
-        )
-
     await send_message(
         db=db,
         from_qiao_id=instance_qiao_id,
         to_qiao_id=user_qiao_id,
-        conv_id=contact.conv_id,
+        conv_id=conv_id,
         content=message,
         message_type=MessageType.TEXT,
     )

@@ -3,7 +3,7 @@ Message Validation Service
 
 Validates message sending permissions based on bidirectional relationships
 between users and AI instances. Implements the Block functionality design
-from docs/prototype/message-flow.md (lines 486-554).
+from docs/spec/message/special-types.md.
 """
 
 from dataclasses import dataclass

@@ -30,8 +30,8 @@ declare global {
 
     interface MessagePayload {
       msg_id: string;
-      from: QiaoID;
-      to: QiaoID;
+      from_qiao_id: QiaoID;
+      to_qiao_id: QiaoID;
       conv_id: string;
       content: string;
       message_type: number;
@@ -47,8 +47,8 @@ declare global {
 
     interface TypingEvent {
       conv_id: string;
-      from: QiaoID;
-      to: QiaoID;
+      from_qiao_id: QiaoID;
+      to_qiao_id: QiaoID;
       typing: boolean;
       timestamp: number;
     }

@@ -46,7 +46,7 @@ LeanCloud Webhook 接收
 
 **步骤**：
 
-1. 验证 Webhook 签名
+1. 验证 webhook_token
 2. 解密消息内容（如果加密）
 3. 提取消息元数据（msg_id、timestamp、from_peer 等）
 
@@ -308,13 +308,13 @@ LeanCloud Webhook 接收
 
 ### 异常 1：消息验证失败
 
-**触发**：Webhook 签名错误、消息格式错误
+**触发**：Webhook token 无效、消息格式错误
 
 **处理**：
 
 - 拒绝消息
 - 记录错误日志
-- 返回 4xx 错误
+- 返回 200
 
 **影响**：消息不进入系统
 

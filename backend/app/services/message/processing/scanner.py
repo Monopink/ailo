@@ -4,7 +4,7 @@ Periodic scanner for expired buffer contexts.
 Scans database every 100ms for expired OPEN contexts and triggers processing.
 This replaces the timer-based approach with a database-driven design.
 
-Design: Follows ai-message-processing.md specification
+Design: Follows docs/spec/message/buffer.md specification
 - Scans every 100ms for expired contexts
 - Uses preemptive locking for concurrent safety
 - Triggers AI processing asynchronously
@@ -230,7 +230,11 @@ async def _process_conversation_async(
                 )
                 return
 
-            relationship_config = await get_instance_relationship_config(db, instance_qiao_id)
+            relationship_config = await get_instance_relationship_config(
+                db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+            )
 
             # Extract no_reply_probability with type safety
             if relationship_config is not None:

@@ -201,11 +201,27 @@ def _register_debug_middleware(app: FastAPI) -> None:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         if "/api/" in str(request.url):
+            url = str(request.url)
+            path = request.url.path
+            path_params = dict(request.path_params)
+            if path.startswith("/api/v1/leancloud/webhook/"):
+                token_value = path_params.get("webhook_token")
+                token_str = str(token_value) if token_value is not None else path.split("/")[-1]
+                token_prefix = token_str[:8] if token_str else ""
+                masked_token = f"{token_prefix}***" if token_prefix else "***"
+                if token_value is not None:
+                    path_params["webhook_token"] = masked_token
+                path_parts = path.split("/")
+                if path_parts and path_parts[-1]:
+                    path_parts[-1] = masked_token
+                    path = "/".join(path_parts)
+                if path in url:
+                    url = url.replace(request.url.path, path, 1)
             logger.info(
                 "api_request_debug",
-                url=str(request.url),
-                path=request.url.path,
-                path_params=dict(request.path_params),
+                url=url,
+                path=path,
+                path_params=path_params,
             )
         return await call_next(request)
 

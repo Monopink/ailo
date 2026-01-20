@@ -48,7 +48,7 @@ for i in {1..10}; do
         echo "🎉 =================================="
         echo "🌐 Ngrok tunnel established!"
         echo "📝 Public URL: $NGROK_URL"
-        echo "🔗 Webhook URL: $NGROK_URL/api/v1/webhook/leancloud/{token}"
+        echo "🔗 Webhook URL: $NGROK_URL/api/v1/leancloud/webhook/{token}"
         echo "📊 Ngrok dashboard: http://localhost:4040"
         echo "=================================="
         echo ""

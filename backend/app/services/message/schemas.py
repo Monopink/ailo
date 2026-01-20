@@ -1,7 +1,7 @@
 """
 Message event schemas shared across the messaging pipeline.
 
-These Pydantic models mirror docs/development/message-events-schema.md and provide
+These Pydantic models mirror docs/spec/message/schema.md and provide
 a single source of truth for inbound/outbound message payloads.
 """
 

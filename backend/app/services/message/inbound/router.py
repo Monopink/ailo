@@ -71,7 +71,7 @@ async def route_message(db: AsyncSession, event: InboundMessageEvent) -> None:
                 logger.error("buffer_add_failed", error=str(e), conv_id=contact.conv_id)
 
         # Store to message_history
-        await store_message(db, event)
+        await store_message(db, event, contact=contact)
 
         logger.info(
             "message_routed",

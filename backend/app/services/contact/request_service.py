@@ -506,7 +506,7 @@ async def _check_ai_persona_duplicate(
     try:
         stmt = (
             select(Contact, AIInstance)
-            .join(AIInstance, AIInstance.qiao_id == Contact.contact_qiao_id)
+            .join(AIInstance, AIInstance.id == Contact.contact_id)
             .where(
                 Contact.user_qiao_id == user_qiao_id,
                 Contact.contact_type == ContactType.AI,

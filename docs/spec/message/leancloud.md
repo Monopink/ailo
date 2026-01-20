@@ -1,6 +1,6 @@
 # LeanCloud 集成
 
-本文档说明如何与 LeanCloud 即时通讯服务集成，包括 Webhook 处理、签名验证、消息解析。
+本文档说明如何与 LeanCloud 即时通讯服务集成，包括 Webhook 处理、消息解析。
 
 ## 架构设计
 
@@ -36,30 +36,6 @@ LeanCloud 作为消息传输层，与系统解耦，便于未来替换。
 
 - `webhook_token` 由服务端生成，存储在 system_configs
 - LeanCloud 配置中填入完整 URL
-
-**请求头验证**：
-
-- `X-LC-Id`：LeanCloud App ID
-- `X-LC-Signature`：签名验证
-
-**签名算法**：
-
-不带 nonce：
-
-```
-sign = md5(timestamp + master_key)
-```
-
-带 nonce：
-
-```
-sign = md5(timestamp + nonce + master_key)
-```
-
-**时间戳验证**：
-
-- 检查 timestamp 与当前时间差 ≤ 10 分钟
-- 防止重放攻击
 
 ### Webhook Payload 解析
 
@@ -111,13 +87,11 @@ sign = md5(timestamp + nonce + master_key)
 **逻辑步骤**：
 
 1. 验证 webhook_token
-2. 验证 X-LC-Signature
-3. 验证 timestamp 漂移
-4. 验证 conv.objectId
-5. 解析 data 字段
-6. 解密 content（如果有 encryption）
-7. 转换为 InboundMessageEvent
-8. 调用消息服务核心处理
+2. 验证 conv.objectId
+3. 解析 data 字段
+4. 解密 content（如果有 encryption）
+5. 转换为 InboundMessageEvent
+6. 调用消息服务核心处理
 9. 返回 `{"success": true}`
 
 ### 重复消息处理
@@ -275,8 +249,6 @@ signature = HMAC_SHA1(app_secret, message)
 ### 必须实施
 
 - ✅ 验证 webhook_token（路径参数）
-- ✅ 验证 X-LC-Signature（请求头）
-- ✅ 限制 timestamp 漂移（±10 分钟）
 - ✅ 验证 conv.objectId 与配置一致
 - ✅ msgId 去重（防止重复处理）
 
@@ -293,7 +265,8 @@ signature = HMAC_SHA1(app_secret, message)
 
 **处理原则**：Webhook 必须返回 200，否则 LeanCloud 会重试
 
-- 签名验证失败 → 返回 200，记录日志，告警
+- webhook_token 无效 → 返回 200，记录日志，告警
+- payload 格式错误 → 返回 200，记录日志，告警
 - 对话 ID 不匹配 → 返回 200，记录日志，告警
 - 解密失败 → 返回 200，记录日志，回退到原文
 - 业务处理失败 → 返回 200，记录日志，写入失败表

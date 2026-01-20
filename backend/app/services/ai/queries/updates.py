@@ -33,7 +33,7 @@ def _coerce_context_status(raw_status: JSONValue | ConversationItemContextStatus
     if raw_status is None:
         return int(ConversationItemContextStatus.INCLUDED)
 
-    if isinstance(raw_status, (str, int, float)):
+    if isinstance(raw_status, str | int | float):
         try:
             value = int(raw_status)
         except (TypeError, ValueError):
@@ -348,26 +348,24 @@ async def mark_conversation_item_as_excluded(db: AsyncSession, conversation_item
         return True
 
 
-async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status: int) -> bool:
+async def update_instance_status(db: AsyncSession, instance_id: int, status: int) -> bool:
     """
     Update instance status.
 
     Args:
         db: Database session
-        instance_qiao_id: Instance's qiao_id
+        instance_id: Instance ID
         status: New status (1=active, 2=inactive, 3=blocked)
 
     Returns:
         True if successful, False otherwise
     """
     try:
-        result = await db.execute(select(AIInstance).where(AIInstance.qiao_id == instance_qiao_id))
+        result = await db.execute(select(AIInstance).where(AIInstance.id == instance_id))
         instance = result.scalar_one_or_none()
 
         if not instance:
-            logger.warning(
-                "instance_not_found_for_status_update", instance_qiao_id=instance_qiao_id
-            )
+            logger.warning("instance_not_found_for_status_update", instance_id=instance_id)
             return False
 
         old_status = instance.status
@@ -376,7 +374,7 @@ async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status
 
         logger.debug(
             "instance_status_updated",
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
             old_status=old_status,
             new_status=status,
         )
@@ -384,7 +382,7 @@ async def update_instance_status(db: AsyncSession, instance_qiao_id: str, status
         logger.error(
             "instance_status_update_failed",
             error=str(e),
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
             status=status,
         )
         return False

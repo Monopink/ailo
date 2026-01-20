@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.crud.contact import contact as contact_crud
 from app.crud.message import notification_push_history as notification_crud
 from app.enums import MessageType
 from app.schemas.message import NotificationActionData
@@ -57,6 +58,16 @@ async def _send_message_internal(
     Returns:
         MessageResult from provider
     """
+    if not isinstance(msg_id, str) or not msg_id:
+        logger.error(
+            "outbound_msg_id_missing",
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+            conv_id=conv_id,
+            message_type=message_type,
+        )
+        raise ValueError("msg_id is required for outbound messages.")
+
     provider = get_default_provider(db)
     encrypted_content, encryption_meta = encrypt_for_transport(content)
     merged_extra_fields = dict(extra_fields or {})
@@ -114,6 +125,9 @@ async def send_message(
     Raises:
         ValueError: If message sending fails
     """
+    if not conv_id:
+        raise ValueError("conv_id is required for message persistence.")
+
     sent_at_ms = int(time.time() * 1000)
     msg_id_server = msg_id or f"msg_{generate_snowflake_id()}"
 
@@ -180,7 +194,12 @@ async def send_message(
     )
 
     # Store to message_history using unified event object
-    await store_message_to_db(db, outbound_event)
+    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+    if not contact:
+        logger.error("contact_not_found_for_outbound", conv_id=conv_id)
+        raise ValueError("Contact not found for outbound message persistence.")
+
+    await store_message_to_db(db, outbound_event, contact=contact)
 
     logger.info(
         "message_sent",
@@ -222,6 +241,8 @@ async def send_notification(
         notification_type=notification_type,
     )
 
+    msg_id_server = f"msg_{generate_snowflake_id()}"
+
     # Build payload metadata for transport
     notification_payload: dict[str, JSONValue] = {
         "notification_type": notification_type,
@@ -230,7 +251,7 @@ async def send_notification(
     fallback_content = action_data.data.message
 
     # Send through internal function
-    result, encryption_meta = await _send_message_internal(
+    result, _encryption_meta = await _send_message_internal(
         db=db,
         from_qiao_id="system",
         to_qiao_id=to_qiao_id,
@@ -239,8 +260,9 @@ async def send_notification(
         message_type=MessageType.NOTIFICATION,
         action=action_data.action.model_dump(mode="json"),
         extra_fields=notification_payload,
+        msg_id=msg_id_server,
     )
-    # encryption_meta is returned for parity with send_message but notifications
+    # _encryption_meta is returned for parity with send_message but notifications
     # currently ignore it; keep for future auditing/reference.
 
     if not result.success:
@@ -265,4 +287,5 @@ async def send_notification(
         notification_id=notification.id,
         to_qiao_id=to_qiao_id,
         notification_type=notification_type,
+        msg_id=msg_id_server,
     )

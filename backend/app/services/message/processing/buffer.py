@@ -1,7 +1,7 @@
 """
 Message buffer service backed by ai_message_buffer + ai_conversation_items.
 
-Implements the dual-timer aggregation window described in docs/development/ai-message-processing.md.
+Implements the dual-timer aggregation window described in docs/spec/message/buffer.md.
 All text content is persisted directly in ai_conversation_items using Responses API block arrays.
 """
 
@@ -122,7 +122,11 @@ async def add_message_to_buffer(
             )
             return
 
-        relationship_config = await get_instance_relationship_config(db, instance_qiao_id)
+        relationship_config = await get_instance_relationship_config(
+            db,
+            user_qiao_id=event.from_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+        )
         needs_wake = False
         if relationship_config:
             needs_wake = await _check_needs_wake(
@@ -578,7 +582,11 @@ async def _handle_wake_adjustment(
         )
         return
 
-    relationship_config = await get_instance_relationship_config(db, buffer_obj.instance_qiao_id)
+    relationship_config = await get_instance_relationship_config(
+        db,
+        user_qiao_id=buffer_obj.user_qiao_id,
+        instance_qiao_id=buffer_obj.instance_qiao_id,
+    )
     if not relationship_config:
         relationship_config = _default_relationship_timing()
 

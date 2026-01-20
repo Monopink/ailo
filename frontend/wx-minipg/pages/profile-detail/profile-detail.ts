@@ -13,6 +13,7 @@ interface ProfileDetailPageData extends Record<string, unknown> {
   phoneMasked: string;
   genderText: string;
   avatarUploading: boolean;
+  avatarHint: string;
 }
 
 interface ProfileDetailPageCustom {
@@ -42,6 +43,7 @@ const normalizeGenderText = (gender?: number | null): string => {
 };
 
 const encodeValue = (value: string | undefined | null): string => encodeURIComponent(value ?? '');
+const getAvatarHint = (isUploading: boolean): string => (isUploading ? '更新中…' : '点击更换');
 
 Page<ProfileDetailPageData, ProfileDetailPageCustom>({
   data: {
@@ -54,6 +56,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     phoneMasked: '',
     genderText: '未设置',
     avatarUploading: false,
+    avatarHint: getAvatarHint(false),
   },
 
   onLoad() {
@@ -168,7 +171,10 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       return;
     }
 
-    this.setData({ avatarUploading: true });
+    this.setData({
+      avatarUploading: true,
+      avatarHint: getAvatarHint(true),
+    });
     void wx.showLoading({ title: '上传中', mask: true });
     try {
       const result = await completeAvatarUpload({ page: 'profile-detail' });
@@ -194,7 +200,10 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       });
     } finally {
       void wx.hideLoading();
-      this.setData({ avatarUploading: false });
+      this.setData({
+        avatarUploading: false,
+        avatarHint: getAvatarHint(false),
+      });
     }
   },
 });

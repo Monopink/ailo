@@ -183,6 +183,22 @@ adapter.onError((error) => {
 
 ---
 
+#### `onConnectionChange(callback: Function): void`
+
+Register a callback for connection state changes.
+
+**Parameters:**
+- `callback`: Function that receives a connection state string
+
+**Example:**
+```javascript
+adapter.onConnectionChange((state) => {
+  console.log('Connection state:', state);
+});
+```
+
+---
+
 #### `isConnected(): boolean`
 
 Check if connected to the messaging service.

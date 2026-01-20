@@ -114,8 +114,8 @@ export type StoredContacts = z.infer<typeof StoredContactsSchema>;
 export const StoredMessageSchema = z.object({
   msg_id: z.string(),
   conv_id: z.string(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from_qiao_id: z.string().optional(),
+  to_qiao_id: z.string().optional(),
   content: z.string().optional().nullable(),
   message_type: MessageTypeSchema.optional(),
   supports_typing: z.boolean().optional(),

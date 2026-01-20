@@ -1,4 +1,8 @@
 <view class="index-page">
+  <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
+    <t-loading theme="spinner" size="24rpx" />
+    <text class="index-page__connection-text">消息服务断开，正在重连...</text>
+  </view>
   <!-- Loading State -->
   <view wx:if="{{pageLayoutData.isLoading}}" class="index-page__state">
     <t-loading theme="circular" size="48rpx" text="加载中..." />
@@ -45,7 +49,7 @@
         </view>
 
         <!-- Right: Time & Badge -->
-        <view slot="right" class="contact-item__meta">
+        <view slot="right-icon" class="contact-item__meta">
           <text class="contact-item__time">{{item.lastMessageTime}}</text>
           <t-badge
             wx:if="{{item.hasUnread}}"

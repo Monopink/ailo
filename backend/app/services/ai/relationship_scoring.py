@@ -25,11 +25,7 @@ from app.type_defs import (
 )
 from app.utils.logging import get_logger
 
-from .queries import (
-    get_instance_id_by_qiao_id,
-    get_instance_relationship_scores,
-    get_style_with_relationships,
-)
+from .queries import get_instance_relationship_scores, get_style_with_relationships
 from .queries.updates import set_instance_current_relationship
 from .queries.updates import (
     update_instance_relationship_scores as _update_instance_relationship_scores,
@@ -46,7 +42,7 @@ ScorePositions = dict[str, int]
 
 
 async def get_relationship_scores(
-    db: AsyncSession, instance_qiao_id: str, auto_initialize: bool = True
+    db: AsyncSession, instance_id: int, auto_initialize: bool = True
 ) -> list[RelationshipScoreEntry] | None:
     """
     Get relationship scores for an instance.
@@ -54,18 +50,13 @@ async def get_relationship_scores(
 
     Args:
         db: Database session
-        instance_qiao_id: Instance's qiao_id
+        instance_id: Instance ID
         auto_initialize: Whether to auto-initialize scores if missing (default: True)
 
     Returns:
         List of score dictionaries, or None if not found
     """
     try:
-        instance_id = await get_instance_id_by_qiao_id(db, instance_qiao_id)
-        if not instance_id:
-            logger.warning("instance_not_found_for_scores", instance_qiao_id=instance_qiao_id)
-            return None
-
         scores: list[RelationshipScoreEntry] = await get_instance_relationship_scores(
             db, instance_id
         )
@@ -73,11 +64,7 @@ async def get_relationship_scores(
         if not scores and auto_initialize:
             style_id = await _get_instance_style_id(db, instance_id)
             if not style_id:
-                logger.error(
-                    "instance_style_missing_for_score_init",
-                    instance_qiao_id=instance_qiao_id,
-                    instance_id=instance_id,
-                )
+                logger.error("instance_style_missing_for_score_init", instance_id=instance_id)
             else:
                 try:
                     await initialize_relationship_scores(db, instance_id, style_id)
@@ -85,14 +72,13 @@ async def get_relationship_scores(
                     if scores:
                         logger.info(
                             "relationship_scores_auto_initialized",
-                            instance_qiao_id=instance_qiao_id,
+                            instance_id=instance_id,
                             style_id=style_id,
                         )
                 except AIRelationshipError as init_error:
                     logger.error(
                         "relationship_score_autoinit_failed",
                         error=str(init_error),
-                        instance_qiao_id=instance_qiao_id,
                         instance_id=instance_id,
                     )
                     return None
@@ -100,13 +86,13 @@ async def get_relationship_scores(
         if not scores:
             logger.info(
                 "no_relationship_scores_found",
-                instance_qiao_id=instance_qiao_id,
+                instance_id=instance_id,
             )
             return None
 
         logger.debug(
             "relationship_scores_retrieved",
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
             score_count=len(scores),
         )
 
@@ -116,7 +102,7 @@ async def get_relationship_scores(
         logger.error(
             "relationship_scores_retrieval_failed",
             error=str(e),
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
         )
         # Non-fatal error: return None and log error
         return None

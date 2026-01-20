@@ -16,6 +16,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -30,6 +31,7 @@ from app.models.base import (
     SnowflakeModel,
     SnowflakeQiaoModel,
     TimestampMixin,
+    generate_qiao_id,
 )
 from app.type_defs import JSONDict
 
@@ -47,6 +49,13 @@ class AIInstance(SnowflakeQiaoModel):
     """
 
     __tablename__ = "ai_instances"
+
+    qiao_id: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=generate_qiao_id,
+        comment="External persona identifier (multiple users can add same persona)",
+    )
 
     user_id: Mapped[int] = mapped_column(
         BigInteger, nullable=False, comment="Owning user ID, references users.id"
@@ -169,8 +178,9 @@ class AIInstance(SnowflakeQiaoModel):
     )
 
     # Indexes - Only essential indexes for MVP
-    # Note: qiao_id already has unique index
+    # Note: qiao_id is indexed for lookup
     __table_args__ = (
+        UniqueConstraint("user_id", "qiao_id", name="uq_ai_instances_user_qiao"),
         Index("idx_ai_instances_user_id", "user_id"),
         Index("idx_ai_instances_user_qiao_id", "user_qiao_id"),
         Index("idx_ai_instances_style_id", "style_id"),

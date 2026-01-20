@@ -257,7 +257,6 @@ cryptography==46.0.3
 ### 传输安全
 
 - ✅ HTTPS 传输
-- ✅ LeanCloud Webhook 签名验证
 - ✅ 时间戳验证防止重放
 
 ### 存储安全

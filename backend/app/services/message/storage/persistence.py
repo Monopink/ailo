@@ -11,10 +11,16 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import MessageDirection, MessageParticipantType, MessageStatus, ServiceProvider
+from app.enums import (
+    ContactType,
+    MessageDirection,
+    MessageParticipantType,
+    MessageStatus,
+    ServiceProvider,
+)
+from app.models.contact import Contact
 from app.models.message.message import MessageHistory
 from app.services.message.schemas import InboundMessageEvent, OutboundMessageEvent
-from app.services.message.storage.participant_resolver import get_participant_info
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
@@ -29,16 +35,19 @@ TIMESTAMP_MILLISECOND_THRESHOLD = 1e11
 async def store_message(
     db: AsyncSession,
     event: InboundMessageEvent | OutboundMessageEvent,
+    *,
+    contact: Contact,
 ) -> MessageHistory:
     """
     Store message to message_history from event object.
 
     This is the primary interface following the unified event schema
-    (docs/development/message-events-schema.md).
+    (docs/spec/message/schema.md).
 
     Args:
         db: Database session
         event: InboundMessageEvent or OutboundMessageEvent
+        contact: Contact record bound to the conversation_id
 
     Returns:
         Created MessageHistory object
@@ -60,12 +69,19 @@ async def store_message(
     # Extract metadata dict from EventMetadata model
     metadata_dict = event.metadata.model_dump(exclude_none=True) if event.metadata else {}
 
+    from_type, from_id = _resolve_participant_from_contact(contact, event.from_qiao_id)
+    to_type, to_id = _resolve_participant_from_contact(contact, event.to_qiao_id)
+
     # Call internal implementation
     return await _store_message_internal(
         db=db,
         conv_id=event.conversation_id,
         from_qiao_id=event.from_qiao_id,
         to_qiao_id=event.to_qiao_id,
+        from_type=from_type,
+        from_id=from_id,
+        to_type=to_type,
+        to_id=to_id,
         content=event.content,
         message_type=event.message_type,
         direction=direction,
@@ -84,6 +100,10 @@ async def _store_message_internal(
     conv_id: str,
     from_qiao_id: str,
     to_qiao_id: str,
+    from_type: MessageParticipantType,
+    from_id: int,
+    to_type: MessageParticipantType,
+    to_id: int,
     content: str,
     message_type: int,
     direction: int,
@@ -107,6 +127,10 @@ async def _store_message_internal(
         content: Message content
         message_type: Message type
         direction: Message direction (1=INBOUND, 2=OUTBOUND)
+        from_type: Sender participant type
+        from_id: Sender internal ID
+        to_type: Receiver participant type
+        to_id: Receiver internal ID
         msg_id_provider: Provider message ID (optional)
         msg_id_client: Client message ID (optional, for user messages)
         client_sent_time: Client sent timestamp in ms epoch or datetime
@@ -123,10 +147,6 @@ async def _store_message_internal(
         ValueError: If participant not found
     """
     msg_id_server_value = msg_id_server or f"msg_{generate_snowflake_id()}"
-    # Get participant types and IDs
-    from_type, from_id = await _get_participant_info(db, from_qiao_id)
-    to_type, to_id = await _get_participant_info(db, to_qiao_id)
-
     # Determine service provider
     service_provider = ServiceProvider.LEANCLOUD if msg_id_provider else ServiceProvider.INTERNAL
 
@@ -219,8 +239,31 @@ def _normalize_client_sent_time(
     return None
 
 
-async def _get_participant_info(
-    db: AsyncSession, qiao_id: str
+def _resolve_participant_from_contact(
+    contact: Contact, qiao_id: str
 ) -> tuple[MessageParticipantType, int]:
-    """Get participant info (delegates to participant_resolver)."""
-    return await get_participant_info(db, qiao_id)
+    """Resolve participant type and ID using the bound contact record."""
+    if qiao_id == "system":
+        return MessageParticipantType.SYSTEM, 0
+
+    if qiao_id == contact.user_qiao_id:
+        if contact.user_id is None:
+            logger.error("contact_user_id_missing", conv_id=contact.conv_id)
+            raise ValueError("Contact user_id missing for message participant resolution.")
+        return MessageParticipantType.USER, contact.user_id
+
+    if qiao_id == contact.contact_qiao_id:
+        if contact.contact_type == ContactType.AI:
+            participant_type = MessageParticipantType.AI
+        else:
+            participant_type = MessageParticipantType.USER
+        return participant_type, contact.contact_id
+
+    logger.error(
+        "participant_qiao_id_mismatch",
+        conv_id=contact.conv_id,
+        qiao_id=qiao_id,
+        user_qiao_id=contact.user_qiao_id,
+        contact_qiao_id=contact.contact_qiao_id,
+    )
+    raise ValueError("Participant qiao_id does not match contact record.")

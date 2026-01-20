@@ -47,12 +47,17 @@ async def get_instance_context(
     db: AsyncSession,
     *,
     instance_qiao_id: str | None = None,
+    user_qiao_id: str | None = None,
     instance_id: int | None = None,
 ) -> InstanceContext | None:
-    """Query complete instance context exactly once per request."""
+    """Query complete instance context exactly once per request.
 
-    if not instance_qiao_id and not instance_id:
-        raise ValueError("instance_qiao_id or instance_id must be provided")
+    Requires instance_id, or (instance_qiao_id and user_qiao_id) for disambiguation.
+    """
+
+    if instance_id is None:
+        if not instance_qiao_id or not user_qiao_id:
+            raise ValueError("instance_id or (instance_qiao_id and user_qiao_id) must be provided")
 
     try:
         stmt = (
@@ -65,10 +70,13 @@ async def get_instance_context(
             )
             .outerjoin(AIRelationship, AIInstance.relationship_id == AIRelationship.id)
         )
-        if instance_qiao_id:
-            stmt = stmt.where(AIInstance.qiao_id == instance_qiao_id)
-        if instance_id:
+        if instance_id is not None:
             stmt = stmt.where(AIInstance.id == instance_id)
+        else:
+            stmt = stmt.where(
+                AIInstance.qiao_id == instance_qiao_id,
+                AIInstance.user_qiao_id == user_qiao_id,
+            )
 
         result = await db.execute(stmt)
         row = result.first()
@@ -369,26 +377,38 @@ async def get_style_with_relationships(db: AsyncSession, style_id: int) -> dict[
 
 async def get_instance_relationship_config(
     db: AsyncSession,
-    instance_qiao_id: str,
+    *,
+    instance_id: int | None = None,
+    user_qiao_id: str | None = None,
+    instance_qiao_id: str | None = None,
 ) -> RelationshipTiming | None:
     """
     Fetch wake timing configuration for the instance's current relationship.
+
+    Requires instance_id, or (instance_qiao_id and user_qiao_id) for disambiguation.
 
     Returns None for first conversations (no relationship_id yet),
     the actual configuration when available, or a hard-coded default
     if the relationship row is missing/invalid.
     """
 
+    if instance_id is None:
+        if not instance_qiao_id or not user_qiao_id:
+            raise ValueError("instance_id or (instance_qiao_id and user_qiao_id) must be provided")
+
     try:
-        stmt = (
-            select(AIInstance.relationship_id, AIRelationship)
-            .join(
-                AIRelationship,
-                AIInstance.relationship_id == AIRelationship.id,
-                isouter=True,
-            )
-            .where(AIInstance.qiao_id == instance_qiao_id)
+        stmt = select(AIInstance.relationship_id, AIRelationship).join(
+            AIRelationship,
+            AIInstance.relationship_id == AIRelationship.id,
+            isouter=True,
         )
+        if instance_id is not None:
+            stmt = stmt.where(AIInstance.id == instance_id)
+        else:
+            stmt = stmt.where(
+                AIInstance.qiao_id == instance_qiao_id,
+                AIInstance.user_qiao_id == user_qiao_id,
+            )
         result = await db.execute(stmt)
         row = result.first()
 
@@ -396,6 +416,8 @@ async def get_instance_relationship_config(
             logger.warning(
                 "instance_not_found_for_relationship_config",
                 instance_qiao_id=instance_qiao_id,
+                user_qiao_id=user_qiao_id,
+                instance_id=instance_id,
             )
             return None
 
@@ -409,6 +431,8 @@ async def get_instance_relationship_config(
             logger.warning(
                 "relationship_config_missing",
                 instance_qiao_id=instance_qiao_id,
+                user_qiao_id=user_qiao_id,
+                instance_id=instance_id,
                 relationship_id=relationship_id,
             )
             timing = _default_relationship_timing()
@@ -428,6 +452,8 @@ async def get_instance_relationship_config(
             "relationship_config_fetch_failed",
             error=str(exc),
             instance_qiao_id=instance_qiao_id,
+            user_qiao_id=user_qiao_id,
+            instance_id=instance_id,
         )
         return _default_relationship_timing()
     else:
@@ -435,29 +461,44 @@ async def get_instance_relationship_config(
         return timing
 
 
-async def get_instance_id_by_qiao_id(db: AsyncSession, instance_qiao_id: str) -> int | None:
+async def get_instance_id_by_qiao_id(
+    db: AsyncSession, instance_qiao_id: str, user_qiao_id: str
+) -> int | None:
     """
-    Get instance ID by qiao_id.
+    Get instance ID by qiao_id for a specific user.
 
     Args:
         db: Database session
         instance_qiao_id: Instance's qiao_id
+        user_qiao_id: User's qiao_id
 
     Returns:
         Instance ID or None if not found
     """
     try:
         result = await db.execute(
-            select(AIInstance.id).where(AIInstance.qiao_id == instance_qiao_id)
+            select(AIInstance.id).where(
+                AIInstance.qiao_id == instance_qiao_id,
+                AIInstance.user_qiao_id == user_qiao_id,
+            )
         )
 
         instance_id = result.scalar_one_or_none()
 
         if instance_id is None:
-            logger.warning("instance_id_not_found", instance_qiao_id=instance_qiao_id)
+            logger.warning(
+                "instance_id_not_found",
+                instance_qiao_id=instance_qiao_id,
+                user_qiao_id=user_qiao_id,
+            )
 
     except Exception as exc:
-        logger.error("instance_id_query_failed", error=str(exc), instance_qiao_id=instance_qiao_id)
+        logger.error(
+            "instance_id_query_failed",
+            error=str(exc),
+            instance_qiao_id=instance_qiao_id,
+            user_qiao_id=user_qiao_id,
+        )
         return None
     else:
         return instance_id

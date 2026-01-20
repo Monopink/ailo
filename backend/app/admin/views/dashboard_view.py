@@ -18,6 +18,9 @@ from app.models.contact import ContactRequest
 from app.services.config import config_service
 from app.services.media.config import get_media_base_url, get_media_base_url_source
 from app.services.message.monitoring.health import get_message_service_status
+from app.services.message.providers.leancloud.url_builder import (
+    build_leancloud_webhook_url,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -84,7 +87,10 @@ class DashboardView(CustomView):
             # Construct webhook URL
             webhook_url = None
             if webhook_token and api_base_url:
-                webhook_url = f"{api_base_url}/api/v1/webhook/leancloud/{webhook_token}"
+                webhook_url = build_leancloud_webhook_url(
+                    api_base_url=str(api_base_url),
+                    webhook_token=str(webhook_token),
+                )
 
             media_db_value = await system_configs.get_config_value(
                 db, config_key="media_public_base_url"

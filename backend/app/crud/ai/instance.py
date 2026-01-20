@@ -21,23 +21,45 @@ MAX_QIAO_ID_LENGTH = 32
 class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
     """AI instance CRUD operations with usage tracking."""
 
-    async def get_by_qiao_id(self, db: AsyncSession, *, qiao_id: str) -> AIInstance | None:
+    async def get_by_qiao_id(
+        self,
+        db: AsyncSession,
+        *,
+        qiao_id: str,
+        user_id: int | None = None,
+        user_qiao_id: str | None = None,
+    ) -> AIInstance | None:
         """Get instance by qiao_id.
 
         Args:
             db: Database session
             qiao_id: Instance qiao_id
+            user_id: Owning user ID
+            user_qiao_id: Owning user qiao_id
 
         Returns:
             Instance object or None if not found
 
         """
+        if user_id is None and user_qiao_id is None:
+            raise ValueError("user_id or user_qiao_id is required for instance lookup")
         try:
-            result = await db.execute(select(AIInstance).where(AIInstance.qiao_id == qiao_id))
+            stmt = select(AIInstance).where(AIInstance.qiao_id == qiao_id)
+            if user_id is not None:
+                stmt = stmt.where(AIInstance.user_id == user_id)
+            else:
+                stmt = stmt.where(AIInstance.user_qiao_id == user_qiao_id)
+            result = await db.execute(stmt)
             return result.scalar_one_or_none()
 
         except Exception as e:
-            logger.error("instance_get_by_qiao_id_failed", error=str(e), qiao_id=qiao_id)
+            logger.error(
+                "instance_get_by_qiao_id_failed",
+                error=str(e),
+                qiao_id=qiao_id,
+                user_id=user_id,
+                user_qiao_id=user_qiao_id,
+            )
             raise RuntimeError(f"Failed to get instance by qiao_id: {e!s}")
 
     # Complex queries moved to services/ai/data layer for better separation of concerns
@@ -60,7 +82,7 @@ class CRUDAIInstance(CRUDBase[AIInstance, AIInstanceCreate, AIInstanceUpdate]):
         try:
             result = await db.execute(
                 select(AIInstance)
-                .join(Contact, Contact.contact_qiao_id == AIInstance.qiao_id)
+                .join(Contact, Contact.contact_id == AIInstance.id)
                 .where(
                     Contact.user_qiao_id == user_qiao_id,
                     Contact.contact_type == ContactType.AI,

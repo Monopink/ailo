@@ -88,7 +88,7 @@ Page<LoginPageData, LoginPageCustom>({
     loginStatus: 'idle',
   },
 
-  async onLoad(options?: Record<string, string>) {
+  async onLoad(options?: Record<string, string | undefined>) {
     logger.info('Login page loaded');
 
     try {

@@ -102,17 +102,7 @@ LeanCloud 专用的客户端 IM 接口统一放在 `lc-im` 命名空间下，涵
 - **路径**: `POST /api/v1/leancloud/webhook/{webhook_token}`
 - **认证**:
   - 路径参数 `webhook_token`（服务端生成）
-  - LeanCloud 头部 `X-LC-Id`
-  - LeanCloud 头部 `X-LC-Signature`
-- **说明**: LeanCloud 推送消息和事件的入口，成功返回 `{ "success": true }`
-
-### 请求头
-
-- `X-LC-Id`: LeanCloud App ID
-- `X-LC-Signature`: `sign,timestamp` 或 `sign,timestamp,nonce`
-  - `sign = md5(timestamp + master_key)`（无 nonce）
-  - `sign = md5(timestamp + nonce + master_key)`（带 nonce）
-  - 服务器需要校验 timestamp 与当前时间差 ≤ 10 分钟
+- **说明**: LeanCloud 推送消息和事件的入口，成功返回 `{ "code": 200 }`
 
 ### 路径参数
 
@@ -142,7 +132,7 @@ LeanCloud 专用的客户端 IM 接口统一放在 `lc-im` 命名空间下，涵
 
 ### 内层 `_lcattrs` 规范
 
-Webhook 解析后得到的业务字段与 `docs/development/message-flow.md` 定义一致：
+Webhook 解析后得到的业务字段与 `docs/spec/message/schema.md` 定义一致：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -161,20 +151,20 @@ Webhook 解析后得到的业务字段与 `docs/development/message-flow.md` 定
 **200 OK**
 
 ```json
-{ "success": true }
+{ "code": 200 }
 ```
+
+服务端始终返回 `{ "code": 200 }`。
 
 ### 安全基线
 
 - 统一使用 `POST /api/v1/leancloud/webhook/{webhook_token}`，路径令牌由后端生成
-- 必须校验 LeanCloud 头部 `X-LC-Id` 与 `X-LC-Signature`
-- 限制 `timestamp` 漂移（±10 分钟），防止重放
 - 校验 `conv.objectId` 与系统配置中的 `im_conv_id` 一致
 - 建议在网关层加 IP 白名单或 WAF 规则
 - `msgId` 写入 `msg_id_provider_inbound`，重复上报直接丢弃。
 
 ### 业务说明
 
-- Webhook 只负责将 LeanCloud payload 解析为内部 `InboundMessageEvent`，具体业务逻辑见 `docs/development/message-flow.md`
+- Webhook 只负责将 LeanCloud payload 解析为内部 `InboundMessageEvent`，具体业务逻辑见 `docs/spec/message/README.md`
 - `provider_metadata` 字段会存储 `msgId`、`lc_conv_id`、`raw_webhook` 等原始信息，便于排查
 - 如果解密失败或对话不存在，服务端会记录日志并返回 200（LeanCloud 按成功处理），同时向监控告警

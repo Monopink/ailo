@@ -63,7 +63,11 @@ class ValidationService:
         try:
             # Step 1: Load and validate instance context
             instance_context = await self._validate_instance(db, instance_id)
-            await self._ensure_instance_contact_policy(db, instance_context["instance_qiao_id"])
+            await self._ensure_instance_contact_policy(
+                db,
+                instance_context["instance_id"],
+                instance_context["instance_qiao_id"],
+            )
 
             # Step 2: Extract profile info from context
             instance_profile = self._extract_instance_profile(instance_context)
@@ -230,7 +234,7 @@ class ValidationService:
 
         # Use auto_initialize=True to match main flow behavior
         scores = await get_relationship_scores(
-            db, instance_context["instance_qiao_id"], auto_initialize=True
+            db, instance_context["instance_id"], auto_initialize=True
         )
 
         if not scores:
@@ -334,7 +338,7 @@ class ValidationService:
         )
 
     async def _ensure_instance_contact_policy(
-        self, db: AsyncSession, instance_qiao_id: str
+        self, db: AsyncSession, instance_id: int, instance_qiao_id: str
     ) -> None:
         """Ensure instance has no non-virtual contacts before allowing test."""
         stmt = (
@@ -342,7 +346,7 @@ class ValidationService:
             .join(Contact, Contact.user_id == User.id)
             .where(
                 and_(
-                    Contact.contact_qiao_id == instance_qiao_id,
+                    Contact.contact_id == instance_id,
                     Contact.contact_type == ContactType.AI,
                     Contact.is_deleted == 0,
                 )

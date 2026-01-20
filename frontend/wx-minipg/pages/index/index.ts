@@ -17,8 +17,11 @@ import { firstNonEmptyString, isNonEmptyString } from '../../utils/guards';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { normalizeError } from '../../utils/errors';
 import { initTabBar } from '../../utils/tab-bar';
+import messageEventBus from '../../utils/message/event-bus';
+import type { ConnectionState } from '../../utils/message/adapter-types';
 
 const logger = getLogger('ContactList');
+const CONNECTION_ISSUE_DELAY = 8000;
 
 // TDesign SwipeCell action format
 interface SwipeCellAction {
@@ -70,11 +73,17 @@ interface ContactListPageData {
   contactList: ContactListItem[];
   unreadTotal: number;
   swipeCellActions: ReadonlyArray<SwipeCellAction>;
+  showConnectionIssue: boolean;
 }
 
 interface ContactListPageCustom {
   _loadPromise: Promise<void> | null;
+  _connectionIssueTimer: ReturnType<typeof setTimeout> | null;
+  _connectionSubscription: (() => void) | null;
   updateNavigationTitle(): void;
+  bindConnectionStatus(): void;
+  handleConnectionStateChange(state: ConnectionState): void;
+  clearConnectionIssueTimer(): void;
   loadContactList(options?: LoadOptions): Promise<void>;
   loadContactsFromCache(): Promise<boolean>;
   refreshContactListFromAPI(): Promise<void>;
@@ -132,9 +141,12 @@ Page<ContactListPageData, ContactListPageCustom>({
     contactList: [],
     unreadTotal: 0,
     swipeCellActions: SWIPE_CELL_ACTIONS,
+    showConnectionIssue: false,
   },
 
   _loadPromise: null,
+  _connectionIssueTimer: null,
+  _connectionSubscription: null,
 
   async onLoad() {
     logger.info('Contact list page loaded');
@@ -144,6 +156,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     }
 
     this.updateNavigationTitle();
+    this.bindConnectionStatus();
     void this.loadContactList();
   },
 
@@ -157,6 +170,65 @@ Page<ContactListPageData, ContactListPageCustom>({
 
     this.updateNavigationTitle();
     void this.loadContactList();
+  },
+
+  onUnload() {
+    this.clearConnectionIssueTimer();
+    if (this._connectionSubscription !== null) {
+      this._connectionSubscription();
+      this._connectionSubscription = null;
+    }
+  },
+
+  bindConnectionStatus() {
+    if (this._connectionSubscription !== null) {
+      return;
+    }
+    const app = getApp<AppInstance>();
+    const messageService = app.getMessageService();
+    if (messageService !== null) {
+      this.handleConnectionStateChange(messageService.getConnectionState());
+    }
+    this._connectionSubscription = messageEventBus.onConnection((state) => {
+      this.handleConnectionStateChange(state);
+    });
+  },
+
+  handleConnectionStateChange(state: ConnectionState) {
+    if (state === 'connected') {
+      this.clearConnectionIssueTimer();
+      if (this.data.showConnectionIssue) {
+        this.setData({ showConnectionIssue: false });
+      }
+      return;
+    }
+
+    if (state === 'suspending') {
+      this.clearConnectionIssueTimer();
+      if (this.data.showConnectionIssue) {
+        this.setData({ showConnectionIssue: false });
+      }
+      return;
+    }
+
+    if (state === 'disconnected') {
+      if (this._connectionIssueTimer !== null) {
+        return;
+      }
+      this._connectionIssueTimer = setTimeout(() => {
+        this._connectionIssueTimer = null;
+        if (!this.data.showConnectionIssue) {
+          this.setData({ showConnectionIssue: true });
+        }
+      }, CONNECTION_ISSUE_DELAY);
+    }
+  },
+
+  clearConnectionIssueTimer() {
+    if (this._connectionIssueTimer !== null) {
+      clearTimeout(this._connectionIssueTimer);
+      this._connectionIssueTimer = null;
+    }
   },
 
   updateNavigationTitle() {

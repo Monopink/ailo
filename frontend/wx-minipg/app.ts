@@ -74,10 +74,19 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
 
   onShow(options: ShowOptions) {
     logger.info('App shown', { options });
+    if (this.globalData.messageService !== null) {
+      void this.globalData.messageService.resume().catch((error) => {
+        const err = normalizeError(error);
+        logger.warn('Resume message service failed', { error: err.message });
+      });
+    }
   },
 
   onHide() {
     logger.info('App hidden');
+    if (this.globalData.messageService !== null) {
+      this.globalData.messageService.suspend();
+    }
   },
 
   onError(error: string) {
@@ -202,7 +211,7 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
       msg_id: message.msg_id,
       conv_id: message.conv_id,
       message_type: message.message_type,
-      from: message.from,
+      from_qiao_id: message.from_qiao_id,
     });
 
     const currentPage = getActivePage() as MessageHandlerPage | undefined;

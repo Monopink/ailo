@@ -21,7 +21,7 @@
               size="large"
             />
             <text class="profile-detail__avatar-hint">
-              {{avatarUploading ? '更新中…' : '点击更换'}}
+              {{avatarHint}}
             </text>
           </view>
         </t-cell>

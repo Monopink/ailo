@@ -18,6 +18,9 @@ from app.services.media.config import (
     get_media_base_url_source,
     refresh_media_base_url,
 )
+from app.services.message.providers.leancloud.url_builder import (
+    build_leancloud_webhook_url,
+)
 from app.services.storage.factory import reload_storage_backend
 from app.services.system_config import SystemConfigService, get_config, get_configs_by_group
 from app.utils.admin_logs import create_operation_log
@@ -81,7 +84,10 @@ class SystemSettingsView(CustomView):
             # Construct webhook URL
             webhook_url = None
             if webhook_token and api_base_url:
-                webhook_url = f"{api_base_url}/api/v1/webhook/leancloud/{webhook_token}"
+                webhook_url = build_leancloud_webhook_url(
+                    api_base_url=str(api_base_url),
+                    webhook_token=str(webhook_token),
+                )
 
             media_cdn_context = await self._get_media_cdn_context(db)
 

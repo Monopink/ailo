@@ -136,7 +136,7 @@ class AIInstanceChatTestService:
                 latest_scores = (
                     await get_relationship_scores(
                         db=db,
-                        instance_qiao_id=validation_result["instance"]["instance_qiao_id"],
+                        instance_id=validation_result["instance"]["instance_id"],
                         auto_initialize=False,
                     )
                     or []

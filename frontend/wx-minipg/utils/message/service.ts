@@ -15,6 +15,7 @@ import type {
   AdapterSendResult,
   AdapterTypingPayload,
   BusinessMessagePayload,
+  ConnectionState,
   MessageAdapter,
   MessageSignature,
 } from './adapter-types';
@@ -26,14 +27,19 @@ const logger = getLogger('MessageService');
 
 type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 
+const RECONNECT_BASE_DELAY = 1000;
+const RECONNECT_MAX_DELAY = 30000;
+const RECONNECT_BACKOFF = 2;
+const RECONNECT_JITTER = 0.2;
+
 const createBusinessMessage = (
   base: MessageData,
   msgId: string,
   status: MessageStatus
 ): BusinessMessage => ({
   msg_id: msgId,
-  from: base.from,
-  to: base.to,
+  from_qiao_id: base.from_qiao_id,
+  to_qiao_id: base.to_qiao_id,
   conv_id: base.conv_id,
   content: base.content,
   message_type: base.message_type ?? MESSAGE_TYPE.TEXT,
@@ -43,8 +49,8 @@ const createBusinessMessage = (
 });
 
 interface MessageData {
-  from: string;
-  to: string;
+  from_qiao_id: string;
+  to_qiao_id: string;
   conv_id: string;
   content: string;
   message_type?: MessageType;
@@ -79,13 +85,137 @@ type BusinessMessage = StoredMessage &
 export class MessageService {
   private adapter: MessageAdapter;
   private initialized = false;
+  private userId: string | null = null;
+  private connectionState: ConnectionState = 'disconnected';
+  private connectPromise: Promise<void> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempt = 0;
+  private suspended = false;
 
   constructor(adapter: MessageAdapter = getMessageAdapter()) {
     this.adapter = adapter;
+    this.adapter.onConnectionChange((state) => {
+      this.handleAdapterConnectionState(state);
+    });
+    if (this.adapter.isConnected()) {
+      this.setConnectionState('connected');
+    }
   }
 
   private async persistMessage(convId: string, message: StoredMessage): Promise<void> {
     await addMessage(convId, message);
+  }
+
+  private setConnectionState(nextState: ConnectionState): void {
+    if (this.connectionState === nextState) {
+      return;
+    }
+    this.connectionState = nextState;
+    messageEventBus.emitConnection(nextState);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private calculateReconnectDelay(attempt: number): number {
+    const exponent = Math.max(attempt - 1, 0);
+    const baseDelay = RECONNECT_BASE_DELAY * Math.pow(RECONNECT_BACKOFF, exponent);
+    const cappedDelay = Math.min(baseDelay, RECONNECT_MAX_DELAY);
+    const jitter = 1 + (Math.random() * 2 - 1) * RECONNECT_JITTER;
+    return Math.max(0, Math.round(cappedDelay * jitter));
+  }
+
+  private scheduleReconnect(): void {
+    if (this.suspended || this.reconnectTimer !== null) {
+      return;
+    }
+    this.reconnectAttempt += 1;
+    const delay = this.calculateReconnectDelay(this.reconnectAttempt);
+    logger.warn('Scheduling reconnect attempt', { attempt: this.reconnectAttempt, delay });
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.ensureConnected().catch((error) => {
+        const err = normalizeError(error);
+        logger.warn('Reconnect attempt failed', {
+          attempt: this.reconnectAttempt,
+          error: err.message,
+        });
+      });
+    }, delay);
+  }
+
+  private handleAdapterConnectionState(state: ConnectionState): void {
+    if (state === 'connected') {
+      this.reconnectAttempt = 0;
+      this.clearReconnectTimer();
+      this.setConnectionState('connected');
+      return;
+    }
+
+    if (state === 'disconnected') {
+      this.setConnectionState('disconnected');
+      this.scheduleReconnect();
+    }
+  }
+
+  async ensureConnected(): Promise<void> {
+    if (this.suspended) {
+      throw new Error('MESSAGE_SERVICE_SUSPENDED');
+    }
+    if (this.adapter.isConnected()) {
+      this.setConnectionState('connected');
+      return;
+    }
+    if (this.connectPromise !== null) {
+      return this.connectPromise;
+    }
+    const userId = this.userId;
+    if (!isNonEmptyString(userId)) {
+      throw new Error('User info not found or invalid');
+    }
+
+    this.setConnectionState('connecting');
+    this.connectPromise = (async () => {
+      const signature = await getMessageClientSignature(userId);
+      await this.adapter.connect(userId, signature as MessageSignature);
+      this.reconnectAttempt = 0;
+      this.clearReconnectTimer();
+      this.setConnectionState('connected');
+    })()
+      .catch((error) => {
+        const err = normalizeError(error);
+        this.setConnectionState('disconnected');
+        this.scheduleReconnect();
+        throw err;
+      })
+      .finally(() => {
+        this.connectPromise = null;
+      });
+
+    return this.connectPromise;
+  }
+
+  async resume(): Promise<void> {
+    this.suspended = false;
+    this.clearReconnectTimer();
+    if (this.connectionState === 'suspending') {
+      this.setConnectionState('disconnected');
+    }
+    await this.ensureConnected();
+  }
+
+  suspend(): void {
+    this.suspended = true;
+    this.clearReconnectTimer();
+    this.setConnectionState('suspending');
+  }
+
+  getConnectionState(): ConnectionState {
+    return this.connectionState;
   }
 
   async initialize(userId: string): Promise<void> {
@@ -97,14 +227,14 @@ export class MessageService {
     try {
       logger.info('Initializing message service', { userId });
 
-      const signature = await getMessageClientSignature(userId);
-      await this.adapter.connect(userId, signature as MessageSignature);
-
       this.adapter.onMessage((message) => {
         void this.handleMessage(message);
       });
       this.adapter.onTyping(this.handleTyping.bind(this));
       this.adapter.onError(this.handleError.bind(this));
+
+      this.userId = userId;
+      await this.ensureConnected();
 
       this.initialized = true;
       logger.info('Message service initialized');
@@ -119,13 +249,13 @@ export class MessageService {
       throw new Error('Message service not initialized');
     }
 
-    const contentLength = messageData.content.length;
+    const contentLength = typeof messageData.content === 'string' ? messageData.content.length : 0;
     logger.info('Sending message', {
       conv_id: messageData.conv_id,
       message_type: messageData.message_type,
       content_length: contentLength,
-      from: messageData.from,
-      to: messageData.to,
+      from_qiao_id: messageData.from_qiao_id,
+      to_qiao_id: messageData.to_qiao_id,
       client_msg_id: messageData.client_msg_id,
     });
 
@@ -138,6 +268,7 @@ export class MessageService {
     await this.persistMessage(messageData.conv_id, message);
 
     try {
+      await this.ensureConnected();
       const sentMessage = await this.sendViaAdapter(message);
       const sentPayload: BusinessMessage = {
         ...message,
@@ -206,29 +337,84 @@ export class MessageService {
     }
   }
 
+  private buildIncomingPayload(message: AdapterMessage): {
+    storedMessage: StoredMessage;
+    appPayload: Ailo.MessagePayload;
+    contentLength: number;
+    convId: string;
+  } {
+    const normalizedContent = typeof message.content === 'string' ? message.content : '';
+    const normalizedFrom = typeof message.from_qiao_id === 'string' ? message.from_qiao_id : '';
+    const normalizedTo = typeof message.to_qiao_id === 'string' ? message.to_qiao_id : '';
+    const normalizedConvId = typeof message.conv_id === 'string' ? message.conv_id : '';
+
+    const lcMsgId =
+      'lc_msg_id' in message && typeof message.lc_msg_id === 'string'
+        ? message.lc_msg_id
+        : undefined;
+    const lcTimestamp =
+      'lc_timestamp' in message && typeof message.lc_timestamp === 'number'
+        ? message.lc_timestamp
+        : undefined;
+
+    const storedMessage: StoredMessage = {
+      ...message,
+      from_qiao_id: normalizedFrom,
+      to_qiao_id: normalizedTo,
+      conv_id: normalizedConvId,
+      content: normalizedContent,
+    };
+
+    const appPayload: Ailo.MessagePayload = {
+      msg_id: storedMessage.msg_id,
+      from_qiao_id: normalizedFrom,
+      to_qiao_id: normalizedTo,
+      conv_id: normalizedConvId,
+      content: normalizedContent,
+      message_type: storedMessage.message_type ?? MESSAGE_TYPE.TEXT,
+      supports_typing: storedMessage.supports_typing ?? true,
+      sent_time: typeof storedMessage.sent_time === 'number' ? storedMessage.sent_time : Date.now(),
+      status: storedMessage.status,
+      action: storedMessage.action ?? null,
+      notification_type: storedMessage.notification_type ?? null,
+      data: storedMessage.data ?? null,
+      lc_msg_id: lcMsgId,
+      lc_timestamp: lcTimestamp,
+    };
+
+    return {
+      storedMessage,
+      appPayload,
+      contentLength: normalizedContent.length,
+      convId: normalizedConvId,
+    };
+  }
+
   async handleMessage(message: AdapterMessage): Promise<void> {
     try {
+      const { storedMessage, appPayload, contentLength, convId } =
+        this.buildIncomingPayload(message);
+
       logger.info('Message received', {
         msg_id: message.msg_id,
-        from: message.from,
-        to: message.to,
-        conv_id: message.conv_id,
+        from_qiao_id: storedMessage.from_qiao_id,
+        to_qiao_id: storedMessage.to_qiao_id,
+        conv_id: storedMessage.conv_id,
         message_type: message.message_type,
-        content_length: message.content.length,
+        content_length: contentLength,
       });
 
-      const storedMessage: StoredMessage = { ...message };
-      await addMessage(message.conv_id, storedMessage);
+      await addMessage(convId, storedMessage);
       messageEventBus.emitMessage(storedMessage);
 
       const app = getApp<AppInstance>();
       if (typeof app.onMessageReceived === 'function') {
-        app.onMessageReceived(message);
+        app.onMessageReceived(appPayload);
       }
 
       logger.info('Message handled successfully', {
         msg_id: message.msg_id,
-        conv_id: message.conv_id,
+        conv_id: convId,
       });
     } catch (error) {
       const err = normalizeError(error);
@@ -247,7 +433,7 @@ export class MessageService {
 
       const signal = {
         conv_id: typing.conv_id,
-        from: typing.from,
+        from_qiao_id: typing.from_qiao_id,
         typing: typing.isTyping,
       };
 
@@ -255,8 +441,8 @@ export class MessageService {
       if (typeof app.onTypingReceived === 'function') {
         app.onTypingReceived({
           conv_id: typing.conv_id,
-          from: typing.from,
-          to: '',
+          from_qiao_id: typing.from_qiao_id,
+          to_qiao_id: '',
           typing: typing.isTyping,
           timestamp: Date.now(),
         });
@@ -280,8 +466,14 @@ export class MessageService {
 
   async disconnect(): Promise<void> {
     try {
+      this.suspended = true;
+      this.userId = null;
+      this.reconnectAttempt = 0;
+      this.clearReconnectTimer();
+      this.connectPromise = null;
       await this.adapter.disconnect();
       this.initialized = false;
+      this.setConnectionState('disconnected');
       logger.info('Message service disconnected');
     } catch (error) {
       logger.error('Disconnect message service failed', { error });

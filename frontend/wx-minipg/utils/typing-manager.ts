@@ -6,10 +6,7 @@
 import { MESSAGE_TYPE } from './constants/message';
 import { getLogger } from './logger';
 import { MESSAGE_CONFIG } from './config';
-import {
-  getContactByConvId,
-  getUserInfo as getStoredUserInfo,
-} from './storage';
+import { getContactByConvId, getUserInfo as getStoredUserInfo } from './storage';
 import { isNonEmptyString } from './guards';
 import { normalizeError } from './errors';
 
@@ -160,8 +157,8 @@ class TypingManager {
       }
 
       await messageService.sendMessage({
-        from: userInfo.qiao_id,
-        to: contactQiaoId,
+        from_qiao_id: userInfo.qiao_id,
+        to_qiao_id: contactQiaoId,
         conv_id: convId,
         content: '',
         message_type: MESSAGE_TYPE.TYPING_START,
@@ -223,8 +220,8 @@ class TypingManager {
       }
 
       await messageService.sendMessage({
-        from: userInfo.qiao_id,
-        to: contactQiaoId,
+        from_qiao_id: userInfo.qiao_id,
+        to_qiao_id: contactQiaoId,
         conv_id: convId,
         content: '',
         message_type: MESSAGE_TYPE.TYPING_END,

@@ -9,6 +9,7 @@
  * - onMessage(callback): void
  * - onTyping(callback): void
  * - onError(callback): void
+ * - onConnectionChange(callback): void
  * - isConnected(): boolean
  *
  * Installation:
@@ -20,10 +21,12 @@ import { ENABLE_LEANCLOUD_DEBUG } from '../env';
 import { getLogger } from '../logger';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from '../constants/message';
 import type { MessageType } from '../constants/message';
+import { isNonEmptyString } from '../guards';
 import type {
   AdapterMessage,
   AdapterSendResult,
   AdapterTypingPayload,
+  ConnectionState,
   BusinessMessagePayload,
   MessageAdapter,
   MessageSignature,
@@ -55,6 +58,48 @@ const toError = (error: unknown): Error => {
   }
 };
 
+const isMessageTypeValue = (value: unknown): value is MessageType =>
+  typeof value === 'number' && Object.values(MESSAGE_TYPE).includes(value as MessageType);
+
+type AttributeRecord = Record<string, unknown>;
+type ResolvedPayload = Omit<AdapterMessage, 'status' | 'lc_msg_id' | 'lc_timestamp'>;
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+
+const getStringAttr = (attrs: AttributeRecord | null, key: string, fallback: string): string => {
+  const value = attrs?.[key];
+  return typeof value === 'string' ? value : fallback;
+};
+
+const getOptionalStringAttr = (
+  attrs: AttributeRecord | null,
+  key: string,
+  fallback: string | null
+): string | null => {
+  const value = attrs?.[key];
+  return typeof value === 'string' ? value : fallback;
+};
+
+const getBooleanAttr = (attrs: AttributeRecord | null, key: string, fallback: boolean): boolean => {
+  const value = attrs?.[key];
+  return typeof value === 'boolean' ? value : fallback;
+};
+
+const getNumberAttr = (attrs: AttributeRecord | null, key: string, fallback: number): number => {
+  const value = attrs?.[key];
+  return typeof value === 'number' ? value : fallback;
+};
+
+const getMessageTypeAttr = (
+  attrs: AttributeRecord | null,
+  key: string,
+  fallback: MessageType
+): MessageType => {
+  const value = attrs?.[key];
+  return isMessageTypeValue(value) ? value : fallback;
+};
+
 type MessageCallback = (payload: AdapterMessage) => void;
 type TypingCallback = (payload: AdapterTypingPayload) => void;
 type ErrorCallback = (error: Error) => void;
@@ -72,8 +117,8 @@ class BusinessMessage extends TypedMessage {
   id?: string;
   timestamp?: number;
   msg_id = '';
-  from = '';
-  to = '';
+  from_qiao_id = '';
+  to_qiao_id = '';
   conv_id = '';
   content = '';
   message_type: MessageType = MESSAGE_TYPE.TEXT;
@@ -85,15 +130,46 @@ class BusinessMessage extends TypedMessage {
 
   constructor(data: Partial<BusinessMessagePayload> = {}) {
     super();
-    Object.assign(this, data);
+    if (data.msg_id !== undefined) {
+      this.msg_id = data.msg_id;
+    }
+    if (data.from_qiao_id !== undefined) {
+      this.from_qiao_id = data.from_qiao_id;
+    }
+    if (data.to_qiao_id !== undefined) {
+      this.to_qiao_id = data.to_qiao_id;
+    }
+    if (data.conv_id !== undefined) {
+      this.conv_id = data.conv_id;
+    }
+    if (data.content !== undefined) {
+      this.content = data.content;
+    }
+    if (data.message_type !== undefined) {
+      this.message_type = data.message_type;
+    }
+    if (data.supports_typing !== undefined) {
+      this.supports_typing = data.supports_typing;
+    }
+    if (data.sent_time !== undefined) {
+      this.sent_time = data.sent_time;
+    }
+    if (data.action !== undefined) {
+      this.action = data.action;
+    }
+    if (data.notification_type !== undefined) {
+      this.notification_type = data.notification_type;
+    }
+    if (data.data !== undefined) {
+      this.data = data.data;
+    }
   }
 }
 
-// Declare fields to send
 messageField([
   'msg_id',
-  'from',
-  'to',
+  'from_qiao_id',
+  'to_qiao_id',
   'conv_id',
   'content',
   'message_type',
@@ -107,6 +183,61 @@ messageField([
 // Specify LeanCloud message type
 messageType(BUSINESS_MESSAGE_TYPE)(BusinessMessage);
 
+const getAttributeRecord = (message: BusinessMessage): AttributeRecord | null => {
+  const candidate = message as unknown;
+  if (
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    'getAttributes' in candidate &&
+    typeof (candidate as { getAttributes?: unknown }).getAttributes === 'function'
+  ) {
+    const rawAttributes = (candidate as { getAttributes: () => unknown }).getAttributes();
+    return asRecord(rawAttributes);
+  }
+
+  if (typeof candidate === 'object' && candidate !== null && 'attributes' in candidate) {
+    const rawAttributes = (candidate as { attributes?: unknown }).attributes;
+    return asRecord(rawAttributes);
+  }
+
+  return null;
+};
+
+const resolveBusinessPayload = (message: BusinessMessage): ResolvedPayload | null => {
+  const attrs = getAttributeRecord(message);
+
+  const msgIdValue = isNonEmptyString(message.msg_id)
+    ? message.msg_id
+    : getStringAttr(attrs, 'msg_id', '');
+  if (!isNonEmptyString(msgIdValue)) {
+    logger.error('Business message missing msg_id', {
+      msg_id: msgIdValue,
+      lc_id: message.id,
+      lc_timestamp: message.timestamp,
+      message_type: message.message_type,
+    });
+    return null;
+  }
+
+  const fallbackFrom = isNonEmptyString(message.from_qiao_id) ? message.from_qiao_id : '';
+  const fallbackTo = isNonEmptyString(message.to_qiao_id) ? message.to_qiao_id : '';
+  const fallbackConv = isNonEmptyString(message.conv_id) ? message.conv_id : '';
+
+  return {
+    msg_id: msgIdValue,
+    from_qiao_id: getStringAttr(attrs, 'from_qiao_id', fallbackFrom),
+    to_qiao_id: getStringAttr(attrs, 'to_qiao_id', fallbackTo),
+    conv_id: getStringAttr(attrs, 'conv_id', fallbackConv),
+    content: getStringAttr(attrs, 'content', message.content),
+    message_type: getMessageTypeAttr(attrs, 'message_type', message.message_type),
+    supports_typing: getBooleanAttr(attrs, 'supports_typing', message.supports_typing),
+    sent_time: getNumberAttr(attrs, 'sent_time', message.sent_time),
+    action: getOptionalStringAttr(attrs, 'action', message.action),
+    notification_type: getOptionalStringAttr(attrs, 'notification_type', message.notification_type),
+    data: asRecord(attrs?.data) ?? message.data,
+  };
+};
+
 /**
  * LeanCloud message adapter
  */
@@ -118,6 +249,7 @@ export class LCAdapter implements MessageAdapter {
   private messageCallbacks: MessageCallback[] = [];
   private typingCallbacks: TypingCallback[] = [];
   private errorCallbacks: ErrorCallback[] = [];
+  private connectionCallbacks: Array<(state: ConnectionState) => void> = [];
 
   constructor() {
     if (!ENABLE_LEANCLOUD_DEBUG && typeof debug?.disable === 'function') {
@@ -139,14 +271,20 @@ export class LCAdapter implements MessageAdapter {
     try {
       logger.info('Connecting to LeanCloud', { userId });
 
-      this.realtime = new Realtime({
-        appId: LEANCLOUD_CONFIG.appId,
-        appKey: LEANCLOUD_CONFIG.appKey,
-        server: LEANCLOUD_CONFIG.serverUrl,
-        plugins: [TypedMessagesPlugin],
-      });
+      if (this.realtime === null) {
+        this.realtime = new Realtime({
+          appId: LEANCLOUD_CONFIG.appId,
+          appKey: LEANCLOUD_CONFIG.appKey,
+          server: LEANCLOUD_CONFIG.serverUrl,
+          plugins: [TypedMessagesPlugin],
+        });
+        this.realtime.register(BusinessMessage);
+      }
 
-      this.realtime.register(BusinessMessage);
+      if (this.imClient !== null) {
+        await this.imClient.close();
+        this.imClient = null;
+      }
 
       this.imClient = await this.realtime.createIMClient(userId, {
         signatureFactory: () =>
@@ -163,6 +301,7 @@ export class LCAdapter implements MessageAdapter {
 
       this.connected = true;
       logger.info('Connected to LeanCloud');
+      this.triggerConnectionCallbacks('connected');
     } catch (error) {
       const err = toError(error);
       logger.error('Connect to LeanCloud failed', {
@@ -188,6 +327,7 @@ export class LCAdapter implements MessageAdapter {
       this.connected = false;
 
       logger.info('Disconnected from LeanCloud');
+      this.triggerConnectionCallbacks('disconnected');
     } catch (error) {
       const err = toError(error);
       logger.error('Disconnect from LeanCloud failed', {
@@ -225,6 +365,13 @@ export class LCAdapter implements MessageAdapter {
   onError(callback: ErrorCallback): void {
     if (typeof callback === 'function') {
       this.errorCallbacks.push(callback);
+    }
+  }
+
+  /** Register connection callback */
+  onConnectionChange(callback: (state: ConnectionState) => void): void {
+    if (typeof callback === 'function') {
+      this.connectionCallbacks.push(callback);
     }
   }
 
@@ -322,7 +469,9 @@ export class LCAdapter implements MessageAdapter {
       }
 
       const lcMsgId =
-        typeof sentMessage.id === 'string' && sentMessage.id !== '' ? sentMessage.id : messageData.msg_id;
+        typeof sentMessage.id === 'string' && sentMessage.id !== ''
+          ? sentMessage.id
+          : messageData.msg_id;
       const lcTimestamp =
         typeof sentMessage.timestamp === 'number' && Number.isFinite(sentMessage.timestamp)
           ? sentMessage.timestamp
@@ -420,32 +569,41 @@ export class LCAdapter implements MessageAdapter {
     });
   }
 
+  private triggerConnectionCallbacks(state: ConnectionState): void {
+    this.connectionCallbacks.forEach((callback) => {
+      try {
+        callback(state);
+      } catch (error) {
+        const err = toError(error);
+        logger.error('Connection callback error', {
+          error: err.message,
+          stack: err.stack,
+        });
+      }
+    });
+  }
+
   /**
    * Process business message
    * @param {BusinessMessage} message - Business message instance
    */
   private processBusinessMessage(message: BusinessMessage): void {
-    const lcMsgId = typeof message.id === 'string' && message.id !== '' ? message.id : message.msg_id;
+    const resolvedPayload = resolveBusinessPayload(message);
+    if (resolvedPayload === null) {
+      return;
+    }
+    const lcMsgId =
+      typeof message.id === 'string' && message.id !== '' ? message.id : message.msg_id;
     const lcTimestamp =
       typeof message.timestamp === 'number' && Number.isFinite(message.timestamp)
         ? message.timestamp
         : Date.now();
 
     const businessData: AdapterMessage = {
-      msg_id: message.msg_id,
-      from: message.from,
-      to: message.to,
-      conv_id: message.conv_id,
-      content: message.content,
-      message_type: message.message_type,
-      supports_typing: message.supports_typing,
-      sent_time: message.sent_time,
+      ...resolvedPayload,
       status: MESSAGE_STATUS.RECEIVED,
       lc_msg_id: lcMsgId,
       lc_timestamp: lcTimestamp,
-      action: message.action ?? null,
-      notification_type: message.notification_type ?? null,
-      data: message.data ?? null,
     };
 
     if (
@@ -453,7 +611,7 @@ export class LCAdapter implements MessageAdapter {
       businessData.message_type === MESSAGE_TYPE.TYPING_END
     ) {
       this.triggerTypingCallbacks({
-        from: businessData.from,
+        from_qiao_id: businessData.from_qiao_id,
         conv_id: businessData.conv_id,
         isTyping: businessData.message_type === MESSAGE_TYPE.TYPING_START,
       });
@@ -499,6 +657,7 @@ export class LCAdapter implements MessageAdapter {
   private handleDisconnect(): void {
     logger.warn('Disconnected from LeanCloud');
     this.connected = false;
+    this.triggerConnectionCallbacks('disconnected');
   }
 
   /**

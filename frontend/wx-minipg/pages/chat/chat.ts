@@ -590,8 +590,8 @@ Page<ChatPageData, ChatPageCustom>({
 
       await messageService.sendMessage({
         client_msg_id: newClientMsgId,
-        from: userInfo.qiao_id,
-        to: this.data.contactQiaoId,
+        from_qiao_id: userInfo.qiao_id,
+        to_qiao_id: this.data.contactQiaoId,
         conv_id: this.data.convId,
         content: newMessage.content ?? '',
         message_type: (newMessage.message_type ?? MESSAGE_TYPE.TEXT) as MessageType,
@@ -653,8 +653,8 @@ Page<ChatPageData, ChatPageCustom>({
 
       await messageService.sendMessage({
         client_msg_id: firstNonEmptyString(newClientMsgId, msgIdValue) ?? msgIdValue,
-        from: userInfo.qiao_id,
-        to: this.data.contactQiaoId,
+        from_qiao_id: userInfo.qiao_id,
+        to_qiao_id: this.data.contactQiaoId,
         conv_id: this.data.convId,
         content: failedMessage.content ?? '',
         message_type: (failedMessage.message_type ?? MESSAGE_TYPE.TEXT) as MessageType,
@@ -722,8 +722,8 @@ Page<ChatPageData, ChatPageCustom>({
       clientMsgId = buildClientMessageId();
       const optimisticMsg: StoredMessage = {
         msg_id: clientMsgId,
-        from: userInfo.qiao_id,
-        to: this.data.contactQiaoId,
+        from_qiao_id: userInfo.qiao_id,
+        to_qiao_id: this.data.contactQiaoId,
         conv_id: this.data.convId,
         content,
         message_type: MESSAGE_TYPE.TEXT,
@@ -742,8 +742,8 @@ Page<ChatPageData, ChatPageCustom>({
 
       await messageService.sendMessage({
         client_msg_id: clientMsgId,
-        from: userInfo.qiao_id,
-        to: this.data.contactQiaoId,
+        from_qiao_id: userInfo.qiao_id,
+        to_qiao_id: this.data.contactQiaoId,
         conv_id: this.data.convId,
         content,
         message_type: MESSAGE_TYPE.TEXT,
@@ -772,8 +772,8 @@ Page<ChatPageData, ChatPageCustom>({
 
           await messageService.sendMessage({
             client_msg_id: clientMsgId,
-            from: userInfo.qiao_id,
-            to: this.data.contactQiaoId,
+            from_qiao_id: userInfo.qiao_id,
+            to_qiao_id: this.data.contactQiaoId,
             conv_id: this.data.convId,
             content,
             message_type: MESSAGE_TYPE.TEXT,

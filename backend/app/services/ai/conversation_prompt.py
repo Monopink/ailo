@@ -278,7 +278,7 @@ async def _build_placeholder_values(
     # {{score:dimension_name}} - dynamic score placeholders
     instance_qiao_id = context.get("instance_qiao_id")
     if instance_qiao_id:
-        score_placeholders = await _build_score_placeholders(db, instance_qiao_id)
+        score_placeholders = await _build_score_placeholders(db, context["instance_id"])
         placeholder_values.update(score_placeholders)
 
         pending_text = await _build_pending_messages_placeholder(db, user_qiao_id, instance_qiao_id)
@@ -309,22 +309,22 @@ async def _build_placeholder_values(
     return placeholder_values
 
 
-async def _build_score_placeholders(db: AsyncSession, instance_qiao_id: str) -> dict[str, str]:
+async def _build_score_placeholders(db: AsyncSession, instance_id: int) -> dict[str, str]:
     """
     Build score-related placeholders for an instance.
 
     Args:
         db: Database session
-        instance_qiao_id: Instance's qiao_id
+        instance_id: Instance ID
 
     Returns:
         Dictionary of score placeholders in format {"score:dimension_name": "value"}
     """
-    scores = await get_relationship_scores(db, instance_qiao_id)
+    scores = await get_relationship_scores(db, instance_id)
     if not scores:
         logger.debug(
             "no_scores_found_for_placeholders",
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
         )
         return {}
 
@@ -337,7 +337,7 @@ async def _build_score_placeholders(db: AsyncSession, instance_qiao_id: str) -> 
 
     logger.debug(
         "score_placeholders_built",
-        instance_qiao_id=instance_qiao_id,
+        instance_id=instance_id,
         placeholders_count=len(score_placeholders),
     )
 
@@ -769,7 +769,7 @@ def _format_humanized_time(dt: datetime, tzinfo: ZoneInfo) -> str:
     return f"{pdt.year}-{pdt.month:02d}-{pdt.day:02d}({relative}) {time_str}"
 
 
-async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, template: str) -> str:
+async def format_score_placeholders(db: AsyncSession, instance_id: int, template: str) -> str:
     """
     Format score-related placeholders in template.
 
@@ -778,7 +778,7 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
 
     Args:
         db: Database session
-        instance_qiao_id: Instance's qiao_id
+        instance_id: Instance ID
         template: Template string with score placeholders
 
     Returns:
@@ -797,11 +797,11 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
             return template
 
         # Get current scores for the instance
-        scores = await get_relationship_scores(db, instance_qiao_id)
+        scores = await get_relationship_scores(db, instance_id)
         if not scores:
             logger.warning(
                 "no_scores_found_for_placeholder_formatting",
-                instance_qiao_id=instance_qiao_id,
+                instance_id=instance_id,
             )
             # Replace all score placeholders with empty string
             return re.sub(score_pattern, "", template)
@@ -825,13 +825,13 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
                 result = result.replace(placeholder, "")
                 logger.warning(
                     "score_dimension_not_found_for_placeholder",
-                    instance_qiao_id=instance_qiao_id,
+                    instance_id=instance_id,
                     dimension_name=dimension_name,
                 )
 
         logger.debug(
             "score_placeholders_formatted",
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
             placeholders_found=len(score_matches),
             placeholders_replaced=replaced_count,
         )
@@ -840,7 +840,7 @@ async def format_score_placeholders(db: AsyncSession, instance_qiao_id: str, tem
         logger.error(
             "score_placeholder_formatting_failed",
             error=str(e),
-            instance_qiao_id=instance_qiao_id,
+            instance_id=instance_id,
             exc_info=True,
         )
         raise AIServiceError(

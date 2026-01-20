@@ -79,7 +79,7 @@ AI 响应时只发送 TEXT 消息，客户端通过以下方式自动隐藏：
 - 收到 TEXT 消息时立即隐藏
 - 30秒超时自动隐藏
 
-详见 docs/prototype/minipg.md
+详见 docs/spec/mini-program/prototype.md
 
 ## CHAT_INFO 对话提示信息
 

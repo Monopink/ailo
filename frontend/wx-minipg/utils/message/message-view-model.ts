@@ -113,7 +113,7 @@ export function buildMessageViewModels(
     const timestamp = getMessageTimestamp(message);
     const viewModel: MessageViewModel = {
       ...message,
-      from_me: currentUserId !== '' && message.from === currentUserId,
+      from_me: currentUserId !== '' && message.from_qiao_id === currentUserId,
       showTimestamp: false,
       timestampText: '',
       isSystemMessage: message.message_type === MESSAGE_TYPE.CHAT_INFO,
@@ -125,9 +125,7 @@ export function buildMessageViewModels(
     viewModel.timestampText = formatTimestamp(timestamp);
     viewModel.showTimestamp =
       previous === null || timestamp - (previous.sent_time ?? 0) > TIMESTAMP_GAP_MS;
-    viewModel.systemContent = viewModel.isSystemMessage
-      ? buildSystemContent(message)
-      : '';
+    viewModel.systemContent = viewModel.isSystemMessage ? buildSystemContent(message) : '';
 
     result.push(viewModel);
     previous = viewModel;

@@ -166,19 +166,10 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
     # This function assumes, when called by buffer, that locked_buffer_id points
     # to the currently LOCKED user window and message_content reflects its content.
 
-    # Step 3: Find corresponding ai_instance context
-    context = await get_instance_context(db, instance_qiao_id=instance_qiao_id)
-    if not context:
-        raise AIConversationError(
-            conversation_step="instance_lookup",
-            reason="instance_not_found",
-            message=f"Instance not found: {instance_qiao_id}",
-        )
-
-    # Step 3.5: Validate message permission (bidirectional relationship)
-    # Skip contact validation in test mode (persist=False)
+    # Step 3: Resolve instance context
+    contact: Contact | None = None
+    instance_obj: AIInstance | None = None
     if persist:
-        # Find contact by user and instance qiao_ids
         contact_stmt = select(Contact).where(
             Contact.user_qiao_id == user_qiao_id,
             Contact.contact_qiao_id == instance_qiao_id,
@@ -199,18 +190,38 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
                 message="Contact relationship not found between user and instance",
             )
 
-        # Get AI instance for validation
-        instance_stmt = select(AIInstance).where(AIInstance.qiao_id == instance_qiao_id)
-        instance_result = await db.execute(instance_stmt)
-        instance_obj = instance_result.scalar_one_or_none()
-
+        instance_obj = await db.get(AIInstance, contact.contact_id)
         if not instance_obj:
+            logger.error(
+                "instance_not_found_for_contact",
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                contact_id=contact.contact_id,
+            )
             raise AIConversationError(
-                conversation_step="permission_validation",
+                conversation_step="instance_lookup",
                 reason="instance_not_found",
                 message=f"Instance not found: {instance_qiao_id}",
             )
 
+        context = await get_instance_context(db, instance_id=instance_obj.id)
+    else:
+        context = await get_instance_context(
+            db,
+            instance_qiao_id=instance_qiao_id,
+            user_qiao_id=user_qiao_id,
+        )
+
+    if not context:
+        raise AIConversationError(
+            conversation_step="instance_lookup",
+            reason="instance_not_found",
+            message=f"Instance not found: {instance_qiao_id}",
+        )
+
+    # Step 3.5: Validate message permission (bidirectional relationship)
+    # Skip contact validation in test mode (persist=False)
+    if persist and instance_obj and contact:
         # Validate message permission
         validation_result = await message_validation_service.validate_message_permission(
             db=db, from_qiao_id=user_qiao_id, instance=instance_obj, contact=contact
@@ -254,7 +265,7 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
         )
 
     # Step 4: Get relationship scores
-    relationship_scores = await get_relationship_scores(db, instance_qiao_id)
+    relationship_scores = await get_relationship_scores(db, context["instance_id"])
 
     # Step 5: Determine relationship type
     relationship_type = await determine_relationship_type(db, context, relationship_scores)
@@ -447,7 +458,7 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
     raw_content = llm_result.get("raw_content")
     if raw_content is None or raw_content == "":
         raw_content = json.dumps(ai_response, ensure_ascii=False)
-    elif isinstance(raw_content, (dict, list)):
+    elif isinstance(raw_content, dict | list):
         raw_content = json.dumps(raw_content, ensure_ascii=False)
     elif not isinstance(raw_content, str):
         raw_content = str(raw_content)
@@ -591,7 +602,7 @@ async def process_ai_response_updates(
 
         # Handle blocking
         if persist and ai_response.get("should_block", False):
-            await handle_instance_blocking(db, instance_qiao_id)
+            await handle_instance_blocking(db, context["instance_id"], instance_qiao_id)
 
         # Finalization to COMPLETE is handled by buffer after this function returns
 
@@ -655,16 +666,19 @@ async def handle_attack_detection(
         )
 
 
-async def handle_instance_blocking(db: AsyncSession, instance_qiao_id: str) -> None:
+async def handle_instance_blocking(
+    db: AsyncSession, instance_id: int, instance_qiao_id: str
+) -> None:
     """
     Handle instance blocking (delete friend).
 
     Args:
         db: Database session
+        instance_id: Instance ID
         instance_qiao_id: Instance's qiao_id
     """
     try:
-        success = await update_instance_status(db, instance_qiao_id, 3)  # blocked
+        success = await update_instance_status(db, instance_id, 3)  # blocked
 
         if success:
             logger.warning("instance_blocked", instance_qiao_id=instance_qiao_id)

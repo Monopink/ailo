@@ -3,8 +3,8 @@ import type { MessageType } from '../constants/message';
 
 export interface BusinessMessagePayload {
   msg_id: string;
-  from: string;
-  to: string;
+  from_qiao_id: string;
+  to_qiao_id: string;
   conv_id: string;
   content: string;
   message_type: MessageType;
@@ -33,10 +33,12 @@ export interface AdapterMessage extends AdapterSendResult {
 }
 
 export type AdapterTypingPayload = {
-  from: string;
+  from_qiao_id: string;
   conv_id: string;
   isTyping: boolean;
 };
+
+export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'suspending';
 
 export interface MessageAdapter {
   connect(userId: string, signature: MessageSignature): Promise<void>;
@@ -45,6 +47,7 @@ export interface MessageAdapter {
   onMessage(handler: (message: AdapterMessage) => void): void;
   onTyping(handler: (payload: AdapterTypingPayload) => void): void;
   onError(handler: (error: Error) => void): void;
+  onConnectionChange(handler: (state: ConnectionState) => void): void;
   invalidateConversation?(imConvId?: string | null): void;
   isConnected(): boolean;
 }

@@ -485,6 +485,11 @@ score 对象的字段必须与 ai_style_dimensions 一致
 - request_time_ms: 请求耗时（毫秒）
 - created_at: 请求时间
 
+补充：
+- request 字段存储完整请求载荷（call_params + request_kwargs）
+- response 字段存储完整 SDK 原始响应与解析后的内容
+- 请求载荷中的敏感字段（如 Authorization、api_key 等）会被脱敏为 "[redacted]"
+
 ### 查询日志
 
 通过 buffer_id 关联查询：

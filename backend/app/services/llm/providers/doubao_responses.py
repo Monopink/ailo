@@ -67,15 +67,15 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
     ) -> LLMProviderResult:
         content, tool_calls, reasoning_content = _extract_responses_text(response)
         usage = _usage_to_dict(getattr(response, "usage", None))
-        call_params = params.get("call_params")
+        request_payload = _build_request_payload(params)
 
         return LLMProviderResult(
             content=content,
             model=getattr(response, "model", None),
             usage=usage,
             finish_reason=_extract_finish_reason(response),
-            raw_response=response.to_dict() if hasattr(response, "to_dict") else None,
-            request_params=call_params if isinstance(call_params, dict) else None,
+            raw_response=_coerce_to_json_response(response),
+            request_params=request_payload,
             response_id=getattr(response, "id", None),
             cache_hit=_is_cache_hit(usage),
             tool_calls=tool_calls,
@@ -146,7 +146,9 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
                         usage=None,
                         finish_reason="preempted",
                         raw_response=None,
-                        request_params=call_params,
+                        request_params=_build_request_payload(
+                            {"call_params": call_params, "request_kwargs": request_kwargs}
+                        ),
                         preempted=True,
                     )
 
@@ -176,7 +178,9 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
                 usage=final_usage,
                 finish_reason=final_finish_reason or "completed",
                 raw_response=None,
-                request_params=call_params,
+                request_params=_build_request_payload(
+                    {"call_params": call_params, "request_kwargs": request_kwargs}
+                ),
                 response_id=final_response_id,
                 cache_hit=_is_cache_hit(final_usage),
                 tool_calls=accumulated_tool_calls or None,
@@ -313,6 +317,17 @@ def _build_request_kwargs(options: LLMRequestOptions) -> JSONDict:
         "extra_body": extra_body or None,
         "timeout": options.provider_overrides.get("timeout"),
     }
+
+
+def _build_request_payload(params: dict[str, JSONDict]) -> JSONDict | None:
+    payload: JSONDict = {}
+    call_params = params.get("call_params")
+    request_kwargs = params.get("request_kwargs")
+    if isinstance(call_params, dict):
+        payload["call_params"] = call_params
+    if isinstance(request_kwargs, dict):
+        payload["request_kwargs"] = request_kwargs
+    return payload or None
 
 
 def _validate_extra_body(extra_body: JSONDict) -> None:

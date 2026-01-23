@@ -193,6 +193,18 @@ def _coerce_json_payload(value: JSONValue | None) -> JSONPayload | None:
     return None
 
 
+def _coerce_optional_bool(value: JSONValue | None) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def _coerce_json_or_str(value: JSONValue | None) -> JSONPayload | str | None:
+    if isinstance(value, str):
+        return value
+    return _coerce_json_payload(value)
+
+
 def _normalize_llm_result(llm_result: JSONDict) -> ValidationResult:
     return {
         "success": bool(llm_result.get("success")),
@@ -200,4 +212,16 @@ def _normalize_llm_result(llm_result: JSONDict) -> ValidationResult:
         "error": _coerce_optional_str(llm_result.get("error")),
         "usage": _coerce_usage_dict(llm_result.get("usage")),
         "preempted": bool(llm_result.get("preempted")),
+        "model": _coerce_optional_str(llm_result.get("model")),
+        "config_used": _coerce_usage_dict(llm_result.get("config_used")),
+        "request_payload": _coerce_json_payload(llm_result.get("request_payload")),
+        "raw_response": _coerce_json_payload(llm_result.get("raw_response")),
+        "raw_content": _coerce_json_or_str(llm_result.get("raw_content")),
+        "tool_calls": _coerce_json_payload(llm_result.get("tool_calls")),
+        "reasoning_content": _coerce_optional_str(llm_result.get("reasoning_content")),
+        "finish_reason": _coerce_optional_str(llm_result.get("finish_reason")),
+        "response_id": _coerce_optional_str(llm_result.get("response_id")),
+        "cache_hit": _coerce_optional_bool(llm_result.get("cache_hit")),
+        "cache_strategy": _coerce_optional_str(llm_result.get("cache_strategy")),
+        "streaming": _coerce_json_payload(llm_result.get("streaming")),
     }

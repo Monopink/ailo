@@ -24,6 +24,22 @@ from .instance_queries import get_user_id_by_qiao_id
 
 logger = get_logger(__name__)
 
+SENSITIVE_REQUEST_KEYS = {
+    "authorization",
+    "proxy-authorization",
+    "api_key",
+    "apikey",
+    "api-key",
+    "x-api-key",
+    "x_api_key",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "token",
+    "secret",
+    "signature",
+}
+
 
 def _coerce_template_id(value: object) -> int | None:
     """Convert mixed template_id payloads into an integer."""
@@ -195,6 +211,15 @@ async def save_ai_request_log(
         usage_payload = _as_mapping(llm_result.get("usage"))
         total_tokens = _coerce_int(usage_payload.get("total_tokens")) if usage_payload else 0
         request_payload = _as_mapping(llm_result.get("request_payload"))
+        if request_payload:
+            sanitized_request_payload = _sanitize_request_payload(dict(request_payload))
+        else:
+            logger.warning(
+                "ai_request_log_missing_request_payload",
+                user_qiao_id=user_qiao_id,
+                instance_id=instance_context.get("instance_id"),
+            )
+            sanitized_request_payload = {"error": "request_payload_not_available"}
         response_time_value = _coerce_float(llm_result.get("response_time"))
         response_time_ms = int(response_time_value * 1000) if response_time_value is not None else 0
         success_flag = bool(llm_result.get("success"))
@@ -212,7 +237,7 @@ async def save_ai_request_log(
             response_id=llm_result.get("response_id"),
             cache_hit=bool(llm_result.get("cache_hit")),
             buffer_id=buffer_id,
-            request=dict(request_payload) if request_payload else {},
+            request=sanitized_request_payload,
             response=response_payload,
             status=1 if success_flag else 2,
             token_count=total_tokens,
@@ -367,6 +392,22 @@ def _coerce_response_payload(ai_response: object) -> dict[str, object]:
     if isinstance(ai_response, Mapping):
         return dict(ai_response)
     return {"content": ai_response}
+
+
+def _sanitize_request_payload(value: object) -> object:
+    """Redact sensitive keys in request payloads before persistence."""
+    if isinstance(value, Mapping):
+        sanitized: dict[object, object] = {}
+        for key, item in value.items():
+            key_str = str(key).lower()
+            if key_str in SENSITIVE_REQUEST_KEYS:
+                sanitized[key] = "[redacted]"
+            else:
+                sanitized[key] = _sanitize_request_payload(item)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_request_payload(item) for item in value]
+    return value
 
 
 def _as_mapping(value: object | None) -> Mapping[str, object] | None:

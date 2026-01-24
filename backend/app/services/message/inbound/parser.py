@@ -5,7 +5,7 @@ Converts intermediate format to InboundMessageEvent with business logic.
 """
 
 from app.enums import MessageType
-from app.services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
+from app.services.message.schemas import EventMetadata, InboundMessageEvent
 from app.services.message.security.encryption import decrypt_from_transport
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
@@ -86,7 +86,7 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
         notification_type_value = intermediate.get("notification_type")
         notification_type = (
             int(notification_type_value)
-            if isinstance(notification_type_value, (int, float))
+            if isinstance(notification_type_value, int | float)
             else None
         )
 
@@ -99,14 +99,12 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
         supports_typing_raw = intermediate.get("supports_typing", False)
         supports_typing = (
             bool(supports_typing_raw)
-            if isinstance(supports_typing_raw, (bool, int, float))
+            if isinstance(supports_typing_raw, bool | int | float)
             else False
         )
         client_sent_time_value = intermediate.get("sent_time")
         client_sent_time = (
-            int(client_sent_time_value)
-            if isinstance(client_sent_time_value, (int, float))
-            else None
+            int(client_sent_time_value) if isinstance(client_sent_time_value, int | float) else None
         )
 
         if encryption_algo:
@@ -129,28 +127,6 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
             notification_type=notification_type,
             encryption=encryption_algo,
             encryption_version=encryption_version,
-        )
-
-        lc_from_value = intermediate.get("lc_from")
-        lc_from = lc_from_value if isinstance(lc_from_value, str) else None
-
-        lc_conv_id_value = intermediate.get("lc_conv_id")
-        lc_conv_id = lc_conv_id_value if isinstance(lc_conv_id_value, str) else None
-
-        raw_webhook_value = intermediate.get("raw_webhook")
-        raw_webhook = raw_webhook_value if isinstance(raw_webhook_value, str) else None
-
-        notification_data_value = intermediate.get("notification_data")
-        notification_data = (
-            notification_data_value if isinstance(notification_data_value, dict) else None
-        )
-
-        # Build provider metadata
-        provider_metadata = ProviderMetadata(
-            lc_from=lc_from,
-            lc_conv_id=lc_conv_id,
-            raw_webhook=raw_webhook,
-            notification_data=notification_data,
         )
 
         # Validate timestamp_ms type
@@ -190,7 +166,6 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
             supports_typing=supports_typing,
             client_sent_time=client_sent_time,
             metadata=event_metadata,
-            provider_metadata=provider_metadata,
         )
 
     except Exception as e:

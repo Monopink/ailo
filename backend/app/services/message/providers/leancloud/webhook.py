@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.contact import contact as contact_crud
 from app.enums import MessageType
-from app.services.message.schemas import EventMetadata, InboundMessageEvent, ProviderMetadata
+from app.services.message.schemas import EventMetadata, InboundMessageEvent
 from app.services.message.security.encryption import decrypt_from_transport
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
@@ -69,20 +69,16 @@ async def parse_leancloud_webhook(
         supports_typing_raw = intermediate.get("supports_typing", False)
         supports_typing = (
             bool(supports_typing_raw)
-            if isinstance(supports_typing_raw, (bool, int, float))
+            if isinstance(supports_typing_raw, bool | int | float)
             else False
         )
         sent_time_raw = intermediate.get("sent_time")
-        sent_time = int(sent_time_raw) if isinstance(sent_time_raw, (int, float)) else None
+        sent_time = int(sent_time_raw) if isinstance(sent_time_raw, int | float) else None
         action_raw = intermediate.get("action")
         action = action_raw if isinstance(action_raw, dict) else None
         notification_type_raw = intermediate.get("notification_type")
         notification_type = (
-            int(notification_type_raw) if isinstance(notification_type_raw, (int, float)) else None
-        )
-        notification_data_raw = intermediate.get("notification_data")
-        notification_data = (
-            notification_data_raw if isinstance(notification_data_raw, dict) else None
+            int(notification_type_raw) if isinstance(notification_type_raw, int | float) else None
         )
         encryption_raw = intermediate.get("encryption")
         encryption_algo = encryption_raw if isinstance(encryption_raw, str) else None
@@ -130,7 +126,7 @@ async def parse_leancloud_webhook(
 
         # Convert ISO timestamp to milliseconds
         timestamp_raw = intermediate.get("timestamp_ms")
-        timestamp = int(timestamp_raw) if isinstance(timestamp_raw, (int, float)) else None
+        timestamp = int(timestamp_raw) if isinstance(timestamp_raw, int | float) else None
         if not timestamp:
             timestamp = sent_time if sent_time else int(datetime.now(UTC).timestamp() * 1000)
 
@@ -150,25 +146,12 @@ async def parse_leancloud_webhook(
                 )
 
         # Build event metadata payloads
-        lc_from_raw = intermediate.get("lc_from")
-        lc_from = lc_from_raw if isinstance(lc_from_raw, str) else None
-        lc_conv_id_raw = intermediate.get("lc_conv_id")
-        lc_conv_id = lc_conv_id_raw if isinstance(lc_conv_id_raw, str) else None
-        raw_webhook_raw = intermediate.get("raw_webhook")
-        raw_webhook = raw_webhook_raw if isinstance(raw_webhook_raw, str) else None
-
         event_metadata = EventMetadata(
             action=action,
             notification_type=notification_type,
             rate_limit_bucket=None,
             encryption=encryption_algo,
             encryption_version=encryption_version,
-        )
-        provider_metadata = ProviderMetadata(
-            lc_from=lc_from,
-            lc_conv_id=lc_conv_id,
-            raw_webhook=raw_webhook,
-            notification_data=notification_data,
         )
 
         # Extract and validate required message IDs
@@ -195,7 +178,6 @@ async def parse_leancloud_webhook(
             supports_typing=supports_typing,
             client_sent_time=sent_time,
             metadata=event_metadata,
-            provider_metadata=provider_metadata,
         )
 
     except Exception:

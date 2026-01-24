@@ -25,7 +25,7 @@ from app.enums import (
     ServiceProvider,
     UploaderType,
 )
-from app.models.message import MessageDeliveryFailure
+from app.models.message import MessageDeliveryFailure, MessageOfflineCursor
 from app.models.message.media import MediaFile
 from app.models.message.message import MessageHistory
 from app.models.message.notification import NotificationPushHistory
@@ -70,7 +70,6 @@ class MessageHistoryView(ModelView):
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "direction",
-        "platform",
         "message_type",
         "status",
         "created_at",
@@ -81,12 +80,6 @@ class MessageHistoryView(ModelView):
         [
             IntegerEnumField(
                 "direction", enum=MessageDirection, label="Direction", help_text="Message direction"
-            ),
-            IntegerEnumField(
-                "platform",
-                choices=[(1, "iOS"), (2, "Android"), (3, "Web"), (4, "Mini Program")],
-                label="Platform",
-                help_text="Source platform",
             ),
             StringField(
                 "conversation_id", label="Conversation ID", help_text="Conversation identifier"
@@ -453,10 +446,77 @@ notification_push_history_view = NotificationPushHistoryView(
     identity="notification_push_history",
 )
 
+
+class MessageOfflineCursorView(ModelView):
+    """Offline message cursor view for monitoring per-device delivery progress."""
+
+    def can_create(self, request: Request) -> bool:
+        del request
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        del request
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        del request
+        return True
+
+    exclude_fields_from_list: ClassVar[list[str]] = []
+    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("updated_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "device_id"]
+    sortable_fields: ClassVar[list[str]] = [
+        "id",
+        "user_id",
+        "user_qiao_id",
+        "last_ack_sent_at",
+        "last_pull_at",
+        "created_at",
+        "updated_at",
+    ]
+
+    fields: ClassVar[Sequence[BaseField]] = cast(
+        Sequence[BaseField],
+        [
+            StringField("id", label="ID", help_text="Cursor record ID"),
+            IntegerField("user_id", label="User ID", help_text="User internal ID"),
+            StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
+            StringField("device_id", label="Device ID", help_text="Device/installation UUID"),
+            StringField(
+                "last_ack_msg_id",
+                label="Last Ack Message ID",
+                help_text="Latest acknowledged server message ID",
+            ),
+            LocalDateTimeField(
+                "last_ack_sent_at",
+                label="Last Ack Sent At",
+                help_text="Latest acknowledged message sent time",
+            ),
+            LocalDateTimeField(
+                "last_pull_at",
+                label="Last Pull At",
+                help_text="Latest offline pull timestamp",
+            ),
+            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
+            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        ],
+    )
+
+
+message_offline_cursor_view = MessageOfflineCursorView(
+    MessageOfflineCursor,
+    name="Offline Cursors",
+    icon="fa fa-bookmark",
+    identity="message_offline_cursor",
+)
+
 # Export all message and media views
 MESSAGE_MEDIA_MODEL_VIEWS = [
     message_history_view,
     message_delivery_failure_view,
     notification_push_history_view,
+    message_offline_cursor_view,
     media_file_view,
 ]

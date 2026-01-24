@@ -44,28 +44,6 @@ class EventMetadata(BaseModel):
     )
 
 
-class ProviderMetadata(BaseModel):
-    """
-    Third-party transport metadata.
-
-    Extra keys are allowed so we can capture provider-specific values without
-    continuously editing the schema.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    lc_from: str | None = None
-    lc_conv_id: str | None = None
-    raw_webhook: str | None = Field(
-        default=None,
-        description="Raw webhook payload for auditing",
-    )
-    notification_data: dict[str, Any] | None = Field(
-        default=None,
-        description="LeanCloud notification payload data",
-    )
-
-
 class BaseMessageEvent(BaseModel):
     """Common fields shared by inbound and outbound message events."""
 
@@ -95,7 +73,6 @@ class BaseMessageEvent(BaseModel):
         description="Original client timestamp (if provided)",
     )
     metadata: EventMetadata = Field(default_factory=EventMetadata)
-    provider_metadata: ProviderMetadata = Field(default_factory=ProviderMetadata)
 
 
 class InboundMessageEvent(BaseMessageEvent):

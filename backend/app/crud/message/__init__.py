@@ -14,6 +14,7 @@ from .message import CRUDMessage, message
 
 # Notification CRUD
 from .notification import CRUDNotificationPushHistory, notification_push_history
+from .offline_cursor import CRUDMessageOfflineCursor, offline_cursor
 
 # Export all message CRUD classes and instances
 __all__ = [
@@ -22,9 +23,11 @@ __all__ = [
     "CRUDMessageFailure",
     "CRUDMediaFile",
     "CRUDNotificationPushHistory",
+    "CRUDMessageOfflineCursor",
     # Instances
     "message",
     "message_failure",
     "media_file",
     "notification_push_history",
+    "offline_cursor",
 ]

@@ -52,6 +52,7 @@ from .views import (
     media_file_view,
     message_delivery_failure_view,
     message_history_view,
+    message_offline_cursor_view,
     notification_push_history_view,
     pending_contact_request_view,
     profile_view,
@@ -132,6 +133,7 @@ def _register_dropdowns(admin_instance: Admin) -> None:
             message_history_view,
             message_delivery_failure_view,
             notification_push_history_view,
+            message_offline_cursor_view,
         ],
         always_open=False,
     )

@@ -113,7 +113,6 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 - supports_typing (bool, 必填) - 客户端是否支持 typing
 - client_sent_time (int/null, 条件必填) - 客户端发送时间
 - metadata (object, 必填) - 业务扩展字段
-- provider_metadata (object, 必填) - 第三方原始字段
 
 ### metadata 白名单
 
@@ -144,10 +143,6 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
   "metadata": {
     "encryption": "base64",
     "encryption_version": "v1"
-  },
-  "provider_metadata": {
-    "lc_from": "qiao_user001",
-    "lc_conv_id": "68edda0a554ecc6e8843b246"
   }
 }
 ```
@@ -173,9 +168,6 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
   "metadata": {
     "encryption": "base64",
     "encryption_version": "v1"
-  },
-  "provider_metadata": {
-    "lc_conv_id": "68edda0a554ecc6e8843b246"
   }
 }
 ```
@@ -195,7 +187,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 
 ### message_history
 
-存储所有成功发送的消息。
+存储业务消息历史（TYPING 不落库）。
 
 **关键字段**：
 
@@ -207,7 +199,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 - `message_type`: 消息类型
 - `content`: 消息内容
 - `message_metadata`: 元数据JSON（包含 encryption 等）
-- `provider_metadata`: 第三方原始 payload
+- `status`: 消息状态（inbound 默认 delivered；outbound 先 sent，ACK 后 delivered）
 
 ### message_delivery_failures
 

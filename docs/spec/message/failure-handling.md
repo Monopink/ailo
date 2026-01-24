@@ -25,7 +25,6 @@
 本文档关注的关键字段：
 
 - msg_id_server - 原消息ID，关联 message_history.msg_id_server
-- msg_id_provider - 第三方出站消息ID，失败定位使用
 - content - 消息内容（用于重试）
 - fail_reason_code - 失败原因代码
 - fail_detail - 详细错误信息/堆栈（TEXT 类型）

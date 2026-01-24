@@ -8,6 +8,7 @@
 - [buffer.md](buffer.md) - AI消息缓冲、双计时器、唤醒机制
 - [context.md](context.md) - 上下文管理、消息查询、裁剪策略
 - [leancloud.md](leancloud.md) - LeanCloud集成、Webhook处理
+- [delivery-reliability.md](delivery-reliability.md) - 离线消息与未来消息同步
 - [encryption.md](encryption.md) - 消息加密、Base64/AES方案
 - [special-types.md](special-types.md) - TYPING/CHAT_INFO/NOTIFICATION处理
 - [failure-handling.md](failure-handling.md) - 失败处理、重试机制

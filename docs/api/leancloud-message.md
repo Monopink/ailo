@@ -166,5 +166,4 @@ Webhook 解析后得到的业务字段与 `docs/spec/message/schema.md` 定义�
 ### 业务说明
 
 - Webhook 只负责将 LeanCloud payload 解析为内部 `InboundMessageEvent`，具体业务逻辑见 `docs/spec/message/README.md`
-- `provider_metadata` 字段会存储 `msgId`、`lc_conv_id`、`raw_webhook` 等原始信息，便于排查
 - 如果解密失败或对话不存在，服务端会记录日志并返回 200（LeanCloud 按成功处理），同时向监控告警

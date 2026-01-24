@@ -16,7 +16,7 @@
 - [user.md](user.md) - 用户体系（users, user_tokens, user_auths, login_records）
 - [profile.md](profile.md) - 资料系统（profiles, user_profile_logs）
 - [contact.md](contact.md) - 联系人（contacts, contact_requests）
-- [message.md](message.md) - 消息（message_history, message_delivery_failures）
+- [message.md](message.md) - 消息（message_history, message_delivery_failures，message-offline-cursor.md）
 - [notification.md](notification.md) - 通知（notification_push_history）
 - [discovery.md](discovery.md) - 发现页（square_type_entries）
 - [security.md](security.md) - 安全（user_violation_logs, user_risk_stats）

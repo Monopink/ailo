@@ -5,8 +5,8 @@
 ## 消息类型概览
 
 - TEXT (1) - 文本消息 - 存储到 message_history
-- TYPING_START (2) - 开始输入 - 存储到 message_history
-- TYPING_END (3) - 结束输入 - 存储到 message_history
+- TYPING_START (2) - 开始输入 - 不存储到 message_history
+- TYPING_END (3) - 结束输入 - 不存储到 message_history
 - CHAT_INFO (4) - 对话提示信息 - 存储到 message_history
 - NOTIFICATION (9) - 系统通知 - 不存储到 message_history
 
@@ -60,7 +60,7 @@ TYPING 消息影响 buffer 的计时器策略，详见 [buffer.md](buffer.md#状
 
 **存储**：
 
-TYPING 消息存储到 message_history，但 content 为空。
+TYPING 消息仅用于实时输入状态，不写入 message_history。
 
 ### 客户端处理
 

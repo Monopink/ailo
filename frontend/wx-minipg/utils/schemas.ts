@@ -121,8 +121,11 @@ export const StoredMessageSchema = z.object({
   supports_typing: z.boolean().optional(),
   sent_time: z.number().optional(),
   status: MessageStatusSchema.optional(),
-  action: z.string().optional().nullable(),
-  notification_type: z.string().optional().nullable(),
+  action: z
+    .union([z.string(), z.record(z.string(), z.unknown())])
+    .optional()
+    .nullable(),
+  notification_type: z.union([z.string(), z.number()]).optional().nullable(),
   data: z.record(z.string(), z.unknown()).optional().nullable(),
   id: z.string().optional(),
   text: z.string().optional(),
@@ -133,6 +136,37 @@ export type StoredMessage = z.infer<typeof StoredMessageSchema>;
 
 export const StoredMessagesSchema = z.array(StoredMessageSchema);
 export type StoredMessages = z.infer<typeof StoredMessagesSchema>;
+
+export const OfflineMessageSchema = z.object({
+  msg_id_server: z.string(),
+  msg_id_client: z.string().optional().nullable(),
+  conv_id: z.string(),
+  from_qiao_id: z.string(),
+  to_qiao_id: z.string(),
+  content: z.string().optional().nullable(),
+  message_type: MessageTypeSchema,
+  sent_time: z.number(),
+  server_time: z.number(),
+  action: z.record(z.string(), z.unknown()).optional().nullable(),
+  notification_type: z.number().optional().nullable(),
+  data: z.record(z.string(), z.unknown()).optional().nullable(),
+});
+export type OfflineMessage = z.infer<typeof OfflineMessageSchema>;
+
+export const OfflineMessagesResponseSchema = z.object({
+  server_time_ms: z.number(),
+  limit: z.number(),
+  has_more: z.boolean(),
+  next_cursor: z.string().optional().nullable(),
+  messages: z.array(OfflineMessageSchema),
+});
+export type OfflineMessagesResponse = z.infer<typeof OfflineMessagesResponseSchema>;
+
+export const OfflineAckResponseSchema = z.object({
+  success: z.boolean(),
+  server_time_ms: z.number(),
+});
+export type OfflineAckResponse = z.infer<typeof OfflineAckResponseSchema>;
 
 export const ConversationConfigSchema = z.object({
   im_conv_id: z.string(),

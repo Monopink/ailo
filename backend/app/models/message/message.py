@@ -17,7 +17,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     """Message history model.
 
     Complete message history and metadata.
-    Message history is immutable - no updated_at field needed.
+    Message history is append-only; status can be updated without updated_at.
     """
 
     __tablename__ = "message_history"
@@ -44,10 +44,6 @@ class MessageHistory(ImmutableSnowflakeModel):
 
     direction: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Message direction: 1=inbound, 2=outbound"
-    )
-
-    platform: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, comment="Platform identifier"
     )
 
     client_sent_time: Mapped[datetime | None] = mapped_column(

@@ -72,13 +72,31 @@ const getStringAttr = (attrs: AttributeRecord | null, key: string, fallback: str
   return typeof value === 'string' ? value : fallback;
 };
 
-const getOptionalStringAttr = (
+const getOptionalActionAttr = (
   attrs: AttributeRecord | null,
   key: string,
-  fallback: string | null
-): string | null => {
+  fallback: Record<string, unknown> | string | null
+): Record<string, unknown> | string | null => {
   const value = attrs?.[key];
-  return typeof value === 'string' ? value : fallback;
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'object' && value !== null) {
+    return value as Record<string, unknown>;
+  }
+  return fallback;
+};
+
+const getOptionalNotificationTypeAttr = (
+  attrs: AttributeRecord | null,
+  key: string,
+  fallback: number | string | null
+): number | string | null => {
+  const value = attrs?.[key];
+  if (typeof value === 'number' || typeof value === 'string') {
+    return value;
+  }
+  return fallback;
 };
 
 const getBooleanAttr = (attrs: AttributeRecord | null, key: string, fallback: boolean): boolean => {
@@ -124,8 +142,8 @@ class BusinessMessage extends TypedMessage {
   message_type: MessageType = MESSAGE_TYPE.TEXT;
   supports_typing = true;
   sent_time = 0;
-  action: string | null = null;
-  notification_type: string | null = null;
+  action: Record<string, unknown> | string | null = null;
+  notification_type: number | string | null = null;
   data: Record<string, unknown> | null = null;
 
   constructor(data: Partial<BusinessMessagePayload> = {}) {
@@ -232,8 +250,12 @@ const resolveBusinessPayload = (message: BusinessMessage): ResolvedPayload | nul
     message_type: getMessageTypeAttr(attrs, 'message_type', message.message_type),
     supports_typing: getBooleanAttr(attrs, 'supports_typing', message.supports_typing),
     sent_time: getNumberAttr(attrs, 'sent_time', message.sent_time),
-    action: getOptionalStringAttr(attrs, 'action', message.action),
-    notification_type: getOptionalStringAttr(attrs, 'notification_type', message.notification_type),
+    action: getOptionalActionAttr(attrs, 'action', message.action),
+    notification_type: getOptionalNotificationTypeAttr(
+      attrs,
+      'notification_type',
+      message.notification_type
+    ),
     data: asRecord(attrs?.data) ?? message.data,
   };
 };

@@ -15,7 +15,7 @@ from app.crud.message import notification_push_history as notification_crud
 from app.enums import MessageType
 from app.schemas.message import NotificationActionData
 from app.services.message.providers.factory import get_default_provider
-from app.services.message.schemas import EventMetadata, OutboundMessageEvent, ProviderMetadata
+from app.services.message.schemas import EventMetadata, OutboundMessageEvent
 from app.services.message.security.encryption import encrypt_for_transport
 from app.services.message.storage.persistence import store_message as store_message_to_db
 from app.type_defs import JSONDict, JSONValue
@@ -36,6 +36,7 @@ async def _send_message_internal(
     conv_id: str,
     content: str,
     message_type: int,
+    sent_at_ms: int,
     action: JSONDict | None = None,
     extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
@@ -72,6 +73,7 @@ async def _send_message_internal(
     encrypted_content, encryption_meta = encrypt_for_transport(content)
     merged_extra_fields = dict(extra_fields or {})
     merged_extra_fields.update(encryption_meta)
+    merged_extra_fields["sent_time"] = sent_at_ms
 
     if from_qiao_id == "system":
         result = await provider.send_message_as_system(
@@ -139,6 +141,7 @@ async def send_message(
         conv_id=conv_id,
         content=content,
         message_type=message_type,
+        sent_at_ms=sent_at_ms,
         action=action,
         extra_fields=extra_fields,
         msg_id=msg_id_server,
@@ -176,8 +179,6 @@ async def send_message(
         encryption=encryption_value,
         encryption_version=enc_version_value,
     )
-    provider_metadata = ProviderMetadata()
-
     # Update event with provider message ID after successful send
     outbound_event = OutboundMessageEvent(
         message_type=MessageType(message_type),
@@ -190,7 +191,6 @@ async def send_message(
         msg_id_provider_outbound=result.msg_id_provider,
         supports_typing=True,
         metadata=metadata,
-        provider_metadata=provider_metadata,
     )
 
     # Store to message_history using unified event object
@@ -242,6 +242,7 @@ async def send_notification(
     )
 
     msg_id_server = f"msg_{generate_snowflake_id()}"
+    sent_at_ms = int(time.time() * 1000)
 
     # Build payload metadata for transport
     notification_payload: dict[str, JSONValue] = {
@@ -258,6 +259,7 @@ async def send_notification(
         conv_id="",  # Notification messages don't have conv_id
         content=fallback_content,
         message_type=MessageType.NOTIFICATION,
+        sent_at_ms=sent_at_ms,
         action=action_data.action.model_dump(mode="json"),
         extra_fields=notification_payload,
         msg_id=msg_id_server,

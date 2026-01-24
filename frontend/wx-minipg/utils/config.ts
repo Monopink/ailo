@@ -89,6 +89,9 @@ export const STORAGE_KEYS = {
   // Messages (prefix, append conv_id)
   MESSAGES: 'messages_',
 
+  // Device identifier (installation-level)
+  DEVICE_ID: 'device_id',
+
   // Local settings
   SETTINGS: 'local_settings',
 } as const;

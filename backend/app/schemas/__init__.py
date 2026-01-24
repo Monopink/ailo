@@ -92,7 +92,14 @@ from .contact import (
 
 # Message schemas
 from .media import MediaAccessResponse, MediaUploadResponse
-from .message import MediaFileBase, MediaFileResponse, MediaFileUpload
+from .message import (
+    MediaFileBase,
+    MediaFileResponse,
+    MediaFileUpload,
+    OfflineMessageAckRequest,
+    OfflineMessageAckResponse,
+    OfflineMessagesResponse,
+)
 
 # System schemas
 from .system import (
@@ -171,6 +178,9 @@ __all__ = [
     "MediaFileBase",
     "MediaFileUpload",
     "MediaFileResponse",
+    "OfflineMessageAckRequest",
+    "OfflineMessageAckResponse",
+    "OfflineMessagesResponse",
     # Media (Object Storage)
     "MediaAccessResponse",
     "MediaUploadResponse",

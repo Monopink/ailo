@@ -1,5 +1,9 @@
 # App原型文档
 
+## 相关规范
+
+- [Device ID 规范](device-id.md)
+
 ## 页面
 
 ### 登录页

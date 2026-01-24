@@ -28,6 +28,12 @@ from .notification import (
     NotificationActionData,
     NotificationData,
 )
+from .offline import (
+    OfflineMessageAckRequest,
+    OfflineMessageAckResponse,
+    OfflineMessageItem,
+    OfflineMessagesResponse,
+)
 
 # Export all message schemas
 __all__ = [
@@ -48,4 +54,9 @@ __all__ = [
     "NotificationData",
     "NotificationActionData",
     "ContactRequestNotificationData",
+    # Offline message
+    "OfflineMessageAckRequest",
+    "OfflineMessageAckResponse",
+    "OfflineMessageItem",
+    "OfflineMessagesResponse",
 ]

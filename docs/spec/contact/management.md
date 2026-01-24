@@ -229,7 +229,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 **服务端存储**：
 
-- message_history 表保留所有消息
+- message_history 表保留除 TYPING 外的消息
 - 通过 conv_id 关联
 - 恢复联系人后，conv_id 不变，消息历史连续
 

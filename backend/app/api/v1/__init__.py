@@ -11,6 +11,7 @@ from app.api.v1.contacts import router as contacts_router
 from app.api.v1.discovery import router as discovery_router
 from app.api.v1.leancloud import router as leancloud_router
 from app.api.v1.media import router as media_router
+from app.api.v1.messages import router as messages_router
 from app.api.v1.system import router as system_router
 from app.api.v1.users import router as users_router
 from app.api.v1.webhook import router as webhook_router
@@ -31,3 +32,4 @@ v1_router.include_router(discovery_router)
 v1_router.include_router(system_router)
 v1_router.include_router(leancloud_router)
 v1_router.include_router(media_router)
+v1_router.include_router(messages_router)

@@ -39,7 +39,7 @@ from .base import (
 from .contact import Contact, ContactRequest
 from .discovery import SquareTypeEntry
 from .llm import LLMConfig, LLMProvider, LLMTestLog
-from .message import MediaFile, MessageDeliveryFailure, MessageHistory
+from .message import MediaFile, MessageDeliveryFailure, MessageHistory, MessageOfflineCursor
 from .profile import Profile, UserProfileLog
 from .security import UserRiskStats, UserViolationLog
 from .system import (
@@ -95,6 +95,7 @@ __all__ = [
     "MediaFile",
     "MessageDeliveryFailure",
     "MessageHistory",
+    "MessageOfflineCursor",
     "Profile",
     "SnowflakeModel",
     "SnowflakeQiaoModel",

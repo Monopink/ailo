@@ -312,7 +312,6 @@ CREATE INDEX idx_user_profile_logs_modified_by_type ON user_profile_logs(modifie
 CREATE TABLE IF NOT EXISTS message_history (
     id BIGINT PRIMARY KEY,
     direction INTEGER NOT NULL,
-    platform INTEGER,
     conversation_id VARCHAR(32) NOT NULL,
     msg_id_server VARCHAR(64) NOT NULL UNIQUE,
     msg_id_provider_inbound VARCHAR(128),
@@ -343,6 +342,24 @@ CREATE INDEX idx_message_history_created_at ON message_history(created_at);
 CREATE INDEX idx_message_history_msg_id_client ON message_history(msg_id_client);
 -- GIN index for JSONB message_metadata
 CREATE INDEX idx_message_history_metadata_gin ON message_history USING GIN(message_metadata);
+
+-- Offline message cursor per device
+CREATE TABLE IF NOT EXISTS message_offline_cursor (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    user_qiao_id VARCHAR(32) NOT NULL,
+    device_id VARCHAR(128) NOT NULL,
+    last_ack_msg_id VARCHAR(64),
+    last_ack_sent_at TIMESTAMP WITH TIME ZONE,
+    last_pull_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_message_offline_cursor_user_device UNIQUE (user_id, device_id)
+);
+
+CREATE INDEX idx_message_offline_cursor_user_qiao_id ON message_offline_cursor(user_qiao_id);
+CREATE INDEX idx_message_offline_cursor_device_id ON message_offline_cursor(device_id);
+CREATE INDEX idx_message_offline_cursor_last_ack_sent_at ON message_offline_cursor(last_ack_sent_at);
 
 -- Notification push history table - Track all notification messages
 CREATE TABLE IF NOT EXISTS notification_push_history (

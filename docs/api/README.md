@@ -28,6 +28,7 @@
 
 - [系统配置](system.md) - 系统级配置接口
 - [LC-IM](leancloud-message.md) - LeanCloud 专用 IM 接口
+- [离线消息](messages-offline.md) - 离线消息与ACK
 
 ---
 

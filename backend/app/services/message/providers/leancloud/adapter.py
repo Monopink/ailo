@@ -191,10 +191,6 @@ async def parse_webhook_to_dict(db: AsyncSession, webhook_payload: JSONDict) -> 
             "notification_data": notification_data,
             "encryption": encryption,
             "encryption_version": encryption_version,
-            # Provider metadata
-            "lc_from": lc_from,
-            "lc_conv_id": lc_conv_id,
-            "raw_webhook": json.dumps(webhook_payload, ensure_ascii=False),
         }
 
     except Exception as e:

@@ -38,8 +38,8 @@ declare global {
       supports_typing: boolean;
       sent_time: number;
       status?: number;
-      action?: string | null;
-      notification_type?: string | null;
+      action?: Record<string, unknown> | string | null;
+      notification_type?: number | string | null;
       data?: Record<string, unknown> | null;
       lc_msg_id?: string;
       lc_timestamp?: number;

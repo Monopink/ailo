@@ -8,6 +8,7 @@
 import { STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
 import { MESSAGE_TYPE } from './constants/message';
+import { generateDeviceId } from './device-id';
 import {
   parse,
   safeParse,
@@ -432,6 +433,17 @@ export async function getUserInfo(): Promise<StoredAuthUser | null> {
   return await getStorage<StoredAuthUser | null>(STORAGE_KEYS.USER_INFO, null);
 }
 
+export async function getDeviceId(): Promise<string> {
+  const stored = await getStorage<string | null>(STORAGE_KEYS.DEVICE_ID, null);
+  if (isNonEmptyString(stored)) {
+    return stored;
+  }
+
+  const deviceId = generateDeviceId();
+  await setStorage(STORAGE_KEYS.DEVICE_ID, deviceId);
+  return deviceId;
+}
+
 export async function saveSettings(settings: LocalSettings): Promise<void> {
   await setStorage<LocalSettings>(STORAGE_KEYS.SETTINGS, settings);
 }
@@ -462,6 +474,7 @@ export default {
   getLatestRenderableMessage,
   saveUserInfo,
   getUserInfo,
+  getDeviceId,
   saveSettings,
   getSettings,
 };

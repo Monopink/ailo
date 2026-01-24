@@ -103,22 +103,6 @@ LeanCloud 作为消息传输层，与系统解耦，便于未来替换。
 - 如果已存在 → 重复上报，直接返回成功
 - 如果不存在 → 正常处理
 
-### provider_metadata 存储
-
-将 LeanCloud 原始 payload 存储到 message_history.provider_metadata：
-
-```json
-{
-  "lc_msgId": "nYH9iBSBS_uogCEgvZwE7Q",
-  "lc_conv_id": "68edda0a554ecc6e8843b246",
-  "lc_from": "qiao_user001",
-  "lc_timestamp": 1710001111333,
-  "raw_webhook": "{...}"
-}
-```
-
-用于排查和调试。
-
 ## 客户端签名
 
 ### 接口定义

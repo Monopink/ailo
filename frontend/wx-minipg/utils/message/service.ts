@@ -22,6 +22,8 @@ import type {
 import { getMessageAdapter } from './provider';
 import messageEventBus from './event-bus';
 import { isDefined, isNonEmptyString } from '../guards';
+import { ackOfflineMessages, fetchOfflineMessages } from './offline';
+import type { OfflineMessage } from '../schemas';
 
 const logger = getLogger('MessageService');
 
@@ -91,6 +93,10 @@ export class MessageService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   private suspended = false;
+  private lastAcked: { sentTime: number; msgId: string } | null = null;
+  private offlineSyncPromise: Promise<void> | null = null;
+  private offlineSyncReady = false;
+  private pendingAck: { message: StoredMessage; sentTime: number; msgId: string } | null = null;
 
   constructor(adapter: MessageAdapter = getMessageAdapter()) {
     this.adapter = adapter;
@@ -153,11 +159,16 @@ export class MessageService {
       this.reconnectAttempt = 0;
       this.clearReconnectTimer();
       this.setConnectionState('connected');
+      void this.startOfflineSync().catch((error) => {
+        const err = normalizeError(error);
+        logger.warn('Offline message sync failed after reconnect', { error: err.message });
+      });
       return;
     }
 
     if (state === 'disconnected') {
       this.setConnectionState('disconnected');
+      this.offlineSyncReady = false;
       this.scheduleReconnect();
     }
   }
@@ -206,6 +217,12 @@ export class MessageService {
       this.setConnectionState('disconnected');
     }
     await this.ensureConnected();
+    try {
+      await this.startOfflineSync();
+    } catch (error) {
+      const err = normalizeError(error);
+      logger.warn('Offline message sync failed on resume', { error: err.message });
+    }
   }
 
   suspend(): void {
@@ -235,6 +252,12 @@ export class MessageService {
 
       this.userId = userId;
       await this.ensureConnected();
+      try {
+        await this.startOfflineSync();
+      } catch (error) {
+        const err = normalizeError(error);
+        logger.warn('Offline message sync failed', { error: err.message });
+      }
 
       this.initialized = true;
       logger.info('Message service initialized');
@@ -390,6 +413,212 @@ export class MessageService {
     };
   }
 
+  private buildOfflinePayload(message: OfflineMessage): {
+    storedMessage: StoredMessage;
+    appPayload: Ailo.MessagePayload;
+    contentLength: number;
+    convId: string;
+  } {
+    const normalizedContent = typeof message.content === 'string' ? message.content : '';
+    const storedMessage: StoredMessage = {
+      msg_id: message.msg_id_server,
+      from_qiao_id: message.from_qiao_id,
+      to_qiao_id: message.to_qiao_id,
+      conv_id: message.conv_id,
+      content: normalizedContent,
+      message_type: message.message_type,
+      supports_typing: true,
+      sent_time: message.sent_time,
+      status: MESSAGE_STATUS.RECEIVED,
+      action: message.action ?? null,
+      notification_type: message.notification_type ?? null,
+      data: message.data ?? null,
+    };
+
+    const appPayload: Ailo.MessagePayload = {
+      msg_id: storedMessage.msg_id,
+      from_qiao_id: message.from_qiao_id,
+      to_qiao_id: message.to_qiao_id,
+      conv_id: message.conv_id,
+      content: normalizedContent,
+      message_type: message.message_type,
+      supports_typing: true,
+      sent_time: message.sent_time,
+      status: storedMessage.status,
+      action: storedMessage.action ?? null,
+      notification_type: storedMessage.notification_type ?? null,
+      data: storedMessage.data ?? null,
+    };
+
+    return {
+      storedMessage,
+      appPayload,
+      contentLength: normalizedContent.length,
+      convId: message.conv_id,
+    };
+  }
+
+  private shouldAck(sentTime: number, msgId: string): boolean {
+    if (this.lastAcked === null) {
+      return true;
+    }
+    if (sentTime > this.lastAcked.sentTime) {
+      return true;
+    }
+    return sentTime === this.lastAcked.sentTime && msgId > this.lastAcked.msgId;
+  }
+
+  private isAckAhead(
+    candidate: { sentTime: number; msgId: string },
+    base: { sentTime: number; msgId: string } | null
+  ): boolean {
+    if (base === null) {
+      return true;
+    }
+    if (candidate.sentTime > base.sentTime) {
+      return true;
+    }
+    return candidate.sentTime === base.sentTime && candidate.msgId > base.msgId;
+  }
+
+  private updatePendingAck(message: StoredMessage, sentTime: number): void {
+    const candidate = { sentTime, msgId: message.msg_id };
+    const pending = this.pendingAck;
+    if (
+      pending === null ||
+      this.isAckAhead(candidate, { sentTime: pending.sentTime, msgId: pending.msgId })
+    ) {
+      this.pendingAck = { message, sentTime, msgId: message.msg_id };
+    }
+  }
+
+  private async flushPendingAck(): Promise<void> {
+    if (this.pendingAck === null) {
+      return;
+    }
+    const pending = this.pendingAck;
+    this.pendingAck = null;
+    await this.ackIfNeeded(pending.message, { force: true });
+  }
+
+  private async startOfflineSync(): Promise<void> {
+    if (this.suspended) {
+      return;
+    }
+    if (!isNonEmptyString(this.userId)) {
+      return;
+    }
+    if (this.offlineSyncPromise !== null) {
+      return this.offlineSyncPromise;
+    }
+    this.offlineSyncReady = false;
+    this.offlineSyncPromise = (async () => {
+      await this.syncOfflineMessages();
+      this.offlineSyncReady = true;
+      await this.flushPendingAck();
+    })().finally(() => {
+      this.offlineSyncPromise = null;
+    });
+    return this.offlineSyncPromise;
+  }
+
+  private async ackIfNeeded(
+    message: StoredMessage,
+    options: { force?: boolean } = {}
+  ): Promise<void> {
+    if (!isNonEmptyString(this.userId)) {
+      return;
+    }
+    if (message.to_qiao_id !== this.userId) {
+      return;
+    }
+    if (!isNonEmptyString(message.msg_id)) {
+      return;
+    }
+    if (typeof message.sent_time !== 'number') {
+      return;
+    }
+    const sentTime = message.sent_time;
+    if (!options.force && !this.offlineSyncReady) {
+      if (this.shouldAck(sentTime, message.msg_id)) {
+        this.updatePendingAck(message, sentTime);
+      }
+      return;
+    }
+    if (!this.shouldAck(sentTime, message.msg_id)) {
+      return;
+    }
+
+    try {
+      await ackOfflineMessages({
+        last_ack_msg_id: message.msg_id,
+        last_ack_sent_at: sentTime,
+      });
+      this.lastAcked = { sentTime, msgId: message.msg_id };
+    } catch (error) {
+      const err = normalizeError(error);
+      logger.warn('Offline ACK failed', {
+        msg_id: message.msg_id,
+        conv_id: message.conv_id,
+        error: err.message,
+      });
+    }
+  }
+
+  private async syncOfflineMessages(): Promise<void> {
+    const maxPages = 20;
+    const processPage = async (cursor: string | null | undefined, page: number): Promise<void> => {
+      if (page >= maxPages) {
+        logger.warn('Offline message sync reached max pages', { maxPages });
+        return;
+      }
+
+      const response = await fetchOfflineMessages({ cursor, limit: 100 });
+      if (response.messages.length === 0) {
+        return;
+      }
+
+      let chain = Promise.resolve();
+      for (const message of response.messages) {
+        chain = chain.then(async () => {
+          const { storedMessage, appPayload, contentLength, convId } =
+            this.buildOfflinePayload(message);
+
+          logger.info('Offline message received', {
+            msg_id: storedMessage.msg_id,
+            conv_id: convId,
+            message_type: storedMessage.message_type,
+            content_length: contentLength,
+          });
+
+          await addMessage(convId, storedMessage);
+          messageEventBus.emitMessage(storedMessage);
+
+          const app = getApp<AppInstance>();
+          if (typeof app.onMessageReceived === 'function') {
+            app.onMessageReceived(appPayload);
+          }
+        });
+      }
+      await chain;
+
+      const lastMessage = response.messages[response.messages.length - 1];
+      const ackPayload: StoredMessage = {
+        msg_id: lastMessage.msg_id_server,
+        conv_id: lastMessage.conv_id,
+        to_qiao_id: lastMessage.to_qiao_id,
+        sent_time: lastMessage.sent_time,
+      };
+      await this.ackIfNeeded(ackPayload, { force: true });
+
+      if (response.has_more) {
+        await processPage(response.next_cursor ?? null, page + 1);
+      }
+    };
+
+    await processPage(null, 0);
+  }
+
   async handleMessage(message: AdapterMessage): Promise<void> {
     try {
       const { storedMessage, appPayload, contentLength, convId } =
@@ -406,6 +635,7 @@ export class MessageService {
 
       await addMessage(convId, storedMessage);
       messageEventBus.emitMessage(storedMessage);
+      await this.ackIfNeeded(storedMessage);
 
       const app = getApp<AppInstance>();
       if (typeof app.onMessageReceived === 'function') {

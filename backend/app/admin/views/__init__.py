@@ -50,6 +50,7 @@ from .message_media_views import (
     media_file_view,
     message_delivery_failure_view,
     message_history_view,
+    message_offline_cursor_view,
     notification_push_history_view,
 )
 from .security_views import SECURITY_MODEL_VIEWS, user_risk_stats_view, user_violation_log_view
@@ -161,6 +162,7 @@ __all__ = [
     "media_file_view",
     "system_config_view",
     "notification_push_history_view",
+    "message_offline_cursor_view",
     "square_type_entry_view",
     # Individual LLM views
     "llm_provider_view",

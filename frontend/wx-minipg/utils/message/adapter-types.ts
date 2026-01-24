@@ -10,8 +10,8 @@ export interface BusinessMessagePayload {
   message_type: MessageType;
   supports_typing: boolean;
   sent_time: number;
-  action?: string | null;
-  notification_type?: string | null;
+  action?: Record<string, unknown> | string | null;
+  notification_type?: number | string | null;
   data?: Record<string, unknown> | null;
 }
 

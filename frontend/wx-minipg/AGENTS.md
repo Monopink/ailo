@@ -14,6 +14,7 @@
 
 - [UI 开发规范](../../docs/spec/mini-program/UI-GUIDELINES.md)
 - [头像上传规范](../../docs/spec/mini-program/avatar-upload.md)
+- [Device ID 规范](../../docs/spec/app/device-id.md)
 - [API文档](../../docs/api/)
 - [数据字典](../../docs/data-dict/)
 - [Leancloud IM 文档](../../docs/references/leancloud-docs/)

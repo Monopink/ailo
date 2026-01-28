@@ -93,11 +93,7 @@ const getCategoryText = (category?: string): string => {
 };
 
 const normalizeProfile = (profile: StrangerProfileResponse): StrangerProfileView => {
-  const displayName = isNonEmptyString(profile.nickname)
-    ? profile.nickname
-    : isNonEmptyString(profile.qiao_id)
-      ? profile.qiao_id
-      : '未命名用户';
+  const displayName = profile.nickname ?? '';
   const genderText = getGenderText(profile.gender);
   const resolvedGender = isGenderKey(profile.gender) ? profile.gender : 0;
   let genderType: 'success' | 'danger' | 'default' = 'default';

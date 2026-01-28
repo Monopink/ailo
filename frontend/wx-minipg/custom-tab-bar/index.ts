@@ -1,6 +1,5 @@
 import TabMenu from './data';
 import type { TabBarItem } from './data';
-import { isDefined } from '../utils/guards';
 
 Component({
   data: {
@@ -10,20 +9,42 @@ Component({
 
   methods: {
     onTabChange(event: WechatMiniprogram.BaseEvent): void {
-      const index = event.currentTarget.dataset.index as number;
-      this.setData({ active: index });
-      const rawUrl = this.data.list[index]?.url ?? '';
-      const normalizedUrl = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+      const dataset = event.currentTarget.dataset as { index?: unknown } | undefined;
+      const indexRaw = dataset?.index;
+      const index = typeof indexRaw === 'number' ? indexRaw : Number(indexRaw);
+      if (!Number.isInteger(index)) {
+        return;
+      }
+
+      const item = this.data.list[index];
+      if (typeof item === 'undefined' || item.pagePath.length === 0) {
+        return;
+      }
+
+      this.setData({
+        active: index,
+      });
+      const normalizedUrl = item.pagePath.startsWith('/') ? item.pagePath : `/${item.pagePath}`;
       void wx.switchTab({ url: normalizedUrl });
     },
 
     init(): void {
       const page = getCurrentPages().pop();
-      const route = isDefined(page) ? page.route : '';
+      if (typeof page === 'undefined' || page.route.length === 0) {
+        return;
+      }
+
+      const route = page.route;
       const active = this.data.list.findIndex(
-        (item: TabBarItem) => item.url === route || `/${item.url}` === route
+        (item: TabBarItem) => item.pagePath === route || `/${item.pagePath}` === route
       );
-      this.setData({ active: active === -1 ? 0 : active });
+      if (active < 0) {
+        return;
+      }
+
+      this.setData({
+        active,
+      });
     },
   },
 });

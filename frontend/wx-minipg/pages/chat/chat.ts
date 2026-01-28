@@ -3,48 +3,37 @@
  * A stable, modern chat interface following WeChat-like design
  */
 
-import { get } from '../../utils/api';
-import { getAvatarUrl } from '../../utils/avatar';
+import { getChatContactViewModel } from '../../utils/contact-service';
 import { MESSAGE_CONFIG } from '../../utils/config';
 import { getUserFriendlyError } from '../../utils/error-messages';
 import { getLogger } from '../../utils/logger';
+import profileService from '../../utils/profile-service';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { MESSAGE_STATUS, MESSAGE_TYPE, type MessageType } from '../../utils/constants/message';
 import {
   addMessage,
   getContactByConvId,
-  getContacts,
   getUserInfo,
-  saveContacts,
-  type StoredContact,
+  removeMessage,
+  removeLatestChatInfoMessage,
   type StoredMessage,
 } from '../../utils/storage';
 import typingManager from '../../utils/typing-manager';
 import conversationStore from '../../utils/message/conversation-store';
 import messageStateStore, { MessageStoreState } from '../../utils/message/message-state-store';
 import type { MessageViewModel } from '../../utils/message/message-view-model';
-import { isNonEmptyString, firstNonEmptyString, isPositiveNumber } from '../../utils/guards';
+import { isNonEmptyString, firstNonEmptyString } from '../../utils/guards';
 import { normalizeError } from '../../utils/errors';
+import unreadStore from '../../utils/message/unread-store';
+import viewStore from '../../utils/message/view-store';
 
 const logger = getLogger('Chat');
 
 type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 
 type ChatMessage = MessageViewModel;
-
-interface ContactProfile {
-  avatar_url?: string | null;
-  nickname?: string | null;
-  gender?: number | null;
-  bio?: string | null;
-  region?: string | null;
-}
-
-interface ConversationResponse {
-  profile?: ContactProfile;
-  contact_qiao_id: string;
-  im_conv_id: string;
-}
+type MessageRowRect = { id?: string; bottom?: number };
+type MessageListQueryResult = { containerTop: number; rows: MessageRowRect[] };
 
 interface ChatPageData {
   pageLayoutData: PageLayoutData;
@@ -62,14 +51,18 @@ interface ChatPageData {
   maxMessageLength: number;
   prevInputValue: string;
   isContactTyping: boolean;
-  statusBarHeight: number;
   showEmojiPanel: boolean;
   emojiList: string[];
   sendIconInactive: string;
   sendIconActive: string;
+  isAtBottom: boolean;
+  navbarSolid: boolean;
+  messageListHeight: number;
+  scrollAnchorKey: number;
 }
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
+type ScrollEvent = WechatMiniprogram.CustomEvent<{ scrollTop: number; scrollHeight: number }>;
 
 interface ChatPageCustom {
   unsubscribeConversationStore: (() => void) | null;
@@ -88,28 +81,38 @@ interface ChatPageCustom {
   ): void;
   handleMessageStateUpdate(state: MessageStoreState): void;
   showErrorMessage(error: unknown): Promise<void>;
-  refreshContactInfo(convId: string): Promise<ConversationResponse>;
+  refreshContactInfo(convId: string): Promise<void>;
   refreshConversationChannel(): Promise<string>;
-  handleChatInfoAction(message: ChatMessage): void;
+  handleInfoMessageAction(message: ChatMessage): void;
   loadMessages(): Promise<void>;
+  onRetry(): void;
   onInputChange(event: InputEvent): void;
   onInputFocus(): void;
   onInputBlur(): void;
   onCompositionStart(): void;
   onCompositionEnd(event: InputEvent): void;
+  onMessageScroll(event: ScrollEvent): void;
+  syncNavbarSolidFromScrollOffset(): void;
   onSendMessage(): Promise<void>;
-  onNavbarBack(): void;
   onNavbarTitleClick(): void;
   onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
   updateMessageStatus(messageId: string, status: MessageStatus): void;
   onEmojiButtonTap(): void;
   onEmojiSelect(event: WechatMiniprogram.BaseEvent): void;
+  updateMessageListMetrics(): void;
+  scrollToBottom(): void;
+  restoreViewState(messages: ChatMessage[]): Promise<void>;
+  persistViewState(): Promise<void>;
+  getFirstVisibleMessageId(): Promise<string | null>;
   retryMessageAfterConversationNotFound(
     msgIdValue: string,
     failedMessage: StoredMessage,
     messageService: Ailo.MessageService,
     newClientMsgId: string
   ): Promise<boolean>;
+  refreshUserAvatar(forceRefresh?: boolean): Promise<void>;
+  _pendingViewRestore: boolean;
+  _initialScrollHandled: boolean;
 }
 
 const showToast = (
@@ -121,6 +124,13 @@ const showToast = (
 
 const buildClientMessageId = (): string =>
   `client_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+
+const calcBottomThreshold = (viewHeight: number): number =>
+  Math.max(80, Math.min(160, Math.round(viewHeight * 0.2)));
+
+const NAVBAR_SOLID_THRESHOLD = 12;
+
+const isUnknownArray = (value: unknown): value is unknown[] => Array.isArray(value);
 
 const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unknown => {
   const dataset = event.currentTarget.dataset as Record<string, unknown> | undefined;
@@ -138,11 +148,36 @@ const ensureMessageService = (): Ailo.MessageService => {
   return messageService;
 };
 
+const parseMessageListQueryResults = (results: unknown): MessageListQueryResult | null => {
+  if (!isUnknownArray(results) || results.length < 2) {
+    return null;
+  }
+  const [container, rows] = results;
+  if (container === null || typeof container !== 'object') {
+    return null;
+  }
+  const containerTop = (container as { top?: unknown }).top;
+  if (typeof containerTop !== 'number' || !Number.isFinite(containerTop)) {
+    return null;
+  }
+  if (!Array.isArray(rows)) {
+    return null;
+  }
+  const normalizedRows: MessageRowRect[] = [];
+  for (const row of rows) {
+    if (row === null || typeof row !== 'object') {
+      return null;
+    }
+    normalizedRows.push(row as MessageRowRect);
+  }
+  return { containerTop, rows: normalizedRows };
+};
+
 Page<ChatPageData, ChatPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
       isLoading: true,
-      emptyMessage: '暂未开始聊天',
+      emptyMessage: '开始和对方聊天吧～',
       hasFooter: true,
     }),
     convId: '',
@@ -159,7 +194,6 @@ Page<ChatPageData, ChatPageCustom>({
     maxMessageLength: MESSAGE_CONFIG.maxLength,
     prevInputValue: '',
     isContactTyping: false,
-    statusBarHeight: 0,
     showEmojiPanel: false,
     emojiList: [
       '😀',
@@ -191,6 +225,10 @@ Page<ChatPageData, ChatPageCustom>({
     // Send icon paths
     sendIconInactive: '/assets/icons/send-inactive.svg',
     sendIconActive: '/assets/icons/send-active.svg',
+    isAtBottom: true,
+    navbarSolid: false,
+    messageListHeight: 0,
+    scrollAnchorKey: 0,
   },
 
   unsubscribeConversationStore: null,
@@ -198,6 +236,8 @@ Page<ChatPageData, ChatPageCustom>({
   errorSubscription: null,
   _sendRetried: false,
   _retryRefreshed: false,
+  _pendingViewRestore: false,
+  _initialScrollHandled: false,
 
   updateMessagesState(
     messages,
@@ -224,14 +264,37 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   handleMessageStateUpdate(state: MessageStoreState) {
+    const convId = this.data.convId;
+    if (!isNonEmptyString(convId) || state.convId !== convId) {
+      return;
+    }
+    if (this._pendingViewRestore) {
+      this.updateMessagesState(state.messages, { isContactTyping: state.isTyping });
+      return;
+    }
     const hasMessages = state.messages.length > 0;
-    const scrollIntoView = hasMessages
-      ? `msg-${state.messages[state.messages.length - 1].msg_id}`
-      : '';
-    this.updateMessagesState(state.messages, {
-      scrollIntoView,
-      isContactTyping: state.isTyping,
-    });
+    const shouldScroll = this.data.isAtBottom && hasMessages;
+    if (shouldScroll) {
+      const nextAnchorKey = this.data.scrollAnchorKey + 1;
+      const shouldDisableAnimation = !this._initialScrollHandled;
+      const extraData: Record<string, unknown> = { scrollAnchorKey: nextAnchorKey };
+      if (shouldDisableAnimation) {
+        extraData['pageLayoutData.contentScrollWithAnimation'] = false;
+      }
+      this.updateMessagesState(state.messages, {
+        scrollIntoView: `scroll-anchor-${nextAnchorKey}`,
+        isContactTyping: state.isTyping,
+        extraData,
+      });
+      if (shouldDisableAnimation) {
+        this._initialScrollHandled = true;
+        wx.nextTick(() => {
+          this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+        });
+      }
+      return;
+    }
+    this.updateMessagesState(state.messages, { isContactTyping: state.isTyping });
   },
 
   async showErrorMessage(error: unknown) {
@@ -249,13 +312,6 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   /**
-   * Handle navbar back button click
-   */
-  onNavbarBack() {
-    void wx.navigateBack();
-  },
-
-  /**
    * Handle navbar title click - navigate to contact info page
    */
   onNavbarTitleClick() {
@@ -265,51 +321,174 @@ Page<ChatPageData, ChatPageCustom>({
     }
   },
 
+  onReady() {
+    this.updateMessageListMetrics();
+  },
+
+  scrollToBottom() {
+    const nextAnchorKey = this.data.scrollAnchorKey + 1;
+    const shouldDisableAnimation = !this._initialScrollHandled;
+    const payload: Record<string, unknown> = {
+      isAtBottom: true,
+      scrollAnchorKey: nextAnchorKey,
+    };
+    if (shouldDisableAnimation) {
+      payload['pageLayoutData.contentScrollWithAnimation'] = false;
+    }
+    this.setData(payload);
+    wx.nextTick(() => {
+      this.setData({
+        'pageLayoutData.contentScrollIntoView': `scroll-anchor-${nextAnchorKey}`,
+      });
+      // Programmatic scroll (scroll-into-view) may not reliably trigger scroll events on first render.
+      // Sync navbarSolid from the actual scrollTop so the header matches the current position.
+      wx.nextTick(() => {
+        this.syncNavbarSolidFromScrollOffset();
+      });
+      if (shouldDisableAnimation) {
+        this._initialScrollHandled = true;
+        wx.nextTick(() => {
+          this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+        });
+      }
+    });
+  },
+
+  syncNavbarSolidFromScrollOffset() {
+    const query = wx.createSelectorQuery();
+    query.select('.chat-page__messages').scrollOffset((result) => {
+      const scrollTopRaw = (result as { scrollTop?: unknown } | null)?.scrollTop;
+      if (typeof scrollTopRaw !== 'number' || !Number.isFinite(scrollTopRaw)) {
+        return;
+      }
+      const clampedScrollTop = Math.max(0, Math.round(scrollTopRaw));
+      const shouldSolidNavbar = clampedScrollTop > NAVBAR_SOLID_THRESHOLD;
+      if (shouldSolidNavbar !== this.data.navbarSolid) {
+        this.setData({ navbarSolid: shouldSolidNavbar });
+      }
+    });
+    query.exec();
+  },
+
+  async restoreViewState(messages: ChatMessage[]) {
+    const convId = this.data.convId;
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
+    const stored = await viewStore.get(convId);
+    const hasMessages = messages.length > 0;
+    const shouldDisableAnimation = !this._initialScrollHandled;
+
+    // Case 1: No stored state, or explicitly at bottom, or no messages -> scroll to bottom
+    if (stored === null || stored.isAtBottom || !hasMessages) {
+      this.scrollToBottom();
+      return;
+    }
+
+    // Case 2: Has stored anchor, check if it exists in current messages
+    const targetId = stored.lastViewedMsgId;
+    const hasTarget =
+      isNonEmptyString(targetId) &&
+      messages.some((message) => message.msg_id === targetId && !message.isInfoMessage);
+
+    if (!hasTarget) {
+      // Anchor not found, fallback to bottom
+      this.scrollToBottom();
+      return;
+    }
+
+    // Case 3: Anchor found, scroll to it
+    const payload: Record<string, unknown> = {
+      isAtBottom: false,
+      'pageLayoutData.contentScrollIntoView': `msg-${targetId}`,
+    };
+    if (shouldDisableAnimation) {
+      payload['pageLayoutData.contentScrollWithAnimation'] = false;
+    }
+    this.setData(payload);
+    wx.nextTick(() => {
+      this.syncNavbarSolidFromScrollOffset();
+    });
+    if (shouldDisableAnimation) {
+      this._initialScrollHandled = true;
+      wx.nextTick(() => {
+        this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+      });
+    }
+  },
+
+  async getFirstVisibleMessageId(): Promise<string | null> {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery();
+      query.select('.chat-page__messages').boundingClientRect();
+      query.selectAll('.msg-row').fields({ id: true, rect: true });
+      query.exec((results) => {
+        const parsed = parseMessageListQueryResults(results as unknown);
+        if (parsed === null) {
+          resolve(null);
+          return;
+        }
+        const { containerTop, rows } = parsed;
+        const firstVisible = rows.find(
+          (row) => typeof row.bottom === 'number' && row.bottom > containerTop + 1
+        );
+        const rawId = typeof firstVisible?.id === 'string' ? firstVisible.id : null;
+        if (rawId?.startsWith('msg-')) {
+          resolve(rawId.slice(4));
+          return;
+        }
+        resolve(null);
+      });
+    });
+  },
+
+  async persistViewState() {
+    const convId = this.data.convId;
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
+    try {
+      const messages = this.data.messages;
+      if (messages.length === 0) {
+        await viewStore.set(convId, { isAtBottom: true });
+        return;
+      }
+      if (this.data.isAtBottom) {
+        await viewStore.set(convId, { isAtBottom: true });
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        wx.nextTick(resolve);
+      });
+      const anchorId = await this.getFirstVisibleMessageId();
+      if (!isNonEmptyString(anchorId)) {
+        await viewStore.set(convId, { isAtBottom: true });
+        return;
+      }
+      await viewStore.set(convId, {
+        isAtBottom: false,
+        lastViewedMsgId: anchorId,
+      });
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Persist view state failed', { convId, error: err.message });
+    }
+  },
+
   /**
    * Refresh contact info from backend
    */
   async refreshContactInfo(convId: string) {
-    const conversation = await get<ConversationResponse>(`/contacts/${convId}/conversation`);
-    if (
-      !isNonEmptyString(conversation.contact_qiao_id) ||
-      !isNonEmptyString(conversation.im_conv_id)
-    ) {
-      throw new Error('CONVERSATION_NOT_FOUND');
-    }
-
-    const profile: ContactProfile = conversation.profile ?? {};
-    const contactName =
-      firstNonEmptyString(profile.nickname, this.data.contactName, conversation.contact_qiao_id) ??
-      '';
+    const viewModel = await getChatContactViewModel(convId);
+    const contactName = firstNonEmptyString(viewModel.displayName, this.data.contactName) ?? '';
 
     this.setData({
       contactName,
       navbarTitle: contactName,
-      contactAvatar: getAvatarUrl(profile.avatar_url ?? this.data.contactAvatar),
-      contactQiaoId: conversation.contact_qiao_id,
-      imConvId: conversation.im_conv_id,
+      contactAvatar: viewModel.displayAvatar,
+      contactQiaoId: viewModel.contactQiaoId,
+      imConvId: viewModel.imConvId,
     });
-
-    const contacts = await getContacts();
-    const contactIndex = contacts.findIndex((contact) => contact.conv_id === convId);
-
-    if (contactIndex !== -1) {
-      const current = contacts[contactIndex];
-      const updatedContact: StoredContact & { im_conv_id?: string } = {
-        ...current,
-        im_conv_id: conversation.im_conv_id,
-        contact_qiao_id: conversation.contact_qiao_id,
-        profile: {
-          ...(current.profile ?? {}),
-          ...profile,
-        },
-      };
-      contacts[contactIndex] = updatedContact;
-      await saveContacts(contacts);
-      logger.info('Contact info refreshed and cached', { convId });
-    }
-
-    return conversation;
   },
 
   async refreshConversationChannel() {
@@ -320,8 +499,8 @@ Page<ChatPageData, ChatPageCustom>({
       await messageService.invalidateConversation(previousImConvId);
     }
 
-    const refreshedConversation = await this.refreshContactInfo(this.data.convId);
-    let nextImConvId = refreshedConversation.im_conv_id;
+    await this.refreshContactInfo(this.data.convId);
+    let nextImConvId = this.data.imConvId;
 
     try {
       const refreshedState = await conversationStore.refresh();
@@ -344,7 +523,24 @@ Page<ChatPageData, ChatPageCustom>({
     return nextImConvId;
   },
 
-  handleChatInfoAction(message: ChatMessage) {
+  async refreshUserAvatar(forceRefresh = false) {
+    const cached = profileService.getProfile();
+    if (!forceRefresh && cached !== null) {
+      this.setData({ userAvatar: cached.displayAvatar });
+      return;
+    }
+
+    try {
+      const profile = await profileService.loadProfile(forceRefresh);
+      this.setData({ userAvatar: profile.displayAvatar });
+    } catch (error) {
+      logger.warn('Load profile for avatar failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+
+  handleInfoMessageAction(message: ChatMessage) {
     const action = message.action as { type?: string; target_msg_id?: string } | null;
     if (action === null) {
       return;
@@ -368,16 +564,9 @@ Page<ChatPageData, ChatPageCustom>({
       return;
     }
 
-    // Get status bar height for custom navbar
-    const systemInfo = wx.getSystemInfoSync();
-    const statusBarHeight = isPositiveNumber(systemInfo.statusBarHeight)
-      ? systemInfo.statusBarHeight
-      : 20;
-    this.setData({
-      statusBarHeight,
-    });
-
     this.setData({ convId });
+    this._pendingViewRestore = true;
+    this._initialScrollHandled = false;
     this.messageStoreSubscription = messageStateStore.subscribe((state) => {
       this.handleMessageStateUpdate(state);
     });
@@ -396,7 +585,7 @@ Page<ChatPageData, ChatPageCustom>({
       if (!isNonEmptyString(userInfo?.qiao_id)) {
         throw new Error('User info missing');
       }
-      this.setData({ userAvatar: getAvatarUrl(userInfo.avatar ?? '') });
+      await this.refreshUserAvatar();
 
       const contact = await getContactByConvId(convId);
       if (contact === null) {
@@ -410,21 +599,14 @@ Page<ChatPageData, ChatPageCustom>({
         return;
       }
 
-      const profile: ContactProfile = contact.profile ?? {};
-      const contactName =
-        firstNonEmptyString(contact.alias, profile.nickname, contact.contact_qiao_id) ?? '';
-
-      const contactWithIm = contact as StoredContact & { im_conv_id?: string };
-      const conversationState = await conversationStore.getState();
-      const currentImConvId =
-        firstNonEmptyString(conversationState?.im_conv_id, contactWithIm.im_conv_id) ?? '';
-
+      const viewModel = await getChatContactViewModel(convId);
+      const contactName = firstNonEmptyString(viewModel.displayName, '') ?? '';
       this.setData({
         contactName,
         navbarTitle: contactName,
-        contactAvatar: getAvatarUrl(profile.avatar_url ?? ''),
-        contactQiaoId: contact.contact_qiao_id ?? '',
-        imConvId: currentImConvId,
+        contactAvatar: viewModel.displayAvatar,
+        contactQiaoId: viewModel.contactQiaoId,
+        imConvId: viewModel.imConvId,
       });
 
       await this.loadMessages();
@@ -440,7 +622,32 @@ Page<ChatPageData, ChatPageCustom>({
     }
   },
 
+  onShow() {
+    const convId = this.data.convId;
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
+    void (async () => {
+      try {
+        await unreadStore.setActiveConversation(convId);
+      } catch (error: unknown) {
+        const err = normalizeError(error);
+        logger.warn('Set active conversation failed', { error: err.message });
+      }
+    })();
+
+    void this.refreshUserAvatar();
+  },
+
+  onHide() {
+    void this.persistViewState();
+    unreadStore.clearActiveConversation(this.data.convId);
+  },
+
   onUnload() {
+    void this.persistViewState();
+    profileService.cancelRetries();
+    unreadStore.clearActiveConversation(this.data.convId);
     typingManager.cleanup(this.data.convId);
 
     if (this.unsubscribeConversationStore !== null) {
@@ -469,6 +676,12 @@ Page<ChatPageData, ChatPageCustom>({
       this.setData({
         'pageLayoutData.isLoading': false,
       });
+      if (this._pendingViewRestore) {
+        this._pendingViewRestore = false;
+        wx.nextTick(() => {
+          void this.restoreViewState(this.data.messages);
+        });
+      }
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to load messages', { error: err.message });
@@ -479,6 +692,10 @@ Page<ChatPageData, ChatPageCustom>({
         'pageLayoutData.errorMessage': isNonEmptyString(err.message) ? err.message : '加载消息失败',
       });
     }
+  },
+
+  onRetry() {
+    void this.loadMessages();
   },
 
   /**
@@ -508,6 +725,9 @@ Page<ChatPageData, ChatPageCustom>({
 
     // Notify typing manager
     typingManager.onInputFocus(this.data.convId, this.data.inputText);
+    wx.nextTick(() => {
+      this.updateMessageListMetrics();
+    });
   },
 
   /**
@@ -518,6 +738,9 @@ Page<ChatPageData, ChatPageCustom>({
 
     // Notify typing manager
     typingManager.onInputBlur(this.data.convId);
+    wx.nextTick(() => {
+      this.updateMessageListMetrics();
+    });
   },
 
   onCompositionStart() {
@@ -537,6 +760,40 @@ Page<ChatPageData, ChatPageCustom>({
       showEmojiPanel: !this.data.showEmojiPanel,
       inputFocused: false, // Hide keyboard when emoji panel shows
     });
+  },
+
+  onMessageScroll(event: ScrollEvent) {
+    const { scrollTop, scrollHeight } = event.detail;
+    const clampedScrollTop = Math.max(0, Math.round(scrollTop));
+    const viewHeight = this.data.messageListHeight;
+    if (viewHeight <= 0) {
+      this.updateMessageListMetrics();
+      return;
+    }
+    const threshold = calcBottomThreshold(viewHeight);
+    const isAtBottom = clampedScrollTop + viewHeight >= scrollHeight - threshold;
+    const shouldSolidNavbar = clampedScrollTop > NAVBAR_SOLID_THRESHOLD;
+    const payload: Partial<ChatPageData> = {};
+    if (isAtBottom !== this.data.isAtBottom) {
+      payload.isAtBottom = isAtBottom;
+    }
+    if (shouldSolidNavbar !== this.data.navbarSolid) {
+      payload.navbarSolid = shouldSolidNavbar;
+    }
+    if (Object.keys(payload).length > 0) {
+      this.setData(payload);
+    }
+  },
+
+  updateMessageListMetrics() {
+    const query = wx.createSelectorQuery();
+    query.select('.chat-page__messages').boundingClientRect((rect) => {
+      const height = Math.max(0, Math.round(rect.height));
+      if (height > 0 && height !== this.data.messageListHeight) {
+        this.setData({ messageListHeight: height });
+      }
+    });
+    query.exec();
   },
 
   /**
@@ -575,6 +832,13 @@ Page<ChatPageData, ChatPageCustom>({
       const userInfo = await getUserInfo();
       if (!isNonEmptyString(userInfo?.qiao_id)) {
         throw new Error('User info missing');
+      }
+
+      messageStateStore.removeMessage(msgIdValue);
+      await removeMessage(this.data.convId, msgIdValue);
+      const removedInfoMsgId = await removeLatestChatInfoMessage(this.data.convId);
+      if (isNonEmptyString(removedInfoMsgId)) {
+        messageStateStore.removeMessage(removedInfoMsgId);
       }
 
       newClientMsgId = buildClientMessageId();

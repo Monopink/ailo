@@ -9,9 +9,9 @@
 
 /* Override TDesign TabBar colors globally */
 page {
-  --td-brand-color: #07c160;
-  --td-primary-color: #07c160;
-  --td-primary-color-7: #07c160;
+  --td-brand-color: var(--color-primary);
+  --td-primary-color: var(--color-primary);
+  --td-primary-color-7: var(--color-primary);
 }
 
 /* ========================================
@@ -37,6 +37,11 @@ page {
   border-radius: var(--td-radius-default) !important;
 }
 
+/* Hide avatar loading animation */
+.t-avatar .t-image__mask.t-image--loading {
+  display: none !important;
+}
+
 /**
  * Global utility styles.
  * All numeric values reference design tokens to keep UI consistent.
@@ -45,8 +50,8 @@ page {
 page {
   min-height: 100%;
   background-color: var(--color-bg-primary);
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial,
+    sans-serif;
   font-size: var(--font-size-base);
   line-height: var(--line-height-base);
   color: var(--color-text-primary);
@@ -171,174 +176,6 @@ page {
   color: var(--color-text-inverse);
 }
 
-/* Button primitives */
-.btn {
-  min-height: var(--button-height-md);
-  padding: 0 var(--padding-button);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  text-align: center;
-  border: none;
-  outline: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-  transition: background-color var(--duration-fast) var(--ease-out);
-}
-
-.btn-primary {
-  background-color: var(--color-primary);
-  color: var(--color-text-inverse);
-}
-
-.btn-primary:active {
-  opacity: var(--opacity-pressed);
-}
-
-.btn-secondary {
-  background-color: var(--color-bg-hover);
-  color: var(--color-text-primary);
-}
-
-.btn-secondary:active {
-  opacity: var(--opacity-pressed);
-}
-
-.btn-danger {
-  background-color: var(--color-error);
-  color: var(--color-text-inverse);
-}
-
-.btn-block {
-  width: 100%;
-}
-
-/* Inputs */
-.input {
-  display: flex;
-  align-items: center;
-  min-height: var(--input-height-md);
-  padding: 0 var(--space-md);
-  border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-base);
-  background-color: var(--color-bg-input);
-  color: var(--color-text-primary);
-  box-sizing: border-box;
-}
-
-.input:focus {
-  border-color: var(--color-primary);
-}
-
-.input-error {
-  border-color: var(--color-error);
-}
-
-/* Avatars */
-.avatar {
-  width: var(--avatar-md);
-  height: var(--avatar-md);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background-color: var(--color-border-light);
-}
-
-.avatar-sm {
-  width: var(--avatar-sm);
-  height: var(--avatar-sm);
-}
-
-.avatar-lg {
-  width: var(--avatar-lg);
-  height: var(--avatar-lg);
-}
-
-.avatar-xl {
-  width: var(--avatar-xl);
-  height: var(--avatar-xl);
-}
-
-.avatar image {
-  width: 100%;
-  height: 100%;
-}
-
-/* Cards */
-.card {
-  background-color: var(--color-bg-secondary);
-  border-radius: var(--radius-md);
-  padding: var(--padding-card);
-  margin-bottom: var(--space-sm);
-  box-shadow: var(--shadow-sm);
-}
-
-/* Divider */
-.divider {
-  width: 100%;
-  height: 1px;
-  background-color: var(--color-border-base);
-  margin: var(--space-md) 0;
-}
-
-/* Badge */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 var(--space-xs);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-sm);
-  background-color: var(--color-unread);
-  color: var(--color-text-inverse);
-  min-width: var(--badge-size-md);
-  height: var(--badge-size-md);
-  line-height: 1;
-}
-
-/* Loading / empty states */
-.loading,
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-xl);
-  color: var(--color-text-tertiary);
-}
-
-.loading-icon {
-  width: var(--icon-lg);
-  height: var(--icon-lg);
-  border: 4rpx solid var(--color-border-base);
-  border-top-color: var(--color-primary);
-  border-radius: var(--radius-full);
-  animation: spin var(--duration-base) linear infinite;
-  margin-bottom: var(--space-sm);
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-/* Overlay */
-.mask {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: var(--color-bg-mask);
-  z-index: var(--z-index-modal-backdrop);
-}
-
 /* Utility */
 .hidden {
   display: none;
@@ -391,6 +228,168 @@ page {
   margin-bottom: var(--space-md); /* 24rpx - breathing room at bottom */
 }
 
+/**
+ * Global Navbar Title
+ */
+.navbar-title {
+  font-size: var(--font-size-nav-title);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-base);
+}
+
+/**
+ * Large Title Header
+ * Used with t-navbar when a big title is required below the navbar.
+ */
+.page-large-title {
+  padding: var(--space-sm) var(--padding-page) var(--space-md);
+  background-color: var(--color-bg-header-solid, var(--color-bg-page));
+}
+
+.page-large-title__text {
+  font-size: var(--font-size-xxl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.page-large-title__subtitle {
+  display: block;
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-base);
+}
+
+/**
+ * List Text Styles (Unified)
+ */
+.list-text-primary {
+  font-size: var(--font-size-list-primary);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-list-primary);
+}
+
+.list-text-secondary {
+  font-size: var(--font-size-list-secondary);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-list-secondary);
+}
+
+.list-text-tertiary {
+  font-size: var(--font-size-list-secondary);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-list-secondary);
+}
+
+/**
+ * List Cell Layout (TDesign Cell)
+ */
+.list-cell {
+  --td-cell-vertical-padding: var(--space-list-vertical);
+  --td-cell-horizontal-padding: var(--space-list-horizontal);
+}
+
+.list-item__left {
+  margin-right: var(--space-list-avatar-gap);
+}
+
+.list-item__center {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+.list-item__right {
+  min-width: var(--size-list-right-meta);
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.list-item__title-wrap,
+.list-item__description-wrap {
+  min-width: 0;
+}
+
+.list-item__description {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.list-item__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+.list-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-time {
+  font-size: var(--font-size-list-secondary);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-list-secondary);
+  white-space: nowrap;
+}
+
+/**
+ * List Row Layout (Custom Lists)
+ */
+.list-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-list-avatar-gap);
+  padding: var(--space-list-vertical) var(--space-list-horizontal);
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1rpx solid var(--color-separator);
+}
+
+.list-row:active {
+  background-color: var(--color-bg-hover);
+}
+
+.list-row:last-child {
+  border-bottom: none;
+}
+
+.list-row__avatar {
+  flex-shrink: 0;
+  margin-top: 4rpx;
+}
+
+.list-row__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--space-xs);
+}
+
+.list-row__right {
+  flex-shrink: 0;
+  min-width: var(--size-list-right-meta);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.list-row__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-xs);
+}
 /**
  * Page footer container
  * Used for bottom action buttons

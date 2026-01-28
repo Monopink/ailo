@@ -33,7 +33,7 @@ export function createPageLayoutData(options: Partial<PageLayoutData> = {}): Pag
     hasError: false,
     errorMessage: '',
     isEmpty: false,
-    emptyMessage: '暂无数据',
+    emptyMessage: '暂无内容',
     hasFooter: false,
     contentScrollIntoView: '',
     contentScrollWithAnimation: true,

@@ -6,6 +6,9 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">关于</view>
+  </t-navbar>
   <view slot="content" class="about card-container">
     <!-- App info card -->
     <view class="card-wrapper">

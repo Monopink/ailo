@@ -40,7 +40,10 @@ export const ContactProfileSchema = z.object({
 export type ContactProfile = z.infer<typeof ContactProfileSchema>;
 
 export const ConversationResponseSchema = z.object({
-  profile: ContactProfileSchema.optional(),
+  conv_id: z.string(),
+  im_conv_id: z.string(),
+  contact_qiao_id: z.string(),
+  profile: ContactProfileSchema,
 });
 export type ConversationResponse = z.infer<typeof ConversationResponseSchema>;
 
@@ -99,6 +102,7 @@ export type WechatBindPhoneResponse = z.infer<typeof WechatBindPhoneResponseSche
 export const StoredContactSchema = z.object({
   conv_id: z.string().optional(),
   contact_qiao_id: z.string().optional(),
+  im_conv_id: z.string().optional(),
   alias: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
   is_pinned: z.boolean().optional(),
@@ -136,6 +140,32 @@ export type StoredMessage = z.infer<typeof StoredMessageSchema>;
 
 export const StoredMessagesSchema = z.array(StoredMessageSchema);
 export type StoredMessages = z.infer<typeof StoredMessagesSchema>;
+
+export const ConversationUnreadCountsSchema = z.record(z.number().int().nonnegative());
+export type ConversationUnreadCounts = z.infer<typeof ConversationUnreadCountsSchema>;
+
+export const ConversationUnreadMarksSchema = z.record(z.boolean());
+export type ConversationUnreadMarks = z.infer<typeof ConversationUnreadMarksSchema>;
+
+export const ConversationReadStateItemSchema = z.object({
+  last_read_sent_time: z.number(),
+  last_read_msg_id: z.string().optional(),
+  updated_at: z.number(),
+});
+export type ConversationReadStateItem = z.infer<typeof ConversationReadStateItemSchema>;
+
+export const ConversationReadStateSchema = z.record(ConversationReadStateItemSchema);
+export type ConversationReadState = z.infer<typeof ConversationReadStateSchema>;
+
+export const ConversationViewStateItemSchema = z.object({
+  last_viewed_msg_id: z.string().optional(),
+  is_at_bottom: z.boolean(),
+  updated_at: z.number(),
+});
+export type ConversationViewStateItem = z.infer<typeof ConversationViewStateItemSchema>;
+
+export const ConversationViewStateSchema = z.record(ConversationViewStateItemSchema);
+export type ConversationViewState = z.infer<typeof ConversationViewStateSchema>;
 
 export const OfflineMessageSchema = z.object({
   msg_id_server: z.string(),

@@ -1,8 +1,8 @@
 import { post, registerAuthRefreshHandler, registerAuthTokenProvider } from './api';
 import { STORAGE_KEYS } from './config';
-import { getAvatarUrl } from './avatar';
 import { getLogger } from './logger';
 import { fetchCurrentUserProfile, type UserProfileResponse } from './profile';
+import profileService from './profile-service';
 import { saveUserInfo, StoredAuthUser } from './storage';
 import { isNonEmptyString } from './guards';
 import { normalizeError } from './errors';
@@ -16,8 +16,6 @@ interface RefreshTokenResponse {
 
 const mapProfileToStoredUser = (profile: UserProfileResponse): StoredAuthUser => ({
   qiao_id: profile.qiao_id,
-  nickname: profile.nickname ?? '',
-  avatar: getAvatarUrl(profile.avatar_url ?? ''),
 });
 
 class AuthService {
@@ -51,8 +49,9 @@ class AuthService {
 
       const storedToken = wx.getStorageSync<string>(STORAGE_KEYS.AUTH_TOKEN);
       const token = isNonEmptyString(storedToken) ? storedToken : '';
-      const storedProfileSetupFlag =
-        wx.getStorageSync<boolean>(STORAGE_KEYS.PROFILE_SETUP_REQUIRED);
+      const storedProfileSetupFlag = wx.getStorageSync<boolean>(
+        STORAGE_KEYS.PROFILE_SETUP_REQUIRED
+      );
       this._needsProfileSetup = storedProfileSetupFlag === true;
 
       if (!isNonEmptyString(token)) {
@@ -79,9 +78,7 @@ class AuthService {
       } catch (error: unknown) {
         const statusCandidate = error as { statusCode?: number };
         const statusCode =
-          typeof statusCandidate.statusCode === 'number'
-            ? statusCandidate.statusCode
-            : undefined;
+          typeof statusCandidate.statusCode === 'number' ? statusCandidate.statusCode : undefined;
         const err = normalizeError(error);
         logger.warn('Token verification failed, clearing invalid token', {
           errorMessage: err.message,
@@ -158,6 +155,11 @@ class AuthService {
     this._setAuthState(true, accessToken, userInfo);
     this.setNeedsProfileSetup(Boolean(options?.needsProfileSetup));
     logger.info('Login successful', { qiao_id: userInfo.qiao_id });
+    void profileService.loadProfile().catch((error: unknown) => {
+      logger.warn('Preload profile failed after login', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   }
 
   async updateUserInfo(userInfo: StoredAuthUser): Promise<void> {
@@ -180,6 +182,7 @@ class AuthService {
       });
     }
 
+    profileService.clearProfile();
     this._clearStoredSession();
     logger.info('Logout complete');
   }
@@ -241,6 +244,7 @@ class AuthService {
   }
 
   private _clearStoredSession(): void {
+    profileService.clearProfile();
     wx.removeStorageSync(STORAGE_KEYS.AUTH_TOKEN);
     wx.removeStorageSync(STORAGE_KEYS.REFRESH_TOKEN);
     wx.removeStorageSync(STORAGE_KEYS.USER_INFO);

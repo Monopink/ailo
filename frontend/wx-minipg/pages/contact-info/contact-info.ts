@@ -9,6 +9,7 @@ import {
   saveContacts,
   type StoredContact,
 } from '../../utils/storage';
+import viewStore from '../../utils/message/view-store';
 import { fetchConversationProfile, refreshStoredContact } from '../../utils/contact-service';
 import type { ContactProfile } from '../../utils/schemas';
 import { isNonEmptyString } from '../../utils/guards';
@@ -181,6 +182,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
 
         try {
           await clearMessages(this.data.convId);
+          await viewStore.clear(this.data.convId);
           void wx.showToast({
             title: '聊天记录已清空',
             icon: 'success',
@@ -217,6 +219,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
           );
           await saveContacts(updatedContacts);
           await clearMessages(this.data.convId);
+          await viewStore.clear(this.data.convId);
 
           void wx.showToast({
             title: '联系人已删除',

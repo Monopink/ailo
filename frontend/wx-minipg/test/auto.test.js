@@ -18,29 +18,24 @@ describe('MiniProgram Auto Test', () => {
     await miniProgram.close();
   });
 
-  it('should load square page', async () => {
-    expect(page.path).toBe('pages/square/square');
+  it('should load square entry page', async () => {
+    expect(page.path).toBe('pages/square-entry/square-entry');
   });
 
-  it('should have filter bar', async () => {
-    const filterBar = await page.$('.filter-bar');
-    expect(filterBar).toBeTruthy();
+  it('should render entry cards', async () => {
+    const cards = await page.$$('.square-entry-card');
+    expect(cards.length).toBeGreaterThan(0);
   });
 
-  it('should have refresh button', async () => {
-    const refreshBtn = await page.$('.refresh-btn');
-    expect(refreshBtn).toBeTruthy();
-  });
-
-  it('should navigate to login page', async () => {
-    // Try to click a filter that requires login
-    const filterBtn = await page.$('.filter-btn[data-filter="dating"]');
-    if (filterBtn) {
-      await filterBtn.tap();
+  it('should navigate after tapping a card', async () => {
+    const card = await page.$('.square-entry-card');
+    if (card) {
+      await card.tap();
       await miniProgram.waitFor(1000);
 
       const currentPage = await miniProgram.currentPage();
-      expect(currentPage.path).toBe('pages/login/login');
+      const allowed = ['pages/square/square', 'pages/login/login'];
+      expect(allowed.includes(currentPage.path)).toBeTruthy();
     }
   });
 });

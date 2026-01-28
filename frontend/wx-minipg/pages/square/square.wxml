@@ -1,4 +1,5 @@
 <page-layout
+  style="--color-bg-page: var(--color-bg-white); --color-bg-header-solid: var(--color-bg-white);"
   isLoading="{{pageLayoutData.isLoading}}"
   hasError="{{pageLayoutData.hasError}}"
   errorMessage="{{pageLayoutData.errorMessage}}"
@@ -8,12 +9,15 @@
   bind:retry="onRetry">
   <!-- Category tabs - always visible in header -->
   <view slot="header" class="square-header">
+    <t-navbar left-arrow="{{true}}">
+      <view slot="title" class="navbar-title">发现</view>
+    </t-navbar>
     <scroll-view scroll-x class="square-tabs" show-scrollbar="{{false}}">
       <view class="square-tabs__list">
         <view
           wx:for="{{categories}}"
           wx:key="key"
-          class="square-tabs__item {{currentCategory === item.key ? 'square-tabs__item--active' : ''}}"
+          class="square-tabs__item square-tabs__item--{{item.theme}} {{currentCategory === item.key ? 'square-tabs__item--active' : ''}}"
           bindtap="selectCategory"
           data-category="{{item.key}}">
           {{item.label}}
@@ -22,29 +26,33 @@
     </scroll-view>
   </view>
 
+  <view slot="empty" class="square-page__empty">
+    <t-empty description="{{pageLayoutData.emptyMessage}}" />
+  </view>
+
   <!-- Contact list -->
   <view slot="content" class="square-page">
     <view class="square-list">
       <view
         wx:for="{{contacts}}"
         wx:key="qiao_id"
-        class="square-item"
+        class="square-item list-row"
         bindtap="handleContactTap"
         data-id="{{item.qiao_id}}">
         <!-- Avatar -->
         <t-avatar
           image="{{item.avatar_url}}"
           size="medium"
-          class="square-item__avatar" />
+          class="list-row__avatar" />
 
         <!-- Info -->
-        <view class="square-item__info">
+        <view class="list-row__info">
           <view class="square-item__header">
-            <text class="square-item__name">{{item.nickname}}</text>
+            <text class="square-item__name list-text-primary">{{item.nickname}}</text>
             <gender-badge wx:if="{{item.gender}}" gender="{{item.gender}}" />
           </view>
-          <text wx:if="{{item.bio}}" class="square-item__bio">{{item.bio}}</text>
-          <text wx:if="{{item.region}}" class="square-item__region">{{item.region}}</text>
+          <text wx:if="{{item.bio}}" class="square-item__bio list-text-secondary">{{item.bio}}</text>
+          <text wx:if="{{item.region}}" class="square-item__region list-text-secondary">{{item.region}}</text>
         </view>
       </view>
     </view>

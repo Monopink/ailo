@@ -1,5 +1,5 @@
-@import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.wxss';
+@import '/styles/tdesign-theme.wxss';
 
 .account-security {
   background-color: var(--color-bg-primary);

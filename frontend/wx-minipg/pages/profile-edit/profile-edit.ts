@@ -64,6 +64,7 @@ type FieldKey = keyof typeof FIELD_CONFIG;
 
 interface ProfileEditPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
+  navbarTitle: string;
   field: FieldKey | '';
   fieldType: FieldType | '';
   fieldLabel: string;
@@ -109,6 +110,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       hasFooter: true,
       emptyMessage: '暂无可编辑字段',
     }),
+    navbarTitle: '',
     field: '',
     fieldType: '',
     fieldLabel: '',
@@ -142,8 +144,8 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
       return;
     }
 
-    void wx.setNavigationBarTitle({
-      title: config.title,
+    this.setData({
+      navbarTitle: config.title,
     });
 
     if (config.type === 'gender') {
@@ -164,9 +166,7 @@ Page<ProfileEditPageData, ProfileEditPageCustom>({
 
     if (config.type === 'region') {
       const decodedValue = decodeValue(options.value);
-      const regionDisplay = isNonEmptyString(decodedValue)
-        ? decodedValue
-        : '请选择地区';
+      const regionDisplay = isNonEmptyString(decodedValue) ? decodedValue : '请选择地区';
       this.setData({
         field: rawField,
         fieldType: config.type,

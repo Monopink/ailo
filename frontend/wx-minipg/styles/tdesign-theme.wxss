@@ -1,174 +1,197 @@
 /**
  * TDesign Theme Customization
  *
- * Overrides TDesign default theme variables to match WeChat style
- * Brand Color: #07C160 (WeChat Green)
+ * Maps semantic design tokens to TDesign variables
+ * This approach decouples our design system from the component library
  */
 
 page {
   /* ========================================
-     Brand Colors - WeChat Green
+     Brand Colors - Mapped from design tokens
      ======================================== */
 
-  /* Primary brand color */
-  --td-brand-color: #07c160;
-  --td-brand-color-1: #e8f8f0;
-  --td-brand-color-2: #d1f1e1;
-  --td-brand-color-3: #baebd2;
-  --td-brand-color-4: #a3e4c3;
-  --td-brand-color-5: #8cddb4;
-  --td-brand-color-6: #75d6a5;
-  --td-brand-color-7: #5ed096;
-  --td-brand-color-8: #47c987;
-  --td-brand-color-9: #30c278;
-  --td-brand-color-10: #07c160;
+  /* Primary brand color - mapped to our semantic variables */
+  --td-brand-color: var(--color-primary);
+  --td-brand-color-1: var(--color-primary-lighter);
+  --td-brand-color-2: var(--color-primary-lighter);
+  --td-brand-color-3: var(--color-primary-lighter);
+  --td-brand-color-4: var(--color-primary-light);
+  --td-brand-color-5: var(--color-primary-light);
+  --td-brand-color-6: var(--color-primary-light);
+  --td-brand-color-7: var(--color-primary);
+  --td-brand-color-8: var(--color-primary);
+  --td-brand-color-9: var(--color-primary);
+  --td-brand-color-10: var(--color-primary-dark);
 
   /* Brand color variations */
-  --td-brand-color-light: #38cd7f;
-  --td-brand-color-focus: #06ad56;
-  --td-brand-color-disabled: #a3e4c3;
-  --td-brand-color-hover: #06ad56;
-  --td-brand-color-active: #06ad56;
+  --td-brand-color-light: var(--color-primary-light);
+  --td-brand-color-focus: var(--color-primary-dark);
+  --td-brand-color-disabled: var(--color-primary-light);
+  --td-brand-color-hover: var(--color-primary-dark);
+  --td-brand-color-active: var(--color-primary-dark);
 
   /* ========================================
-     Spacing System - 8rpx base
+     Spacing System - Mapped from design tokens
      ======================================== */
 
-  --td-spacer: 8rpx;
-  --td-spacer-1: 8rpx;
-  --td-spacer-2: 16rpx;
-  --td-spacer-3: 24rpx;
-  --td-spacer-4: 32rpx;
-  --td-spacer-5: 40rpx;
+  --td-spacer: var(--space-xs);
+  --td-spacer-1: var(--space-xs);
+  --td-spacer-2: var(--space-sm);
+  --td-spacer-3: var(--space-md);
+  --td-spacer-4: var(--space-lg);
+  --td-spacer-5: var(--space-xl);
 
   /* ========================================
-     Border Radius - Gentle & Modern
+     Border Radius - Mapped from design tokens
      ======================================== */
 
-  /* Unified border-radius: All components (buttons, inputs, cards) use 24rpx (12px) */
-  --td-radius-small: 8rpx;
-  --td-radius-default: 24rpx; /* Changed from 16rpx to match card radius */
-  --td-radius-medium: 24rpx; /* Changed from 16rpx to match card radius */
-  --td-radius-large: 24rpx;
-  --td-radius-extra-large: 32rpx;
-  --td-radius-round: 999rpx;
+  --td-radius-small: var(--radius-xs);
+  --td-radius-default: var(--radius-md);
+  --td-radius-medium: var(--radius-md);
+  --td-radius-large: var(--radius-md);
+  --td-radius-extra-large: var(--radius-xl);
+  --td-radius-round: var(--radius-full);
   --td-radius-circle: 50%;
 
   /* ========================================
-     Component Heights - Unified at 88rpx
+     Component Heights - Mapped from design tokens
      ======================================== */
 
-  /* Button heights - set medium (default) to 88rpx */
-  --td-button-extra-small-height: 56rpx;
-  --td-button-small-height: 72rpx;
-  --td-button-medium-height: 88rpx; /* Default - matches our design tokens */
-  --td-button-large-height: 104rpx;
+  /* Button heights */
+  --td-button-extra-small-height: var(--button-height-sm);
+  --td-button-small-height: var(--input-height-md);
+  --td-button-medium-height: var(--button-height-md);
+  --td-button-large-height: var(--button-height-lg);
 
-  /* Input vertical padding - adjusted for 88rpx total height */
-  /* Total height = padding-top + min-height(48rpx) + padding-bottom */
-  /* 88rpx = 20rpx + 48rpx + 20rpx */
+  /* Input vertical padding */
   --td-input-vertical-padding: 20rpx;
 
   /* ========================================
-     Font System
+     Font System - Mapped from design tokens
      ======================================== */
 
-  --td-font-size-base: 28rpx;
-  --td-font-size-s: 24rpx;
-  --td-font-size-m: 28rpx;
-  --td-font-size-l: 32rpx;
-  --td-font-size-xl: 36rpx;
+  --td-font-size-base: var(--font-size-base);
+  --td-font-size-s: var(--font-size-sm);
+  --td-font-size-m: var(--font-size-base);
+  --td-font-size-l: var(--font-size-md);
+  --td-font-size-xl: var(--font-size-lg);
 
   /* ========================================
-     Background Colors - iOS inspired
+     Background Colors - Mapped from design tokens
      ======================================== */
 
-  --td-bg-color-page: #f5f5f5;
-  --td-bg-color-container: #ffffff;
-  --td-bg-color-secondarycontainer: #fafafa;
-  --td-bg-color-component: #f8f8f8;
-  --td-bg-color-component-hover: #f0f0f0;
-  --td-bg-color-component-active: #e8e8e8;
-  --td-bg-color-component-disabled: #f5f5f5;
+  --td-bg-color-page: var(--color-bg-primary);
+  --td-bg-color-container: var(--color-bg-secondary);
+  --td-bg-color-secondarycontainer: var(--color-bg-tertiary);
+  --td-bg-color-component: var(--color-bg-input);
+  --td-bg-color-component-hover: var(--color-bg-hover);
+  --td-bg-color-component-active: var(--color-bg-hover);
+  --td-bg-color-component-disabled: var(--color-bg-disabled);
 
   /* ========================================
-     Text Colors - Soft & Readable
+     Text Colors - Mapped from design tokens
      ======================================== */
 
-  --td-text-color-primary: #1a1a1a;
-  --td-text-color-secondary: #666666;
-  --td-text-color-placeholder: #999999;
-  --td-text-color-disabled: #cccccc;
-  --td-text-color-anti: #ffffff;
-  --td-text-color-brand: #07c160;
+  --td-text-color-primary: var(--color-text-primary);
+  --td-text-color-secondary: var(--color-text-secondary);
+  --td-text-color-placeholder: var(--color-text-placeholder);
+  --td-text-color-disabled: var(--color-text-disabled);
+  --td-text-color-anti: var(--color-text-inverse);
+  --td-text-color-brand: var(--color-primary);
 
   /* ========================================
-     Border Colors
+     Border Colors - Mapped from design tokens
      ======================================== */
 
-  --td-border-level-1-color: #e8e8e8;
-  --td-border-level-2-color: #f0f0f0;
-  --td-component-border: #e8e8e8;
+  --td-border-level-1-color: var(--color-border-base);
+  --td-border-level-2-color: var(--color-border-light);
+  --td-component-border: var(--color-border-base);
 
   /* ========================================
-     Shadow System - Subtle & Soft
+     Shadow System - Mapped from design tokens
      ======================================== */
 
-  --td-shadow-1: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
-  --td-shadow-2: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
-  --td-shadow-3: 0 8rpx 24rpx rgba(0, 0, 0, 0.1);
+  --td-shadow-1: var(--shadow-sm);
+  --td-shadow-2: var(--shadow-md);
+  --td-shadow-3: var(--shadow-lg);
 
   /* ========================================
-     Error & Warning Colors
+     Status Colors - Mapped from design tokens
      ======================================== */
 
-  --td-error-color: #e34d59;
-  --td-error-color-1: #fef0f0;
-  --td-error-color-hover: #c9353f;
-  --td-error-color-active: #b72835;
+  --td-error-color: var(--color-error);
+  --td-error-color-1: var(--color-primary-lighter);
+  --td-error-color-hover: var(--color-error);
+  --td-error-color-active: var(--color-error);
 
-  --td-warning-color: #ed7b2f;
-  --td-warning-color-1: #fff1e9;
-  --td-warning-color-hover: #d56829;
-  --td-warning-color-active: #ba5425;
+  --td-warning-color: var(--color-warning);
+  --td-warning-color-1: var(--color-accent-light);
+  --td-warning-color-hover: var(--color-warning);
+  --td-warning-color-active: var(--color-warning);
 
-  --td-success-color: #07c160;
-  --td-success-color-1: #e8f8f0;
-  --td-success-color-hover: #06ad56;
-  --td-success-color-active: #059a4d;
+  --td-success-color: var(--color-success);
+  --td-success-color-1: var(--color-primary-lighter);
+  --td-success-color-hover: var(--color-success);
+  --td-success-color-active: var(--color-success);
 }
 
 /* ========================================
-   Dark Mode Support
+   Dark Mode Support - Mapped from design tokens
    ======================================== */
 
+@media (prefers-color-scheme: dark) {
+  page {
+    /* All TDesign variables automatically inherit from design-tokens.wxss dark mode */
+    /* Background colors */
+    --td-bg-color-page: var(--color-bg-primary);
+    --td-bg-color-container: var(--color-bg-secondary);
+    --td-bg-color-secondarycontainer: var(--color-bg-tertiary);
+    --td-bg-color-component: var(--color-bg-input);
+    --td-bg-color-component-hover: var(--color-bg-hover);
+    --td-bg-color-component-active: var(--color-bg-hover);
+    --td-bg-color-component-disabled: var(--color-bg-disabled);
+
+    /* Text colors */
+    --td-text-color-primary: var(--color-text-primary);
+    --td-text-color-secondary: var(--color-text-secondary);
+    --td-text-color-placeholder: var(--color-text-placeholder);
+    --td-text-color-disabled: var(--color-text-disabled);
+    --td-text-color-anti: var(--color-text-inverse);
+
+    /* Border colors */
+    --td-border-level-1-color: var(--color-border-base);
+    --td-border-level-2-color: var(--color-border-light);
+    --td-component-border: var(--color-border-base);
+
+    /* Shadow colors */
+    --td-shadow-1: var(--shadow-sm);
+    --td-shadow-2: var(--shadow-md);
+    --td-shadow-3: var(--shadow-lg);
+  }
+}
+
+/* Manual dark theme via page[theme='dark'] */
 page[theme='dark'] {
-  /* Brand colors remain the same in dark mode */
-  --td-brand-color: #07c160;
+  /* Same mappings as @media dark mode */
+  --td-bg-color-page: var(--color-bg-primary);
+  --td-bg-color-container: var(--color-bg-secondary);
+  --td-bg-color-secondarycontainer: var(--color-bg-tertiary);
+  --td-bg-color-component: var(--color-bg-input);
+  --td-bg-color-component-hover: var(--color-bg-hover);
+  --td-bg-color-component-active: var(--color-bg-hover);
+  --td-bg-color-component-disabled: var(--color-bg-disabled);
 
-  /* Background colors for dark mode */
-  --td-bg-color-page: #1a1a1a;
-  --td-bg-color-container: #2a2a2a;
-  --td-bg-color-secondarycontainer: #333333;
-  --td-bg-color-component: #2f2f2f;
-  --td-bg-color-component-hover: #3a3a3a;
-  --td-bg-color-component-active: #454545;
-  --td-bg-color-component-disabled: #2a2a2a;
+  --td-text-color-primary: var(--color-text-primary);
+  --td-text-color-secondary: var(--color-text-secondary);
+  --td-text-color-placeholder: var(--color-text-placeholder);
+  --td-text-color-disabled: var(--color-text-disabled);
+  --td-text-color-anti: var(--color-text-inverse);
 
-  /* Text colors for dark mode */
-  --td-text-color-primary: #e8e8e8;
-  --td-text-color-secondary: #b3b3b3;
-  --td-text-color-placeholder: #808080;
-  --td-text-color-disabled: #5c5c5c;
-  --td-text-color-anti: #1a1a1a;
+  --td-border-level-1-color: var(--color-border-base);
+  --td-border-level-2-color: var(--color-border-light);
+  --td-component-border: var(--color-border-base);
 
-  /* Border colors for dark mode */
-  --td-border-level-1-color: #3f3f3f;
-  --td-border-level-2-color: #333333;
-  --td-component-border: #3f3f3f;
-
-  /* Shadow colors for dark mode */
-  --td-shadow-1: 0 2rpx 8rpx rgba(0, 0, 0, 0.3);
-  --td-shadow-2: 0 4rpx 16rpx rgba(0, 0, 0, 0.4);
-  --td-shadow-3: 0 8rpx 24rpx rgba(0, 0, 0, 0.5);
+  --td-shadow-1: var(--shadow-sm);
+  --td-shadow-2: var(--shadow-md);
+  --td-shadow-3: var(--shadow-lg);
 }

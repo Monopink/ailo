@@ -9,32 +9,24 @@ import squareDiscoveryService, {
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { isNonEmptyString } from '../../utils/guards';
 import { initTabBar } from '../../utils/tab-bar';
+import {
+  SQUARE_CATEGORY,
+  SQUARE_CATEGORY_ITEMS,
+  type SquareCategory,
+  type SquareCategoryItem,
+} from '../../utils/constants/square';
 
 const logger = getLogger('Square');
-
-const CATEGORIES = [
-  { key: null, label: '全部' },
-  { key: 1, label: '交友' },
-  { key: 2, label: '恋爱' },
-  { key: 3, label: '倾诉' },
-  { key: 4, label: '闺蜜' },
-  { key: 5, label: '同好' },
-] as const;
 
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
   Record<string, unknown>
 >;
 
-interface CategoryItem {
-  key: number | null;
-  label: string;
-}
-
 interface SquarePageData {
   pageLayoutData: PageLayoutData;
-  categories: readonly CategoryItem[];
-  currentCategory: number | null;
+  categories: readonly SquareCategoryItem[];
+  currentCategory: SquareCategory;
   contacts: SquareContactViewModel[];
   loading: boolean;
   nextRefreshAvailableAt: number | null;
@@ -86,19 +78,27 @@ const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unkno
   return dataset?.[key];
 };
 
-const toCategoryValue = (value: unknown): number | null => {
+const SQUARE_CATEGORY_VALUES = new Set<number>(Object.values(SQUARE_CATEGORY));
+
+const isSquareCategory = (value: number): value is SquareCategory =>
+  SQUARE_CATEGORY_VALUES.has(value);
+
+const toSquareCategory = (value: unknown): SquareCategory | null => {
   if (value === null || value === undefined) {
     return null;
   }
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
+    return isSquareCategory(value) ? value : null;
   }
   if (typeof value === 'string') {
     if (value === 'null' || value === '') {
       return null;
     }
     const parsed = Number.parseInt(value, 10);
-    return Number.isNaN(parsed) ? null : parsed;
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+    return isSquareCategory(parsed) ? parsed : null;
   }
   return null;
 };
@@ -115,20 +115,25 @@ const toStringValue = (value: unknown): string | undefined => {
 
 Page<SquarePageData, SquarePageCustom>({
   data: {
-    pageLayoutData: createPageLayoutData(),
-    categories: CATEGORIES,
-    currentCategory: null,
+    pageLayoutData: createPageLayoutData({
+      emptyMessage: '暂无联系人',
+    }),
+    categories: SQUARE_CATEGORY_ITEMS,
+    currentCategory: SQUARE_CATEGORY.FRIEND,
     contacts: [],
     loading: false,
     nextRefreshAvailableAt: null,
   },
 
-  async onLoad() {
+  async onLoad(options?: Record<string, string | undefined>) {
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
       return;
     }
-    this.loadContactsWithCache();
+    const category = toSquareCategory(options?.category) ?? SQUARE_CATEGORY.FRIEND;
+    this.setData({ currentCategory: category }, () => {
+      this.loadContactsWithCache();
+    });
   },
 
   onShow() {
@@ -284,8 +289,8 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   selectCategory(event) {
-    const category = toCategoryValue(getDatasetValue(event, 'category'));
-    if (category === this.data.currentCategory) {
+    const category = toSquareCategory(getDatasetValue(event, 'category'));
+    if (category === null || category === this.data.currentCategory) {
       return;
     }
 

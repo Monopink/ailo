@@ -51,6 +51,30 @@ Component({
       type: Boolean,
       value: false,
     },
+    headerSolidMode: {
+      type: String,
+      value: 'auto',
+    },
+    headerSolid: {
+      type: Boolean,
+      value: false,
+    },
+    headerSolidThreshold: {
+      type: Number,
+      value: 12,
+    },
+  },
+
+  data: {
+    isHeaderSolid: false,
+  },
+
+  observers: {
+    'headerSolidMode,headerSolid'(headerSolidMode: string, headerSolid: boolean) {
+      if (headerSolidMode === 'manual') {
+        this.setData({ isHeaderSolid: headerSolid });
+      }
+    },
   },
 
   methods: {
@@ -59,6 +83,17 @@ Component({
      */
     onRetryClick() {
       this.triggerEvent('retry');
+    },
+
+    onContentScroll(event: WechatMiniprogram.ScrollViewScroll) {
+      if (this.properties.headerSolidMode !== 'auto') {
+        return;
+      }
+      const scrollTop = Math.max(0, Math.round(event.detail.scrollTop));
+      const shouldSolid = scrollTop > this.properties.headerSolidThreshold;
+      if (shouldSolid !== this.data.isHeaderSolid) {
+        this.setData({ isHeaderSolid: shouldSolid });
+      }
     },
   },
 });

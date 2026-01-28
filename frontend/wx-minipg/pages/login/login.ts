@@ -6,7 +6,6 @@ import {
   SAMPLE_CONTACTS,
   FEATURES,
 } from '../../constants/login-content';
-import { getAvatarUrl } from '../../utils/avatar';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { getLogger } from '../../utils/logger';
 import { saveContacts, type StoredAuthUser } from '../../utils/storage';
@@ -71,8 +70,6 @@ const initMessaging = async (): Promise<void> => {
 
 const normalizeAuthUser = (payload: AuthUserPayload): StoredAuthUser => ({
   qiao_id: payload.qiao_id,
-  nickname: payload.nickname ?? '',
-  avatar: getAvatarUrl(payload.avatar_url ?? ''),
 });
 
 Page<LoginPageData, LoginPageCustom>({

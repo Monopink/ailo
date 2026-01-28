@@ -6,6 +6,9 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{false}}"
   bind:retry="onRetry">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">{{navbarTitle}}</view>
+  </t-navbar>
   <view slot="content" class="profile-edit">
     <!-- Text input field -->
     <view wx:if="{{fieldType === 'text'}}" class="profile-edit__form">

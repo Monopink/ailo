@@ -4,6 +4,7 @@
 /* Profile Page */
 .profile {
   background-color: var(--color-bg-primary);
+  padding-top: calc(var(--space-xxl) + var(--space-lg) + var(--safe-area-inset-top));
 }
 
 /* Header Section - Avatar and Name */

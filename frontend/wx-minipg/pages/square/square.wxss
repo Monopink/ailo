@@ -2,12 +2,12 @@
 @import '/styles/design-tokens.wxss';
 
 .square-page {
-  background-color: var(--color-bg-primary);
+  background-color: var(--color-bg-white);
 }
 
 /* Header - Always visible */
 .square-header {
-  background-color: var(--color-bg-primary);
+  background-color: var(--color-bg-white);
 }
 
 /* Category tabs */
@@ -40,6 +40,26 @@
   font-weight: var(--font-weight-medium);
 }
 
+.square-tabs__item--friend.square-tabs__item--active {
+  background: var(--square-entry-card-friend-gradient);
+}
+
+.square-tabs__item--love.square-tabs__item--active {
+  background: var(--square-entry-card-love-gradient);
+}
+
+.square-tabs__item--talk.square-tabs__item--active {
+  background: var(--square-entry-card-talk-gradient);
+}
+
+.square-tabs__item--bestie.square-tabs__item--active {
+  background: var(--square-entry-card-bestie-gradient);
+}
+
+.square-tabs__item--hobby.square-tabs__item--active {
+  background: var(--square-entry-card-hobby-gradient);
+}
+
 /* Contact list - iOS style direct list */
 .square-list {
   background-color: var(--color-bg-secondary);
@@ -47,63 +67,23 @@
 }
 
 .square-item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-md);
-  padding: var(--space-md) var(--padding-page);
-  background-color: var(--color-bg-secondary);
-  border-bottom: 1rpx solid var(--color-separator);
   transition: background-color var(--duration-fast) var(--ease-out);
-}
-
-.square-item:active {
-  background-color: var(--color-bg-hover);
-}
-
-.square-item:last-child {
-  border-bottom: none;
-}
-
-.square-item__avatar {
-  flex-shrink: 0;
-  margin-top: 4rpx;
-}
-
-.square-item__info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
 }
 
 .square-item__header {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  line-height: 44rpx;
-  margin-bottom: 4rpx;
 }
 
 .square-item__name {
-  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
 }
 
 .square-item__bio {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  line-height: 40rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-bottom: 4rpx;
-}
-
-.square-item__region {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
-  line-height: 32rpx;
 }
 
 .square-item__button {

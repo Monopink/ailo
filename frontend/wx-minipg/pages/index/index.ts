@@ -5,6 +5,8 @@ import { getLogger } from '../../utils/logger';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import {
   getContacts,
+  getConversationUnreadCounts,
+  getConversationUnreadMarks,
   getLatestRenderableMessage,
   saveContacts,
   type LatestRenderableMessage,
@@ -18,6 +20,7 @@ import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { normalizeError } from '../../utils/errors';
 import { initTabBar } from '../../utils/tab-bar';
 import messageEventBus from '../../utils/message/event-bus';
+import unreadStore from '../../utils/message/unread-store';
 import type { ConnectionState } from '../../utils/message/adapter-types';
 
 const logger = getLogger('ContactList');
@@ -29,15 +32,24 @@ interface SwipeCellAction {
   style?: string;
 }
 
-const SWIPE_CELL_ACTIONS: ReadonlyArray<SwipeCellAction> = [
-  {
-    text: '查看联系人',
-    style: 'background-color: #999999; color: #ffffff; height: 100%;',
-  },
-  {
-    text: '标为未读',
-    style: 'background-color: #07c160; color: #ffffff; height: 100%;',
-  },
+const SWIPE_CELL_VIEW_ACTION: SwipeCellAction = {
+  text: '查看联系人',
+  style: 'background-color: #999999; color: #ffffff; height: 100%;',
+};
+
+const SWIPE_CELL_UNREAD_ACTION: SwipeCellAction = {
+  text: '标为未读',
+  style: 'background-color: #07c160; color: #ffffff; height: 100%;',
+};
+
+const SWIPE_CELL_READ_ACTION: SwipeCellAction = {
+  text: '标记已读',
+  style: 'background-color: #07c160; color: #ffffff; height: 100%;',
+};
+
+const buildSwipeActions = (hasUnread: boolean): ReadonlyArray<SwipeCellAction> => [
+  SWIPE_CELL_VIEW_ACTION,
+  hasUnread ? SWIPE_CELL_READ_ACTION : SWIPE_CELL_UNREAD_ACTION,
 ];
 
 type SwipeActionEvent = WechatMiniprogram.CustomEvent<SwipeCellAction>;
@@ -54,6 +66,7 @@ interface LoadOptions {
 interface ContactWithPreview extends StoredContact {
   _latestMessage?: LatestRenderableMessage | null;
   unreadCount?: number;
+  unreadMarked?: boolean;
   last_message_content?: string;
   last_message?: string;
   last_message_time?: number | string | null;
@@ -66,14 +79,16 @@ interface ContactListItem extends ContactWithPreview {
   lastMessage: string;
   hasUnread: boolean;
   unreadBadge: string;
+  unreadDot: boolean;
+  swipeActions: ReadonlyArray<SwipeCellAction>;
 }
 
 interface ContactListPageData {
   pageLayoutData: PageLayoutData;
   contactList: ContactListItem[];
   unreadTotal: number;
-  swipeCellActions: ReadonlyArray<SwipeCellAction>;
   showConnectionIssue: boolean;
+  navbarTitle: string;
 }
 
 interface ContactListPageCustom {
@@ -87,12 +102,19 @@ interface ContactListPageCustom {
   loadContactList(options?: LoadOptions): Promise<void>;
   loadContactsFromCache(): Promise<boolean>;
   refreshContactListFromAPI(): Promise<void>;
-  attachLatestMessages(contacts: StoredContacts): Promise<ContactWithPreview[]>;
+  attachLatestMessages(
+    contacts: StoredContacts,
+    unreadCounts: Record<string, number>
+  ): Promise<ContactWithPreview[]>;
   updateContactList(contacts: ContactWithPreview[]): void;
+  updateContactPreview(convId: string): Promise<void>;
+  onRetry(): void;
   goToChat(event: WechatMiniprogram.BaseEvent): void;
+  goToSquareEntry(): void;
   onSwipeActionClick(event: SwipeActionEvent): void;
   navigateToContactInfo(convId?: string): void;
   markContactAsUnreadByIndex(index: number): void;
+  markContactAsReadByIndex(index: number): void;
   onMessageReceived(message: Ailo.MessagePayload): void;
 }
 
@@ -140,8 +162,8 @@ Page<ContactListPageData, ContactListPageCustom>({
     }),
     contactList: [],
     unreadTotal: 0,
-    swipeCellActions: SWIPE_CELL_ACTIONS,
     showConnectionIssue: false,
+    navbarTitle: APP_CONFIG.brandName,
   },
 
   _loadPromise: null,
@@ -233,11 +255,8 @@ Page<ContactListPageData, ContactListPageCustom>({
 
   updateNavigationTitle() {
     const brandName = APP_CONFIG.brandName;
-    const unreadTotal = this.data.unreadTotal;
-    const badge = unreadTotal > 99 ? '99+' : unreadTotal;
-    const title = unreadTotal > 0 ? `${brandName}(${badge})` : brandName;
-    if (isNonEmptyString(title)) {
-      void wx.setNavigationBarTitle({ title });
+    if (isNonEmptyString(brandName)) {
+      this.setData({ navbarTitle: brandName });
     }
   },
 
@@ -256,8 +275,16 @@ Page<ContactListPageData, ContactListPageCustom>({
       try {
         const remoteContacts = await fetchAllContactsFromApi();
         const normalizedContacts = await saveContacts(remoteContacts);
-        const enrichedContacts = await this.attachLatestMessages(normalizedContacts);
-        this.updateContactList(enrichedContacts);
+        const unreadCounts = await getConversationUnreadCounts();
+        const unreadMarks = await getConversationUnreadMarks();
+        const enrichedContacts = await this.attachLatestMessages(normalizedContacts, unreadCounts);
+        const merged = enrichedContacts.map((contact) => ({
+          ...contact,
+          unreadMarked: isNonEmptyString(contact.conv_id)
+            ? Boolean(unreadMarks[contact.conv_id])
+            : false,
+        }));
+        this.updateContactList(merged);
       } catch (error: unknown) {
         const err = normalizeError(error);
         logger.warn('Contact list API failed, falling back to cache', { error: err.message });
@@ -291,8 +318,16 @@ Page<ContactListPageData, ContactListPageCustom>({
   async loadContactsFromCache() {
     try {
       const cachedContacts = await getContacts();
-      const enrichedContacts = await this.attachLatestMessages(cachedContacts);
-      this.updateContactList(enrichedContacts);
+      const unreadCounts = await getConversationUnreadCounts();
+      const unreadMarks = await getConversationUnreadMarks();
+      const enrichedContacts = await this.attachLatestMessages(cachedContacts, unreadCounts);
+      const merged = enrichedContacts.map((contact) => ({
+        ...contact,
+        unreadMarked: isNonEmptyString(contact.conv_id)
+          ? Boolean(unreadMarks[contact.conv_id])
+          : false,
+      }));
+      this.updateContactList(merged);
       return true;
     } catch (error: unknown) {
       const err = normalizeError(error);
@@ -321,28 +356,71 @@ Page<ContactListPageData, ContactListPageCustom>({
 
     if (message.message_type === MESSAGE_TYPE.CHAT_INFO) {
       void this.refreshContactListFromAPI();
+      return;
     }
+
+    if (isNonEmptyString(message.conv_id)) {
+      void this.updateContactPreview(message.conv_id);
+    }
+  },
+
+  async updateContactPreview(convId: string): Promise<void> {
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
+    const unreadCounts = await getConversationUnreadCounts();
+    const unreadMarks = await getConversationUnreadMarks();
+    const unreadCount = unreadCounts[convId] ?? 0;
+    const unreadMarked = Boolean(unreadMarks[convId]);
+    const latestMessage = await getLatestRenderableMessage(convId);
+
+    const contactList = this.data.contactList.map((contact) => {
+      if (contact.conv_id !== convId) {
+        return contact;
+      }
+      const lastMessageContent =
+        latestMessage?.content ?? contact.last_message_content ?? contact.last_message ?? '';
+      const lastMessageTimeRaw = latestMessage?.sent_time ?? contact.last_message_time ?? null;
+      return {
+        ...contact,
+        _latestMessage: latestMessage ?? contact._latestMessage ?? null,
+        lastMessage: lastMessageContent,
+        lastMessageTime: formatMessageTime(lastMessageTimeRaw),
+        unreadCount,
+        unreadMarked,
+        hasUnread: unreadCount > 0 || unreadMarked,
+        unreadBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : String(unreadCount)) : '',
+        unreadDot: unreadCount === 0 && unreadMarked,
+        swipeActions: buildSwipeActions(unreadCount > 0 || unreadMarked),
+      };
+    });
+
+    const unreadTotal = contactList.reduce((sum, contact) => sum + (contact.unreadCount ?? 0), 0);
+    this.setData({ contactList, unreadTotal });
+    this.updateNavigationTitle();
   },
 
   updateContactList(contacts: ContactWithPreview[]) {
     const contactList = contacts.map((contact) => {
       const unreadCount = contact.unreadCount ?? 0;
+      const unreadMarked = contact.unreadMarked ?? false;
       const latestMessage = contact._latestMessage ?? null;
       const lastMessageContent =
         latestMessage?.content ?? contact.last_message_content ?? contact.last_message ?? '';
       const lastMessageTimeRaw = latestMessage?.sent_time ?? contact.last_message_time ?? null;
-      const displayName =
-        firstNonEmptyString(contact.alias, contact.profile?.nickname, contact.contact_qiao_id) ??
-        '';
+      const displayName = firstNonEmptyString(contact.alias, contact.profile?.nickname) ?? '';
 
+      const hasUnread = unreadCount > 0 || unreadMarked;
       return {
         ...contact,
         avatarUrl: getAvatarUrl(contact.profile?.avatar_url ?? ''),
         displayName,
         lastMessageTime: formatMessageTime(lastMessageTimeRaw),
         lastMessage: lastMessageContent,
-        hasUnread: unreadCount > 0,
-        unreadBadge: unreadCount > 99 ? '99+' : String(unreadCount),
+        hasUnread,
+        unreadBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : String(unreadCount)) : '',
+        unreadDot: unreadCount === 0 && unreadMarked,
+        swipeActions: buildSwipeActions(hasUnread),
       };
     });
 
@@ -359,12 +437,20 @@ Page<ContactListPageData, ContactListPageCustom>({
     this.updateNavigationTitle();
   },
 
+  onRetry() {
+    void this.refreshContactListFromAPI();
+  },
+
   goToChat(event) {
     const convId = getDatasetString(event, 'id');
     if (!isNonEmptyString(convId)) {
       return;
     }
     void wx.navigateTo({ url: `/pages/chat/chat?id=${convId}` });
+  },
+
+  goToSquareEntry() {
+    void wx.switchTab({ url: '/pages/square-entry/square-entry' });
   },
 
   onSwipeActionClick(event: SwipeActionEvent) {
@@ -383,6 +469,8 @@ Page<ContactListPageData, ContactListPageCustom>({
       this.navigateToContactInfo(convId);
     } else if (action.text === '标为未读') {
       this.markContactAsUnreadByIndex(contactIndex);
+    } else if (action.text === '标记已读') {
+      this.markContactAsReadByIndex(contactIndex);
     }
   },
 
@@ -404,25 +492,108 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
 
-    const count = (target.unreadCount ?? 0) + 1;
-    contactList[index] = {
-      ...target,
-      unreadCount: count,
-      hasUnread: true,
-      unreadBadge: count > 99 ? '99+' : String(count),
-    };
+    const convId = target.conv_id ?? '';
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
 
-    const unreadTotal = contactList.reduce((sum, contact) => sum + (contact.unreadCount ?? 0), 0);
+    void (async () => {
+      try {
+        await unreadStore.markConversationAsUnread(convId);
+        const unreadCounts = await getConversationUnreadCounts();
+        const count = unreadCounts[convId] ?? 0;
 
-    this.setData({
-      contactList,
-      unreadTotal,
-    });
-    this.updateNavigationTitle();
-    showToast('已标为未读', 'success');
+        const unreadMarks = await getConversationUnreadMarks();
+        const unreadMarked = Boolean(unreadMarks[convId]);
+
+        const hasUnread = count > 0 || unreadMarked;
+        contactList[index] = {
+          ...target,
+          unreadCount: count,
+          unreadMarked,
+          hasUnread,
+          unreadBadge: count > 0 ? (count > 99 ? '99+' : String(count)) : '',
+          unreadDot: count === 0 && unreadMarked,
+          swipeActions: buildSwipeActions(hasUnread),
+        };
+
+        const unreadTotal = contactList.reduce(
+          (sum, contact) => sum + (contact.unreadCount ?? 0),
+          0
+        );
+
+        this.setData({
+          contactList,
+          unreadTotal,
+        });
+        this.updateNavigationTitle();
+        showToast('已标为未读', 'success');
+      } catch (error: unknown) {
+        const err = normalizeError(error);
+        logger.warn('Mark contact as unread failed', { error: err.message });
+        showToast('标记失败');
+      }
+    })();
   },
 
-  async attachLatestMessages(contacts: StoredContacts): Promise<ContactWithPreview[]> {
+  markContactAsReadByIndex(index: number) {
+    if (!Number.isInteger(index) || index < 0) {
+      return;
+    }
+
+    const contactList = [...this.data.contactList];
+    const target = contactList[index];
+    if (typeof target === 'undefined') {
+      return;
+    }
+
+    const convId = target.conv_id ?? '';
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        await unreadStore.markConversationAsRead(convId);
+        const unreadCounts = await getConversationUnreadCounts();
+        const unreadMarks = await getConversationUnreadMarks();
+        const count = unreadCounts[convId] ?? 0;
+        const unreadMarked = Boolean(unreadMarks[convId]);
+        const hasUnread = count > 0 || unreadMarked;
+
+        contactList[index] = {
+          ...target,
+          unreadCount: count,
+          unreadMarked,
+          hasUnread,
+          unreadBadge: count > 0 ? (count > 99 ? '99+' : String(count)) : '',
+          unreadDot: count === 0 && unreadMarked,
+          swipeActions: buildSwipeActions(hasUnread),
+        };
+
+        const unreadTotal = contactList.reduce(
+          (sum, contact) => sum + (contact.unreadCount ?? 0),
+          0
+        );
+
+        this.setData({
+          contactList,
+          unreadTotal,
+        });
+        this.updateNavigationTitle();
+        showToast('已标记为已读', 'success');
+      } catch (error: unknown) {
+        const err = normalizeError(error);
+        logger.warn('Mark contact as read failed', { error: err.message });
+        showToast('标记失败');
+      }
+    })();
+  },
+
+  async attachLatestMessages(
+    contacts: StoredContacts,
+    unreadCounts: Record<string, number>
+  ): Promise<ContactWithPreview[]> {
     if (contacts.length === 0) {
       return [];
     }
@@ -430,7 +601,10 @@ Page<ContactListPageData, ContactListPageCustom>({
     const enriched = await Promise.all(
       contacts.map(async (contact) => {
         if (!isNonEmptyString(contact.conv_id)) {
-          return contact as ContactWithPreview;
+          return {
+            ...contact,
+            unreadCount: 0,
+          } as ContactWithPreview;
         }
 
         try {
@@ -438,6 +612,7 @@ Page<ContactListPageData, ContactListPageCustom>({
           return {
             ...contact,
             _latestMessage: latestMessage,
+            unreadCount: unreadCounts[contact.conv_id] ?? 0,
           } as ContactWithPreview;
         } catch (error: unknown) {
           const err = normalizeError(error);
@@ -448,6 +623,7 @@ Page<ContactListPageData, ContactListPageCustom>({
           return {
             ...contact,
             _latestMessage: null,
+            unreadCount: unreadCounts[contact.conv_id] ?? 0,
           } as ContactWithPreview;
         }
       })

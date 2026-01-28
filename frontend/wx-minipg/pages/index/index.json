@@ -1,7 +1,10 @@
 {
   "navigationBarTitleText": "聊天",
+  "navigationStyle": "custom",
   "enablePullDownRefresh": true,
   "usingComponents": {
+    "page-layout": "/components/page-layout/page-layout",
+    "t-navbar": "tdesign-miniprogram/navbar/navbar",
     "t-cell": "tdesign-miniprogram/cell/cell",
     "t-cell-group": "tdesign-miniprogram/cell-group/cell-group",
     "t-swipe-cell": "tdesign-miniprogram/swipe-cell/swipe-cell",
@@ -9,6 +12,7 @@
     "t-badge": "tdesign-miniprogram/badge/badge",
     "t-tag": "tdesign-miniprogram/tag/tag",
     "t-loading": "tdesign-miniprogram/loading/loading",
-    "t-empty": "tdesign-miniprogram/empty/empty"
+    "t-empty": "tdesign-miniprogram/empty/empty",
+    "t-button": "tdesign-miniprogram/button/button"
   }
 }

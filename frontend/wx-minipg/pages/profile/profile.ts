@@ -21,6 +21,7 @@ interface ProfilePageCustom {
   navigateToAccountSecurity(): void;
   navigateToAbout(): void;
   onRetry(): void;
+  onUnload(): void;
 }
 
 const toError = (error: unknown): Error => {
@@ -68,6 +69,10 @@ Page<ProfilePageData, ProfilePageCustom>({
     await this.loadProfile();
   },
 
+  onUnload() {
+    profileService.cancelRetries();
+  },
+
   async loadProfile() {
     try {
       this.setData({
@@ -90,16 +95,11 @@ Page<ProfilePageData, ProfilePageCustom>({
       const err = toError(error);
       logger.error('Load profile failed', { error: err.message });
 
+      const hasProfile = this.data.profile !== null;
       this.setData({
-        profile: null,
         'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败,请稍后再试',
-      });
-
-      void wx.showToast({
-        title: '加载失败',
-        icon: 'none',
+        'pageLayoutData.hasError': !hasProfile,
+        'pageLayoutData.errorMessage': hasProfile ? '' : '加载失败,请稍后再试',
       });
     }
   },

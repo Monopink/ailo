@@ -6,6 +6,9 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">详细资料</view>
+  </t-navbar>
   <view slot="content" class="profile-detail card-container">
     <!-- Info groups - Using t-cell-group with card theme -->
     <view wx:if="{{profile}}" class="card-wrapper">

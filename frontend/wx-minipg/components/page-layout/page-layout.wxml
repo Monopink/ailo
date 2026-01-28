@@ -41,7 +41,7 @@
 
 <view class="page-layout">
   <!-- Header Slot - Always visible -->
-  <view class="page-layout__header">
+  <view class="page-layout__header {{isHeaderSolid ? 'page-layout__header--solid' : ''}}">
     <slot name="header" />
   </view>
 
@@ -61,7 +61,9 @@
 
   <!-- Empty State -->
   <view wx:elif="{{isEmpty}}" class="page-layout__state">
-    <t-empty icon="info-circle" description="{{emptyMessage || '暂无数据'}}" />
+    <slot name="empty">
+      <t-empty description="{{emptyMessage || '暂无内容'}}" />
+    </slot>
   </view>
 
   <!-- Content with inline or fixed footer -->
@@ -72,7 +74,8 @@
     enhanced="{{true}}"
     show-scrollbar="{{false}}"
     scroll-into-view="{{contentScrollIntoView}}"
-    scroll-with-animation="{{contentScrollWithAnimation}}">
+    scroll-with-animation="{{contentScrollWithAnimation}}"
+    bindscroll="onContentScroll">
     <slot name="content" />
 
     <!-- Footer Actions (Optional) - Inline within scrollable content (default) -->

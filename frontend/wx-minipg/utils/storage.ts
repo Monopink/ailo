@@ -12,6 +12,16 @@ import { generateDeviceId } from './device-id';
 import {
   parse,
   safeParse,
+  ConversationReadState,
+  ConversationReadStateSchema,
+  ConversationUnreadCounts,
+  ConversationUnreadCountsSchema,
+  ConversationUnreadMarks,
+  ConversationUnreadMarksSchema,
+  type ConversationReadStateItem,
+  ConversationViewState,
+  ConversationViewStateSchema,
+  type ConversationViewStateItem,
   StoredContact,
   StoredContactSchema,
   StoredContacts,
@@ -77,6 +87,50 @@ const ensureStoredContacts = (value: unknown): StoredContacts => {
 const ensureStoredMessage = (value: unknown): StoredMessage => parse(StoredMessageSchema, value);
 
 const ensureStoredContact = (value: unknown): StoredContact => parse(StoredContactSchema, value);
+
+const ensureConversationUnreadCounts = (value: unknown): ConversationUnreadCounts => {
+  const parsed = safeParse(ConversationUnreadCountsSchema, value);
+  if (parsed !== null) {
+    return parsed;
+  }
+  logger.warn('Conversation unread counts schema validation failed, resetting to empty map', {
+    value,
+  });
+  return {};
+};
+
+const ensureConversationReadState = (value: unknown): ConversationReadState => {
+  const parsed = safeParse(ConversationReadStateSchema, value);
+  if (parsed !== null) {
+    return parsed;
+  }
+  logger.warn('Conversation read state schema validation failed, resetting to empty map', {
+    value,
+  });
+  return {};
+};
+
+const ensureConversationViewState = (value: unknown): ConversationViewState => {
+  const parsed = safeParse(ConversationViewStateSchema, value);
+  if (parsed !== null) {
+    return parsed;
+  }
+  logger.warn('Conversation view state schema validation failed, resetting to empty map', {
+    value,
+  });
+  return {};
+};
+
+const ensureConversationUnreadMarks = (value: unknown): ConversationUnreadMarks => {
+  const parsed = safeParse(ConversationUnreadMarksSchema, value);
+  if (parsed !== null) {
+    return parsed;
+  }
+  logger.warn('Conversation unread marks schema validation failed, resetting to empty map', {
+    value,
+  });
+  return {};
+};
 
 const wxSetStorage = async <T>(key: string, data: T): Promise<void> =>
   await new Promise((resolve, reject) => {
@@ -150,8 +204,6 @@ export interface LocalSettings {
 
 export interface StoredAuthUser extends JsonRecord {
   qiao_id: string;
-  nickname?: string;
-  avatar?: string;
 }
 
 function normalizeContact(contact: unknown): StoredContact {
@@ -353,6 +405,40 @@ export async function getLatestRenderableMessage(
   return null;
 }
 
+export interface LatestMessageMeta {
+  msg_id: string;
+  sent_time: number;
+}
+
+export async function getLatestMessageMeta(convId: string): Promise<LatestMessageMeta | null> {
+  const messages = await getMessages(convId);
+  let latest: LatestMessageMeta | null = null;
+
+  for (const message of messages) {
+    const type =
+      typeof message.message_type === 'number' ? message.message_type : MESSAGE_TYPE.TEXT;
+    if (
+      type === MESSAGE_TYPE.CHAT_INFO ||
+      type === MESSAGE_TYPE.TYPING_START ||
+      type === MESSAGE_TYPE.TYPING_END ||
+      type === MESSAGE_TYPE.NOTIFICATION
+    ) {
+      continue;
+    }
+
+    const timestamp = message.sent_time ?? message.created_at ?? message.timestamp;
+    if (typeof timestamp !== 'number') {
+      continue;
+    }
+
+    if (latest === null || timestamp > latest.sent_time) {
+      latest = { msg_id: message.msg_id, sent_time: timestamp };
+    }
+  }
+
+  return latest;
+}
+
 export async function addMessage(convId: string, message: StoredMessage): Promise<void> {
   const messages = await getMessages(convId);
   const normalizedMessage = ensureStoredMessage(message);
@@ -379,6 +465,35 @@ export async function updateMessage(
     messages[index] = { ...messages[index], ...updates };
     await saveMessages(convId, ensureStoredMessages(messages));
   }
+}
+
+export async function removeMessage(convId: string, msgId: string): Promise<void> {
+  const messages = await getMessages(convId);
+  const nextMessages = messages.filter((message) => message.msg_id !== msgId);
+  if (nextMessages.length === messages.length) {
+    return;
+  }
+  await saveMessages(convId, ensureStoredMessages(nextMessages));
+}
+
+export async function removeLatestChatInfoMessage(convId: string): Promise<string | null> {
+  const messages = await getMessages(convId);
+  let removedMsgId: string | null = null;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    const type =
+      typeof message.message_type === 'number' ? message.message_type : MESSAGE_TYPE.TEXT;
+    if (type === MESSAGE_TYPE.CHAT_INFO) {
+      removedMsgId = message.msg_id;
+      messages.splice(i, 1);
+      break;
+    }
+  }
+  if (removedMsgId === null) {
+    return null;
+  }
+  await saveMessages(convId, ensureStoredMessages(messages));
+  return removedMsgId;
 }
 
 export async function clearMessages(convId: string): Promise<void> {
@@ -456,6 +571,140 @@ export async function getSettings(): Promise<LocalSettings> {
   });
 }
 
+export async function getConversationUnreadCounts(): Promise<ConversationUnreadCounts> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    return {};
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_UNREAD_COUNTS, qiaoId);
+  const stored = await getStorage<ConversationUnreadCounts | null>(key, null);
+  if (stored === null) {
+    return {};
+  }
+  return ensureConversationUnreadCounts(stored);
+}
+
+export async function setConversationUnreadCounts(counts: ConversationUnreadCounts): Promise<void> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    throw new Error('User not logged in');
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_UNREAD_COUNTS, qiaoId);
+  await setStorage(key, ensureConversationUnreadCounts(counts));
+}
+
+export async function getConversationUnreadMarks(): Promise<ConversationUnreadMarks> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    return {};
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_UNREAD_MARKS, qiaoId);
+  const stored = await getStorage<ConversationUnreadMarks | null>(key, null);
+  if (stored === null) {
+    return {};
+  }
+  return ensureConversationUnreadMarks(stored);
+}
+
+export async function setConversationUnreadMarks(marks: ConversationUnreadMarks): Promise<void> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    throw new Error('User not logged in');
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_UNREAD_MARKS, qiaoId);
+  await setStorage(key, ensureConversationUnreadMarks(marks));
+}
+
+export async function getConversationReadState(): Promise<ConversationReadState> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    return {};
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_READ_STATE, qiaoId);
+  const stored = await getStorage<ConversationReadState | null>(key, null);
+  if (stored === null) {
+    return {};
+  }
+  return ensureConversationReadState(stored);
+}
+
+export async function setConversationReadState(state: ConversationReadState): Promise<void> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    throw new Error('User not logged in');
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_READ_STATE, qiaoId);
+  await setStorage(key, ensureConversationReadState(state));
+}
+
+export async function getConversationViewState(): Promise<ConversationViewState> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    return {};
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_VIEW_STATE, qiaoId);
+  const stored = await getStorage<ConversationViewState | null>(key, null);
+  if (stored === null) {
+    return {};
+  }
+  return ensureConversationViewState(stored);
+}
+
+export async function setConversationViewState(state: ConversationViewState): Promise<void> {
+  const qiaoId = await getCurrentQiaoId();
+  if (qiaoId === null) {
+    throw new Error('User not logged in');
+  }
+  const key = buildUserKey(STORAGE_KEYS.CONVERSATION_VIEW_STATE, qiaoId);
+  await setStorage(key, ensureConversationViewState(state));
+}
+
+export async function getConversationViewPosition(
+  convId: string
+): Promise<ConversationViewStateItem | null> {
+  const state = await getConversationViewState();
+  return state[convId] ?? null;
+}
+
+export async function setConversationViewPosition(
+  convId: string,
+  payload: { last_viewed_msg_id?: string; is_at_bottom: boolean }
+): Promise<void> {
+  const state = await getConversationViewState();
+  const item: ConversationViewStateItem = {
+    is_at_bottom: payload.is_at_bottom,
+    updated_at: Date.now(),
+  };
+  if (isNonEmptyString(payload.last_viewed_msg_id)) {
+    item.last_viewed_msg_id = payload.last_viewed_msg_id;
+  }
+  state[convId] = item;
+  await setConversationViewState(state);
+}
+
+export async function clearConversationViewPosition(convId: string): Promise<void> {
+  const state = await getConversationViewState();
+  if (!(convId in state)) {
+    return;
+  }
+  delete state[convId];
+  await setConversationViewState(state);
+}
+
+export async function setConversationLastRead(
+  convId: string,
+  payload: { last_read_sent_time: number; last_read_msg_id?: string }
+): Promise<void> {
+  const state = await getConversationReadState();
+  const updated: ConversationReadStateItem = {
+    last_read_sent_time: payload.last_read_sent_time,
+    last_read_msg_id: payload.last_read_msg_id,
+    updated_at: Date.now(),
+  };
+  state[convId] = updated;
+  await setConversationReadState(state);
+}
+
 export default {
   setStorage,
   getStorage,
@@ -472,11 +721,31 @@ export default {
   normalizeContactsPayload,
   getContacts,
   getLatestRenderableMessage,
+  getLatestMessageMeta,
   saveUserInfo,
   getUserInfo,
   getDeviceId,
   saveSettings,
   getSettings,
+  getConversationUnreadCounts,
+  setConversationUnreadCounts,
+  getConversationUnreadMarks,
+  setConversationUnreadMarks,
+  getConversationReadState,
+  setConversationReadState,
+  getConversationViewState,
+  setConversationViewState,
+  getConversationViewPosition,
+  setConversationViewPosition,
+  clearConversationViewPosition,
+  setConversationLastRead,
 };
 
-export type { StoredContact, StoredContacts, StoredMessage, StoredMessages } from './schemas';
+export type {
+  StoredContact,
+  StoredContacts,
+  StoredMessage,
+  StoredMessages,
+  ConversationViewState,
+  ConversationViewStateItem,
+} from './schemas';

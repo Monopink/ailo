@@ -1,6 +1,8 @@
 {
   "navigationBarTitleText": "聊天详情",
+  "navigationStyle": "custom",
   "usingComponents": {
+    "t-navbar": "tdesign-miniprogram/navbar/navbar",
     "page-layout": "/components/page-layout/page-layout",
     "t-avatar": "tdesign-miniprogram/avatar/avatar",
     "t-tag": "tdesign-miniprogram/tag/tag",

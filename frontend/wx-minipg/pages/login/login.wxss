@@ -137,7 +137,7 @@
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 4rpx;
+  gap: var(--space-xs);
   animation: fade-in-up 0.8s ease-out;
 }
 
@@ -145,8 +145,8 @@
   font-size: 72rpx;
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
-  letter-spacing: 6rpx;
-  text-shadow: 0 4rpx 16rpx rgb(7 193 96 / 20%);
+  letter-spacing: var(--letter-spacing-lg);
+  text-shadow: var(--text-shadow-brand-soft);
   animation: title-shimmer 3s ease-in-out infinite;
 }
 
@@ -154,7 +154,7 @@
   font-size: var(--font-size-lg);
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium);
-  letter-spacing: 2rpx;
+  letter-spacing: var(--letter-spacing-md);
 }
 
 .login-hero__description {
@@ -178,11 +178,11 @@
 @keyframes title-shimmer {
   0%,
   100% {
-    text-shadow: 0 4rpx 16rpx rgb(7 193 96 / 20%);
+    text-shadow: var(--text-shadow-brand-soft);
   }
 
   50% {
-    text-shadow: 0 4rpx 24rpx rgb(7 193 96 / 40%);
+    text-shadow: var(--text-shadow-brand-strong);
   }
 }
 
@@ -274,7 +274,13 @@
 .login-preview__carousel {
   width: 100%;
   overflow: hidden;
-  mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--color-mask-solid) 10%,
+    var(--color-mask-solid) 90%,
+    transparent 100%
+  );
 }
 
 .login-preview__track {
@@ -303,10 +309,10 @@
   gap: var(--space-xs);
   padding: var(--space-md);
   border-radius: var(--radius-lg);
-  background: rgb(255 255 255 / 80%);
+  background: var(--color-glass-card-bg);
   backdrop-filter: blur(10rpx);
-  border: 1rpx solid rgb(255 255 255 / 50%);
-  box-shadow: 0 8rpx 32rpx rgb(0 0 0 / 8%);
+  border: 1rpx solid var(--color-glass-card-border);
+  box-shadow: var(--shadow-glass-card);
   animation: card-float 3s ease-in-out infinite;
 }
 
@@ -431,14 +437,5 @@
 @media (prefers-color-scheme: dark) {
   .login-bg {
     opacity: 0.4;
-  }
-
-  .login-hero__title {
-    text-shadow: 0 4rpx 16rpx rgb(11 191 104 / 30%);
-  }
-
-  .login-preview__item {
-    background: rgb(30 30 30 / 80%);
-    border-color: rgb(255 255 255 / 10%);
   }
 }

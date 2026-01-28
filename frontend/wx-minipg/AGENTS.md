@@ -317,7 +317,7 @@ if (tabBar !== null && typeof tabBar.init === 'function') {
 核心规则：
 - 使用 TDesign 组件库，页面 WXSS 第一行 `@import '/styles/tdesign-theme.wxss';`
 - 所有基础UI使用 `t-*` TDesign组件
-- 业务组件使用 `ui-gender-badge` / `ui-message-bubble` / `ui-message-input`
+- 业务组件使用 `ui-gender-badge`
 - 禁止硬编码样式值，使用 `var(--td-*)` CSS Variables
 - 禁止使用 px 单位（除了 1px 边框），使用 rpx
 

@@ -27,6 +27,7 @@ interface ProfileDetailPageCustom {
   handleFooterAction(): void;
   onRetry(): void;
   editAvatar(): Promise<void>;
+  onUnload(): void;
 }
 
 const normalizeGenderText = (gender?: number | null): string => {
@@ -68,6 +69,10 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     void this.loadProfile();
   },
 
+  onUnload() {
+    profileService.cancelRetries();
+  },
+
   async loadProfile() {
     try {
       this.setData({
@@ -104,19 +109,12 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
         error: error instanceof Error ? error.message : String(error),
       });
 
+      const hasProfile = this.data.profile !== null;
       this.setData({
-        profile: null,
-        phoneMasked: '',
-        genderText: '未设置',
         'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败，请稍后再试',
-        'pageLayoutData.hasFooter': false,
-      });
-
-      void wx.showToast({
-        title: '加载失败',
-        icon: 'none',
+        'pageLayoutData.hasError': !hasProfile,
+        'pageLayoutData.errorMessage': hasProfile ? '' : '加载失败，请稍后再试',
+        'pageLayoutData.hasFooter': hasProfile,
       });
     }
   },
@@ -186,6 +184,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
         title: '头像已更新',
         icon: 'success',
       });
+      await profileService.loadProfile(true);
       await this.loadProfile();
     } catch (error) {
       logger.error('Update avatar failed', {

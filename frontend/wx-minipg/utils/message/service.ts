@@ -174,13 +174,17 @@ export class MessageService {
     }
   }
 
-  async ensureConnected(): Promise<void> {
+  async ensureConnected(options: { allowConnect?: boolean } = {}): Promise<void> {
+    const allowConnect = options.allowConnect !== false;
     if (this.suspended) {
       throw new Error('MESSAGE_SERVICE_SUSPENDED');
     }
     if (this.adapter.isConnected()) {
       this.setConnectionState('connected');
       return;
+    }
+    if (!allowConnect) {
+      throw new Error('MESSAGE_SERVICE_DISCONNECTED');
     }
     if (this.connectPromise !== null) {
       return this.connectPromise;
@@ -252,7 +256,12 @@ export class MessageService {
       this.adapter.onError(this.handleError.bind(this));
 
       this.userId = userId;
-      await this.ensureConnected();
+      try {
+        await this.ensureConnected();
+      } catch (error) {
+        const err = normalizeError(error);
+        logger.warn('Message service connect failed on init', { error: err.message });
+      }
       try {
         await this.startOfflineSync();
       } catch (error) {
@@ -292,7 +301,9 @@ export class MessageService {
     await this.persistMessage(messageData.conv_id, message);
 
     try {
-      await this.ensureConnected();
+      if (!this.adapter.isConnected()) {
+        throw new Error('MESSAGE_SERVICE_DISCONNECTED');
+      }
       const sentMessage = await this.sendViaAdapter(message);
       const sentPayload: BusinessMessage = {
         ...message,

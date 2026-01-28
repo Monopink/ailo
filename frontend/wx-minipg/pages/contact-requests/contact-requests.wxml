@@ -6,6 +6,9 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">联系人申请</view>
+  </t-navbar>
   <view slot="content">
     <view class="contact-requests" wx:if="{{requests.length}}">
       <t-cell

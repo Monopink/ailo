@@ -1,0 +1,72 @@
+@import '/styles/tdesign-theme.wxss';
+@import '/styles/design-tokens.wxss';
+
+.square-entry-page {
+  min-height: 100%;
+}
+
+.square-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--padding-page) var(--space-xl);
+}
+
+.square-entry-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--padding-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  color: var(--square-entry-card-title-color);
+}
+
+.square-entry-card__icon {
+  width: var(--avatar-sm);
+  height: var(--avatar-sm);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--square-entry-card-icon-bg);
+}
+
+.square-entry-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.square-entry-card__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--square-entry-card-title-color);
+  line-height: var(--line-height-tight);
+}
+
+.square-entry-card__desc {
+  font-size: var(--font-size-sm);
+  color: var(--square-entry-card-desc-color);
+  line-height: var(--line-height-relaxed);
+}
+
+.square-entry-card--friend {
+  background: var(--square-entry-card-friend-gradient);
+}
+
+.square-entry-card--love {
+  background: var(--square-entry-card-love-gradient);
+}
+
+.square-entry-card--talk {
+  background: var(--square-entry-card-talk-gradient);
+}
+
+.square-entry-card--bestie {
+  background: var(--square-entry-card-bestie-gradient);
+}
+
+.square-entry-card--hobby {
+  background: var(--square-entry-card-hobby-gradient);
+}

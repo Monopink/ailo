@@ -6,6 +6,9 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="onRetry">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">账号与安全</view>
+  </t-navbar>
   <view slot="content" class="account-security card-container">
     <view wx:if="{{!pageLayoutData.isLoading}}">
       <!-- Account info card -->

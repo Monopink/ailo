@@ -1,8 +1,8 @@
 export interface TabBarItem {
   icon: string;
-  selectedIcon: string;
+  activeIcon: string;
   text: string;
-  url: string;
+  pagePath: string;
 }
 
 declare const TabMenu: ReadonlyArray<TabBarItem>;

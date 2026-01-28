@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/boot/boot",
+    "pages/square-entry/square-entry",
     "pages/square/square",
     "pages/login/login",
     "pages/setup/setup",
@@ -17,26 +18,26 @@
     "pages/about/about"
   ],
   "window": {
-    "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundTextStyle": "@bgTxtStyle",
+    "navigationBarBackgroundColor": "@navBgColor",
     "navigationBarTitleText": "敲敲",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#f5f5f5"
+    "navigationBarTextStyle": "@navTxtStyle",
+    "backgroundColor": "@bgColor"
   },
   "entryPagePath": "pages/boot/boot",
   "tabBar": {
     "custom": true,
-    "color": "#999999",
-    "selectedColor": "#07C160",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "black",
+    "color": "@tabFontColor",
+    "selectedColor": "@tabSelectedColor",
+    "backgroundColor": "@tabBgColor",
+    "borderStyle": "@tabBorderStyle",
     "list": [
       {
         "pagePath": "pages/index/index",
         "text": "聊天"
       },
       {
-        "pagePath": "pages/square/square",
+        "pagePath": "pages/square-entry/square-entry",
         "text": "发现"
       },
       {
@@ -56,5 +57,7 @@
     "request": 10000,
     "downloadFile": 10000
   },
+  "themeLocation": "theme.json",
+  "darkmode": true,
   "debug": false
 }

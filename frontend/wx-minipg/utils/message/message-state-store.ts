@@ -100,6 +100,15 @@ class MessageStateStore {
     this.emit();
   }
 
+  removeMessage(messageId: string): void {
+    const nextMessages = this.storedMessages.filter((item) => item.msg_id !== messageId);
+    if (nextMessages.length === this.storedMessages.length) {
+      return;
+    }
+    this.storedMessages = nextMessages;
+    this.emit();
+  }
+
   clearConversation(): void {
     this.state = { convId: '', messages: [], isTyping: false };
     this.storedMessages = [];

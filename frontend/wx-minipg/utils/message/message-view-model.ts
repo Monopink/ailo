@@ -73,7 +73,7 @@ function formatTimestamp(timestamp: number): string {
   return `${year}-${month}-${day}`;
 }
 
-function buildSystemContent(message: StoredMessage): string {
+function buildInfoContent(message: StoredMessage): string {
   return message.content ?? '';
 }
 
@@ -91,8 +91,8 @@ export interface MessageViewModel extends StoredMessage {
   from_me: boolean;
   showTimestamp: boolean;
   timestampText: string;
-  isSystemMessage: boolean;
-  systemContent: string;
+  isInfoMessage: boolean;
+  infoContent: string;
 }
 
 export function buildMessageViewModels(
@@ -116,8 +116,8 @@ export function buildMessageViewModels(
       from_me: currentUserId !== '' && message.from_qiao_id === currentUserId,
       showTimestamp: false,
       timestampText: '',
-      isSystemMessage: message.message_type === MESSAGE_TYPE.CHAT_INFO,
-      systemContent: '',
+      isInfoMessage: message.message_type === MESSAGE_TYPE.CHAT_INFO,
+      infoContent: '',
     };
 
     viewModel.content = getMessageText(message);
@@ -125,7 +125,7 @@ export function buildMessageViewModels(
     viewModel.timestampText = formatTimestamp(timestamp);
     viewModel.showTimestamp =
       previous === null || timestamp - (previous.sent_time ?? 0) > TIMESTAMP_GAP_MS;
-    viewModel.systemContent = viewModel.isSystemMessage ? buildSystemContent(message) : '';
+    viewModel.infoContent = viewModel.isInfoMessage ? buildInfoContent(message) : '';
 
     result.push(viewModel);
     previous = viewModel;

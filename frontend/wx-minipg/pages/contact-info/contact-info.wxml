@@ -6,6 +6,9 @@
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:retry="refreshContactInfo">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">联系人详情</view>
+  </t-navbar>
   <view slot="content" class="contact-info">
     <view wx:if="{{contact}}">
       <!-- Header Section - Avatar and Name -->
@@ -17,7 +20,7 @@
           class="contact-info__avatar" />
 
         <view class="contact-info__name-row">
-          <text class="contact-info__name">{{contact.alias || contact.nickname || contact.contact_qiao_id}}</text>
+          <text class="contact-info__name">{{contact.alias || contact.profile.nickname}}</text>
           <gender-badge wx:if="{{contact.gender}}" gender="{{contact.gender}}" />
         </view>
 

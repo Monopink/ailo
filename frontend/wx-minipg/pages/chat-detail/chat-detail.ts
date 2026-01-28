@@ -12,6 +12,7 @@ import {
 import { fetchConversationProfile, refreshStoredContact } from '../../utils/contact-service';
 import type { ContactProfile } from '../../utils/schemas';
 import messageStateStore from '../../utils/message/message-state-store';
+import viewStore from '../../utils/message/view-store';
 import { isNonEmptyString } from '../../utils/guards';
 import { normalizeError } from '../../utils/errors';
 
@@ -203,6 +204,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
         }
         try {
           await clearMessages(this.data.convId);
+          await viewStore.clear(this.data.convId);
           messageStateStore.clearConversation();
           void wx.showToast({ title: '聊天记录已清空', icon: 'success' });
         } catch (error: unknown) {
@@ -232,6 +234,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
           );
           await saveContacts(updatedContacts);
           await clearMessages(this.data.convId);
+          await viewStore.clear(this.data.convId);
           messageStateStore.clearConversation();
           void wx.showToast({ title: '联系人已删除', icon: 'success' });
           setTimeout(() => {

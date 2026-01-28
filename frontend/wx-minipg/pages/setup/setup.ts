@@ -97,14 +97,8 @@ const buildProfilePayload = (data: SetupPageData, nickname: string): Record<stri
   return payload;
 };
 
-const mapProfileToStoredUser = (profile: {
-  qiao_id: string;
-  nickname?: string | null;
-  avatar_url?: string | null;
-}): StoredAuthUser => ({
+const mapProfileToStoredUser = (profile: { qiao_id: string }): StoredAuthUser => ({
   qiao_id: profile.qiao_id,
-  nickname: profile.nickname ?? '',
-  avatar: getAvatarUrl(profile.avatar_url ?? ''),
 });
 
 const resolveGenderIndex = (value: GenderValue | null): number => {

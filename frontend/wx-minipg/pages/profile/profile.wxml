@@ -21,7 +21,7 @@
           <gender-badge wx:if="{{profile.gender}}" gender="{{profile.gender}}" />
         </view>
 
-        <text class="profile__qiao-id">敲敲号：{{profile.displayUsername}}</text>
+        <text wx:if="{{profile.displayUsername}}" class="profile__qiao-id">敲敲号：{{profile.displayUsername}}</text>
       </view>
 
       <!-- Cards Section -->

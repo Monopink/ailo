@@ -1,74 +1,75 @@
-<view class="index-page">
-  <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
-    <t-loading theme="spinner" size="24rpx" />
-    <text class="index-page__connection-text">消息服务断开，正在重连...</text>
-  </view>
-  <!-- Loading State -->
-  <view wx:if="{{pageLayoutData.isLoading}}" class="index-page__state">
-    <t-loading theme="circular" size="48rpx" text="加载中..." />
-  </view>
-
-  <!-- Error State -->
-  <view wx:elif="{{pageLayoutData.hasError}}" class="index-page__state">
-    <t-empty
-      icon="error-circle"
-      description="{{pageLayoutData.errorMessage}}"
-      action-text="重试"
-      bind:action="onRetry" />
-  </view>
-
-  <!-- Empty State -->
-  <view wx:elif="{{pageLayoutData.isEmpty}}" class="index-page__state">
-    <t-empty
-      icon="user-list"
-      description="{{pageLayoutData.emptyMessage}}" />
+<page-layout
+  style="--color-bg-page: var(--color-bg-white); --color-bg-header-solid: var(--color-bg-white); --color-navbar-glass-bg: transparent;"
+  isLoading="{{pageLayoutData.isLoading}}"
+  hasError="{{pageLayoutData.hasError}}"
+  errorMessage="{{pageLayoutData.errorMessage}}"
+  isEmpty="{{pageLayoutData.isEmpty}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:retry="onRetry">
+  <view slot="header" class="index-page__header">
+    <t-navbar left-arrow="{{false}}" />
+    <view class="page-large-title">
+      <text class="page-large-title__text">{{navbarTitle}}</text>
+    </view>
+    <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
+      <t-loading theme="spinner" size="24rpx" />
+      <text class="index-page__connection-text"></text>
+    </view>
   </view>
 
-  <!-- Content: Contact List with Swipe Actions -->
-  <t-cell-group wx:else>
+  <view slot="empty" class="index-page__empty">
+    <t-empty description="{{pageLayoutData.emptyMessage}}">
+      <t-button slot="action" theme="primary" size="medium" bindtap="goToSquareEntry">去添加</t-button>
+    </t-empty>
+  </view>
+
+  <view slot="content" class="index-page__content">
+    <t-cell-group>
     <t-swipe-cell
-      wx:for="{{contactList}}"
-      wx:key="conv_id"
-      right="{{swipeCellActions}}"
-      data-id="{{item.conv_id}}"
-      data-index="{{index}}"
-      bind:click="onSwipeActionClick">
-      <t-cell
-        title="{{item.displayName}}"
-        note="{{item.lastMessage}}"
-        hover
-        bindtap="goToChat"
+        wx:for="{{contactList}}"
+        wx:key="conv_id"
+        right="{{item.swipeActions}}"
         data-id="{{item.conv_id}}"
-        data-index="{{index}}">
-        <!-- Left: Avatar -->
-        <view slot="left-icon">
-          <t-avatar
-            image="{{item.avatarUrl}}"
-            size="medium"
-            shape="circle" />
-        </view>
-
-        <!-- Right: Time & Badge -->
-        <view slot="right-icon" class="contact-item__meta">
-          <text class="contact-item__time">{{item.lastMessageTime}}</text>
-          <t-badge
-            wx:if="{{item.hasUnread}}"
-            count="{{item.unreadBadge}}"
-            max-count="99" />
-        </view>
-
-        <!-- Description: Tags -->
-        <view wx:if="{{item.tags && item.tags.length}}" slot="description" class="contact-item__tags">
-          <t-tag
-            wx:for="{{item.tags}}"
-            wx:for-item="tag"
-            wx:key="*this"
-            size="small"
-            variant="outline">
-            {{tag}}
-          </t-tag>
-        </view>
-      </t-cell>
-    </t-swipe-cell>
-  </t-cell-group>
-</view>
+        data-index="{{index}}"
+        bind:click="onSwipeActionClick">
+        <t-cell
+          class="index-cell"
+          align="middle"
+          hover
+          bind:click="goToChat"
+          data-id="{{item.conv_id}}"
+          data-index="{{index}}">
+          <t-avatar slot="image" image="{{item.avatarUrl}}" size="small" shape="circle" />
+          <view slot="title" class="index-cell__title-row">
+            <text class="index-cell__title list-text-primary">{{item.displayName}}</text>
+            <text class="list-time index-cell__time">{{item.lastMessageTime}}</text>
+          </view>
+          <view slot="description" class="index-cell__description">
+            <view class="index-cell__message-row">
+              <text class="list-text-secondary list-preview">{{item.lastMessage}}</text>
+              <t-badge
+                wx:if="{{item.hasUnread}}"
+                count="{{item.unreadBadge}}"
+                dot="{{item.unreadDot}}"
+                max-count="99"
+                size="large"
+                shape="circle"
+                t-class-count="index-cell__badge" />
+            </view>
+            <view wx:if="{{item.tags && item.tags.length}}" class="contact-item__tags">
+              <t-tag
+                wx:for="{{item.tags}}"
+                wx:for-item="tag"
+                wx:key="*this"
+                size="small"
+                variant="outline">
+                {{tag}}
+              </t-tag>
+            </view>
+          </view>
+        </t-cell>
+      </t-swipe-cell>
+    </t-cell-group>
+  </view>
+</page-layout>

@@ -102,7 +102,6 @@ declare global {
     getToken(): unknown;
     clearAuth(): void;
     onMessageReceived?(message: Ailo.MessagePayload): void;
-    onTypingReceived?(payload: Ailo.TypingEvent): void;
     onMessageError?(error: unknown): void;
   }
 

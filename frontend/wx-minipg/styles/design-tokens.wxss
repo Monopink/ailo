@@ -16,7 +16,8 @@
  * DO NOT hardcode any color, spacing, font-size, or border-radius values.
  */
 
-page {
+page,
+.theme-scope {
   /* ========================================
      Color System - Gentle & Muted Palette
      ======================================== */
@@ -32,13 +33,27 @@ page {
   --color-accent-light: #fff4d9; /* Very light yellow - subtle highlights */
 
   /* Neutral Colors - Background (iOS-inspired layering) */
-  --color-bg-primary: #f5f5f5; /* Primary page background (soft gray) */
-  --color-bg-secondary: #ffffff; /* Secondary background (cards, elevated) */
+  --color-bg-primary: #f7f7f7; /* Default page background (light gray) */
+  --color-bg-page: var(--color-bg-primary); /* Page layout background */
+  --color-bg-muted: #f7f7f7; /* Muted gray surface (toolbars, chat bubbles) */
+  --color-bg-secondary: #ffffff; /* Elevated surface (cards, navbar, tabbar) */
   --color-bg-tertiary: #fafafa; /* Tertiary background (subtle distinction) */
+  --color-bg-white: #ffffff; /* Pure white for special pages */
   --color-bg-input: #f8f8f8; /* Input field background (very light gray) */
+  --color-bg-input-surface: #ffffff; /* Input surface background */
   --color-bg-hover: #f0f0f0; /* Hover state background */
   --color-bg-disabled: #f5f5f5; /* Disabled state background */
   --color-bg-mask: rgba(0, 0, 0, 0.4); /* Modal mask overlay (softer) */
+  /* Single source of truth for glass surfaces used by navbar/tabbar/fixed footers. */
+  --color-navbar-glass-bg-base: rgba(247, 247, 247, 0.68);
+  --color-navbar-glass-bg: var(--color-navbar-glass-bg-base); /* Glass navbar background */
+  --color-tabbar-glass-bg-base: transparent;
+  --color-tabbar-glass-bg: var(--color-tabbar-glass-bg-base); /* Glass tabbar background */
+  --color-mask-solid: #000000; /* Mask solid color */
+  --color-glass-card-bg: rgba(255, 255, 255, 0.8); /* Glass card background */
+  --color-glass-card-border: rgba(255, 255, 255, 0.5); /* Glass card border */
+  --color-overlay-strong: rgba(255, 255, 255, 0.85); /* Light overlay stroke */
+  --color-overlay-muted: rgba(0, 0, 0, 0.25); /* Dark overlay stroke */
 
   /* Neutral Colors - Text (softer blacks, warmer grays) */
   --color-text-primary: #1a1a1a; /* Primary text (soft black) */
@@ -71,6 +86,16 @@ page {
   --color-gender-other: #9b59b6; /* Other - Purple */
   --color-gender-unknown: #95a5a6; /* Unknown - Gray */
 
+  /* Square Entry Card Colors */
+  --square-entry-card-friend-gradient: linear-gradient(135deg, #4d7bff 0%, #2a5bff 100%);
+  --square-entry-card-love-gradient: linear-gradient(135deg, #ff6aa8 0%, #f4007a 100%);
+  --square-entry-card-talk-gradient: linear-gradient(135deg, #b56dff 0%, #7b3dff 100%);
+  --square-entry-card-bestie-gradient: linear-gradient(135deg, #8b7bff 0%, #5a4dff 100%);
+  --square-entry-card-hobby-gradient: linear-gradient(135deg, #4cc2ff 0%, #1f8bff 100%);
+  --square-entry-card-icon-bg: rgba(255, 255, 255, 0.2);
+  --square-entry-card-title-color: rgba(255, 255, 255, 0.98);
+  --square-entry-card-desc-color: rgba(255, 255, 255, 0.88);
+
   /* ========================================
      Spacing System - Generous & Breathable
      ======================================== */
@@ -99,18 +124,37 @@ page {
      ======================================== */
 
   /* Font Sizes (750rpx base, 1rpx = 0.5px on iPhone 6) */
-  --font-size-xs: 20rpx; /* 10px - Tiny text */
-  --font-size-sm: 24rpx; /* 12px - Small text, captions */
-  --font-size-base: 28rpx; /* 14px - Base text, descriptions */
-  --font-size-md: 32rpx; /* 16px - Body text, buttons */
-  --font-size-lg: 36rpx; /* 18px - Titles, headings */
-  --font-size-xl: 40rpx; /* 20px - Large headings */
-  --font-size-xxl: 48rpx; /* 24px - Extra large headings */
+  --font-size-xs: 24rpx; /* 12px - Tiny text */
+  --font-size-sm: 28rpx; /* 14px - Small text, captions */
+  --font-size-base: 32rpx; /* 16px - Base text, descriptions */
+  --font-size-md: 36rpx; /* 18px - Body text, buttons */
+  --font-size-lg: 40rpx; /* 20px - Titles, headings */
+  --font-size-xl: 44rpx; /* 22px - Large headings */
+  --font-size-xxl: 52rpx; /* 26px - Extra large headings */
 
   /* Line Heights */
   --line-height-tight: 1.2; /* Tight line height for headings */
   --line-height-base: 1.5; /* Base line height for body text */
   --line-height-loose: 1.8; /* Loose line height for readability */
+  --line-height-relaxed: 1.7; /* Relaxed line height for multi-line text */
+
+  /* List & Navbar Typography (Semantic) */
+  --font-size-nav-title: var(--font-size-base);
+  --font-size-list-primary: var(--font-size-md);
+  --font-size-list-secondary: var(--font-size-sm);
+  --line-height-list-primary: var(--line-height-base);
+  --line-height-list-secondary: var(--line-height-base);
+
+  /* List Layout (Semantic) */
+  --space-list-vertical: var(--space-md);
+  --space-list-horizontal: var(--padding-page);
+  --space-list-avatar-gap: var(--space-lg);
+  --size-list-right-meta: calc(var(--space-xxl) + var(--space-xl) + var(--space-sm));
+
+  /* Letter Spacing */
+  --letter-spacing-sm: 1rpx; /* Subtle spacing */
+  --letter-spacing-md: 2rpx; /* Medium spacing */
+  --letter-spacing-lg: 6rpx; /* Display spacing */
 
   /* Font Weights */
   --font-weight-normal: 400; /* Normal weight */
@@ -151,6 +195,11 @@ page {
   --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.05); /* Card shadow (very subtle) */
   --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.08); /* Card hover shadow */
   --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.06); /* Button shadow (optional) */
+  --shadow-glass-card: 0 8rpx 32rpx rgba(0, 0, 0, 0.08); /* Glass card shadow */
+
+  /* Text Shadows */
+  --text-shadow-brand-soft: 0 4rpx 16rpx rgba(7, 193, 96, 0.2);
+  --text-shadow-brand-strong: 0 4rpx 24rpx rgba(7, 193, 96, 0.4);
 
   /* ========================================
      Size System
@@ -159,7 +208,7 @@ page {
   /* Avatar Sizes */
   --avatar-xs: 48rpx; /* Extra small avatar */
   --avatar-sm: 64rpx; /* Small avatar */
-  --avatar-md: 80rpx; /* Medium avatar (default) */
+  --avatar-md: 96rpx; /* Medium avatar (default) */
   --avatar-lg: 100rpx; /* Large avatar */
   --avatar-xl: 128rpx; /* Extra large avatar */
 
@@ -185,11 +234,32 @@ page {
   --badge-size-md: 32rpx; /* Medium badge with number */
   --badge-size-lg: 40rpx; /* Large badge */
 
+  /* TabBar Sizes */
+  --tabbar-height: 100rpx; /* Custom TabBar height */
+  --tabbar-icon-size: 44rpx; /* Tab icon size */
+  --tabbar-text-size: 20rpx; /* Tab label text size */
+  --tabbar-padding-top: 8rpx; /* Top padding inside TabBar */
+  --tabbar-text-gap: 4rpx; /* Gap between icon and text */
+
   /* Message Bubble */
-  --message-bubble-max-width: 520rpx; /* Message bubble max width */
+  --message-bubble-max-width: 480rpx; /* Message bubble max width */
 
   /* Typing Indicator */
   --typing-dot-size: 12rpx; /* Typing indicator dot size */
+  --typing-indicator-min-width: 80rpx; /* Typing indicator minimum width */
+
+  /* Navbar Layout */
+  --navbar-height: 88rpx; /* Navbar height */
+  --navbar-side-width: 88rpx; /* Navbar side width */
+  --navbar-title-size: 30rpx; /* Navbar title font size */
+
+  /* Chat Layout */
+  --chat-navbar-height: var(--navbar-height); /* Chat custom navbar height */
+  --chat-navbar-side-width: var(--navbar-side-width); /* Chat navbar side width */
+  --chat-footer-height: 100rpx; /* Chat footer height */
+  --chat-input-height: 64rpx; /* Chat input minimum height */
+  --emoji-panel-height: 480rpx; /* Emoji panel height */
+  --emoji-item-size: 80rpx; /* Emoji item size */
 
   /* Border Widths */
   --border-width-thin: 1rpx; /* Thin border (default) */
@@ -234,6 +304,13 @@ page {
   --opacity-pressed: 0.6; /* Pressed state */
 
   /* ========================================
+     Effects
+     ======================================== */
+
+  --navbar-glass-blur: 24rpx; /* Glass blur radius */
+  --tabbar-glass-blur: var(--navbar-glass-blur); /* Tabbar blur radius */
+
+  /* ========================================
      Safe Area (iPhone X and above)
      ======================================== */
 
@@ -256,7 +333,8 @@ page {
  * automatically switch when the system theme changes.
  */
 @media (prefers-color-scheme: dark) {
-  page {
+  page,
+  .theme-scope {
     /* Primary Colors - Slightly brighter for dark backgrounds */
     --color-primary: #0bbf68;
     --color-primary-light: #2ad17a;
@@ -268,13 +346,26 @@ page {
     --color-accent-light: #3d3520;
 
     /* Background - True black with subtle elevation */
-    --color-bg-primary: #000000; /* True black for OLED */
+    --color-bg-primary: #000000; /* Default page background (OLED black) */
+    --color-bg-page: var(--color-bg-primary); /* Page layout background */
+    --color-bg-muted: #1c1c1e; /* Muted gray surface (iOS dark elevated) */
     --color-bg-secondary: #1c1c1e; /* Elevated surface (iOS dark) */
     --color-bg-tertiary: #2c2c2e; /* More elevated surface */
+    --color-bg-white: #000000; /* Light-mode white mapped to dark background */
     --color-bg-input: #1c1c1e; /* Input background */
+    --color-bg-input-surface: #2c2c2e; /* Input surface background */
     --color-bg-hover: #2c2c2e; /* Hover state */
     --color-bg-disabled: #1c1c1e; /* Disabled state */
     --color-bg-mask: rgba(0, 0, 0, 0.6); /* Modal mask */
+    /* In dark mode, make glass surfaces slightly lighter (while staying translucent). */
+    --color-navbar-glass-bg-base: rgba(72, 72, 74, 0.55);
+    --color-navbar-glass-bg: var(--color-navbar-glass-bg-base);
+    --color-tabbar-glass-bg-base: transparent;
+    --color-tabbar-glass-bg: var(--color-tabbar-glass-bg-base);
+    --color-glass-card-bg: rgba(30, 30, 30, 0.8);
+    --color-glass-card-border: rgba(255, 255, 255, 0.1);
+    --color-overlay-strong: rgba(255, 255, 255, 0.85);
+    --color-overlay-muted: rgba(0, 0, 0, 0.25);
 
     /* Text - Softer whites for reduced eye strain */
     --color-text-primary: #f5f5f5; /* Soft white */
@@ -307,6 +398,16 @@ page {
     --color-gender-other: #b57ce0;
     --color-gender-unknown: #a8b8b9;
 
+    /* Square Entry Card Colors - adjusted for dark mode */
+    --square-entry-card-friend-gradient: linear-gradient(135deg, #5a8bff 0%, #3d6bff 100%);
+    --square-entry-card-love-gradient: linear-gradient(135deg, #ff7ab8 0%, #ff1a8a 100%);
+    --square-entry-card-talk-gradient: linear-gradient(135deg, #c57dff 0%, #8b4dff 100%);
+    --square-entry-card-bestie-gradient: linear-gradient(135deg, #9b8bff 0%, #6a5dff 100%);
+    --square-entry-card-hobby-gradient: linear-gradient(135deg, #5cd2ff 0%, #2f9bff 100%);
+    --square-entry-card-icon-bg: rgba(255, 255, 255, 0.25);
+    --square-entry-card-title-color: rgba(255, 255, 255, 0.98);
+    --square-entry-card-desc-color: rgba(255, 255, 255, 0.9);
+
     /* Shadows - More prominent in dark mode */
     --shadow-xs: 0 1rpx 4rpx rgba(0, 0, 0, 0.3);
     --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
@@ -315,63 +416,12 @@ page {
     --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.4);
     --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.5);
     --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
+    --shadow-glass-card: 0 8rpx 32rpx rgba(0, 0, 0, 0.5);
+
+    /* Text Shadows */
+    --text-shadow-brand-soft: 0 4rpx 16rpx rgba(11, 191, 104, 0.3);
+    --text-shadow-brand-strong: 0 4rpx 24rpx rgba(11, 191, 104, 0.5);
   }
-}
-
-/* Allow explicit dark theme opt-in via page[theme='dark'] */
-page[theme='dark'] {
-  /* Primary Colors */
-  --color-primary: #0bbf68;
-  --color-primary-light: #2ad17a;
-  --color-primary-lighter: #1a3d2a;
-  --color-primary-dark: #0a9f56;
-
-  /* Accent Colors */
-  --color-accent: #ffc300;
-  --color-accent-light: #3d3520;
-
-  /* Background */
-  --color-bg-primary: #000000;
-  --color-bg-secondary: #1c1c1e;
-  --color-bg-tertiary: #2c2c2e;
-  --color-bg-input: #1c1c1e;
-  --color-bg-hover: #2c2c2e;
-  --color-bg-disabled: #1c1c1e;
-  --color-bg-mask: rgba(0, 0, 0, 0.6);
-
-  /* Text */
-  --color-text-primary: #f5f5f5;
-  --color-text-secondary: #afafaf;
-  --color-text-tertiary: #8e8e93;
-  --color-text-quaternary: #636366;
-  --color-text-placeholder: #757575;
-  --color-text-disabled: #636366;
-  --color-text-inverse: #000000;
-
-  /* Border */
-  --color-border-base: #38383a;
-  --color-border-light: #2c2c2e;
-  --color-border-dark: #48484a;
-  --color-separator: rgba(84, 84, 88, 0.6);
-
-  /* Status Colors */
-  --color-success: #0bbf68;
-  --color-warning: #ff9f0a;
-  --color-error: #ff453a;
-  --color-info: #0a84ff;
-
-  /* Special Colors */
-  --color-unread: #ff453a;
-  --color-link: #0a84ff;
-
-  /* Shadows */
-  --shadow-xs: 0 1rpx 4rpx rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.6);
-  --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.4);
-  --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.5);
-  --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
 }
 
 /* ========================================

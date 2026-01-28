@@ -89,6 +89,20 @@ export const STORAGE_KEYS = {
   // Messages (prefix, append conv_id)
   MESSAGES: 'messages_',
 
+  // Conversation unread counts (per user)
+  CONVERSATION_UNREAD_COUNTS: 'conversation_unread_counts',
+
+  // Conversation unread marks (per user)
+  CONVERSATION_UNREAD_MARKS: 'conversation_unread_marks',
+
+  // Conversation read state (per user)
+  CONVERSATION_READ_STATE: 'conversation_read_state',
+
+  // Conversation scroll state (per user)
+  CONVERSATION_SCROLL_STATE: 'conversation_scroll_state',
+  // Conversation view state (per user)
+  CONVERSATION_VIEW_STATE: 'conversation_view_state',
+
   // Device identifier (installation-level)
   DEVICE_ID: 'device_id',
 

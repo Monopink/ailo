@@ -1,16 +1,17 @@
-/* Custom TabBar Styles - Native Implementation */
-
 .tab-bar {
   display: flex;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 100rpx;
-  background: #fff;
-  border-top: 1rpx solid #ebedf0;
-  padding-bottom: env(safe-area-inset-bottom);
-  z-index: 9999;
+  height: calc(var(--tabbar-height) + var(--safe-area-inset-bottom));
+  box-sizing: border-box;
+  background-color: var(--color-tabbar-glass-bg);
+  border-top: 1rpx solid var(--color-separator);
+  -webkit-backdrop-filter: blur(var(--tabbar-glass-blur));
+  backdrop-filter: blur(var(--tabbar-glass-blur));
+  padding-bottom: var(--safe-area-inset-bottom);
+  z-index: var(--z-index-fixed);
 }
 
 .tab-item {
@@ -19,22 +20,28 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding-top: 8rpx;
+  padding-top: var(--tabbar-padding-top);
 }
 
 .tab-icon {
-  width: 44rpx;
-  height: 44rpx;
+  font-size: var(--tabbar-icon-size);
+  color: var(--color-text-tertiary);
+  line-height: 1;
 }
 
 .tab-text {
-  font-size: 20rpx;
-  margin-top: 4rpx;
-  color: #999999;
-  transition: color 0.2s;
+  color: var(--color-text-tertiary);
+  font-size: var(--tabbar-text-size);
+  margin-top: var(--tabbar-text-gap);
+  font-weight: 400;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .tab-item.active .tab-text {
-  color: #07c160;
+  color: var(--color-primary);
   font-weight: 500;
+}
+
+.tab-item.active .tab-icon {
+  color: var(--color-primary);
 }

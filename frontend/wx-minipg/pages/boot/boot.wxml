@@ -5,6 +5,9 @@
   isEmpty="{{pageLayoutData.isEmpty}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}">
+  <t-navbar slot="header" left-arrow="{{false}}">
+    <view slot="title" class="navbar-title"></view>
+  </t-navbar>
   <view slot="content" class="boot-page">
     <image class="boot-page__logo" src="/assets/logo.png" mode="aspectFit" />
     <view class="boot-page__text">

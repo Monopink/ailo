@@ -1,4 +1,7 @@
 <view class="avatar-cropper">
+  <t-navbar left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">裁剪头像</view>
+  </t-navbar>
   <view wx:if="{{isReady}}" class="avatar-cropper__panel">
     <movable-area
       class="avatar-cropper__area"

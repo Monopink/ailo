@@ -208,7 +208,6 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 **关键字段**：
 
 - `msg_id_server`: 原消息ID
-- `msg_id_provider`: 第三方出站消息ID
 - `content`: 消息内容
 - `fail_reason_code`: 失败原因代码
 - `retry_count`: 重试次数

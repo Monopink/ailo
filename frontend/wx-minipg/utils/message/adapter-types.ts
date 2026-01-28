@@ -36,6 +36,7 @@ export type AdapterTypingPayload = {
   from_qiao_id: string;
   conv_id: string;
   isTyping: boolean;
+  sent_time: number;
 };
 
 export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'suspending';

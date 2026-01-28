@@ -161,7 +161,7 @@ Register a callback for typing indicators.
 ```javascript
 adapter.onTyping((typing) => {
   console.log('Typing:', typing);
-  // typing: { from: 'qiao_id', conv_id: 'conv_id', isTyping: true }
+  // typing: { from_qiao_id: 'qiao_id', conv_id: 'conv_id', isTyping: true, sent_time: 1710001111222 }
 });
 ```
 

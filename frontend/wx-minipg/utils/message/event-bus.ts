@@ -5,6 +5,8 @@ type TypingSubscriber = (payload: {
   conv_id: string;
   from_qiao_id: string;
   typing: boolean;
+  sent_time: number;
+  received_time: number;
 }) => void;
 type ErrorSubscriber = (payload: Error) => void;
 type ConnectionSubscriber = (state: ConnectionState) => void;
@@ -39,7 +41,13 @@ class MessageEventBus {
     this.messageHandlers.forEach((handler) => handler(message));
   }
 
-  emitTyping(payload: { conv_id: string; from_qiao_id: string; typing: boolean }): void {
+  emitTyping(payload: {
+    conv_id: string;
+    from_qiao_id: string;
+    typing: boolean;
+    sent_time: number;
+    received_time: number;
+  }): void {
     this.typingHandlers.forEach((handler) => handler(payload));
   }
 

@@ -1,11 +1,12 @@
 import { getLogger } from '../logger';
+import { MESSAGE_CONFIG } from '../config';
 import { parse, StoredMessage, StoredMessageSchema, StoredMessages } from '../schemas';
 import { getMessages, getUserInfo } from '../storage';
 import messageEventBus from './event-bus';
 import { buildMessageViewModels, MessageViewModel } from './message-view-model';
 import { isNonEmptyString } from '../guards';
 import { normalizeError } from '../errors';
-import { MessageStatus } from '../constants/message';
+import { MESSAGE_TYPE, MessageStatus } from '../constants/message';
 
 const logger = getLogger('MessageStateStore');
 
@@ -28,13 +29,14 @@ class MessageStateStore {
   private storedMessages: StoredMessages = [];
   private currentUserId = '';
   private typingTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastMessageReceivedTime: number | null = null;
 
   constructor() {
     messageEventBus.onMessage((message) => {
       void this.handleAdapterMessage(message);
     });
     messageEventBus.onTyping((payload) => {
-      this.handleTypingEvent(payload.typing);
+      void this.handleTypingEvent(payload);
     });
     messageEventBus.onError((error) => {
       this.emitError(error);
@@ -66,6 +68,7 @@ class MessageStateStore {
     }
     this.state = { ...this.state, convId, messages: [], isTyping: false };
     this.storedMessages = [];
+    this.lastMessageReceivedTime = null;
     this.clearTypingTimer();
     await this.reloadMessages(convId);
   }
@@ -79,6 +82,8 @@ class MessageStateStore {
 
   async addOptimisticMessage(message: StoredMessage): Promise<void> {
     await this.ensureCurrentUser();
+    this.updateLastMessageReceivedTime(Date.now());
+    this.setTypingState(false);
     this.mergeMessage(message);
     this.emit();
   }
@@ -98,6 +103,7 @@ class MessageStateStore {
   clearConversation(): void {
     this.state = { convId: '', messages: [], isTyping: false };
     this.storedMessages = [];
+    this.lastMessageReceivedTime = null;
     this.clearTypingTimer();
     this.emit();
   }
@@ -117,6 +123,13 @@ class MessageStateStore {
       return;
     }
     await this.ensureCurrentUser();
+    const messageType = parsed.message_type;
+    const isTypingMessage =
+      messageType === MESSAGE_TYPE.TYPING_START || messageType === MESSAGE_TYPE.TYPING_END;
+    if (!isTypingMessage) {
+      this.updateLastMessageReceivedTime(Date.now());
+      this.setTypingState(false);
+    }
     this.mergeMessage(parsed);
     this.emit();
   }
@@ -144,23 +157,67 @@ class MessageStateStore {
     }
   }
 
-  private handleTypingEvent(isTyping: boolean): void {
-    if (this.state.isTyping === isTyping) {
+  private async handleTypingEvent(payload: {
+    conv_id: string;
+    from_qiao_id: string;
+    typing: boolean;
+    sent_time: number;
+    received_time: number;
+  }): Promise<void> {
+    if (payload.conv_id !== this.state.convId) {
       return;
     }
+    if (!Number.isFinite(payload.received_time)) {
+      logger.error('Typing payload missing received_time', {
+        conv_id: payload.conv_id,
+        from_qiao_id: payload.from_qiao_id,
+      });
+      return;
+    }
+    await this.ensureCurrentUser();
+    if (isNonEmptyString(this.currentUserId) && payload.from_qiao_id === this.currentUserId) {
+      return;
+    }
+    if (
+      this.lastMessageReceivedTime !== null &&
+      payload.received_time < this.lastMessageReceivedTime
+    ) {
+      return;
+    }
+    this.setTypingState(payload.typing);
+  }
+
+  private setTypingState(isTyping: boolean): void {
     if (isTyping) {
       if (this.typingTimer !== null) {
         clearTimeout(this.typingTimer);
       }
       this.typingTimer = setTimeout(() => {
-        this.handleTypingEvent(false);
-      }, 30_000);
-    } else if (this.typingTimer !== null) {
-      clearTimeout(this.typingTimer);
-      this.typingTimer = null;
+        this.setTypingState(false);
+      }, MESSAGE_CONFIG.typingTimeout);
+      if (this.state.isTyping) {
+        return;
+      }
+    } else {
+      if (this.typingTimer !== null) {
+        clearTimeout(this.typingTimer);
+        this.typingTimer = null;
+      }
+      if (!this.state.isTyping) {
+        return;
+      }
     }
     this.state = { ...this.state, isTyping };
     this.emit();
+  }
+
+  private updateLastMessageReceivedTime(receivedTime: number): void {
+    if (!Number.isFinite(receivedTime)) {
+      return;
+    }
+    if (this.lastMessageReceivedTime === null || receivedTime > this.lastMessageReceivedTime) {
+      this.lastMessageReceivedTime = receivedTime;
+    }
   }
 
   private clearTypingTimer(): void {

@@ -632,10 +632,19 @@ export class LCAdapter implements MessageAdapter {
       businessData.message_type === MESSAGE_TYPE.TYPING_START ||
       businessData.message_type === MESSAGE_TYPE.TYPING_END
     ) {
+      if (!Number.isFinite(businessData.sent_time)) {
+        logger.error('Typing message missing sent_time', {
+          msg_id: businessData.msg_id,
+          conv_id: businessData.conv_id,
+          message_type: businessData.message_type,
+        });
+        return;
+      }
       this.triggerTypingCallbacks({
         from_qiao_id: businessData.from_qiao_id,
         conv_id: businessData.conv_id,
         isTyping: businessData.message_type === MESSAGE_TYPE.TYPING_START,
+        sent_time: businessData.sent_time,
       });
     } else {
       this.triggerMessageCallbacks(businessData);

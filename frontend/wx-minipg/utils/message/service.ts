@@ -21,6 +21,7 @@ import type {
 } from './adapter-types';
 import { getMessageAdapter } from './provider';
 import messageEventBus from './event-bus';
+import unreadStore from './unread-store';
 import { isDefined, isNonEmptyString } from '../guards';
 import { ackOfflineMessages, fetchOfflineMessages } from './offline';
 import type { OfflineMessage } from '../schemas';
@@ -592,6 +593,7 @@ export class MessageService {
           });
 
           await addMessage(convId, storedMessage);
+          await unreadStore.handleIncomingMessage(storedMessage, this.userId);
           messageEventBus.emitMessage(storedMessage);
 
           const app = getApp<AppInstance>();
@@ -634,6 +636,7 @@ export class MessageService {
       });
 
       await addMessage(convId, storedMessage);
+      await unreadStore.handleIncomingMessage(storedMessage, this.userId);
       messageEventBus.emitMessage(storedMessage);
       await this.ackIfNeeded(storedMessage);
 
@@ -665,18 +668,10 @@ export class MessageService {
         conv_id: typing.conv_id,
         from_qiao_id: typing.from_qiao_id,
         typing: typing.isTyping,
+        sent_time: typing.sent_time,
+        received_time: Date.now(),
       };
 
-      const app = getApp<AppInstance>();
-      if (typeof app.onTypingReceived === 'function') {
-        app.onTypingReceived({
-          conv_id: typing.conv_id,
-          from_qiao_id: typing.from_qiao_id,
-          to_qiao_id: '',
-          typing: typing.isTyping,
-          timestamp: Date.now(),
-        });
-      }
       messageEventBus.emitTyping(signal);
     } catch (error) {
       const err = normalizeError(error);

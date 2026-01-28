@@ -16,6 +16,7 @@ from app.enums import (
     MessageDirection,
     MessageParticipantType,
     MessageStatus,
+    MessageType,
     ServiceProvider,
 )
 from app.models.contact import Contact
@@ -37,7 +38,7 @@ async def store_message(
     event: InboundMessageEvent | OutboundMessageEvent,
     *,
     contact: Contact,
-) -> MessageHistory:
+) -> MessageHistory | None:
     """
     Store message to message_history from event object.
 
@@ -55,13 +56,18 @@ async def store_message(
     Raises:
         ValueError: If participant not found
     """
+    if event.message_type in (MessageType.TYPING_START, MessageType.TYPING_END):
+        return None
+
     # Determine direction and provider ID based on event type
     msg_id_provider: str | None
     if isinstance(event, InboundMessageEvent):
         direction = MessageDirection.INBOUND
+        message_status = MessageStatus.DELIVERED
         msg_id_provider = event.msg_id_provider_inbound
     elif isinstance(event, OutboundMessageEvent):
         direction = MessageDirection.OUTBOUND
+        message_status = MessageStatus.SENT
         msg_id_provider = event.msg_id_provider_outbound
     else:
         raise TypeError(f"Unsupported event type: {type(event)}")
@@ -91,6 +97,7 @@ async def store_message(
         sent_at=event.sent_at_ms,
         msg_id_server=event.msg_id_server,
         metadata=metadata_dict,
+        status=message_status,
     )
 
 
@@ -113,6 +120,7 @@ async def _store_message_internal(
     sent_at: int | float | str | datetime | None = None,
     msg_id_server: str | None = None,
     metadata: dict[str, Any] | None = None,
+    status: MessageStatus = MessageStatus.SENT,
 ) -> MessageHistory:
     """
     Store message to message_history.
@@ -178,7 +186,7 @@ async def _store_message_internal(
         "message_type": message_type,
         "content": content,
         "service_provider": service_provider,
-        "status": MessageStatus.SENT,
+        "status": status,
         "client_sent_time": normalized_client_sent_time,
         "sent_at": normalized_sent_at,
         "message_metadata": metadata or {},

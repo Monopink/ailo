@@ -13,7 +13,6 @@ import conversationStore from './utils/message/conversation-store';
 import { normalizeError } from './utils/errors';
 
 type MessagePayload = Ailo.MessagePayload;
-type TypingEvent = Ailo.TypingEvent;
 type LaunchOptions = WechatMiniprogram.App.LaunchShowOption;
 type ShowOptions = WechatMiniprogram.App.LaunchShowOption;
 type PageNotFoundOption = WechatMiniprogram.App.PageNotFoundOption;
@@ -25,7 +24,6 @@ type AnyPageInstance = WechatMiniprogram.Page.Instance<
 >;
 type MessageHandlerPage = AnyPageInstance & {
   onMessageReceived?(message: MessagePayload): void;
-  onTypingReceived?(payload: TypingEvent): void;
   onMessageError?(error: Error): void;
 };
 
@@ -216,16 +214,6 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
 
     const currentPage = getActivePage() as MessageHandlerPage | undefined;
     currentPage?.onMessageReceived?.(message);
-  },
-
-  onTypingReceived(typing: TypingEvent) {
-    logger.info('Typing received in app', {
-      conv_id: typing.conv_id,
-      isTyping: typing.typing,
-    });
-
-    const currentPage = getActivePage() as MessageHandlerPage | undefined;
-    currentPage?.onTypingReceived?.(typing);
   },
 
   onMessageError(error: unknown) {

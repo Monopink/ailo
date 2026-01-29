@@ -30,8 +30,8 @@
 ```
 
 **相关 API 文档**：
-- [POST /api/v1/media/upload](../../api/media.md)
-- [PUT /api/v1/user/profile](../../api/user.md)
+- [POST /api/v1/media/upload](../../../api/media.md)
+- [PUT /api/v1/user/profile](../../../api/user.md)
 
 ## 4. 错误处理规范
 

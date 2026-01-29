@@ -6,9 +6,8 @@
 
 **数据表定义** 详见：
 
-- [../../data-dict/ai-conversation-state.md](../../data-dict/ai-conversation-state.md)
-- [../../data-dict/ai-conversation-items.md](../../data-dict/ai-conversation-items.md)
-- [../../data-dict/message-delivery-failures.md](../../data-dict/message-delivery-failures.md)
+- [../../data-dict/ai-conversation.md](../../data-dict/ai-conversation.md)
+- [../../data-dict/message.md](../../data-dict/message.md#message_delivery_failures)
 
 ## 核心概念
 

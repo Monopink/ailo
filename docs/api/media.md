@@ -170,6 +170,6 @@ MIME 类型不支持 (415):
 ## 参考资料
 
 - [对象存储规范](../spec/storage.md) - 上传流程、去重策略、安全措施
-- [头像上传规范](../spec/mini-program/avatar-upload.md) - 小程序头像上传对接指南
+- [头像上传规范](../spec/client/mini-program/avatar-upload.md) - 小程序头像上传对接指南
 - [用户资料 API](user.md) - 头像应用接口
 - [系统配置 API](system.md) - 配额配置

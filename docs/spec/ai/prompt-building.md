@@ -6,9 +6,9 @@
 
 **数据表定义** 详见：
 
-- [../../data-dict/ai-personalities.md](../../data-dict/ai-personalities.md)
-- [../../data-dict/ai-instances.md](../../data-dict/ai-instances.md)
-- [../../data-dict/ai-conversation-items.md](../../data-dict/ai-conversation-items.md)
+- [../../data-dict/ai-configuration.md](../../data-dict/ai-configuration.md)
+- [../../data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md)
+- [../../data-dict/ai-conversation.md](../../data-dict/ai-conversation.md)
 
 ## 核心概念
 
@@ -165,7 +165,7 @@ messages = [
 
 - user_qiao_id = 当前用户
 - instance_qiao_id = 当前实例
-- is_excluded_from_context = false（排除攻击消息）
+- is_excluded_from_context = 0（排除攻击消息）
 - 按 created_at 排序
 - 限制数量（默认最近 20 条）
 
@@ -184,64 +184,11 @@ ai_conversation_items 采用扁平字段存储（message_type / text_content / m
 
 ### 时间标记
 
-在构造 LLM 消息时添加人性化时间前缀
-
-实现位置：backend/app/services/ai/context/converter.py
-
-格式规则：
-
-- 今天：今天HH:MM
-- 昨天：昨天HH:MM
-- 本周：周X HH:MM
-- 本年：MM-DD(X天前) HH:MM
-- 去年及更早：YYYY-MM-DD HH:MM
-
-示例：
-
-```
-原始：{type: "text", text: "你好"}
-添加时间：{type: "text", text: "[今天17:19] 你好"}
-```
-
-注意：时间前缀仅在构造 LLM 请求时添加，不存储到数据库
+时间前缀与格式化规则统一在 [../message/context.md](../message/context.md#时间标记格式化) 维护，这里不重复描述。
 
 ### 消息合并
 
-Converter 层负责合并连续同 role 的消息
-
-合并条件：
-
-- 连续的消息
-- 相同的 role
-- 都是 text 类型
-
-合并方式：
-
-- 使用 `\n\n` 分隔
-- 保留每条消息的时间前缀
-
-示例：
-
-```
-原始：
-[
-  {role: "user", content: [{type: "text", text: "[今天17:19] 你好"}]},
-  {role: "user", content: [{type: "text", text: "[今天17:20] 在吗"}]}
-]
-
-合并后：
-[
-  {role: "user", content: [{type: "text", text: "[今天17:19] 你好\n\n[今天17:20] 在吗"}]}
-]
-```
-
-不合并的情况：
-
-- 不同 role
-- 包含非 text 类型（图片、视频等）
-- 中间插入了 system 消息
-
-详见：[../message/context.md](../message/context.md#converter-层消息合并)
+合并规则与示例统一在 [../message/context.md](../message/context.md#converter-层消息合并) 维护，这里不重复描述。
 
 ### Token 限制
 
@@ -269,7 +216,7 @@ LLM 输出 attack_detected = true 时触发
 
 更新该 buffer 关联的所有用户消息：
 
-- 设置 is_excluded_from_context = true
+- 设置 is_excluded_from_context = 1
 
 效果：
 

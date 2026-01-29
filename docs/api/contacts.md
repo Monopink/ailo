@@ -353,7 +353,7 @@
   "conv_id": "conv_xyz789",
   "im_conv_id": "system_conversation_id",
   "contact_qiao_id": "qiao_xm001",
-  "contact_info": {
+  "profile": {
     "nickname": "小萌",
     "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
     "gender": 2
@@ -366,7 +366,7 @@
 - `conv_id` (string) - 对话ID
 - `im_conv_id` (string) - IM系统对话ID，用于初始化消息客户端连接
 - `contact_qiao_id` (string) - 联系人的qiao_id
-- `contact_info` (object) - 联系人信息
+- `profile` (object) - 联系人信息
   - `nickname` (string) - 昵称
   - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`

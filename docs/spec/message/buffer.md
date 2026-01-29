@@ -21,8 +21,8 @@
 
 **ai_conversation_items**：对话历史存储
 
-- 存储完整的消息内容（JSONB 格式）
-- 支持多模态内容（文本、图片、视频、工具调用等）
+- 存储扁平字段消息（message_type/text_content/media_url/media_metadata）
+- 支持多模态内容（文本、图片、音频等）
 - 提供上下文查询和审计功能
 - 标记攻击消息（is_excluded_from_context）
 
@@ -30,7 +30,7 @@
 
 ### ai_message_buffer 核心字段
 
-完整表结构见 [data-dict/ai-message-buffer.md](../../data-dict/ai-message-buffer.md)
+完整表结构见 [data-dict/ai-conversation.md](../../data-dict/ai-conversation.md#ai_message_buffer)
 
 本文档关注的关键字段：
 
@@ -148,7 +148,7 @@
 - WAITING_WAKEUP 状态的 buffer 不参与 OPEN buffer 的查询和锁定
 - 初次对话（无历史 COMPLETE buffer）跳过唤醒，直接创建 OPEN buffer
 
-详细设计参见 spec/ai/relationship-response-timing.md
+详细设计参见 spec/ai/relationship-system.md#关系响应参数
 
 ## 整体流程
 
@@ -294,7 +294,7 @@ WHERE id = $buffer_id AND aggregate_state = 2;
 
 3. 消息发送失败时，写入 ai_conversation_state.pending_messages，等待下次对话时由 LLM 重新处理
 
-详细设计参见 spec/ai/message-sending-and-interruption.md
+详细设计参见 spec/ai/message-sending.md
 
 ## 并发与时钟
 

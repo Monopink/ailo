@@ -19,7 +19,7 @@
 
 - 客户端生成稳定 UUID（设备/安装级），作为 device_id。
 - device_id 必须随离线拉取与 ACK 上送，服务端按客户端区分游标。
-- device_id 生成与持久化规范见：`docs/spec/app/device-id.md`。
+- device_id 生成与持久化规范见：`docs/spec/client/base/device-id.md`。
 
 ### 游标模型
 
@@ -29,14 +29,17 @@
 
 ### 处理流程
 
-1. 客户端请求离线消息（带 device_id）。
+1. 客户端断线重连后优先请求离线消息（带 device_id）。
 2. 服务端使用 last_ack_* 作为起点，拉取未确认消息并返回。
-3. 客户端成功保存后发送 ACK。
+3. 客户端成功落盘后发送 ACK（可在补偿完成后统一 ACK）。
 4. 服务端更新游标。
 
 ### ACK 要求
 
 - 实时消息与离线消息都必须 ACK。
+- ACK 只能在离线补偿完成后发送，避免游标越过未补偿消息。
+- 实时消息在补偿完成前不得 ACK，应先落盘并进入待 ACK 队列。
+- ACK 游标必须基于客户端已持久化的最大 (sent_time, msg_id_server)。
 - 未 ACK 的消息会在后续拉取中重复返回，避免消息丢失。
 - 服务端仅接受连续递进的 ACK；小于当前游标的 ACK 会被忽略并记录 warning。
 - 服务端以 `msg_id_server` 对应的 `sent_time` 为准，客户端 `last_ack_sent_at` 不一致只记录 warning。

@@ -94,6 +94,9 @@
 
 - ACK 适用于实时消息与离线消息。
 - 服务端只在收到 ACK 后推进游标，避免丢失消息。
+- 客户端必须在离线补偿拉取完成且消息已落盘后再发送 ACK。
+- 断线重连后优先拉取离线消息，未完成补偿前不得发送 ACK。
+- ACK 游标必须基于客户端已持久化的最大 (sent_time, msg_id_server)。
 - 如果 ACK 小于当前游标，忽略并记录 warning 日志。
 - 服务端以 `msg_id_server` 对应的 `sent_time` 为准，若客户端 `last_ack_sent_at` 不一致仅记录 warning。
 - 服务端会将对应消息状态更新为 delivered（不引入 read 状态）。

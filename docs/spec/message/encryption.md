@@ -2,27 +2,27 @@
 
 本文档说明消息传输加密的完整方案。
 
-- 短期使用 Base64 编码占位，实现接口与 metadata 约束
+- 当前不启用传输加密，保留接口与 metadata 约束
 - 后期切换到 AES-256-GCM 或其他算法
 - 客户端与服务端支持统一的加密机制
-- 解密失败时回退到原文，避免消息丢失
+- 加密声明存在时，解密失败直接拒绝处理并记录日志
 
 ## 架构设计
 
 ```
 客户端 → LeanCloud → Webhook
     ↑                 ↓
-  Base64 encode   decrypt_from_transport()
+  encrypt_for_transport()   decrypt_from_transport()
 ```
 
 ### Outbound（服务端 → 客户端）
 
 **流程**：
 
-1. 调用 encrypt_for_transport() 加密内容
-2. 返回 encrypted_content 和 metadata
-3. 将 encrypted_content 写入 LeanCloud payload
-4. 将 metadata.encryption/encryption_version 合并到消息 JSON
+1. 调用 encrypt_for_transport() 处理内容（当前透传明文）
+2. 当前返回 content 与空 metadata（无 encryption 字段）
+3. payload 直接使用 content
+4. 后续启用加密时再写入 metadata
 
 ### Inbound（客户端 → 服务端）
 
@@ -31,6 +31,7 @@
 1. Webhook 解析 inner_message 时读取 encryption/enc_version
 2. 调用 decrypt_from_transport() 解密
 3. 若客户端发送明文（缺少 encryption 字段），服务端直接透传
+4. 若声明加密但解密失败，拒绝处理并记录日志
 
 ### 持久化
 
@@ -45,15 +46,15 @@ metadata 新增字段，映射到 message_history.message_metadata：
 
 ## 模块说明
 
-**文件位置**：`backend/app/services/message/encryption.py`
+**文件位置**：`backend/app/services/message/security/encryption.py`
 
 ### 核心函数
 
 - `encrypt()` / `decrypt()` - 算法无关的基础接口，支持 BASE64、AES_256_GCM
 - `_encode_base64()` / `_decode_base64()` - MVP 占位实现，不需要 key
 - `_encrypt_aes_256_gcm()` / `_decrypt_aes_256_gcm()` - 预留真实加密方案（key 必须 32 bytes）
-- `encrypt_for_transport()` - 使用默认算法（当前 Base64）封装传输逻辑
-- `decrypt_from_transport()` - 根据 metadata 自动解密；metadata 缺失时返回原文
+- `encrypt_for_transport()` - 当前透传明文（不写 metadata），保留未来加密接口
+- `decrypt_from_transport()` - metadata 缺失时直接透传；若声明加密则强制解密
 
 ### 加密类型枚举
 
@@ -70,6 +71,8 @@ metadata 新增字段，映射到 message_history.message_metadata：
 
 - DEFAULT_ENCRYPTION = BASE64
 - DEFAULT_VERSION = V1
+
+注意：传输层目前不使用 Base64，`encrypt_for_transport()` 直接透传明文。
 
 ### 加密逻辑
 
@@ -102,9 +105,9 @@ metadata 新增字段，映射到 message_history.message_metadata：
 **步骤**：
 
 1. 检查 metadata 中的 encryption 字段
-2. 如果缺失 → 返回原文（明文消息）
+2. 如果缺失 → 视为明文，直接返回
 3. 如果存在 → 根据 encryption_type 选择解密算法
-4. 解密失败 → 记录日志，回退到原文
+4. 解密失败 → 记录日志并拒绝处理
 
 ## AES-256-GCM 预留方案
 
@@ -234,8 +237,7 @@ cryptography==46.0.3
 
 1. 捕获解密异常
 2. 记录错误日志（包含前 50 字符和 metadata）
-3. 回退到原文，避免消息丢失
-4. 返回原文
+3. 拒绝处理该消息并返回错误
 
 ### 监控告警
 

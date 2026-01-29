@@ -78,8 +78,8 @@ LeanCloud Webhook 接收
 
 - role = "user"
 - message_type/text_content/media_url/media_metadata 等字段按 `ai_conversation_items` 结构写入（text 必填 text_content）
-- is_excluded_from_context = false
-- buffer_id = NULL（稍后关联）
+- is_excluded_from_context = 0
+- buffer_id = 当前 buffer 窗口 ID
 
 **输出**：ai_conversation_items 记录 ID
 
@@ -418,28 +418,3 @@ LeanCloud Webhook 接收
 - ai_personalities
 - ai_relationships
 - system_configs
-
-## 监控指标
-
-### 关键指标
-
-**延迟指标**：
-
-- 消息接收到 buffer 创建：< 100ms
-- buffer 锁定到 LLM 请求：< 200ms
-- LLM 请求到响应：< 5s
-- 响应处理到消息发送：< 500ms
-- 端到端延迟：< 10s
-
-**成功率指标**：
-
-- 消息接收成功率：> 99.9%
-- LLM 请求成功率：> 99%
-- 消息发送成功率：> 99.5%
-
-**业务指标**：
-
-- 平均对话轮次
-- 关系变更频率
-- 攻击检测率
-- 中断发生率

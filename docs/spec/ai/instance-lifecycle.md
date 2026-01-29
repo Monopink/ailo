@@ -6,10 +6,8 @@
 
 **数据表定义** 详见：
 
-- [../../data-dict/ai-personas.md](../../data-dict/ai-personas.md)
-- [../../data-dict/ai-templates.md](../../data-dict/ai-templates.md)
-- [../../data-dict/ai-instances.md](../../data-dict/ai-instances.md)
-- [../../data-dict/profiles.md](../../data-dict/profiles.md)
+- [../../data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md)
+- [../../data-dict/profile.md](../../data-dict/profile.md)
 
 **关系结构**：
 

@@ -16,7 +16,7 @@
 - [API文档](../docs/api/)
 - [数据字典](../docs/data-dict/)
 - [迁移操作](../docs/tech/MIGRATION.md)
-- [Doubao文档](../references/doubao-docs/) - 特别提示：用户可以联系到Doubao文档客服，如果有不确定的问题请报告提问，请勿在一知半解状态实施
+- [Doubao文档](../references/doubao-docs/)
 - [Leancloud文档](../references/leancloud-docs/)
 - [管理后台开发规范](app/admin/AGENTS.md) - 修改 `app/admin/` 模块前必读
 
@@ -127,53 +127,8 @@ models (数据模型)
 - 处理外部 API(payload/SDK)、动态配置或框架限制时可以使用 dict[str, Any]，但必须在代码中注明数据来源（例如 # reason: PyJWT payload）并尽量封装在边界层。
 - Any 仅在与第三方库或 Starlette Admin 等框架交互的边界存在，并应注明原因与替代方案；团队应保持透明以便逐步收敛。
 - 泛型 ID 建议使用 int | str 或 TypeVar，避免无约束的 Any。
-- ORM 相关数据可以使用 TypedDict 或 @dataclass(slots=True)，但不应重复 SQLAlchemy 模型；若多个模块依赖同一 TypedDict，请集中在 pp/type_defs 定义并记录数据来源。Admin 模块的特殊豁免可在 pp/admin/AGENTS.md 中查阅。
+- ORM 相关数据可以使用 TypedDict 或 @dataclass(slots=True)，但不应重复 SQLAlchemy 模型；若多个模块依赖同一 TypedDict，请集中在 pp/type_defs 定义并记录数据来源。Admin 模块的特殊豁免可在 pp/admin/AGENTS.md 中查阅。
 - 外部输入（API 请求、Webhook 等）仍然优先使用 Pydantic BaseModel 进行验证。
-
-**AI遇到类型错误时的决策流程**:
-
-当mypy报告类型错误时,按以下顺序判断:
-
-1. **是否是真实的类型错误?**
-   - ✅ 是 → 修复代码,添加正确的类型注解
-   - ❌ 否(误报) → 继续判断
-
-2. **是否是框架限制导致的?** (如Starlette Admin API设计冲突)
-   - ✅ 是 → 在 pyproject.toml 的 `[[tool.mypy.overrides]]` 中为该模块禁用特定错误码
-   - ❌ 否 → 继续判断
-
-3. **是否是第三方库缺少类型stub导致的?**
-   - ✅ 是 → 在 `[[tool.mypy.overrides]]` 中添加 `ignore_missing_imports = true`
-   - ❌ 否 → 继续判断
-
-4. **是否是合理的 Any 使用?** (外部API payload, 动态配置等)
-   - ✅ 是 → 添加 `# type: Any` 注释说明原因,并在 per-file-ignores 中豁免 ANN401
-   - ❌ 否 → 重新审视代码设计,可能需要重构
-
-示例:
-```python
-# 场景1: 真实错误 - 修复
-def get_user(user_id: str) -> User:  # ❌ user_id应该是int
-    return db.query(User).filter(User.id == user_id).first()
-# 修复: user_id: int
-
-# 场景2: 框架限制 - mypy override
-# Starlette Admin fields.py 已在 pyproject.toml 禁用 ANN401
-
-# 场景3: 缺少stub - ignore imports
-# boto3/botocore 已在 [[tool.mypy.overrides]] 中设置
-
-# 场景4: 合理的Any - 注释说明
-def process_jwt_payload(payload: dict[str, Any]) -> User:
-    # reason: PyJWT payload structure is dynamic
-    user_id = payload["sub"]
-    return get_user(user_id)
-```
-
-**禁止的做法**:
-- ❌ 随意添加 `# type: ignore` 来绕过检查
-- ❌ 到处使用 Any 而不说明原因
-- ❌ 为了通过检查而添加错误的类型注解
 
 **命名规范**:
 - 函数/变量: snake_case
@@ -190,9 +145,11 @@ def process_jwt_payload(payload: dict[str, Any]) -> User:
 **pendulum 使用**:
 - 人性化时间显示、时区转换、相对时间判断、时间格式化等，使用 `pendulum`
 
-## 其他开发原则
+## 关键约束
 
-**SQLAlchemy Async 关系访问规则**:
+<critical-rules>
+
+### SQLAlchemy Async 关系访问规则
 
 在异步上下文中访问 ORM 关系属性前必须使用 `.options(selectinload(...))` 等方式显式预加载，禁止依赖 `lazy="select"`。
 
@@ -213,9 +170,8 @@ async def get_user_contacts(db: AsyncSession, user_id: int) -> list[Contact]:
 
 ✅ 正确示例 (显式预加载):
 ```python
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 
-# 方式1: 使用 selectinload (推荐 - 避免笛卡尔积)
 async def get_user_contacts(db: AsyncSession, user_id: int) -> list[Contact]:
     result = await db.execute(
         select(User)
@@ -224,28 +180,6 @@ async def get_user_contacts(db: AsyncSession, user_id: int) -> list[Contact]:
     )
     user = result.scalar_one()
     return user.contacts  # 安全访问
-
-# 方式2: 使用 joinedload (适合一对一关系)
-async def get_user_profile(db: AsyncSession, user_id: int) -> UserProfile:
-    result = await db.execute(
-        select(User)
-        .options(joinedload(User.profile))
-        .where(User.id == user_id)
-    )
-    user = result.unique().scalar_one()
-    return user.profile
-
-# 方式3: 嵌套关系预加载
-async def get_user_full_data(db: AsyncSession, user_id: int) -> User:
-    result = await db.execute(
-        select(User)
-        .options(
-            selectinload(User.contacts).selectinload(Contact.tags),
-            selectinload(User.settings),
-        )
-        .where(User.id == user_id)
-    )
-    return result.scalar_one()
 ```
 
 **Model 定义建议**:
@@ -256,44 +190,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     contacts: Mapped[list["Contact"]] = relationship(lazy="raise")  # 强制显式加载
 ```
-**异常链最佳实践** (B904 规则已禁用,但建议遵循):
 
-虽然项目禁用了 B904 规则,但在合适场景仍建议使用异常链保留上下文信息:
-
-✅ 推荐使用异常链的场景:
-```python
-# 1. 转换异常类型时保留原始上下文
-try:
-    data = json.loads(response.text)
-except json.JSONDecodeError as e:
-    raise ValueError(f"Invalid API response: {response.text}") from e  # 保留原始错误
-
-# 2. 包装第三方库异常
-try:
-    await leancloud_client.send_message(conv_id, text)
-except LeanCloudException as e:
-    raise MessageDeliveryError("Failed to send message via LeanCloud") from e
-
-# 3. 添加业务上下文
-try:
-    user = await db.get(User, user_id)
-except SQLAlchemyError as e:
-    raise UserNotFoundError(f"User {user_id} not found") from e
-```
-
-⚠️ 可以省略异常链的场景 (已有日志记录):
-```python
-# 已经记录了详细错误信息,不需要异常链
-try:
-    result = await external_api_call()
-except APIError as e:
-    logger.error("API call failed", exc_info=e, extra={"user_id": user_id})
-    raise HTTPException(status_code=502, detail="External service unavailable")  # 不需要 from e
-```
-
-- 不得使用任何已不推荐、过时、或在未来版本可能被移除的 API，禁用过时 API / Deprecated 写法
-- 禁止使用黑魔法技巧，例如：Python 的动态修改模块、使用 getattr 拦截属性、运行时注入变量、猴子补丁（monkey patch）、隐式全局状态、隐式 lazy loading 等。所有代码必须采用清晰、显式、可维护的写法。
-**禁止模块顶层实例化规范**:
+### 禁止模块顶层实例化
 
 禁止在模块顶层(import阶段)直接实例化应用对象、配置对象、数据库连接、客户端实例或其他可能带来副作用的实体。
 
@@ -323,46 +221,23 @@ from openai import AsyncOpenAI
 from fastapi import Depends
 from app.core.database import get_db
 
-# 方式1: 使用 @lru_cache 延迟初始化单例
+# 使用 @lru_cache 延迟初始化单例
 @lru_cache(maxsize=1)
 def get_openai_client() -> AsyncOpenAI:
     """Get OpenAI client singleton (lazy initialization)."""
     from app.core.config import settings
     return AsyncOpenAI(api_key=settings.openai_api_key)
 
-# 方式2: FastAPI 依赖注入
+# FastAPI 依赖注入
 async def process_data(
     db: AsyncSession = Depends(get_db),
     client: AsyncOpenAI = Depends(get_openai_client),
 ):
     result = await client.chat.completions.create(...)
     db.add(result)
-
-# 方式3: 工厂函数 (适用于非FastAPI场景)
-def create_service(db: AsyncSession) -> DataService:
-    return DataService(db=db, client=get_openai_client())
 ```
 
-**允许的模块顶层定义**:
-```python
-# ✅ 常量和类型定义
-DEFAULT_TIMEOUT = 30
-API_VERSION = "v1"
-
-# ✅ 类定义
-class MyService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-# ✅ 函数定义
-def calculate_score(x: int, y: int) -> float:
-    return (x + y) / 2
-
-# ✅ 类型别名
-JSONDict = dict[str, Any]
-```
-
-**SQL 安全最佳实践** (S608 规则):
+### SQL 安全规则
 
 项目默认禁止 f-string 拼接 SQL (S608),但少数文件有豁免(需安全审查)。
 
@@ -371,11 +246,6 @@ JSONDict = dict[str, Any]
 # ❌ 用户输入直接拼接到SQL
 async def get_user(name: str):
     sql = f"SELECT * FROM users WHERE name = '{name}'"  # 注入风险!
-    result = await db.execute(text(sql))
-
-# ❌ 动态表名/列名未验证
-async def get_data(table: str, column: str):
-    sql = f"SELECT {column} FROM {table}"  # 可被注入!
     result = await db.execute(text(sql))
 ```
 
@@ -394,13 +264,6 @@ async def get_data(column: str, user_id: int):
     # 列名验证后可安全拼接,值仍需参数化
     sql = f"SELECT {column} FROM users WHERE id = :user_id"
     result = await db.execute(text(sql), {"user_id": user_id})
-
-# ✅ 固定字符串片段 + 参数化 (S608豁免场景)
-async def search_users(dimension_id: int | None):
-    where_extra = " AND d.id = :dimension_id" if dimension_id else ""
-    sql = f"SELECT * FROM users u JOIN dimensions d WHERE 1=1{where_extra}"
-    params = {"dimension_id": dimension_id} if dimension_id else {}
-    result = await db.execute(text(sql), params)
 ```
 
 **S608豁免申请要求**:
@@ -409,23 +272,19 @@ async def search_users(dimension_id: int | None):
 3. f-string 中只能包含固定字符串片段,禁止包含任何用户输入
 4. 所有动态值必须通过参数化传递
 
-## 注释规范
+</critical-rules>
 
-- 注释应当避免的内容：
-  - 写元注释，例如 `// Fix bug XX` 或 `// per request changed`
-  - 写重复代码行为的注释，如 `// Increment i by 1`
-  - 在最终提交中保留大块注释掉的旧代码。
+## 其他开发原则
+
+- 不得使用任何已不推荐、过时、或在未来版本可能被移除的 API，禁用过时 API / Deprecated 写法
+- 禁止使用黑魔法技巧，例如：Python 的动态修改模块、使用 getattr 拦截属性、运行时注入变量、猴子补丁（monkey patch）、隐式全局状态、隐式 lazy loading 等。所有代码必须采用清晰、显式、可维护的写法。
 
 **Docstring 规范** (pydocstyle D rules):
 
 渐进式要求:
 - **API endpoints (app/api/)**: 必须添加 docstring，说明功能、参数、返回值
 - **内部服务 (app/services/)**: 暂不强制要求 (per-file-ignores 豁免)
-- **豁免规则**:
-  - D100: 模块级docstring 非必需
-  - D104: `__init__.py` docstring 非必需
-  - D105: 魔术方法 docstring 非必需
-  - D107: `__init__` 方法 docstring 非必需 (参数往往self-explanatory)
+- **豁免规则**: D100(模块级)、D104(`__init__.py`)、D105(魔术方法)、D107(`__init__`方法)
 
 API endpoint示例:
 ```python

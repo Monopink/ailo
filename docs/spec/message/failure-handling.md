@@ -202,7 +202,7 @@ next_retry_at = current_time + intervals[retry_count]
    - target_msg_id: 原消息的 msg_id
 3. 客户端收到 CHAT_INFO 后，根据 target_msg_id 标记对应消息为失败状态
 
-详见 docs/spec/mini-program/prototype.md
+详见 docs/spec/client/base/contacts-and-chat.md
 
 ## 错误处理最佳实践
 

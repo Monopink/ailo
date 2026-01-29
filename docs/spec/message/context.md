@@ -3,7 +3,7 @@
 本文档说明 AI 如何查询和构建对话上下文。
 
 - ai_conversation_items 只存储消息内容，不管理状态
-- 通过 is_excluded_from_context 标记攻击消息
+- 通过 is_excluded_from_context = 1 标记攻击消息
 - 上下文查询时自动排除攻击消息
 - converter 层负责格式转换和消息合并
 
@@ -14,40 +14,16 @@
 本文档关注的关键字段：
 
 - role - 消息角色（user/assistant/system）
-- content - 消息内容（JSONB 数组格式）
+- message_type - 消息类型（text/image/audio）
+- text_content - 文本内容（message_type=text 必填）
+- media_url/media_metadata - 媒体地址与元数据（image/audio 必填）
 - buffer_id - 关联的 buffer 窗口 ID
-- is_excluded_from_context - 是否排除（攻击消息标记为 true）
+- is_excluded_from_context - 上下文状态（0=包含，1=排除）
 - created_at - 消息创建时间（真实发送时间）
 
-### content 字段格式
+### 消息存储格式
 
-content 字段存储 JSONB 数组，直接兼容 Doubao Responses API 格式：
-
-```json
-[
-  {
-    "type": "text",
-    "text": "你好"
-  }
-]
-```
-
-多模态消息示例：
-
-```json
-[
-  {
-    "type": "text",
-    "text": "看看这张图片"
-  },
-  {
-    "type": "image_url",
-    "image_url": {
-      "url": "https://example.com/image.jpg"
-    }
-  }
-]
-```
+ai_conversation_items 使用扁平字段存储（message_type/text_content/media_url/media_metadata），转换为 LLM 请求格式由 converter 在构建阶段完成，详见 `../ai/prompt-building.md` 与 `backend/app/services/ai/context/converter.py`。
 
 ## 上下文查询
 
@@ -56,11 +32,11 @@ content 字段存储 JSONB 数组，直接兼容 Doubao Responses API 格式：
 从 ai_conversation_items 查询对话历史，自动排除攻击消息：
 
 ```sql
-SELECT role, content, created_at
+SELECT role, message_type, text_content, media_url, media_metadata, created_at
 FROM ai_conversation_items
 WHERE user_qiao_id = $user_id
   AND instance_qiao_id = $char_id
-  AND is_excluded_from_context = false
+  AND is_excluded_from_context = 0
 ORDER BY created_at DESC
 LIMIT 20;
 ```
@@ -73,11 +49,11 @@ LIMIT 20;
 
 ### 排除攻击消息
 
-当 LLM 检测到攻击消息时，标记 is_excluded_from_context = true。
+当 LLM 检测到攻击消息时，标记 is_excluded_from_context = 1。
 
 **逻辑**：
 
-更新该 buffer 关联的所有用户消息，设置 is_excluded_from_context = true。
+更新触发该请求的用户消息记录，设置 is_excluded_from_context = 1。
 
 后续查询会自动跳过这些消息，但内容仍完整保存用于审计。
 
@@ -104,7 +80,8 @@ LIMIT 20;
 ```json
 {
   "role": "user",
-  "content": [{"type": "text", "text": "你好"}],
+  "message_type": "text",
+  "text_content": "你好",
   "created_at": "2024-11-18T17:19:00"
 }
 ```
@@ -114,7 +91,8 @@ LIMIT 20;
 ```json
 {
   "role": "user",
-  "content": [{"type": "text", "text": "[11-18(五天前) 17:19] 你好"}]
+  "message_type": "text",
+  "text_content": "[11-18(五天前) 17:19] 你好"
 }
 ```
 
@@ -238,7 +216,7 @@ WHERE created_at >= NOW() - INTERVAL '$days days'
 2. 同时写入 ai_conversation_items
 3. 设置 role = "user"
 4. 设置 buffer_id 关联
-5. 设置 is_excluded_from_context = false
+5. 设置 is_excluded_from_context = 0
 
 ### Assistant 消息
 
@@ -253,7 +231,7 @@ Assistant 消息在实际发送时写入（不是在 buffer 完成时）。
 5. 设置 buffer_id 关联
 6. 记录真实发送时间（created_at）
 
-详见 spec/ai/message-sending-and-interruption.md
+详见 spec/ai/message-sending.md
 
 ## 归档策略（非 MVP）
 

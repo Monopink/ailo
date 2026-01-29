@@ -23,49 +23,6 @@
 - **删除后重新添加** → [management.md](management.md) 恢复逻辑
 - **接收好友申请** → [notification.md](notification.md) NOTIFICATION
 
-## 核心概念
-
-### 联系人类型
-
-- USER (1) - 普通用户
-- AI (2) - AI 联系人
-- OFFICIAL (3) - 官方账号
-
-### 请求状态
-
-- PENDING (1) - 待处理
-- ACCEPTED (2) - 已接受
-- IGNORED (3) - 已忽略
-- PROCESSING (8) - 处理中（仅 AI 请求）
-- FAILED (9) - 失败（系统错误）
-
-### Square 与联系人的关系
-
-- **Square 曝光**：决定哪些 AI 类型在发现页展示
-- **联系人请求**：用户点击添加后的处理流程
-- **AI 创建**：AI 请求被接受后创建实例的逻辑
-- **两者隔离**：Square 曝光不受模板库存影响
-
-## 数据存储
-
-- contacts - 联系人关系表 ([data-dict/contact.md](../../data-dict/contact.md))
-- contact_requests - 联系人请求表 ([data-dict/contact.md](../../data-dict/contact.md))
-- square_type_entries - Square 曝光配置 ([data-dict/discovery.md](../../data-dict/discovery.md))
-- ai_personas - AI 人设定义 ([data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md))
-- ai_templates - AI 模板库 ([data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md))
-- ai_instances - AI 实例 ([data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md))
-
-## API 接口
-
-- GET /api/v1/discovery/square - 获取 Square 推荐 ([api/discovery.md](../../api/discovery.md))
-- GET /api/v1/discovery/profile/{qiao_id} - 获取陌生人详情 ([api/discovery.md](../../api/discovery.md))
-- POST /api/v1/contact-requests - 发送联系人请求 ([api/contact-requests.md](../../api/contact-requests.md))
-- POST /api/v1/contact-requests/{id}/accept - 接受请求 ([api/contact-requests.md](../../api/contact-requests.md))
-- POST /api/v1/contact-requests/{id}/ignore - 忽略请求 ([api/contact-requests.md](../../api/contact-requests.md))
-- GET /api/v1/contacts - 获取联系人列表 ([api/contacts.md](../../api/contacts.md))
-- PUT /api/v1/contacts/{conv_id} - 更新联系人 ([api/contacts.md](../../api/contacts.md))
-- DELETE /api/v1/contacts/{conv_id} - 删除联系人 ([api/contacts.md](../../api/contacts.md))
-
 ## 完整流程图
 
 ```mermaid
@@ -105,25 +62,3 @@ flowchart TB
 
     W --> X[更新/删除/恢复]
 ```
-
-## 设计原则
-
-### 统一 API 设计
-
-用户无需区分添加 AI 还是普通用户，使用同一个 API。后端根据 qiao_id 自动判断类型并路由到相应处理逻辑。
-
-### Square 与模板隔离
-
-Square 曝光只依赖 square_type_entries 表，不受模板库存影响。模板不足时请求会挂起，但不影响 Square 展示。
-
-### 异步处理机制
-
-AI 请求采用 Worker 轮询处理，避免阻塞用户请求。使用 PROCESSING 状态防止重复处理。
-
-### 防重复请求
-
-相同的 (from_qiao_id, to_qiao_id) 在有效期内只能有一条 PENDING 请求。重复提交会触发重试而不是创建新记录。
-
-### 联系人恢复
-
-删除联系人后再次添加会恢复关系，保留 conv_id 但更新 alias 和 tags。

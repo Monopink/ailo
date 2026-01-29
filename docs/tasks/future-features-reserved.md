@@ -38,6 +38,24 @@ async def handle_ai_contact_request(
 
 ---
 
+## AI 记忆写入超额归档
+
+**Reserved**: write-time eviction/archiving when `memory_limits` exceeded.
+
+**Current Behavior**:
+- 仅检索时裁剪，写入不淘汰
+- 超额记忆仍保留在表中
+
+**Future Direction**:
+- 写入时按策略归档/淘汰超额记忆
+- 归档规则需与 `memory_limits` 保持一致
+- 需要后台任务兜底清理
+
+**相关文档**:
+- [记忆系统规范](../spec/ai/memory-system.md)
+
+---
+
 ## Extended Media File Types
 
 **Reserved**: `file_type` enum values 2/3/4 in database schema

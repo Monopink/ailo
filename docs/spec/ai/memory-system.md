@@ -1,6 +1,6 @@
 # 记忆系统
 
-本规范记录 AI 记忆系统的长期约束，用于指导模型交互与后端实现。实施细节与任务跟踪请见 `docs/task/ai-memory-system-design.md`。
+本规范记录 AI 记忆系统的长期约束，用于指导模型交互与后端实现。实施细节与任务跟踪请见 `docs/tasks/completed/ai-memory-system-design.md`。
 
 ## 数据模型
 
@@ -21,7 +21,7 @@
 
 ## 配置与数量限制
 
-限制仅作用在检索阶段，写入不触发淘汰。回落顺序：
+限制仅作用在检索阶段，写入淘汰暂不实现；如需写入时归档见 `docs/tasks/future-features-reserved.md`。回落顺序：
 
 ```
 ai_instances.request_params.memory_limits

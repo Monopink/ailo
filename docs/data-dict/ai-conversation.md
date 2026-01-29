@@ -54,7 +54,7 @@ media_url -- 媒体地址（message_type=image/audio 必填）
 media_metadata -- JSONB 元数据（如宽高、时长、transcript 等）
 client_msg_ids -- 聚合的客户端消息ID
 buffer_id -- 关联 ai_message_buffer.id，user 必填、assistant 可选
-is_excluded_from_context -- 是否从 LLM 上下文中剔除（攻击/敏感内容），默认false
+is_excluded_from_context -- 上下文状态：0=包含，1=排除（默认 0）
 created_at
 ```
 
@@ -73,7 +73,7 @@ media_url -- 媒体地址
 media_metadata -- 媒体元数据
 client_msg_ids -- 客户端消息ID
 buffer_id -- 原始缓冲窗口ID
-is_excluded_from_context -- 是否排除上下文
+is_excluded_from_context -- 上下文状态：0=包含，1=排除
 created_at -- 原始创建时间
 archived_at -- 归档时间
 ```
@@ -153,7 +153,7 @@ updated_at
   - 配置位置：`llm_configs.extra_params.memory_limits` 或 `ai_instances.request_params.memory_limits`
   - 配置格式：`{"core": 30, "recent": 50}`（JSONB）
   - 三级回落：实例层 → LLM配置层 → 代码默认值
-  - 执行策略：检索时limit、写入时归档超额、定时任务兜底清理
+  - 执行策略：检索时 limit；写入淘汰暂不实现，后续归档预留见 `docs/tasks/future-features-reserved.md`
 
 - **性能优化**：
   - 使用 `expires_at` 索引快速过滤过期记忆（`WHERE expires_at > NOW()`）
@@ -166,4 +166,4 @@ updated_at
 
 **相关文档**：
 - 规格说明：[../spec/ai/memory-system.md](../spec/ai/memory-system.md)
-- 设计文档：[../task/ai-memory-system-design.md](../task/ai-memory-system-design.md)
+- 设计文档：[../tasks/completed/ai-memory-system-design.md](../tasks/completed/ai-memory-system-design.md)

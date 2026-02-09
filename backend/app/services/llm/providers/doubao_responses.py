@@ -66,17 +66,32 @@ class DoubaoResponsesAdapter(OpenAIBaseAdapter):
         options: LLMRequestOptions,  # noqa: ARG002
     ) -> LLMProviderResult:
         content, tool_calls, reasoning_content = _extract_responses_text(response)
-        usage = _usage_to_dict(getattr(response, "usage", None))
+        # Non-streaming requests return a plain dict payload (see _send_non_streaming_request),
+        # so we must read fields via dict access rather than attribute access.
+        usage_source = (
+            response.get("usage")
+            if isinstance(response, dict)
+            else getattr(response, "usage", None)
+        )
+        usage = _usage_to_dict(usage_source)
         request_payload = _build_request_payload(params)
+        model_value = (
+            response.get("model")
+            if isinstance(response, dict)
+            else getattr(response, "model", None)
+        )
+        response_id_value = (
+            response.get("id") if isinstance(response, dict) else getattr(response, "id", None)
+        )
 
         return LLMProviderResult(
             content=content,
-            model=getattr(response, "model", None),
+            model=model_value if isinstance(model_value, str) else None,
             usage=usage,
             finish_reason=_extract_finish_reason(response),
             raw_response=_coerce_to_json_response(response),
             request_params=request_payload,
-            response_id=getattr(response, "id", None),
+            response_id=response_id_value if isinstance(response_id_value, str) else None,
             cache_hit=_is_cache_hit(usage),
             tool_calls=tool_calls,
             reasoning_content=reasoning_content,

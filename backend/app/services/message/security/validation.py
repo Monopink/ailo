@@ -129,8 +129,7 @@ class MessageValidationService:
             return ValidationResult(
                 allowed=False,
                 reason=(
-                    f"Test user '{test_user_qiao_id}' has blocked "
-                    f"AI instance '{instance.qiao_id}'"
+                    f"Test user '{test_user_qiao_id}' has blocked AI instance '{instance.qiao_id}'"
                 ),
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
                 error_code="TEST_USER_BLOCKED_INSTANCE",
@@ -145,8 +144,7 @@ class MessageValidationService:
             return ValidationResult(
                 allowed=False,
                 reason=(
-                    f"AI instance '{instance.qiao_id}' has blocked "
-                    f"test user '{test_user_qiao_id}'"
+                    f"AI instance '{instance.qiao_id}' has blocked test user '{test_user_qiao_id}'"
                 ),
                 chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
                 error_code="INSTANCE_BLOCKED_TEST_USER",

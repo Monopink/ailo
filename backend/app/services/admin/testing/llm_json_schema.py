@@ -166,8 +166,7 @@ async def test_json_schema_compatibility(
             "success": False,
             "mode": config.json_schema_mode,  # Keep current mode
             "message": (
-                f"⚠️ Test failed: {error_msg}. Mode unchanged "
-                f"(still '{config.json_schema_mode}')"
+                f"⚠️ Test failed: {error_msg}. Mode unchanged (still '{config.json_schema_mode}')"
             ),
             "test_log_id": test_log.id,
         }
@@ -262,9 +261,7 @@ async def test_json_schema_compatibility(
         return {
             "success": False,
             "mode": config.json_schema_mode,  # Keep current mode
-            "message": (
-                f"⚠️ Test error: {e!s}. Mode unchanged " f"(still '{config.json_schema_mode}')"
-            ),
+            "message": (f"⚠️ Test error: {e!s}. Mode unchanged (still '{config.json_schema_mode}')"),
             "error": str(e),
             "test_log_id": test_log.id,
         }

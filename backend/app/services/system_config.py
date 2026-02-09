@@ -38,7 +38,7 @@ _config_state: _ConfigCacheState = {"cache": {}, "loaded": False}
 
 def _ensure_numeric_config_value(value: ConfigValue, key: str) -> NumericConfigValue:
     """Ensure a configuration value can be treated as a numeric string/int."""
-    if isinstance(value, (str, int, float)):
+    if isinstance(value, str | int | float):
         return value
     raise ConfigurationError(
         message=f"Configuration '{key}' expects a numeric value.",

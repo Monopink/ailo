@@ -162,6 +162,63 @@ async def test_memory_operations_lifecycle(
 
 
 @pytest.mark.asyncio
+async def test_delete_instance_memory_does_not_blank_out_instance_pk(
+    db_session: AsyncSession,
+) -> None:
+    """Regression: deleting AIInstanceMemory must not attempt to NULL out AIInstance.id."""
+    user, style, personality = await _get_reference(db_session)
+    if not all([user, style, personality]):
+        pytest.skip("Required seed data missing for instance memory delete regression test")
+
+    assert user is not None
+    assert style is not None
+    assert personality is not None
+
+    instance = AIInstance(
+        qiao_id=f"test_del_{uuid.uuid4().hex[:20]}",  # fits varchar(32)
+        user_id=user.id,
+        user_qiao_id=user.qiao_id,
+        style_id=style.id,
+        personality_id=personality.id,
+        creation_metadata={},
+        status=1,
+        prompt_variables={},
+        request_params={},
+        typing_speed_wpm=200,
+        timezone="Asia/Shanghai",
+        created_by=2,
+    )
+    db_session.add(instance)
+    await db_session.flush()
+
+    memory = AIInstanceMemory(
+        instance_id=instance.id,
+        instance_qiao_id=instance.qiao_id,
+        user_id=user.id,
+        user_qiao_id=user.qiao_id,
+        memory_type="core",
+        content=f"delete_reg_{uuid.uuid4().hex}",
+        importance=5,
+        status=1,
+    )
+
+    # Ensure the relationship is present in-session; this used to trigger an
+    # invalid dependency sync that attempted to blank out AIInstance.id.
+    memory.instance = instance
+
+    db_session.add(memory)
+    await db_session.flush()
+    await db_session.commit()
+
+    await db_session.delete(memory)
+    await db_session.commit()
+
+    # Cleanup
+    await db_session.execute(delete(AIInstance).where(AIInstance.id == instance.id))
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_copy_template_memories_to_instance(
     db_session: AsyncSession,
 ) -> None:

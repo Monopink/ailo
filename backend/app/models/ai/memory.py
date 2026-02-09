@@ -33,7 +33,7 @@ class AITemplateMemory(SnowflakeModel):
     )
     template: Mapped["AITemplate"] = orm_relationship(
         "AITemplate",
-        primaryjoin="AITemplateMemory.template_id == foreign(AITemplate.id)",
+        primaryjoin="AITemplate.id == foreign(AITemplateMemory.template_id)",
         lazy="select",
     )
     memory_type: Mapped[str] = mapped_column(String(20), nullable=False, comment="core/recent")
@@ -103,12 +103,12 @@ class AIInstanceMemory(SnowflakeModel):
 
     instance: Mapped["AIInstance"] = orm_relationship(
         "AIInstance",
-        primaryjoin="AIInstanceMemory.instance_id == foreign(AIInstance.id)",
+        primaryjoin="AIInstance.id == foreign(AIInstanceMemory.instance_id)",
         lazy="select",
     )
     user: Mapped["User"] = orm_relationship(
         "User",
-        primaryjoin="AIInstanceMemory.user_id == foreign(User.id)",
+        primaryjoin="User.id == foreign(AIInstanceMemory.user_id)",
         lazy="select",
     )
 

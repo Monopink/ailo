@@ -286,14 +286,24 @@ class ExecutorService:
         }
         log_entry.status = 1  # success
         log_entry.response_time = response_time_ms
-        usage_dict = conversation_result.get("usage", {})
+        usage_dict = conversation_result.get("usage")
         config_used_dict = conversation_result.get("config_used", {})
 
-        # Extract and convert values with proper type handling
-        total_tokens_val = usage_dict.get("total_tokens", 0) if isinstance(usage_dict, dict) else 0
-        log_entry.token_count = (
-            int(total_tokens_val) if isinstance(total_tokens_val, int | float) else 0
-        )
+        # Performance metadata is optional; avoid fabricating values when usage is unavailable.
+        total_tokens_val: Any | None = None
+        if isinstance(usage_dict, dict):
+            total_tokens_val = usage_dict.get("total_tokens")
+        if isinstance(total_tokens_val, int):
+            log_entry.token_count = total_tokens_val
+        elif isinstance(total_tokens_val, float):
+            log_entry.token_count = int(total_tokens_val)
+        elif isinstance(total_tokens_val, str):
+            try:
+                log_entry.token_count = int(total_tokens_val)
+            except ValueError:
+                log_entry.token_count = None
+        else:
+            log_entry.token_count = None
 
         provider_name_val = (
             config_used_dict.get("provider_name") if isinstance(config_used_dict, dict) else None
@@ -329,6 +339,19 @@ class ExecutorService:
         outgoing: list[Any] = outgoing_val if isinstance(outgoing_val, list) else []
         followup: list[Any] = followup_val if isinstance(followup_val, list) else []
         all_messages: list[Any] = [*outgoing, *followup]
+        usage_dict = conversation_result.get("usage")
+        llm_tokens: int | None = None
+        if isinstance(usage_dict, dict):
+            total_tokens_val = usage_dict.get("total_tokens")
+            if isinstance(total_tokens_val, int):
+                llm_tokens = total_tokens_val
+            elif isinstance(total_tokens_val, float):
+                llm_tokens = int(total_tokens_val)
+            elif isinstance(total_tokens_val, str):
+                try:
+                    llm_tokens = int(total_tokens_val)
+                except ValueError:
+                    llm_tokens = None
         result: JSONDict = {
             "success": True,
             "test_mode": "immediate",
@@ -348,7 +371,7 @@ class ExecutorService:
             },
             "performance": {
                 "response_time_ms": response_time_ms,
-                "llm_tokens": conversation_result.get("usage", {}).get("total_tokens", 0),
+                "llm_tokens": llm_tokens,
             },
             "request_payload": conversation_result.get("request_payload"),
             "history_messages": history_messages,

@@ -592,8 +592,12 @@ pre {
       var rawMessages = [];
       if (Array.isArray(payload.input)) {
         rawMessages = payload.input;
+      } else if (payload.call_params && Array.isArray(payload.call_params.input)) {
+        rawMessages = payload.call_params.input;
       } else if (Array.isArray(payload.messages)) {
         rawMessages = payload.messages;
+      } else if (payload.call_params && Array.isArray(payload.call_params.messages)) {
+        rawMessages = payload.call_params.messages;
       } else if (payload.payload && Array.isArray(payload.payload.messages)) {
         rawMessages = payload.payload.messages;
       }
@@ -810,8 +814,12 @@ pre {
         if (data.request_payload) {
           if (Array.isArray(data.request_payload.input)) {
             reqMsgs = data.request_payload.input;
+          } else if (data.request_payload.call_params && Array.isArray(data.request_payload.call_params.input)) {
+            reqMsgs = data.request_payload.call_params.input;
           } else if (Array.isArray(data.request_payload.messages)) {
             reqMsgs = data.request_payload.messages;
+          } else if (data.request_payload.call_params && Array.isArray(data.request_payload.call_params.messages)) {
+            reqMsgs = data.request_payload.call_params.messages;
           } else if (data.request_payload.payload && Array.isArray(data.request_payload.payload.messages)) {
             reqMsgs = data.request_payload.payload.messages;
           }

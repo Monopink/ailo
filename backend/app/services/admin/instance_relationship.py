@@ -237,7 +237,7 @@ async def generate_relationship_for_instance(
 
 def _coerce_numeric_bound(value: JSONValue | None, default: float) -> float:
     """Convert JSON value into a floating-point bound."""
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     if isinstance(value, str):
         try:

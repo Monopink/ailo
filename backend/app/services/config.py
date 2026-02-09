@@ -83,7 +83,7 @@ class ConfigService:
             value = await self.get_config(db, key, required=required)
             if value is None:
                 raise MissingConfigurationError(config_key=key)
-            if isinstance(value, (int, float, str)):
+            if isinstance(value, int | float | str):
                 return int(value)
             raise TypeError(f"Unsupported type for integer configuration: {type(value).__name__}")
         except (TypeError, ValueError) as exc:

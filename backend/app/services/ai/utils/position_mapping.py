@@ -30,7 +30,7 @@ ALGORITHM_PARAM_SPECS: dict[PositionMappingAlgorithm, list[AlgorithmParameterSpe
             "name": "left_sensitivity",
             "label": "Left Sensitivity (%)",
             "description": (
-                "Sensitivity factor for positions below the initial position " "(-100 to 100)."
+                "Sensitivity factor for positions below the initial position (-100 to 100)."
             ),
             "input_type": "integer",
             "min": -100,
@@ -42,7 +42,7 @@ ALGORITHM_PARAM_SPECS: dict[PositionMappingAlgorithm, list[AlgorithmParameterSpe
             "name": "right_sensitivity",
             "label": "Right Sensitivity (%)",
             "description": (
-                "Sensitivity factor for positions above the initial position " "(-100 to 100)."
+                "Sensitivity factor for positions above the initial position (-100 to 100)."
             ),
             "input_type": "integer",
             "min": -100,
@@ -120,7 +120,7 @@ def _coerce_numeric_param(value: JSONValue, spec: AlgorithmParameterSpec) -> Num
         if raw_value == "":
             raise ValueError(f"{spec['label']} is required")
 
-    if not isinstance(raw_value, (str, int, float)):
+    if not isinstance(raw_value, str | int | float):
         raise TypeError(f"{spec['label']} must be a number")
 
     try:
@@ -418,7 +418,7 @@ def get_algorithm_info(algorithm: int) -> dict[str, Any]:
         "name": "V1",
         "version": "6.0",
         "descr_initial_positiontion": (
-            "Nonlinear position mapping with sensitivity-controlled " "logarithmic offset."
+            "Nonlinear position mapping with sensitivity-controlled logarithmic offset."
         ),
         "parameters": [
             {

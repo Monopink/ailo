@@ -47,7 +47,7 @@
     "compileWorklet": false,
     "localPlugins": false,
     "disableUseStrict": false,
-    "useCompilerPlugins": false,
+    "useCompilerPlugins": ["typescript"],
     "swc": false,
     "disableSWC": true
   },
@@ -60,10 +60,5 @@
     "tabIndent": "insertSpaces",
     "tabSize": 2
   },
-  "simulatorPluginLibVersion": {},
-  "scripts": {
-    "beforeCompile": "npm run build:ts",
-    "beforePreview": "npm run build:ts",
-    "beforeUpload": "npm run build"
-  }
+  "simulatorPluginLibVersion": {}
 }

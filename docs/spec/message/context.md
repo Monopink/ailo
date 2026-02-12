@@ -11,16 +11,6 @@
 
 完整表结构见 [data-dict/ai-conversation.md](../../data-dict/ai-conversation.md)
 
-本文档关注的关键字段：
-
-- role - 消息角色（user/assistant/system）
-- message_type - 消息类型（text/image/audio）
-- text_content - 文本内容（message_type=text 必填）
-- media_url/media_metadata - 媒体地址与元数据（image/audio 必填）
-- buffer_id - 关联的 buffer 窗口 ID
-- is_excluded_from_context - 上下文状态（0=包含，1=排除）
-- created_at - 消息创建时间（真实发送时间）
-
 ### 消息存储格式
 
 ai_conversation_items 使用扁平字段存储（message_type/text_content/media_url/media_metadata），转换为 LLM 请求格式由 converter 在构建阶段完成，详见 `../ai/prompt-building.md` 与 `backend/app/services/ai/context/converter.py`。
@@ -29,17 +19,7 @@ ai_conversation_items 使用扁平字段存储（message_type/text_content/media
 
 ### 基本查询
 
-从 ai_conversation_items 查询对话历史，自动排除攻击消息：
-
-```sql
-SELECT role, message_type, text_content, media_url, media_metadata, created_at
-FROM ai_conversation_items
-WHERE user_qiao_id = $user_id
-  AND instance_qiao_id = $char_id
-  AND is_excluded_from_context = 0
-ORDER BY created_at DESC
-LIMIT 20;
-```
+从 ai_conversation_items 查询对话历史，自动排除攻击消息
 
 ### 查询策略
 
@@ -162,17 +142,7 @@ LLM 要求连续同 role 的消息必须合并，converter 层负责此逻辑。
 
 ### LLM 元数据存储
 
-LLM 请求的元数据（llm_config_id、response_id、token 使用量等）存储在 ai_request_logs 表中，不存储在 ai_conversation_items。
-
-**查询 LLM 元数据**：
-
-```sql
--- 通过 buffer_id 关联查询
-SELECT arl.*
-FROM ai_request_logs arl
-JOIN ai_message_buffer amb ON amb.id = arl.buffer_id
-WHERE amb.id = $buffer_id;
-```
+LLM 请求的元数据（llm_config_id、response_id、token 使用量等）存储在 ai_request_logs 表中，通过 buffer_id 关联查询。
 
 ## 上下文裁剪策略
 
@@ -191,12 +161,6 @@ WHERE amb.id = $buffer_id;
 可选配置：只查询最近 N 天的消息。
 
 从 system_configs 获取 `ai_context_time_window_days`（默认 30 天）。
-
-**查询时添加时间过滤**：
-
-```sql
-WHERE created_at >= NOW() - INTERVAL '$days days'
-```
 
 ### 消息数量限制
 
@@ -235,18 +199,4 @@ Assistant 消息在实际发送时写入（不是在 buffer 完成时）。
 
 ## 归档策略（非 MVP）
 
-定期将超过 14 天的记录迁移到 ai_conversation_items_archive：
-
-```sql
--- 迁移旧记录
-INSERT INTO ai_conversation_items_archive
-SELECT * FROM ai_conversation_items
-WHERE created_at < NOW() - INTERVAL '14 days';
-
--- 删除已归档记录
-DELETE FROM ai_conversation_items
-WHERE created_at < NOW() - INTERVAL '14 days';
-
--- 维护索引健康
-VACUUM ANALYZE ai_conversation_items;
-```
+定期将超过 14 天的记录迁移到 ai_conversation_items_archive

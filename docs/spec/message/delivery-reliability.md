@@ -11,26 +11,27 @@
 
 ### 核心规则
 
-- 仅补偿 **发给当前用户** 的消息（to_qiao_id == current user）。
+- 返回当前用户可见会话的时间线增量（双向：user ↔ assistant）。
+- Offline 消息集合仅包含聊天时间线消息（TEXT + CHAT_INFO）。
 - 不设置时间窗口限制，依赖服务端游标确保不会变相同步历史。
 - 新客户端首次创建游标时不补偿，直接从当前时间开始。
 
 ### 客户端标识
 
 - 客户端生成稳定 UUID（设备/安装级），作为 device_id。
-- device_id 必须随离线拉取与 ACK 上送，服务端按客户端区分游标。
+- device_id 必须随离线拉取与 ACK 上送，服务端按 (user_id, device_id) 区分游标。
 - device_id 生成与持久化规范见：`docs/spec/client/base/device-id.md`。
 
 ### 游标模型
 
-- 存储在 message_offline_cursor。
-- 使用二元游标：last_ack_sent_at + last_ack_msg_id。
+- 存储在 `message_devices`。
+- 使用二元游标：`last_acked_msg_sent_at` + `last_acked_msg_id`。
 - 游标仅在收到 ACK 后推进。
 
 ### 处理流程
 
 1. 客户端断线重连后优先请求离线消息（带 device_id）。
-2. 服务端使用 last_ack_* 作为起点，拉取未确认消息并返回。
+2. 服务端使用 `message_devices.last_acked_msg_*` 作为起点，拉取未确认消息并返回。
 3. 客户端成功落盘后发送 ACK（可在补偿完成后统一 ACK）。
 4. 服务端更新游标。
 
@@ -39,17 +40,16 @@
 - 实时消息与离线消息都必须 ACK。
 - ACK 只能在离线补偿完成后发送，避免游标越过未补偿消息。
 - 实时消息在补偿完成前不得 ACK，应先落盘并进入待 ACK 队列。
-- ACK 游标必须基于客户端已持久化的最大 (sent_time, msg_id_server)。
+- ACK 游标必须基于客户端已持久化的最大 (sent_time_ms, msg_id_server)。
 - 未 ACK 的消息会在后续拉取中重复返回，避免消息丢失。
 - 服务端仅接受连续递进的 ACK；小于当前游标的 ACK 会被忽略并记录 warning。
-- 服务端以 `msg_id_server` 对应的 `sent_time` 为准，客户端 `last_ack_sent_at` 不一致只记录 warning。
-- 服务端收到有效 ACK 后，将游标及之前的消息标记为 delivered（不引入 read 状态）。
+- 服务端以 `msg_id_server` 对应的 `sent_at` 为准推进游标。
 
 ### 分页与顺序
 
-- 离线拉取按 `sent_time` 升序、`msg_id_server` 作为稳定排序键。
+- 离线拉取按 `sent_time_ms` 升序、`msg_id_server` 作为稳定排序键。
 - 分页通过服务端返回的游标继续拉取，直到 `has_more=false`。
-- 所有 *_time 字段为 Unix 毫秒时间戳（UTC）。
+- 所有时间戳字段为 Unix 毫秒时间戳（UTC）。
 
 ## 未来消息同步（预留）
 

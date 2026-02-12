@@ -37,9 +37,10 @@
 
 ### 离线补偿与 ACK
 
+- 离线消息返回当前用户可见会话的时间线增量（双向：user ↔ assistant）
 - 断线重连后必须先拉取离线消息，再允许发送 ACK
 - 实时消息到达时先落盘与展示，补偿完成前不得 ACK
-- ACK 必须基于客户端已持久化的最大 (sent_time, msg_id_server)
+- ACK 必须基于客户端已持久化的最大 (sent_time_ms, msg_id_server)
 
 ## 对话页面
 
@@ -66,8 +67,8 @@
 
 - 表情按钮与表情面板
 - 输入框：
-  - 从空白开始输入触发 typing_start
-  - 输入清空且输入法结束时触发 typing_end
+  - 从空白开始输入触发 typing_start（发送前 1 秒 buffer）
+  - 输入清空且输入法结束时触发 typing_end（立即发送）
   - 字符上限由配置控制；小程序 MVP 固定 49（见 `../mini-program/prototype.md`）
 - 发送按钮：发送文本消息
 
@@ -109,5 +110,5 @@
 
 ## 相关规范
 
-- 输入状态协议详见 `docs/spec/message/special-types.md`
+- 输入状态协议详见 `docs/spec/message/typing.md`
 - 消息发送失败处理详见 `docs/spec/message/failure-handling.md`

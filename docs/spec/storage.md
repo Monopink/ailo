@@ -21,14 +21,6 @@ fsspec 抽象层
 └── TencentCOSBackend (生产环境)
 ```
 
-### 核心原则
-
-1. **提供商无关**: 应用代码不直接依赖特定存储提供商
-2. **配置驱动**: 通过配置选择存储提供商，无需修改代码
-3. **动态生成 URL**: 永不存储完整 URL，始终动态生成
-4. **安全优先**: 私有内容使用预签名 URL，公开内容使用 CDN
-5. **成本优化**: 启用 CDN 加速，实施去重策略
-
 ---
 
 ## 存储后端
@@ -49,10 +41,10 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 
 ### 公共 CDN 域名配置
 
-- **Runtime source**: system_configs.media_public_base_url (modifiable via admin)
-- **Bootstrap fallback**: MEDIA_PUBLIC_BASE_URL environment variable (used only when the database value is empty)
-- **Purpose**: Provide {base_url}/{object_key} URLs for all public resources (avatars, showcases, etc.)
-- **Rollout**: After updating the config, reload the storage backend so every instance picks up the new domain
+- **运行时来源**：system_configs.media_public_base_url（通过管理员可修改）
+- **启动时备选**：MEDIA_PUBLIC_BASE_URL 环境变量（仅在数据库值为空时使用）
+- **目的**：为所有公共资源（头像、展示品等）提供 {base_url}/{object_key} 的网址
+- **部署步骤**：在更新配置后，刷新存储后端，以使每一个实例都能获取到新的域名
 
 ---
 
@@ -89,7 +81,6 @@ images/2025/12/1285612345678901236.webp
 ```
 system_configs.media_public_base_url (or env fallback) + object_key
 ```
-> URL 始终通过配置拼接，`media_files` 不再存储 CDN 域名
 
 ### 预签名 URL (私有内容)
 
@@ -135,19 +126,6 @@ system_configs.media_public_base_url (or env fallback) + object_key
 
 ## 文件校验
 
-### 上传前校验（/media/upload 阶段）
-
-```python
-VALIDATION_RULES = {
-    'avatar': {
-        'max_size': 2 * 1024 * 1024,
-        'allowed_mimes': ['image/jpeg', 'image/png', 'image/webp'],
-        'daily_quota': 5,
-        'daily_size_quota': 10 * 1024 * 1024,
-    }
-}
-```
-
 - `file_type`：必须存在并有对应规则
 - `file_size`：与配置的 `max_size` 比较，同时与客户端字段对比
 - `mime_type`：需要在白名单
@@ -173,20 +151,6 @@ VALIDATION_RULES = {
 ### 策略
 
 **客户端计算 SHA-256** (优先) → **js-sha256 库** (降级) → **后端同步计算** (最终)
-
-### 客户端实现
-
-```javascript
-// 1. 优先使用原生 Web Crypto API (15-40ms)
-const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-
-// 2. 降级使用 js-sha256 库 (60-120ms)
-const sha256 = require('js-sha256');
-const hash = sha256(arrayBuffer);
-
-// 3. 失败则返回 null，后端处理
-return null;
-```
 
 ### 后端处理
 
@@ -228,24 +192,6 @@ WHERE status = 2  -- pending
 **清理动作**:
 1. 删除 COS 对象
 2. 软删除数据库记录（`status=3`）
-
-### 扩展清理
-
-**每日执行**, 清理已激活但未被引用的文件:
-```sql
-SELECT mf.id, mf.object_key
-FROM media_files mf
-LEFT JOIN profiles p ON p.avatar_media_id = mf.id
-WHERE mf.status = 1  -- active
-  AND mf.file_type = 1  -- avatar
-  AND mf.confirmed_at < NOW() - INTERVAL '24 hours'
-  AND p.id IS NULL  -- 未被任何 profile 引用
-```
-
-**安全理由**:
-- 防止黑产刷存储
-- 防止"申请 token 不确认"攻击
-- 防止被当作永久图床
 
 ---
 
@@ -313,24 +259,11 @@ WHERE mf.status = 1  -- active
 
 **清理策略**:
 - 执行频率：每小时
-- 清理条件：status=pending 且 created_at > 1 小时
+- 清理条件：status=pending 且 created_at < NOW() - INTERVAL '1 hour'
 - 清理动作：删除 COS 对象 + 软删除数据库记录
 
 **实施方式**:
-- 推荐：Celery Beat 定时任务
-- 备选：Docker Compose + cron 容器、APScheduler
+- FastAPI 生命周期启动后台 worker（`backend/app/services/media/cleanup.py`）
 
 **监控要点**:
 - 记录每次清理的文件数量
-- 单次清理 > 100 个文件时告警（可能是攻击）
-
----
-
-## 参考资料
-
-- [fsspec 文档](https://filesystem-spec.readthedocs.io/)
-- [腾讯云 COS 文档](https://cloud.tencent.com/document/product/436)
-- [S3 API 兼容性指南](https://cloud.tencent.com/document/product/436/37421)
-- [存储安全规范](storage-security.md)
-- [资料数据字典](../data-dict/profile.md)
-- [媒体 API 文档](../api/media.md)

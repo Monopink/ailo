@@ -8,7 +8,7 @@ AI 实例创建负责将 Persona + Template 组合创建为可用的 AI Instance
 
 - **Persona**：包含 qiao_id、类型、展示信息
 - **Template**：包含 LLM 配置、系统提示词等
-- **Instance**：实际运行的 AI 实例，继承 Persona 的 qiao_id
+- **Instance**：实际运行的 AI 实例；`source=persona` 时继承 Persona 的 qiao_id 和 username
 
 **关系**：
 
@@ -28,7 +28,9 @@ AI 实例创建负责将 Persona + Template 组合创建为可用的 AI Instance
 **实现**：
 
 - `ai_instances.qiao_id = ai_personas.qiao_id`
-- `ai_instances.creation_metadata.source = "persona"`
+- `creation_metadata.source = "persona"` 时：`ai_instances.username = ai_personas.username`
+- `creation_metadata.source = "admin_manual"` 时：`ai_instances.username IS NULL`
+- 正常添加流程固定：`ai_instances.creation_metadata.source = "persona"`
 - Instance 不创建新 Profile，共享 Persona 的 Profile
 
 ## 创建流程
@@ -104,6 +106,7 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 
 1. **生成 Instance 记录**：
    - qiao_id = persona.qiao_id（继承）
+   - username = persona.username（继承）
    - type_id = persona.type_id
    - template_id = 选中的模板 ID
    - user_id = 申请人的 user_id
@@ -121,6 +124,7 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 4. **标记 Persona 状态**：
    - 如果 persona.is_reusable = 0
    - 更新 persona.status = 3（已使用）
+   - 若发生 persona.username 更新，必须同事务同步更新所有关联 `source=persona` 的 instance.username（强一致）
 
 ### 4. 创建联系人记录
 
@@ -136,7 +140,7 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
    - tags = 申请时提供的 tags
    - source = contact_request.source
 
-2. **生成 conv_id**：
+2. **生成 conversation_id**：
    - 格式：`conv_` + 随机字符串
    - 用于标识对话
 
@@ -300,24 +304,7 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 - 回滚事务（包括 Instance）
 - 需要告警
 
-## 监控建议
-
-### 关键指标
-
-- 挂起请求数量（按 ai_type_id 统计）
-- 平均重试次数
-- 模板消耗速度（不可复用模板）
-- Instance 创建成功率
-
-### 告警规则
-
-- 某个 ai_type_id 的挂起请求 > 10
-- 某个请求的 retry_count > 5（可能是配置问题）
-- Instance 创建失败率 > 5%
-
 ## 数据表
-
-详见：
 
 - [data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md) - ai_personas, ai_templates, ai_instances
 - [data-dict/contact.md](../../data-dict/contact.md) - contact_requests, contacts

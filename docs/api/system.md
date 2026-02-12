@@ -36,6 +36,16 @@
 - `mode` (string) - 交互模式，默认为 `popup`
 - `language` (string) - 语言标识，默认为 `cn`
 
+### 错误响应
+
+**401 Unauthorized**:
+
+- `"认证失效，请重新登录"` - Token 无效或已过期
+
+**500 Internal Server Error**:
+
+- `"系统错误（error_code）"` - 服务器内部错误
+
 ### 业务说明
 
 - 所有值来自 `system_configs`，优先读取客户端前缀配置，找不到再回退到全局配置（`captcha_provider`、`captcha_scene_id` 等）。

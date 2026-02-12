@@ -4,14 +4,12 @@
 
 ## 核心设计原则
 
-### CHAT_INFO vs NOTIFICATION
-
 系统使用两种不同的消息类型处理通知：
 
 **CHAT_INFO (message_type=4)**：
 
 - 用途：聊天界面的信息提示
-- 需要 conv_id
+- 需要 conversation_id
 - 存储到 message_history 表
 - 显示在聊天界面中
 - 例如："对方已将你添加为联系人"
@@ -19,22 +17,12 @@
 **NOTIFICATION (message_type=9)**：
 
 - 用途：系统通知推送
-- 不需要 conv_id（设为空字符串）
+- 不需要 conversation_id（设为空字符串）
 - 存储到 notification_push_history 表
 - 不显示在聊天界面中
 - 包含 action 和 data，用于前端导航
 - 例如：好友申请通知
 
-### 为什么不提供列表查询接口
-
-好友申请采用消息推送机制，不提供列表查询接口：
-
-**原因**：
-
-- 好友申请是实时性很强的功能，通过消息推送更及时
-- 申请有效期短（7 天），不需要长期存储和查询
-- 客户端本地存储即可满足需求
-- 减少不必要的 API 调用
 
 **数据流**：
 
@@ -59,7 +47,7 @@
 ```json
 {
   "message_type": 4,
-  "conv_id": "conv_xyz789",
+  "conversation_id": "conv_xyz789",
   "content": "已添加为联系人",
   "info_type": 1
 }
@@ -68,7 +56,7 @@
 **字段说明**：
 
 - message_type - 固定为 4（CHAT_INFO）
-- conv_id - 对话 ID（必需）
+- conversation_id - 对话 ID（必需）
 - content - 提示文本
 - info_type - 信息类型枚举（见下文）
 
@@ -88,7 +76,7 @@
 - 触发：用户 B 接受用户 A 的好友申请
 - 接收方：用户 A
 - 内容：使用 CHAT_INFO_TEMPLATES 中的 CONTACT_ADDED 模板
-- conv_id：用户 A 与用户 B 的对话 ID
+- conversation_id：用户 A 与用户 B 的对话 ID
 
 **实现位置**：
 
@@ -100,7 +88,7 @@
 - 表：message_history
 - 字段：
   - message_type = 4
-  - conv_id = 对话 ID
+  - conversation_id = 对话 ID
   - content = 提示文本
   - info_type = 信息类型
 
@@ -121,7 +109,7 @@
 ```json
 {
   "message_type": 9,
-  "conv_id": "",
+  "conversation_id": "",
   "content": {
     "notification_type": 1,
     "action": {
@@ -142,7 +130,7 @@
 **字段说明**：
 
 - message_type - 固定为 9（NOTIFICATION）
-- conv_id - 固定为空字符串（不属于任何对话）
+- conversation_id - 固定为空字符串（不属于任何对话）
 - content - 通知内容对象
   - notification_type - 通知类型枚举
   - action - 前端操作指令
@@ -171,7 +159,7 @@
 **open_conversation（打开对话）**：
 
 - type: "open_conversation"
-- conv_id: 对话 ID
+- conversation_id: 对话 ID
 
 **external_link（外部链接）**：
 
@@ -255,7 +243,7 @@
 1. **接收消息**：
    - 通过 LeanCloud IM SDK 接收
    - message_type = 4
-   - 包含 conv_id
+   - 包含 conversation_id
 
 2. **存储到本地**：
    - 存储到消息历史表
@@ -269,15 +257,7 @@
 
 ### CHAT_INFO 模板
 
-定义在 `backend/app/constants/message.py` - `CHAT_INFO_TEMPLATES`：
-
-```python
-CHAT_INFO_TEMPLATES = {
-    "CONTACT_ADDED": "已添加为联系人",
-    "CONTACT_DELETED": "联系人已删除",
-    "CONTACT_BLOCKED": "联系人已屏蔽",
-}
-```
+定义在 `backend/app/constants/message.py` - `CHAT_INFO_TEMPLATES`
 
 ### NOTIFICATION 模板
 
@@ -319,26 +299,3 @@ CHAT_INFO_TEMPLATES = {
 
 - 定期清理过期的申请记录（7 天前）
 - 避免本地数据库膨胀
-
-## 监控建议
-
-### 关键指标
-
-- NOTIFICATION 发送成功率
-- CHAT_INFO 发送成功率
-- 平均通知到达时间
-- 客户端本地存储大小
-
-### 告警规则
-
-- NOTIFICATION 发送失败率 > 5%
-- CHAT_INFO 发送失败率 > 5%
-- 通知到达时间 > 5 秒（可能是 LeanCloud 问题）
-
-## 相关文档
-
-- [request-flow.md](request-flow.md) - 联系人请求流程
-- [spec/message/special-types.md](../message/special-types.md) - 特殊消息类型详解
-- [api/leancloud-message.md](../../api/leancloud-message.md) - 消息服务 API
-- [data-dict/message.md](../../data-dict/message.md) - 消息数据表
-- [data-dict/notification.md](../../data-dict/notification.md) - 通知数据表

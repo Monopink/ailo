@@ -45,7 +45,7 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT PRIMARY KEY,
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
-    username VARCHAR(50) NULL,
+    username VARCHAR(20) NULL,
     phone VARCHAR(20) UNIQUE,
     email VARCHAR(100) UNIQUE,
     password_hash VARCHAR(255),
@@ -63,6 +63,24 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Create indexes for users table
 -- Note: No additional indexes needed for MVP
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_username_lower
+    ON users (LOWER(username)) WHERE username IS NOT NULL;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_users_username_format'
+    ) THEN
+        ALTER TABLE users DROP CONSTRAINT ck_users_username_format;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_users_username_length'
+    ) THEN
+        ALTER TABLE users ADD CONSTRAINT ck_users_username_length
+            CHECK (username IS NULL OR CHAR_LENGTH(username) BETWEEN 5 AND 20);
+    END IF;
+END $$;
 
 
 -- User tokens table - JWT token management with device limits and dual-token support
@@ -72,7 +90,7 @@ CREATE TABLE IF NOT EXISTS user_tokens (
     user_qiao_id VARCHAR(32) NOT NULL,
     access_token VARCHAR(512) NOT NULL UNIQUE,
     device_type INTEGER NOT NULL,
-    device_id VARCHAR(128),
+    device_id UUID NOT NULL,
     platform_info JSONB,
     ip_address INET,
     user_agent TEXT,
@@ -135,14 +153,26 @@ CREATE TABLE IF NOT EXISTS login_records (
     login_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     login_type INTEGER NOT NULL,
     platform INTEGER NOT NULL,
-    device_id VARCHAR(128),
+    device_id UUID,
     ip_address INET,
     user_agent TEXT,
     result INTEGER NOT NULL,
     fail_reason VARCHAR(255),
-    token VARCHAR(512),
+    user_token_id BIGINT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_login_records_user_token_id ON login_records(user_token_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_login_records_user_token'
+    ) THEN
+        ALTER TABLE login_records ADD CONSTRAINT fk_login_records_user_token
+            FOREIGN KEY (user_token_id) REFERENCES user_tokens(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 
 -- ============================================================================
@@ -196,7 +226,7 @@ CREATE UNIQUE INDEX idx_media_files_storage_unique ON media_files(storage_provid
 -- Contacts table - Contact relationships between users and AI
 CREATE TABLE IF NOT EXISTS contacts (
     id BIGINT PRIMARY KEY,
-    conv_id VARCHAR(32) NOT NULL UNIQUE,
+    conversation_id VARCHAR(32) NOT NULL UNIQUE,
     user_id BIGINT,
     user_qiao_id VARCHAR(32),
     contact_type INTEGER NOT NULL,
@@ -308,16 +338,15 @@ CREATE INDEX idx_user_profile_logs_modified_by_type ON user_profile_logs(modifie
 -- Message System Tables
 -- ============================================================================
 
--- Message history table - All message records (only successful sends)
+-- Message history table - Message facts (no delivery state)
 CREATE TABLE IF NOT EXISTS message_history (
     id BIGINT PRIMARY KEY,
     direction INTEGER NOT NULL,
     conversation_id VARCHAR(32) NOT NULL,
     msg_id_server VARCHAR(64) NOT NULL UNIQUE,
     msg_id_provider_inbound VARCHAR(128),
-    msg_id_provider_outbound VARCHAR(128),
     msg_id_client VARCHAR(64),
-    client_sent_time TIMESTAMP WITH TIME ZONE,
+    client_sent_at TIMESTAMP WITH TIME ZONE,
     sent_at TIMESTAMP WITH TIME ZONE,
     from_type INTEGER NOT NULL,
     from_id BIGINT NOT NULL,
@@ -325,13 +354,16 @@ CREATE TABLE IF NOT EXISTS message_history (
     to_type INTEGER NOT NULL,
     to_id BIGINT NOT NULL,
     to_qiao_id VARCHAR(32) NOT NULL,
-    service_provider INTEGER NOT NULL,
     message_type INTEGER NOT NULL,
     content TEXT,
-    status INTEGER NOT NULL DEFAULT 1,
+    inbound_provider SMALLINT,
+    inbound_device_id UUID,
     message_metadata JSONB,
+    llm_request_id BIGINT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_message_history_conv_client_id UNIQUE (conversation_id, msg_id_client)
+    CONSTRAINT uq_message_history_conv_client_id UNIQUE (conversation_id, msg_id_client),
+    CONSTRAINT ck_message_history_inbound_provider
+        CHECK (inbound_provider IS NULL OR inbound_provider IN (1, 2))
 );
 
 -- Create indexes for message_history table
@@ -340,26 +372,66 @@ CREATE INDEX idx_message_history_from_qiao_id ON message_history(from_qiao_id);
 CREATE INDEX idx_message_history_to_qiao_id ON message_history(to_qiao_id);
 CREATE INDEX idx_message_history_created_at ON message_history(created_at);
 CREATE INDEX idx_message_history_msg_id_client ON message_history(msg_id_client);
+CREATE INDEX idx_message_history_llm_request_id ON message_history(llm_request_id);
 -- GIN index for JSONB message_metadata
 CREATE INDEX idx_message_history_metadata_gin ON message_history USING GIN(message_metadata);
 
--- Offline message cursor per device
-CREATE TABLE IF NOT EXISTS message_offline_cursor (
+-- message_devices table - offline cursor and device-level state (cursor is per (user_id, device_id))
+CREATE TABLE IF NOT EXISTS message_devices (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
-    device_id VARCHAR(128) NOT NULL,
-    last_ack_msg_id VARCHAR(64),
-    last_ack_sent_at TIMESTAMP WITH TIME ZONE,
+    device_id UUID NOT NULL,
+    last_acked_msg_id VARCHAR(64),
+    last_acked_msg_sent_at TIMESTAMP WITH TIME ZONE,
     last_pull_at TIMESTAMP WITH TIME ZONE,
+    last_seen_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_message_offline_cursor_user_device UNIQUE (user_id, device_id)
+    CONSTRAINT uq_message_devices_user_device UNIQUE (user_id, device_id)
 );
 
-CREATE INDEX idx_message_offline_cursor_user_qiao_id ON message_offline_cursor(user_qiao_id);
-CREATE INDEX idx_message_offline_cursor_device_id ON message_offline_cursor(device_id);
-CREATE INDEX idx_message_offline_cursor_last_ack_sent_at ON message_offline_cursor(last_ack_sent_at);
+CREATE INDEX idx_message_devices_user_qiao_id ON message_devices(user_qiao_id);
+CREATE INDEX idx_message_devices_device_id ON message_devices(device_id);
+CREATE INDEX idx_message_devices_last_acked_msg_sent_at ON message_devices(last_acked_msg_sent_at);
+
+ALTER TABLE message_devices ADD CONSTRAINT fk_message_devices_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+-- Endpoints table - routable targets (provider binding + lease)
+CREATE TABLE IF NOT EXISTS message_endpoints (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    user_qiao_id VARCHAR(32) NOT NULL,
+    endpoint_scope SMALLINT NOT NULL,
+    device_id UUID,
+    provider SMALLINT NOT NULL,
+    target_key VARCHAR(256) NOT NULL,
+    client_kind SMALLINT,
+    lease_expires_at TIMESTAMP WITH TIME ZONE,
+    last_seen_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_message_endpoints_provider_user_target UNIQUE (provider, user_id, target_key),
+    CONSTRAINT ck_message_endpoints_provider CHECK (provider IN (1, 2)),
+    CONSTRAINT ck_message_endpoints_scope CHECK (endpoint_scope IN (1, 2)),
+    CONSTRAINT ck_message_endpoints_scope_device CHECK (
+        (endpoint_scope = 1 AND device_id IS NULL) OR
+        (endpoint_scope = 2 AND device_id IS NOT NULL)
+    )
+);
+
+CREATE INDEX idx_message_endpoints_user_qiao_id ON message_endpoints(user_qiao_id);
+CREATE INDEX idx_message_endpoints_device_id ON message_endpoints(device_id);
+CREATE INDEX idx_message_endpoints_provider ON message_endpoints(provider);
+CREATE INDEX idx_message_endpoints_scope ON message_endpoints(endpoint_scope);
+CREATE INDEX idx_message_endpoints_lease_expires_at ON message_endpoints(lease_expires_at);
+CREATE UNIQUE INDEX uq_message_endpoints_provider_user_device_scope ON message_endpoints(provider, user_id, device_id) WHERE endpoint_scope = 2;
+
+ALTER TABLE message_endpoints ADD CONSTRAINT fk_message_endpoints_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE message_endpoints ADD CONSTRAINT fk_message_endpoints_device
+    FOREIGN KEY (user_id, device_id) REFERENCES message_devices(user_id, device_id) ON DELETE CASCADE;
 
 -- Notification push history table - Track all notification messages
 CREATE TABLE IF NOT EXISTS notification_push_history (
@@ -376,30 +448,61 @@ CREATE TABLE IF NOT EXISTS notification_push_history (
 -- Create index for notification_push_history table
 CREATE INDEX idx_notification_push_created_at ON notification_push_history(created_at);
 
--- Message delivery failures table - Failed message retry management
-CREATE TABLE IF NOT EXISTS message_delivery_failures (
+-- Message deliveries table - delivery records per endpoint
+CREATE TABLE IF NOT EXISTS message_deliveries (
     id BIGINT PRIMARY KEY,
     msg_id_server VARCHAR(64) NOT NULL,
-    from_id BIGINT NOT NULL,
-    from_qiao_id VARCHAR(32) NOT NULL,
-    from_type INTEGER NOT NULL,
-    to_id BIGINT NOT NULL,
-    to_qiao_id VARCHAR(32) NOT NULL,
-    to_type INTEGER NOT NULL,
-    service_provider INTEGER NOT NULL,
-    message_type INTEGER NOT NULL,
-    content TEXT,
-    fail_reason_code VARCHAR(50),
-    fail_detail TEXT,
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    max_retry_count INTEGER NOT NULL DEFAULT 3,
-    next_retry_at TIMESTAMP WITH TIME ZONE,
+    endpoint_id BIGINT NOT NULL,
+    provider SMALLINT NOT NULL,
+    target_key VARCHAR(256) NOT NULL,
+    provider_msg_id VARCHAR(128),
+    status SMALLINT NOT NULL,
+    dispatched_at TIMESTAMP WITH TIME ZONE,
+    failed_reason_code VARCHAR(50),
+    failed_detail TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_message_deliveries_msg_endpoint UNIQUE (msg_id_server, endpoint_id),
+    CONSTRAINT ck_message_deliveries_provider CHECK (provider IN (1, 2)),
+    CONSTRAINT ck_message_deliveries_status CHECK (status IN (1, 2, 3))
 );
 
--- Create indexes for message_delivery_failures table
--- Note: No additional indexes needed for MVP
+CREATE INDEX idx_message_deliveries_msg_id_server ON message_deliveries(msg_id_server);
+CREATE INDEX idx_message_deliveries_endpoint_id ON message_deliveries(endpoint_id);
+CREATE INDEX idx_message_deliveries_status ON message_deliveries(status);
+
+ALTER TABLE message_deliveries ADD CONSTRAINT fk_message_deliveries_message
+    FOREIGN KEY (msg_id_server) REFERENCES message_history(msg_id_server) ON DELETE CASCADE;
+ALTER TABLE message_deliveries ADD CONSTRAINT fk_message_deliveries_endpoint
+    FOREIGN KEY (endpoint_id) REFERENCES message_endpoints(id) ON DELETE CASCADE;
+
+-- Message dispatch outbox table - dispatch task queue with retry state
+CREATE TABLE IF NOT EXISTS message_dispatch_outbox (
+    id BIGINT PRIMARY KEY,
+    outbox_type SMALLINT NOT NULL,
+    msg_id_server VARCHAR(64) NOT NULL,
+    owner_user_id BIGINT NOT NULL,
+    status SMALLINT NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_retry_at TIMESTAMP WITH TIME ZONE,
+    locked_at TIMESTAMP WITH TIME ZONE,
+    last_error_code VARCHAR(50),
+    last_error_detail TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_message_dispatch_outbox_type_msg UNIQUE (outbox_type, msg_id_server),
+    CONSTRAINT ck_message_dispatch_outbox_type CHECK (outbox_type IN (1)),
+    CONSTRAINT ck_message_dispatch_outbox_status CHECK (status IN (1, 2, 3, 4)),
+    CONSTRAINT ck_message_dispatch_outbox_attempt_count CHECK (attempt_count >= 0)
+);
+
+CREATE INDEX idx_message_dispatch_outbox_status_next_retry ON message_dispatch_outbox(status, next_retry_at);
+CREATE INDEX idx_message_dispatch_outbox_owner_user_id ON message_dispatch_outbox(owner_user_id);
+
+ALTER TABLE message_dispatch_outbox ADD CONSTRAINT fk_message_dispatch_outbox_message
+    FOREIGN KEY (msg_id_server) REFERENCES message_history(msg_id_server) ON DELETE CASCADE;
+ALTER TABLE message_dispatch_outbox ADD CONSTRAINT fk_message_dispatch_outbox_owner_user
+    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 -- ============================================================================
@@ -579,7 +682,7 @@ CREATE TABLE IF NOT EXISTS square_type_entries (
 
 COMMENT ON TABLE square_type_entries IS 'Square discovery entries - decoupled from template/profile inventory';
 COMMENT ON COLUMN square_type_entries.square_category IS 'Square category enum: 1=friend, 2=love, 3=talk, 4=bestie, 5=hobby';
-COMMENT ON COLUMN square_type_entries.exposure_strategy IS 'Exposure strategy enum: 1=random (fixed/weighted removed)';
+COMMENT ON COLUMN square_type_entries.exposure_strategy IS 'Exposure strategy enum: 1=random';
 COMMENT ON COLUMN square_type_entries.status IS '1=active, 2=inactive';
 COMMENT ON COLUMN square_type_entries.type_id IS 'AI type exposed in this slot (references ai_types)';
 
@@ -679,6 +782,7 @@ CREATE TRIGGER update_ai_template_memories_updated_at
 CREATE TABLE IF NOT EXISTS ai_personas (
     id BIGINT PRIMARY KEY,
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
+    username VARCHAR(20) NOT NULL,
     type_id INTEGER NOT NULL,
     is_reusable INTEGER NOT NULL DEFAULT 1,
     status INTEGER NOT NULL DEFAULT 1,
@@ -688,6 +792,7 @@ CREATE TABLE IF NOT EXISTS ai_personas (
 
 COMMENT ON TABLE ai_personas IS 'AI personas - manages unique qiao_id inventory (similar to product SKU)';
 COMMENT ON COLUMN ai_personas.qiao_id IS 'External unique identifier, visible to users in Square';
+COMMENT ON COLUMN ai_personas.username IS 'Public AI username, unique in ai_personas (case-insensitive)';
 COMMENT ON COLUMN ai_personas.type_id IS 'AI type ID (internal management), NOT related to Square categories';
 COMMENT ON COLUMN ai_personas.is_reusable IS '1=reusable (multiple users can add), 0=non-reusable (only one user can add)';
 COMMENT ON COLUMN ai_personas.status IS '1=active (visible), 2=inactive (hidden), 3=used (single-use consumed)';
@@ -695,6 +800,7 @@ COMMENT ON COLUMN ai_personas.status IS '1=active (visible), 2=inactive (hidden)
 -- Create indexes for ai_personas table
 CREATE INDEX idx_ai_personas_ai_type ON ai_personas(type_id);
 CREATE INDEX idx_ai_personas_status ON ai_personas(status);
+CREATE UNIQUE INDEX uq_ai_personas_username_lower ON ai_personas(LOWER(username));
 
 -- Add foreign key constraint for ai_personas
 ALTER TABLE ai_personas ADD CONSTRAINT fk_ai_personas_type
@@ -707,6 +813,7 @@ CREATE TABLE IF NOT EXISTS ai_instances (
     user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
     qiao_id VARCHAR(32) NOT NULL,
+    username VARCHAR(20),
     creation_metadata JSONB NOT NULL,
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
@@ -721,12 +828,15 @@ CREATE TABLE IF NOT EXISTS ai_instances (
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_ai_instances_user_qiao UNIQUE (user_id, qiao_id)
+    CONSTRAINT uq_ai_instances_user_qiao UNIQUE (user_id, qiao_id),
+    CONSTRAINT ck_ai_instances_manual_username_null
+        CHECK ((creation_metadata->>'source') <> 'admin_manual' OR username IS NULL)
 );
 
 -- Create indexes for ai_instances table
 CREATE INDEX idx_ai_instances_user_id ON ai_instances(user_id);
 CREATE INDEX idx_ai_instances_user_qiao_id ON ai_instances(user_qiao_id);
+CREATE INDEX idx_ai_instances_user_username ON ai_instances(user_id, username);
 CREATE INDEX idx_ai_instances_qiao_id ON ai_instances(qiao_id);
 CREATE INDEX idx_ai_instances_style_id ON ai_instances(style_id);
 CREATE INDEX idx_ai_instances_personality_id ON ai_instances(personality_id);
@@ -746,6 +856,7 @@ ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_relationship
 -- Add comments for fields
 COMMENT ON TABLE ai_instances IS 'AI instances - created when users add personas';
 COMMENT ON COLUMN ai_instances.qiao_id IS 'External persona identifier (multiple users can add same persona)';
+COMMENT ON COLUMN ai_instances.username IS 'Runtime username snapshot; source=persona should equal persona.username, source=admin_manual must be NULL';
 COMMENT ON COLUMN ai_instances.creation_metadata IS 'Immutable snapshot at creation time (persona_id, persona_qiao_id, persona_type_id, persona_type_name, template_id, template_display_name, etc.)';
 COMMENT ON COLUMN ai_instances.user_id IS 'Owning user ID (each row belongs to exactly one user)';
 COMMENT ON COLUMN ai_instances.user_qiao_id IS 'Owning user qiao_id (redundant for query convenience)';
@@ -768,8 +879,25 @@ CREATE TABLE IF NOT EXISTS ai_conversation_state (
 CREATE INDEX idx_ai_conversation_state_updated ON ai_conversation_state(updated_at);
 
 COMMENT ON TABLE ai_conversation_state IS 'AI conversation state - tracks pending messages and interruption state';
-COMMENT ON COLUMN ai_conversation_state.pending_messages IS 'Queue of pending outgoing messages (JSONB array)';
+COMMENT ON COLUMN ai_conversation_state.pending_messages IS 'Pending outgoing payload {"outgoing":[...],"total_pending":N}';
 COMMENT ON COLUMN ai_conversation_state.interrupted_at IS 'Timestamp when conversation was interrupted by user message';
+
+-- AI conversation runtime table - turn version source for delayed preemption
+CREATE TABLE IF NOT EXISTS ai_conversation_runtime (
+    user_qiao_id VARCHAR(32) NOT NULL,
+    instance_qiao_id VARCHAR(32) NOT NULL,
+    ingress_version BIGINT NOT NULL DEFAULT 0,
+    active_turn_version BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_qiao_id, instance_qiao_id)
+);
+
+CREATE INDEX idx_ai_conversation_runtime_updated ON ai_conversation_runtime(updated_at);
+
+COMMENT ON TABLE ai_conversation_runtime IS 'AI conversation runtime turn versions for delayed preemption';
+COMMENT ON COLUMN ai_conversation_runtime.ingress_version IS 'Inbound version incremented on each content input';
+COMMENT ON COLUMN ai_conversation_runtime.active_turn_version IS 'Active processing version switched on new locked window';
 
 -- AI message buffer table - aggregation windows for inbound messages
 CREATE TABLE IF NOT EXISTS ai_message_buffer (
@@ -797,13 +925,11 @@ CREATE TABLE IF NOT EXISTS ai_message_buffer (
 );
 
 CREATE INDEX idx_ai_message_buffer_session_state ON ai_message_buffer(user_qiao_id, instance_qiao_id, aggregate_state);
-CREATE INDEX idx_ai_message_buffer_micro ON ai_message_buffer(micro_expires_at_ms) WHERE aggregate_state = 1 AND micro_expires_at_ms IS NOT NULL;
-CREATE INDEX idx_ai_message_buffer_macro ON ai_message_buffer(macro_expires_at_ms) WHERE aggregate_state = 1 AND macro_expires_at_ms IS NOT NULL;
 CREATE UNIQUE INDEX uniq_ai_message_buffer_locked ON ai_message_buffer(user_qiao_id, instance_qiao_id) WHERE aggregate_state = 2;
-CREATE INDEX idx_ai_message_buffer_expire_scan ON ai_message_buffer(user_qiao_id, instance_qiao_id, buffer_expires_at_ms) WHERE aggregate_state = 1 AND buffer_expires_at_ms IS NOT NULL;
-CREATE INDEX idx_ai_message_buffer_wake_scan ON ai_message_buffer(wake_expires_at_ms) WHERE aggregate_state = 0 AND wake_expires_at_ms IS NOT NULL;
+CREATE INDEX idx_ai_message_buffer_expire_scan ON ai_message_buffer(user_qiao_id, instance_qiao_id, buffer_expires_at_ms) WHERE aggregate_state IN (0, 1) AND buffer_expires_at_ms IS NOT NULL;
 
-COMMENT ON COLUMN ai_message_buffer.wake_expires_at_ms IS 'Wake timer expiration (ms), NULL if already awake or in OPEN state';
+COMMENT ON COLUMN ai_message_buffer.buffer_expires_at_ms IS 'Effective processing deadline (ms), combining micro/macro timers with wake gate';
+COMMENT ON COLUMN ai_message_buffer.wake_expires_at_ms IS 'Wake gate deadline (ms), NULL when wake gate is inactive';
 COMMENT ON COLUMN ai_message_buffer.wake_adjustment_count IS 'Number of times wake time was adjusted by new messages';
 
 -- AI conversation items table - simple message fields
@@ -911,10 +1037,12 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
+ALTER TABLE message_history ADD CONSTRAINT fk_message_history_llm_request
+    FOREIGN KEY (llm_request_id) REFERENCES ai_request_logs(id) ON DELETE SET NULL;
+
 CREATE INDEX idx_ai_request_logs_response_id ON ai_request_logs(response_id);
 CREATE INDEX idx_ai_request_logs_user_qiao_id ON ai_request_logs(user_qiao_id);
 
--- llm_session_cache removed in refactor (Responses API session cache conflicts with dynamic prompts)
 
 
 -- ============================================================================
@@ -1390,7 +1518,10 @@ DROP TRIGGER IF EXISTS update_contacts_updated_at ON contacts;
 DROP TRIGGER IF EXISTS update_contact_requests_updated_at ON contact_requests;
 DROP TRIGGER IF EXISTS update_square_type_entries_updated_at ON square_type_entries;
 DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
-DROP TRIGGER IF EXISTS update_message_delivery_failures_updated_at ON message_delivery_failures;
+DROP TRIGGER IF EXISTS update_message_devices_updated_at ON message_devices;
+DROP TRIGGER IF EXISTS update_message_endpoints_updated_at ON message_endpoints;
+DROP TRIGGER IF EXISTS update_message_deliveries_updated_at ON message_deliveries;
+DROP TRIGGER IF EXISTS update_message_dispatch_outbox_updated_at ON message_dispatch_outbox;
 DROP TRIGGER IF EXISTS update_media_files_updated_at ON media_files;
 DROP TRIGGER IF EXISTS update_ai_styles_updated_at ON ai_styles;
 DROP TRIGGER IF EXISTS update_ai_relationships_updated_at ON ai_relationships;
@@ -1404,6 +1535,7 @@ DROP TRIGGER IF EXISTS update_ai_templates_updated_at ON ai_templates;
 DROP TRIGGER IF EXISTS update_ai_personas_updated_at ON ai_personas;
 DROP TRIGGER IF EXISTS update_ai_instances_updated_at ON ai_instances;
 DROP TRIGGER IF EXISTS update_ai_conversation_state_updated_at ON ai_conversation_state;
+DROP TRIGGER IF EXISTS update_ai_conversation_runtime_updated_at ON ai_conversation_runtime;
 DROP TRIGGER IF EXISTS update_ai_message_buffer_updated_at ON ai_message_buffer;
 DROP TRIGGER IF EXISTS update_ai_instance_dimensions_updated_at ON ai_instance_dimensions;
 DROP TRIGGER IF EXISTS update_user_violation_logs_updated_at ON user_violation_logs;
@@ -1421,7 +1553,10 @@ CREATE TRIGGER update_contacts_updated_at BEFORE UPDATE ON contacts FOR EACH ROW
 CREATE TRIGGER update_contact_requests_updated_at BEFORE UPDATE ON contact_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_square_type_entries_updated_at BEFORE UPDATE ON square_type_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_message_delivery_failures_updated_at BEFORE UPDATE ON message_delivery_failures FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_message_devices_updated_at BEFORE UPDATE ON message_devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_message_endpoints_updated_at BEFORE UPDATE ON message_endpoints FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_message_deliveries_updated_at BEFORE UPDATE ON message_deliveries FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_message_dispatch_outbox_updated_at BEFORE UPDATE ON message_dispatch_outbox FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_media_files_updated_at BEFORE UPDATE ON media_files FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_styles_updated_at BEFORE UPDATE ON ai_styles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_relationships_updated_at BEFORE UPDATE ON ai_relationships FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -1435,6 +1570,7 @@ CREATE TRIGGER update_ai_templates_updated_at BEFORE UPDATE ON ai_templates FOR 
 CREATE TRIGGER update_ai_personas_updated_at BEFORE UPDATE ON ai_personas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_instances_updated_at BEFORE UPDATE ON ai_instances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_conversation_state_updated_at BEFORE UPDATE ON ai_conversation_state FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ai_conversation_runtime_updated_at BEFORE UPDATE ON ai_conversation_runtime FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_message_buffer_updated_at BEFORE UPDATE ON ai_message_buffer FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ai_instance_dimensions_updated_at BEFORE UPDATE ON ai_instance_dimensions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_violation_logs_updated_at BEFORE UPDATE ON user_violation_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

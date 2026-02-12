@@ -6,6 +6,7 @@
 - [接受联系人申请](#接受联系人申请) - `POST /api/v1/contact-requests/{id}/accept`
 - [忽略联系人申请](#忽略联系人申请) - `POST /api/v1/contact-requests/{id}/ignore`
 
+
 ---
 
 ## 数据流说明
@@ -37,13 +38,6 @@
   }
 }
 ```
-
-**为什么不提供列表查询接口**：
-
-- 好友申请是实时性很强的功能，通过消息推送更及时
-- 申请有效期短（7天），不需要长期存储和查询
-- 客户端本地存储即可满足需求
-- 减少不必要的API调用
 
 ---
 
@@ -110,7 +104,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 核心设计原则
 
@@ -141,7 +135,7 @@
 
 - 如果之前删除过该联系人，再次添加时会恢复联系人关系
 - 使用新的 `alias` 和 `tags`，不保留旧的 `remark`
-- 保留原有的 `conv_id`
+- 保留原有的 `conversation_id`
 - 同样返回"请求已发送"
 
 ---
@@ -181,7 +175,7 @@
 
 ```json
 {
-  "conv_id": "conv_xyz789",
+  "conversation_id": "conv_xyz789",
   "contact_qiao_id": "qiao_user001",
   "alias": "小明",
   "tags": ["同事"],
@@ -200,7 +194,7 @@
 
 **字段说明**:
 
-- `conv_id` (string) - 对话ID，用于标识联系人关系
+- `conversation_id` (string) - 对话ID，用于标识联系人关系
 - `contact_qiao_id` (string) - 联系人的qiao_id
 - `alias` (string) - 备注名
 - `tags` (array) - 标签列表
@@ -222,7 +216,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
@@ -273,11 +267,11 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
-*忽略后的操作**:
+**忽略后的操作**:
 
 1. 更新申请状态为"IGNORED"
 2. 不发送通知给申请人（保护隐私）

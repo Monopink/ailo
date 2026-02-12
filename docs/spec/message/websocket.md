@@ -1,0 +1,123 @@
+# WebSocket Provider
+
+本文档定义 WebSocket 作为消息传输层（Provider）的协议与约束。
+
+定位：
+
+- WebSocket 只负责传输与路由（transport only），不承载业务逻辑
+- 所有业务处理复用统一消息管线：验证/解密 → buffer → context → LLM → 响应处理 → 发送
+- 与 LeanCloud Provider 并存（详见 `leancloud.md`）
+
+代码分层（目录约束）：
+
+- `backend/app/services/message/providers/websocket/*`：Provider 语义（endpoint sender、入站 payload 适配）
+- `backend/app/services/message/websocket/*`：Transport 运行时（连接管理、状态维护、发送队列）
+- `backend/app/api/ws/messages.py`：协议接入（握手鉴权、帧级协议处理、调用统一业务入口）
+
+---
+
+## 端点
+
+- WebSocket：`GET /ws/messages`
+
+---
+
+## 鉴权
+
+- 所有业务鉴权使用 JWT。
+- HTTP API 使用 `Authorization: Bearer <token>`。
+- 浏览器 WebSocket 无法自定义 `Authorization` Header，因此浏览器场景使用首帧 `auth` 消息提交 token（裸 JWT，不带 `Bearer ` 前缀），字段名为 `access_token`。
+
+---
+
+## 路由粒度：endpoint（客户端标识 device_id）
+
+- 客户端必须提供稳定 `device_id`（UUID，设备/安装级）。
+- WebSocket 连接建立并完成 `auth` 后，服务端按 (user_id, device_id) upsert Presence endpoint（`message_endpoints`）并得到 `endpoint_id`。
+- WebSocket endpoint 属于 DEVICE 粒度（`endpoint_scope=DEVICE`，`target_key=device_id`）。
+- **服务端内部路由/投递目标以 `endpoint_id` 为准**（或至少以 (user_id, device_id) 为路由键）；禁止仅用 `device_id` 作为内部路由键，避免多账号复用同一 device_id 时串线。
+- WebSocket 的 endpoint upsert/续租与 LeanCloud Presence 共用同一后端 Presence 领域服务（内部统一，入口不强行统一）。
+
+Presence endpoint 的活跃状态由 lease 管理（见下文“Lease”）。
+
+---
+
+## Lease（活跃 TTL）
+
+系统使用两类 lease：
+
+1) Presence lease（短）
+
+- 用于 WebSocket 在线活跃
+- 由 `ping` 或服务端内部心跳续租
+
+默认值：
+
+- TTL：90 秒
+- 客户端 ping 间隔：25 秒
+
+对应配置项（system_configs）：
+
+- `ws_presence_lease_ttl_seconds`
+- `ws_ping_interval_seconds`
+
+2) Registration lease（长）
+
+- 用于第三方通道 installation/register 绑定
+
+默认值：
+
+- TTL：365 天
+
+对应配置项（system_configs）：
+
+- `registration_lease_ttl_days`
+
+---
+
+## 幂等与去重
+
+- 入站 `send_message` 的幂等键：`(conversation_id, msg_id_client)`（服务端仍会校验发送者为当前登录用户）
+- 客户端重复发送相同 `msg_id_client` 时，服务端必须幂等处理
+- `msg_id_server` 为服务端生成的时间线消息唯一标识（inbound/outbound 均有值）；客户端最终按 `msg_id_server` 去重与 ACK。
+
+---
+
+## WS 帧级 ACK 与 HTTP 投递 ACK
+
+WS 的 `ack` 语义：
+
+- 表示“服务端已接收该 WS 帧并完成校验/入队”
+- 不表示“消息已投递/已读”
+- 对于 `send_message`，`ack.payload` 需返回 `msg_id_server`（可选 `sent_time_ms`），用于客户端对齐与后续 HTTP ACK 推游标；幂等重发必须返回同一 `msg_id_server`。
+
+投递确认使用 HTTP ACK：
+
+- `POST /api/v1/messages/ack`
+
+离线补偿使用：
+
+- `GET /api/v1/messages/offline`
+
+---
+
+## 多端在线同步（Timeline Fanout）
+
+当消息落库到 `message_history` 后，服务端应将该消息作为 `event: message` 推送给该用户的所有活跃 endpoints（lease 未过期），用于多设备在线同步。
+
+- 广播范围仅限当前用户（user_id 维度）的活跃 endpoints；不得跨 user 广播，避免串线。
+- 广播应包含“用户自己发送消息”的回显（用于多端同步与拿到 `msg_id_server` 的统一路径）。
+- 用户自发消息的回显在有值时回传 `msg_id_client`，用于发送端将 optimistic 消息收敛到 `msg_id_server`；assistant/系统消息的 `msg_id_client` 为空或省略。
+- 业务层按 endpoint 的 `provider` 执行 fanout；仅当目标 endpoint.provider=WebSocket 时，通过本通道推送 `event: message`。
+- WS 推送允许重复（at-least-once）；客户端按 `msg_id_server` 去重。
+
+---
+
+## 协议与消息类型
+
+协议细节（API 视角）见：`docs/api/websocket-messages.md`。
+
+补充约束：
+
+- 入站业务定位键统一使用 `conversation_id`（等于 `contacts.conversation_id`），Provider 仅负责传输与鉴权；业务层按 `conversation_id` 查找 contact/instance 并进入统一消息管线。
+- 客户端可上送 `typing`（start/end）以驱动 buffer 的双计时器策略与真实聊天节奏。

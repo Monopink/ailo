@@ -18,11 +18,11 @@ END $$;
 
 -- Insert test users for AI instance testing (user_type=3)
 INSERT INTO users (id, qiao_id, username, phone, status, user_type) VALUES
-(223788765171154945, 'qqid_test_user_001', 'test_user_001', '+86-13800000001', 1, 3),
-(223788765171154946, 'qqid_test_user_002', 'test_user_002', '+86-13800000002', 1, 3),
-(223788765171154947, 'qqid_test_user_003', 'test_user_003', '+86-13800000003', 1, 3),
-(223788765171154948, 'qqid_test_user_004', 'test_user_004', '+86-13800000004', 1, 3),
-(223788765171154949, 'qqid_test_user_005', 'test_user_005', '+86-13800000005', 1, 3)
+(223788765171154945, 'qqid_test_user_001', 'test_user_001', '+8613800000001', 1, 3),
+(223788765171154946, 'qqid_test_user_002', 'test_user_002', '+8613800000002', 1, 3),
+(223788765171154947, 'qqid_test_user_003', 'test_user_003', '+8613800000003', 1, 3),
+(223788765171154948, 'qqid_test_user_004', 'test_user_004', '+8613800000004', 1, 3),
+(223788765171154949, 'qqid_test_user_005', 'test_user_005', '+8613800000005', 1, 3)
 ON CONFLICT (qiao_id) DO NOTHING;
 
 -- ============================================================================
@@ -309,11 +309,12 @@ INSERT INTO ai_template_memories (
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert AI personas bound to template types
-INSERT INTO ai_personas (id, qiao_id, type_id, is_reusable, status) VALUES
-(223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'), 1, 1),
-(223788765171155010, 'qiao_sweet_girlfriend_001', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'), 1, 1),
-(223788765171155011, 'qiao_friendly_buddy_001', (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'), 1, 1)
+INSERT INTO ai_personas (id, qiao_id, username, type_id, is_reusable, status) VALUES
+(223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 'xiaoqiao', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'), 1, 1),
+(223788765171155010, 'qiao_sweet_girlfriend_001', 'xiaotian', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'), 1, 1),
+(223788765171155011, 'qiao_friendly_buddy_001', 'ajie001', (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'), 1, 1)
 ON CONFLICT (qiao_id) DO UPDATE SET
+    username = EXCLUDED.username,
     type_id = EXCLUDED.type_id,
     is_reusable = EXCLUDED.is_reusable,
     status = EXCLUDED.status,
@@ -366,6 +367,7 @@ INSERT INTO ai_instances (
     user_id,
     user_qiao_id,
     qiao_id,
+    username,
     creation_metadata,
     style_id,
     personality_id,
@@ -384,6 +386,7 @@ INSERT INTO ai_instances (
     223788765171154945,
     'qqid_test_user_001',
     'qiao_DLdfyH5GoGBv8q6l',
+    'xiaoqiao',
     jsonb_build_object(
         'source', 'template',
         'persona_id', (SELECT id FROM ai_personas WHERE qiao_id='qiao_DLdfyH5GoGBv8q6l'),
@@ -414,6 +417,7 @@ INSERT INTO ai_instances (
     223788765171154946,
     'qqid_test_user_002',
     'qiao_sweet_girlfriend_001',
+    'xiaotian',
     jsonb_build_object(
         'source', 'template',
         'persona_id', (SELECT id FROM ai_personas WHERE qiao_id='qiao_sweet_girlfriend_001'),
@@ -444,6 +448,7 @@ INSERT INTO ai_instances (
     223788765171154947,
     'qqid_test_user_003',
     'qiao_friendly_buddy_001',
+    'ajie001',
     jsonb_build_object(
         'source', 'template',
         'persona_id', (SELECT id FROM ai_personas WHERE qiao_id='qiao_friendly_buddy_001'),
@@ -537,7 +542,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 
 -- Insert sample contacts (AI instance testing relationships)
-INSERT INTO contacts (id, conv_id, user_id, user_qiao_id, contact_type, contact_id, contact_qiao_id, alias, tags, is_pinned, is_muted, is_blocked) VALUES
+INSERT INTO contacts (id, conversation_id, user_id, user_qiao_id, contact_type, contact_id, contact_qiao_id, alias, tags, is_pinned, is_muted, is_blocked) VALUES
 -- Test user 001 -> AI instance 小乔
 (223788765171154964, 'conv_001', 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', '小乔', '{"tags": ["ai", "companion"]}', 0, 0, 0),
 -- Test user 002 -> AI instance 小甜
@@ -546,7 +551,7 @@ INSERT INTO contacts (id, conv_id, user_id, user_qiao_id, contact_type, contact_
 (223788765171154966, 'conv_004', 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', '阿杰', '{"tags": ["ai", "buddy", "friend"]}', 0, 0, 0),
 -- Keep one user-to-user contact for reference
 (223788765171154967, 'conv_002', 223788765171154946, 'qqid_test_user_002', 1, 223788765171154945, 'qqid_test_user_001', '小雨', '{"tags": ["friend", "photography"]}', 1, 0, 0)
-ON CONFLICT (conv_id) DO NOTHING;
+ON CONFLICT (conversation_id) DO NOTHING;
 
 -- Insert sample contact requests
 INSERT INTO contact_requests (id, from_qiao_id, from_type, from_id, to_qiao_id, to_type, to_id, message, source, status, expires_at) VALUES
@@ -558,11 +563,13 @@ ON CONFLICT (id) DO NOTHING;
 -- Insert sample message history for testing
 INSERT INTO message_history (
     id,
+    direction,
+    conversation_id,
     msg_id_server,
     msg_id_provider_inbound,
-    msg_id_provider_outbound,
-    conversation_id,
-    direction,
+    msg_id_client,
+    client_sent_at,
+    sent_at,
     from_type,
     from_id,
     from_qiao_id,
@@ -571,18 +578,20 @@ INSERT INTO message_history (
     to_qiao_id,
     message_type,
     content,
-    service_provider,
-    status
+    inbound_provider,
+    inbound_device_id,
+    message_metadata,
+    created_at
 ) VALUES
 -- Conversation between test_user_001 and 小乔
-(223788765171154971, 'msg_001', NULL, 'lc_out_001', 'conv_001', 2, 1, 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, '你好，小乔！', 2, 1),
-(223788765171154972, 'msg_002', 'lc_in_001', NULL, 'conv_001', 1, 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 223788765171154945, 'qqid_test_user_001', 1, '你好！很高兴认识你～', 2, 1),
+(223788765171154971, 1, 'conv_001', 'msg_001', 'lc_in_001', NULL, NULL, NOW() - INTERVAL '9 minutes', 1, 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, '你好，小乔！', 2, NULL, '{}'::jsonb, NOW() - INTERVAL '9 minutes'),
+(223788765171154972, 2, 'conv_001', 'msg_002', NULL, NULL, NULL, NOW() - INTERVAL '8 minutes', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 223788765171154945, 'qqid_test_user_001', 1, '你好！很高兴认识你～', NULL, NULL, '{}'::jsonb, NOW() - INTERVAL '8 minutes'),
 -- Conversation between test_user_002 and 小甜
-(223788765171154973, 'msg_003', NULL, 'lc_out_002', 'conv_003', 2, 1, 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, '小甜，你在做什么呢？', 2, 1),
-(223788765171154974, 'msg_004', 'lc_in_002', NULL, 'conv_003', 1, 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, 223788765171154946, 'qqid_test_user_002', 1, '嘻嘻，我在看电影呢～你呢？', 2, 1),
+(223788765171154973, 1, 'conv_003', 'msg_003', 'lc_in_002', NULL, NULL, NOW() - INTERVAL '7 minutes', 1, 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, '小甜，你在做什么呢？', 2, NULL, '{}'::jsonb, NOW() - INTERVAL '7 minutes'),
+(223788765171154974, 2, 'conv_003', 'msg_004', NULL, NULL, NULL, NOW() - INTERVAL '6 minutes', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', 1, 223788765171154946, 'qqid_test_user_002', 1, '嘻嘻，我在看电影呢～你呢？', NULL, NULL, '{}'::jsonb, NOW() - INTERVAL '6 minutes'),
 -- Conversation between test_user_003 and 阿杰
-(223788765171154975, 'msg_005', NULL, 'lc_out_003', 'conv_004', 2, 1, 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, '阿杰，最近怎么样？', 2, 1),
-(223788765171154976, 'msg_006', 'lc_in_003', NULL, 'conv_004', 1, 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, 223788765171154947, 'qqid_test_user_003', 1, '哈哈，挺好的！刚打完篮球，你呢兄弟？', 2, 1)
+(223788765171154975, 1, 'conv_004', 'msg_005', 'lc_in_003', NULL, NULL, NOW() - INTERVAL '5 minutes', 1, 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, '阿杰，最近怎么样？', 2, NULL, '{}'::jsonb, NOW() - INTERVAL '5 minutes'),
+(223788765171154976, 2, 'conv_004', 'msg_006', NULL, NULL, NULL, NOW() - INTERVAL '4 minutes', 2, 223788765171154946, 'qiao_friendly_buddy_001', 1, 223788765171154947, 'qqid_test_user_003', 1, '哈哈，挺好的！刚打完篮球，你呢兄弟？', NULL, NULL, '{}'::jsonb, NOW() - INTERVAL '4 minutes')
 ON CONFLICT (msg_id_server) DO NOTHING;
 
 -- ============================================================================
@@ -616,10 +625,51 @@ INSERT INTO admin_login_logs (admin_user_id, username, ip_address, user_agent, r
 (1, 'admin', '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 1),
 (2, 'manager', '192.168.1.100', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 1);
 
--- Insert sample message delivery failures (Snowflake ID)
-INSERT INTO message_delivery_failures (id, msg_id_server, from_type, from_id, from_qiao_id, to_type, to_id, to_qiao_id, service_provider, message_type, content, fail_reason_code, fail_detail, retry_count, max_retry_count, next_retry_at) VALUES
-(223788765171155001, 'msg_003', 1, 223788765171154946, 'qqid_test_user_002', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 2, 1, '你好，小乔！', 'NETWORK_TIMEOUT', 'Connection timeout after 30 seconds', 2, 3, NOW() + INTERVAL '5 minutes'),
-(223788765171155002, 'msg_004', 1, 223788765171154947, 'qqid_test_user_003', 1, 223788765171154945, 'qqid_test_user_001', 2, 1, '你好！', 'USER_OFFLINE', 'Target user is offline', 1, 3, NOW() + INTERVAL '10 minutes')
+-- Insert sample message_devices and endpoints (for delivery records)
+INSERT INTO message_devices (id, user_id, user_qiao_id, device_id, last_seen_at) VALUES
+(223788765171155060, 223788765171154946, 'qqid_test_user_002', '11111111-1111-1111-1111-111111111111', NOW() - INTERVAL '1 minutes'),
+(223788765171155061, 223788765171154947, 'qqid_test_user_003', '22222222-2222-2222-2222-222222222222', NOW() - INTERVAL '1 minutes')
+ON CONFLICT (user_id, device_id) DO NOTHING;
+
+INSERT INTO message_endpoints (
+    id, user_id, user_qiao_id, endpoint_scope, device_id, provider, target_key, lease_expires_at, last_seen_at
+) VALUES
+(223788765171155062, 223788765171154946, 'qqid_test_user_002', 1, NULL, 2, 'qqid_test_user_002', NOW() + INTERVAL '365 days', NOW() - INTERVAL '1 minutes'),
+(223788765171155063, 223788765171154947, 'qqid_test_user_003', 1, NULL, 2, 'qqid_test_user_003', NOW() + INTERVAL '365 days', NOW() - INTERVAL '1 minutes')
+ON CONFLICT DO NOTHING;
+
+-- Insert sample message deliveries (Snowflake ID)
+INSERT INTO message_deliveries (
+    id,
+    msg_id_server,
+    endpoint_id,
+    provider,
+    target_key,
+    provider_msg_id,
+    status,
+    dispatched_at,
+    failed_reason_code,
+    failed_detail
+) VALUES
+(223788765171155001, 'msg_004', 223788765171155062, 2, 'qqid_test_user_002', NULL, 3, NULL, 'NETWORK_TIMEOUT', 'Connection timeout after 30 seconds'),
+(223788765171155002, 'msg_006', 223788765171155063, 2, 'qqid_test_user_003', NULL, 3, NULL, 'USER_OFFLINE', 'Target user is offline')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample dispatch outbox records (Snowflake ID)
+INSERT INTO message_dispatch_outbox (
+    id,
+    outbox_type,
+    msg_id_server,
+    owner_user_id,
+    status,
+    attempt_count,
+    next_retry_at,
+    locked_at,
+    last_error_code,
+    last_error_detail
+) VALUES
+(223788765171155070, 1, 'msg_004', 223788765171154946, 1, 1, NOW() + INTERVAL '1 minute', NULL, 'NETWORK_TIMEOUT', 'Retry pending after transient timeout'),
+(223788765171155071, 1, 'msg_006', 223788765171154947, 4, 3, NULL, NOW() - INTERVAL '10 minutes', 'USER_OFFLINE', 'Retry limit reached')
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample media files (Snowflake ID)
@@ -657,15 +707,15 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample user tokens
 INSERT INTO user_tokens (id, user_id, user_qiao_id, access_token, device_type, device_id, platform_info, ip_address, user_agent, access_expires_at, status) VALUES
-(223788765171154980, 223788765171154945, 'qqid_test_user_001', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDEiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDUsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MCwiZGV2aWNlX3R5cGUiOjMsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_001', 3, 'web_device_001', '{"browser": "Chrome", "os": "Windows 10"}', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', NOW() + INTERVAL '14 days', 1),
-(223788765171154981, 223788765171154946, 'qqid_test_user_002', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDIiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDYsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MSwiZGV2aWNlX3R5cGUiOjEsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_002', 1, 'ios_device_001', '{"device": "iPhone 13", "os": "iOS 15.0"}', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', NOW() + INTERVAL '14 days', 1)
+(223788765171154980, 223788765171154945, 'qqid_test_user_001', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDEiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDUsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MCwiZGV2aWNlX3R5cGUiOjMsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_001', 3, '33333333-3333-3333-3333-333333333333', '{"browser": "Chrome", "os": "Windows 10"}', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', NOW() + INTERVAL '14 days', 1),
+(223788765171154981, 223788765171154946, 'qqid_test_user_002', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJxcWlkX3Rlc3RfdXNlcl8wMDIiLCJ1c2VyX2lkIjoyMjM3ODg3NjUxNzExNTQ5NDYsInNlc3Npb25faWQiOjIyMzc4ODc2NTE3MTE1NDk4MSwiZGV2aWNlX3R5cGUiOjEsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAxMjA5NjAwfQ.test_signature_002', 1, '55555555-5555-5555-5555-555555555555', '{"device": "iPhone 13", "os": "iOS 15.0"}', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', NOW() + INTERVAL '14 days', 1)
 ON CONFLICT (access_token) DO NOTHING;
 
 -- Insert sample login records
-INSERT INTO login_records (id, user_id, user_qiao_id, login_time, login_type, platform, device_id, ip_address, user_agent, result, fail_reason) VALUES
-(223788765171154982, 223788765171154945, 'qqid_test_user_001', NOW() - INTERVAL '2 hours', 2, 3, 'web_device_001', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 1, NULL),
-(223788765171154983, 223788765171154946, 'qqid_test_user_002', NOW() - INTERVAL '1 hour', 2, 1, 'ios_device_001', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', 1, NULL),
-(223788765171154984, NULL, NULL, NOW() - INTERVAL '30 minutes', 1, 3, 'web_device_002', '192.168.1.30', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 2, 'Invalid password')
+INSERT INTO login_records (id, user_id, user_qiao_id, login_time, login_type, platform, device_id, ip_address, user_agent, result, fail_reason, user_token_id) VALUES
+(223788765171154982, 223788765171154945, 'qqid_test_user_001', NOW() - INTERVAL '2 hours', 2, 3, '33333333-3333-3333-3333-333333333333', '192.168.1.10', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 1, NULL, 223788765171154980),
+(223788765171154983, 223788765171154946, 'qqid_test_user_002', NOW() - INTERVAL '1 hour', 2, 1, '55555555-5555-5555-5555-555555555555', '192.168.1.20', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)', 1, NULL, 223788765171154981),
+(223788765171154984, NULL, NULL, NOW() - INTERVAL '30 minutes', 1, 3, '44444444-4444-4444-4444-444444444444', '192.168.1.30', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 2, 'Invalid password', NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample AI request logs (Snowflake ID)

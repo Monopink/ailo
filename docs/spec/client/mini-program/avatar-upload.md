@@ -33,16 +33,6 @@
 - [POST /api/v1/media/upload](../../../api/media.md)
 - [PUT /api/v1/user/profile](../../../api/user.md)
 
-## 4. 错误处理规范
-
-| HTTP 状态码 | 含义 | 前端处理 |
-| --- | --- | --- |
-| 401 | 身份失效 | API 层自动刷新 token 并重试，刷新失败才跳转登录 |
-| 413 | 文件过大 | 提示"图片过大（最大2MB）" |
-| 415 | 格式不支持 | 提示"图片格式不支持" |
-| 429 | 超出配额 | 提示"今日上传次数已用完" |
-| 用户取消 | - | 静默处理，保持原头像 |
-
 ## 5. 并发控制
 
 - 页面维护 `uploadingAvatar` 布尔标记
@@ -59,10 +49,6 @@
   - DevTools: `FileSystemManager.getFileInfo()` 不支持 `http://tmp/...` 路径,前端传递 `file_size=0`,后端自动检测
   - 真机: `FileSystemManager.getFileInfo()` 支持 `wxfile://` 路径,前端正常获取并传递精确值
 - 参考: [微信官方文档 - 本地文件路径](https://developers.weixin.qq.com/miniprogram/dev/framework/ability/file-system.html)
-
-### 常见误区
-- ❌ **错误**: 认为 `http://tmp/...` 是网络 URL,尝试用 `wx.downloadFile` 下载
-- ✅ **正确**: 直接使用该路径,无需任何转换
 
 ### 监控指标
 - 日志中包含 `environment` 字段 (如 `devtools:3.10.0`, `ios:17.1`) 及 `selectionDurationMs`/`uploadDurationMs`,用于区分问题发生的设备与阶段。

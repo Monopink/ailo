@@ -3,12 +3,12 @@
 ## 接口列表
 
 - [获取联系人列表](#获取联系人列表) - `GET /api/v1/contacts`
-- [获取单个联系人详情](#获取单个联系人详情) - `GET /api/v1/contacts/{conv_id}`
-- [更新联系人信息](#更新联系人信息) - `PUT /api/v1/contacts/{conv_id}`
-- [屏蔽联系人](#屏蔽联系人) - `POST /api/v1/contacts/{conv_id}/block`
-- [取消屏蔽联系人](#取消屏蔽联系人) - `POST /api/v1/contacts/{conv_id}/unblock`
-- [删除联系人](#删除联系人) - `DELETE /api/v1/contacts/{conv_id}`
-- [获取对话信息](#获取对话信息) - `GET /api/v1/contacts/{conv_id}/conversation`
+- [获取单个联系人详情](#获取单个联系人详情) - `GET /api/v1/contacts/{conversation_id}`
+- [更新联系人信息](#更新联系人信息) - `PUT /api/v1/contacts/{conversation_id}`
+- [屏蔽联系人](#屏蔽联系人) - `POST /api/v1/contacts/{conversation_id}/block`
+- [取消屏蔽联系人](#取消屏蔽联系人) - `POST /api/v1/contacts/{conversation_id}/unblock`
+- [删除联系人](#删除联系人) - `DELETE /api/v1/contacts/{conversation_id}`
+- [获取对话信息](#获取对话信息) - `GET /api/v1/contacts/{conversation_id}/conversation`
 
 ---
 
@@ -33,7 +33,7 @@
 {
   "items": [
     {
-      "conv_id": "conv_xyz789",
+      "conversation_id": "conv_xyz789",
       "contact_qiao_id": "qiao_xm001",
       "alias": "小萌",
       "tags": ["朋友"],
@@ -58,7 +58,7 @@
 
 **字段说明**:
 
-- `conv_id` (string) - 对话ID，用于标识联系人关系
+- `conversation_id` (string) - 对话ID，用于标识联系人关系
 - `contact_qiao_id` (string) - 联系人的qiao_id
 - `alias` (string) - 备注名
 - `tags` (array) - 标签列表
@@ -77,29 +77,24 @@
 - `cursor` 为不透明字符串（Base64 编码的偏移量），前端只需在下一页请求中透传
 - 返回结果仅包含展示所需字段，`im_conv_id` 等 IM 细节需通过 [获取对话信息](future-conversation#获取对话信息) 接口获取
 
-### 相关接口
-
-- [获取单个联系人详情](#获取单个联系人详情)
-- [获取对话信息](future-conversation#获取对话信息)
-
 ---
 
 ## 获取单个联系人详情
 
 ### 基本信息
 
-- **路径**: `GET /api/v1/contacts/{conv_id}`
+- **路径**: `GET /api/v1/contacts/{conversation_id}`
 - **认证**: Bearer Token（必需）
 
 ### 路径参数
 
-- `conv_id` (string, 必填) - 对话ID
+- `conversation_id` (string, 必填) - 对话ID
 
 ### 成功响应 (200)
 
 ```json
 {
-  "conv_id": "conv_xyz789",
+  "conversation_id": "conv_xyz789",
   "contact_qiao_id": "qiao_xm001",
   "alias": "小萌",
   "tags": ["朋友"],
@@ -119,7 +114,7 @@
 
 **字段说明**:
 
-- `conv_id` (string) - 对话ID
+- `conversation_id` (string) - 对话ID
 - `contact_qiao_id` (string) - 联系人的qiao_id
 - `alias` (string) - 备注名
 - `tags` (array) - 标签列表
@@ -142,7 +137,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ---
 
@@ -150,12 +145,12 @@
 
 ### 基本信息
 
-- **路径**: `PUT /api/v1/contacts/{conv_id}`
+- **路径**: `PUT /api/v1/contacts/{conversation_id}`
 - **认证**: Bearer Token（必需）
 
 ### 路径参数
 
-- `conv_id` (string, 必填) - 对话ID
+- `conversation_id` (string, 必填) - 对话ID
 
 ### 请求参数
 
@@ -193,7 +188,7 @@
 
 ```json
 {
-  "conv_id": "conv_xyz789",
+  "conversation_id": "conv_xyz789",
   "contact_qiao_id": "qiao_xm001",
   "alias": "新的备注名",
   "tags": ["新标签1", "新标签2"],
@@ -220,7 +215,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
@@ -234,12 +229,12 @@
 
 ### 基本信息
 
-- **路径**: `POST /api/v1/contacts/{conv_id}/block`
+- **路径**: `POST /api/v1/contacts/{conversation_id}/block`
 - **认证**: Bearer Token（必需）
 
 ### 路径参数
 
-- `conv_id` (string, 必填) - 对话ID
+- `conversation_id` (string, 必填) - 对话ID
 
 ### 请求参数
 
@@ -257,7 +252,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
@@ -271,12 +266,12 @@
 
 ### 基本信息
 
-- **路径**: `POST /api/v1/contacts/{conv_id}/unblock`
+- **路径**: `POST /api/v1/contacts/{conversation_id}/unblock`
 - **认证**: Bearer Token（必需）
 
 ### 路径参数
 
-- `conv_id` (string, 必填) - 对话ID
+- `conversation_id` (string, 必填) - 对话ID
 
 ### 请求参数
 
@@ -294,7 +289,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ---
 
@@ -302,12 +297,12 @@
 
 ### 基本信息
 
-- **路径**: `DELETE /api/v1/contacts/{conv_id}`
+- **路径**: `DELETE /api/v1/contacts/{conversation_id}`
 - **认证**: Bearer Token（必需）
 
 ### 路径参数
 
-- `conv_id` (string, 必填) - 对话ID
+- `conversation_id` (string, 必填) - 对话ID
 
 ### 请求参数
 
@@ -325,7 +320,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
@@ -339,18 +334,18 @@
 
 ### 基本信息
 
-- **路径**: `GET /api/v1/contacts/{conv_id}/conversation`
+- **路径**: `GET /api/v1/contacts/{conversation_id}/conversation`
 - **认证**: Bearer Token（必需）
 
 ### 路径参数
 
-- `conv_id` (string, 必填) - 对话ID
+- `conversation_id` (string, 必填) - 对话ID
 
 ### 成功响应 (200)
 
 ```json
 {
-  "conv_id": "conv_xyz789",
+  "conversation_id": "conv_xyz789",
   "im_conv_id": "system_conversation_id",
   "contact_qiao_id": "qiao_xm001",
   "profile": {
@@ -363,7 +358,7 @@
 
 **字段说明**:
 
-- `conv_id` (string) - 对话ID
+- `conversation_id` (string) - 对话ID
 - `im_conv_id` (string) - IM系统对话ID，用于初始化消息客户端连接
 - `contact_qiao_id` (string) - 联系人的qiao_id
 - `profile` (object) - 联系人信息
@@ -379,9 +374,10 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
 - 此接口用于对话页面初始化，提供 `im_conv_id` 用于连接消息服务
-- `im_conv_id` 来自系统注册表，前端需要使用系统接口保持同步
+- `im_conv_id` 在 LeanCloud 场景属于兼容字段；权威来源是 `/api/v1/lc-im/config`
+- 当前端检测到该字段与 `/api/v1/lc-im/config` 不一致时，必须优先使用 `/api/v1/lc-im/config` 并触发配置刷新

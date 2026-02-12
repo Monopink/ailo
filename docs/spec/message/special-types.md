@@ -12,6 +12,8 @@
 
 ## TYPING 输入状态
 
+> 统一约定：`typing` 的客户端发送规则（含 1 秒 buffer）与展示规则以 [typing.md](typing.md) 为准。
+
 ### 设计目标
 
 模拟真人输入状态，提升对话真实感。
@@ -25,7 +27,7 @@
   "msg_id": "client_1710001111222_abc123",
   "from_qiao_id": "qiao_user001",
   "to_qiao_id": "qiao_xm001",
-  "conv_id": "conv_xyz789",
+  "conversation_id": "conv_xyz789",
   "content": "",
   "message_type": 2,
   "supports_typing": true,
@@ -40,7 +42,7 @@
   "msg_id": "client_1710001111333_def456",
   "from_qiao_id": "qiao_user001",
   "to_qiao_id": "qiao_xm001",
-  "conv_id": "conv_xyz789",
+  "conversation_id": "conv_xyz789",
   "content": "",
   "message_type": 3,
   "supports_typing": true,
@@ -64,22 +66,7 @@ TYPING 消息仅用于实时输入状态，不写入 message_history。
 
 ### 客户端处理
 
-**显示规则**：
-
-- 收到 TYPING_START：显示"对方正在输入..."
-- 收到 TYPING_END：隐藏输入状态
-- 收到 TEXT：立即隐藏输入状态
-- 30秒超时：自动隐藏输入状态
-- 用户发送消息：立即隐藏输入状态
-
-**服务端不发送 TYPING_END**：
-
-AI 响应时只发送 TEXT 消息，客户端通过以下方式自动隐藏：
-
-- 收到 TEXT 消息时立即隐藏
-- 30秒超时自动隐藏
-
-详见 docs/spec/client/base/contacts-and-chat.md
+客户端发送与展示规则（含 `typing_start` 1 秒 buffer）统一遵循 [typing.md](typing.md)。
 
 ## CHAT_INFO 对话提示信息
 
@@ -142,13 +129,13 @@ AI 响应时只发送 TEXT 消息，客户端通过以下方式自动隐藏：
 
 ```
 业务层 (Business Layer)
-  ↓ 调用: send_chat_info(to_qiao_id, conv_id, content)
+  ↓ 调用: send_chat_info(to_qiao_id, conversation_id, content)
   ↓ 业务层负责: 从 CHAT_INFO_TEMPLATES 获取文本
 消息服务层 (Message Service)
-  ↓ 调用: send_message(from_qiao_id="system", to_qiao_id, conv_id, content, message_type=CHAT_INFO)
+  ↓ 调用: send_message(from_qiao_id="system", to_qiao_id, conversation_id, content, message_type=CHAT_INFO)
   ↓ 调用: _send_message_internal(...)
 Provider层 (LeanCloud)
-  ↓ 调用: provider.send_message_as_system(to_qiao_id, conv_id, content)
+  ↓ 调用: provider.send_message_as_system(to_qiao_id, conversation_id, content)
   ↓ 处理: from="system" 等协议字段
 LeanCloud REST API
 ```
@@ -218,6 +205,7 @@ content 字段直接存储最终显示文本。
 - 更新 contacts.is_blocked = 1
 - 用户发送消息时，只存储消息和上下文，不进行 AI 处理
 - 发送 CHAT_INFO 消息：`"消息已发出，但对方拒收了"`
+- 返回 `business_rejected` 业务结果，不抛异常
 
 **场景2：AI 实例 Block 用户**
 
@@ -225,12 +213,14 @@ content 字段直接存储最终显示文本。
 - 更新 ai_instances.status = 3 (blocked)
 - 用户发送消息时，只存储消息和上下文，不进行 AI 处理
 - 发送 CHAT_INFO 消息：`"消息已发出，但对方拒收了"`
+- 返回 `business_rejected` 业务结果，不抛异常
 
 **场景3：用户不是 AI 实例的所有者（不是对方好友）**
 
 - 在 contacts 表中检查是否存在有效联系人记录
 - 如果没有有效联系人，只存储消息和上下文
 - 发送 CHAT_INFO 消息：`"对方还没有添加你为联系人"`
+- 返回 `business_rejected` 业务结果，不抛异常
 
 ### 处理流程
 
@@ -241,7 +231,8 @@ content 字段直接存储最终显示文本。
    - 如果 is_blocked → 场景1：发送 MESSAGE_BLOCKED 提示
 2. 检查 AI 实例状态
    - 如果 status == 3 (blocked) → 场景2：发送 MESSAGE_BLOCKED 提示
-3. 正常处理消息
+3. 命中拒收场景时，返回 `business_rejected`，流程结束
+4. 未命中拒收场景时，正常处理消息
 
 ## NOTIFICATION 系统通知
 

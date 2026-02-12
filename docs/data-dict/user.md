@@ -35,7 +35,7 @@ user_id -- 关联users.id
 user_qiao_id -- 关联users.qiao_id，冗余字段便于查询
 access_token -- Access JWT令牌（唯一）
 device_type -- 设备类型：1=ios, 2=android, 3=web, 4=mini_program
-device_id -- 设备唯一标识
+device_id -- 设备唯一标识（UUID）
 platform_info -- 平台信息（JSONB，可选）
 ip_address -- 登录IP地址
 user_agent -- UA信息
@@ -81,11 +81,11 @@ user_qiao_id -- 关联users.qiao_id
 login_time -- 登录时间
 login_type -- 登录方式：1=password, 2=sms, 3=wechat, 4=apple
 platform -- 平台：1=ios, 2=android, 3=web, 4=mini_program
-device_id -- 设备ID/标识
+device_id -- 设备ID/标识（UUID）
 ip_address -- 登录IP（兼容IPv6）
 user_agent -- 浏览器/设备UA信息
 result -- 登录结果：1=success, 2=fail
 fail_reason -- 失败原因
-token -- 关联的会话令牌
+user_token_id -- 关联 user_tokens.id（仅成功登录写入；失败为空）
 created_at
 ```

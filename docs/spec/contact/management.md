@@ -14,7 +14,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 - 保留历史记录，便于数据分析
 - 支持恢复功能
-- 保留 conv_id，避免消息历史丢失
+- 保留 conversation_id，避免消息历史丢失
 
 **实现**：
 
@@ -28,7 +28,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 **保留内容**：
 
-- conv_id（对话 ID）- 保持消息历史连续性
+- conversation_id（对话 ID）- 保持消息历史连续性
 - contact_qiao_id - 联系人标识
 - contact_type - 联系人类型
 
@@ -47,12 +47,12 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 ### 更新逻辑
 
-接口：`PUT /api/v1/contacts/{conv_id}`（详见 [api/contacts.md](../../api/contacts.md#更新联系人信息)）
+接口：`PUT /api/v1/contacts/{conversation_id}`（详见 [api/contacts.md](../../api/contacts.md#更新联系人信息)）
 
 **处理流程**：
 
 1. **验证权限**：
-   - 通过 conv_id 查询 contact 记录
+   - 通过 conversation_id 查询 contact 记录
    - 验证 user_qiao_id 是否为当前用户
    - 验证 is_deleted=0
 
@@ -81,7 +81,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 ### 屏蔽逻辑
 
-接口：`POST /api/v1/contacts/{conv_id}/block`（详见 [api/contacts.md](../../api/contacts.md#屏蔽联系人)）
+接口：`POST /api/v1/contacts/{conversation_id}/block`（详见 [api/contacts.md](../../api/contacts.md#屏蔽联系人)）
 
 **处理流程**：
 
@@ -98,7 +98,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 ### 取消屏蔽
 
-接口：`POST /api/v1/contacts/{conv_id}/unblock`（详见 [api/contacts.md](../../api/contacts.md#取消屏蔽联系人)）
+接口：`POST /api/v1/contacts/{conversation_id}/unblock`（详见 [api/contacts.md](../../api/contacts.md#取消屏蔽联系人)）
 
 **处理流程**：
 
@@ -109,7 +109,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 ### 删除逻辑
 
-接口：`DELETE /api/v1/contacts/{conv_id}`（详见 [api/contacts.md](../../api/contacts.md#删除联系人)）
+接口：`DELETE /api/v1/contacts/{conversation_id}`（详见 [api/contacts.md](../../api/contacts.md#删除联系人)）
 
 **处理流程**：
 
@@ -160,7 +160,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
    - 更新 alias（使用新值）
    - 更新 tags（使用新值）
    - 清空 remark（不保留旧值）
-   - 保留 conv_id（保持消息历史连续性）
+   - 保留 conversation_id（保持消息历史连续性）
    - 更新 updated_at
 
 3. **返回统一响应**：
@@ -171,14 +171,14 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 **恢复**（is_deleted=1 存在）：
 
-- 保留 conv_id
+- 保留 conversation_id
 - 更新 alias 和 tags
 - 清空 remark
 - 立即生效，无需等待接受
 
 **新建**（不存在或已过期）：
 
-- 生成新的 conv_id
+- 生成新的 conversation_id
 - 创建新的 contact_request
 - 需要等待接受（如果是用户联系人）
 
@@ -230,8 +230,8 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 **服务端存储**：
 
 - message_history 表保留除 TYPING 外的消息
-- 通过 conv_id 关联
-- 恢复联系人后，conv_id 不变，消息历史连续
+- 通过 conversation_id 关联
+- 恢复联系人后，conversation_id 不变，消息历史连续
 
 详见：[spec/message/README.md](../message/README.md)
 

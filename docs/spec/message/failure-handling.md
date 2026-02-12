@@ -1,228 +1,114 @@
-# 消息发送失败处理
+# 消息投递失败处理
 
-本文档说明消息发送失败的处理策略和重试机制。
+本文档说明消息投递失败的处理策略与自动重试调度实现。
+投递维度以 endpoint 为单位，`message_deliveries` 记录每个 endpoint 的投递结果，`message_dispatch_outbox` 负责重试调度。
+
+恢复入口约束：
+
+- timeline 发送恢复入口统一为 `message_dispatch_outbox`
+- 当 `should_reply=true` 且存在 assistant 文本发送时，buffer 进入 `COMPLETE` 前，首条 assistant 文本必须已写入 `message_dispatch_outbox`
 
 ## 失败场景分类
 
-### LeanCloud 层面失败
+### Provider 层面失败
 
-- 网络错误（网络超时、连接失败）→ 重试
-- LeanCloud 服务异常（服务不可用、限流）→ 重试
-- 消息格式错误（payload 格式不正确）→ 记录日志，不重试
+- 网络错误（超时、连接失败）→ 进入 outbox 自动重试
+- Provider 服务异常（服务不可用、限流）→ 进入 outbox 自动重试
+- 消息格式错误（payload 不正确）→ 记录日志，不重试
 
 ### 业务层面失败（拒收）
 
 - 用户被屏蔽（contacts.is_blocked = 1）→ 发送 CHAT_INFO，不重试
 - AI 屏蔽用户（ai_instances.status = 3）→ 发送 CHAT_INFO，不重试
 - 用户不是好友（contacts 表无记录）→ 发送 CHAT_INFO，不重试
+- 拒收分支返回 `business_rejected` 业务结果，不抛异常中断主流程
 
 详见 [special-types.md](special-types.md#block-功能和消息拒收)
 
-## message_delivery_failures 表
+---
 
-完整表结构见 [data-dict/message.md](../../data-dict/message.md)
+## 数据模型：message_dispatch_outbox + message_deliveries
 
-本文档关注的关键字段：
+完整表结构见 [data-dict/message.md](../../data-dict/message.md)。
 
-- msg_id_server - 原消息ID，关联 message_history.msg_id_server
-- content - 消息内容（用于重试）
-- fail_reason_code - 失败原因代码
-- fail_detail - 详细错误信息/堆栈（TEXT 类型）
-- retry_count - 重试次数，默认 0
-- max_retry_count - 最大重试次数，默认 3
-- next_retry_at - 下次重试时间
+说明：
 
-## 失败记录写入
+- 消息内容来源于 `message_history`（按 `msg_id_server` 查询），`message_deliveries` 不重复存储消息内容。
+- Outbox 负责调度与重试；`message_deliveries` 不承担调度职责。
+- `message_dispatch_outbox` 不可缺失于 timeline 发送链路。
+- 语义约定：
+  - `dispatched` 表示服务端已成功调用 provider 投递（WebSocket 场景为服务端成功写入连接）；不代表客户端已收到/已 HTTP ACK。
+  - `pending` 仅用于需要异步回执/回调才能确认投递结果的 provider。
 
-### 发送失败时
+---
 
-**逻辑步骤**：
+## 投递记录写入
 
-1. 尝试调用 LeanCloud API 发送消息
-2. 如果成功：
-   - 写入 message_history
-   - 记录 msg_id_provider_outbound
-   - 标记 status = sent
-3. 如果失败：
-   - 写入 message_delivery_failures
-   - 记录失败原因代码和详细信息
-   - 设置 retry_count = 0
-   - 计算 next_retry_at
-   - 记录错误日志
+### 写入时机
 
-### 失败原因代码
+一次出站消息会投递到一个或多个活跃 endpoints：
 
-- NETWORK_ERROR (1001) - 网络错误
-- LEANCLOUD_ERROR (1002) - LeanCloud 服务异常
-- RATE_LIMITED (1003) - 速率限制
-- INVALID_FORMAT (2001) - 消息格式错误
-- INVALID_RECIPIENT (2002) - 接收者不存在
-- BLOCKED (3001) - 被屏蔽
-- NOT_FRIEND (3002) - 不是好友
-- UNKNOWN (9999) - 未知错误
+1. 创建出站消息事实：写入 `message_history`
+2. 写入 `message_dispatch_outbox`（同事务提交）
+3. Worker 读取 outbox，计算目标 endpoints
+4. 调用 provider sender 发送（WebSocket sender / LeanCloud sender），并写/更新 `message_deliveries`
+5. 根据执行结果更新 outbox 状态（done 或 pending/failed）
+
+对于首条 assistant 文本：
+
+1. `message_history`、`message_dispatch_outbox`、`ai_conversation_items` 同事务写入
+2. `finalize_buffer_if_locked(... -> COMPLETE)` 在同一事务内执行
+
+### 状态更新规则
+
+- 发送成功：`status = dispatched`，写入 `dispatched_at`，必要时写入 `provider_msg_id`
+- 发送失败：`status = failed`，写入失败原因
+
+说明：
+
+- WebSocket 等可同步判定投递结果的 provider，可在发送成功后直接写入 `dispatched`（无需长期停留在 `pending`）。
+
+---
 
 ## 重试机制
 
-### 指数退避策略
+目标：
 
-**重试间隔**：
+- 对“可重试”的 provider 失败进行自动调度重试，避免瞬态网络问题导致消息永久失败。
 
+调度来源：
+
+- 重试调度基于 `message_dispatch_outbox`，不是基于 `message_deliveries` 扫描。
+
+指数退避策略：
+
+- 首次派发：任务进入 worker 后立即执行
 - 第 1 次重试：1 分钟后
 - 第 2 次重试：5 分钟后
 - 第 3 次重试：15 分钟后
+- 超过 3 次重试后标记 `failed`
 
-**计算逻辑**：
+计数语义：
 
-```
-next_retry_at = current_time + intervals[retry_count]
-```
+- `attempt_count` 仅统计“重试次数”，不包含首次派发。
 
-### 重试流程
+重试流程：
 
-**定期扫描**（建议每分钟 1 次）：
+1. 定期扫描待重试投递：
+   - `status = pending`
+   - `next_retry_at <= now`
+   - `attempt_count` 未超过上限
+2. 查询 `message_history` 获取消息内容与元数据
+3. 再次调用 provider 投递
+4. 更新 outbox：
+   - 成功：`done`
+   - 失败可重试：递增 `attempt_count`，重算 `next_retry_at`，回到 `pending`
+   - 失败不可重试/超过上限：`failed`
+5. 同步写入/更新 `message_deliveries`（endpoint 结果）
 
-1. 查询需要重试的消息：
-   - retry_count < max_retry_count
-   - next_retry_at <= 当前时间
-2. 对每条失败消息：
-   - 尝试重新发送
-   - 如果成功：删除失败记录，记录成功日志
-   - 如果失败：更新 retry_count，计算新的 next_retry_at
-3. 如果达到最大重试次数：
-   - 记录错误日志
-   - 触发告警
+---
 
-### 定时任务
+## Realtime Typing 失败语义
 
-**执行频率**：每分钟 1 次
-
-**任务内容**：扫描并重试失败的消息
-
-## 不重试的场景
-
-以下场景不进行重试，直接标记为最终失败：
-
-- 消息格式错误（payload 格式不正确）→ 记录日志，告警
-- 接收者不存在（to_qiao_id 无效）→ 记录日志，告警
-- 被屏蔽（业务层拒收）→ 发送 CHAT_INFO
-- 不是好友（业务层拒收）→ 发送 CHAT_INFO
-
-**可重试错误代码**：
-
-- NETWORK_ERROR
-- LEANCLOUD_ERROR
-- RATE_LIMITED
-
-## 服务重启恢复
-
-### 恢复策略
-
-服务重启后，自动恢复未完成的重试。
-
-**启动时检查**：
-
-1. 查询所有待重试的消息（retry_count < max_retry_count）
-2. 如果数量 > 0：
-   - 记录日志：Found N messages pending retry
-   - 立即执行一次重试任务
-
-### 滞留消息清理
-
-**定期清理**（建议每天凌晨 2 点）：
-
-清理超过 7 天的失败记录：
-
-- created_at < 当前时间 - 7 天
-- retry_count >= max_retry_count
-
-## 监控与告警
-
-### 监控指标
-
-- 失败率：发送失败 / 总发送（告警阈值：> 5%）
-- 重试次数：平均重试次数（告警阈值：> 2）
-- 滞留消息数：待重试消息数量（告警阈值：> 100）
-- 最终失败数：重试耗尽的消息数（告警阈值：> 10/小时）
-
-### 告警触发
-
-**检查失败率**：
-
-统计最近 1 小时的发送情况：
-
-- 总发送数：message_history 表记录数
-- 失败数：message_delivery_failures 表记录数
-- 失败率 = 失败数 / 总发送数
-- 如果失败率 > 5%：触发告警
-
-### 日志记录
-
-**发送失败**：
-
-记录错误日志，包含：
-
-- msg_id_server
-- to_qiao_id
-- error_code
-- error_detail
-
-**重试成功**：
-
-记录信息日志，包含：
-
-- msg_id_server
-- retry_count
-
-**重试失败**：
-
-记录错误日志，包含：
-
-- msg_id_server
-- retry_count
-- error_detail
-
-**重试耗尽**：
-
-记录错误日志，包含：
-
-- msg_id_server
-- max_retry_count
-
-## 客户端失败处理
-
-### 服务端拒收标记
-
-服务端通过发送 CHAT_INFO 消息通知客户端消息被拒收。
-
-**流程**：
-
-1. 服务端检测到消息被拒收
-2. 发送 CHAT_INFO 消息，包含 action：
-   - type: "mark_message_failed"
-   - target_msg_id: 原消息的 msg_id
-3. 客户端收到 CHAT_INFO 后，根据 target_msg_id 标记对应消息为失败状态
-
-详见 docs/spec/client/base/contacts-and-chat.md
-
-## 错误处理最佳实践
-
-### 1. 区分可重试和不可重试错误
-
-- 可重试错误：网络错误、服务异常、速率限制
-- 不可重试错误：格式错误、接收者不存在、业务拒收
-
-### 2. 使用指数退避
-
-重试间隔递增：1分钟 → 5分钟 → 15分钟
-
-### 3. 设置最大重试次数
-
-限制重试次数为 3 次，避免无限重试。
-
-### 4. 记录详细错误信息
-
-记录完整堆栈信息，便于排查问题。
-
-### 5. 成功后删除失败记录
-
-重试成功后立即删除 message_delivery_failures 记录，避免表无限增长。
+- `typing_start/typing_end` 为 realtime best-effort 事件
+- typing 失败只记录日志，不写 outbox，不触发 timeline 失败

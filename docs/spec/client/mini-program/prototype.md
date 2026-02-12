@@ -45,7 +45,6 @@
 ## 登录页内容数据
 
 - “发现有趣的 AI 伙伴”示例卡片与功能列表来自 `frontend/wx-minipg/constants/login-content.ts`
-- 预览区块不再请求 `/api/v1/app/pages/login`
 - 静态内容客户端维护，加载中不展示错误占位
 
 ## 资料设置差异

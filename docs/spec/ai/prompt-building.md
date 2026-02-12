@@ -82,9 +82,10 @@
 
 **{{self_profile}}**
 
-- 来源：profiles 表
-- 查询条件：owner_qiao_id = instance.qiao_id AND owner_type IN (2, 3)
+- 来源：`instance_context.profile`（由实例上下文加载阶段提供）
+- 正常查询条件：owner_qiao_id = instance.qiao_id AND owner_type IN (2, 3)
 - 内容：profile 的文本描述
+- 缺失处理：profile 缺失时置空字符串，不中断对话处理，并记录告警日志
 
 **{{other_profile}}**
 
@@ -108,7 +109,7 @@
 
 - 来源：ai_conversation_state.pending_messages
 - 条件：上一次发送被打断
-- 内容：待发消息列表的文本描述
+- 内容：pending_messages.outgoing 的文本列表描述
 - 用途：提示 LLM 需要优先处理这些文本
 - 详见：[message-sending.md](message-sending.md#中断处理)
 
@@ -171,7 +172,7 @@ messages = [
 
 ### 消息格式
 
-ai_conversation_items 采用扁平字段存储（message_type / text_content / media_url / media_metadata），不再保存 provider 的原始 JSON block。构造 LLM 请求时，builder 会根据 message_type 重新拼装为 Doubao Responses API 兼容的数组：
+ai_conversation_items 采用扁平字段存储（message_type / text_content / media_url / media_metadata）。构造 LLM 请求时，builder 会根据 message_type 重新拼装为 Doubao Responses API 兼容的数组：
 
 ```
 [
@@ -182,13 +183,9 @@ ai_conversation_items 采用扁平字段存储（message_type / text_content / m
 
 目前仅支持 text / image / audio 三种类型；图片与音频的元数据存放在 media_metadata，转换时一并带入。
 
-### 时间标记
+### 时间标记&消息合并
 
-时间前缀与格式化规则统一在 [../message/context.md](../message/context.md#时间标记格式化) 维护，这里不重复描述。
-
-### 消息合并
-
-合并规则与示例统一在 [../message/context.md](../message/context.md#converter-层消息合并) 维护，这里不重复描述。
+见 [../message/context.md](../message/context.md#时间标记格式化)
 
 ### Token 限制
 
@@ -200,7 +197,7 @@ ai_conversation_items 采用扁平字段存储（message_type / text_content / m
 - 超过限制时停止添加更早的消息
 - 保留 system prompt 的 token 预算
 
-实现位置：backend/app/services/ai/context/builder.py
+实现位置：`backend/app/services/ai/conversation_prompt.py`（`build_conversation_context`）
 
 配置来源：system_configs.ai_context_max_messages（默认 20）
 
@@ -259,9 +256,4 @@ LLM 输出 attack_detected = true 时触发
 - 记录 ERROR 日志
 - 继续构建 prompt
 
-## 实现位置
-
-- Prompt 构建：backend/app/services/ai/prompt/builder.py
-- Context 构建：backend/app/services/ai/context/builder.py
-- Converter：backend/app/services/ai/context/converter.py
-- 占位符处理：backend/app/services/ai/prompt/placeholders.py
+补充：`self_profile` 的 profile 缺失属于可降级场景，记录 WARNING 日志并继续。

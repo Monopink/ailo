@@ -42,6 +42,7 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('token_cleanup_after_days', '30', '30', 2, 'Clean up revoked tokens older than N days', 'auth', NULL),
 ('wechat_phone_mock_enabled', 'false', 'false', 3, 'Enable WeChat phone mock (non-production environments only)', 'auth', NULL),
 ('wechat_phone_mock_number', '', '', 1, 'Mock phone number for WeChat virtual accounts (E.164 format)', 'auth', NULL),
+('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 4, 'Reserved usernames (lowercase), JSON array', 'auth', NULL),
 
 -- LeanCloud IM configurations (must be configured via admin dashboard)
 ('leancloud_im_app_id', '', '', 1, 'LeanCloud IM App ID', 'leancloud', NULL),
@@ -54,9 +55,15 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- Message buffer configurations
 ('message_buffer_normal_wait_ms', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
-('message_buffer_typing_total_wait_ms', '10000', '10000', 2, 'Typing session total wait in milliseconds after typing_start', 'message_buffer', NULL),
-('message_buffer_typing_end_wait_ms', '1000', '1000', 2, 'Short wait time in milliseconds after typing ends', 'message_buffer', NULL),
-('message_buffer_no_typing_wait_ms', '2000', '2000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
+('message_buffer_typing_short_wait_ms', '16000', '16000', 2, 'Typing short wait in milliseconds after typing_start', 'message_buffer', NULL),
+('message_buffer_typing_total_wait_ms', '32000', '32000', 2, 'Typing session total wait in milliseconds after typing_start', 'message_buffer', NULL),
+('message_buffer_typing_end_wait_ms', '3000', '3000', 2, 'Short wait time in milliseconds after typing ends', 'message_buffer', NULL),
+('message_buffer_no_typing_wait_ms', '8000', '8000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
+
+-- Message transport configurations
+('ws_presence_lease_ttl_seconds', '90', '90', 2, 'WebSocket presence lease TTL in seconds', 'message_transport', NULL),
+('ws_ping_interval_seconds', '25', '25', 2, 'WebSocket client ping interval in seconds', 'message_transport', NULL),
+('registration_lease_ttl_days', '365', '365', 2, 'Registration lease TTL in days (e.g., LeanCloud installation binding)', 'message_transport', NULL),
 
 -- AI conversation archive configurations (values in seconds unless otherwise noted)
 ('ai_conversation_archive_time_days', '7', '7', 2, 'Archive AI conversation items older than this many days', 'ai_conversation', NULL),
@@ -77,10 +84,13 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('admin_auth_whitelist', '', '', 1, 'Admin whitelist IPs (comma separated)', 'security', NULL),
 
 -- User authentication rate limit and security
-('auth_rate_limit_requests', '10', '10', 2, 'User auth requests per window', 'rate_limit', NULL),
-('auth_rate_limit_window_hours', '1', '1', 2, 'User auth window in hours', 'rate_limit', NULL),
-('auth_max_failures', '5', '5', 2, 'Max user failures before lockout', 'security', NULL),
-('auth_lockout_duration_minutes', '15', '15', 2, 'User lockout duration in minutes', 'security', NULL),
+('auth_password_rate_limit_short_requests', '3', '5', 2, 'Password login short-window requests (per ip+identifier)', 'rate_limit', NULL),
+('auth_password_rate_limit_short_window_seconds', '10', '10', 2, 'Password login short window in seconds', 'rate_limit', NULL),
+('auth_password_rate_limit_long_requests', '10', '20', 2, 'Password login long-window requests (per ip+identifier)', 'rate_limit', NULL),
+('auth_password_rate_limit_long_window_seconds', '60', '60', 2, 'Password login long window in seconds', 'rate_limit', NULL),
+('auth_password_max_failures', '3', '5', 2, 'Password login max failures before lockout (per ip+identifier)', 'security', NULL),
+('auth_password_failure_window_seconds', '1800', '1800', 2, 'Password login failure counting window in seconds', 'security', NULL),
+('auth_password_lockout_duration_seconds', '1800', '900', 2, 'Password login lockout duration in seconds', 'security', NULL),
 
 -- SMS rate limit configuration
 ('sms_rate_limit_requests', '1', '1', 2, 'SMS requests per window', 'rate_limit', NULL),

@@ -5,6 +5,7 @@
 - [获取广场随机联系人](#获取广场随机联系人) - `GET /api/v1/discovery/square`
 - [获取陌生人详情](#获取陌生人详情) - `GET /api/v1/discovery/profile/{qiao_id}`
 
+
 ---
 
 ## 获取广场随机联系人
@@ -31,6 +32,7 @@
   "items": [
     {
       "qiao_id": "qiao_xm001",
+      "username": "xiaomeng",
       "category": "1",
       "nickname": "小萌",
       "gender": 2,
@@ -48,6 +50,7 @@
 
 - `items` (array) - 推荐的联系人列表
   - `qiao_id` (string) - 联系人的qiao_id
+  - `username` (string) - AI 用户名（用于搜索添加）
   - `category` (string) - 分类
   - `nickname` (string) - 昵称
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
@@ -66,7 +69,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
@@ -82,11 +85,6 @@
 - 刷新频率由配置控制
 - `force_refresh=true` 可跳过频率限制（仅测试用）
 - 仅返回**已绑定 Profile 的活跃 Persona**
-
-### 相关接口
-
-- [获取陌生人详情](#获取陌生人详情)
-- [发送联系人申请](contact-requests.md#发送联系人申请)
 
 ---
 
@@ -107,6 +105,7 @@
 ```json
 {
   "qiao_id": "qiao_abc123",
+  "username": "xiaoqiao",
   "nickname": "小乔",
   "gender": 2,
   "avatar_url": "https://cdn.example.com/personas/qiao_abc123.webp",
@@ -119,6 +118,7 @@
 **字段说明**:
 
 - `qiao_id` (string) - 联系人的qiao_id
+- `username` (string) - AI 用户名（用于搜索添加）
 - `nickname` (string) - 昵称
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL
@@ -134,7 +134,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
@@ -144,7 +144,3 @@
 - 不返回是否已添加联系人的状态
 - 用于发现页面点击联系人后查看详情
 - 支持分享和外链直达
-
-### 相关接口
-
-- [发送联系人申请](contact-requests.md#发送联系人申请)

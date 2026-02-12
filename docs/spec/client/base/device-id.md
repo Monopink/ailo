@@ -2,12 +2,6 @@
 
 用于标识同一设备/安装实例的稳定 ID，跨会话复用，不与账号绑定。
 
-## 设计目标
-
-- 稳定：同一安装周期内保持不变
-- 简单：无业务语义，便于实现与维护
-- 隐私友好：不依赖硬件标识，不采集设备敏感信息
-
 ## 生成时机
 
 - 首次启动时生成并持久化
@@ -31,3 +25,14 @@
 
 - 同一设备多账号共享同一 `device_id`
 - 服务端使用 `(user_id, device_id)` 作为游标唯一约束
+
+## 接口约束（强制）
+
+`device_id` 必须在以下登录接口中上送，且必须是 UUID：
+
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/wechat/login`
+- `POST /api/v1/auth/wechat/bind-phone`
+- `POST /api/v1/auth/phone`
+
+客户端禁止走“无 device_id 登录”路径。

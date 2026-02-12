@@ -283,6 +283,11 @@ class AIInstanceView(ModelView):
 
     async def before_create(self, _request: Request, data: FormData, obj: AIInstance) -> None:
         """Auto-fill foreign keys and required fields before creating instance."""
+        if not getattr(obj, "id", None):
+            obj.id = generate_snowflake_id()
+        if not getattr(obj, "qiao_id", None):
+            obj.qiao_id = generate_qiao_id()
+
         # Set created_by to 2 (Admin) for admin panel creations
         obj.created_by = 2
 
@@ -731,7 +736,11 @@ class AIInstanceMemoryView(ModelView):
     ]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["content", "user_qiao_id", "instance_qiao_id"]
+    searchable_fields: ClassVar[list[str]] = [
+        "content",
+        "user_qiao_id",
+        "instance_qiao_id",
+    ]
     sortable_fields: ClassVar[list[str]] = [
         "instance_id",
         "user_id",
@@ -829,7 +838,11 @@ class AIInstanceMemoryView(ModelView):
 
 # Create view instances
 ai_instance_view = AIInstanceView(
-    AIInstance, name="AI Instances", label="Instances", icon="fa fa-robot", identity="ai_instance"
+    AIInstance,
+    name="AI Instances",
+    label="Instances",
+    icon="fa fa-robot",
+    identity="ai_instance",
 )
 
 ai_instance_dimension_view = AIInstanceDimensionView(

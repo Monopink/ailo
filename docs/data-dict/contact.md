@@ -8,7 +8,7 @@
 
 ```txt
 id -- Snowflake ID
-conv_id -- conv_+随机字符，外部使用，对话标识
+conversation_id -- conv_+随机字符，外部使用，对话标识
 user_id -- 联系人所属用户ID，NULL表示公共联系人
 user_qiao_id -- 联系人所属用户外部ID，NULL表示公共联系人
 contact_type -- 联系人类型：1=user, 2=ai, 3=official

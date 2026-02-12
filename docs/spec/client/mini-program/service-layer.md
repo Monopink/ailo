@@ -51,6 +51,13 @@
 | `auth-service` | 认证管理 | `utils/auth-service.ts` |
 | `discovery-service` | 发现页管理 | `utils/discovery-service.ts` |
 
+## 消息服务约束
+
+- optimistic 消息必须携带 `msg_id_client`
+- 时间线消息去重主键固定为 `msg_id_server`
+- 收到 self echo 且命中 `(conv_id, msg_id_client)` 时，消息状态执行替换收敛到 `msg_id_server`
+- `POST /api/v1/messages/ack` 的游标推进基于 `msg_id_server`
+
 ## 参考实现
 
 查看以下文件了解标准实现模式：
@@ -78,73 +85,3 @@ setup 页面（首次登录设置资料）可以直接调用 API，因为涉及�
 | 系统消息 | 允许回退值 | `{{errorMessage \|\| '操作失败'}}` |
 | 资料数据 | 禁止回退值 | `{{nickname}}` |
 | 绑定数据 | 在逻辑层处理 | `displayPhone: user.phone ? format(phone) : '未绑定'` |
-
-## Service 层实现模板
-
-```typescript
-// utils/example-service.ts
-import { logger } from './logger';
-import { get, put } from './api';
-
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-}
-
-class ExampleService {
-  private cache: CacheEntry<ExampleData> | null = null;
-  private loadingPromise: Promise<ExampleData> | null = null;
-  private readonly CACHE_TTL = 3 * 60 * 1000; // 3分钟
-
-  async getData(forceRefresh = false): Promise<ExampleViewModel> {
-    // 检查缓存
-    if (!forceRefresh && this.cache) {
-      const age = Date.now() - this.cache.timestamp;
-      if (age < this.CACHE_TTL) {
-        logger.info('[ExampleService] cache hit', { age });
-        return this.toViewModel(this.cache.data);
-      }
-      logger.info('[ExampleService] cache expired', { age });
-    }
-
-    // 防重复请求
-    if (this.loadingPromise) {
-      logger.info('[ExampleService] reusing pending request');
-      const data = await this.loadingPromise;
-      return this.toViewModel(data);
-    }
-
-    // 发起请求
-    try {
-      logger.info('[ExampleService] fetching data', { forceRefresh });
-      this.loadingPromise = get<ExampleData>('/api/v1/example');
-      const data = await this.loadingPromise;
-
-      // 更新缓存
-      this.cache = { data, timestamp: Date.now() };
-
-      return this.toViewModel(data);
-    } catch (error) {
-      logger.error('[ExampleService] fetch failed', { error });
-      throw error;
-    } finally {
-      this.loadingPromise = null;
-    }
-  }
-
-  private toViewModel(data: ExampleData): ExampleViewModel {
-    // 转换为 ViewModel
-    return {
-      displayName: data.name || '未设置',
-      // ... 其他字段转换
-    };
-  }
-
-  clearCache(): void {
-    logger.info('[ExampleService] cache cleared');
-    this.cache = null;
-  }
-}
-
-export const exampleService = new ExampleService();
-```

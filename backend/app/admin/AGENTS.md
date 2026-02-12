@@ -1,81 +1,41 @@
 # Starlette Admin 开发规范
 
-## 核心原则
+## 文档定位
 
-1. **❌ 禁止在 admin 中编写业务逻辑** - 仅做数据展示和 CRUD，复杂逻辑在 `services/` 实现
-2. **✅ 使用 Field 对象** - `fields` 列表必须用 `IntegerField`/`StringField` 等，不能用字符串
-3. **✅ 类型检查豁免** - 框架限制导致的 `[misc]`, `[union-attr]`, `[arg-type]`, `[list-item]` 错误已在 pyproject.toml 忽略
+本文件只定义 Admin 模块特有规则。
+通用后端规则见：`backend/AGENTS.md`。
 
----
+## 核心规则
 
-## 代码模式
+1. 禁止在 Admin 层编写业务逻辑（仅负责展示、输入、CRUD 编排）
+2. 业务行为必须下沉到 `app/services/`，Admin 仅调用 service
+3. `fields` 必须全部使用 `Field` 对象，禁止混入字符串
+4. `type: ignore` 仅允许用于框架边界，且必须写明原因
 
-### Fields 定义
+## 代码示例
 
 ```python
-# ✅ 正确：使用 Field 对象
+# Good: all fields are Field objects.
 fields = [
     IntegerField("id", label="ID"),
     DateTimeField("created_at", label="Created At"),
 ]
-
-# ❌ 错误：不能用字符串
-fields = [IntegerField("id"), "created_at"]  # 运行时 AttributeError
 ```
 
-### 动态字段（可选，更好的类型安全）
-
 ```python
-def get_fields_list(self, request: Request, action: RequestAction) -> Sequence[BaseField]:
-    return [IntegerField("id"), StringField("name")]
-```
-
----
-
-## 类型处理要点
-
-### JSONValue 类型
-```python
-# ✅ 使用类型缩窄
-if not isinstance(config, dict):
-    raise ValueError("Config must be a dict")
-
-# ❌ 无法避免时添加 ignore
-return data.get("config", {})  # type: ignore[union-attr]
-```
-
-### FormValidationError
-```python
-errors: dict[str | int, Any] = {"name": "Name is required"}
-raise FormValidationError(errors)
-```
-
-### 方法覆盖
-```python
-# 基类使用 Any 时需要 ignore
-async def render(self, request: Request, templates: Any) -> Response:  # type: ignore[override]
-    ...
-```
-
----
-
-## 业务逻辑分离
-
-```python
-# ❌ 错误：在 admin 中写业务逻辑
-class AIInstanceView(ModelView):
-    async def after_create(self, request, obj):
-        relationship_score = calculate_relationship_score(obj)  # ❌
-        update_memory_context(obj, relationship_score)  # ❌
-
-# ✅ 正确：调用 service
+# Good: delegate business logic to service layer.
 class AIInstanceView(ModelView):
     async def after_create(self, request, obj):
         await instance_service.create_with_initialization(request.state.db, obj)
 ```
 
----
+## 类型处理约束
 
-## 测试
+- JSONValue/union 类型先做类型缩窄，再访问属性
+- 覆盖父类签名时若必须 `type: ignore[override]`，注释说明框架限制
+- `FormValidationError` 使用明确的 `dict[str | int, Any]` 错误映射
 
-手动测试 UI 功能即可，访问 http://localhost:8000/qiao-dash/ 验证 CRUD 正常。
+## 验证要求
+
+- 修改 `app/admin/` 后必须执行 `/validate`
+- 手动验收入口：`http://localhost:8000/qiao-dash/`

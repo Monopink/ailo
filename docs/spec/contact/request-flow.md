@@ -4,9 +4,7 @@
 
 ## 核心设计原则
 
-### 统一 API 设计
-
-用户不应区分添加 AI 还是普通用户，使用同一个 API：
+### API 设计
 
 - 单一接口：`POST /api/v1/contact-requests`
 - 后端自动判断目标类型（先查 users 表，再查 ai_personas 表）
@@ -91,6 +89,12 @@ stateDiagram-v2
 **用户操作**：调用 `POST /api/v1/contact-requests`
 
 **后端处理**：
+
+前置步骤（客户端）：
+
+- 若用户输入的是 AI username，先调用 `GET /api/v1/discovery/ai/search`
+- 根据返回结果拿到 `qiao_id`
+- 再发起 `POST /api/v1/contact-requests`
 
 1. **联系人模块验证**：
    - 检查是否已添加该联系人（包括已删除的）
@@ -239,13 +243,6 @@ stateDiagram-v2
 
 详见：[ai-creation.md](ai-creation.md) 的"模板不足挂起机制"
 
-**关键字段**：
-
-- `failure_code` - 失败原因代码（例如 NO_TEMPLATE_AVAILABLE）
-- `failure_detail` - JSON 详情（包含 ai_type_id、qiao_id 等）
-- `retry_count` - 重试次数
-- `last_retry_at` - 最近一次重试时间
-
 **重试逻辑**：
 
 - 管理员补充模板后，可在后台触发重试
@@ -267,7 +264,7 @@ stateDiagram-v2
 
 **保留内容**：
 
-- conv_id（对话 ID）
+- conversation_id（对话 ID）
 
 **不保留内容**：
 

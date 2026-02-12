@@ -1,420 +1,127 @@
 # 对话流程
 
-本文档说明 AI 对话的完整端到端流程。
+本文档只记录对话编排规则、决策条件和失败边界，不重复子系统实现细节与字段字典。
 
-## 流程概览
+## 职责边界
+
+- 端到端编排：本文档
+- 缓冲与计时：[`../message/buffer.md`](../message/buffer.md)
+- Prompt 构建：[`prompt-building.md`](prompt-building.md)
+- LLM 调用与响应字段：[`llm-interaction.md`](llm-interaction.md)
+- 关系计算：[`relationship-system.md`](relationship-system.md)
+- 消息发送：[`message-sending.md`](message-sending.md)
+- Provider 传递：[`../message/leancloud.md`](../message/leancloud.md)
+- 失败投递：[`../message/failure-handling.md`](../message/failure-handling.md)
+
+## 主流程
 
 ```
-用户发送消息
-  ↓
-LeanCloud Webhook 接收
-  ↓
-消息验证和解密
-  ↓
-安全检测和频率限制
-  ↓
-写入 ai_conversation_items
-  ↓
-消息缓冲聚合 (buffer)
-  ↓
-唤醒等待 (可选)
-  ↓
-双计时器等待
-  ↓
-计时器到期，锁定窗口
-  ↓
-构建 Prompt
-  ↓
-调用 LLM
-  ↓
-处理响应
-  ↓
-更新关系分数
-  ↓
-发送消息
-  ↓
-用户收到消息
+用户消息入站
+  -> 入站验证与安全检测
+  -> 写入 ai_conversation_items
+  -> 缓冲聚合 + 计时
+  -> 锁定窗口（可抢占）
+  -> 构建 Prompt
+  -> 调用 LLM + Schema 校验
+  -> 响应处理
+  -> 关系更新（可选）
+  -> 消息发送（可选）
+  -> Provider 投递
 ```
 
-## 详细流程
+## 阶段规则
 
 ### 阶段 1：消息接收
 
-**入口**：LeanCloud Webhook
+- 入口固定为 LeanCloud Webhook。
+- 必须完成 token 校验、消息格式校验、解密（如启用）。
+- 验证失败必须终止流程，消息不得进入上下文与缓冲。
 
-详见：[../message/leancloud.md](../message/leancloud.md)
-
-**步骤**：
-
-1. 验证 webhook_token
-2. 解密消息内容（如果加密）
-3. 提取消息元数据（msg_id、timestamp、from_peer 等）
-
-**输出**：验证通过的消息对象
+详见：[`../message/leancloud.md`](../message/leancloud.md)
 
 ### 阶段 2：安全检测
 
-**检测项**：
+- 必须执行频率限制、内容安全、用户状态校验。
+- 任一检测失败，终止流程并拒绝本条消息。
+- 安全检测失败不允许继续进入 LLM 链路。
 
-- 频率限制（防止刷屏）
-- 内容安全（敏感词、违规内容）
-- 用户状态（是否被封禁）
+### 阶段 3：写入上下文事实
 
-**处理**：
+- 入站用户消息必须落库到 `ai_conversation_items`。
+- `text` 类型必须包含 `text_content`；攻击排除标记初始值为 `0`。
+- 写入失败必须终止，不允许创建新的处理窗口。
 
-- 如果检测失败，拒绝消息
-- 记录违规日志
-- 返回错误响应
+详见：[`../message/context.md`](../message/context.md)
 
-**输出**：通过检测的消息
+### 阶段 4：缓冲聚合与计时
 
-### 阶段 3：写入对话历史
+- 同会话存在活跃窗口（`WAITING_WAKEUP` 或 `OPEN`）时必须合并，不存在时创建新窗口。
+- 是否进入唤醒等待由 `wake_window_ms` 决定，唤醒作为计时门控参与统一截止时间计算。
+- `typing_start/typing_end` 在 `WAITING_WAKEUP` 与 `OPEN` 都必须更新计时。
+- 统一以 `buffer_expires_at_ms` 判定是否到期进入处理。
 
-**目标**：将用户消息写入 ai_conversation_items
+详见：[`../message/buffer.md`](../message/buffer.md)
 
-详见：[../message/context.md](../message/context.md)
+### 阶段 5：锁定与抢占
 
-**逻辑**：
+- 同会话同一时刻最多允许一个 LOCKED 窗口。
+- 新窗口到期可抢占旧 LOCKED 窗口。
+- 锁定候选来自已到期窗口（`WAITING_WAKEUP` 或 `OPEN`）。
+- LOCKED/COMPLETE/CANCELLED 转换使用条件更新（CAS）。
+- 抢占生效点为新窗口锁定并推进 `active_turn_version`。
+- 旧代次在检测到 `active_turn_version` 切换后必须立即中止并丢弃当前结果。
+- 抢占是并发正常路径，不按业务失败处理。
 
-- role = "user"
-- message_type/text_content/media_url/media_metadata 等字段按 `ai_conversation_items` 结构写入（text 必填 text_content）
-- is_excluded_from_context = 0
-- buffer_id = 当前 buffer 窗口 ID
+详见：[`../message/buffer.md`](../message/buffer.md#到期扫描与锁定)
 
-**输出**：ai_conversation_items 记录 ID
+### 阶段 6：Prompt 构建
 
-### 阶段 4：消息缓冲
+- 必须按模板占位符规则构建完整 `messages`。
+- `AIInstance`、`AIStyle`、`AIPersonality` 缺失属于硬错误，必须终止。
+- `Profile` 缺失允许降级：`self_profile` 置空并继续。
 
-**目标**：聚合短时间内的多条消息
+详见：[`prompt-building.md`](prompt-building.md)
 
-详见：[../message/buffer.md](../message/buffer.md)
+### 阶段 7：LLM 调用与校验闸门
 
-**步骤**：
+- 按配置选择流式或非流式调用。
+- 流式与非流式都必须执行抢占校验。
+- 仅 Schema 校验通过的响应允许进入后续处理。
+- 调用失败、超时、Schema 失败均不得写入业务更新结果。
 
-1. 查询是否存在 OPEN 窗口
-2. 如果存在，更新窗口（合并消息）
-3. 如果不存在，创建新窗口
-4. 根据消息类型设置计时器
+详见：[`llm-interaction.md`](llm-interaction.md)
 
-**输出**：ai_message_buffer 记录（OPEN 或 WAITING_WAKEUP 状态）
+### 阶段 8：响应处理
 
-### 阶段 5：唤醒等待（可选）
+- 安全副作用始终生效：`attack_detected -> should_block`。
+- 会话副作用受首条发送门槛控制：`memory_operations -> score`。
+- `attack_detected=true` 时必须标记本轮用户消息为上下文排除。
+- `should_reply=false` 时不得发送 `outgoing_messages` 与 `followup_messages`。
 
-**触发条件**：距离上次对话超过 wake_window_ms
+详见：[`llm-interaction.md`](llm-interaction.md#处理顺序)
 
-详见：[../message/buffer.md](../message/buffer.md#唤醒机制)
+### 阶段 9：关系更新（可选）
 
-**逻辑**：
+- 仅在响应包含 `score` 时执行关系计算。
+- 不满足关系系统输入约束时，本轮关系状态保持不变。
 
-- 创建 WAITING_WAKEUP 状态的 buffer
-- 设置 wake_expires_at_ms
-- 等待唤醒计时器到期
-- 转换为 OPEN 状态
+详见：[`relationship-system.md`](relationship-system.md)
 
-**跳过条件**：
+### 阶段 10：消息发送与投递（可选）
 
-- 初次对话
-- 连续对话（在 wake_window_ms 内）
+- `should_reply=true` 时，按顺序发送 `outgoing_messages`，再按延迟发送 `followup_messages`。
+- 发送过程中仅 `CONTENT_INPUT` 可触发抢占流程。
+- 新窗口锁定并切换 `active_turn_version` 后，中断旧代次未完成发送。
+- typing 事件不触发发送中断。
+- Provider 投递失败走统一失败处理链路，不改变消息事实定义。
 
-### 阶段 6：双计时器等待
+详见：[`message-sending.md`](message-sending.md)、[`../message/failure-handling.md`](../message/failure-handling.md)
 
-**目标**：等待用户输入完成
+## 全局失败边界
 
-详见：[../message/buffer.md](../message/buffer.md#双计时器机制)
-
-**逻辑**：
-
-- 微计时器：每条新消息重置
-- 宏计时器：从 typing_start 开始计时
-- 任一计时器到期即触发处理
-
-**输出**：计时器到期信号
-
-### 阶段 7：锁定窗口
-
-**目标**：抢占式锁定，防止并发处理
-
-详见：[../message/buffer.md](../message/buffer.md#到期扫描与锁定)
-
-**逻辑**：
-
-1. 扫描到期的 OPEN 窗口
-2. 取消该会话所有旧的 OPEN/LOCKED 窗口
-3. 锁定最新且到期的窗口（LOCKED 状态）
-
-**并发控制**：
-
-- 唯一索引保证同会话最多一个 LOCKED
-- 冲突时重试
-
-**输出**：LOCKED 状态的 buffer
-
-### 阶段 8：构建 Prompt
-
-**目标**：构建完整的 LLM 请求
-
-详见：[prompt-building.md](prompt-building.md)
-
-**步骤**：
-
-1. 获取 personality.prompt 模板
-2. 替换系统占位符
-3. 替换实例占位符
-4. 使用 `backend/app/services/ai/memory/retrieval.py` 生成 `{{memory}}` 文本（读取 `ai_instance_memories`，并应用限额/模糊标签）
-5. 查询对话历史（ai_conversation_items）
-6. 构建 context
-7. 合并为完整 messages 数组
-
-**输出**：完整的 LLM 请求 messages
-
-### 阶段 9：调用 LLM
-
-**目标**：获取 AI 响应
-
-详见：[llm-interaction.md](llm-interaction.md)
-
-**步骤**：
-
-1. 获取 LLM Config
-2. 发起流式请求
-3. 监听抢占信号
-4. 接收响应
-5. 验证 JSON Schema
-
-**抢占处理**：
-
-- 如果新窗口抢占，立即停止读取
-- 丢弃当前结果
-
-**输出**：验证通过的 JSON 对象
-
-### 阶段 10：处理响应
-
-**目标**：执行 LLM 输出的各项操作
-
-详见：[llm-interaction.md](llm-interaction.md#响应处理)
-
-**步骤**：
-
-1. 处理 attack_detected（标记攻击消息）
-2. 处理 should_block（屏蔽用户）
-3. 处理 memory_operations（调用 `backend/app/services/ai/memory/operations.py`，更新 `ai_instance_memories`）
-4. 处理 score（更新关系分数）
-5. 标记 buffer 为 COMPLETE
-
-**输出**：更新后的 instance 状态
-
-### 阶段 11：更新关系分数
-
-**目标**：计算新的关系等级
-
-详见：[relationship-system.md](relationship-system.md)
-
-**步骤**：
-
-1. 分数映射（LLM 输出 → [0, 1000]）
-2. 位置映射（score → position）
-3. 候选收集（position → relationships）
-4. 非当前关系过滤
-5. 次数限制过滤
-6. 优先级选择
-7. 结果落地
-
-**输出**：更新后的 ai_instance_dimensions
-
-### 阶段 12：发送消息
-
-**目标**：发送 AI 回复消息
-
-详见：[message-sending.md](message-sending.md)
-
-**步骤**：
-
-1. 启动异步发送任务
-2. 发送 outgoing_messages（逐条，模拟打字）
-3. 等待 followup_delay_ms
-4. 发送 followup_messages（逐条，模拟打字）
-5. 写入 ai_conversation_items（每条消息独立插入）
-
-**中断处理**：
-
-- 如果用户发送新消息，中断发送
-- 未发送的消息写入 pending_messages
-
-**输出**：发送成功的消息
-
-### 阶段 13：消息传递
-
-**目标**：通过 LeanCloud 传递给用户
-
-详见：[../message/leancloud.md](../message/leancloud.md)
-
-**步骤**：
-
-1. 调用 LeanCloud REST API
-2. 记录 msg_id_provider_outbound
-3. 更新 message_history
-
-**失败处理**：
-
-- 写入 message_delivery_failures
-- 按策略重试
-
-详见：[../message/failure-handling.md](../message/failure-handling.md)
-
-## 关键决策点
-
-### 决策点 1：是否需要唤醒等待
-
-**条件**：距离上次对话时间 > wake_window_ms
-
-**是**：创建 WAITING_WAKEUP buffer，等待 wake_time_ms
-
-**否**：直接创建 OPEN buffer，进入双计时器等待
-
-### 决策点 2：何时触发 LLM 处理
-
-**条件**：微计时器或宏计时器到期
-
-**微计时器**：每条新消息重置，快速响应
-
-**宏计时器**：从 typing_start 开始，防止无限等待
-
-### 决策点 3：是否抢占旧处理
-
-**条件**：新窗口到期时，存在旧的 OPEN/LOCKED 窗口
-
-**是**：取消旧窗口，锁定新窗口
-
-**否**：直接锁定新窗口
-
-### 决策点 4：是否回复消息
-
-**条件**：LLM 输出 should_reply = true
-
-**是**：发送 outgoing_messages 和 followup_messages
-
-**否**：不发送消息，清空 pending_messages
-
-### 决策点 5：是否更新关系
-
-**条件**：LLM 输出 score 对象
-
-**是**：计算新的 position 和 relationship
-
-**否**：保持当前关系不变
-
-## 异常流程
-
-### 异常 1：消息验证失败
-
-**触发**：Webhook token 无效、消息格式错误
-
-**处理**：
-
-- 拒绝消息
-- 记录错误日志
-- 返回 200
-
-**影响**：消息不进入系统
-
-### 异常 2：安全检测失败
-
-**触发**：频率超限、内容违规、用户被封禁
-
-**处理**：
-
-- 拒绝消息
-- 记录违规日志
-- 返回错误响应
-
-**影响**：消息不进入系统
-
-### 异常 3：LLM 请求失败
-
-**触发**：网络错误、API 错误、超时
-
-**处理**：
-
-- 记录错误日志
-- 重试（可选）
-- 如果最终失败，buffer 保持 LOCKED 状态
-
-**影响**：用户不会收到回复
-
-### 异常 4：JSON Schema 验证失败
-
-**触发**：LLM 输出不符合 schema
-
-**处理**：
-
-- 记录错误日志
-- 丢弃结果
-- buffer 保持 LOCKED 状态
-
-**影响**：用户不会收到回复
-
-### 异常 5：消息发送失败
-
-**触发**：LeanCloud API 错误、网络错误
-
-**处理**：
-
-- 写入 message_delivery_failures
-- 写入 pending_messages
-- 按策略重试
-
-**影响**：消息延迟送达或丢失
-
-### 异常 6：被抢占
-
-**触发**：用户发送新消息，创建新窗口
-
-**处理**：
-
-- 立即停止当前处理
-- 丢弃结果
-- 开始处理新窗口
-
-**影响**：旧消息的回复被丢弃，处理新消息
-
-## 性能优化
-
-### 优化 1：流式输出
-
-使用 Doubao 流式 API，边接收边处理
-
-**优势**：
-
-- 减少首字延迟
-- 支持早停（被抢占时）
-
-### 优化 2：异步发送
-
-消息发送使用异步任务，不阻塞主流程
-
-**优势**：
-
-- buffer 可以快速标记为 COMPLETE
-- 支持并发发送多个会话的消息
-
-### 优化 3：数据库索引
-
-关键查询使用索引优化
-
-**索引**：
-
-- ai_message_buffer: (user_qiao_id, instance_qiao_id, aggregate_state)
-- ai_conversation_items: (user_qiao_id, instance_qiao_id, created_at)
-- ai_instance_dimensions: (instance_id, dimension_id)
-
-### 优化 4：缓存
-
-缓存频繁查询的数据
-
-**缓存项**：
-
-- ai_llm_configs
-- ai_personalities
-- ai_relationships
-- system_configs
+- 任何入站校验失败：终止于入站层，不进入对话编排。
+- 任何安全检测失败：终止于安全层，不进入 LLM 链路。
+- 任何抢占事件：在 `active_turn_version` 切换后立即中止旧处理，旧结果必须丢弃。
+- 任何 LLM 校验闸门失败：不得推进关系更新与消息发送。
+- 首条发送门槛未达成且发生抢占：不得推进会话副作用。
+- 任何发送/投递失败：按消息失败处理规则推进，不在本文件重复定义重试实现。

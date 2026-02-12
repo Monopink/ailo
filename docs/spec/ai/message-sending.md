@@ -1,432 +1,174 @@
 # 消息发送
 
-本文档说明 AI 消息的发送、打字模拟和中断处理。
+定义 AI 回复发送链路、打字模拟、抢占中断与失败语义。
 
 ## 数据模型
 
-**数据表定义** 详见：
+### ai_conversation_state
 
-- [../../data-dict/ai-conversation.md](../../data-dict/ai-conversation.md)
-- [../../data-dict/message.md](../../data-dict/message.md#message_delivery_failures)
+- `pending_messages`: 抢占导致未发送的 `outgoing` 消息片段
+- `interrupted_at`: 最近一次被内容输入抢占的时间
 
-## 核心概念
+### ai_conversation_runtime
 
-### 消息类型
+- `ingress_version`: 内容输入入站代次，`CONTENT_INPUT` 到达即单调递增
+- `active_turn_version`: 活跃处理代次，仅在新窗口到期并锁定后推进
 
-**outgoing_messages**
+### ai_conversation_items
 
-- 立即发送的消息
-- 按顺序逐条发送
-- 每条消息模拟打字延迟
+- assistant timeline 消息写入成功后逐条写入
 
-**followup_messages**
+### message_history / message_dispatch_outbox / message_deliveries
 
-- 延迟发送的消息
-- 在 outgoing_messages 发送完成后等待 followup_delay_ms
-- 按顺序逐条发送
+- 出站消息事实与投递重试链路
+- `message_dispatch_outbox` 是 timeline 发送恢复入口
 
-### 打字模拟
+## 核心语义
 
-模拟真人打字速度，增强拟人化体验。
+### 事件语义
 
-**参数来源**：ai_instances.typing_speed_wpm（词/分钟）
+- `CONTENT_INPUT`：文本、图片、音频等内容型输入
+- `INPUT_HINT`：`typing_start`、`typing_end`
 
-**计算逻辑**：详见下文"打字速度计算"章节
+### 中断语义
 
-### 中断机制
+- 仅 `CONTENT_INPUT` 触发抢占流程
+- `CONTENT_INPUT` 到达时只推进 `ingress_version`，不立即中断当前发送
+- 新窗口到期并锁定后，推进 `active_turn_version`，旧代次发送在下一检查点中断
+- `INPUT_HINT` 不触发中断
 
-用户发送新消息时，中断当前发送任务。
+### 代次语义
 
-**未发送内容**：写入 ai_conversation_state.pending_messages
+- 发送任务绑定 `task_turn_version=active_turn_version`
+- 发送关键点检查 `current_active_turn_version == task_turn_version`
+- 不一致即终止旧代次发送
 
-**下次处理**：通过 {{pending_messages}} 占位符提示 LLM
+### 首条发送门槛
 
-## 消息发送流程
+门槛定义：当 `should_reply=true` 且存在 assistant 文本发送时，首条 assistant 文本必须满足以下条件：
 
-### 流程概述
+1. 已写入 `message_history`
+2. 已写入 `message_dispatch_outbox`
+3. 已写入 `ai_conversation_items`
 
+`finalize_buffer_if_locked(... -> COMPLETE)` 与以上三项在同一事务提交。
+
+会话副作用（`memory_operations`、`score`）在门槛达成后执行。
+
+### pending_messages 语义
+
+- 仅记录抢占导致未发送片段
+- 结构：
+
+```json
+{
+  "outgoing": ["..."],
+  "total_pending": 2
+}
 ```
-process_llm_response 调用 send_ai_messages_with_typing
-  ↓
-启动异步发送任务
-  ↓
-发送 outgoing_messages（逐条）
-  ↓
-等待 followup_delay_ms
-  ↓
-发送 followup_messages（逐条）
-  ↓
-清空 ai_conversation_state
-```
 
-### 步骤 1：启动异步任务
+## 发送流程
 
-调用位置：process_llm_response 处理完 LLM 响应后
+### 1. 启动发送任务
 
 输入：
 
-- instance
-- user
-- outgoing_messages
-- followup_messages
-- buffer_id
+- `outgoing_messages`
+- `followup_messages`
+- `task_turn_version`
 
-输出：异步任务 ID
+### 2. 发送 outgoing_messages
 
-### 步骤 2：发送 outgoing_messages
+每条消息执行：
 
-对每条消息：
+1. 代次检查
+2. 发送 `typing_start`（realtime best-effort）
+3. 等待打字时长
+4. 再次代次检查
+5. 写入 TEXT 的 `message_history`
+6. 写入 `message_dispatch_outbox`
+7. 写入对应 `ai_conversation_items`
+8. 若为首条 assistant 文本，在同一事务内执行 `finalize_buffer_if_locked(... -> COMPLETE)`
 
-- 计算打字延迟时间
-- 等待延迟时间
-- 检查是否被中断
-- 如果未中断，发送消息
-- 写入 ai_conversation_items
+### 3. 等待 followup_delay_ms
 
-详见下文"单条消息发送"章节
+等待期间保持代次检查。
 
-### 步骤 3：等待 followup_delay_ms
+### 4. 发送 followup_messages
 
-获取延迟时间：
+流程与 outgoing 一致。
 
-- 查询 ai_instance_dimensions 获取当前 relationship_id
-- 查询 ai_relationships.followup_delay_ms
+### 5. 收尾
 
-等待期间：
-
-- 检查是否被中断
-- 如果被中断，停止发送
-
-### 步骤 4：发送 followup_messages
-
-逻辑同 outgoing_messages
-
-### 步骤 5：清空状态
-
-如果全部发送成功：
-
-- 清空 ai_conversation_state.pending_messages
-- 清空 ai_conversation_state.sending_task_id
-
-如果被中断：
-
-- 保留 pending_messages（未发送的消息）
-- 清空 sending_task_id
-
-## 单条消息发送
-
-### 流程
-
-```
-计算打字延迟
-  ↓
-等待延迟时间
-  ↓
-检查中断信号
-  ↓
-调用 LeanCloud API 发送
-  ↓
-写入 ai_conversation_items
-  ↓
-处理发送失败
-```
-
-### 步骤 1：计算打字延迟
-
-输入：消息文本
-
-计算：详见下文"打字速度计算"章节
-
-输出：延迟时间（毫秒）
-
-### 步骤 2：等待延迟时间
-
-使用异步 sleep，等待计算出的延迟时间
-
-等待期间：
-
-- 定期检查中断信号
-- 如果被中断，立即返回
-
-### 步骤 3：检查中断信号
-
-中断条件：
-
-- 用户发送新消息（创建新的 OPEN buffer）
-- ai_conversation_state.sending_task_id 被清空
-
-如果被中断：
-
-- 停止发送
-- 将未发送的消息写入 pending_messages
-- 返回
-
-### 步骤 4：发送消息
-
-调用 LeanCloud REST API 发送消息
-
-详见：[../message/leancloud.md](../message/leancloud.md)
-
-参数：
-
-- conversation_id: 系统对话 ID
-- from_peer: instance.qiao_id
-- message: 消息内容
-- transient: false
-
-### 步骤 5：写入 ai_conversation_items
-
-发送成功后立即写入：
-
-- role = "assistant"
-- content = 消息内容（JSONB 格式）
-- buffer_id = 触发的 buffer_id
-- created_at = 当前时间（真实发送时间）
-
-注意：每条消息独立插入，不批量插入
-
-### 步骤 6：处理发送失败
-
-如果 LeanCloud API 调用失败：
-
-- 写入 message_delivery_failures 表
-- 记录失败原因
-- 将失败的消息写入 pending_messages
-- 停止后续发送
-
-详见：[../message/failure-handling.md](../message/failure-handling.md)
-
-## 打字速度计算
-
-### 参数
-
-**typing_speed_wpm**
-
-- 来源：ai_instances.typing_speed_wpm
-- 单位：词/分钟（Words Per Minute）
-- 默认值：35 WPM（如果配置缺失或 <= 0）
-
-### 词数计算规则
-
-1 词 = 以下任一：
-
-- 1 个全角字符（中文、日文等）
-- 3 个半角字符（英文、数字等）
-- 1 个 emoji
-- 1 个特殊字符
-
-### 计算公式
-
-```
-秒/词 = 60 / typing_speed_wpm
-总耗时（秒）= 秒/词 * 词数
-总耗时（毫秒）= 总耗时（秒）* 1000
-```
-
-### 示例
-
-消息："你好，今天天气不错！😊"
-
-词数计算：
-
-- "你好，今天天气不错！" = 10 个全角字符 = 10 词
-- "😊" = 1 个 emoji = 1 词
-- 总计：11 词
-
-打字速度：35 WPM
-
-计算：
-
-- 秒/词 = 60 / 35 ≈ 1.71 秒
-- 总耗时 = 1.71 * 11 ≈ 18.86 秒
-- 总耗时（毫秒）= 18860 毫秒
-
-### 边界处理
-
-如果 typing_speed_wpm <= 0 或 NULL：
-
-- 使用默认值 35 WPM
-- 记录 WARNING 日志
-
-如果消息为空：
-
-- 延迟时间 = 0
-- 不发送消息
+- 全部完成：清空 `pending_messages`
+- 抢占中断：写入未发送片段到 `pending_messages`
+- 首条门槛未达成的失败/抢占：buffer 终态为 `CANCELLED`
 
 ## 中断处理
 
 ### 中断触发
 
-**触发条件**：
+- 新 `CONTENT_INPUT` 到达并提升 `ingress_version`
+- 新窗口到期并锁定后，`active_turn_version` 提升
 
-- 用户发送新消息
-- 创建新的 OPEN buffer
+### 中断行为
 
-**检测机制**：
+1. 停止旧 `task_turn_version` 后续发送
+2. 写入未发送 `outgoing` 到 `pending_messages`
+3. 记录 `interrupted_at`
 
-- 查询 ai_message_buffer
-- 条件：user_qiao_id + instance_qiao_id
-- 条件：aggregate_state = 1 (OPEN)
-- 条件：created_at > 当前任务开始时间
+### 下轮处理
 
-### 中断逻辑
+- `pending_messages` 通过 `{{pending_messages}}` 占位符注入到系统提示
 
-**步骤 1：停止发送**
+## should_reply=false
 
-立即停止当前发送任务：
-
-- 取消等待中的延迟
-- 不发送后续消息
-
-**步骤 2：记录未发送消息**
-
-将未发送的消息写入 ai_conversation_state.pending_messages：
-
-- 包括 outgoing_messages 中未发送的
-- 包括 followup_messages 中未发送的
-- 按原顺序保存
-
-**步骤 3：清空任务 ID**
-
-清空 ai_conversation_state.sending_task_id
-
-### 下次处理
-
-**触发时机**：下次 LLM 请求时
-
-**处理逻辑**：
-
-- 通过 {{pending_messages}} 占位符提示 LLM
-- LLM 决定如何处理这些未发送的消息
-- 可能的决策：
-  - 继续发送原消息
-  - 修改后发送
-  - 放弃发送
-
-详见：[prompt-building.md](prompt-building.md#系统占位符)
-
-### 特殊情况
-
-**should_reply = false**
-
-如果 LLM 输出 should_reply = false：
-
-- 清空 ai_conversation_state.pending_messages
-- 清空 ai_conversation_state.sending_task_id
 - 不发送任何消息
+- 清空 `pending_messages`
 
-**目的**：LLM 主动决定不回复，清空待发消息
+## 失败处理
 
-## 发送失败处理
+### 抢占中断（并发路径）
 
-### 失败类型
+- 写入 `pending_messages`
+- 本轮终止
 
-**网络错误**
+### Typing 扇出失败（realtime 路径）
 
-- 超时
-- 连接失败
-- DNS 解析失败
+- 失败仅记录日志
+- 不中断 timeline 主流程
 
-**API 错误**
+### Provider 投递失败（投递失败）
 
-- 4xx 错误（客户端错误）
-- 5xx 错误（服务端错误）
-- 认证失败
+- 消息事实已在 `message_history` / `outbox`
+- 由 outbox 重试链路处理
+- 不写 `pending_messages`
 
-**业务错误**
+详见：`docs/spec/message/failure-handling.md`
 
-- 对话不存在
-- 用户被封禁
-- 消息格式错误
+## 打字速度计算
 
-### 处理策略
+### 参数
 
-**步骤 1：记录失败**
+- 来源：`ai_instances.typing_speed_wpm`
+- 单位：词/分钟
+- 默认值：35（配置缺失或 <= 0）
 
-写入 message_delivery_failures 表：
+### 词数规则
 
-- msg_id_server: 服务端消息 ID
-- failure_reason: 失败原因
-- retry_count: 重试次数（初始为 0）
-- next_retry_at: 下次重试时间
-- created_at: 失败时间
+- 1 全角字符 = 1 词
+- 3 半角字符 = 1 词
+- 1 emoji = 1 词
 
-**步骤 2：写入 pending_messages**
+### 公式
 
-将失败的消息写入 ai_conversation_state.pending_messages
-
-**步骤 3：停止后续发送**
-
-不再发送后续的 outgoing_messages 和 followup_messages
-
-**步骤 4：重试（可选）**
-
-根据失败类型决定是否重试：
-
-- 网络错误：重试
-- 5xx 错误：重试
-- 4xx 错误：不重试
-- 业务错误：不重试
-
-重试策略：
-
-- 指数退避（1s, 2s, 4s, 8s, ...）
-- 最大重试次数：3 次
-- 超过最大次数：放弃重试
-
-详见：[../message/failure-handling.md](../message/failure-handling.md)
-
-## 状态管理
-
-### ai_conversation_state 表
-
-**字段**：
-
-- pending_messages: 未发送的消息列表（JSON 数组）
-- sending_task_id: 当前发送任务 ID
-- last_buffer_id: 最后一次触发的 buffer_id
-
-**用途**：
-
-- 跟踪发送状态
-- 支持中断和恢复
-- 避免重复发送
-
-### 状态转换
-
-```
-空闲
-  ↓ (开始发送)
-发送中 (sending_task_id 非空)
-  ↓ (全部发送成功)
-空闲 (清空 pending_messages 和 sending_task_id)
-
-发送中
-  ↓ (被中断)
-待恢复 (pending_messages 非空, sending_task_id 为空)
-  ↓ (下次 LLM 请求)
-空闲 (LLM 决定如何处理)
+```txt
+秒/词 = 60 / typing_speed_wpm
+总耗时（秒）= 秒/词 * 词数
 ```
 
-## 并发控制
+## 并发约束
 
-### 同会话串行
-
-同一会话（user + instance）的发送任务串行执行：
-
-- 同时只有一个发送任务
-- 新任务启动时，中断旧任务
-
-### 跨会话并行
-
-不同会话的发送任务并行执行：
-
-- 互不影响
-- 独立的状态管理
-
-## 实现位置
-
-- 消息发送：backend/app/services/ai/message/sender.py
-- 打字速度计算：backend/app/services/ai/message/typing.py
-- 中断处理：backend/app/services/ai/message/interruption.py
-- 状态管理：backend/app/services/ai/conversation/state.py
+- 同会话仅允许一个当前代次发送路径
+- 抢占通过 `active_turn_version` 完成跨实例一致性控制
+- 不依赖进程内发送任务状态字典

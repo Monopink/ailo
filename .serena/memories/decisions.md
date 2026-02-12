@@ -88,3 +88,23 @@
 ```
 new_score = old_score + delta * (1 + sensitivity/100)
 ```
+
+---
+
+## Cache Storage: Redis (Not PostgreSQL UNLOGGED)
+**When**: Feb 2025, cache architecture evaluation
+**Context**: Need shared cache for rate limiting, verification codes, WebSocket broadcast
+**Decision**: Use Redis, NOT PostgreSQL UNLOGGED tables
+**Rationale**:
+- WebSocket multi-instance requires PubSub (no PostgreSQL alternative)
+- Celery task queue requires Redis (already planned)
+- Security rate limiting cannot tolerate data loss (UNLOGGED truncates on crash)
+- IM application requires low latency (Redis 10-100x faster)
+- UNLOGGED tables lack: native TTL, atomic operations, replication
+
+**Reference**: See [docs/architecture/cache-storage-options.md](../../docs/architecture/cache-storage-options.md) for detailed analysis
+
+**Implementation**:
+- Phase 1 (MVP): In-memory dict (current)
+- Phase 2 (Pre-prod): Redis in Docker Compose
+- Phase 3 (Prod): Redis Sentinel/Cluster for HA

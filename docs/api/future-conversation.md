@@ -2,7 +2,7 @@
 
 ## 接口列表
 
-- [获取历史消息](#获取历史消息) (该接口废弃，不要进行开发) - `GET /api/v1/contacts/{conv_id}/messages`
+- [获取历史消息](#获取历史消息) (该接口废弃，不要进行开发) - `GET /api/v1/contacts/{conversation_id}/messages`
 
 ---
 
@@ -10,13 +10,13 @@
 
 ### 基本信息
 
-- **路径**: `GET /api/v1/contacts/{conv_id}/messages`
+- **路径**: `GET /api/v1/contacts/{conversation_id}/messages`
 - **认证**: Bearer Token（必需）
 - **分页**: 支持 cursor-based pagination
 
 ### 路径参数
 
-- `conv_id` (string, 必填) - 对话ID
+- `conversation_id` (string, 必填) - 对话ID
 
 ### 请求参数
 
@@ -74,7 +74,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 

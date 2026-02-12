@@ -54,6 +54,7 @@ Square（发现页）负责向用户展示可添加的 AI 联系人，采用随�
 前端展示的信息来自 `profiles` 表：
 
 - `qiao_id` - 来自 `ai_personas.qiao_id`
+- `username` - 来自 `ai_personas.username`（AI 搜索标识）
 - `nickname` - 来自 `profiles.nickname`
 - `avatar_url` - 由 `profiles.avatar_file_id` -> `media_files` -> CDN 动态生成
 - `gender` - 来自 `profiles.gender`
@@ -138,6 +139,7 @@ Square 只负责**展示**，不负责**添加**：
 **关键点**：
 
 - Square 展示的 `qiao_id` 是 persona 的 ID
+- Square 可展示 `username`，但添加时仍以 `qiao_id` 发起请求
 - 添加时使用这个 `qiao_id` 发起请求
 - 后端根据 `qiao_id` 查找 persona 和模板
 - 创建的 instance 继承 persona 的 `qiao_id`
@@ -165,21 +167,6 @@ Square 只负责**展示**，不负责**添加**：
 - 返回 HTTP 429 Too Many Requests
 - 响应体包含 `refresh_available_at`
 - 前端根据此时间显示倒计时
-
-## 监控建议
-
-### 关键指标
-
-- Square 刷新次数（按 category 统计）
-- 每个 type_id 的曝光次数
-- 每个 persona 的曝光次数
-- 空结果返回次数（需要告警）
-
-### 告警规则
-
-- 某个 category 连续返回空结果 > 10 次
-- 某个 type_id 下所有 persona 不可用
-- 刷新频率超限次数过多（可能是攻击）
 
 ## API 接口
 

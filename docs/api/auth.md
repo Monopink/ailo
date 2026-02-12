@@ -11,6 +11,8 @@
 
 > **MVP 说明**：小程序只开放“微信授权登录 + 获取手机号”链路；短信验证码与纯手机号登录接口暂不对外，仅保留以便未来 App/H5 直接复用。
 
+> **登录统一约束**：所有登录签发接口都必须上送 `device_id`（UUID）并稳定复用；服务端与客户端都禁止记录 access_token/refresh_token（包括任何片段）。
+
 ---
 
 ## 发送短信验证码（暂不开放）
@@ -63,18 +65,18 @@
 
 - `"请30秒后再试"` - 超过速率限制
 
-**428 Precondition Required**:
+**400 Bad Request**:
 
 - `"需要完成人机验证后再试"` - 缺少或未通过人机验证
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
 - 需要人机验证（CAPTCHA）防止滥用
-- 当系统开启 CAPTCHA 时，缺少或验证失败将返回 428，并附带 `CAPTCHA_REQUIRED` 错误信息
+- 当系统开启 CAPTCHA 时，缺少或验证失败走保护性拒绝同态策略：对外复用模块内常见用户错误码与文案
 - 服务端强制验证速率限制
 - 返回冷却时间供客户端倒计时显示
 - 支持白名单号码（不受速率限制，用于测试）
@@ -96,7 +98,8 @@
 ```json
 {
   "phone": "+8613800138000",
-  "sms_code": "123456"
+  "sms_code": "123456",
+  "device_id": "33333333-3333-3333-3333-333333333333"
 }
 ```
 
@@ -110,11 +113,17 @@
 - `sms_code` (string, 必填)
   - 6位短信验证码
 
+- `device_id` (string, 必填)
+  - 设备/安装级 UUID
+  - 必须稳定持久化并在同一设备复用
+
 ### 成功响应 (200)
 
 ```json
 {
-  "token": "jwt_token_here",
+  "access_token": "jwt_token_here",
+  "refresh_token": "refresh_token_here",
+  "expires_in": 86400,
   "needs_profile_setup": true,
   "user": {
     "qiao_id": "qiao_abc123",
@@ -129,7 +138,9 @@
 
 **字段说明**:
 
-- `token` (string) - JWT token，用于后续所有需要认证的接口
+- `access_token` (string) - JWT 访问令牌
+- `refresh_token` (string) - 刷新令牌
+- `expires_in` (integer) - Access Token 有效期（秒）
 - `needs_profile_setup` (boolean) - 是否需要跳转到 Setup 页面完善资料；新创建的账号默认为 true
 - `user` (object) - 当前用户资料
   - `avatar_url` 由服务器基于 `avatar_file_id` 动态生成（CDN URL），不会在数据库中以明文字段保存
@@ -143,7 +154,7 @@
 
 **500 Internal Server Error**:
 
-- `"系统错误"` - 服务器内部错误
+- `"系统错误（error_code）"` - 服务器内部错误
 
 ### 业务说明
 
@@ -161,15 +172,21 @@
 
 - **路径**: `POST /api/v1/auth/wechat/login`
 - **认证**: 无需认证
-- **说明**: 仅用 `login_code` 检查 openid 是否已有绑定
+- **说明**: 使用 `login_code + device_id` 检查 openid 是否已有绑定；若已绑定会直接签发 JWT
 
 **请求参数**
 
 ```json
 {
-  "login_code": "wx_login_code"
+  "login_code": "wx_login_code",
+  "device_id": "33333333-3333-3333-3333-333333333333"
 }
 ```
+
+字段说明：
+
+- `login_code` (string, 必填) - 来自 `wx.login()`
+- `device_id` (string, 必填) - 设备/安装级 UUID（稳定复用）
 
 **响应（已绑定）**
 
@@ -217,9 +234,16 @@
 ```json
 {
   "login_code": "wx_login_code",
-  "phone_code": "wx_phone_code"
+  "phone_code": "wx_phone_code",
+  "device_id": "33333333-3333-3333-3333-333333333333"
 }
 ```
+
+字段说明：
+
+- `login_code` (string, 必填) - 来自 `wx.login()`
+- `phone_code` (string, 必填) - 来自 `getPhoneNumber`
+- `device_id` (string, 必填) - 设备/安装级 UUID（稳定复用）
 
 **成功响应 (200)**
 
@@ -254,6 +278,7 @@
 **业务说明**
 
 - 该接口只在用户同意手机号授权后调用。
+- `device_id` 为必填 UUID，必须与客户端本地持久化值一致。
 - 仅支持中国大陆手机号；国际号码直接返回 400。
 - 手机号已存在时会解绑旧微信并绑定到当前微信，轻提示用户；旧微信下次按未绑定流程处理，无需特殊分支。
 - 开发/测试可用虚拟手机号 Mock：`system_configs` 配置 `wechat_phone_mock_enabled=true` 与 `wechat_phone_mock_number`（仅数字，例如 `13812341234`），生产环境不开启。
@@ -306,7 +331,7 @@
 
 **500 Internal Server Error**:
 
-- "系统错误" - 服务器内部错误
+- "系统错误（error_code）" - 服务器内部错误
 
 ### 业务说明
 
@@ -317,9 +342,72 @@
 - 该接口是 MVP 阶段唯一的手机号更新方式，不需要短信验证码。
 - 如果在开发者工具中使用虚拟账号，可复用 `system_configs` 的 `wechat_phone_mock_enabled` 与 `wechat_phone_mock_number`（仅填写数字）配置，让 1206660000x 号码自动替换为指定的中国大陆手机号以便调试。
 
-## 账号密码登录（规划中）
+## 账号密码登录
 
-> 功能尚未开放。未来版本将提供用户名/邮箱/手机号+密码的登录与相关安全策略，暂不需要在客户端接入。
+### 基本信息
+
+- **路径**: `POST /api/v1/auth/login`
+- **认证**: 无需认证
+- **说明**: 使用 username / phone / email + password 登录并签发 JWT
+
+### 请求体
+
+```json
+{
+  "identifier": "alice",
+  "password": "password_here",
+  "device_id": "33333333-3333-3333-3333-333333333333",
+  "device_type": 3
+}
+```
+
+字段说明：
+
+- `identifier` (string, 必填)：登录标识，服务端自动识别
+  - 包含 `@`：按 email 登录
+  - 纯数字：按 phone 登录
+  - 其他：按 username 登录
+- `password` (string, 必填)：密码明文（HTTPS 传输）
+- `device_id` (string, 必填)：设备/安装级 UUID（用于离线消息游标与端点管理）
+- `device_type` (int, 必填)：设备类型（见 `backend/app/enums/common.py::DeviceType`）
+
+### 成功响应 (200)
+
+```json
+{
+  "access_token": "jwt_token_here",
+  "refresh_token": "refresh_token_here",
+  "expires_in": 86400,
+  "needs_profile_setup": false,
+  "user": {
+    "qiao_id": "qiao_abc123",
+    "nickname": "小雨",
+    "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp"
+  }
+}
+```
+
+### 错误响应
+
+- `400 Bad Request`
+  - `"账号或密码错误"`
+- `400 Bad Request`
+  - `"账号已被禁用"`
+- `400 Bad Request`
+  - 风控命中不会使用专用错误码；对外复用 Auth 模块常见可纠正错误码（与普通错误同态）
+
+### 业务说明
+
+- 登录成功后，客户端使用 `access_token` 访问需要认证的 API。
+- `device_id` 必须稳定持久化；Web 客户端使用 `localStorage`。
+- username 规则见 `docs/spec/auth/username.md`。
+
+### 安全约束
+
+- 服务端与客户端都禁止在日志/埋点中记录 access_token/refresh_token（包括任何片段）。
+- 客户端调试日志同样禁止记录 token 前缀、截断值或可逆还原片段。
+- 登录失败提示应避免泄露“账号是否存在”等敏感信息（可能统一失败文案）。
+- 账号密码/微信/手机号登录接口均强制 `device_id`（UUID）。
 
 ---
 
